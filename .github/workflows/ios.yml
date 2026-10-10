@@ -55,7 +55,7 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild test -project strius.xcodeproj -scheme strius \
-            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
             -derivedDataPath "$RUNNER_TEMP/StruisTests" \
             -resultBundlePath "$RUNNER_TEMP/StruisTests.xcresult" \
             -only-testing:striusTests -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
