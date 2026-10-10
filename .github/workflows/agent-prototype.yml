@@ -1,5 +1,5 @@
 name: Agent prototype
-run-name: ${{ inputs.operation == 'register-slots' && 'Prototype slots' || format('Prototype #{0} {1}', inputs.issue, inputs.variant) }}
+run-name: "${{ inputs.operation == 'register-slots' && 'Prototype slots' || format('Prototype #{0} {1}', inputs.issue, inputs.variant) }}"
 
 # Builds one Ad Hoc prototype (prototype/{issue}/{variant}) with its own Bundle
 # IDs and App Group, uploads the IPA to the agent store and posts an expiring
