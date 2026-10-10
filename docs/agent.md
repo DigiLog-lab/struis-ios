@@ -63,7 +63,12 @@ App Store Connect API キーでは App Group の作成と App ID への割当が
 |---|---|---|---|
 | `s01`〜 | `com.digiloglab.strius.preview.sNN` | `.runtime`、`.exec` | `group.com.digiloglab.strius.preview.sNN` |
 
-枠を追加するときは `agent-prototype.yml` を `operation=register-slots`、`slot_count` に新しい合計数で実行します(App ID と App Groups capability を API で作成し、summary にポータルでの残り作業を表示します)。その後 Developer ポータルで App Group を登録し、3つの App ID の App Groups に割り当てます。未使用の枠が無いと、ビルドはその旨を Issue に報告して止まります。
+枠を追加するときは `agent-prototype.yml` を `operation=register-slots`、`slot_count` に新しい合計数で実行します(App ID と App Groups capability を API で作成し、summary にポータルでの残り作業を表示します)。その後 Developer ポータルで次の2つを行います。
+
+1. App Group を登録し、3つの App ID の App Groups に割り当てる。
+2. `.runtime` と `.exec` の App ID で **Enhanced Security** を有効にする(本番の extension と同じ。`com.apple.security.hardened-process` 系の entitlement に必要で、API では設定できません)。
+
+未使用の枠が無い場合や、profile に App Group・Enhanced Security が含まれない場合、ビルドは原因を Issue に報告して止まります。
 
 ### 配布ファイルの保護
 
@@ -82,7 +87,7 @@ App Store Connect API キーでは App Group の作成と App ID への割当が
    openssl rand -base64 48 | npx wrangler secret put LINK_SECRET
    ```
    Worker の URL が既定と異なる場合は Repository variable `AGENT_STORE_URL` に設定します。保存用の秘密値は GitHub に置きません。
-3. **GitHub**: ラベル `agent` を作成し、environment `prototype-distribution` を `main` 限定で作成します。任意の Repository variables は `AGENT_MODEL`(既定 `opus`)、`AGENT_EFFORT`、`AGENT_ALLOWED_USERS`、`AGENT_LABEL`、`AGENT_BUNDLE_PREFIX` です。
+3. **GitHub**: ラベル `agent` を作成し、environment `prototype-distribution` を `main` 限定で作成します。エージェントに Pull Request を作らせる場合は、Settings → Actions → General → Workflow permissions の「Allow GitHub Actions to create and approve pull requests」を有効にします(無効のままだと、エージェントはブランチを push して PR の作成手順を Issue に返します)。任意の Repository variables は `AGENT_MODEL`(既定 `opus`)、`AGENT_EFFORT`、`AGENT_ALLOWED_USERS`、`AGENT_LABEL`、`AGENT_BUNDLE_PREFIX` です。
 4. **Apple**: 既存の署名用 Secrets(`BUILD_CERTIFICATE_BASE64`、`P12_PASSWORD`、`APP_STORE_CONNECT_*`、`STRUIS_DELIVERY_APP_KEY`)を使います。API キーは App ID と profile を作成できる権限が必要です。`register-slots` を実行し、Developer ポータルで App Group を登録・割り当てます。テスト端末は Apple Developer に登録しておきます(Ad Hoc の端末数上限に従います)。
 5. `Native runtime cache` workflow を一度実行して cache を作ります。
 
