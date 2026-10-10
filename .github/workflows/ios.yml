@@ -43,20 +43,45 @@ jobs:
           fi
           rustup toolchain install 1.95.0 --profile minimal
           rustup target add --toolchain 1.95.0 aarch64-apple-ios aarch64-apple-ios-sim
+      - name: 公開ソースを新規clone
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git -c credential.helper= -c http.extraHeader= clone https://github.com/DigiLog-lab/struis-ios.git "$RUNNER_TEMP/StruisPublicClone"
+          cd "$RUNNER_TEMP/StruisPublicClone"
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          empty = not any(Path(path).exists() for path in ('NativeRuntime/Vendor', 'NativeRuntime/.build', 'NativeRuntime/PackageCache', 'NativeRuntime/PythonPackages')) and not Path(os.environ['RUNNER_TEMP'], 'StruisCargoCold').exists()
+          assert commit == os.environ['GITHUB_SHA'] and empty
+          print(json.dumps({'publicCloneSourceCommit': commit, 'publicCloneCacheEmpty': empty}))
+          PY
+          printf 'STRUIS_SOURCE_ROOT=%s\nCARGO_HOME=%s\n' "$RUNNER_TEMP/StruisPublicClone" "$RUNNER_TEMP/StruisCargoCold" >> "$GITHUB_ENV"
       - name: 固定依存を生成
         env:
           CARGO_BUILD_JOBS: '2'
-        run: python NativeRuntime/Scripts/bootstrap.py --platform both
+        run: |
+          cd "${STRUIS_SOURCE_ROOT:-$GITHUB_WORKSPACE}"
+          python3.14 NativeRuntime/Scripts/bootstrap.py --platform both
       - name: ビルド用cacheを整理
         run: |
           set -euo pipefail
+          cd "${STRUIS_SOURCE_ROOT:-$GITHUB_WORKSPACE}"
           rm -rf NativeRuntime/.build/codex NativeRuntime/.build/codex-artifacts
+      - name: READMEのSimulatorビルド
+        run: |
+          set -euo pipefail
+          cd "${STRUIS_SOURCE_ROOT:-$GITHUB_WORKSPACE}"
+          xcodebuild build -project strius.xcodeproj -scheme strius \
+            -destination 'generic/platform=iOS Simulator' ARCHS=arm64 CODE_SIGNING_ALLOWED=NO
       - name: Simulatorで単体テスト
         run: |
           set -euo pipefail
+          cd "${STRUIS_SOURCE_ROOT:-$GITHUB_WORKSPACE}"
           xcodebuild test -project strius.xcodeproj -scheme strius \
             -destination 'platform=iOS Simulator,name=iPhone 17' \
-            -derivedDataPath "$RUNNER_TEMP/StruisTests" \
             -resultBundlePath "$RUNNER_TEMP/StruisTests.xcresult" \
             -only-testing:striusTests -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
       - name: 署名付きarchiveを作成
@@ -75,6 +100,7 @@ jobs:
           BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
           set -euo pipefail
+          cd "${STRUIS_SOURCE_ROOT:-$GITHUB_WORKSPACE}"
           args=(--output "$RUNNER_TEMP/StruisArchive")
           if [[ "$UPLOAD" == "true" ]]; then
             args+=(--upload --build-number "$BUILD_NUMBER")
