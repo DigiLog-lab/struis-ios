@@ -40,6 +40,11 @@ COMPONENTS = {  # Xcode product name -> bundle suffix
     'StruisRuntime': '.runtime',
     'StruisExec': '.exec',
 }
+ENTITLEMENTS = {
+    'strius': 'NativeRuntime/Runtime.entitlements',
+    'StruisRuntime': 'NativeRuntime/Worker/RuntimeWorker.entitlements',
+    'StruisExec': 'NativeRuntime/Worker/RuntimeWorker.entitlements',
+}
 WORKER_SOURCE = 'NativeRuntime/Worker/RuntimeWorker.swift'
 WORKER_LITERAL = 'AppExtensionPoint.Identifier(host: "com.digiloglab.strius", name: "Runtime")'
 ICON = 'strius/Assets.xcassets/AppIcon.appiconset/app-icon-1024.png'
@@ -273,6 +278,12 @@ def ensure_profiles(asc, meta, serial, private):
                                  'Developer ポータルで App Groups を設定してから再実行してください。')
         else:
             decoded, _ = decode(reusable)
+        requested = plistlib.loads((workspace() / ENTITLEMENTS[product]).read_bytes())
+        hardened = sorted(key for key in requested if key.startswith('com.apple.security.hardened-process'))
+        if hardened and not any(key.startswith('com.apple.security.hardened-process') for key in decoded['Entitlements']):
+            raise BuildError('provisioning',
+                             f'App ID {identifier} で Enhanced Security が有効ではありません'
+                             f"(要求: {', '.join(hardened)})。Developer ポータルで有効にしてから再実行してください。")
         profiles[product] = {'uuid': decoded['UUID'], 'name': decoded['Name'], 'path': path, 'bundle': identifier,
                              'expires': decoded['ExpirationDate'].isoformat(), 'devices': len(decoded.get('ProvisionedDevices', [])),
                              'reused': bool(reusable)}
