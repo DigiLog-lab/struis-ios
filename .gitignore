@@ -1,0 +1,39 @@
+# Local credentials and service configuration
+auth.json
+**/auth.json
+.codex/
+.env
+.env.*
+!.env.example
+Config/Local.xcconfig
+*.p12
+*.mobileprovision
+*.key
+# Generated dependencies, build products and local evidence
+.DS_Store
+DerivedData/
+*.xcarchive/
+*.ipa
+*.xcresult/
+*.xcuserstate
+**/xcuserdata/
+**/__pycache__/
+**/target/
+NativeRuntime/Vendor/
+NativeRuntime/.build/
+NativeRuntime/PackageCache/
+NativeRuntime/PythonPackages/
+NativeRuntime/VirtualPythonTestAssets/*
+!NativeRuntime/VirtualPythonTestAssets/.gitkeep
+NativeRuntime/VirtualPythonGitTestAssets/*
+!NativeRuntime/VirtualPythonGitTestAssets/.gitkeep
+NativeRuntime/ThreadedPythonFoundationTestAssets/
+striusTests/Fixtures/DeliveredScripts/
+verification/
+evidence/
+logs/
+.e2e/
+scripts/e2e/ocr
+
+# Xcode-generated service association; CI uses GitHub Actions.
+strius.xcodeproj/xcshareddata/xcodecloud/

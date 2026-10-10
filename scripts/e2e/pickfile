@@ -1,0 +1,9 @@
+#!/bin/zsh
+# pickfile <name-substring> : open composer Files picker and pick first search hit
+$E2E_TOOLS/ui.py tapid id=添付 >/dev/null; sleep 1; $E2E_TOOLS/ui.py tap x=152 y=744 >/dev/null; sleep 4
+$E2E_TOOLS/ui.py tapid id=Browse timeout=3 >/dev/null; sleep 1
+$E2E_TOOLS/ui.py tap x=200 y=154 >/dev/null; sleep 1; $E2E_TOOLS/ui.py type text="$1" >/dev/null; sleep 3
+$E2E_TOOLS/ui.py tapid id=Continue timeout=1 >/dev/null
+$E2E_TOOLS/ui.py tap x=70 y=330 >/dev/null; sleep 1
+$E2E_TOOLS/ui.py tapid id=Open timeout=3
+sleep 3; $E2E_TOOLS/ui.py tree >/dev/null; grep -oE "label: '[^']*\.(pdf|jpg|png|svg|docx|heic)'|attachmentError|読み込めません|できません[^']*" $E2E_DIR/drv/tree.txt | sort -u

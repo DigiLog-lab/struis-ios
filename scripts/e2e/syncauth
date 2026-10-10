@@ -1,0 +1,3 @@
+#!/bin/zsh
+G=$(find ~/Library/Developer/CoreSimulator/Devices/$E2E_UDID/data/Containers/Data/Application -path '*StruisRuntime/codex/auth.json' 2>/dev/null | head -1)
+[ -n "$G" ] && ! cmp -s "$G" $E2E_DIR/auth/auth.json && cp "$G" $E2E_DIR/auth/auth.json && echo "auth synced from guest" || echo "auth unchanged"

@@ -1,0 +1,9 @@
+# Captured turn lease
+
+このcrateはimmutableなthread/turn identityと保持したauthorityを提供します。`NativeCodex/ios/turn_lease.rs`のtrusted factoryがgenerationとscoped filesystemを結び付けます。model path、config、history、child environmentから権限を発行しません。
+
+revokeはcallbackの完了までcallersを直列化します。live bitだけで保持済みfilesystemやhandleを制限できないため、callbackは実際のcapabilityもrevokeする必要があります。非同期作業を停止したcallerへ依存するcallbackは使用できません。
+
+`Scripts/prepare-turn-lease.py`は固定Sessionのmedia conversionをcaptured filesystemへ接続します。添付はtrusted ingressがworkspaceへstageし、LocalImage/LocalAudioのpath文字列だけを権限として扱いません。historyに既に含まれるdata URLと新しいfile readを区別します。
+
+隣の`TurnLeaseIntegration`は合成Rust fixtureからtrusted factoryを接続し、実descriptorとprivate canaryで検査します。学習者の台帳や認証は入力にしません。アプリの実際の接続は`Scripts/prepare-codex.py`とNativeCodex側のissuer・role snapshotも併せて確認してください。

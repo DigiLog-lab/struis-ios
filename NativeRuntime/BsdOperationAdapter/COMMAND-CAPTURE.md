@@ -1,0 +1,9 @@
+# fdopenとFILE状態・拒否記録
+
+fdopenは同じtableとexact scopeのlive logical descriptorをadoptします。pathnameを再openせず、native OS FDを受け取りません。成功後だけdescriptor所有権をFILEへ移し、失敗時は元callerが保持します。permissionの拡大、shared appendの変更、create/truncateは行いません。
+
+ferror/feof/clearerrもowned registryとlive authorityを検査します。clearerrはlibcの状態だけを消し、trusted refusal latchを消しません。latchは最初のoperation・errnoと有限count/saturationを保持し、未知のpointerやforeign scopeから他tableを変更しません。
+
+dispatcherは実flush/close結果と拒否記録を読み取り、native codeがreturn値を無視した場合も失敗を失わないように扱います。diagnostic APIはguest toolではありません。
+
+`tests/pinned_algorithms.py`は`HYOTAN_PINNED_IOS_SYSTEM_SOURCE`で指定した固定ios_system revisionとcat.c/head.cのhashを照合して、元のraw_cat/head_bytesを一時callerへ抽出します。欠損・差異は失敗です。選択したfunction bodyの検査と、whole CLI・registry・pipelineの確認は別です。

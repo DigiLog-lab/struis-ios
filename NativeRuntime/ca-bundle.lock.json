@@ -1,0 +1,9 @@
+{
+  "name": "webpki-root-certs",
+  "version": "1.0.9",
+  "source": "registry+https://github.com/rust-lang/crates.io-index",
+  "selectedLicense": "CDLA-Permissive-2.0",
+  "certificateCount": 121,
+  "sourceSHA256": "8a3181076b1f6561502d0e6faab947c99ac0d5aa2248184f482e21ceeb8f18a8",
+  "pemSHA256": "a8e00c3793f619a1b7a6cd50211ec0081836f83cef4b237e8cb52876e72da9c2"
+}

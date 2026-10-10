@@ -1,0 +1,51 @@
+[package]
+name = "hyotan-codex"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["staticlib"]
+
+[features]
+default = ["codex"]
+codex = ["dep:codex-app-server", "dep:codex-config", "dep:codex-arg0", "dep:codex-utils-cli", "dep:codex-protocol", "dep:tokio", "dep:codex-exec-server", "dep:hyotan-appserver-operation-harness", "operations"]
+operations = ["dep:libc", "dep:hyotan-operation-harness"]
+search = ["dep:grep-regex", "dep:grep-searcher", "dep:ignore", "dep:libc"]
+
+[dependencies]
+grep-regex = { version = "=0.1.14", optional = true }
+grep-searcher = { version = "=0.1.17", optional = true }
+ignore = { version = "0.4", optional = true }
+libc = { version = "0.2", optional = true }
+codex-app-server = { path = "../Vendor/codex-source/codex-rs/app-server", optional = true }
+codex-config = { path = "../Vendor/codex-source/codex-rs/config", optional = true }
+codex-arg0 = { path = "../Vendor/codex-source/codex-rs/arg0", optional = true }
+codex-utils-cli = { path = "../Vendor/codex-source/codex-rs/utils/cli", optional = true }
+codex-protocol = { path = "../Vendor/codex-source/codex-rs/protocol", optional = true }
+codex-exec-server = { path = "../Vendor/codex-source/codex-rs/exec-server", optional = true }
+hyotan-appserver-operation-harness = { path = "../AppServerOperationHarness", optional = true }
+hyotan-operation-harness = { path = "../OperationHarness", optional = true }
+tokio = { version = "1", features = ["rt-multi-thread"], optional = true }
+
+[profile.release]
+opt-level = "s"
+codegen-units = 1
+
+# macOS 27 rejects misaligned LINKEDIT data produced when Rust strips
+# host proc-macro dylibs. Keep their debug info; device code is unchanged.
+[profile.release.build-override]
+debug = true
+strip = "none"
+
+[patch.crates-io]
+dirs-sys = { path = "../Vendor/dirs-sys" }
+# Uncomment to debug local changes.
+# ratatui = { path = "../../ratatui" }
+crossterm = { git = "https://github.com/openai-oss-forks/crossterm", rev = "45fecb9508105988f42fe6ff0441783ed3717f92" }
+tokio-tungstenite = { git = "https://github.com/openai-oss-forks/tokio-tungstenite", rev = "0e5b2d73aa18dd9f0a50ee9ff199d5aef7594186" }
+tungstenite = { git = "https://github.com/openai-oss-forks/tungstenite-rs", rev = "4fffad30fe373adbdcffab9545e9e9bf4f2fc19f" }
+
+# Uncomment to debug local changes.
+# rmcp = { path = "../../rust-sdk/crates/rmcp" }

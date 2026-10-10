@@ -1,0 +1,3 @@
+#!/bin/zsh
+# say "<text>" : type into chat composer and send
+$E2E_TOOLS/ui.py tap x=200 y=800 >/dev/null; sleep 0.7; $E2E_TOOLS/ui.py type text="$1" >/dev/null; sleep 0.5; $E2E_TOOLS/ui.py tapid id=送信; date +%T

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Scheme LastUpgradeVersion="2700" version="1.3">
+  <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES">
+    <BuildActionEntries>
+      <BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="NO" buildForArchiving="NO" buildForAnalyzing="YES">
+        <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="992C09AC2F927BB8009FF690" BuildableName="strius.app" BlueprintName="strius" ReferencedContainer="container:strius.xcodeproj"/>
+      </BuildActionEntry>
+    </BuildActionEntries>
+  </BuildAction>
+  <TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="NO">
+    <Testables>
+      <TestableReference skipped="NO" parallelizable="NO">
+        <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="992C09BB2F927BB9009FF690" BuildableName="striusTests.xctest" BlueprintName="striusTests" ReferencedContainer="container:strius.xcodeproj"/>
+        <SelectedTests>
+          <Test Identifier="NativeRuntimeLiveTests"/>
+          <Test Identifier="NativeMemoryObservationTests"/>
+          <Test Identifier="ModelImageStagingTests"/>
+          <Test Identifier="OperationHarnessTests"/>
+          <Test Identifier="WorkspaceOperationBrokerTests"/>
+          <Test Identifier="VirtualPythonCommandBridgeTests"/>
+          <Test Identifier="VirtualPythonPlatformTests"/>
+          <Test Identifier="VirtualPythonFilesystemTests"/>
+          <Test Identifier="ThreadedPythonFoundationTests"/>
+          <Test Identifier="VirtualPythonProviderTransportTests"/>
+          <Test Identifier="WKProviderTransportTests"/>
+          <Test Identifier="TurnRecoveryTests"/>
+          <Test Identifier="NativeMigrationTests/testCodexHomeMovesIntoAppAndLeavesNoCredentialsInAppGroup"/>
+          <Test Identifier="NativeMigrationTests/testSavedPlanPathsResolveAgainstCurrentContainer"/>
+          <Test Identifier="ChatKickoffTests"/>
+          <Test Identifier="WaitingExperienceTests"/>
+        </SelectedTests>
+      </TestableReference>
+    </Testables>
+    <EnvironmentVariables>
+      <EnvironmentVariable key="STRUIS_NATIVE_LIVE" value="1" isEnabled="YES"/>
+      <EnvironmentVariable key="STRUIS_THREADED_PYTHON_LIVE" value="1" isEnabled="YES"/>
+      <EnvironmentVariable key="STRUIS_VIRTUAL_PYTHON_LIVE" value="1" isEnabled="YES"/>
+      <EnvironmentVariable key="STRUIS_COMPOUND_DASH_PREPARATION" value="1" isEnabled="YES"/>
+      <EnvironmentVariable key="STRUIS_DEVICE_RUNTIME" value="0" isEnabled="YES"/>
+    </EnvironmentVariables>
+  </TestAction>
+  <LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" debugServiceExtension="internal" allowLocationSimulation="YES">
+    <BuildableProductRunnable runnableDebuggingMode="0">
+      <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="992C09AC2F927BB8009FF690" BuildableName="strius.app" BlueprintName="strius" ReferencedContainer="container:strius.xcodeproj"/>
+    </BuildableProductRunnable>
+  </LaunchAction>
+  <AnalyzeAction buildConfiguration="Debug"/>
+</Scheme>

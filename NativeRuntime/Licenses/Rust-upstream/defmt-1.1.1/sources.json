@@ -1,0 +1,12 @@
+[
+  {
+    "url": "https://raw.githubusercontent.com/knurling-rs/defmt/9087a689a32aaae57c7ec2058d15d9c98c12bc81/LICENSE-MIT",
+    "file": "NOTICE-0.txt",
+    "sha256": "2710a622a896bba67356913d4d0492cab5465f61b2ecce6d880aeb483834fb50"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/knurling-rs/defmt/9087a689a32aaae57c7ec2058d15d9c98c12bc81/LICENSE-APACHE",
+    "file": "NOTICE-1.txt",
+    "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90"
+  }
+]

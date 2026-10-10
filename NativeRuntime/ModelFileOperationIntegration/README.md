@@ -1,0 +1,9 @@
+# Codex file operation source preparation
+
+固定Codexのapply_patch parser、検証とpatch適用を、実`ExecutorFileSystem`とdescriptor capability adapterで試験するsource profileです。`patch-profile.json`に元sourceとprofileのhashを記録します。
+
+patchアルゴリズムとfilesystem操作は上流のbytesを保持します。単独試験のprofileはstandalone executableを除き、同じfilesystem型のreexportを使用して、無関係のHTTP/TLS/process依存をコンパイル対象から外します。
+
+`Scripts/prepare-model-file-operations.py`はcaptured filesystemをpatch preflight/runtimeとToolEnvironmentへ接続します。permission contextは必須で、解決失敗をunrestricted fallbackへ移しません。captured execution providerがないnon-patch unified execはnative process実行前に拒否します。未接続のlegacy動作は維持します。
+
+テストは許可されたupdate、absolute/parent/link等のprivate canary拒否、read-only policy、revoke後のcached filesystem、次のgrantとlegacy選択を確認します。単独profileと実AppServer RPC、Apple worker・model turnの検証は区別してください。アプリ側の設定・認証・role等は別のtrusted lifecycleを持ちます。

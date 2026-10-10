@@ -1,0 +1,9 @@
+# Regular-file FILE adapter
+
+`HyotanBsdStdio`はLinuxのfopencookie、Darwinのfunopenからlogical regular-file descriptorへ実I/Oを接続します。FILEはtable lifetime pinを保持し、destroyはcookieが残る間EBUSYになります。fcloseはbufferを解放し、revoke後もpinを解放します。
+
+選択されたnative call siteはfread/fwrite/getc/putc/seek/flush等のexplicit wrapperを呼ぶ必要があります。wrapperはlibc cacheを読む前にauthorityを確認し、cookie callbackは実I/Oでも再検査します。raw libcやinline macroはこの検査を通らないため、FILE callbackだけでcached bytesを保護したとは扱えません。
+
+registryは実FILE pointer identityとexact scopeを検査します。unknown/foreign/revoked FILEは拒否します。buffered writeの成功は受付を意味し、永続化は成功したfflush/fcloseで確認します。failureは実errnoとsanitized reasonを保持します。
+
+regular FILE操作はrecursive mutexで直列化します。blocking pipeへこのlock契約を流用せず、pipeの取消・寿命はSTREAM-CLASSESの別契約で扱います。単独のLinux cookie試験とDarwin SDK・workerでの実行は区別してください。

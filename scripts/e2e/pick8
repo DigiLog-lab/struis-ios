@@ -1,0 +1,6 @@
+#!/bin/zsh
+# open composer photo picker and pick 8 photos
+$E2E_TOOLS/ui.py tapid id=添付 >/dev/null; sleep 1; $E2E_TOOLS/ui.py tap x=98 y=744 >/dev/null; sleep 4
+for xy in 66,410 201,410 334,410 66,546 201,546 334,546 66,682 201,682; do $E2E_TOOLS/ui.py tap x=${xy%,*} y=${xy#*,} >/dev/null; done
+$E2E_TOOLS/ui.py tap x=364 y=144 >/dev/null; sleep 6
+$E2E_TOOLS/ui.py tree >/dev/null; grep -oE "label: 'photo-[0-9]+\.jpg'" $E2E_DIR/drv/tree.txt | sort -u | wc -l

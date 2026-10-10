@@ -1,0 +1,232 @@
+import SwiftUI
+
+/// Top-level shell for the app. The root is the workbook home 「単元」; the
+/// chat is the 「質問」 child screen opened from the top-right pill or embedded
+/// in a subunit's stage 1/2. Sign-in is delegated to AuthStore + SignInEntryView.
+struct AppRootView: View {
+    @Environment(AuthStore.self) private var auth
+    @Environment(BootstrapStore.self) private var bootstrap
+    @Environment(ChatStore.self) private var chat
+    @Environment(APIClient.self) private var apiClient
+    @Environment(LearnerData.self) private var learnerData
+    @Environment(WorkbookStore.self) private var workbook
+    @Environment(WorkbookCoordinator.self) private var coordinator
+    @Environment(LearningFeedRuntimeServices.self) private var learningFeedRuntime
+
+    /// オンボーディングは Release でも出す(§7.2)。完了は端末に保存し、2 回目の起動からは出さない。
+    @State private var isShowingOnboarding = Self.initiallyShowsOnboarding
+    @State private var onboardingSessionID = 0
+    /// オンボーディングの完了を保存している最中(続けて押されても 2 回目は受けない)。
+    @State private var isCompletingOnboarding = false
+    /// オンボーディングで選んだ教材を保存できなかった(オンボーディングは閉じずに、もう一度押してもらう)。
+    @State private var onboardingSaveFailed = false
+    @State private var isSettingsPresented = false
+
+    private static var initiallyShowsOnboarding: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-reset-onboarding") {
+            UserDefaults.standard.removeObject(forKey: OnboardingProfile.completedKey)
+            UserDefaults.standard.removeObject(forKey: OnboardingProfile.profileKey)
+            UserDefaults.standard.removeObject(forKey: OnboardingProfile.unitCreationThreadKey)
+        }
+        #endif
+        return showsOnboardingOnSignIn
+    }
+
+    /// サインインした時にオンボーディングを出すか(完了の記録が無い)。
+    private static var showsOnboardingOnSignIn: Bool {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-learning-feed-e2e") || arguments.contains("-skip-onboarding") || arguments.contains("-workbook") {
+            return false
+        }
+        #endif
+        return !OnboardingProfile.isCompleted()
+    }
+
+    var body: some View {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-immersion-lab") {
+            ImmersionLabView()
+        } else if ProcessInfo.processInfo.arguments.contains("-problem-catalog-lab") {
+            ProblemCatalogLabView()
+        } else {
+            standardRootContent
+        }
+        #else
+        standardRootContent
+        #endif
+    }
+
+    private var standardRootContent: some View {
+        // サインイン → オンボーディング → ホーム。
+        Group {
+            if auth.canUseApp, isShowingOnboarding {
+                OnboardingPrototypeView { profile, attachments in
+                    guard !isCompletingOnboarding else { return }
+                    isCompletingOnboarding = true
+                    // サインアウトを始めた時点で変わる(サインアウトの後始末を待たずに、保存を無効にする)。
+                    let generation = auth.sessionGeneration
+                    Task {
+                        defer { isCompletingOnboarding = false }
+                        // 選んだ教材は、完了の印を付ける前に端末へ保存して保留にする(途中でアプリが終わっても失わない)。
+                        // 回答と教材が新しくなったので、作りかけの単元づくりの会話と前に保留した教材は使わず、新しい会話で始める
+                        // (今回「今は追加しない」を選んだ時も、前の教材を送らない)。
+                        let stored: [ChatTurns.Attachment]
+                        do {
+                            stored = try await ChatStore.storeAttachmentsInBackground(attachments)
+                        } catch {
+                            // 保存できなかった: 教材を黙って落とさず、オンボーディングを開いたまま知らせる。
+                            onboardingSaveFailed = true
+                            return
+                        }
+                        // 保存している間にサインアウト・別の学習者のサインインがあったら、何も書かない。
+                        guard generation == auth.sessionGeneration, auth.canUseApp else {
+                            ChatStore.removeStoredAttachments(stored)
+                            return
+                        }
+                        ChatStore.removeStoredAttachments(OnboardingProfile.pendingUnitCreationAttachments())
+                        OnboardingProfile.setPendingUnitCreationAttachments(stored)
+                        UserDefaults.standard.removeObject(forKey: OnboardingProfile.unitCreationThreadKey)
+                        profile.save()
+                        OnboardingProfile.markCompleted()
+                        isShowingOnboarding = false
+                        // 最初の単元を作る: 質問画面の単元づくり。モデルが先に問いを出す(§13.12)。教材は保留から使う。
+                        coordinator.createUnit(attachments: [])
+                    }
+                }
+                .id(onboardingSessionID)
+                // 教材を保存している間は、戻る・答えを変える・教材を外すを受けない(押した時の答えと教材で保存するため)。
+                .disabled(isCompletingOnboarding)
+                .overlay {
+                    if isCompletingOnboarding {
+                        ProgressView("保存しています")
+                            .padding(20)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+                            .accessibilityIdentifier("onboarding-saving")
+                    }
+                }
+                .onAppear { chat.start() }
+                .alert("教材を保存できませんでした", isPresented: $onboardingSaveFailed) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text("端末の空き容量を確かめて、もう一度「最初の単元を作る」を押してください。")
+                }
+            } else {
+                authenticatedContent
+            }
+        }
+        #if DEBUG
+        .overlay(alignment: .topLeading) { MainThreadWatchdogProbe() }
+        #endif
+        // 台帳・配信の準備と中断ターンの後始末は、オンボーディング中にも進める。
+        // サインアウトでオンボーディングの記録は消える。次にサインインした学習者にはオンボーディングから見せる。
+        .onChange(of: auth.canUseApp) { wasSignedIn, signedIn in
+            if wasSignedIn, !signedIn, !OnboardingProfile.isCompleted() { isShowingOnboarding = true }
+            // 起動時の復元でセッションが終わって記録が消えた後(サインイン済みの状態を一度も通らない)に
+            // サインインした時も、完了の記録が無ければオンボーディングから始める。
+            if signedIn, !isShowingOnboarding, Self.showsOnboardingOnSignIn { isShowingOnboarding = true }
+        }
+        .task(id: auth.canUseApp) {
+            guard auth.canUseApp else { return }
+            await learnerData.prepare(client: apiClient)
+            // Fixtures may have just seeded the ledger; re-read the thread list.
+            await bootstrap.refreshThreads()
+            await learnerData.turns.resumeUnfinished()
+        }
+        .font(Typography.body)
+        .animation(.easeInOut(duration: Theme.Duration.standard), value: auth.canUseApp)
+        .task(id: bootstrap.user?.id) {
+            if Auth0Config.authenticationRequired, let userID = bootstrap.user?.id.uuidString {
+                learningFeedRuntime.start(userID: userID)
+            }
+        }
+        .task {
+            if Auth0Config.authenticationRequired { await learningFeedRuntime.restoreCachedUserID() }
+        }
+    }
+
+    @ViewBuilder
+    private var authenticatedContent: some View {
+        Group {
+            if auth.canUseApp {
+                WorkbookHomeView(onOpenSettings: { isSettingsPresented = true })
+                    .sheet(isPresented: $isSettingsPresented) {
+                        RootSettingsSheet(onReplayOnboarding: {
+                            withAnimation(.easeInOut(duration: Theme.Duration.standard)) {
+                                onboardingSessionID += 1
+                                isShowingOnboarding = true
+                            }
+                        })
+                        .presentationDetents([.large])
+                    }
+                    .onAppear { chat.start() }
+                    .task {
+                        if case .idle = bootstrap.loadState {
+                            await bootstrap.refresh()
+                        }
+                    }
+            } else if auth.isRestoring {
+                SessionRestoringView()
+            } else {
+                SignInEntryView()
+            }
+        }
+    }
+}
+
+private struct SessionRestoringView: View {
+    var body: some View {
+        ZStack {
+            Theme.ground.ignoresSafeArea()
+            ProgressView().progressViewStyle(StruisProgressViewStyle())
+                .controlSize(.large)
+                .tint(.secondary)
+        }
+    }
+}
+
+private struct RootSettingsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let onReplayOnboarding: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            SettingsView {
+                dismiss()
+                onReplayOnboarding()
+            }
+            .navigationTitle("設定")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("閉じる") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+#if DEBUG
+#Preview("AppRootView — Workbook home") {
+    let client = APIClient()
+    let auth = AuthStore(client: client)
+    let learnerData = LearnerData(runtime: nil)
+    let bootstrap = BootstrapStore(client: client, ledger: learnerData.ledger)
+    let chat = ChatStore(ledger: learnerData.ledger, turns: learnerData.turns)
+    let settings = SettingsStore(runtime: nil)
+    let learningFeedRuntime = LearningFeedRuntimeServices(api: client)
+    let workbook = WorkbookStore(ledger: learnerData.ledger, turns: learnerData.turns)
+    AppRootView()
+        .environment(client)
+        .environment(auth)
+        .environment(bootstrap)
+        .environment(chat)
+        .environment(settings)
+        .environment(learnerData)
+        .environment(learningFeedRuntime)
+        .environment(workbook)
+        .environment(WorkbookCoordinator())
+}
+#endif

@@ -1,0 +1,12 @@
+#!/bin/zsh
+# turn "<text>" [maxsec]: send and wait until the 停止 button disappears; prints elapsed
+start=$(date +%s); $E2E_TOOLS/say "$1" >/dev/null
+max=${2:-600}; sleep 3
+while true; do
+  $E2E_TOOLS/ui.py tree >/dev/null
+  if ! grep -q "identifier: 'chat-page', label: '停止'" $E2E_DIR/drv/tree.txt; then break; fi
+  [ $(( $(date +%s)-start )) -gt $max ] && { echo "STILL RUNNING after $max s"; break; }
+  sleep 3
+done
+echo "elapsed $(( $(date +%s)-start ))s at $(date +%T)"
+grep -c "assistant-message" $E2E_DIR/drv/tree.txt

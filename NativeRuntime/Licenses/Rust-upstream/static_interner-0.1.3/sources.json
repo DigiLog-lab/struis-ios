@@ -1,0 +1,17 @@
+[
+  {
+    "url": "https://raw.githubusercontent.com/facebook/buck2/f90bfd1dc4376ecdad40048d7644cdac809f328b/LICENSE-MIT",
+    "file": "NOTICE-0.txt",
+    "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/facebook/buck2/f90bfd1dc4376ecdad40048d7644cdac809f328b/LICENSE-APACHE",
+    "file": "NOTICE-1.txt",
+    "sha256": "50e6751797c50dedd75ef1b8a0d9e42f5f8472e9fbce91f34718e9f97b0c780a"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/facebook/buck2/f90bfd1dc4376ecdad40048d7644cdac809f328b/NOTICE",
+    "file": "NOTICE-2.txt",
+    "sha256": "b3355ad324483539ba40a8ad85bcaa5c03c19b6b54831e3f7f3b67f56ac4982e"
+  }
+]

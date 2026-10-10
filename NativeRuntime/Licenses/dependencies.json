@@ -1,0 +1,187 @@
+[
+  {
+    "name": "ios_system",
+    "version": "ebc045299e56edaf3509144d43a7f7348af400a7",
+    "selectedLicense": "BSD-3-Clause",
+    "notice": "ios_system.txt",
+    "framework": "ios_system-native",
+    "scope": "runtime"
+  },
+  {
+    "name": "files",
+    "version": "ebc045299e56edaf3509144d43a7f7348af400a7",
+    "selectedLicense": "BSD-family AND LicenseRef-Less",
+    "notice": "BSD-command-notices.txt",
+    "framework": "files-native",
+    "scope": "runtime"
+  },
+  {
+    "name": "text",
+    "version": "ebc045299e56edaf3509144d43a7f7348af400a7",
+    "selectedLicense": "BSD-family",
+    "notice": "BSD-command-notices.txt",
+    "framework": "text-native",
+    "scope": "runtime"
+  },
+  {
+    "name": "shell",
+    "version": "ebc045299e56edaf3509144d43a7f7348af400a7",
+    "selectedLicense": "BSD-family AND LicenseRef-Public-Domain",
+    "notice": "BSD-command-notices.txt",
+    "framework": "shell-native",
+    "scope": "runtime"
+  },
+  {
+    "name": "awk",
+    "version": "ebc045299e56edaf3509144d43a7f7348af400a7",
+    "selectedLicense": "LicenseRef-AWK-Lucent AND LicenseRef-Public-Domain",
+    "notice": "awk.txt",
+    "framework": "awk-native",
+    "scope": "runtime"
+  },
+  {
+    "name": "dash",
+    "version": "3da49bb7ac15458ea4f554b589dde5197816f6ba",
+    "selectedLicense": "BSD-3-Clause",
+    "notice": "dash.txt",
+    "framework": "dash-native",
+    "scope": "runtime"
+  },
+  {
+    "name": "Python",
+    "version": "3.14.7-b11",
+    "selectedLicense": "PSF-2.0",
+    "notice": "Python.txt",
+    "framework": "Python",
+    "scope": "runtime"
+  },
+  {
+    "name": "Dulwich",
+    "version": "1.2.15",
+    "selectedLicense": "Apache-2.0",
+    "notice": "Dulwich.txt",
+    "framework": null,
+    "scope": "runtime"
+  },
+  {
+    "name": "urllib3",
+    "version": "2.8.0",
+    "selectedLicense": "MIT",
+    "notice": "urllib3.txt",
+    "framework": null,
+    "scope": "runtime"
+  },
+  {
+    "name": "Berkeley Yacc",
+    "version": "7856d035dd27104782612818630adc5011214c31",
+    "selectedLicense": "LicenseRef-Public-Domain",
+    "notice": "Berkeley-Yacc.txt",
+    "framework": null,
+    "scope": "build"
+  },
+  {
+    "name": "Python-Apple-support",
+    "version": "3.14-b11",
+    "selectedLicense": "MIT",
+    "notice": "Python-Apple-support.txt",
+    "framework": null,
+    "scope": "runtime"
+  },
+  {
+    "name": "BZip2",
+    "version": "1.0.8-2",
+    "selectedLicense": "bzip2-1.0.6",
+    "notice": "BZip2.txt",
+    "framework": null,
+    "scope": "runtime"
+  },
+  {
+    "name": "libFFI",
+    "version": "3.4.7-2",
+    "selectedLicense": "MIT",
+    "notice": "libffi.txt",
+    "framework": null,
+    "scope": "runtime"
+  },
+  {
+    "name": "mpdecimal",
+    "version": "4.0.0-2",
+    "selectedLicense": "BSD-2-Clause",
+    "notice": "mpdecimal.txt",
+    "framework": null,
+    "scope": "runtime"
+  },
+  {
+    "name": "OpenSSL",
+    "version": "3.5.8-1",
+    "selectedLicense": "Apache-2.0",
+    "notice": "OpenSSL.txt",
+    "framework": null,
+    "scope": "runtime"
+  },
+  {
+    "name": "liblzma",
+    "version": "5.6.4-2",
+    "selectedLicense": "0BSD",
+    "notice": "XZ-0BSD.txt",
+    "framework": null,
+    "scope": "runtime"
+  },
+  {
+    "name": "Zstandard",
+    "version": "1.5.7-1",
+    "selectedLicense": "BSD-3-Clause",
+    "notice": "Zstandard.txt",
+    "framework": null,
+    "scope": "runtime"
+  },
+  {
+    "name": "NativeCodex",
+    "version": "rust-v0.153.4 / 3d2ee51ca2d5db578f328aa75e20aa22c0197c9a",
+    "selectedLicense": "Apache-2.0",
+    "notice": "Codex.txt",
+    "framework": "NativeCodex",
+    "scope": "runtime",
+    "dependencies": "Rust-dependencies.json"
+  },
+  {
+    "name": "CA bundle",
+    "version": "webpki-root-certs 1.0.9",
+    "selectedLicense": "CDLA-Permissive-2.0",
+    "notice": "CA-bundle.txt",
+    "framework": null,
+    "scope": "runtime"
+  },
+  {
+    "name": "NumPy",
+    "version": "2.3.5.post1",
+    "selectedLicense": "BSD-3-Clause",
+    "notice": "NumPy.txt",
+    "framework": null,
+    "scope": "runtime"
+  },
+  {
+    "name": "SymPy",
+    "version": "1.14.0",
+    "selectedLicense": "BSD-3-Clause",
+    "notice": "SymPy.txt",
+    "framework": null,
+    "scope": "runtime"
+  },
+  {
+    "name": "mpmath",
+    "version": "1.3.0",
+    "selectedLicense": "BSD-3-Clause",
+    "notice": "mpmath.txt",
+    "framework": null,
+    "scope": "runtime"
+  },
+  {
+    "name": "PyYAML",
+    "version": "6.0.3",
+    "selectedLicense": "MIT",
+    "notice": "PyYAML.txt",
+    "framework": null,
+    "scope": "runtime"
+  }
+]

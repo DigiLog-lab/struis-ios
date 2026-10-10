@@ -1,0 +1,12 @@
+[
+  {
+    "url": "https://raw.githubusercontent.com/facebookexperimental/rust-shed/756ae7daba100d194aa0260131937b7d96672549/LICENSE-MIT",
+    "file": "NOTICE-0.txt",
+    "sha256": "52412d7bc7ce4157ea628bbaacb8829e0a9cb3c58f57f99176126bc8cf2bfc85"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/facebookexperimental/rust-shed/756ae7daba100d194aa0260131937b7d96672549/LICENSE-APACHE",
+    "file": "NOTICE-1.txt",
+    "sha256": "bb28c48e3e078166e91cfc2b6db7ffebb8a0973b9e23b3df060561292d8d69ec"
+  }
+]

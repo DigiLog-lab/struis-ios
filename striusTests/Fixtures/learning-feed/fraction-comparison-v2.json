@@ -1,0 +1,1670 @@
+{
+  "artifact_type": "LearningFeedPack",
+  "artifact_version": "2.0",
+  "schema_major": 2,
+  "schema_minor": 0,
+  "manifest": {
+    "pack_id": "fbf8d543-4496-575a-9273-baac57518087",
+    "artifact_version": "2.0",
+    "problem_stable_id": "fraction-comparison.problem",
+    "problem_bundle_id": "752621ac-a260-59c1-92f1-c3bcfe64e1b0",
+    "problem_revision": 1,
+    "problem_content_hash": "sha256:e31e6c5c4cc04bb2d2bbc2b3eb5006e0d3aca20b1dda009863c903319f8e341f",
+    "content_hash": "sha256:7c2f2102614eb8263d79369f27e150acddc3a7ec70c8212297d8d8f5a320ae36",
+    "renderer_requirements": [
+      {
+        "kind": "binary_prediction",
+        "minimum_version": 1
+      },
+      {
+        "kind": "direct_manipulation",
+        "minimum_version": 1
+      },
+      {
+        "kind": "numeric_input",
+        "minimum_version": 1
+      },
+      {
+        "kind": "short_response",
+        "minimum_version": 1
+      }
+    ],
+    "audience_policy": {
+      "education_stage": "elementary_upper",
+      "reading_load": "minimal",
+      "content_safety_band": "10_plus"
+    },
+    "assets": [],
+    "selection": {
+      "selected_problem_bundle_id": null,
+      "score": null,
+      "reasons": [],
+      "signals": null,
+      "candidate_count": null,
+      "context_mode": "unknown",
+      "reason": "共有contractの年齢幅を検証するfixture",
+      "fixture_only": true
+    },
+    "expires_at": "2027-07-19T00:00:00Z",
+    "verification_status": "verified",
+    "verification_methods": [
+      "schema",
+      "source",
+      "deterministic_answer",
+      "renderer_capability",
+      "age_reading_safety",
+      "school_transfer_alignment",
+      "independent_review",
+      "answer_key_separation"
+    ],
+    "verified_at": "2026-07-19T00:00:00Z",
+    "invalidated_at": null,
+    "invalidated_reason": null
+  },
+  "title": "分数を同じ目盛りで比べる",
+  "estimated_seconds": 225,
+  "episodes": [
+    {
+      "artifact_type": "LearningEpisode",
+      "artifact_version": "2.0",
+      "schema_major": 2,
+      "schema_minor": 0,
+      "episode_id": "aac52300-5a59-51e1-880b-1571b5971070",
+      "episode_version_id": "c1dd975c-34de-5dd1-ad10-bfaefe30835f",
+      "content_hash": "sha256:81a0bbc3dc9474e9dbd51b98f981bda734c0223e16ed07e2453aa13f0a9ed534",
+      "expires_at": "2027-07-19T00:00:00Z",
+      "title": "1/2 と 3/5を同じ目盛りで比べる",
+      "kernel_ref": {
+        "problem_id": "fraction-comparison.problem",
+        "problem_bundle_id": "752621ac-a260-59c1-92f1-c3bcfe64e1b0",
+        "revision": 1,
+        "solution_revision_hash": "sha256:cf21264cd7f2836894f4020c78c84042edf79318dfeab72f351351a8cd5bb1c3",
+        "source_refs": [
+          "material:428ed5a7-bea0-58e3-8328-81abe9ef75a6#problem:752621ac-a260-59c1-92f1-c3bcfe64e1b0"
+        ]
+      },
+      "learning_contract": {
+        "target_skill_ids": [
+          "fraction.compare"
+        ],
+        "prerequisite_skill_ids": [],
+        "invariant": "同じ大きさの一目盛りへそろえると、分数の大きさを比べられる。",
+        "misconception_ids": [
+          "fraction.compare.surface-only"
+        ],
+        "curriculum_refs": [
+          "fixture:fraction-comparison:curriculum"
+        ]
+      },
+      "audience": {
+        "education_stage": "elementary_upper",
+        "grade": "5",
+        "reading_load": "minimal",
+        "content_safety_band": "10_plus"
+      },
+      "render_policy": {
+        "scaffold_level": 2,
+        "representation_start": "concrete",
+        "max_simultaneous_relations": 2,
+        "input_freedom": "structured",
+        "motion_policy": "system",
+        "audio_required": false
+      },
+      "timing": {
+        "estimated_seconds": 75,
+        "first_action_target_ms": 2000,
+        "minimum_completion_boundary_ms": 20000
+      },
+      "renderer_requirements": [
+        {
+          "kind": "binary_prediction",
+          "minimum_version": 1
+        },
+        {
+          "kind": "direct_manipulation",
+          "minimum_version": 1
+        },
+        {
+          "kind": "numeric_input",
+          "minimum_version": 1
+        },
+        {
+          "kind": "short_response",
+          "minimum_version": 1
+        }
+      ],
+      "semantic_elements": [
+        {
+          "id": "fraction.left",
+          "meaning": "一つ目の分数"
+        },
+        {
+          "id": "fraction.right",
+          "meaning": "二つ目の分数"
+        },
+        {
+          "id": "common.unit",
+          "meaning": "そろえた一目盛り"
+        }
+      ],
+      "steps": [
+        {
+          "id": "hook",
+          "stage": "hook",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "1/2 と 3/5 は、どちらが大きいでしょう。",
+          "scene_state": {
+            "representation": "fraction_bar",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "left",
+                "label": "1/2"
+              },
+              {
+                "id": "right",
+                "label": "3/5"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "committed",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "1/2 と 3/5 は、どちらが大きいでしょう。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "committed",
+          "stage": "committed",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "図を動かす前に予想を決めます。",
+          "scene_state": {
+            "representation": "fraction_bar",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "left",
+                "label": "1/2"
+              },
+              {
+                "id": "right",
+                "label": "3/5"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "exploring",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "図を動かす前に予想を決めます。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "formative_weak",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "exploring",
+          "stage": "exploring",
+          "renderer_kind": "direct_manipulation",
+          "renderer_version": 1,
+          "prompt": "仕切りを動かして、同じ幅の目盛りへそろえます。",
+          "scene_state": {
+            "representation": "fraction_bar",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "parameter_id": "partitions",
+            "label": "目盛りの数",
+            "min": 2.0,
+            "max": 24.0,
+            "step": 1.0,
+            "initial_value": 4.0
+          },
+          "completion_condition": {
+            "kind": "meaningful_action",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "consequence",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "仕切りを動かして、同じ幅の目盛りへそろえます。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "consequence",
+          "stage": "consequence",
+          "renderer_kind": "direct_manipulation",
+          "renderer_version": 1,
+          "prompt": "同じ目盛りにすると、使っている目盛りの数で比べられます。",
+          "scene_state": {
+            "representation": "number_line",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "parameter_id": "partitions",
+            "label": "目盛りの数",
+            "min": 2.0,
+            "max": 24.0,
+            "step": 1.0,
+            "initial_value": 12.0
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "invariant_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "同じ目盛りにすると、使っている目盛りの数で比べられます。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "invariant_check",
+          "stage": "invariant_check",
+          "renderer_kind": "numeric_input",
+          "renderer_version": 1,
+          "prompt": "分母をそろえたときの一つ目の分子を入力します。",
+          "scene_state": {
+            "representation": "equivalent_fraction",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "input_mode": "number",
+            "placeholder": "分子",
+            "unit": null
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "variation_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "分母をそろえたときの一つ目の分子を入力します。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "variation_check",
+          "stage": "variation_check",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "数直線でも大きい方を選びます。",
+          "scene_state": {
+            "representation": "number_line",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "left",
+                "label": "1/2"
+              },
+              {
+                "id": "right",
+                "label": "3/5"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "school_transfer",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "数直線でも大きい方を選びます。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "school_transfer",
+          "stage": "school_transfer",
+          "renderer_kind": "short_response",
+          "renderer_version": 1,
+          "prompt": "通常問題です。1/2 と 3/5 の大きい方を短く入力してください。",
+          "scene_state": {
+            "representation": "usual_format",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "input_mode": "short_response",
+            "placeholder": "大きい方",
+            "max_length": 20
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "boundary",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "通常問題です。1/2 と 3/5 の大きい方を短く入力してください。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "validated_transfer",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "boundary",
+          "stage": "boundary",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "ここで終えるか、次の問題へ進むかを選びます。",
+          "scene_state": {
+            "representation": "boundary",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "next",
+                "label": "次の問題を始める"
+              },
+              {
+                "id": "close",
+                "label": "チャットに戻る"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "boundary_choice",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": null,
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "ここで終えるか、次の問題へ進むかを選びます。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        }
+      ],
+      "local_feedback": {
+        "mode": "server_validation",
+        "branch_receipts": []
+      },
+      "verification": {
+        "status": "verified",
+        "methods": [
+          "schema",
+          "source",
+          "deterministic_answer",
+          "renderer_capability",
+          "age_reading_safety",
+          "school_transfer_alignment",
+          "independent_review",
+          "answer_key_separation"
+        ],
+        "verified_at": "2026-07-19T00:00:00Z"
+      }
+    },
+    {
+      "artifact_type": "LearningEpisode",
+      "artifact_version": "2.0",
+      "schema_major": 2,
+      "schema_minor": 0,
+      "episode_id": "b0191be6-4b86-51e5-8a77-69d2b7a8e63a",
+      "episode_version_id": "1a3530f3-86b9-52b3-ad6f-f0360420df68",
+      "content_hash": "sha256:5d189b6a521f7815cc424699f1d73890664236202f0c4f7218d9c7984fffb187",
+      "expires_at": "2027-07-19T00:00:00Z",
+      "title": "2/3 と 3/4を同じ目盛りで比べる",
+      "kernel_ref": {
+        "problem_id": "fraction-comparison.problem",
+        "problem_bundle_id": "752621ac-a260-59c1-92f1-c3bcfe64e1b0",
+        "revision": 1,
+        "solution_revision_hash": "sha256:cf21264cd7f2836894f4020c78c84042edf79318dfeab72f351351a8cd5bb1c3",
+        "source_refs": [
+          "material:428ed5a7-bea0-58e3-8328-81abe9ef75a6#problem:752621ac-a260-59c1-92f1-c3bcfe64e1b0"
+        ]
+      },
+      "learning_contract": {
+        "target_skill_ids": [
+          "fraction.compare"
+        ],
+        "prerequisite_skill_ids": [],
+        "invariant": "同じ大きさの一目盛りへそろえると、分数の大きさを比べられる。",
+        "misconception_ids": [
+          "fraction.compare.surface-only"
+        ],
+        "curriculum_refs": [
+          "fixture:fraction-comparison:curriculum"
+        ]
+      },
+      "audience": {
+        "education_stage": "elementary_upper",
+        "grade": "5",
+        "reading_load": "minimal",
+        "content_safety_band": "10_plus"
+      },
+      "render_policy": {
+        "scaffold_level": 2,
+        "representation_start": "concrete",
+        "max_simultaneous_relations": 2,
+        "input_freedom": "structured",
+        "motion_policy": "system",
+        "audio_required": false
+      },
+      "timing": {
+        "estimated_seconds": 75,
+        "first_action_target_ms": 2000,
+        "minimum_completion_boundary_ms": 20000
+      },
+      "renderer_requirements": [
+        {
+          "kind": "binary_prediction",
+          "minimum_version": 1
+        },
+        {
+          "kind": "direct_manipulation",
+          "minimum_version": 1
+        },
+        {
+          "kind": "numeric_input",
+          "minimum_version": 1
+        },
+        {
+          "kind": "short_response",
+          "minimum_version": 1
+        }
+      ],
+      "semantic_elements": [
+        {
+          "id": "fraction.left",
+          "meaning": "一つ目の分数"
+        },
+        {
+          "id": "fraction.right",
+          "meaning": "二つ目の分数"
+        },
+        {
+          "id": "common.unit",
+          "meaning": "そろえた一目盛り"
+        }
+      ],
+      "steps": [
+        {
+          "id": "hook",
+          "stage": "hook",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "2/3 と 3/4 は、どちらが大きいでしょう。",
+          "scene_state": {
+            "representation": "fraction_bar",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "left",
+                "label": "2/3"
+              },
+              {
+                "id": "right",
+                "label": "3/4"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "committed",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "2/3 と 3/4 は、どちらが大きいでしょう。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "committed",
+          "stage": "committed",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "図を動かす前に予想を決めます。",
+          "scene_state": {
+            "representation": "fraction_bar",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "left",
+                "label": "2/3"
+              },
+              {
+                "id": "right",
+                "label": "3/4"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "exploring",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "図を動かす前に予想を決めます。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "formative_weak",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "exploring",
+          "stage": "exploring",
+          "renderer_kind": "direct_manipulation",
+          "renderer_version": 1,
+          "prompt": "仕切りを動かして、同じ幅の目盛りへそろえます。",
+          "scene_state": {
+            "representation": "fraction_bar",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "parameter_id": "partitions",
+            "label": "目盛りの数",
+            "min": 2.0,
+            "max": 24.0,
+            "step": 1.0,
+            "initial_value": 4.0
+          },
+          "completion_condition": {
+            "kind": "meaningful_action",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "consequence",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "仕切りを動かして、同じ幅の目盛りへそろえます。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "consequence",
+          "stage": "consequence",
+          "renderer_kind": "direct_manipulation",
+          "renderer_version": 1,
+          "prompt": "同じ目盛りにすると、使っている目盛りの数で比べられます。",
+          "scene_state": {
+            "representation": "number_line",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "parameter_id": "partitions",
+            "label": "目盛りの数",
+            "min": 2.0,
+            "max": 24.0,
+            "step": 1.0,
+            "initial_value": 12.0
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "invariant_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "同じ目盛りにすると、使っている目盛りの数で比べられます。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "invariant_check",
+          "stage": "invariant_check",
+          "renderer_kind": "numeric_input",
+          "renderer_version": 1,
+          "prompt": "分母をそろえたときの一つ目の分子を入力します。",
+          "scene_state": {
+            "representation": "equivalent_fraction",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "input_mode": "number",
+            "placeholder": "分子",
+            "unit": null
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "variation_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "分母をそろえたときの一つ目の分子を入力します。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "variation_check",
+          "stage": "variation_check",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "数直線でも大きい方を選びます。",
+          "scene_state": {
+            "representation": "number_line",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "left",
+                "label": "2/3"
+              },
+              {
+                "id": "right",
+                "label": "3/4"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "school_transfer",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "数直線でも大きい方を選びます。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "school_transfer",
+          "stage": "school_transfer",
+          "renderer_kind": "short_response",
+          "renderer_version": 1,
+          "prompt": "通常問題です。2/3 と 3/4 の大きい方を短く入力してください。",
+          "scene_state": {
+            "representation": "usual_format",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "input_mode": "short_response",
+            "placeholder": "大きい方",
+            "max_length": 20
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "boundary",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "通常問題です。2/3 と 3/4 の大きい方を短く入力してください。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "validated_transfer",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "boundary",
+          "stage": "boundary",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "ここで終えるか、次の問題へ進むかを選びます。",
+          "scene_state": {
+            "representation": "boundary",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "next",
+                "label": "次の問題を始める"
+              },
+              {
+                "id": "close",
+                "label": "チャットに戻る"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "boundary_choice",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": null,
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "ここで終えるか、次の問題へ進むかを選びます。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        }
+      ],
+      "local_feedback": {
+        "mode": "server_validation",
+        "branch_receipts": []
+      },
+      "verification": {
+        "status": "verified",
+        "methods": [
+          "schema",
+          "source",
+          "deterministic_answer",
+          "renderer_capability",
+          "age_reading_safety",
+          "school_transfer_alignment",
+          "independent_review",
+          "answer_key_separation"
+        ],
+        "verified_at": "2026-07-19T00:00:00Z"
+      }
+    },
+    {
+      "artifact_type": "LearningEpisode",
+      "artifact_version": "2.0",
+      "schema_major": 2,
+      "schema_minor": 0,
+      "episode_id": "47173ca9-9d30-5d8c-8c6d-18364b42d368",
+      "episode_version_id": "b1e777d6-2387-5c8e-9ed8-a232b4c64fc2",
+      "content_hash": "sha256:e1d9ca109ed751ec2f2601046a3b6314b10df87b1f1c4c30d84ee92476c59c20",
+      "expires_at": "2027-07-19T00:00:00Z",
+      "title": "3/8 と 2/5を同じ目盛りで比べる",
+      "kernel_ref": {
+        "problem_id": "fraction-comparison.problem",
+        "problem_bundle_id": "752621ac-a260-59c1-92f1-c3bcfe64e1b0",
+        "revision": 1,
+        "solution_revision_hash": "sha256:cf21264cd7f2836894f4020c78c84042edf79318dfeab72f351351a8cd5bb1c3",
+        "source_refs": [
+          "material:428ed5a7-bea0-58e3-8328-81abe9ef75a6#problem:752621ac-a260-59c1-92f1-c3bcfe64e1b0"
+        ]
+      },
+      "learning_contract": {
+        "target_skill_ids": [
+          "fraction.compare"
+        ],
+        "prerequisite_skill_ids": [],
+        "invariant": "同じ大きさの一目盛りへそろえると、分数の大きさを比べられる。",
+        "misconception_ids": [
+          "fraction.compare.surface-only"
+        ],
+        "curriculum_refs": [
+          "fixture:fraction-comparison:curriculum"
+        ]
+      },
+      "audience": {
+        "education_stage": "elementary_upper",
+        "grade": "5",
+        "reading_load": "minimal",
+        "content_safety_band": "10_plus"
+      },
+      "render_policy": {
+        "scaffold_level": 2,
+        "representation_start": "concrete",
+        "max_simultaneous_relations": 2,
+        "input_freedom": "structured",
+        "motion_policy": "system",
+        "audio_required": false
+      },
+      "timing": {
+        "estimated_seconds": 75,
+        "first_action_target_ms": 2000,
+        "minimum_completion_boundary_ms": 20000
+      },
+      "renderer_requirements": [
+        {
+          "kind": "binary_prediction",
+          "minimum_version": 1
+        },
+        {
+          "kind": "direct_manipulation",
+          "minimum_version": 1
+        },
+        {
+          "kind": "numeric_input",
+          "minimum_version": 1
+        },
+        {
+          "kind": "short_response",
+          "minimum_version": 1
+        }
+      ],
+      "semantic_elements": [
+        {
+          "id": "fraction.left",
+          "meaning": "一つ目の分数"
+        },
+        {
+          "id": "fraction.right",
+          "meaning": "二つ目の分数"
+        },
+        {
+          "id": "common.unit",
+          "meaning": "そろえた一目盛り"
+        }
+      ],
+      "steps": [
+        {
+          "id": "hook",
+          "stage": "hook",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "3/8 と 2/5 は、どちらが大きいでしょう。",
+          "scene_state": {
+            "representation": "fraction_bar",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "left",
+                "label": "3/8"
+              },
+              {
+                "id": "right",
+                "label": "2/5"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "committed",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "3/8 と 2/5 は、どちらが大きいでしょう。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "committed",
+          "stage": "committed",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "図を動かす前に予想を決めます。",
+          "scene_state": {
+            "representation": "fraction_bar",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "left",
+                "label": "3/8"
+              },
+              {
+                "id": "right",
+                "label": "2/5"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "exploring",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "図を動かす前に予想を決めます。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "formative_weak",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "exploring",
+          "stage": "exploring",
+          "renderer_kind": "direct_manipulation",
+          "renderer_version": 1,
+          "prompt": "仕切りを動かして、同じ幅の目盛りへそろえます。",
+          "scene_state": {
+            "representation": "fraction_bar",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "parameter_id": "partitions",
+            "label": "目盛りの数",
+            "min": 2.0,
+            "max": 24.0,
+            "step": 1.0,
+            "initial_value": 4.0
+          },
+          "completion_condition": {
+            "kind": "meaningful_action",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "consequence",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "仕切りを動かして、同じ幅の目盛りへそろえます。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "consequence",
+          "stage": "consequence",
+          "renderer_kind": "direct_manipulation",
+          "renderer_version": 1,
+          "prompt": "同じ目盛りにすると、使っている目盛りの数で比べられます。",
+          "scene_state": {
+            "representation": "number_line",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "parameter_id": "partitions",
+            "label": "目盛りの数",
+            "min": 2.0,
+            "max": 24.0,
+            "step": 1.0,
+            "initial_value": 12.0
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "invariant_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "同じ目盛りにすると、使っている目盛りの数で比べられます。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "invariant_check",
+          "stage": "invariant_check",
+          "renderer_kind": "numeric_input",
+          "renderer_version": 1,
+          "prompt": "分母をそろえたときの一つ目の分子を入力します。",
+          "scene_state": {
+            "representation": "equivalent_fraction",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "input_mode": "number",
+            "placeholder": "分子",
+            "unit": null
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "variation_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "分母をそろえたときの一つ目の分子を入力します。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "variation_check",
+          "stage": "variation_check",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "数直線でも大きい方を選びます。",
+          "scene_state": {
+            "representation": "number_line",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "left",
+                "label": "3/8"
+              },
+              {
+                "id": "right",
+                "label": "2/5"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "school_transfer",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "数直線でも大きい方を選びます。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "school_transfer",
+          "stage": "school_transfer",
+          "renderer_kind": "short_response",
+          "renderer_version": 1,
+          "prompt": "通常問題です。3/8 と 2/5 の大きい方を短く入力してください。",
+          "scene_state": {
+            "representation": "usual_format",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "input_mode": "short_response",
+            "placeholder": "大きい方",
+            "max_length": 20
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "boundary",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "通常問題です。3/8 と 2/5 の大きい方を短く入力してください。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "validated_transfer",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "boundary",
+          "stage": "boundary",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "ここで終えるか、次の問題へ進むかを選びます。",
+          "scene_state": {
+            "representation": "boundary",
+            "semantic_focus": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "next",
+                "label": "次の問題を始める"
+              },
+              {
+                "id": "close",
+                "label": "チャットに戻る"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "boundary_choice",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": null,
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "fraction.left",
+            "fraction.right",
+            "common.unit"
+          ],
+          "accessibility": {
+            "summary": "ここで終えるか、次の問題へ進むかを選びます。",
+            "semantic_order": [
+              "fraction.left",
+              "fraction.right",
+              "common.unit"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        }
+      ],
+      "local_feedback": {
+        "mode": "server_validation",
+        "branch_receipts": []
+      },
+      "verification": {
+        "status": "verified",
+        "methods": [
+          "schema",
+          "source",
+          "deterministic_answer",
+          "renderer_capability",
+          "age_reading_safety",
+          "school_transfer_alignment",
+          "independent_review",
+          "answer_key_separation"
+        ],
+        "verified_at": "2026-07-19T00:00:00Z"
+      }
+    }
+  ]
+}

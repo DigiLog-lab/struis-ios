@@ -1,0 +1,21 @@
+[package]
+name = "hyotan-appserver-operation-harness"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+
+[dependencies]
+hyotan-operation-harness = { path = "../OperationHarness" }
+codex-file-system = { path = "../Vendor/codex-source/codex-rs/file-system" }
+codex-utils-path-uri = { path = "../Vendor/codex-source/codex-rs/utils/path-uri" }
+codex-protocol = { path = "../Vendor/codex-source/codex-rs/protocol" }
+bytes = "=1.12.1"
+futures = { version = "=0.3.34", features = ["executor"] }
+
+[package.metadata.hyotan]
+codex-revision = "3d2ee51ca2d5db578f328aa75e20aa22c0197c9a"
+
+[patch.crates-io]
+# Match existing runtime selection: omit option-ext on Apple targets.
+dirs-sys = { path = "../Vendor/dirs-sys" }

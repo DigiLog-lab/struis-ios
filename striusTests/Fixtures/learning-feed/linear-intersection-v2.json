@@ -1,0 +1,1813 @@
+{
+  "artifact_type": "LearningFeedPack",
+  "artifact_version": "2.0",
+  "schema_major": 2,
+  "schema_minor": 0,
+  "manifest": {
+    "pack_id": "2657e2b8-10ea-5450-b67a-559ce341b3ed",
+    "artifact_version": "2.0",
+    "problem_stable_id": "linear-intersection.problem",
+    "problem_bundle_id": "ec8f808a-e4fe-57d4-b9ba-582077d54cdb",
+    "problem_revision": 1,
+    "problem_content_hash": "sha256:f912d3bb130c4f9db8bb894096eff31d2093c1c2093fbab3b0f21f88e2a95ef2",
+    "content_hash": "sha256:b2397628a85deebccbe153f021f6a3c5f58cfc5c8ba33054fb21a54eb8124e49",
+    "renderer_requirements": [
+      {
+        "kind": "binary_prediction",
+        "minimum_version": 1
+      },
+      {
+        "kind": "direct_manipulation",
+        "minimum_version": 1
+      },
+      {
+        "kind": "drag_order",
+        "minimum_version": 1
+      },
+      {
+        "kind": "equation_input",
+        "minimum_version": 1
+      },
+      {
+        "kind": "graph_parameter",
+        "minimum_version": 1
+      },
+      {
+        "kind": "numeric_input",
+        "minimum_version": 1
+      },
+      {
+        "kind": "select_evidence",
+        "minimum_version": 1
+      },
+      {
+        "kind": "short_response",
+        "minimum_version": 1
+      }
+    ],
+    "audience_policy": {
+      "education_stage": "junior_high",
+      "reading_load": "short",
+      "content_safety_band": "13_plus"
+    },
+    "assets": [],
+    "selection": {
+      "selected_problem_bundle_id": null,
+      "score": null,
+      "reasons": [],
+      "signals": null,
+      "candidate_count": null,
+      "context_mode": "unknown",
+      "reason": "共有contractの年齢幅を検証するfixture",
+      "fixture_only": true
+    },
+    "expires_at": "2027-07-19T00:00:00Z",
+    "verification_status": "verified",
+    "verification_methods": [
+      "schema",
+      "source",
+      "deterministic_answer",
+      "renderer_capability",
+      "age_reading_safety",
+      "school_transfer_alignment",
+      "independent_review",
+      "answer_key_separation"
+    ],
+    "verified_at": "2026-07-19T00:00:00Z",
+    "invalidated_at": null,
+    "invalidated_reason": null
+  },
+  "title": "一次関数の追いつく瞬間",
+  "estimated_seconds": 225,
+  "episodes": [
+    {
+      "artifact_type": "LearningEpisode",
+      "artifact_version": "2.0",
+      "schema_major": 2,
+      "schema_minor": 0,
+      "episode_id": "c44afa39-e8bc-5732-a548-f1040953e981",
+      "episode_version_id": "bd18b996-b3b3-5ce8-8992-674e5355aefc",
+      "content_hash": "sha256:9e761d67f6033e99772d314b892365a670ba0c3811c258e45bc3f15a628742ff",
+      "expires_at": "2027-07-19T00:00:00Z",
+      "title": "塔から交点を見つける",
+      "kernel_ref": {
+        "problem_id": "linear-intersection.problem",
+        "problem_bundle_id": "ec8f808a-e4fe-57d4-b9ba-582077d54cdb",
+        "revision": 1,
+        "solution_revision_hash": "sha256:1fc94e9a81ee025deb721c5786e505fef901bb1a8b13ce416e241c3b0af094fc",
+        "source_refs": [
+          "material:b3e80240-aad8-5812-9313-dc8d8bed8d2b#problem:ec8f808a-e4fe-57d4-b9ba-582077d54cdb"
+        ]
+      },
+      "learning_contract": {
+        "target_skill_ids": [
+          "linear-function.intersection"
+        ],
+        "prerequisite_skill_ids": [],
+        "invariant": "初期値と増加量が、二つの量が一致する時点を決める。",
+        "misconception_ids": [
+          "linear-function.intersection.surface-only"
+        ],
+        "curriculum_refs": [
+          "fixture:linear-intersection:curriculum"
+        ]
+      },
+      "audience": {
+        "education_stage": "junior_high",
+        "grade": "2",
+        "reading_load": "short",
+        "content_safety_band": "13_plus"
+      },
+      "render_policy": {
+        "scaffold_level": 2,
+        "representation_start": "concrete",
+        "max_simultaneous_relations": 2,
+        "input_freedom": "structured",
+        "motion_policy": "system",
+        "audio_required": false
+      },
+      "timing": {
+        "estimated_seconds": 75,
+        "first_action_target_ms": 2000,
+        "minimum_completion_boundary_ms": 20000
+      },
+      "renderer_requirements": [
+        {
+          "kind": "binary_prediction",
+          "minimum_version": 1
+        },
+        {
+          "kind": "graph_parameter",
+          "minimum_version": 1
+        },
+        {
+          "kind": "numeric_input",
+          "minimum_version": 1
+        }
+      ],
+      "semantic_elements": [
+        {
+          "id": "series.blue",
+          "meaning": "初期値1、増加量2の量"
+        },
+        {
+          "id": "series.green",
+          "meaning": "初期値4、増加量1の量"
+        },
+        {
+          "id": "variable.x",
+          "meaning": "経過回数"
+        },
+        {
+          "id": "intersection",
+          "meaning": "二つの量が一致する点"
+        }
+      ],
+      "steps": [
+        {
+          "id": "hook",
+          "stage": "hook",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "青と緑の量は、この先で同じになるでしょうか。",
+          "scene_state": {
+            "representation": "塔",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "yes",
+                "label": "交わる"
+              },
+              {
+                "id": "no",
+                "label": "交わらない"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "committed",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "青と緑の量は、この先で同じになるでしょうか。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "committed",
+          "stage": "committed",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "結果を見る前に予想を決めます。",
+          "scene_state": {
+            "representation": "塔",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "yes",
+                "label": "交わる"
+              },
+              {
+                "id": "no",
+                "label": "交わらない"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "exploring",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "結果を見る前に予想を決めます。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "formative_weak",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "exploring",
+          "stage": "exploring",
+          "renderer_kind": "graph_parameter",
+          "renderer_version": 1,
+          "prompt": "塔を動かして、同じになる位置の変化を見ます。",
+          "scene_state": {
+            "representation": "塔",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "parameter_id": "x",
+            "label": "経過回数",
+            "min": 0.0,
+            "max": 8.0,
+            "step": 1.0,
+            "initial_value": 4.0,
+            "model": {
+              "kind": "linear_intersection",
+              "red_slope": 2.0,
+              "red_intercept": 1.0,
+              "blue_slope": 1.0,
+              "blue_intercept": 4.0
+            }
+          },
+          "completion_condition": {
+            "kind": "meaningful_action",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "consequence",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "塔を動かして、同じになる位置の変化を見ます。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "consequence",
+          "stage": "consequence",
+          "renderer_kind": "graph_parameter",
+          "renderer_version": 1,
+          "prompt": "差が0になる位置で、二つの量が一致します。",
+          "scene_state": {
+            "representation": "graph",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "parameter_id": "x",
+            "label": "経過回数",
+            "min": 0.0,
+            "max": 8.0,
+            "step": 1.0,
+            "initial_value": 3.0,
+            "model": {
+              "kind": "linear_intersection",
+              "red_slope": 2.0,
+              "red_intercept": 1.0,
+              "blue_slope": 1.0,
+              "blue_intercept": 4.0
+            }
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "invariant_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "差が0になる位置で、二つの量が一致します。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "invariant_check",
+          "stage": "invariant_check",
+          "renderer_kind": "numeric_input",
+          "renderer_version": 1,
+          "prompt": "初めの値と増え方を使って、同じになる条件を入力します。",
+          "scene_state": {
+            "representation": "response",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "input_mode": "number",
+            "placeholder": "入力",
+            "unit": null
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "variation_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "初めの値と増え方を使って、同じになる条件を入力します。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "variation_check",
+          "stage": "variation_check",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "料金でも同じ関係を見つけます。",
+          "scene_state": {
+            "representation": "料金",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "same",
+                "label": "同じ関係"
+              },
+              {
+                "id": "different",
+                "label": "別の関係"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "school_transfer",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "料金でも同じ関係を見つけます。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "school_transfer",
+          "stage": "school_transfer",
+          "renderer_kind": "numeric_input",
+          "renderer_version": 1,
+          "prompt": "通常問題です。2x + 1 = x + 4 の解を入力してください。",
+          "scene_state": {
+            "representation": "usual_format",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "input_mode": "number",
+            "placeholder": "x",
+            "unit": null
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "boundary",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "通常問題です。2x + 1 = x + 4 の解を入力してください。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "validated_transfer",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "boundary",
+          "stage": "boundary",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "ここで終えるか、次の問題へ進むかを選びます。",
+          "scene_state": {
+            "representation": "boundary",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "next",
+                "label": "次の問題を始める"
+              },
+              {
+                "id": "close",
+                "label": "チャットに戻る"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "boundary_choice",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": null,
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "ここで終えるか、次の問題へ進むかを選びます。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        }
+      ],
+      "local_feedback": {
+        "mode": "server_validation",
+        "branch_receipts": []
+      },
+      "verification": {
+        "status": "verified",
+        "methods": [
+          "schema",
+          "source",
+          "deterministic_answer",
+          "renderer_capability",
+          "age_reading_safety",
+          "school_transfer_alignment",
+          "independent_review",
+          "answer_key_separation"
+        ],
+        "verified_at": "2026-07-19T00:00:00Z"
+      }
+    },
+    {
+      "artifact_type": "LearningEpisode",
+      "artifact_version": "2.0",
+      "schema_major": 2,
+      "schema_minor": 0,
+      "episode_id": "0c9b71d9-61d3-579e-83d3-b37ca992e70c",
+      "episode_version_id": "3ed793f3-bfad-54fc-be14-6e49caf9cf68",
+      "content_hash": "sha256:1e05879a41c9223250172856de90e9d19160511f208aaca2885e4c642ecedcf6",
+      "expires_at": "2027-07-19T00:00:00Z",
+      "title": "グラフの動きから式へつなぐ",
+      "kernel_ref": {
+        "problem_id": "linear-intersection.problem",
+        "problem_bundle_id": "ec8f808a-e4fe-57d4-b9ba-582077d54cdb",
+        "revision": 1,
+        "solution_revision_hash": "sha256:1fc94e9a81ee025deb721c5786e505fef901bb1a8b13ce416e241c3b0af094fc",
+        "source_refs": [
+          "material:b3e80240-aad8-5812-9313-dc8d8bed8d2b#problem:ec8f808a-e4fe-57d4-b9ba-582077d54cdb"
+        ]
+      },
+      "learning_contract": {
+        "target_skill_ids": [
+          "linear-function.intersection"
+        ],
+        "prerequisite_skill_ids": [],
+        "invariant": "初期値と増加量が、二つの量が一致する時点を決める。",
+        "misconception_ids": [
+          "linear-function.intersection.surface-only"
+        ],
+        "curriculum_refs": [
+          "fixture:linear-intersection:curriculum"
+        ]
+      },
+      "audience": {
+        "education_stage": "junior_high",
+        "grade": "2",
+        "reading_load": "short",
+        "content_safety_band": "13_plus"
+      },
+      "render_policy": {
+        "scaffold_level": 2,
+        "representation_start": "concrete",
+        "max_simultaneous_relations": 2,
+        "input_freedom": "structured",
+        "motion_policy": "system",
+        "audio_required": false
+      },
+      "timing": {
+        "estimated_seconds": 75,
+        "first_action_target_ms": 2000,
+        "minimum_completion_boundary_ms": 20000
+      },
+      "renderer_requirements": [
+        {
+          "kind": "binary_prediction",
+          "minimum_version": 1
+        },
+        {
+          "kind": "direct_manipulation",
+          "minimum_version": 1
+        },
+        {
+          "kind": "equation_input",
+          "minimum_version": 1
+        },
+        {
+          "kind": "graph_parameter",
+          "minimum_version": 1
+        },
+        {
+          "kind": "numeric_input",
+          "minimum_version": 1
+        },
+        {
+          "kind": "select_evidence",
+          "minimum_version": 1
+        }
+      ],
+      "semantic_elements": [
+        {
+          "id": "series.blue",
+          "meaning": "初期値1、増加量2の量"
+        },
+        {
+          "id": "series.green",
+          "meaning": "初期値4、増加量1の量"
+        },
+        {
+          "id": "variable.x",
+          "meaning": "経過回数"
+        },
+        {
+          "id": "intersection",
+          "meaning": "二つの量が一致する点"
+        }
+      ],
+      "steps": [
+        {
+          "id": "hook",
+          "stage": "hook",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "青と緑の量は、この先で同じになるでしょうか。",
+          "scene_state": {
+            "representation": "グラフ",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "yes",
+                "label": "交わる"
+              },
+              {
+                "id": "no",
+                "label": "交わらない"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "committed",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "青と緑の量は、この先で同じになるでしょうか。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "committed",
+          "stage": "committed",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "結果を見る前に予想を決めます。",
+          "scene_state": {
+            "representation": "グラフ",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "yes",
+                "label": "交わる"
+              },
+              {
+                "id": "no",
+                "label": "交わらない"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "exploring",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "結果を見る前に予想を決めます。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "formative_weak",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "exploring",
+          "stage": "exploring",
+          "renderer_kind": "direct_manipulation",
+          "renderer_version": 1,
+          "prompt": "グラフを動かして、同じになる位置の変化を見ます。",
+          "scene_state": {
+            "representation": "グラフ",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "parameter_id": "start",
+            "label": "初めの値",
+            "min": 0.0,
+            "max": 8.0,
+            "step": 1.0,
+            "initial_value": 4.0
+          },
+          "completion_condition": {
+            "kind": "meaningful_action",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "consequence",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "グラフを動かして、同じになる位置の変化を見ます。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "consequence",
+          "stage": "consequence",
+          "renderer_kind": "graph_parameter",
+          "renderer_version": 1,
+          "prompt": "差が0になる位置で、二つの量が一致します。",
+          "scene_state": {
+            "representation": "graph",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "parameter_id": "x",
+            "label": "経過回数",
+            "min": 0.0,
+            "max": 8.0,
+            "step": 1.0,
+            "initial_value": 3.0,
+            "model": {
+              "kind": "linear_intersection",
+              "red_slope": 2.0,
+              "red_intercept": 1.0,
+              "blue_slope": 1.0,
+              "blue_intercept": 4.0
+            }
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "invariant_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "差が0になる位置で、二つの量が一致します。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "invariant_check",
+          "stage": "invariant_check",
+          "renderer_kind": "equation_input",
+          "renderer_version": 1,
+          "prompt": "初めの値と増え方を使って、同じになる条件を入力します。",
+          "scene_state": {
+            "representation": "response",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "input_mode": "equation",
+            "placeholder": "入力"
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "variation_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "初めの値と増え方を使って、同じになる条件を入力します。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "variation_check",
+          "stage": "variation_check",
+          "renderer_kind": "select_evidence",
+          "renderer_version": 1,
+          "prompt": "水そうでも同じ関係を見つけます。",
+          "scene_state": {
+            "representation": "水そう",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "choices": [
+              {
+                "id": "initial",
+                "label": "初めの値"
+              },
+              {
+                "id": "rate",
+                "label": "増え方"
+              },
+              {
+                "id": "equal",
+                "label": "値が等しい行"
+              }
+            ],
+            "selection_mode": "single"
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "school_transfer",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "水そうでも同じ関係を見つけます。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "school_transfer",
+          "stage": "school_transfer",
+          "renderer_kind": "numeric_input",
+          "renderer_version": 1,
+          "prompt": "通常問題です。2x + 1 = x + 4 の解を入力してください。",
+          "scene_state": {
+            "representation": "usual_format",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "input_mode": "number",
+            "placeholder": "x",
+            "unit": null
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "boundary",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "通常問題です。2x + 1 = x + 4 の解を入力してください。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "validated_transfer",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "boundary",
+          "stage": "boundary",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "ここで終えるか、次の問題へ進むかを選びます。",
+          "scene_state": {
+            "representation": "boundary",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "next",
+                "label": "次の問題を始める"
+              },
+              {
+                "id": "close",
+                "label": "チャットに戻る"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "boundary_choice",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": null,
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "ここで終えるか、次の問題へ進むかを選びます。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        }
+      ],
+      "local_feedback": {
+        "mode": "server_validation",
+        "branch_receipts": []
+      },
+      "verification": {
+        "status": "verified",
+        "methods": [
+          "schema",
+          "source",
+          "deterministic_answer",
+          "renderer_capability",
+          "age_reading_safety",
+          "school_transfer_alignment",
+          "independent_review",
+          "answer_key_separation"
+        ],
+        "verified_at": "2026-07-19T00:00:00Z"
+      }
+    },
+    {
+      "artifact_type": "LearningEpisode",
+      "artifact_version": "2.0",
+      "schema_major": 2,
+      "schema_minor": 0,
+      "episode_id": "97f62d69-91fd-565a-b13f-e41341471944",
+      "episode_version_id": "5fd15382-8775-53cf-810c-3925ae4c53c9",
+      "content_hash": "sha256:d37b0a0b007ad9c834cb4e9c00cc851fc6f8ea4f8b8bc40eaa51aac7e50927af",
+      "expires_at": "2027-07-19T00:00:00Z",
+      "title": "表から通常問題へ移す",
+      "kernel_ref": {
+        "problem_id": "linear-intersection.problem",
+        "problem_bundle_id": "ec8f808a-e4fe-57d4-b9ba-582077d54cdb",
+        "revision": 1,
+        "solution_revision_hash": "sha256:1fc94e9a81ee025deb721c5786e505fef901bb1a8b13ce416e241c3b0af094fc",
+        "source_refs": [
+          "material:b3e80240-aad8-5812-9313-dc8d8bed8d2b#problem:ec8f808a-e4fe-57d4-b9ba-582077d54cdb"
+        ]
+      },
+      "learning_contract": {
+        "target_skill_ids": [
+          "linear-function.intersection"
+        ],
+        "prerequisite_skill_ids": [],
+        "invariant": "初期値と増加量が、二つの量が一致する時点を決める。",
+        "misconception_ids": [
+          "linear-function.intersection.surface-only"
+        ],
+        "curriculum_refs": [
+          "fixture:linear-intersection:curriculum"
+        ]
+      },
+      "audience": {
+        "education_stage": "junior_high",
+        "grade": "2",
+        "reading_load": "short",
+        "content_safety_band": "13_plus"
+      },
+      "render_policy": {
+        "scaffold_level": 2,
+        "representation_start": "concrete",
+        "max_simultaneous_relations": 2,
+        "input_freedom": "structured",
+        "motion_policy": "system",
+        "audio_required": false
+      },
+      "timing": {
+        "estimated_seconds": 75,
+        "first_action_target_ms": 2000,
+        "minimum_completion_boundary_ms": 20000
+      },
+      "renderer_requirements": [
+        {
+          "kind": "binary_prediction",
+          "minimum_version": 1
+        },
+        {
+          "kind": "drag_order",
+          "minimum_version": 1
+        },
+        {
+          "kind": "graph_parameter",
+          "minimum_version": 1
+        },
+        {
+          "kind": "numeric_input",
+          "minimum_version": 1
+        },
+        {
+          "kind": "short_response",
+          "minimum_version": 1
+        }
+      ],
+      "semantic_elements": [
+        {
+          "id": "series.blue",
+          "meaning": "初期値1、増加量2の量"
+        },
+        {
+          "id": "series.green",
+          "meaning": "初期値4、増加量1の量"
+        },
+        {
+          "id": "variable.x",
+          "meaning": "経過回数"
+        },
+        {
+          "id": "intersection",
+          "meaning": "二つの量が一致する点"
+        }
+      ],
+      "steps": [
+        {
+          "id": "hook",
+          "stage": "hook",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "青と緑の量は、この先で同じになるでしょうか。",
+          "scene_state": {
+            "representation": "表",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "yes",
+                "label": "交わる"
+              },
+              {
+                "id": "no",
+                "label": "交わらない"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "committed",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "青と緑の量は、この先で同じになるでしょうか。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "committed",
+          "stage": "committed",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "結果を見る前に予想を決めます。",
+          "scene_state": {
+            "representation": "表",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "yes",
+                "label": "交わる"
+              },
+              {
+                "id": "no",
+                "label": "交わらない"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "exploring",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "結果を見る前に予想を決めます。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "formative_weak",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "exploring",
+          "stage": "exploring",
+          "renderer_kind": "drag_order",
+          "renderer_version": 1,
+          "prompt": "表を動かして、同じになる位置の変化を見ます。",
+          "scene_state": {
+            "representation": "表",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "items": [
+              {
+                "id": "initial",
+                "label": "初めの高さ"
+              },
+              {
+                "id": "rate",
+                "label": "増え方"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "meaningful_action",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "consequence",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "表を動かして、同じになる位置の変化を見ます。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "consequence",
+          "stage": "consequence",
+          "renderer_kind": "graph_parameter",
+          "renderer_version": 1,
+          "prompt": "差が0になる位置で、二つの量が一致します。",
+          "scene_state": {
+            "representation": "graph",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "parameter_id": "x",
+            "label": "経過回数",
+            "min": 0.0,
+            "max": 8.0,
+            "step": 1.0,
+            "initial_value": 3.0,
+            "model": {
+              "kind": "linear_intersection",
+              "red_slope": 2.0,
+              "red_intercept": 1.0,
+              "blue_slope": 1.0,
+              "blue_intercept": 4.0
+            }
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "invariant_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "差が0になる位置で、二つの量が一致します。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "invariant_check",
+          "stage": "invariant_check",
+          "renderer_kind": "short_response",
+          "renderer_version": 1,
+          "prompt": "初めの値と増え方を使って、同じになる条件を入力します。",
+          "scene_state": {
+            "representation": "response",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "input_mode": "short_response",
+            "placeholder": "入力",
+            "max_length": 500
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "variation_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "初めの値と増え方を使って、同じになる条件を入力します。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "variation_check",
+          "stage": "variation_check",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "移動距離でも同じ関係を見つけます。",
+          "scene_state": {
+            "representation": "移動距離",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "same",
+                "label": "同じ関係"
+              },
+              {
+                "id": "different",
+                "label": "別の関係"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "school_transfer",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "移動距離でも同じ関係を見つけます。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "school_transfer",
+          "stage": "school_transfer",
+          "renderer_kind": "numeric_input",
+          "renderer_version": 1,
+          "prompt": "通常問題です。2x + 1 = x + 4 の解を入力してください。",
+          "scene_state": {
+            "representation": "usual_format",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "input_mode": "number",
+            "placeholder": "x",
+            "unit": null
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "boundary",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "通常問題です。2x + 1 = x + 4 の解を入力してください。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "validated_transfer",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "boundary",
+          "stage": "boundary",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "ここで終えるか、次の問題へ進むかを選びます。",
+          "scene_state": {
+            "representation": "boundary",
+            "semantic_focus": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "next",
+                "label": "次の問題を始める"
+              },
+              {
+                "id": "close",
+                "label": "チャットに戻る"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "boundary_choice",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": null,
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "series.blue",
+            "series.green",
+            "variable.x",
+            "intersection"
+          ],
+          "accessibility": {
+            "summary": "ここで終えるか、次の問題へ進むかを選びます。",
+            "semantic_order": [
+              "series.blue",
+              "series.green",
+              "variable.x",
+              "intersection"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        }
+      ],
+      "local_feedback": {
+        "mode": "server_validation",
+        "branch_receipts": []
+      },
+      "verification": {
+        "status": "verified",
+        "methods": [
+          "schema",
+          "source",
+          "deterministic_answer",
+          "renderer_capability",
+          "age_reading_safety",
+          "school_transfer_alignment",
+          "independent_review",
+          "answer_key_separation"
+        ],
+        "verified_at": "2026-07-19T00:00:00Z"
+      }
+    }
+  ]
+}

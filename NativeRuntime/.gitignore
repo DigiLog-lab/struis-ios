@@ -1,0 +1,7 @@
+Vendor/
+PythonModules/__pycache__/
+PythonPackages/
+PackageCache/
+.build/
+**/__pycache__/
+**/target/

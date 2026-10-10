@@ -1,0 +1,38 @@
+{
+  "Apple_status": "UNVERIFIED; real captured dash/XPC composition requires separate opt-in test; product flags off",
+  "Linux_checks": "17 real browser cases and real native C bridge; binary262145 and early output, argv modes, partial write, EPIPE, blocked IO cancel, stale context/fresh, CDP worker destruction",
+  "base_repo_commit": "fd633335e4b8a028128620029d2b5a89bebedae0",
+  "base_runtime_bundle": "ThreadedPythonFoundationAssetsV4Final",
+  "base_runtime_manifest_sha256": "560ff976255773573e69ec9eac6832fd993ada286e963307639e0710536d8ce2",
+  "custom_abi": "2026_99",
+  "evidence_sha256": "b70fe6e1478c3808349aeff924a4b94f5f75e167eea697480cace45b41aa994a",
+  "format": 1,
+  "overlay_files": {
+    "hyotan_runner.py": {
+      "bytes": 2715,
+      "sha256": "2e9eccfaddad11c0d5b2e0cf9ca07b852ce81e70ca99e3193ad1944d087b0702",
+      "source": "ios/strius/NativeRuntime/PythonModules/hyotan_runner.py"
+    },
+    "main.js": {
+      "bytes": 6114,
+      "sha256": "6c87b0e25a0dda356d362414130ef5fd5370956252e92a0bad721781ed376239",
+      "source": "ios/strius/NativeRuntime/VirtualPythonThreaded/main.js"
+    },
+    "stdio.js": {
+      "bytes": 5430,
+      "sha256": "cea83772e12ae8b45360f7d21395a0b8358cede542cf58c6d52c38aee29ae907",
+      "source": "ios/strius/NativeRuntime/VirtualPythonThreaded/stdio.js"
+    },
+    "worker.js": {
+      "bytes": 7808,
+      "sha256": "5f043117fef8fa4d1d5fc33b32f0f91672376ec86f50b6dc83737edbe6236c8d",
+      "source": "ios/strius/NativeRuntime/VirtualPythonThreaded/worker.js"
+    }
+  },
+  "provider_api": "runVirtualPythonCommand(argv,provider,{signal}); exact UTF8 strings or Uint8Array argv; provider functionID1, exchange/finish/cancel unchanged",
+  "provider_cancel_contract": "completed:true only after actual captured native cleanup/retirement; SAB wake + genuine PThread cleanup follow confirmation",
+  "provider_finish_contract": "completed:true and actual Int32 exitCode only after native Await+Destroy; finish status wins over Python exitCode",
+  "runtime_closure_changes": [],
+  "runtime_profile": "sync-proxy-no-jspi",
+  "source_license": "Apache-2.0; existing shipped runner retained byte-identical"
+}

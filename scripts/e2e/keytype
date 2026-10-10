@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+import sys,subprocess,os
+rows={"qwertyuiop":(1415,[55,143,233,323,413,505,595,686,777,866]),"asdfghjkl":(1538,[97,188,278,368,459,549,640,731,821]),"zxcvbnm":(1662,[188,278,368,459,549,640,731])}
+for ch in sys.argv[1]:
+    for k,(y,xs) in rows.items():
+        if ch in k:
+            x=xs[k.index(ch)]; subprocess.run([os.path.join(os.environ["E2E_TOOLS"],"ui.py"),"tap",f"x={x*0.437:.1f}",f"y={y*0.437:.1f}"],capture_output=True)

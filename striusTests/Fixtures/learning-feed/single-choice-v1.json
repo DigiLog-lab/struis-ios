@@ -1,0 +1,54 @@
+{
+  "artifact_type": "LearningFeedItem",
+  "artifact_version": "1.0",
+  "audience": {
+    "education_stage": "junior_high",
+    "grade": "2",
+    "subject": "mathematics",
+    "reading_level": "grade_8"
+  },
+  "learning_contract": {
+    "target_skill_ids": [
+      "linear-function.intersection"
+    ],
+    "prerequisite_skill_ids": [],
+    "objective": "二つの量が一致する時点を予想する",
+    "evidence_tier": "formative_weak"
+  },
+  "source": {
+    "kind": "uploaded_material",
+    "refs": [
+      "material:fixture#problem:linear-intersection-v1"
+    ],
+    "curriculum_refs": [
+      "fixture:junior-high:linear-function"
+    ]
+  },
+  "experience": {
+    "format": "single_choice",
+    "estimated_seconds": 60,
+    "hook": "二つの量は同じになるでしょうか。",
+    "turns": [],
+    "interaction_schema": {
+      "kind": "single_choice",
+      "choices": [
+        {
+          "id": "yes",
+          "label": "同じになる"
+        },
+        {
+          "id": "no",
+          "label": "同じにならない"
+        }
+      ]
+    }
+  },
+  "verification": {
+    "status": "verified",
+    "methods": [
+      "source_bound",
+      "independent_review"
+    ],
+    "verified_at": "2026-07-19T00:00:00Z"
+  }
+}

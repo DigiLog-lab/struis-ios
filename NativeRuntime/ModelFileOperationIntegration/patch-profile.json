@@ -1,0 +1,46 @@
+{
+  "pin": "3d2ee51ca2d5db578f328aa75e20aa22c0197c9a",
+  "scope": "Library-source profile of actual upstream patch parser/preflight/runtime, excluding unrestricted standalone native entry. No engine algorithm or actual ExecutorFileSystem implementation changed. codex-exec-server import name aliases its identical codex-file-system reexport types; this does not compile Core/ExecServer handlers.",
+  "sources": {
+    "standalone_executable.rs": {
+      "upstream_sha256": "33d7979c976a21b57fbb0c576ccf45b38127fef4cca4bf7af62077ce78d0c8ab",
+      "profile_sha256": "33d7979c976a21b57fbb0c576ccf45b38127fef4cca4bf7af62077ce78d0c8ab"
+    },
+    "main.rs": {
+      "upstream_sha256": "31de3e573a13c50c81af81d262a11fdb758540408cbab3fafb5e638c66a50117",
+      "profile_sha256": "31de3e573a13c50c81af81d262a11fdb758540408cbab3fafb5e638c66a50117"
+    },
+    "streaming_parser.rs": {
+      "upstream_sha256": "5f4b8e60fd24ada7c1b6a696155de3da2b946f7b5436da90e377c9de04b1e578",
+      "profile_sha256": "5f4b8e60fd24ada7c1b6a696155de3da2b946f7b5436da90e377c9de04b1e578"
+    },
+    "parser.rs": {
+      "upstream_sha256": "6b8086467d0500f4fc9aa9a35cd33a0bce53c01bcb74b915b9efc6fcf187f7ce",
+      "profile_sha256": "6b8086467d0500f4fc9aa9a35cd33a0bce53c01bcb74b915b9efc6fcf187f7ce"
+    },
+    "lib.rs": {
+      "upstream_sha256": "5e6f736f3a4b66c1d651baa9b85ce6e6921de170faf901e6c2f78ad9a383eaf9",
+      "profile_sha256": "b8ebd7badd117dffc08cb4a17a5ff3e5ee0709be79788e054a761334d817238a"
+    },
+    "text_file.rs": {
+      "upstream_sha256": "35cbbdeb91e86780d99fccd097a5dba2772f048730556b73d685e94658ddc6e3",
+      "profile_sha256": "35cbbdeb91e86780d99fccd097a5dba2772f048730556b73d685e94658ddc6e3"
+    },
+    "seek_sequence.rs": {
+      "upstream_sha256": "5eced89191977d6b53b1b770ccaad6cafa2fb3ecbcd4839a88318f75e4a620e4",
+      "profile_sha256": "5eced89191977d6b53b1b770ccaad6cafa2fb3ecbcd4839a88318f75e4a620e4"
+    },
+    "invocation.rs": {
+      "upstream_sha256": "ab6ce54396919236a2b68a5dc33f670663c67c12fa8def3b80588933d297047a",
+      "profile_sha256": "ab6ce54396919236a2b68a5dc33f670663c67c12fa8def3b80588933d297047a"
+    },
+    "file_update_tests.rs": {
+      "upstream_sha256": "59fc1e6db897fd61be7ee865a741dc7fdb709501426c4f9603ef8a532fe08282",
+      "profile_sha256": "59fc1e6db897fd61be7ee865a741dc7fdb709501426c4f9603ef8a532fe08282"
+    },
+    "file_update.rs": {
+      "upstream_sha256": "f954105ba036f1c3748fc2ed605ce9a677d619e56ce25f89bffdcad3377734f9",
+      "profile_sha256": "f954105ba036f1c3748fc2ed605ce9a677d619e56ce25f89bffdcad3377734f9"
+    }
+  }
+}

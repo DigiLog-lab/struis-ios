@@ -1,0 +1,37 @@
+{
+  "format_version": 1,
+  "packages": {
+    "dulwich": "1.2.15",
+    "urllib3": "2.8.0"
+  },
+  "selected_licenses": {
+    "dulwich": "Apache-2.0",
+    "urllib3": "MIT"
+  },
+  "files": {
+    "loader.js": {
+      "sha256": "bb8654977d5d50dcabafde26e95739ec7cb6a4f9167a1f25487e0780bd7671f0",
+      "bytes": 1463
+    },
+    "packages.zip": {
+      "sha256": "2fae1c45e4b7f6894b8792d95c9c7286615b3d38262e421161701a485589dfb1",
+      "bytes": 830309
+    },
+    "hyotan_history.py": {
+      "sha256": "5f5ccdc16b450ed610631a271e027d5ad581e46a40eb3fc5c4a4eb25c48d4502",
+      "bytes": 5801
+    },
+    "hyotan_virtual_git.py": {
+      "sha256": "21b77679e1697d3d35daa52c68e206c021fe300b580e235a276feabf5bab6b64",
+      "bytes": 486
+    },
+    "Licenses/Dulwich.txt": {
+      "sha256": "e17db6e0f06d3a70a9a6a6e4e1b85c6dfaa2c7d0154147c798435e333f4b366d",
+      "bytes": 29573
+    },
+    "Licenses/urllib3.txt": {
+      "sha256": "130e3a64d5fdd5d096a752694634a7d9df284469de86e5732100268041e3d686",
+      "bytes": 1093
+    }
+  }
+}

@@ -1,0 +1,2 @@
+#!/bin/zsh
+xcrun simctl io $E2E_UDID screenshot $E2E_DIR/ev/$1.png >/dev/null 2>&1 && echo $E2E_DIR/ev/$1.png

@@ -1,0 +1,12 @@
+[
+  {
+    "url": "https://raw.githubusercontent.com/str4d/rage/7f29934dc58e058e7a588ac3a9a7e946198a73a7/LICENSE-MIT",
+    "file": "NOTICE-0.txt",
+    "sha256": "fe56c030c2d8c3404a37fe711cebb27ebea13d0aacf7e3524db4198335ad8cd1"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/str4d/rage/7f29934dc58e058e7a588ac3a9a7e946198a73a7/LICENSE-APACHE",
+    "file": "NOTICE-1.txt",
+    "sha256": "3708458dee7f359ac6c9c5558023ed481be87e5372c43ebd7f2ca7ad23c12026"
+  }
+]

@@ -1,0 +1,11 @@
+# Native output capture
+
+RuntimeCommandのcaptured output helperはwriterのcompletion publicationをread前に観測します。その後のempty readだけで終了を判断し、publication前のempty readはretryします。これによりwriterがempty readと終了判定の間にbytesを出した場合もqueued outputを保持します。
+
+stdout/stderrを併合し、末尾96,000 bytesの上限とUTF-8 suffix decodingを維持します。unexpected read failureはexit125とsanitized messageを返します。helper自体はworkspaceへアクセスしません。
+
+```sh
+python3 NativeRuntime/CommandCaptureTests/run.py
+```
+
+runnerは同じproduct helperをwarnings-as-errorsとsanitizerでcompileし、実pipeのrace、capacity超過binary output、小さいsuffix bound、duplicate writerが残る場合を有限deadlineで確認します。この単独試験とアプリ内の実command・画像・PDF経路はそれぞれ確認してください。

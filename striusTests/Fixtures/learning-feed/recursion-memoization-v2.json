@@ -1,0 +1,1838 @@
+{
+  "artifact_type": "LearningFeedPack",
+  "artifact_version": "2.0",
+  "schema_major": 2,
+  "schema_minor": 0,
+  "manifest": {
+    "pack_id": "af949903-40ff-5097-8807-490661d1f3f6",
+    "artifact_version": "2.0",
+    "problem_stable_id": "recursion-memoization.problem",
+    "problem_bundle_id": "4573ea66-c22c-5291-b149-b7eaf101ba70",
+    "problem_revision": 1,
+    "problem_content_hash": "sha256:762ca9c29699c21b9850db2c23dacdfe9c13aa7e379b9a62e29d9f3753e2272b",
+    "content_hash": "sha256:1fa5a974e11ff24c1046d8507009a013b266965dd33c07d2e326cedea70cc51f",
+    "renderer_requirements": [
+      {
+        "kind": "binary_prediction",
+        "minimum_version": 1
+      },
+      {
+        "kind": "drag_order",
+        "minimum_version": 1
+      },
+      {
+        "kind": "equation_input",
+        "minimum_version": 1
+      },
+      {
+        "kind": "select_evidence",
+        "minimum_version": 1
+      }
+    ],
+    "audience_policy": {
+      "education_stage": "university",
+      "reading_load": "standard",
+      "content_safety_band": "adult"
+    },
+    "assets": [],
+    "selection": {
+      "selected_problem_bundle_id": null,
+      "score": null,
+      "reasons": [],
+      "signals": null,
+      "candidate_count": null,
+      "context_mode": "unknown",
+      "reason": "共有contractの年齢幅を検証するfixture",
+      "fixture_only": true
+    },
+    "expires_at": "2027-07-19T00:00:00Z",
+    "verification_status": "verified",
+    "verification_methods": [
+      "schema",
+      "source",
+      "deterministic_answer",
+      "renderer_capability",
+      "age_reading_safety",
+      "school_transfer_alignment",
+      "independent_review",
+      "answer_key_separation"
+    ],
+    "verified_at": "2026-07-19T00:00:00Z",
+    "invalidated_at": null,
+    "invalidated_reason": null
+  },
+  "title": "再帰の重複をメモ化で減らす",
+  "estimated_seconds": 225,
+  "episodes": [
+    {
+      "artifact_type": "LearningEpisode",
+      "artifact_version": "2.0",
+      "schema_major": 2,
+      "schema_minor": 0,
+      "episode_id": "bcc8c276-1016-5149-8600-b4878d638de9",
+      "episode_version_id": "3fab0d10-b5d4-5370-9f4b-0ccf0022f606",
+      "content_hash": "sha256:bfa93d797e97771f09d518aa954c51e5dc3439499ddcfcddffd35258543c74a8",
+      "expires_at": "2027-07-19T00:00:00Z",
+      "title": "fib(5)の重複計算を減らす",
+      "kernel_ref": {
+        "problem_id": "recursion-memoization.problem",
+        "problem_bundle_id": "4573ea66-c22c-5291-b149-b7eaf101ba70",
+        "revision": 1,
+        "solution_revision_hash": "sha256:6013f0f264b6fe03bf63226a6badd740159bbadaf72c3386255c8a6ad115b4d2",
+        "source_refs": [
+          "material:eca023fe-1bb3-5e56-82ba-784bb386ad97#problem:4573ea66-c22c-5291-b149-b7eaf101ba70"
+        ]
+      },
+      "learning_contract": {
+        "target_skill_ids": [
+          "algorithm.memoization"
+        ],
+        "prerequisite_skill_ids": [],
+        "invariant": "同じ状態の結果を保存して再利用すると、重複する再帰展開を省ける。",
+        "misconception_ids": [
+          "algorithm.memoization.surface-only"
+        ],
+        "curriculum_refs": [
+          "fixture:recursion-memoization:curriculum"
+        ]
+      },
+      "audience": {
+        "education_stage": "university",
+        "grade": "学部1年",
+        "reading_load": "standard",
+        "content_safety_band": "adult"
+      },
+      "render_policy": {
+        "scaffold_level": 2,
+        "representation_start": "diagram",
+        "max_simultaneous_relations": 4,
+        "input_freedom": "bounded",
+        "motion_policy": "system",
+        "audio_required": false
+      },
+      "timing": {
+        "estimated_seconds": 75,
+        "first_action_target_ms": 2000,
+        "minimum_completion_boundary_ms": 20000
+      },
+      "renderer_requirements": [
+        {
+          "kind": "binary_prediction",
+          "minimum_version": 1
+        },
+        {
+          "kind": "drag_order",
+          "minimum_version": 1
+        },
+        {
+          "kind": "equation_input",
+          "minimum_version": 1
+        },
+        {
+          "kind": "select_evidence",
+          "minimum_version": 1
+        }
+      ],
+      "semantic_elements": [
+        {
+          "id": "call.tree",
+          "meaning": "再帰呼び出しの木"
+        },
+        {
+          "id": "subproblem.duplicate",
+          "meaning": "重複する部分問題"
+        },
+        {
+          "id": "memo.table",
+          "meaning": "計算済みの値を保存する表"
+        },
+        {
+          "id": "complexity",
+          "meaning": "入力サイズに対する計算量"
+        }
+      ],
+      "steps": [
+        {
+          "id": "hook",
+          "stage": "hook",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "同じ引数の呼び出しが何度も現れるでしょうか。",
+          "scene_state": {
+            "representation": "call_tree",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "duplicate",
+                "label": "重複する"
+              },
+              {
+                "id": "unique",
+                "label": "重複しない"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "committed",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "同じ引数の呼び出しが何度も現れるでしょうか。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "committed",
+          "stage": "committed",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "実行前に重複の有無を予想します。",
+          "scene_state": {
+            "representation": "call_tree",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "duplicate",
+                "label": "重複する"
+              },
+              {
+                "id": "unique",
+                "label": "重複しない"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "exploring",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "実行前に重複の有無を予想します。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "formative_weak",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "exploring",
+          "stage": "exploring",
+          "renderer_kind": "drag_order",
+          "renderer_version": 1,
+          "prompt": "再帰木の項目を並べ、同じ部分問題を探します。",
+          "scene_state": {
+            "representation": "call_tree",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "items": [
+              {
+                "id": "fib5",
+                "label": "fib(5)"
+              },
+              {
+                "id": "fib4",
+                "label": "fib(4)"
+              },
+              {
+                "id": "fib3a",
+                "label": "fib(3)"
+              },
+              {
+                "id": "fib3b",
+                "label": "fib(3)"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "meaningful_action",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "consequence",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "再帰木の項目を並べ、同じ部分問題を探します。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "consequence",
+          "stage": "consequence",
+          "renderer_kind": "select_evidence",
+          "renderer_version": 1,
+          "prompt": "保存済みの結果を再利用すると、同じ枝を展開せずに済みます。",
+          "scene_state": {
+            "representation": "memo_table",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "choices": [
+              {
+                "id": "fib3a",
+                "label": "最初の fib(3)"
+              },
+              {
+                "id": "fib3b",
+                "label": "二度目の fib(3)"
+              },
+              {
+                "id": "fib4",
+                "label": "fib(4)"
+              }
+            ],
+            "selection_mode": "single"
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "invariant_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "保存済みの結果を再利用すると、同じ枝を展開せずに済みます。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "invariant_check",
+          "stage": "invariant_check",
+          "renderer_kind": "select_evidence",
+          "renderer_version": 1,
+          "prompt": "メモ化で再利用する値を選びます。",
+          "scene_state": {
+            "representation": "memo_table",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "choices": [
+              {
+                "id": "argument",
+                "label": "引数と結果"
+              },
+              {
+                "id": "stack",
+                "label": "呼び出し順だけ"
+              }
+            ],
+            "selection_mode": "single"
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "variation_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "メモ化で再利用する値を選びます。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "variation_check",
+          "stage": "variation_check",
+          "renderer_kind": "select_evidence",
+          "renderer_version": 1,
+          "prompt": "別のコードでも重複する呼び出しを選びます。",
+          "scene_state": {
+            "representation": "code",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "choices": [
+              {
+                "id": "overlap",
+                "label": "同じ状態を再計算する行"
+              },
+              {
+                "id": "base",
+                "label": "基底条件の行"
+              }
+            ],
+            "selection_mode": "single"
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "school_transfer",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "別のコードでも重複する呼び出しを選びます。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "school_transfer",
+          "stage": "school_transfer",
+          "renderer_kind": "equation_input",
+          "renderer_version": 1,
+          "prompt": "通常課題です。メモ化後の計算量を式で入力します。",
+          "scene_state": {
+            "representation": "usual_format",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "input_mode": "equation",
+            "placeholder": "例: O(n)"
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "boundary",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "通常課題です。メモ化後の計算量を式で入力します。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "validated_transfer",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "boundary",
+          "stage": "boundary",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "ここで終えるか、次の問題へ進むかを選びます。",
+          "scene_state": {
+            "representation": "boundary",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 1
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "next",
+                "label": "次の問題を始める"
+              },
+              {
+                "id": "close",
+                "label": "チャットに戻る"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "boundary_choice",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": null,
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "ここで終えるか、次の問題へ進むかを選びます。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        }
+      ],
+      "local_feedback": {
+        "mode": "server_validation",
+        "branch_receipts": []
+      },
+      "verification": {
+        "status": "verified",
+        "methods": [
+          "schema",
+          "source",
+          "deterministic_answer",
+          "renderer_capability",
+          "age_reading_safety",
+          "school_transfer_alignment",
+          "independent_review",
+          "answer_key_separation"
+        ],
+        "verified_at": "2026-07-19T00:00:00Z"
+      }
+    },
+    {
+      "artifact_type": "LearningEpisode",
+      "artifact_version": "2.0",
+      "schema_major": 2,
+      "schema_minor": 0,
+      "episode_id": "de0f0e6d-941b-56e9-9e98-9edfca1064b9",
+      "episode_version_id": "a20849bf-43ff-556a-ae02-3ea7b0e946ab",
+      "content_hash": "sha256:a40e83b66905ee8291233be650b788a49bd1855c172868372bb3728e6782fdd7",
+      "expires_at": "2027-07-19T00:00:00Z",
+      "title": "階段の数え上げの重複計算を減らす",
+      "kernel_ref": {
+        "problem_id": "recursion-memoization.problem",
+        "problem_bundle_id": "4573ea66-c22c-5291-b149-b7eaf101ba70",
+        "revision": 1,
+        "solution_revision_hash": "sha256:6013f0f264b6fe03bf63226a6badd740159bbadaf72c3386255c8a6ad115b4d2",
+        "source_refs": [
+          "material:eca023fe-1bb3-5e56-82ba-784bb386ad97#problem:4573ea66-c22c-5291-b149-b7eaf101ba70"
+        ]
+      },
+      "learning_contract": {
+        "target_skill_ids": [
+          "algorithm.memoization"
+        ],
+        "prerequisite_skill_ids": [],
+        "invariant": "同じ状態の結果を保存して再利用すると、重複する再帰展開を省ける。",
+        "misconception_ids": [
+          "algorithm.memoization.surface-only"
+        ],
+        "curriculum_refs": [
+          "fixture:recursion-memoization:curriculum"
+        ]
+      },
+      "audience": {
+        "education_stage": "university",
+        "grade": "学部1年",
+        "reading_load": "standard",
+        "content_safety_band": "adult"
+      },
+      "render_policy": {
+        "scaffold_level": 2,
+        "representation_start": "diagram",
+        "max_simultaneous_relations": 4,
+        "input_freedom": "bounded",
+        "motion_policy": "system",
+        "audio_required": false
+      },
+      "timing": {
+        "estimated_seconds": 75,
+        "first_action_target_ms": 2000,
+        "minimum_completion_boundary_ms": 20000
+      },
+      "renderer_requirements": [
+        {
+          "kind": "binary_prediction",
+          "minimum_version": 1
+        },
+        {
+          "kind": "drag_order",
+          "minimum_version": 1
+        },
+        {
+          "kind": "equation_input",
+          "minimum_version": 1
+        },
+        {
+          "kind": "select_evidence",
+          "minimum_version": 1
+        }
+      ],
+      "semantic_elements": [
+        {
+          "id": "call.tree",
+          "meaning": "再帰呼び出しの木"
+        },
+        {
+          "id": "subproblem.duplicate",
+          "meaning": "重複する部分問題"
+        },
+        {
+          "id": "memo.table",
+          "meaning": "計算済みの値を保存する表"
+        },
+        {
+          "id": "complexity",
+          "meaning": "入力サイズに対する計算量"
+        }
+      ],
+      "steps": [
+        {
+          "id": "hook",
+          "stage": "hook",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "同じ引数の呼び出しが何度も現れるでしょうか。",
+          "scene_state": {
+            "representation": "call_tree",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "duplicate",
+                "label": "重複する"
+              },
+              {
+                "id": "unique",
+                "label": "重複しない"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "committed",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "同じ引数の呼び出しが何度も現れるでしょうか。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "committed",
+          "stage": "committed",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "実行前に重複の有無を予想します。",
+          "scene_state": {
+            "representation": "call_tree",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "duplicate",
+                "label": "重複する"
+              },
+              {
+                "id": "unique",
+                "label": "重複しない"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "exploring",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "実行前に重複の有無を予想します。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "formative_weak",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "exploring",
+          "stage": "exploring",
+          "renderer_kind": "drag_order",
+          "renderer_version": 1,
+          "prompt": "呼び出し表の項目を並べ、同じ部分問題を探します。",
+          "scene_state": {
+            "representation": "call_tree",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "items": [
+              {
+                "id": "fib5",
+                "label": "fib(5)"
+              },
+              {
+                "id": "fib4",
+                "label": "fib(4)"
+              },
+              {
+                "id": "fib3a",
+                "label": "fib(3)"
+              },
+              {
+                "id": "fib3b",
+                "label": "fib(3)"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "meaningful_action",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "consequence",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "呼び出し表の項目を並べ、同じ部分問題を探します。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "consequence",
+          "stage": "consequence",
+          "renderer_kind": "select_evidence",
+          "renderer_version": 1,
+          "prompt": "保存済みの結果を再利用すると、同じ枝を展開せずに済みます。",
+          "scene_state": {
+            "representation": "memo_table",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "choices": [
+              {
+                "id": "fib3a",
+                "label": "最初の fib(3)"
+              },
+              {
+                "id": "fib3b",
+                "label": "二度目の fib(3)"
+              },
+              {
+                "id": "fib4",
+                "label": "fib(4)"
+              }
+            ],
+            "selection_mode": "single"
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "invariant_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "保存済みの結果を再利用すると、同じ枝を展開せずに済みます。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "invariant_check",
+          "stage": "invariant_check",
+          "renderer_kind": "select_evidence",
+          "renderer_version": 1,
+          "prompt": "メモ化で再利用する値を選びます。",
+          "scene_state": {
+            "representation": "memo_table",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "choices": [
+              {
+                "id": "argument",
+                "label": "引数と結果"
+              },
+              {
+                "id": "stack",
+                "label": "呼び出し順だけ"
+              }
+            ],
+            "selection_mode": "single"
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "variation_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "メモ化で再利用する値を選びます。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "variation_check",
+          "stage": "variation_check",
+          "renderer_kind": "select_evidence",
+          "renderer_version": 1,
+          "prompt": "別のコードでも重複する呼び出しを選びます。",
+          "scene_state": {
+            "representation": "code",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "choices": [
+              {
+                "id": "overlap",
+                "label": "同じ状態を再計算する行"
+              },
+              {
+                "id": "base",
+                "label": "基底条件の行"
+              }
+            ],
+            "selection_mode": "single"
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "school_transfer",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "別のコードでも重複する呼び出しを選びます。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "school_transfer",
+          "stage": "school_transfer",
+          "renderer_kind": "equation_input",
+          "renderer_version": 1,
+          "prompt": "通常課題です。メモ化後の計算量を式で入力します。",
+          "scene_state": {
+            "representation": "usual_format",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "input_mode": "equation",
+            "placeholder": "例: O(n)"
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "boundary",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "通常課題です。メモ化後の計算量を式で入力します。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "validated_transfer",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "boundary",
+          "stage": "boundary",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "ここで終えるか、次の問題へ進むかを選びます。",
+          "scene_state": {
+            "representation": "boundary",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 2
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "next",
+                "label": "次の問題を始める"
+              },
+              {
+                "id": "close",
+                "label": "チャットに戻る"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "boundary_choice",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": null,
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "ここで終えるか、次の問題へ進むかを選びます。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        }
+      ],
+      "local_feedback": {
+        "mode": "server_validation",
+        "branch_receipts": []
+      },
+      "verification": {
+        "status": "verified",
+        "methods": [
+          "schema",
+          "source",
+          "deterministic_answer",
+          "renderer_capability",
+          "age_reading_safety",
+          "school_transfer_alignment",
+          "independent_review",
+          "answer_key_separation"
+        ],
+        "verified_at": "2026-07-19T00:00:00Z"
+      }
+    },
+    {
+      "artifact_type": "LearningEpisode",
+      "artifact_version": "2.0",
+      "schema_major": 2,
+      "schema_minor": 0,
+      "episode_id": "8d334422-c482-5e50-aaef-c6ebd2510a24",
+      "episode_version_id": "2291898d-aba7-565e-bbd4-1de60ad37736",
+      "content_hash": "sha256:a8a88692c6258be875feb00d7b062c3c000c069fc9b3f6895f94265da242d216",
+      "expires_at": "2027-07-19T00:00:00Z",
+      "title": "格子経路の重複計算を減らす",
+      "kernel_ref": {
+        "problem_id": "recursion-memoization.problem",
+        "problem_bundle_id": "4573ea66-c22c-5291-b149-b7eaf101ba70",
+        "revision": 1,
+        "solution_revision_hash": "sha256:6013f0f264b6fe03bf63226a6badd740159bbadaf72c3386255c8a6ad115b4d2",
+        "source_refs": [
+          "material:eca023fe-1bb3-5e56-82ba-784bb386ad97#problem:4573ea66-c22c-5291-b149-b7eaf101ba70"
+        ]
+      },
+      "learning_contract": {
+        "target_skill_ids": [
+          "algorithm.memoization"
+        ],
+        "prerequisite_skill_ids": [],
+        "invariant": "同じ状態の結果を保存して再利用すると、重複する再帰展開を省ける。",
+        "misconception_ids": [
+          "algorithm.memoization.surface-only"
+        ],
+        "curriculum_refs": [
+          "fixture:recursion-memoization:curriculum"
+        ]
+      },
+      "audience": {
+        "education_stage": "university",
+        "grade": "学部1年",
+        "reading_load": "standard",
+        "content_safety_band": "adult"
+      },
+      "render_policy": {
+        "scaffold_level": 2,
+        "representation_start": "diagram",
+        "max_simultaneous_relations": 4,
+        "input_freedom": "bounded",
+        "motion_policy": "system",
+        "audio_required": false
+      },
+      "timing": {
+        "estimated_seconds": 75,
+        "first_action_target_ms": 2000,
+        "minimum_completion_boundary_ms": 20000
+      },
+      "renderer_requirements": [
+        {
+          "kind": "binary_prediction",
+          "minimum_version": 1
+        },
+        {
+          "kind": "drag_order",
+          "minimum_version": 1
+        },
+        {
+          "kind": "equation_input",
+          "minimum_version": 1
+        },
+        {
+          "kind": "select_evidence",
+          "minimum_version": 1
+        }
+      ],
+      "semantic_elements": [
+        {
+          "id": "call.tree",
+          "meaning": "再帰呼び出しの木"
+        },
+        {
+          "id": "subproblem.duplicate",
+          "meaning": "重複する部分問題"
+        },
+        {
+          "id": "memo.table",
+          "meaning": "計算済みの値を保存する表"
+        },
+        {
+          "id": "complexity",
+          "meaning": "入力サイズに対する計算量"
+        }
+      ],
+      "steps": [
+        {
+          "id": "hook",
+          "stage": "hook",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "同じ引数の呼び出しが何度も現れるでしょうか。",
+          "scene_state": {
+            "representation": "call_tree",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "duplicate",
+                "label": "重複する"
+              },
+              {
+                "id": "unique",
+                "label": "重複しない"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "committed",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "同じ引数の呼び出しが何度も現れるでしょうか。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "committed",
+          "stage": "committed",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "実行前に重複の有無を予想します。",
+          "scene_state": {
+            "representation": "call_tree",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "duplicate",
+                "label": "重複する"
+              },
+              {
+                "id": "unique",
+                "label": "重複しない"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "exploring",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "実行前に重複の有無を予想します。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "formative_weak",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "exploring",
+          "stage": "exploring",
+          "renderer_kind": "drag_order",
+          "renderer_version": 1,
+          "prompt": "メモ表の項目を並べ、同じ部分問題を探します。",
+          "scene_state": {
+            "representation": "call_tree",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "items": [
+              {
+                "id": "fib5",
+                "label": "fib(5)"
+              },
+              {
+                "id": "fib4",
+                "label": "fib(4)"
+              },
+              {
+                "id": "fib3a",
+                "label": "fib(3)"
+              },
+              {
+                "id": "fib3b",
+                "label": "fib(3)"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "meaningful_action",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "consequence",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "メモ表の項目を並べ、同じ部分問題を探します。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "consequence",
+          "stage": "consequence",
+          "renderer_kind": "select_evidence",
+          "renderer_version": 1,
+          "prompt": "保存済みの結果を再利用すると、同じ枝を展開せずに済みます。",
+          "scene_state": {
+            "representation": "memo_table",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "choices": [
+              {
+                "id": "fib3a",
+                "label": "最初の fib(3)"
+              },
+              {
+                "id": "fib3b",
+                "label": "二度目の fib(3)"
+              },
+              {
+                "id": "fib4",
+                "label": "fib(4)"
+              }
+            ],
+            "selection_mode": "single"
+          },
+          "completion_condition": {
+            "kind": "input_enabled",
+            "minimum_actions": 0
+          },
+          "next_step": {
+            "submitted": "invariant_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "保存済みの結果を再利用すると、同じ枝を展開せずに済みます。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "invariant_check",
+          "stage": "invariant_check",
+          "renderer_kind": "select_evidence",
+          "renderer_version": 1,
+          "prompt": "メモ化で再利用する値を選びます。",
+          "scene_state": {
+            "representation": "memo_table",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "choices": [
+              {
+                "id": "argument",
+                "label": "引数と結果"
+              },
+              {
+                "id": "stack",
+                "label": "呼び出し順だけ"
+              }
+            ],
+            "selection_mode": "single"
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "variation_check",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "メモ化で再利用する値を選びます。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "variation_check",
+          "stage": "variation_check",
+          "renderer_kind": "select_evidence",
+          "renderer_version": 1,
+          "prompt": "別のコードでも重複する呼び出しを選びます。",
+          "scene_state": {
+            "representation": "code",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "choices": [
+              {
+                "id": "overlap",
+                "label": "同じ状態を再計算する行"
+              },
+              {
+                "id": "base",
+                "label": "基底条件の行"
+              }
+            ],
+            "selection_mode": "single"
+          },
+          "completion_condition": {
+            "kind": "submitted",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "school_transfer",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "別のコードでも重複する呼び出しを選びます。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "scorable",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "school_transfer",
+          "stage": "school_transfer",
+          "renderer_kind": "equation_input",
+          "renderer_version": 1,
+          "prompt": "通常課題です。メモ化後の計算量を式で入力します。",
+          "scene_state": {
+            "representation": "usual_format",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "input_mode": "equation",
+            "placeholder": "例: O(n)"
+          },
+          "completion_condition": {
+            "kind": "scored_response",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": "boundary",
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "通常課題です。メモ化後の計算量を式で入力します。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "validated_transfer",
+          "local_feedback_ref": null
+        },
+        {
+          "id": "boundary",
+          "stage": "boundary",
+          "renderer_kind": "binary_prediction",
+          "renderer_version": 1,
+          "prompt": "ここで終えるか、次の問題へ進むかを選びます。",
+          "scene_state": {
+            "representation": "boundary",
+            "semantic_focus": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "episode_position": 3
+          },
+          "interaction_config": {
+            "input_mode": "single_choice",
+            "choices": [
+              {
+                "id": "next",
+                "label": "次の問題を始める"
+              },
+              {
+                "id": "close",
+                "label": "チャットに戻る"
+              }
+            ]
+          },
+          "completion_condition": {
+            "kind": "boundary_choice",
+            "minimum_actions": 1
+          },
+          "next_step": {
+            "submitted": null,
+            "correct": null,
+            "incorrect": null,
+            "hint_used": null,
+            "server_evaluation_ready": null
+          },
+          "semantic_element_ids": [
+            "call.tree",
+            "subproblem.duplicate",
+            "memo.table",
+            "complexity"
+          ],
+          "accessibility": {
+            "summary": "ここで終えるか、次の問題へ進むかを選びます。",
+            "semantic_order": [
+              "call.tree",
+              "subproblem.duplicate",
+              "memo.table",
+              "complexity"
+            ],
+            "gesture_fallback": "画面下のボタンまたは入力欄でも同じ操作ができます。",
+            "reduce_motion": "動きを減らす設定では、変化前と変化後を順に表示します。"
+          },
+          "evidence_tier": "engagement_only",
+          "local_feedback_ref": null
+        }
+      ],
+      "local_feedback": {
+        "mode": "server_validation",
+        "branch_receipts": []
+      },
+      "verification": {
+        "status": "verified",
+        "methods": [
+          "schema",
+          "source",
+          "deterministic_answer",
+          "renderer_capability",
+          "age_reading_safety",
+          "school_transfer_alignment",
+          "independent_review",
+          "answer_key_separation"
+        ],
+        "verified_at": "2026-07-19T00:00:00Z"
+      }
+    }
+  ]
+}

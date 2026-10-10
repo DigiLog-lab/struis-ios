@@ -1,0 +1,86 @@
+/* Struis: 本文と数式の見た目。KaTeXMathText が読み込む同梱ファイル(K1)。
+   色・大きさ・太さは struisRender が変数で渡す。 */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  color: var(--struis-color, inherit);
+  font-family: "Zen Kaku Gothic New", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+  font-size: var(--struis-font-size, 15px);
+  font-weight: var(--struis-font-weight, 500);
+  line-height: 1.58;
+  overflow: hidden;
+  -webkit-text-size-adjust: 100%;
+}
+#root {
+  display: block;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.math-expr--inline {
+  display: inline;
+}
+.math-expr--block {
+  display: block;
+  line-height: 1.7;
+}
+.math-scroll--inline {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: -0.12em;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+}
+.math-scroll--display {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0.42em 0 0.18em;
+  padding-bottom: 0.36em;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  line-height: 1.2;
+  -webkit-overflow-scrolling: touch;
+}
+/* 横にはみ出した数式(D5): 隠さずに横スクロールで読ませる。続きがある間は右端を薄くする。 */
+.math-scroll.struis-more {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), rgba(0, 0, 0, 0.15));
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), rgba(0, 0, 0, 0.15));
+}
+.math-scroll .katex-display {
+  max-width: none;
+  margin: 0;
+  overflow: visible;
+  padding: 0;
+  text-align: left;
+}
+.math-scroll--display .katex,
+.math-scroll--display .katex-html {
+  min-width: max-content;
+  width: max-content;
+}
+.katex {
+  color: inherit;
+  font-size: 1.08em;
+}
+strong {
+  font-weight: 700;
+}
+[data-struis-mark] {
+  border-radius: 5px;
+  transition: background-color 0.45s ease;
+  -webkit-box-decoration-break: clone;
+}
+.struis-hl {
+  background-color: rgba(196, 130, 72, 0.24);
+}

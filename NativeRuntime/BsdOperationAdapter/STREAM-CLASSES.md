@@ -1,0 +1,11 @@
+# Captured streamの所有と取消
+
+trusted contextは既存tableとimmutable scopeを保持し、tableのcommand-context slotを一度だけclaimします。opaque stream handleは再利用せず、scope・direction・live authorityを操作ごとに確認します。
+
+regular streamは既存cookieを使用します。borrowed stdioはtrusted callerが既に認可したexact FILE tupleで、callerの所有権を維持します。prepared pipeはfactoryが実pipeを作り、OS endpointを私有にします。numeric fd0/1/2やguest指定pointerから権限を推定しません。
+
+dupは同じclassified stream engineを参照します。context lockは寿命・bookkeepingだけを守り、blocking pipe I/Oでは保持しません。in-flight操作がobjectをpinします。Linux writerは自身のthreadでSIGPIPEを扱い、Darwin writerは生成時にNOSIGPIPEを設定します。
+
+cancelの成功はauthority無効化と取消要求の受付です。thread終了やcommand完了は別に確認します。handle・I/Oが残る間destroyはEBUSYで、bounded終了を確認できない場合は資源を保持しcaptured workerをretireする必要があります。
+
+`tests/streams.c`は実pipe・pthread・Core ABIでbackpressure、EOF、EPIPE、blocked I/O取消、retained ownershipを検査します。Linux結果とDarwinのSDK/worker/pipeline結果を区別してください。

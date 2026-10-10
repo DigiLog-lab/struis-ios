@@ -1,0 +1,1972 @@
+{
+ "command_activity_labels": [
+  {
+   "cat": "内容を読んでいます…",
+   "sed": "内容を読んでいます…",
+   "head": "内容を読んでいます…",
+   "tail": "内容を読んでいます…",
+   "less": "内容を読んでいます…",
+   "nl": "内容を読んでいます…",
+   "rg": "必要な情報を探しています…",
+   "grep": "必要な情報を探しています…",
+   "find": "必要な情報を探しています…",
+   "fd": "必要な情報を探しています…",
+   "ls": "必要な情報を探しています…",
+   "wc": "分量を確認しています…",
+   "tesseract": "画像を読んでいます…",
+   "pdftoppm": "画像を読んでいます…",
+   "magick": "画像を読んでいます…",
+   "convert": "画像を読んでいます…",
+   "apply_patch": "内容を整えています…",
+   "patch": "内容を整えています…",
+   "python": "スクリプトで確認しています…",
+   "python3": "スクリプトで確認しています…",
+   "node": "スクリプトで確認しています…",
+   "pytest": "動きを確認しています…",
+   "ruff": "動きを確認しています…",
+   "eslint": "動きを確認しています…",
+   "tsc": "動きを確認しています…",
+   "npm": "動きを確認しています…",
+   "pnpm": "動きを確認しています…",
+   "yarn": "動きを確認しています…",
+   "git": "変更内容を確認しています…",
+   "curl": "接続を確認しています…",
+   "wget": "接続を確認しています…"
+  }
+ ],
+ "progress_labels_from_plan": [
+  {
+   "name": "in_progress_image",
+   "params": {
+    "plan": [
+     {
+      "step": "画像を確認する",
+      "status": "inProgress"
+     },
+     {
+      "step": "答えを整理する",
+      "status": "pending"
+     }
+    ]
+   },
+   "expect": [
+    "画像を読んでいます…"
+   ]
+  },
+  {
+   "name": "pending_only_first",
+   "params": {
+    "plan": [
+     {
+      "step": "資料を読む",
+      "status": "pending"
+     },
+     {
+      "step": "検索する",
+      "status": "pending"
+     }
+    ]
+   },
+   "expect": [
+    "内容を読んでいます…"
+   ]
+  },
+  {
+   "name": "multiple_in_progress_dedup",
+   "params": {
+    "plan": [
+     {
+      "step": "履歴を見る",
+      "status": "inProgress"
+     },
+     {
+      "step": "前回の会話を確認",
+      "status": "inProgress"
+     },
+     {
+      "step": "検索",
+      "status": "inProgress"
+     }
+    ]
+   },
+   "expect": [
+    "前のやりとりを見ています…",
+    "必要な情報を探しています…"
+   ]
+  },
+  {
+   "name": "no_plan",
+   "params": {},
+   "expect": []
+  },
+  {
+   "name": "plan_not_list",
+   "params": {
+    "plan": "x"
+   },
+   "expect": []
+  },
+  {
+   "name": "unlabeled_steps",
+   "params": {
+    "plan": [
+     {
+      "step": "zzz",
+      "status": "inProgress"
+     },
+     {
+      "step": "qqq",
+      "status": "pending"
+     }
+    ]
+   },
+   "expect": []
+  },
+  {
+   "name": "in_progress_unlabeled_falls_to_pending",
+   "params": {
+    "plan": [
+     {
+      "step": "zzz",
+      "status": "inProgress"
+     },
+     {
+      "step": "問題文を読む",
+      "status": "pending"
+     }
+    ]
+   },
+   "expect": [
+    "内容を読んでいます…"
+   ]
+  },
+  {
+   "name": "non_dict_steps",
+   "params": {
+    "plan": [
+     "画像",
+     {
+      "step": null,
+      "status": "pending"
+     },
+     {
+      "status": "inProgress"
+     }
+    ]
+   },
+   "expect": []
+  },
+  {
+   "name": "completed_ignored",
+   "params": {
+    "plan": [
+     {
+      "step": "画像を確認",
+      "status": "completed"
+     }
+    ]
+   },
+   "expect": []
+  }
+ ],
+ "progress_activity_from_item": [
+  {
+   "name": "cat_student",
+   "item": {
+    "type": "local_shell_call",
+    "command": "cat tutor_desk/student.md"
+   },
+   "expect": {
+    "label": "内容を読んでいます…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": "cat tutor_desk/student.md"
+   }
+  },
+  {
+   "name": "rg",
+   "item": {
+    "type": "local_shell_call",
+    "command": "rg -n physics struis_context"
+   },
+   "expect": {
+    "label": "必要な情報を探しています…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": "rg -n physics struis_context"
+   }
+  },
+  {
+   "name": "pytest",
+   "item": {
+    "type": "local_shell_call",
+    "command": "pytest tests/test_codex_app_server.py"
+   },
+   "expect": {
+    "label": "動きを確認しています…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": "pytest tests/test_codex_app_server.py"
+   }
+  },
+  {
+   "name": "arguments_json_bash_lc",
+   "item": {
+    "type": "function_call",
+    "name": "exec_command",
+    "arguments": "{\"cmd\":\"bash -lc \\\"sed -n 1,20p source.md\\\"\"}"
+   },
+   "expect": {
+    "label": "内容を読んでいます…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": "bash -lc \"sed -n 1,20p source.md\""
+   }
+  },
+  {
+   "name": "list_command_with_id",
+   "item": {
+    "type": "local_shell_call",
+    "id": "call_1",
+    "command": [
+     "/usr/bin/python3",
+     "-m",
+     "pytest",
+     "-q"
+    ]
+   },
+   "expect": {
+    "label": "動きを確認しています…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true",
+     "progress_id": "cmd-call_1"
+    },
+    "command": [
+     "/usr/bin/python3",
+     "-m",
+     "pytest",
+     "-q"
+    ]
+   }
+  },
+  {
+   "name": "cmd_key_call_id",
+   "item": {
+    "cmd": "ls -la",
+    "call_id": 42
+   },
+   "expect": {
+    "label": "必要な情報を探しています…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true",
+     "progress_id": "cmd-42"
+    },
+    "command": "ls -la"
+   }
+  },
+  {
+   "name": "commandLine_itemId",
+   "item": {
+    "commandLine": "git status",
+    "itemId": "abc"
+   },
+   "expect": {
+    "label": "変更内容を確認しています…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true",
+     "progress_id": "cmd-abc"
+    },
+    "command": "git status"
+   }
+  },
+  {
+   "name": "arguments_dict",
+   "item": {
+    "arguments": {
+     "command": "wc -l notes.md"
+    },
+    "callId": "c9"
+   },
+   "expect": {
+    "label": "分量を確認しています…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true",
+     "progress_id": "cmd-c9"
+    },
+    "command": "wc -l notes.md"
+   }
+  },
+  {
+   "name": "arguments_invalid_json",
+   "item": {
+    "arguments": "{not json",
+    "id": "x"
+   },
+   "expect": {
+    "label": "",
+    "metadata": null,
+    "command": null
+   }
+  },
+  {
+   "name": "arguments_json_non_dict",
+   "item": {
+    "arguments": "[1,2]"
+   },
+   "expect": {
+    "label": "",
+    "metadata": null,
+    "command": null
+   }
+  },
+  {
+   "name": "unknown_command",
+   "item": {
+    "command": "foo --bar"
+   },
+   "expect": {
+    "label": "",
+    "metadata": null,
+    "command": "foo --bar"
+   }
+  },
+  {
+   "name": "empty_command",
+   "item": {
+    "command": ""
+   },
+   "expect": {
+    "label": "",
+    "metadata": null,
+    "command": null
+   }
+  },
+  {
+   "name": "no_command",
+   "item": {
+    "type": "reasoning"
+   },
+   "expect": {
+    "label": "",
+    "metadata": null,
+    "command": null
+   }
+  },
+  {
+   "name": "not_dict",
+   "item": "cat x",
+   "expect": {
+    "label": "",
+    "metadata": null,
+    "command": null
+   }
+  },
+  {
+   "name": "ocr_marker",
+   "item": {
+    "command": "python3 run_ocr.py scan.png"
+   },
+   "expect": {
+    "label": "画像を読んでいます…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": "python3 run_ocr.py scan.png"
+   }
+  },
+  {
+   "name": "docker_build",
+   "item": {
+    "command": "docker build ."
+   },
+   "expect": {
+    "label": "動きを確認しています…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": "docker build ."
+   }
+  },
+  {
+   "name": "docker_run_plain",
+   "item": {
+    "command": "docker run app"
+   },
+   "expect": {
+    "label": "",
+    "metadata": null,
+    "command": "docker run app"
+   }
+  },
+  {
+   "name": "node_test",
+   "item": {
+    "command": "node scripts/check.js"
+   },
+   "expect": {
+    "label": "動きを確認しています…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": "node scripts/check.js"
+   }
+  },
+  {
+   "name": "node_plain",
+   "item": {
+    "command": "node scripts/run.js"
+   },
+   "expect": {
+    "label": "スクリプトで確認しています…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": "node scripts/run.js"
+   }
+  },
+  {
+   "name": "npm_install",
+   "item": {
+    "command": "npm install"
+   },
+   "expect": {
+    "label": "動きを確認しています…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": "npm install"
+   }
+  },
+  {
+   "name": "npm_test",
+   "item": {
+    "command": "npm test"
+   },
+   "expect": {
+    "label": "動きを確認しています…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": "npm test"
+   }
+  },
+  {
+   "name": "tesseract_path",
+   "item": {
+    "command": "/opt/homebrew/bin/tesseract page.tif out"
+   },
+   "expect": {
+    "label": "画像を読んでいます…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": "/opt/homebrew/bin/tesseract page.tif out"
+   }
+  },
+  {
+   "name": "unclosed_quote_fallback",
+   "item": {
+    "command": "cat 'unterminated"
+   },
+   "expect": {
+    "label": "内容を読んでいます…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": "cat 'unterminated"
+   }
+  },
+  {
+   "name": "sh_c_wrapped",
+   "item": {
+    "command": [
+     "sh",
+     "-c",
+     "grep -R foo . | head"
+    ]
+   },
+   "expect": {
+    "label": "必要な情報を探しています…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": [
+     "sh",
+     "-c",
+     "grep -R foo . | head"
+    ]
+   }
+  },
+  {
+   "name": "bash_c_unclosed_inner",
+   "item": {
+    "command": [
+     "bash",
+     "-c",
+     "cat 'oops"
+    ]
+   },
+   "expect": {
+    "label": "内容を読んでいます…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": [
+     "bash",
+     "-c",
+     "cat 'oops"
+    ]
+   }
+  },
+  {
+   "name": "quoted_pdf",
+   "item": {
+    "command": "cat \"my file.pdf\""
+   },
+   "expect": {
+    "label": "画像を読んでいます…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": "cat \"my file.pdf\""
+   }
+  },
+  {
+   "name": "escaped_space",
+   "item": {
+    "command": "cat my\\ notes.txt"
+   },
+   "expect": {
+    "label": "内容を読んでいます…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": "cat my\\ notes.txt"
+   }
+  },
+  {
+   "name": "id_zero_not_used",
+   "item": {
+    "command": "cat x",
+    "id": 0,
+    "call_id": "fallback"
+   },
+   "expect": {
+    "label": "内容を読んでいます…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true",
+     "progress_id": "cmd-fallback"
+    },
+    "command": "cat x"
+   }
+  },
+  {
+   "name": "false_command_skipped",
+   "item": {
+    "command": false,
+    "cmd": "head x"
+   },
+   "expect": {
+    "label": "内容を読んでいます…",
+    "metadata": {
+     "source": "app_server_command",
+     "tone": "activity",
+     "allow_duplicate": "true"
+    },
+    "command": "head x"
+   }
+  }
+ ],
+ "shlex_split": [
+  {
+   "input": "cat a b",
+   "expect": {
+    "ok": true,
+    "parts": [
+     "cat",
+     "a",
+     "b"
+    ]
+   },
+   "command_parts": [
+    "cat",
+    "a",
+    "b"
+   ]
+  },
+  {
+   "input": "  cat   a\tb  ",
+   "expect": {
+    "ok": true,
+    "parts": [
+     "cat",
+     "a",
+     "b"
+    ]
+   },
+   "command_parts": [
+    "cat",
+    "a",
+    "b"
+   ]
+  },
+  {
+   "input": "echo 'single quoted' \"double quoted\"",
+   "expect": {
+    "ok": true,
+    "parts": [
+     "echo",
+     "single quoted",
+     "double quoted"
+    ]
+   },
+   "command_parts": [
+    "echo",
+    "single quoted",
+    "double quoted"
+   ]
+  },
+  {
+   "input": "echo \"esc \\\" quote\" 'lit \\n'",
+   "expect": {
+    "ok": true,
+    "parts": [
+     "echo",
+     "esc \" quote",
+     "lit \\n"
+    ]
+   },
+   "command_parts": [
+    "echo",
+    "esc \" quote",
+    "lit \\n"
+   ]
+  },
+  {
+   "input": "echo back\\slash x",
+   "expect": {
+    "ok": true,
+    "parts": [
+     "echo",
+     "backslash",
+     "x"
+    ]
+   },
+   "command_parts": [
+    "echo",
+    "backslash",
+    "x"
+   ]
+  },
+  {
+   "input": "echo \"unterminated",
+   "expect": {
+    "ok": false,
+    "error": "No closing quotation"
+   },
+   "command_parts": [
+    "echo",
+    "\"unterminated"
+   ]
+  },
+  {
+   "input": "echo trailing\\",
+   "expect": {
+    "ok": false,
+    "error": "No escaped character"
+   },
+   "command_parts": [
+    "echo",
+    "trailing\\"
+   ]
+  },
+  {
+   "input": "a''b",
+   "expect": {
+    "ok": true,
+    "parts": [
+     "ab"
+    ]
+   },
+   "command_parts": [
+    "ab"
+   ]
+  },
+  {
+   "input": "\"\"",
+   "expect": {
+    "ok": true,
+    "parts": [
+     ""
+    ]
+   },
+   "command_parts": [
+    ""
+   ]
+  },
+  {
+   "input": "",
+   "expect": {
+    "ok": true,
+    "parts": []
+   },
+   "command_parts": []
+  },
+  {
+   "input": "echo \"a\\$b\\\\c\"",
+   "expect": {
+    "ok": true,
+    "parts": [
+     "echo",
+     "a\\$b\\c"
+    ]
+   },
+   "command_parts": [
+    "echo",
+    "a\\$b\\c"
+   ]
+  },
+  {
+   "input": "bash -lc \"sed -n 1,20p source.md\"",
+   "expect": {
+    "ok": true,
+    "parts": [
+     "bash",
+     "-lc",
+     "sed -n 1,20p source.md"
+    ]
+   },
+   "command_parts": [
+    "sed",
+    "-n",
+    "1,20p",
+    "source.md"
+   ]
+  },
+  {
+   "input": "bash -c 'cat \"x y\"'",
+   "expect": {
+    "ok": true,
+    "parts": [
+     "bash",
+     "-c",
+     "cat \"x y\""
+    ]
+   },
+   "command_parts": [
+    "cat",
+    "x y"
+   ]
+  },
+  {
+   "input": "sh -lc",
+   "expect": {
+    "ok": true,
+    "parts": [
+     "sh",
+     "-lc"
+    ]
+   },
+   "command_parts": [
+    "sh",
+    "-lc"
+   ]
+  },
+  {
+   "input": "/bin/bash -c \"echo hi\" extra",
+   "expect": {
+    "ok": true,
+    "parts": [
+     "/bin/bash",
+     "-c",
+     "echo hi",
+     "extra"
+    ]
+   },
+   "command_parts": [
+    "echo",
+    "hi"
+   ]
+  },
+  {
+   "input": "echo 日本語 'スペース 入り'",
+   "expect": {
+    "ok": true,
+    "parts": [
+     "echo",
+     "日本語",
+     "スペース 入り"
+    ]
+   },
+   "command_parts": [
+    "echo",
+    "日本語",
+    "スペース 入り"
+   ]
+  },
+  {
+   "input": "echo a#b # c",
+   "expect": {
+    "ok": true,
+    "parts": [
+     "echo",
+     "a#b",
+     "#",
+     "c"
+    ]
+   },
+   "command_parts": [
+    "echo",
+    "a#b",
+    "#",
+    "c"
+   ]
+  },
+  {
+   "input": "echo \"back\\\\slash\"",
+   "expect": {
+    "ok": true,
+    "parts": [
+     "echo",
+     "back\\slash"
+    ]
+   },
+   "command_parts": [
+    "echo",
+    "back\\slash"
+   ]
+  },
+  {
+   "input": "cat 'a'b\"c\"d",
+   "expect": {
+    "ok": true,
+    "parts": [
+     "cat",
+     "abcd"
+    ]
+   },
+   "command_parts": [
+    "cat",
+    "abcd"
+   ]
+  },
+  {
+   "input": "echo \\'quoted\\'",
+   "expect": {
+    "ok": true,
+    "parts": [
+     "echo",
+     "'quoted'"
+    ]
+   },
+   "command_parts": [
+    "echo",
+    "'quoted'"
+   ]
+  },
+  {
+   "input": [
+    "bash",
+    "-c",
+    "cat 'oops"
+   ],
+   "expect": null,
+   "command_parts": [
+    "cat",
+    "'oops"
+   ]
+  },
+  {
+   "input": [
+    "bash",
+    "-lc",
+    "rg foo",
+    "extra"
+   ],
+   "expect": null,
+   "command_parts": [
+    "rg",
+    "foo"
+   ]
+  },
+  {
+   "input": [
+    "/usr/bin/sh",
+    "-c",
+    "ls  -la"
+   ],
+   "expect": null,
+   "command_parts": [
+    "ls",
+    "-la"
+   ]
+  },
+  {
+   "input": [
+    1,
+    null,
+    true
+   ],
+   "expect": null,
+   "command_parts": [
+    "1",
+    "None",
+    "True"
+   ]
+  },
+  {
+   "input": [
+    "bash",
+    "-x",
+    "cat"
+   ],
+   "expect": null,
+   "command_parts": [
+    "bash",
+    "-x",
+    "cat"
+   ]
+  }
+ ],
+ "activity_label_from_text": [
+  {
+   "input": "画像を確認する",
+   "expect": "画像を読んでいます…"
+  },
+  {
+   "input": "教材を読む",
+   "expect": "内容を読んでいます…"
+  },
+  {
+   "input": "前回の会話",
+   "expect": "前のやりとりを見ています…"
+  },
+  {
+   "input": "検索する",
+   "expect": "必要な情報を探しています…"
+  },
+  {
+   "input": "内容を読む",
+   "expect": "内容を読んでいます…"
+  },
+  {
+   "input": "テストを動かす",
+   "expect": "動きを確認しています…"
+  },
+  {
+   "input": "修正して保存",
+   "expect": "内容を整えています…"
+  },
+  {
+   "input": "答えを整理",
+   "expect": "答え方を整えています…"
+  },
+  {
+   "input": "zzz",
+   "expect": ""
+  },
+  {
+   "input": "",
+   "expect": ""
+  },
+  {
+   "input": "Check the IMAGE",
+   "expect": "画像を読んでいます…"
+  },
+  {
+   "input": "search the notes",
+   "expect": "必要な情報を探しています…"
+  },
+  {
+   "input": "read history",
+   "expect": "前のやりとりを見ています…"
+  },
+  {
+   "input": "run build",
+   "expect": "動きを確認しています…"
+  },
+  {
+   "input": "apply patch",
+   "expect": "内容を整えています…"
+  },
+  {
+   "input": "OCR",
+   "expect": "画像を読んでいます…"
+  }
+ ],
+ "progress_label_from_agent_delta": [
+  {
+   "input": "画像を確認しています。",
+   "expect": "画像を確認しています"
+  },
+  {
+   "input": "前回の内容を整理しています",
+   "expect": "前回の内容を整理しています"
+  },
+  {
+   "input": "途中計算: $\\bad$",
+   "expect": ""
+  },
+  {
+   "input": "では $y=1$ を代入すると、積分する式は何になりますか?",
+   "expect": ""
+  },
+  {
+   "input": "",
+   "expect": ""
+  },
+  {
+   "input": " - 確認中 ",
+   "expect": "確認中"
+  },
+  {
+   "input": "確認します。",
+   "expect": "確認します"
+  },
+  {
+   "input": "整理しました",
+   "expect": "整理しました"
+  },
+  {
+   "input": "問題を3つ確認しています",
+   "expect": ""
+  },
+  {
+   "input": "確認しますね",
+   "expect": ""
+  },
+  {
+   "input": "http://x 確認します",
+   "expect": ""
+  },
+  {
+   "input": "確認： します",
+   "expect": ""
+  },
+  {
+   "input": "a/b を確認します",
+   "expect": ""
+  },
+  {
+   "input": "とても長いとても長いとても長いとても長いとても長いとても長いとても長いとても長いとても長いとても長いとても長いとても長いとても長いとても長いとても長いとても長いとても長いとても長いとても長いとても長い確認します",
+   "expect": ""
+  },
+  {
+   "input": "組み立てています",
+   "expect": "組み立てています"
+  },
+  {
+   "input": "これは普通の文です",
+   "expect": ""
+  },
+  {
+   "input": "見て\nいます",
+   "expect": "見て います"
+  }
+ ],
+ "progress_message_from_agent_text": [
+  {
+   "input": "画像の範囲を読み取っています。問題がいくつかあるので、まず単元ごとに分けます。",
+   "expect": "画像の範囲を読み取っています。問題がいくつかあるので、まず単元ごとに分けます"
+  },
+  {
+   "input": "公式暗記だけでは詰まりそうな部分を見ています。最初に足場になる考え方を選びます。",
+   "expect": "公式暗記だけでは詰まりそうな部分を見ています。最初に足場になる考え方を選びます"
+  },
+  {
+   "input": "途中計算は $v_x=v_0\\cos\\theta$ です。",
+   "expect": ""
+  },
+  {
+   "input": "",
+   "expect": ""
+  },
+  {
+   "input": "Traceback (most recent call last) を確認します",
+   "expect": ""
+  },
+  {
+   "input": "問題を3つ確認しています。",
+   "expect": "問題を3つ確認しています"
+  },
+  {
+   "input": "https://example.com を確認します",
+   "expect": ""
+  },
+  {
+   "input": "長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い長い確認します",
+   "expect": ""
+  },
+  {
+   "input": "確認です",
+   "expect": "確認です"
+  },
+  {
+   "input": "普通の文です。",
+   "expect": ""
+  },
+  {
+   "input": "```code``` 確認します",
+   "expect": ""
+  },
+  {
+   "input": "進めます",
+   "expect": "進めます"
+  }
+ ],
+ "progress_label": [
+  {
+   "input": "確認中",
+   "expect": "確認します"
+  },
+  {
+   "input": "確認する",
+   "expect": "確認します"
+  },
+  {
+   "input": "確認します",
+   "expect": "確認します"
+  },
+  {
+   "input": "見る",
+   "expect": "見ます"
+  },
+  {
+   "input": "read",
+   "expect": "read"
+  },
+  {
+   "input": "画像を読んでいます…",
+   "expect": "画像を読んでいます…"
+  },
+  {
+   "input": "loading...",
+   "expect": "loading"
+  },
+  {
+   "input": "",
+   "expect": ""
+  },
+  {
+   "input": "  - 整理 。",
+   "expect": "整理します"
+  },
+  {
+   "input": "整理\n中",
+   "expect": "整理 します"
+  },
+  {
+   "input": "考える",
+   "expect": "考えます"
+  },
+  {
+   "input": "Check",
+   "expect": "Check"
+  },
+  {
+   "input": "です",
+   "expect": "です"
+  },
+  {
+   "input": "してください",
+   "expect": "してください"
+  }
+ ],
+ "extract_agent_text_from_item": [
+  {
+   "name": "response_item_output_text",
+   "item": {
+    "type": "response_item",
+    "role": "assistant",
+    "content": [
+     {
+      "type": "output_text",
+      "text": "この問題は、まず代表例を3つ出します。"
+     }
+    ]
+   },
+   "expect": {
+    "text": "この問題は、まず代表例を3つ出します。",
+    "phase": ""
+   }
+  },
+  {
+   "name": "user_role_ignored",
+   "item": {
+    "type": "message",
+    "role": "user",
+    "text": "x"
+   },
+   "expect": {
+    "text": "",
+    "phase": ""
+   }
+  },
+  {
+   "name": "agent_message_text",
+   "item": {
+    "type": "agentMessage",
+    "text": "こんにちは"
+   },
+   "expect": {
+    "text": "こんにちは",
+    "phase": ""
+   }
+  },
+  {
+   "name": "unknown_type_no_role",
+   "item": {
+    "type": "reasoning",
+    "text": "x"
+   },
+   "expect": {
+    "text": "",
+    "phase": ""
+   }
+  },
+  {
+   "name": "assistant_role_unknown_type",
+   "item": {
+    "type": "whatever",
+    "role": "assistant",
+    "outputText": "y"
+   },
+   "expect": {
+    "text": "y",
+    "phase": ""
+   }
+  },
+  {
+   "name": "or_chain_skips_empty",
+   "item": {
+    "type": "message",
+    "text": "",
+    "output_text": [],
+    "finalText": "final"
+   },
+   "expect": {
+    "text": "final",
+    "phase": ""
+   }
+  },
+  {
+   "name": "content_dict",
+   "item": {
+    "type": "message",
+    "content": {
+     "type": "text",
+     "text": "dict"
+    }
+   },
+   "expect": {
+    "text": "dict",
+    "phase": ""
+   }
+  },
+  {
+   "name": "content_list_mixed",
+   "item": {
+    "type": "message",
+    "content": [
+     {
+      "type": "image",
+      "text": "no"
+     },
+     "raw ",
+     {
+      "type": "content",
+      "content": [
+       {
+        "type": "message",
+        "outputText": "nested"
+       }
+      ]
+     }
+    ]
+   },
+   "expect": {
+    "text": "raw nested",
+    "phase": ""
+   }
+  },
+  {
+   "name": "content_wrong_part_type",
+   "item": {
+    "type": "message",
+    "content": [
+     {
+      "type": "input_text",
+      "text": "hidden"
+     }
+    ]
+   },
+   "expect": {
+    "text": "",
+    "phase": ""
+   }
+  },
+  {
+   "name": "content_number",
+   "item": {
+    "type": "message",
+    "content": 5
+   },
+   "expect": {
+    "text": "",
+    "phase": ""
+   }
+  },
+  {
+   "name": "phase_variants",
+   "item": {
+    "type": "message",
+    "phase": "commentary",
+    "text": "p"
+   },
+   "expect": {
+    "text": "p",
+    "phase": "commentary"
+   }
+  },
+  {
+   "name": "part_without_type_priority",
+   "item": {
+    "type": "message",
+    "content": [
+     {
+      "text": "",
+      "outputText": "",
+      "output_text": "third",
+      "content": "fourth"
+     }
+    ]
+   },
+   "expect": {
+    "text": "third",
+    "phase": ""
+   }
+  }
+ ],
+ "agent_message_phase": [
+  {
+   "item": {
+    "phase": null
+   },
+   "expect": ""
+  },
+  {
+   "item": {
+    "phase": ""
+   },
+   "expect": ""
+  },
+  {
+   "item": {
+    "phase": 0
+   },
+   "expect": ""
+  },
+  {
+   "item": {
+    "phase": "final_answer"
+   },
+   "expect": "final_answer"
+  },
+  {
+   "item": {
+    "phase": 3
+   },
+   "expect": "3"
+  },
+  {
+   "item": {
+    "phase": true
+   },
+   "expect": "True"
+  },
+  {
+   "item": "x",
+   "expect": ""
+  },
+  {
+   "item": {},
+   "expect": ""
+  }
+ ],
+ "natural_language_from_agent_text": [
+  {
+   "name": "prefers_message_value",
+   "input": "今日の内容を特定するために、直近の会話履歴だけ確認します。{\"\":\"今日やっていた物理は、重なった物体の力の復習ですね。物体1に働く力を上向き・下向きで書いてみてください。\", \"blocks\":[]}",
+   "expect": "今日やっていた物理は、重なった物体の力の復習ですね。物体1に働く力を上向き・下向きで書いてみてください。"
+  },
+  {
+   "name": "drops_json_noise",
+   "input": "わかりました。{\"blocks\":[]}",
+   "expect": "わかりました。"
+  },
+  {
+   "name": "malformed_message_contract",
+   "input": "返答では内部の整理作業は出しません。{\"message\":\"これはざっくり言うと、$\\varphi(x,y,z)$ が温度や高さみたいな値、$\\nabla\\varphi$ はその値が一番増える向きを向く矢印です。まずは $\\nabla\\varphi=(\\partial\\varphi/\\partial x,\\partial\\varphi/\\partial y,\\partial\\varphi/\\partial z)$ です。\",\"blocks\":[]}",
+   "expect": "これはざっくり言うと、$\\varphi(x,y,z)$ が温度や高さみたいな値、$\\nabla\\varphi$ はその値が一番増える向きを向く矢印です。まずは $\\nabla\\varphi=(\\partial\\varphi/\\partial x,\\partial\\varphi/\\partial y,\\partial\\varphi/\\partial z)$ です。"
+  },
+  {
+   "name": "empty",
+   "input": "  ",
+   "expect": ""
+  },
+  {
+   "name": "progress_update_passthrough",
+   "input": "本文<struis_progress_update>{}</struis_progress_update>",
+   "expect": "本文<struis_progress_update>{}</struis_progress_update>"
+  },
+  {
+   "name": "plain_text",
+   "input": "普通の返答です。",
+   "expect": "普通の返答です。"
+  },
+  {
+   "name": "message_key_valid_json",
+   "input": "前置き {\"message\": \"本文です\", \"wait_for_user\": true} 後置き",
+   "expect": "本文です"
+  },
+  {
+   "name": "empty_message_then_tolerant",
+   "input": "{\"message\": \"\"} {\"message\": \"二番目\"}",
+   "expect": "二番目"
+  },
+  {
+   "name": "tolerant_unicode_escape",
+   "input": "{\"message\":\"\\u3042\\u3044 \\\"引用\\\" a\\/b \\n 改行",
+   "expect": ""
+  },
+  {
+   "name": "tolerant_empty_key",
+   "input": "x {\"\":\"空キー本文",
+   "expect": "x {\"\":\"空キー本文"
+  },
+  {
+   "name": "nested_object_keeps_text",
+   "input": "数式 {\"x\": 1} と {\"y\": {\"z\": 2}} の説明",
+   "expect": "数式 {\"x\": 1} と {\"y\": {\"z\": 2}} の説明"
+  },
+  {
+   "name": "blocks_object_removed_middle",
+   "input": "前 {\"blocks\": [1, 2]} 後",
+   "expect": "前  後"
+  },
+  {
+   "name": "strip_contract_unparseable",
+   "input": "本文です。{\"blocks\": [oops",
+   "expect": "本文です。"
+  },
+  {
+   "name": "strip_contract_wait_for_user",
+   "input": "本文です。{\"wait_for_user\": true, broken",
+   "expect": "本文です。"
+  },
+  {
+   "name": "code_fence_and_dollars",
+   "input": "```json\n本文 $x$ と $y\n```",
+   "expect": "本文 x と y"
+  },
+  {
+   "name": "odd_dollar_removed",
+   "input": "価格は $5 です",
+   "expect": "価格は 5 です"
+  },
+  {
+   "name": "brace_not_json",
+   "input": "集合 {a, b} を考える",
+   "expect": "集合 {a, b} を考える"
+  },
+  {
+   "name": "json_array_ignored",
+   "input": "前 [1, 2] {\"message\": \"配列は無視\"}",
+   "expect": "配列は無視"
+  },
+  {
+   "name": "message_non_string_uses_empty_key",
+   "input": "{\"message\": 5, \"\": \"代替本文\"}",
+   "expect": "代替本文"
+  },
+  {
+   "name": "tolerant_backslash_other",
+   "input": "{\"message\":\"a\\qb\"}",
+   "expect": "a\\qb"
+  },
+  {
+   "name": "unterminated_string",
+   "input": "{\"message\":\"never ends",
+   "expect": ""
+  }
+ ],
+ "json_object_spans": [
+  {
+   "input": "今日の内容を特定するために、直近の会話履歴だけ確認します。{\"\":\"今日やっていた物理は、重なった物体の力の復習ですね。物体1に働く力を上向き・下向きで書いてみてください。\", \"blocks\":[]}",
+   "expect": [
+    {
+     "start": 29,
+     "end": 101,
+     "object": {
+      "": "今日やっていた物理は、重なった物体の力の復習ですね。物体1に働く力を上向き・下向きで書いてみてください。",
+      "blocks": []
+     }
+    }
+   ]
+  },
+  {
+   "input": "わかりました。{\"blocks\":[]}",
+   "expect": [
+    {
+     "start": 7,
+     "end": 20,
+     "object": {
+      "blocks": []
+     }
+    }
+   ]
+  },
+  {
+   "input": "返答では内部の整理作業は出しません。{\"message\":\"これはざっくり言うと、$\\varphi(x,y,z)$ が温度や高さみたいな値、$\\nabla\\varphi$ はその値が一番増える向きを向く矢印です。まずは $\\nabla\\varphi=(\\partial\\varphi/\\partial x,\\partial\\varphi/\\partial y,\\partial\\varphi/\\partial z)$ です。\",\"blocks\":[]}",
+   "expect": []
+  },
+  {
+   "input": "  ",
+   "expect": []
+  },
+  {
+   "input": "本文<struis_progress_update>{}</struis_progress_update>",
+   "expect": [
+    {
+     "start": 26,
+     "end": 28,
+     "object": {}
+    }
+   ]
+  },
+  {
+   "input": "普通の返答です。",
+   "expect": []
+  },
+  {
+   "input": "前置き {\"message\": \"本文です\", \"wait_for_user\": true} 後置き",
+   "expect": [
+    {
+     "start": 4,
+     "end": 46,
+     "object": {
+      "message": "本文です",
+      "wait_for_user": true
+     }
+    }
+   ]
+  },
+  {
+   "input": "{\"message\": \"\"} {\"message\": \"二番目\"}",
+   "expect": [
+    {
+     "start": 0,
+     "end": 15,
+     "object": {
+      "message": ""
+     }
+    },
+    {
+     "start": 16,
+     "end": 34,
+     "object": {
+      "message": "二番目"
+     }
+    }
+   ]
+  },
+  {
+   "input": "{\"message\":\"\\u3042\\u3044 \\\"引用\\\" a\\/b \\n 改行",
+   "expect": []
+  },
+  {
+   "input": "x {\"\":\"空キー本文",
+   "expect": []
+  },
+  {
+   "input": "数式 {\"x\": 1} と {\"y\": {\"z\": 2}} の説明",
+   "expect": [
+    {
+     "start": 3,
+     "end": 11,
+     "object": {
+      "x": 1
+     }
+    },
+    {
+     "start": 14,
+     "end": 29,
+     "object": {
+      "y": {
+       "z": 2
+      }
+     }
+    }
+   ]
+  },
+  {
+   "input": "前 {\"blocks\": [1, 2]} 後",
+   "expect": [
+    {
+     "start": 2,
+     "end": 20,
+     "object": {
+      "blocks": [
+       1,
+       2
+      ]
+     }
+    }
+   ]
+  },
+  {
+   "input": "本文です。{\"blocks\": [oops",
+   "expect": []
+  },
+  {
+   "input": "本文です。{\"wait_for_user\": true, broken",
+   "expect": []
+  },
+  {
+   "input": "```json\n本文 $x$ と $y\n```",
+   "expect": []
+  },
+  {
+   "input": "価格は $5 です",
+   "expect": []
+  },
+  {
+   "input": "集合 {a, b} を考える",
+   "expect": []
+  },
+  {
+   "input": "前 [1, 2] {\"message\": \"配列は無視\"}",
+   "expect": [
+    {
+     "start": 9,
+     "end": 29,
+     "object": {
+      "message": "配列は無視"
+     }
+    }
+   ]
+  },
+  {
+   "input": "{\"message\": 5, \"\": \"代替本文\"}",
+   "expect": [
+    {
+     "start": 0,
+     "end": 26,
+     "object": {
+      "message": 5,
+      "": "代替本文"
+     }
+    }
+   ]
+  },
+  {
+   "input": "{\"message\":\"a\\qb\"}",
+   "expect": []
+  },
+  {
+   "input": "{\"message\":\"never ends",
+   "expect": []
+  }
+ ],
+ "tolerant_structured_message": [
+  {
+   "input": "今日の内容を特定するために、直近の会話履歴だけ確認します。{\"\":\"今日やっていた物理は、重なった物体の力の復習ですね。物体1に働く力を上向き・下向きで書いてみてください。\", \"blocks\":[]}",
+   "expect": "今日やっていた物理は、重なった物体の力の復習ですね。物体1に働く力を上向き・下向きで書いてみてください。"
+  },
+  {
+   "input": "わかりました。{\"blocks\":[]}",
+   "expect": ""
+  },
+  {
+   "input": "返答では内部の整理作業は出しません。{\"message\":\"これはざっくり言うと、$\\varphi(x,y,z)$ が温度や高さみたいな値、$\\nabla\\varphi$ はその値が一番増える向きを向く矢印です。まずは $\\nabla\\varphi=(\\partial\\varphi/\\partial x,\\partial\\varphi/\\partial y,\\partial\\varphi/\\partial z)$ です。\",\"blocks\":[]}",
+   "expect": "これはざっくり言うと、$\\varphi(x,y,z)$ が温度や高さみたいな値、$\\nabla\\varphi$ はその値が一番増える向きを向く矢印です。まずは $\\nabla\\varphi=(\\partial\\varphi/\\partial x,\\partial\\varphi/\\partial y,\\partial\\varphi/\\partial z)$ です。"
+  },
+  {
+   "input": "  ",
+   "expect": ""
+  },
+  {
+   "input": "本文<struis_progress_update>{}</struis_progress_update>",
+   "expect": ""
+  },
+  {
+   "input": "普通の返答です。",
+   "expect": ""
+  },
+  {
+   "input": "前置き {\"message\": \"本文です\", \"wait_for_user\": true} 後置き",
+   "expect": "本文です"
+  },
+  {
+   "input": "{\"message\": \"\"} {\"message\": \"二番目\"}",
+   "expect": "二番目"
+  },
+  {
+   "input": "{\"message\":\"\\u3042\\u3044 \\\"引用\\\" a\\/b \\n 改行",
+   "expect": ""
+  },
+  {
+   "input": "x {\"\":\"空キー本文",
+   "expect": ""
+  },
+  {
+   "input": "数式 {\"x\": 1} と {\"y\": {\"z\": 2}} の説明",
+   "expect": ""
+  },
+  {
+   "input": "前 {\"blocks\": [1, 2]} 後",
+   "expect": ""
+  },
+  {
+   "input": "本文です。{\"blocks\": [oops",
+   "expect": ""
+  },
+  {
+   "input": "本文です。{\"wait_for_user\": true, broken",
+   "expect": ""
+  },
+  {
+   "input": "```json\n本文 $x$ と $y\n```",
+   "expect": ""
+  },
+  {
+   "input": "価格は $5 です",
+   "expect": ""
+  },
+  {
+   "input": "集合 {a, b} を考える",
+   "expect": ""
+  },
+  {
+   "input": "前 [1, 2] {\"message\": \"配列は無視\"}",
+   "expect": "配列は無視"
+  },
+  {
+   "input": "{\"message\": 5, \"\": \"代替本文\"}",
+   "expect": "代替本文"
+  },
+  {
+   "input": "{\"message\":\"a\\qb\"}",
+   "expect": "a\\qb"
+  },
+  {
+   "input": "{\"message\":\"never ends",
+   "expect": ""
+  }
+ ],
+ "strip_jsonish_contract": [
+  {
+   "input": "今日の内容を特定するために、直近の会話履歴だけ確認します。{\"\":\"今日やっていた物理は、重なった物体の力の復習ですね。物体1に働く力を上向き・下向きで書いてみてください。\", \"blocks\":[]}",
+   "expect": "今日の内容を特定するために、直近の会話履歴だけ確認します。"
+  },
+  {
+   "input": "わかりました。{\"blocks\":[]}",
+   "expect": "わかりました。"
+  },
+  {
+   "input": "返答では内部の整理作業は出しません。{\"message\":\"これはざっくり言うと、$\\varphi(x,y,z)$ が温度や高さみたいな値、$\\nabla\\varphi$ はその値が一番増える向きを向く矢印です。まずは $\\nabla\\varphi=(\\partial\\varphi/\\partial x,\\partial\\varphi/\\partial y,\\partial\\varphi/\\partial z)$ です。\",\"blocks\":[]}",
+   "expect": "返答では内部の整理作業は出しません。"
+  },
+  {
+   "input": "  ",
+   "expect": ""
+  },
+  {
+   "input": "本文<struis_progress_update>{}</struis_progress_update>",
+   "expect": "本文<struis_progress_update>{}</struis_progress_update>"
+  },
+  {
+   "input": "普通の返答です。",
+   "expect": "普通の返答です。"
+  },
+  {
+   "input": "前置き {\"message\": \"本文です\", \"wait_for_user\": true} 後置き",
+   "expect": "前置き"
+  },
+  {
+   "input": "{\"message\": \"\"} {\"message\": \"二番目\"}",
+   "expect": ""
+  },
+  {
+   "input": "{\"message\":\"\\u3042\\u3044 \\\"引用\\\" a\\/b \\n 改行",
+   "expect": ""
+  },
+  {
+   "input": "x {\"\":\"空キー本文",
+   "expect": "x {\"\":\"空キー本文"
+  },
+  {
+   "input": "数式 {\"x\": 1} と {\"y\": {\"z\": 2}} の説明",
+   "expect": "数式 {\"x\": 1} と {\"y\": {\"z\": 2}} の説明"
+  },
+  {
+   "input": "前 {\"blocks\": [1, 2]} 後",
+   "expect": "前"
+  },
+  {
+   "input": "本文です。{\"blocks\": [oops",
+   "expect": "本文です。"
+  },
+  {
+   "input": "本文です。{\"wait_for_user\": true, broken",
+   "expect": "本文です。"
+  },
+  {
+   "input": "```json\n本文 $x$ と $y\n```",
+   "expect": "```json\n本文 $x$ と $y\n```"
+  },
+  {
+   "input": "価格は $5 です",
+   "expect": "価格は $5 です"
+  },
+  {
+   "input": "集合 {a, b} を考える",
+   "expect": "集合 {a, b} を考える"
+  },
+  {
+   "input": "前 [1, 2] {\"message\": \"配列は無視\"}",
+   "expect": "前 [1, 2]"
+  },
+  {
+   "input": "{\"message\": 5, \"\": \"代替本文\"}",
+   "expect": ""
+  },
+  {
+   "input": "{\"message\":\"a\\qb\"}",
+   "expect": ""
+  },
+  {
+   "input": "{\"message\":\"never ends",
+   "expect": ""
+  }
+ ],
+ "clean_agent_text": [
+  {
+   "input": "```json\n{}\n```",
+   "expect": "{}"
+  },
+  {
+   "input": " $a$ $b ",
+   "expect": "a b"
+  },
+  {
+   "input": "$",
+   "expect": ""
+  },
+  {
+   "input": "",
+   "expect": ""
+  },
+  {
+   "input": "plain",
+   "expect": "plain"
+  },
+  {
+   "input": "```py\nx\n```",
+   "expect": "py\nx"
+  }
+ ],
+ "read_jsonish_string": [
+  {
+   "input": "\"abc\"",
+   "quote_index": 0,
+   "expect": "abc"
+  },
+  {
+   "input": "\"a\\\"b\\\\c\\/d\"",
+   "quote_index": 0,
+   "expect": "a\"b\\c/d"
+  },
+  {
+   "input": "\"\\u3042x\"",
+   "quote_index": 0,
+   "expect": "あx"
+  },
+  {
+   "input": "\"\\u30\"",
+   "quote_index": 0,
+   "expect": "\\u30"
+  },
+  {
+   "input": "\"\\zz\"",
+   "quote_index": 0,
+   "expect": "\\zz"
+  },
+  {
+   "input": "\"open",
+   "quote_index": 0,
+   "expect": ""
+  },
+  {
+   "input": "xx\"tail\"",
+   "quote_index": 2,
+   "expect": "tail"
+  },
+  {
+   "input": "\"\\u12345\"",
+   "quote_index": 0,
+   "expect": "ሴ5"
+  },
+  {
+   "input": "\"\\\"",
+   "quote_index": 0,
+   "expect": ""
+  }
+ ]
+}

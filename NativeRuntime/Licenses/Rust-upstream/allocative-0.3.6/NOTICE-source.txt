@@ -1,0 +1,1800 @@
+Original package license declaration and authors:
+[package]
+authors = ["Meta"]
+description = "Inspect rust object tree and output it as flamegraph"
+documentation = "https://docs.rs/allocative"
+edition = "2024"
+license = { workspace = true }
+name = "allocative"
+repository = "https://github.com/facebookexperimental/allocative"
+version = "0.3.6"
+
+[dependencies]
+allocative_derive = { path = "../allocative_derive", version = "=0.3.6" }
+
+ctor = { workspace = true }
+
+anyhow = { version = "1.0.65", optional = true }
+bumpalo = { version = "3.11.1", optional = true }
+compact_str = { version = "0.9", optional = true }
+dashmap = { version = "6.1.0", optional = true }
+either = { version = "1.8", optional = true }
+futures = { version = "0.3.24", optional = true }
+hashbrown = { version = "0.16.1", optional = true }
+indexmap = { version = "2.2.6", optional = true }
+num-bigint = { version = "0.4.3", optional = true }
+once_cell = { version = "1.21.4", optional = true }
+parking_lot = { version = "0.11.2", optional = true }
+prost-types = { version = "0.14.3", optional = true }
+serde_json = { version = "1.0.48", optional = true }
+slab = { version = "0.4.12", optional = true }
+smallvec = { version = "1.10.0", optional = true }
+sorted_vector_map.optional = true
+# @oss-disable: sorted_vector_map.path = "../../../common/rust/shed/sorted_vector_map"
+sorted_vector_map.git = "https://github.com/facebookexperimental/rust-shed" # @oss-enable
+sorted_vector_map.version = "0.2"
+tokio = { version = "1.5", optional = true, features = ["sync"] }
+triomphe = { version = "0.1.8", optional = true }
+
+[dev-dependencies]
+inferno = { version = "0.11.11", default-features = false }
+
+[features]
+# Each feature gates an `impl Allocative for <third-party type>` in
+# `src/impls/*.rs`. The crate ships with all impls on by default; downstreams
+# can opt out via `default-features = false` and re-enable individually.
+anyhow = ["dep:anyhow"]
+bumpalo = ["dep:bumpalo"]
+compact_str = ["dep:compact_str"]
+dashmap = ["dep:dashmap"]
+default = []
+either = ["dep:either"]
+futures = ["dep:futures"]
+hashbrown = ["dep:hashbrown"]
+indexmap = ["dep:indexmap"]
+num-bigint = ["dep:num-bigint"]
+once_cell = ["dep:once_cell"]
+parking_lot = ["dep:parking_lot"]
+prost-types = ["dep:prost-types"]
+serde_json = ["dep:serde_json"]
+slab = ["dep:slab"]
+smallvec = ["dep:smallvec"]
+sorted_vector_map = ["dep:sorted_vector_map"]
+tokio = ["dep:tokio"]
+triomphe = ["dep:triomphe"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(rust_nightly)"] }
+
+
+build.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+fn main() {
+    rust_nightly();
+}
+
+fn rust_nightly() {
+    let rustc = std::env::var("RUSTC").unwrap();
+    let version = std::process::Command::new(rustc)
+        .arg("--version")
+        .output()
+        .unwrap();
+
+    assert!(version.status.success());
+
+    // Nightly output:
+    // rustc 1.64.0-nightly (affe0d3a0 2022-08-05)
+    // Stable output:
+    // rustc 1.64.0 (a55dd71d5 2022-09-19)
+    // Meta internal output:
+    // rustc 1.64.0-dev
+
+
+src/golden.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(test)]
+
+use std::env;
+use std::fmt::Write;
+use std::fs;
+
+use crate::Allocative;
+use crate::FlameGraphBuilder;
+
+const REGENERATE_VAR_NAME: &str = "ALLOCATIVE_REGENERATE_TESTS";
+
+fn golden_header() -> String {
+    let at = "@";
+    format!(
+        "{at}generated\n\
+    To regenerate, run:\n\
+    ```\n\
+    {REGENERATE_VAR_NAME}=1 cargo test -p allocative\n\
+    ```\n"
+    )
+
+src/allocative_trait.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use crate::Visitor;
+
+/// This trait allows traversal of object graph.
+///
+/// # Proc macro
+///
+/// Typically implemented with proc macro. Like this:
+///
+/// ```
+/// use allocative::Allocative;
+///
+/// #[derive(Allocative)]
+/// struct Foo {
+///     x: u32,
+///     y: String,
+/// }
+/// ```
+///
+/// Proc macro supports two attributes: `#[allocative(skip)]` and
+/// `#[allocative(bound = "...")]`.
+
+src/key.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use std::any;
+use std::cmp::Ordering;
+use std::hash::Hash;
+use std::hash::Hasher;
+use std::ops::Deref;
+
+/// Hashed string, which is a key while descending into a tree (e.g. type name or field name).
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct Key {
+    hash: u64,
+    s: &'static str,
+}
+
+impl PartialOrd for Key {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Key {
+
+src/size_of.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use crate::Allocative;
+use crate::Key;
+use crate::Visitor;
+use crate::visitor::NodeKind;
+use crate::visitor::VisitorImpl;
+
+/// Size of data allocated in unique pointers in the struct.
+///
+/// * Exclude self
+/// * Exclude shared pointers
+/// * For unique pointers, include the size of the pointee plus this function recursively
+///
+/// # Example
+///
+/// ```
+/// use allocative::Allocative;
+///
+/// #[derive(Allocative)]
+/// struct Foo {
+///     data: Vec<u8>,
+
+src/lib.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+//! # Allocative
+//!
+//! Crate implements lightweight memory profiler which allows
+//! object traversal and size introspection.
+//!
+//! An object implementing [`Allocative`] trait is introspectable, and this crate
+//! provides two utilities to work with such objects:
+//! * [`FlameGraphBuilder`] to build a flame graph of object tree
+//! * [`size_of_unique_allocated_data`] provides estimation
+//!    of how much allocated memory the value holds
+//!
+//! ## Allocative overhead
+//!
+//! When allocative is used, binary size is slightly increased due to implementations
+//! of [`Allocative`] trait, but it has no runtime/memory overhead when it is not used.
+//!
+//! ## How it is different from other call-stack malloc profilers like jemalloc heap profiler
+//!
+//! Allocative is not a substitute for call stack malloc profiler,
+//! it provides a different view on memory usage.
+
+src/global_root.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use std::sync::Mutex;
+
+use crate::allocative_trait::Allocative;
+
+static ROOTS: Mutex<Vec<&'static (dyn Allocative + Sync + 'static)>> = Mutex::new(Vec::new());
+
+/// Register global root which can be later traversed by profiler.
+///
+/// [`root`](crate::root) macro can be used to register global root.
+pub fn register_root(root: &'static (dyn Allocative + Sync + 'static)) {
+    ROOTS.lock().unwrap().push(root);
+}
+
+pub(crate) fn roots() -> Vec<&'static (dyn Allocative + Sync + 'static)> {
+    ROOTS.lock().unwrap().clone()
+}
+
+#[cfg(test)]
+mod tests {
+    use crate as allocative;
+
+src/test_derive.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(test)]
+#![allow(dead_code)]
+
+mod bounds;
+mod dst;
+mod skip;
+mod visit;
+mod with_flamegraph;
+
+use crate as allocative;
+use crate::Allocative;
+
+#[derive(Allocative)]
+struct Empty {}
+
+#[derive(Allocative)]
+struct TupleStruct(u32, String);
+
+#[derive(Allocative)]
+struct RegularStruct {
+
+src/impls.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+//! Manual implementations of `Allocative` for various types.
+
+mod anyhow;
+mod bumpalo;
+pub(crate) mod common;
+mod compact_str;
+mod dashmap;
+mod either;
+mod futures;
+pub(crate) mod hashbrown;
+pub(crate) mod hashbrown_util;
+mod indexmap;
+mod lock_api;
+mod num_bigint;
+mod once_cell;
+mod parking_lot;
+mod prost_types;
+mod serde_json;
+mod slab;
+mod smallvec;
+
+src/flamegraph.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::collections::hash_map;
+use std::fmt::Write as _;
+use std::mem;
+use std::ops::Index;
+use std::ops::IndexMut;
+
+use crate::Allocative;
+use crate::global_root::roots;
+use crate::key::Key;
+use crate::visitor::NodeKind;
+use crate::visitor::Visitor;
+use crate::visitor::VisitorImpl;
+
+/// Node in flamegraph tree.
+///
+/// Can be written to flamegraph format with [`write`](FlameGraph::write).
+#[derive(Debug, Default, Clone)]
+pub struct FlameGraph {
+
+src/visitor.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use std::mem;
+
+use crate::allocative_trait::Allocative;
+use crate::impls::common::CAPACITY_NAME;
+use crate::impls::common::DATA_NAME;
+use crate::impls::common::KEY_NAME;
+use crate::impls::common::UNUSED_CAPACITY_NAME;
+use crate::impls::common::VALUE_NAME;
+use crate::key::Key;
+
+/// Actual implementation of the visitor.
+///
+/// At the moment there's only one implementation, the one which generates flame graph,
+/// and this trait is crate-private. This may change in the future.
+pub(crate) trait VisitorImpl {
+    /// Enter simple field like `u32`.
+    /// All sizes are in bytes.
+    fn enter_inline_impl(&mut self, name: Key, size: usize, parent: NodeKind);
+    /// Enter field which points to heap-allocated unique memory (e.g. `Box<T>`).
+    fn enter_unique_impl(&mut self, name: Key, size: usize, parent: NodeKind);
+
+src/impls/std.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+mod any;
+mod cell;
+mod collections;
+mod function;
+mod mem;
+mod net;
+mod primitive;
+mod sync;
+mod time;
+mod tuple;
+mod unsorted;
+
+src/impls/futures.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "futures")]
+
+use std::future::Future;
+use std::mem;
+
+use futures::future::Shared;
+use futures::task::AtomicWaker;
+
+use crate::allocative_trait::Allocative;
+use crate::impls::common::PTR_NAME;
+use crate::visitor::Visitor;
+
+impl<F: Future + 'static> Allocative for Shared<F>
+where
+    F::Output: Allocative + Clone,
+{
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+        if let Some(result) = self.peek() {
+            if let Some(mut visitor) = visitor.enter_shared(
+
+src/impls/anyhow.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "anyhow")]
+
+use crate::allocative_trait::Allocative;
+use crate::visitor::Visitor;
+
+impl Allocative for anyhow::Error {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        // Don't know what the size is.
+        let _ = visitor;
+    }
+}
+
+src/impls/once_cell.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "once_cell")]
+
+use crate::allocative_trait::Allocative;
+use crate::visitor::Visitor;
+
+impl<T: Allocative> Allocative for once_cell::sync::OnceCell<T> {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+        if let Some(val) = self.get() {
+            val.visit(&mut visitor);
+        }
+        visitor.exit();
+    }
+}
+
+impl<T: Allocative> Allocative for once_cell::sync::Lazy<T> {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+        if let Some(val) = once_cell::sync::Lazy::get(self) {
+            val.visit(&mut visitor);
+
+src/impls/num_bigint.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "num-bigint")]
+
+use std::mem;
+
+use num_bigint::BigInt;
+use num_bigint::BigUint;
+
+use crate::Allocative;
+use crate::Visitor;
+use crate::impls::common::DATA_NAME;
+use crate::impls::common::PTR_NAME;
+
+impl Allocative for BigInt {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+        {
+            let mut visitor = visitor.enter_unique(PTR_NAME, mem::size_of::<*const ()>());
+            // We don't know capacity, so just use the length.
+            visitor.visit_simple(
+                DATA_NAME,
+
+src/impls/triomphe.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "triomphe")]
+
+use std::alloc::Layout;
+use std::mem;
+use std::sync::atomic::AtomicUsize;
+
+use triomphe::Arc;
+use triomphe::HeaderSlice;
+use triomphe::HeaderWithLength;
+use triomphe::ThinArc;
+
+use crate::Allocative;
+use crate::Key;
+use crate::Visitor;
+use crate::impls::common::PTR_NAME;
+
+impl<H: Allocative, T: Allocative + ?Sized> Allocative for HeaderSlice<H, T> {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self(self);
+        visitor.visit_field(Key::new("header"), &self.header);
+
+src/impls/either.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "either")]
+
+use either::Either;
+
+use crate::allocative_trait::Allocative;
+use crate::key::Key;
+use crate::visitor::Visitor;
+
+impl<A: Allocative, B: Allocative> Allocative for Either<A, B> {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+        match self {
+            Either::Left(a) => visitor.visit_field::<A>(Key::new("Left"), a),
+            Either::Right(b) => visitor.visit_field::<B>(Key::new("Right"), b),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+src/impls/sorted_vector_map.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "sorted_vector_map")]
+
+use sorted_vector_map::SortedVectorMap;
+use sorted_vector_map::SortedVectorSet;
+
+use crate::allocative_trait::Allocative;
+use crate::visitor::Visitor;
+
+impl<K: Allocative + Ord, V: Allocative> Allocative for SortedVectorMap<K, V> {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+        visitor.visit_generic_map_fields(self.iter());
+        // TODO(nga): spare capacity.
+        visitor.exit();
+    }
+}
+
+impl<V: Allocative + Ord> Allocative for SortedVectorSet<V> {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+
+src/impls/tokio.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "tokio")]
+
+use tokio::sync::Mutex;
+use tokio::sync::RwLock;
+
+use crate::Allocative;
+use crate::Key;
+use crate::Visitor;
+
+impl<T: Allocative> Allocative for RwLock<T> {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+        if let Ok(data) = self.try_read() {
+            visitor.visit_field::<T>(Key::new("data"), &*data);
+        }
+        visitor.exit();
+    }
+}
+
+impl<T: Allocative> Allocative for Mutex<T> {
+
+src/impls/lock_api.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "parking_lot")]
+
+use parking_lot::lock_api::Mutex;
+use parking_lot::lock_api::RawMutex;
+use parking_lot::lock_api::RawRwLock;
+use parking_lot::lock_api::RwLock;
+
+use crate::allocative_trait::Allocative;
+use crate::key::Key;
+use crate::visitor::Visitor;
+
+impl<R: RawMutex + 'static, T: Allocative> Allocative for Mutex<R, T> {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+        if let Some(data) = self.try_lock() {
+            visitor.visit_field(Key::new("data"), &*data);
+        }
+        visitor.exit();
+    }
+}
+
+src/impls/slab.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "slab")]
+
+use std::mem;
+
+use slab::Slab;
+
+use crate::allocative_trait::Allocative;
+use crate::impls::common::PTR_NAME;
+use crate::impls::common::UNUSED_CAPACITY_NAME;
+use crate::visitor::Visitor;
+
+impl<T> Allocative for Slab<T>
+where
+    T: Allocative,
+{
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+
+        if self.capacity() != 0 && mem::size_of::<T>() != 0 {
+            let mut visitor = visitor.enter_unique(PTR_NAME, mem::size_of::<*const T>());
+
+src/impls/indexmap.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "indexmap")]
+
+use std::mem;
+
+use indexmap::IndexMap;
+use indexmap::IndexSet;
+
+use crate::allocative_trait::Allocative;
+use crate::impls::common::UNUSED_CAPACITY_NAME;
+use crate::impls::hashbrown_util::raw_table_alloc_size_for_len;
+use crate::key::Key;
+use crate::visitor::Visitor;
+
+/// Add approximate allocations for hashbrown `RawTable`.
+fn add_raw_table_for_len<T>(visitor: &mut Visitor, len: usize) {
+    if len != 0 {
+        // We don't depend on `RawTable`, so we don't know the size of `RawTable`.
+        let size_of_raw_table = mem::size_of::<usize>();
+        let mut visitor = visitor.enter_unique(Key::new("raw_table"), size_of_raw_table);
+        visitor.visit_simple(Key::new("alloc"), raw_table_alloc_size_for_len::<T>(len));
+
+src/impls/smallvec.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "smallvec")]
+
+use smallvec::Array;
+use smallvec::SmallVec;
+
+use crate::allocative_trait::Allocative;
+use crate::impls::common::PTR_NAME;
+use crate::key::Key;
+use crate::visitor::Visitor;
+
+impl<A> Allocative for SmallVec<A>
+where
+    A: Array,
+    A::Item: Allocative,
+{
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+        if self.spilled() {
+            let mut visitor = visitor.enter_unique(PTR_NAME, std::mem::size_of::<*const A::Item>());
+            for item in self {
+
+src/impls/bumpalo.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "bumpalo")]
+
+use std::mem;
+
+use bumpalo::Bump;
+
+use crate::allocative_trait::Allocative;
+use crate::impls::common::DATA_NAME;
+use crate::impls::common::PTR_NAME;
+use crate::impls::common::UNUSED_CAPACITY_NAME;
+use crate::visitor::Visitor;
+
+struct BumpCounters {
+    used: usize,
+    unused: usize,
+}
+
+impl BumpCounters {
+    fn collect(bump: &Bump) -> BumpCounters {
+        let allocated = bump.allocated_bytes();
+
+src/impls/hashbrown_util.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use std::mem;
+
+/// Approximate allocated memory for hashbrown `RawTable`.
+#[allow(dead_code)]
+pub(crate) fn raw_table_alloc_size_for_len<T>(len: usize) -> usize {
+    let buckets = if len == 0 {
+        0
+    } else if len < 4 {
+        4
+    } else {
+        len.next_power_of_two()
+    };
+    let size_of_control_byte = 1;
+    (mem::size_of::<T>() + size_of_control_byte) * buckets
+}
+
+src/impls/hashbrown.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "hashbrown")]
+
+use std::mem;
+
+use hashbrown::HashTable;
+
+use crate::Allocative;
+use crate::Key;
+use crate::Visitor;
+
+const CAPACITY_NAME: Key = Key::new("capacity");
+
+impl<T: Allocative> Allocative for HashTable<T> {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        use crate::impls::common::DATA_NAME;
+        use crate::impls::hashbrown_util;
+
+        let mut visitor = visitor.enter_self_sized::<Self>();
+        {
+            let mut visitor = visitor.enter_unique(DATA_NAME, mem::size_of::<*const T>());
+
+src/impls/dashmap.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "dashmap")]
+
+use std::hash::BuildHasher;
+use std::hash::Hash;
+use std::mem;
+
+use dashmap::DashMap;
+use dashmap::DashSet;
+
+use crate::allocative_trait::Allocative;
+use crate::impls::common::CAPACITY_NAME;
+use crate::impls::common::DATA_NAME;
+use crate::impls::common::KEY_NAME;
+use crate::impls::common::PTR_NAME;
+use crate::impls::common::UNUSED_CAPACITY_NAME;
+use crate::impls::common::VALUE_NAME;
+use crate::visitor::Visitor;
+
+impl<K: Allocative + Eq + Hash, V: Allocative, S: BuildHasher + Clone> Allocative
+    for DashMap<K, V, S>
+
+src/impls/serde_json.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "serde_json")]
+
+use std::mem;
+
+use crate::Allocative;
+use crate::Key;
+use crate::Visitor;
+
+impl Allocative for serde_json::Number {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let visitor = visitor.enter_self_sized::<Self>();
+        // Number may have allocations, but it is opaque.
+        visitor.exit();
+    }
+}
+
+impl Allocative for serde_json::Map<String, serde_json::Value> {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+        {
+
+src/impls/prost_types.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "prost-types")]
+
+use prost_types::Duration;
+use prost_types::Timestamp;
+
+use crate::allocative_trait::Allocative;
+use crate::visitor::Visitor;
+
+impl Allocative for Timestamp {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.enter_self_sized::<Self>().exit();
+    }
+}
+
+impl Allocative for Duration {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.enter_self_sized::<Self>().exit();
+    }
+}
+
+src/impls/parking_lot.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "parking_lot")]
+
+use parking_lot::RawMutex;
+use parking_lot::RawRwLock;
+
+use crate::allocative_trait::Allocative;
+use crate::visitor::Visitor;
+
+impl Allocative for RawMutex {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.enter_self_sized::<Self>().exit();
+    }
+}
+
+impl Allocative for RawRwLock {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.enter_self_sized::<Self>().exit();
+    }
+}
+
+src/impls/common.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use crate::key::Key;
+
+/// "Field" describing allocated but unused capacity (e.g. in `Vec`).
+pub(crate) const UNUSED_CAPACITY_NAME: Key = Key::new("unused_capacity");
+
+/// "Field" describing all capacity (e.g. in `Vec`).
+pub(crate) const CAPACITY_NAME: Key = Key::new("capacity");
+
+/// Generic pointee field in types like `Box`.
+pub(crate) const PTR_NAME: Key = Key::new("ptr");
+
+/// Generic name for useful data (e.g. in `Vec`).
+pub(crate) const DATA_NAME: Key = Key::new("data");
+
+pub(crate) const KEY_NAME: Key = Key::new("key");
+pub(crate) const VALUE_NAME: Key = Key::new("value");
+
+src/impls/compact_str.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+#![cfg(feature = "compact_str")]
+
+use compact_str::CompactString;
+
+use crate::allocative_trait::Allocative;
+use crate::impls::common::PTR_NAME;
+use crate::impls::common::UNUSED_CAPACITY_NAME;
+use crate::key::Key;
+use crate::visitor::Visitor;
+
+impl Allocative for CompactString {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+        if self.is_heap_allocated() {
+            let mut visitor = visitor.enter_unique(PTR_NAME, std::mem::size_of::<*const u8>());
+            visitor.visit_simple(Key::new("str"), self.len());
+            let unused_capacity = self.capacity() - self.len();
+            visitor.visit_simple(UNUSED_CAPACITY_NAME, unused_capacity);
+        }
+        visitor.exit();
+
+src/impls/std/cell.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use std::cell::OnceCell;
+use std::cell::RefCell;
+use std::sync::OnceLock;
+
+use crate::Allocative;
+use crate::Visitor;
+use crate::impls::common::DATA_NAME;
+
+impl<T: Allocative> Allocative for RefCell<T> {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+        if let Ok(v) = self.try_borrow() {
+            visitor.visit_field(DATA_NAME, &*v);
+        }
+        visitor.exit();
+    }
+}
+
+impl<T: Allocative> Allocative for OnceCell<T> {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+
+src/impls/std/net.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use std::net::IpAddr;
+use std::net::Ipv4Addr;
+use std::net::Ipv6Addr;
+
+use crate::allocative_trait::Allocative;
+use crate::visitor::Visitor;
+
+impl Allocative for IpAddr {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.enter_self_sized::<Self>().exit();
+    }
+}
+
+impl Allocative for Ipv4Addr {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.enter_self_sized::<Self>().exit();
+    }
+}
+
+impl Allocative for Ipv6Addr {
+
+src/impls/std/unsorted.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use std::collections::VecDeque;
+use std::convert::Infallible;
+use std::ffi::OsStr;
+use std::marker::PhantomData;
+use std::mem;
+use std::num::NonZeroI8;
+use std::num::NonZeroI16;
+use std::num::NonZeroI32;
+use std::num::NonZeroI64;
+use std::num::NonZeroIsize;
+use std::num::NonZeroU8;
+use std::num::NonZeroU16;
+use std::num::NonZeroU32;
+use std::num::NonZeroU64;
+use std::num::NonZeroUsize;
+use std::path::PathBuf;
+
+use crate::allocative_trait::Allocative;
+use crate::impls::common::DATA_NAME;
+use crate::impls::common::PTR_NAME;
+
+src/impls/std/thread.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use std::thread::ThreadId;
+
+use crate::allocative_trait::Allocative;
+use crate::visitor::Visitor;
+
+impl Allocative for ThreadId {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.enter_self_sized::<Self>().exit();
+    }
+}
+
+src/impls/std/time.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use std::time::Duration;
+use std::time::Instant;
+use std::time::SystemTime;
+
+use crate::allocative_trait::Allocative;
+use crate::visitor::Visitor;
+
+impl Allocative for Instant {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.enter_self_sized::<Self>().exit();
+    }
+}
+
+impl Allocative for SystemTime {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.enter_self_sized::<Self>().exit();
+    }
+}
+
+impl Allocative for Duration {
+
+src/impls/std/sync.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use std::alloc::Layout;
+use std::mem;
+use std::rc;
+use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::RwLock;
+use std::sync::Weak;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicI8;
+use std::sync::atomic::AtomicI16;
+use std::sync::atomic::AtomicI32;
+use std::sync::atomic::AtomicI64;
+use std::sync::atomic::AtomicIsize;
+use std::sync::atomic::AtomicU8;
+use std::sync::atomic::AtomicU16;
+use std::sync::atomic::AtomicU32;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::AtomicUsize;
+
+
+src/impls/std/tuple.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use crate::allocative_trait::Allocative;
+use crate::key::Key;
+use crate::visitor::Visitor;
+
+impl Allocative for () {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.visit_simple_sized::<Self>();
+    }
+}
+
+impl<A: Allocative> Allocative for (A,) {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+        visitor.visit_field(Key::new("0"), &self.0);
+    }
+}
+
+impl<A: Allocative, B: Allocative> Allocative for (A, B) {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+
+src/impls/std/function.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use crate::allocative_trait::Allocative;
+use crate::visitor::Visitor;
+
+impl<R> Allocative for fn() -> R {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.visit_simple_sized::<Self>();
+    }
+}
+
+impl<R, A> Allocative for fn(A) -> R {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.visit_simple_sized::<Self>();
+    }
+}
+impl<R, A, B> Allocative for fn(A, B) -> R {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.visit_simple_sized::<Self>();
+    }
+}
+impl<R, A, B, C> Allocative for fn(A, B, C) -> R {
+
+src/impls/std/any.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use crate::allocative_trait::Allocative;
+use crate::visitor::Visitor;
+
+impl Allocative for std::any::TypeId {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.visit_simple_sized::<Self>();
+    }
+}
+
+src/impls/std/collections.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
+use std::collections::HashMap;
+use std::collections::HashSet;
+
+use crate::allocative_trait::Allocative;
+use crate::visitor::Visitor;
+
+impl<K: Allocative, V: Allocative> Allocative for BTreeMap<K, V> {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+        visitor.visit_generic_map_fields(self);
+        visitor.exit();
+    }
+}
+
+impl<K: Allocative> Allocative for BTreeSet<K> {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self_sized::<Self>();
+        visitor.visit_generic_set_fields(self);
+
+src/impls/std/primitive.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use crate::allocative_trait::Allocative;
+use crate::visitor::Visitor;
+
+impl Allocative for u8 {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.visit_simple_sized::<Self>();
+    }
+}
+
+impl Allocative for u16 {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.visit_simple_sized::<Self>();
+    }
+}
+
+impl Allocative for u32 {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        visitor.visit_simple_sized::<Self>();
+    }
+}
+
+src/impls/std/mem.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use std::mem::ManuallyDrop;
+
+use crate::Allocative;
+use crate::Key;
+use crate::Visitor;
+
+impl<T: Allocative + ?Sized> Allocative for ManuallyDrop<T> {
+    fn visit<'a, 'b: 'a>(&self, visitor: &'a mut Visitor<'b>) {
+        let mut visitor = visitor.enter_self(self);
+        visitor.visit_field::<T>(Key::new("inner"), self);
+        visitor.exit();
+    }
+}
+
+src/test_derive/with_flamegraph.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use std::mem;
+
+use allocative::Allocative;
+
+use crate as allocative;
+use crate::FlameGraphBuilder;
+
+#[derive(Allocative)]
+struct TestData {
+    data: Box<[u8]>,
+    b: u8,
+}
+
+#[test]
+fn test_flamegraph() {
+    if mem::size_of::<usize>() != 8 {
+        return;
+    }
+
+    let mut fg = FlameGraphBuilder::default();
+
+src/test_derive/visit.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use allocative_derive::Allocative;
+
+use crate as allocative;
+use crate::Visitor;
+
+struct DoesNotImplementAllocative<T>(T);
+
+fn visit_does_not_implement_allocative<T>(
+    _field: &DoesNotImplementAllocative<T>,
+    visitor: &mut Visitor<'_>,
+) {
+    visitor
+        .enter_self_sized::<DoesNotImplementAllocative<T>>()
+        .exit();
+}
+
+#[derive(Allocative)]
+struct MyStruct {
+    #[allocative(visit = visit_does_not_implement_allocative)]
+    field: DoesNotImplementAllocative<String>,
+
+src/test_derive/skip.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use crate as allocative;
+use crate::Allocative;
+
+struct Unsupported;
+
+#[derive(Allocative)]
+struct TestIgnoreField {
+    #[allocative(skip)]
+    _unsupported: Unsupported,
+}
+
+#[derive(Allocative)]
+#[allocative(skip)]
+struct TestSkipOnStruct {
+    _unsupported: Unsupported,
+}
+
+#[derive(Allocative)]
+#[allocative(skip)]
+enum TestSkipOnEnum {
+
+src/test_derive/dst.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use allocative_derive::Allocative;
+
+use crate as allocative;
+
+#[derive(Allocative)]
+struct Dst(str);
+
+src/test_derive/bounds.rs
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is dual-licensed under either the MIT license found in the
+ * LICENSE-MIT file in the root directory of this source tree or the Apache
+ * License, Version 2.0 found in the LICENSE-APACHE file in the root directory
+ * of this source tree. You may select, at your option, one of the
+ * above-listed licenses.
+ */
+
+use crate as allocative;
+use crate::Allocative;
+
+#[derive(Allocative)]
+#[allocative(bound = "K: Allocative, V:Allocative, S")]
+struct HashMap<K, V, S = std::collections::hash_map::RandomState> {
+    map: std::collections::HashMap<K, V, S>,
+}
+
+#[derive(Allocative)]
+#[allocative(bound = "S: Sized")]
+struct CanBeUnsized<S: ?Sized> {
+    #[allocative(visit = via_sized)]
+    s: Box<S>,
+}
+
+#[allow(clippy::borrowed_box)]
+fn via_sized<S>(s: &Box<S>, visitor: &mut allocative::Visitor) {
+    visitor
+        .enter(
+
+Apache-2.0 license text:
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+1.  Definitions.
+
+    "License" shall mean the terms and conditions for use, reproduction,
+    and distribution as defined by Sections 1 through 9 of this document.
+
+    "Licensor" shall mean the copyright owner or entity authorized by
+    the copyright owner that is granting the License.
+
+    "Legal Entity" shall mean the union of the acting entity and all
+    other entities that control, are controlled by, or are under common
+    control with that entity. For the purposes of this definition,
+    "control" means (i) the power, direct or indirect, to cause the
+    direction or management of such entity, whether by contract or
+    otherwise, or (ii) ownership of fifty percent (50%) or more of the
+    outstanding shares, or (iii) beneficial ownership of such entity.
+
+    "You" (or "Your") shall mean an individual or Legal Entity
+    exercising permissions granted by this License.
+
+    "Source" form shall mean the preferred form for making modifications,
+    including but not limited to software source code, documentation
+    source, and configuration files.
+
+    "Object" form shall mean any form resulting from mechanical
+    transformation or translation of a Source form, including but
+    not limited to compiled object code, generated documentation,
+    and conversions to other media types.
+
+    "Work" shall mean the work of authorship, whether in Source or
+    Object form, made available under the License, as indicated by a
+    copyright notice that is included in or attached to the work
+    (an example is provided in the Appendix below).
+
+    "Derivative Works" shall mean any work, whether in Source or Object
+    form, that is based on (or derived from) the Work and for which the
+    editorial revisions, annotations, elaborations, or other modifications
+    represent, as a whole, an original work of authorship. For the purposes
+    of this License, Derivative Works shall not include works that remain
+    separable from, or merely link (or bind by name) to the interfaces of,
+    the Work and Derivative Works thereof.
+
+    "Contribution" shall mean any work of authorship, including
+    the original version of the Work and any modifications or additions
+    to that Work or Derivative Works thereof, that is intentionally
+    submitted to Licensor for inclusion in the Work by the copyright owner
+    or by an individual or Legal Entity authorized to submit on behalf of
+    the copyright owner. For the purposes of this definition, "submitted"
+    means any form of electronic, verbal, or written communication sent
+    to the Licensor or its representatives, including but not limited to
+    communication on electronic mailing lists, source code control systems,
+    and issue tracking systems that are managed by, or on behalf of, the
+    Licensor for the purpose of discussing and improving the Work, but
+    excluding communication that is conspicuously marked or otherwise
+    designated in writing by the copyright owner as "Not a Contribution."
+
+    "Contributor" shall mean Licensor and any individual or Legal Entity
+    on behalf of whom a Contribution has been received by Licensor and
+    subsequently incorporated within the Work.
+
+2.  Grant of Copyright License. Subject to the terms and conditions of
+    this License, each Contributor hereby grants to You a perpetual,
+    worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+    copyright license to reproduce, prepare Derivative Works of,
+    publicly display, publicly perform, sublicense, and distribute the
+    Work and such Derivative Works in Source or Object form.
+
+3.  Grant of Patent License. Subject to the terms and conditions of
+    this License, each Contributor hereby grants to You a perpetual,
+    worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+    (except as stated in this section) patent license to make, have made,
+    use, offer to sell, sell, import, and otherwise transfer the Work,
+    where such license applies only to those patent claims licensable
+    by such Contributor that are necessarily infringed by their
+    Contribution(s) alone or by combination of their Contribution(s)
+    with the Work to which such Contribution(s) was submitted. If You
+    institute patent litigation against any entity (including a
+    cross-claim or counterclaim in a lawsuit) alleging that the Work
+    or a Contribution incorporated within the Work constitutes direct
+    or contributory patent infringement, then any patent licenses
+    granted to You under this License for that Work shall terminate
+    as of the date such litigation is filed.
+
+4.  Redistribution. You may reproduce and distribute copies of the
+    Work or Derivative Works thereof in any medium, with or without
+    modifications, and in Source or Object form, provided that You
+    meet the following conditions:
+
+    (a) You must give any other recipients of the Work or
+    Derivative Works a copy of this License; and
+
+    (b) You must cause any modified files to carry prominent notices
+    stating that You changed the files; and
+
+    (c) You must retain, in the Source form of any Derivative Works
+    that You distribute, all copyright, patent, trademark, and
+    attribution notices from the Source form of the Work,
+    excluding those notices that do not pertain to any part of
+    the Derivative Works; and
+
+    (d) If the Work includes a "NOTICE" text file as part of its
+    distribution, then any Derivative Works that You distribute must
+    include a readable copy of the attribution notices contained
+    within such NOTICE file, excluding those notices that do not
+    pertain to any part of the Derivative Works, in at least one
+    of the following places: within a NOTICE text file distributed
+    as part of the Derivative Works; within the Source form or
+    documentation, if provided along with the Derivative Works; or,
+    within a display generated by the Derivative Works, if and
+    wherever such third-party notices normally appear. The contents
+    of the NOTICE file are for informational purposes only and
+    do not modify the License. You may add Your own attribution
+    notices within Derivative Works that You distribute, alongside
+    or as an addendum to the NOTICE text from the Work, provided
+    that such additional attribution notices cannot be construed
+    as modifying the License.
+
+    You may add Your own copyright statement to Your modifications and
+    may provide additional or different license terms and conditions
+    for use, reproduction, or distribution of Your modifications, or
+    for any such Derivative Works as a whole, provided Your use,
+    reproduction, and distribution of the Work otherwise complies with
+    the conditions stated in this License.
+
+5.  Submission of Contributions. Unless You explicitly state otherwise,
+    any Contribution intentionally submitted for inclusion in the Work
+    by You to the Licensor shall be under the terms and conditions of
+    this License, without any additional terms or conditions.
+    Notwithstanding the above, nothing herein shall supersede or modify
+    the terms of any separate license agreement you may have executed
+    with Licensor regarding such Contributions.
+
+6.  Trademarks. This License does not grant permission to use the trade
+    names, trademarks, service marks, or product names of the Licensor,
+    except as required for reasonable and customary use in describing the
+    origin of the Work and reproducing the content of the NOTICE file.
+
+7.  Disclaimer of Warranty. Unless required by applicable law or
+    agreed to in writing, Licensor provides the Work (and each
+    Contributor provides its Contributions) on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+    implied, including, without limitation, any warranties or conditions
+    of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+    PARTICULAR PURPOSE. You are solely responsible for determining the
+    appropriateness of using or redistributing the Work and assume any
+    risks associated with Your exercise of permissions under this License.
+
+8.  Limitation of Liability. In no event and under no legal theory,
+    whether in tort (including negligence), contract, or otherwise,
+    unless required by applicable law (such as deliberate and grossly
+    negligent acts) or agreed to in writing, shall any Contributor be
+    liable to You for damages, including any direct, indirect, special,
+    incidental, or consequential damages of any character arising as a
+    result of this License or out of the use or inability to use the
+    Work (including but not limited to damages for loss of goodwill,
+    work stoppage, computer failure or malfunction, or any and all
+    other commercial damages or losses), even if such Contributor
+    has been advised of the possibility of such damages.
+
+9.  Accepting Warranty or Additional Liability. While redistributing
+    the Work or Derivative Works thereof, You may choose to offer,
+    and charge a fee for, acceptance of support, warranty, indemnity,
+    or other liability obligations and/or rights consistent with this
+    License. However, in accepting such obligations, You may act only
+    on Your own behalf and on Your sole responsibility, not on behalf
+    of any other Contributor, and only if You agree to indemnify,
+    defend, and hold each Contributor harmless for any liability
+    incurred by, or claims asserted against, such Contributor by reason
+    of your accepting any such warranty or additional liability.
+
+END OF TERMS AND CONDITIONS
+
+APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+Copyright 2025 OpenAI
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+

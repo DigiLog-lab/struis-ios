@@ -1,0 +1,3 @@
+// Copy to Config/Local.xcconfig (ignored by Git).
+// Obtain a delivery app key from the service operator before using the service.
+STRUIS_DELIVERY_APP_KEY =

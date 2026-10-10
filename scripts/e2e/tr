@@ -1,0 +1,2 @@
+#!/bin/zsh
+$E2E_TOOLS/ui.py tree >/dev/null; grep -E "Button|TextField|TextView|StaticText|Image, .*label|Other, .*identifier" $E2E_DIR/drv/tree.txt | sed -E 's/0x[0-9a-f]+, //; s/^ +//' | grep -v "label: ''" | head -${1:-60}

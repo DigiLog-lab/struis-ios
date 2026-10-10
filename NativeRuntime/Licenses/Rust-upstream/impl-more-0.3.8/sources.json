@@ -1,0 +1,12 @@
+[
+  {
+    "url": "https://raw.githubusercontent.com/robjtede/impl-more/baaf96530d07e16be56bb615654a1da966308b5e/LICENSE-MIT",
+    "file": "NOTICE-0.txt",
+    "sha256": "e3da8020d66bc3bbe11355804e54ea93729df56b4258277abe5c9ec5fad3442a"
+  },
+  {
+    "url": "https://raw.githubusercontent.com/robjtede/impl-more/baaf96530d07e16be56bb615654a1da966308b5e/LICENSE-APACHE",
+    "file": "NOTICE-1.txt",
+    "sha256": "f8241cc8202a755dea998c4701117d10e958c4554367a7a970be56ba10541049"
+  }
+]

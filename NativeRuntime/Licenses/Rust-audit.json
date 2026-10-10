@@ -1,0 +1,7 @@
+{
+  "cargoLockSHA256": "942a6081c5c4203b4fd79b2b95338c6d2cdf3d66d06f4c8a03a76e974814348a",
+  "packageCount": 966,
+  "noticeExceptions": [
+    "debugserver-types"
+  ]
+}

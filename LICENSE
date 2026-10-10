@@ -1,0 +1,17 @@
+Struis iOS
+Copyright (C) DigiLog-lab
+
+Unless a file or component states a different license, the original Struis code
+in this repository is licensed under the GNU Affero General Public License,
+version 3. The complete license text is in COPYING.
+
+The additional permission in LICENSE.AppStore applies only to code for which
+DigiLog-lab holds the necessary copyright permissions. It does not change any
+third-party license or a file's separate license notice.
+
+Third-party components and source files bearing their own license notices
+remain subject to those licenses. See THIRD_PARTY.md and the notices shipped
+with each component.
+
+The copyright holder retains the ability to offer its own code under another
+license in the future. No alternative-license offer is made by this notice.

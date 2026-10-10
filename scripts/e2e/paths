@@ -1,0 +1,5 @@
+#!/bin/zsh
+A=$(find ~/Library/Developer/CoreSimulator/Devices/$E2E_UDID/data/Containers/Data/Application -maxdepth 4 -type d -path '*Application Support/StruisRuntime' 2>/dev/null | head -1)
+echo "$A/codex" > $E2E_DIR/codexhome.txt
+find ~/Library/Developer/CoreSimulator/Devices/$E2E_UDID/data/Containers/Data/Application -name ledger.sqlite 2>/dev/null | head -1 > $E2E_DIR/ledger_path.txt
+cat $E2E_DIR/codexhome.txt $E2E_DIR/ledger_path.txt
