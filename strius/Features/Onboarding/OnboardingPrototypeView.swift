@@ -157,7 +157,7 @@ struct OnboardingPrototypeView: View {
                 .padding(.top, 40)
 
             VStack(spacing: 18) {
-                Text("解いた紙を撮ると、\nあなた専用の問題集に\nなります。")
+                Text("今日も一問から")
                     .font(Typography.heading2)
                     .foregroundStyle(Theme.textPrimary(scheme))
                     .multilineTextAlignment(.center)
