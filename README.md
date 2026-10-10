@@ -14,17 +14,15 @@
 
 ## ビルド
 
-Xcode 27.0、iOS 27 SDK、Python 3.14、Rust 1.95.0、autoconf・automake・libtool、Rubyの`xcodeproj` gemを使用します。native frameworkはarm64用です。生成物と取得cacheはGit管理外です。
+Xcode 27.0、iOS 27 SDK、Python 3.14、Rust 1.95.0、autoconf・automake・libtoolを使用します。native frameworkはarm64用です。生成物と取得cacheはGit管理外です。
 
 ```sh
 git clone https://github.com/DigiLog-lab/struis-ios.git
 cd struis-ios
 brew install python@3.14 rustup autoconf automake libtool
-gem install xcodeproj
 rustup toolchain install 1.95.0 --profile minimal
 rustup target add --toolchain 1.95.0 aarch64-apple-ios aarch64-apple-ios-sim
 python3.14 NativeRuntime/Scripts/bootstrap.py --platform both
-python3.14 scripts/sync_project.py
 xcodebuild build -project strius.xcodeproj -scheme strius \
   -destination 'generic/platform=iOS Simulator' ARCHS=arm64 CODE_SIGNING_ALLOWED=NO
 ```

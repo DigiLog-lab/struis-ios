@@ -252,12 +252,19 @@ int StruisSignedDashStageInstallLauncher(StruisDashPipelineLauncher launch, void
         "dashSourceRevision": REVISION,
     }, indent=2) + "\n")
 
-if __name__ == "__main__":
+def prepare_source():
     if not SOURCE.exists():
-        run(["git", "clone", "https://github.com/holzschu/dash_iOS.git", str(SOURCE)])
-        run(["git", "-C", str(SOURCE), "checkout", REVISION])
+        run(["git", "init", str(SOURCE)])
+        run(["git", "-C", str(SOURCE), "remote", "add", "origin", "https://github.com/holzschu/dash_iOS.git"])
+    head = subprocess.run(["git", "-C", str(SOURCE), "rev-parse", "HEAD"], text=True, capture_output=True)
+    if head.returncode or head.stdout.strip() != REVISION:
+        run(["git", "-C", str(SOURCE), "-c", "http.version=HTTP/1.1", "fetch", "--depth", "1", "origin", REVISION])
+        run(["git", "-C", str(SOURCE), "checkout", "--detach", REVISION])
     if subprocess.check_output(["git", "-C", str(SOURCE), "rev-parse", "HEAD"], text=True).strip() != REVISION:
         raise RuntimeError("dash checkout does not match its recorded revision")
+
+if __name__ == "__main__":
+    prepare_source()
     if not PREPARATION:
         (VENDOR / "compound-dash-preparation.json").unlink(missing_ok=True)
     device = build("iphoneos", "arm64-apple-ios18.4", "ios-arm64")

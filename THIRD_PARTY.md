@@ -26,10 +26,9 @@ Xcode 27、Python 3.14、Rust 1.95.0とiOS targetを準備し、次を実行し�
 
 ```sh
 python3 NativeRuntime/Scripts/bootstrap.py --platform both
-python3 scripts/sync_project.py
 ```
 
-ビルド済みframework、取得ソース、PythonPackagesはGit管理外です。別のローカルプロジェクトへのsymlinkは使用しません。BSDのパーサーはBerkeley Yaccで再生成し、dashのsignal tableも独立生成します。ビルド時だけ必要な生成器をアプリへ同梱しません。Xcode Cloudはnative構成のbootstrapを呼びます。
+ビルド済みframework、取得ソース、PythonPackagesはGit管理外です。別のローカルプロジェクトへのsymlinkは使用しません。BSDのパーサーはBerkeley Yaccで再生成し、dashのsignal tableも独立生成します。ビルド時だけ必要な生成器をアプリへ同梱しません。GitHub Actionsは同じnative構成のbootstrapを呼びます。
 
 ## その他のアプリにリンク・同梱するライブラリと資源
 

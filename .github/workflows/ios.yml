@@ -1,0 +1,91 @@
+name: iOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: App Store Connectへアップロードする
+        type: boolean
+        default: false
+      build_number:
+        description: アップロード時の新しいbuild番号
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: ツールを準備
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          brew install autoconf automake libtool
+          if ! command -v rustup >/dev/null; then
+            brew install rustup
+          fi
+          rustup toolchain install 1.95.0 --profile minimal
+          rustup target add --toolchain 1.95.0 aarch64-apple-ios aarch64-apple-ios-sim
+      - name: 固定依存を生成
+        env:
+          CARGO_BUILD_JOBS: '2'
+        run: python NativeRuntime/Scripts/bootstrap.py --platform both
+      - name: ビルド用cacheを整理
+        run: |
+          set -euo pipefail
+          rm -rf NativeRuntime/.build/codex NativeRuntime/.build/codex-artifacts
+      - name: Simulatorで単体テスト
+        run: |
+          set -euo pipefail
+          xcodebuild test -project strius.xcodeproj -scheme strius \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+            -derivedDataPath "$RUNNER_TEMP/StruisTests" \
+            -resultBundlePath "$RUNNER_TEMP/StruisTests.xcresult" \
+            -only-testing:striusTests -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
+      - name: 署名付きarchiveを作成
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          BUILD_PROVISION_PROFILE_APP_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_APP_BASE64 }}
+          BUILD_PROVISION_PROFILE_RUNTIME_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_RUNTIME_BASE64 }}
+          BUILD_PROVISION_PROFILE_EXEC_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_EXEC_BASE64 }}
+          STRUIS_DELIVERY_APP_KEY: ${{ secrets.STRUIS_DELIVERY_APP_KEY }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          UPLOAD: ${{ inputs.upload }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          set -euo pipefail
+          args=(--output "$RUNNER_TEMP/StruisArchive")
+          if [[ "$UPLOAD" == "true" ]]; then
+            args+=(--upload --build-number "$BUILD_NUMBER")
+          fi
+          python scripts/ci_archive.py "${args[@]}"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          record = json.loads((Path(os.environ['RUNNER_TEMP']) / 'StruisArchive/provenance.json').read_text())
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
+              stream.write('### Archive\n\n')
+              for key, value in record.items():
+                  stream.write(f'- {key}: `{value}`\n')
+          PY

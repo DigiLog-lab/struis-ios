@@ -16,11 +16,14 @@ workers = {
     'StruisRuntime': 'com.digiloglab.strius.runtime',
     'StruisExec': 'com.digiloglab.strius.exec',
 }
+# Inspect definitions in the actual symbol table. LLVM nm's default dyld
+# supplement is quadratic for the large Rust executable; the link maps below
+# also independently check every linked input. Missing definitions fail closed.
 worker_symbols = {}
 for name in workers:
     binary = app / 'Extensions' / (name + '.appex') / name
     linked = subprocess.check_output(['otool', '-L', str(binary)], text=True)
-    symbols = subprocess.check_output(['nm', '-g', '-U', str(binary)], text=True)
+    symbols = subprocess.check_output(['nm', '--no-dyldinfo', '-g', '-U', str(binary)], text=True)
     def defines(symbol):
         return re.search(r'\b_' + re.escape(symbol) + r'\s*$', symbols, re.M) is not None
     if name == 'StruisRuntime':
@@ -48,7 +51,7 @@ info = plistlib.loads((app / 'Info.plist').read_bytes())
 # stays in the Exec worker.
 codex_host = app / 'Frameworks/NativeCodexHost.framework/NativeCodexHost'
 assert codex_host.is_file(), 'in-process Codex framework missing'
-codex_host_symbols = subprocess.check_output(['nm', '-g', '-U', str(codex_host)], text=True)
+codex_host_symbols = subprocess.check_output(['nm', '--no-dyldinfo', '-g', '-U', str(codex_host)], text=True)
 codex_host_linked = subprocess.check_output(['otool', '-L', str(codex_host)], text=True)
 assert re.search(r'\b_hyotan_codex_start\s*$', codex_host_symbols, re.M), 'in-process Codex entry point missing'
 assert re.search(r'\b_hyotan_codex_install_operation_harness\s*$', codex_host_symbols, re.M), 'workspace capability entry point missing'
@@ -56,7 +59,7 @@ for symbol in ['StruisRunCommand', 'hyotan_python_main', 'hyotan_rg_run']:
     assert re.search(r'\b_' + re.escape(symbol) + r'\s*$', codex_host_symbols, re.M) is None, 'Codex framework contains command implementation: ' + symbol
 assert not re.search(r'/(?:Python|ios_system(?:-native)?|files(?:-native)?|text(?:-native)?|shell(?:-native)?|awk(?:-native)?|dash(?:-native)?)\.framework/', codex_host_linked, re.I), 'Codex framework links command dependencies'
 host_binary = app / info['CFBundleExecutable']
-host_symbols = subprocess.check_output(['nm', '-g', '-U', str(host_binary)], text=True)
+host_symbols = subprocess.check_output(['nm', '--no-dyldinfo', '-g', '-U', str(host_binary)], text=True)
 host_linked = subprocess.check_output(['otool', '-L', str(host_binary)], text=True)
 for symbol in ['hyotan_codex_start', 'StruisRunCommand', 'hyotan_python_main', 'hyotan_rg_run']:
     assert re.search(r'\b_' + re.escape(symbol) + r'\s*$', host_symbols, re.M) is None, 'host contains native execution implementation: ' + symbol

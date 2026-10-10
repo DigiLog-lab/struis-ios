@@ -34,7 +34,11 @@ def prepare():
     for name, (url, revision) in REVISIONS.items():
         folder = VENDOR / name
         if not folder.exists():
-            run(['git', 'clone', url, folder])
+            run(['git', 'init', folder])
+            run(['git', '-C', folder, 'remote', 'add', 'origin', url])
+        head = subprocess.run(['git', '-C', folder, 'rev-parse', 'HEAD'], text=True, capture_output=True)
+        if head.returncode or head.stdout.strip() != revision:
+            run(['git', '-C', folder, '-c', 'http.version=HTTP/1.1', 'fetch', '--depth', '1', 'origin', revision])
             run(['git', '-C', folder, 'checkout', '--detach', revision])
         actual = subprocess.check_output(['git', '-C', folder, 'rev-parse', 'HEAD'], text=True).strip()
         if actual != revision:
@@ -74,7 +78,10 @@ def prepare():
 
 def inputs(project=None):
     if project is None:
-        project = json.loads(subprocess.check_output(['plutil', '-convert', 'json', '-o', '-', str(SOURCE / 'ios_system.xcodeproj/project.pbxproj')]))
+        manifest = json.loads((ROOT / 'bsd-sources.lock.json').read_text())
+        if manifest['sourceRevision'] != REVISIONS['ios-system-source'][1]:
+            raise RuntimeError('BSD source manifest revision mismatch')
+        return manifest['targets']
     objects = project['objects']
     paths = {}
     def visit(key, base):
