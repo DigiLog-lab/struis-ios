@@ -16,7 +16,7 @@ struct SignInEntryView: View {
                         .font(Typography.heroSerif)
                         .foregroundStyle(Theme.accent(scheme))
 
-                    Text("つまずきの根を、ひとつずつほどく。")
+                    Text("今日も一問から")
                         .font(Typography.heading2)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(Theme.textPrimary(scheme))
