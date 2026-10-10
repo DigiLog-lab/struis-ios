@@ -75,7 +75,7 @@ jobs:
             NativeRuntime/PythonPackages
             NativeRuntime/PackageCache
             NativeRuntime/.build
-          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**') }}
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
           restore-keys: native-runtime-v1-
       - name: セッションと作業ブランチを準備
         id: prepare

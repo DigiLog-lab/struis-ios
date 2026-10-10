@@ -28,7 +28,7 @@ jobs:
           persist-credentials: false
       - name: cache keyを計算
         id: key
-        run: echo "key=native-runtime-v1-${{ hashFiles('NativeRuntime/**') }}" >> "$GITHUB_OUTPUT"
+        run: echo "key=native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}" >> "$GITHUB_OUTPUT"
       - name: 既存cacheを確認
         id: lookup
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
