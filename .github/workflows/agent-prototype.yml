@@ -1,0 +1,190 @@
+name: Agent prototype
+run-name: ${{ inputs.operation == 'register-slots' && 'Prototype slots' || format('Prototype #{0} {1}', inputs.issue, inputs.variant) }}
+
+# Builds one Ad Hoc prototype (prototype/{issue}/{variant}) with its own Bundle
+# IDs and App Group, uploads the IPA to the agent store and posts an expiring
+# install link to the Issue. Signing secrets are only available through the
+# `prototype-distribution` environment, which accepts the default branch and can
+# require a reviewer when manual approval is wanted.
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: build / register-slots
+        type: choice
+        options: [build, register-slots]
+        default: build
+      issue:
+        description: Issue番号
+        type: string
+      variant:
+        description: Prototype ID (a, b, c…)
+        type: string
+      ref:
+        description: ビルドするブランチ (prototype/{issue}/{variant})
+        type: string
+      title:
+        description: 案の名前
+        type: string
+      summary:
+        description: 変更内容の要約
+        type: string
+      slot_count:
+        description: register-slots で用意する枠の数
+        type: string
+        default: '9'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-prototype-${{ inputs.operation }}-${{ inputs.issue }}-${{ inputs.variant }}
+  cancel-in-progress: false
+
+env:
+  AGENT_STORE_URL: ${{ vars.AGENT_STORE_URL || 'https://agent-struis.digiloglab.com' }}
+  AGENT_BUNDLE_PREFIX: ${{ vars.AGENT_BUNDLE_PREFIX || 'com.digiloglab.strius.preview' }}
+
+jobs:
+  register-slots:
+    if: inputs.operation == 'register-slots'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: prototype-distribution
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/agent
+      - name: App IDと枠を登録
+        env:
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          SLOT_COUNT: ${{ inputs.slot_count }}
+        run: python3 scripts/agent/prototype.py register-slots --count "$SLOT_COUNT"
+
+  build:
+    if: inputs.operation == 'build'
+    runs-on: xcode-27
+    timeout-minutes: 200
+    environment: prototype-distribution
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    env:
+      ISSUE: ${{ inputs.issue }}
+      VARIANT: ${{ inputs.variant }}
+      REF: ${{ inputs.ref }}
+      TITLE: ${{ inputs.title }}
+      SUMMARY: ${{ inputs.summary }}
+    steps:
+      - name: 入力を検証
+        run: |
+          set -euo pipefail
+          [[ "$ISSUE" =~ ^[1-9][0-9]*$ ]] || { echo "::error::issue must be a number"; exit 1; }
+          [[ "$VARIANT" =~ ^[a-z][a-z0-9]{0,7}$ ]] || { echo "::error::variant must be lowercase"; exit 1; }
+          [[ "$REF" == "prototype/$ISSUE/$VARIANT" ]] || { echo "::error::ref must be prototype/$ISSUE/$VARIANT"; exit 1; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          path: .agent-tools
+          persist-credentials: false
+          sparse-checkout: scripts/agent
+      - name: ビルド用ツールを固定
+        run: |
+          cp -R .agent-tools/scripts/agent "$RUNNER_TEMP/agent-tools"
+          rm -rf .agent-tools
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: native runtime cache keyを計算
+        id: native-key
+        run: echo "key=native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}" >> "$GITHUB_OUTPUT"
+      - name: native runtime cacheを復元
+        id: native
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: ${{ steps.native-key.outputs.key }}
+      - name: 固定依存を生成
+        if: steps.native.outputs.cache-hit != 'true'
+        env:
+          CARGO_BUILD_JOBS: '2'
+        run: |
+          set -euo pipefail
+          brew install autoconf automake libtool
+          command -v rustup >/dev/null || brew install rustup
+          rustup toolchain install 1.95.0 --profile minimal
+          rustup target add --toolchain 1.95.0 aarch64-apple-ios aarch64-apple-ios-sim
+          python3.14 NativeRuntime/Scripts/bootstrap.py --platform both
+          rm -rf NativeRuntime/.build/codex NativeRuntime/.build/codex-artifacts
+      - name: native runtime cacheを保存
+        if: steps.native.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: ${{ steps.native-key.outputs.key }}
+      - name: 識別子を割り当て
+        id: allocate
+        run: python3 "$RUNNER_TEMP/agent-tools/prototype.py" allocate --issue "$ISSUE" --variant "$VARIANT" --ref "$REF" --title "$TITLE" --summary "$SUMMARY"
+      - name: Ad Hoc署名でビルド
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          STRUIS_DELIVERY_APP_KEY: ${{ secrets.STRUIS_DELIVERY_APP_KEY }}
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: python3 "$RUNNER_TEMP/agent-tools/prototype.py" build --issue "$ISSUE" --variant "$VARIANT" --ref "$REF"
+      - name: Simulatorでスクリーンショット
+        continue-on-error: true
+        timeout-minutes: 30
+        env:
+          BUNDLE_ID: ${{ steps.allocate.outputs.bundle_id }}
+          APP_GROUP: ${{ steps.allocate.outputs.app_group }}
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/prototype"
+          xcodebuild build -project strius.xcodeproj -scheme strius -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath "$out/SimDerivedData" \
+            ARCHS=arm64 STRUIS_BUNDLE_ID_BASE="$BUNDLE_ID" STRUIS_APP_GROUP="$APP_GROUP" > "$out/simulator.log" 2>&1 \
+            || { tail -40 "$out/simulator.log"; exit 1; }
+          app=$(find "$out/SimDerivedData/Build/Products" -maxdepth 2 -name strius.app | head -1)
+          xcrun simctl boot 'iPhone 17' || true
+          xcrun simctl bootstatus 'iPhone 17' -b
+          xcrun simctl install booted "$app"
+          xcrun simctl launch booted "$BUNDLE_ID"
+          sleep 20
+          xcrun simctl io booted screenshot "$out/screenshot.png"
+      - name: 結果をIssueへ投稿
+        if: always() && steps.allocate.outcome != 'skipped'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 "$RUNNER_TEMP/agent-tools/prototype.py" report --issue "$ISSUE" --variant "$VARIANT" --ref "$REF"
+      # xcodebuild logs export every build setting (including the delivery key)
+      # for script phases, so only the build record is kept as an artifact.
+      - name: ビルド記録を保存
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: prototype-${{ inputs.issue }}-${{ inputs.variant }}-run-${{ github.run_id }}
+          path: ${{ runner.temp }}/prototype/record.json
+          if-no-files-found: ignore
+          retention-days: 30

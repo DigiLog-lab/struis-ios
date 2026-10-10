@@ -87,10 +87,15 @@ async function handleApi(request, env, url, claims) {
     }
     if (request.method === 'PUT') {
       const contentType = request.headers.get('content-type') || 'application/octet-stream';
+      // If-Match / If-None-Match make read-modify-write updates (slot registry,
+      // build numbers) safe when several workflow runs race.
+      const conditional = request.headers.has('if-match') || request.headers.has('if-none-match');
       const stored = await env.STORE.put(key, request.body, {
         httpMetadata: { contentType },
         customMetadata: { writer: claims.job_workflow_ref, run: `${claims.run_id}` },
+        ...(conditional ? { onlyIf: request.headers } : {}),
       });
+      if (!stored) throw new HttpError(412, 'Precondition failed');
       return json({ key, size: stored.size, etag: stored.etag });
     }
     throw new HttpError(405, 'Method not allowed');

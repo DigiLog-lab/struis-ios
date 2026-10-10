@@ -72,12 +72,17 @@ class StoreError(RuntimeError):
     pass
 
 
+class PreconditionFailed(StoreError):
+    pass
+
+
 class Store:
     """Client for the agent store Worker."""
 
     def __init__(self):
         self._token = None
         self._token_time = 0.0
+        self.last_headers = None
 
     def _oidc_token(self, refresh=False):
         if self._token and not refresh and time.time() - self._token_time < 240:
@@ -103,11 +108,14 @@ class Store:
                          'User-Agent': 'struis-agent-ci', **(headers or {})})
             try:
                 with urllib.request.urlopen(request, timeout=600) as response:
+                    self.last_headers = response.headers
                     return response.read()
             except urllib.error.HTTPError as error:
                 body = error.read()[:300].decode(errors='replace').strip()
                 if error.code == 404 and allow_missing:
                     return None
+                if error.code == 412:
+                    raise PreconditionFailed(f'{method} {path}: precondition failed') from None
                 last_error = error.code
                 if error.code == 401 and attempt == 0:
                     continue
@@ -138,8 +146,35 @@ class Store:
         return json.loads(self.request('PUT', f'/v1/objects/{self._key_path(key)}', data=data,
                                        headers={'Content-Type': content_type}))
 
-    def put_json(self, key, value):
-        return self.put(key, json.dumps(value, ensure_ascii=False, indent=2).encode(), 'application/json')
+    def put_json(self, key, value, if_match=None, if_none_match=False):
+        headers = {'Content-Type': 'application/json'}
+        if if_match:
+            headers['If-Match'] = if_match
+        if if_none_match:
+            headers['If-None-Match'] = '*'
+        data = json.dumps(value, ensure_ascii=False, indent=2).encode()
+        return json.loads(self.request('PUT', f'/v1/objects/{self._key_path(key)}', data=data, headers=headers))
+
+    def get_json_with_etag(self, key):
+        data = self.get(key)
+        if data is None:
+            return None, None
+        return json.loads(data), (self.last_headers or {}).get('etag')
+
+    def update_json(self, key, change, default=None, attempts=8):
+        """Optimistic read-modify-write; `change` returns the new document."""
+        for attempt in range(attempts):
+            current, etag = self.get_json_with_etag(key)
+            updated = change(json.loads(json.dumps(current if current is not None else default)))
+            try:
+                if etag:
+                    self.put_json(key, updated, if_match=etag)
+                else:
+                    self.put_json(key, updated, if_none_match=True)
+                return updated
+            except PreconditionFailed:
+                time.sleep(0.5 + attempt)
+        raise StoreError(f'Could not update {key}: concurrent writers')
 
     def upload_file(self, key, path, content_type='application/octet-stream'):
         path = Path(path)
