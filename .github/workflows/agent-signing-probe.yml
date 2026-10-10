@@ -27,6 +27,39 @@ jobs:
           set -euo pipefail
           brew install xcodegen
           xcodegen generate
+      - name: APIキーを診断
+        env:
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set +e
+          umask 077
+          python3 - <<'DIAG'
+          import os, re, subprocess, sys, tempfile
+          sys.path.insert(0, 'scripts/agent')
+          raw = os.environ['APP_STORE_CONNECT_PRIVATE_KEY']
+          key_id = os.environ['APP_STORE_CONNECT_KEY_ID']
+          issuer = os.environ['APP_STORE_CONNECT_ISSUER_ID']
+          lines = raw.strip().splitlines()
+          print('key lines:', len(lines), 'first line is PEM header:', lines[0].strip() == '-----BEGIN PRIVATE KEY-----' if lines else None,
+                'literal backslash-n:', '\\n' in raw, 'carriage returns:', '\r' in raw, 'quoted:', raw.strip()[:1] in '\'"')
+          print('key id length:', len(key_id.strip()), 'key id has whitespace:', key_id != key_id.strip(),
+                'issuer is uuid:', bool(re.fullmatch(r'[0-9a-f-]{36}', issuer.strip())), 'issuer has whitespace:', issuer != issuer.strip())
+          with tempfile.NamedTemporaryFile('w', suffix='.p8', delete=False) as handle:
+              handle.write(raw.replace('\r', '').strip() + '\n')
+              path = handle.name
+          check = subprocess.run(['openssl', 'pkey', '-in', path, '-noout'], capture_output=True, text=True)
+          print('openssl parses key:', check.returncode == 0, check.stderr.strip()[:200])
+          from appstoreconnect import AppStoreConnect
+          client = AppStoreConnect(path, key_id.strip(), issuer.strip())
+          try:
+              devices = client.enabled_devices()
+              print('API authentication: ok, enabled iOS devices:', len(devices))
+          except Exception as error:
+              print('API authentication failed:', str(error)[:300])
+          os.unlink(path)
+          DIAG
       - name: 署名を試す
         env:
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
