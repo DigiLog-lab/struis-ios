@@ -515,10 +515,15 @@ def cmd_prototype_build(args):
         time.sleep(5)
     if not run:
         sys.exit('ビルドを起動しましたが、実行を特定できませんでした。gh run list --workflow agent-prototype.yml で確認してください。')
-    print(f"Prototype build: {run['html_url']}")
+    print(f"Prototype build: {run['html_url']} (run id {run['id']})")
     if not args.wait:
         return
+    deadline = time.time() + args.wait_minutes * 60
     while run.get('status') != 'completed':
+        if time.time() > deadline:
+            print(f"まだビルド中です。完了すると workflow が Issue へ結果を投稿します。"
+                  f"続けて待つ場合は `gh run watch {run['id']} --exit-status` をバックグラウンドで実行してください。")
+            return
         time.sleep(20)
         run = gh.get(f"/repos/{repository}/actions/runs/{run['id']}")
     print(f"conclusion: {run.get('conclusion')}")
@@ -556,6 +561,8 @@ def main():
     build.add_argument('--summary')
     build.add_argument('--ref')
     build.add_argument('--wait', action='store_true')
+    build.add_argument('--wait-minutes', type=float, default=9,
+                       help='Bash ツールの上限(10分)より短く待つ')
     build.set_defaults(func=cmd_prototype_build)
     args = parser.parse_args()
     args.func(args)

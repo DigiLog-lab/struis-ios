@@ -48,6 +48,10 @@ xcodebuild test -project strius.xcodeproj -scheme strius \
 
 通信先と送信項目、端末内の保存先、使用量報告は[通信と保存](docs/communication-and-storage.md)に記載します。サーバーから配信される本文が非公開である範囲も明記しています。
 
+## 開発エージェント
+
+`agent` ラベルの付いた Issue では、GitHub Actions 上の Claude Code と会話して設計・実装・テスト・Pull Request 作成ができます。複数の実装案は Ad Hoc 署名のプロトタイプとして配布し、登録済みの iPhone で比較できます。仕組みと導入手順は[Issue エージェントと Ad Hoc プロトタイプ配布](docs/agent.md)を参照してください。
+
 ## ライセンスとソースの対応
 
 個別のライセンス表示がない自作部分はAGPLv3です。[App Store除外規定](LICENSE.AppStore)を追加許諾として適用します。第三者コードと個別表記を持つコードにはそれぞれの条件が適用されます。[LICENSE](LICENSE)、[第三者告知](THIRD_PARTY.md)を参照してください。

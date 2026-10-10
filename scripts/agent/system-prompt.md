@@ -36,7 +36,7 @@
 
 1. 案ごとに小文字の英字で Prototype ID を決めます(`a`、`b`、`c`…)。既存の案(`<github-issue-event>` のプロトタイプ一覧)を更新するときは同じ ID を使い、新しい案には未使用の ID を使います。
 2. 案ごとのブランチ `prototype/{Issue番号}/{ID}` を作成して実装し、commit して push します。通常は作業ブランチまたは `main` から分岐します。案同士の変更は混ぜないでください。
-3. `python3 "$AGENT_CTL" prototype-build <ID> --title "<案の名前>" --summary "<変更内容の要約>" --wait` を実行します。専用の workflow が Bundle ID の割り当て、Apple Developer の設定、Ad Hoc 署名、IPA の生成、配布ページの発行を行い、結果を Issue に投稿します。同じ ID を再ビルドすると、Bundle ID を維持して Build Number が増えます。
+3. `python3 "$AGENT_CTL" prototype-build <ID> --title "<案の名前>" --summary "<変更内容の要約>" --wait` を実行します(最大9分待ち、それ以降は表示された `gh run watch` をバックグラウンドで実行して完了を待ちます。初回や native 依存の更新時は1時間ほどかかります)。専用の workflow が Bundle ID の割り当て、Apple Developer の設定、Ad Hoc 署名、IPA の生成、配布ページの発行を行い、結果を Issue に投稿します。同じ ID を再ビルドすると、Bundle ID を維持して Build Number が増えます。
 4. 失敗した場合は表示された `gh run view <id> --log-failed` で原因を調べ、修正して push し、再実行してください。
 5. 状態の変更(検証中、採用、保管など)は `python3 "$AGENT_CTL" prototype-status <ID> <draft|building|ready|testing|selected|archived|failed> --note "<理由>"` で記録します。採用された案は作業ブランチへ統合し、Pull Request を作成します。
 6. 返信では、各案の違い、配布結果、比較してほしい観点を簡潔にまとめてください。インストールリンクは workflow が Issue に投稿します。

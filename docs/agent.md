@@ -1,0 +1,94 @@
+# Issue エージェントと Ad Hoc プロトタイプ配布
+
+GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Claude Code(公式の `anthropics/claude-code-action`)で相談・設計・実装・テスト・Pull Request 作成を行います。複数の実装案は、別々の Bundle ID を持つ Ad Hoc 署名アプリとして配布し、登録済みの iPhone に並べてインストールできます。
+
+この文書は、仕組みを第三者が確認できるようにするためと、自分のリポジトリ・Claude 認証・Apple Developer アカウント・Cloudflare アカウントで同じ構成を導入するためのものです。
+
+## 構成
+
+| 部品 | 場所 | 役割 |
+|---|---|---|
+| Event Router | `.github/workflows/agent.yml` の `route` job(ubuntu) | `agent` ラベル付き Issue の作成・ラベル付与・コメントを受け、投稿者の権限と未処理の指示を確認してから macOS runner を起動 |
+| macOS Worker | 同 `worker` job(`xcode-27`) | セッションと作業ブランチの復元、Claude Code の実行、返信・使用量・セッションの保存 |
+| Claude Code | `anthropics/claude-code-action`(commit 固定) | 自動化モード(`prompt` 指定)で実行。`--resume` で Issue ごとのセッションを継続 |
+| 制御スクリプト | `scripts/agent/agentctl.py`、`agentlib.py` | 経路判定、prompt 生成、実行結果の解析、Issue への返信、Claude から使う補助コマンド |
+| 固定システムプロンプト | `scripts/agent/system-prompt.md` | エージェントの作業規則。会話ごとに変わる情報は含めない |
+| 保存先 | `cloudflare/agent`(Worker)+ R2 バケット `struis-agent` | セッション、状態、使用量、プロトタイプの記録と IPA。CI は GitHub OIDC で認証 |
+| native 依存の cache | `.github/workflows/agent-native-cache.yml` | 約50分かかる bootstrap の生成物を Actions cache に保存 |
+| プロトタイプ | `.github/workflows/agent-prototype.yml`、`scripts/agent/prototype.py` | 識別子の割当、App Store Connect API、Ad Hoc 署名、IPA、配布ページ、Issue への投稿 |
+
+## 会話の流れ
+
+1. `agent` ラベルの付いた Issue を作成するか、Issue にコメントします。
+2. `route` が、投稿者がリポジトリの OWNER / MEMBER / COLLABORATOR であること(Repository variable `AGENT_ALLOWED_USERS` を設定した場合はその一覧)と、未処理のコメントがあることを確認します。Bot の投稿とエージェント自身の返信は対象外です。
+3. `worker` が R2 から `state.json` と Claude のセッション記録(`~/.claude/projects` の tar)を復元し、作業ブランチ `agent/issue-{番号}` を origin から取得します。
+4. 新しいコメント(初回は Issue 本文)と実行環境の状態だけを prompt にして、`claude_args` の `--resume <session>` で同じセッションを再開します。
+5. Claude の最終応答を Issue へ投稿し、セッション記録・状態・使用量を R2 へ保存します。処理に成功したコメントだけを処理済みにするので、失敗時は次のコメントや Re-run で同じ入力を再処理します。
+
+同じ Issue の実行は `concurrency` で直列になります。実行中に届いたコメントは次の実行で処理し、すでに処理済みなら macOS runner は起動しません。
+
+### 保存される状態(R2 `sessions/{Issue番号}/`)
+
+| キー | 内容 |
+|---|---|
+| `state.json` | Claude セッション ID、モデル、作業ブランチ、最終処理済みコメント ID、Worker の稼働状態と実行 URL、記録された設計判断 |
+| `claude-projects.tar.gz` | Claude Code の会話記録 |
+
+使用量は `usage/{Issue番号}/{run}-{attempt}.json`、プロトタイプは `prototypes/{Issue番号}/{ID}/` に保存します。セッション記録を復元できない場合は、Issue の履歴・記録済みの設計判断・作業ブランチの log を prompt に入れた新しいセッションで再開します。
+
+## プロンプトキャッシュ
+
+- システムプロンプトは Claude Code の既定(`claude_code` preset)と固定の `system-prompt.md` だけです。`--exclude-dynamic-system-prompt-sections` を付け、時刻・Issue 番号・コメントなどは会話側に渡します。
+- `CLAUDE_CODE_PROMPT_CACHE_TTL=1h` を指定しています。キャッシュは Anthropic 側にあり、ヒットするたびに期限が延びるので、runner が毎回入れ替わっても1時間以内の間隔なら再利用されます。
+- モデルは Issue ごとに最初に解決されたモデル ID を `state.json` に保存して使い続けます。Claude Code の版は action の commit 固定で固定され、自動更新は無効です。自動化モードの action は MCP サーバーを追加しないため、ツール定義も毎回同じです。
+- 各返信の「セッション情報」と Actions の summary に、入力・キャッシュ読取・キャッシュ作成(1h / 5m の内訳)・出力トークン、キャッシュヒット率、復元直後の最初の要求のヒット率を記録します。
+
+## Ad Hoc プロトタイプ
+
+Claude は Issue の依頼に応じて、案ごとのブランチ `prototype/{Issue番号}/{ID}` を作り、`python3 "$AGENT_CTL" prototype-build <ID> --title … --summary … --wait` で `agent-prototype.yml` を起動します。workflow は次を行います。
+
+1. 識別子の割当: 新しい案には未使用の識別子枠を割り当て、`prototypes/{Issue}/{ID}/meta.json` に記録します。同じ案の再ビルドでは同じ枠(Bundle ID・App Group)を使い、Build Number を増やします。枠は再利用しません。
+2. App Store Connect API: 3つの App ID の存在確認、登録済み端末と配布証明書の取得、端末一覧が変わったときの Ad Hoc profile の作成。profile に App Group が含まれていることを検査します。
+3. 作業コピーだけでの識別情報の変更: 表示名(例 `2A Struis`)、アイコンの帯(`#2 A`)、拡張ポイントの宣言。リポジトリ上の本番設定は変更しません。
+4. `STRUIS_BUNDLE_ID_BASE` / `STRUIS_APP_GROUP` を渡した archive と、`release-testing`(Ad Hoc)export。署名・Bundle ID・App Group・profile・拡張ポイントを IPA 上で検証します。
+5. IPA と `build.json`(Issue、Prototype ID、Bundle ID、Version、Build Number、Commit、生成日時、結果)を R2 に保存し、期限付きのインストールページ、QR コード、Simulator の起動画面を Issue に投稿します。失敗時は段階・原因・再実行方法を投稿します。
+
+状態は `draft / building / ready / testing / selected / archived / failed` で、workflow と Claude(`prototype-status`)がイベントとして記録します。
+
+### 識別子枠
+
+App Store Connect API キーでは App Group の作成と App ID への割当ができません(公開 API に該当する資源がなく、Xcode の自動プロビジョニングも API キーでは `appGroups` が `401 NOT_AUTHORIZED` になります)。そのため App Group だけは Developer ポータルで枠ごとに一度登録し、それ以外を自動化しています。
+
+| 枠 | 本体 | extension | App Group |
+|---|---|---|---|
+| `s01`〜 | `com.digiloglab.strius.preview.sNN` | `.runtime`、`.exec` | `group.com.digiloglab.strius.preview.sNN` |
+
+枠を追加するときは `agent-prototype.yml` を `operation=register-slots`、`slot_count` に新しい合計数で実行します(App ID と App Groups capability を API で作成し、summary にポータルでの残り作業を表示します)。その後 Developer ポータルで App Group を登録し、3つの App ID の App Groups に割り当てます。未使用の枠が無いと、ビルドはその旨を Issue に報告して止まります。
+
+### 配布ファイルの保護
+
+- IPA・manifest・インストールページは R2 の非公開バケットに置き、Worker が HMAC 署名付きの期限付き URL(既定7日)でだけ配信します。Ad Hoc の IPA は profile に含まれる登録端末にしかインストールできません。
+- インストールページの URL は Issue に投稿されるため、公開リポジトリでは期限内なら第三者も IPA を取得できます。IPA には配信キーが含まれます。より厳しくする場合は、`agent-struis.digiloglab.com/p/*` に Cloudflare Access を設定してください(manifest と IPA は署名 URL のままで動作します)。
+- 署名用の Secrets は `prototype-distribution` environment からだけ渡ります。この environment は `main` からの実行に限定しており、reviewer を設定すると署名・配布ごとに手動承認になります。xcodebuild のログには配信キーを含むビルド設定が出力されるため、artifact には `record.json` だけを保存します。
+
+## 導入手順
+
+1. **Claude**: `claude setup-token` で発行したトークンを Secret `CLAUDE_CODE_OAUTH_TOKEN` に登録します。
+2. **Cloudflare**: `cloudflare/agent/wrangler.toml` のホスト名・リポジトリ名・リポジトリ ID を自分のものに変え、次を実行します。
+   ```sh
+   cd cloudflare/agent && npm ci
+   npx wrangler r2 bucket create struis-agent
+   npx wrangler deploy
+   openssl rand -base64 48 | npx wrangler secret put LINK_SECRET
+   ```
+   Worker の URL が既定と異なる場合は Repository variable `AGENT_STORE_URL` に設定します。保存用の秘密値は GitHub に置きません。
+3. **GitHub**: ラベル `agent` を作成し、environment `prototype-distribution` を `main` 限定で作成します。任意の Repository variables は `AGENT_MODEL`(既定 `opus`)、`AGENT_EFFORT`、`AGENT_ALLOWED_USERS`、`AGENT_LABEL`、`AGENT_BUNDLE_PREFIX` です。
+4. **Apple**: 既存の署名用 Secrets(`BUILD_CERTIFICATE_BASE64`、`P12_PASSWORD`、`APP_STORE_CONNECT_*`、`STRUIS_DELIVERY_APP_KEY`)を使います。API キーは App ID と profile を作成できる権限が必要です。`register-slots` を実行し、Developer ポータルで App Group を登録・割り当てます。テスト端末は Apple Developer に登録しておきます(Ad Hoc の端末数上限に従います)。
+5. `Native runtime cache` workflow を一度実行して cache を作ります。
+
+## 制約
+
+- 1回のコメントごとに runner を起動して `--resume` で再開します。runner を待機させる方式は公式 action の実行モデルに合わないため採用していません。キャッシュは1時間 TTL のため、間隔が1時間を超えると次の最初の要求で再作成されます。
+- `GITHUB_TOKEN` で作成した Pull Request では、ほかの workflow(`ios.yml`)が自動実行されません。必要な場合は GitHub App のトークンを `github_token` に渡してください。`.github/workflows/` の変更も `GITHUB_TOKEN` では push できません。
+- native 依存を変える変更では、cache が更新されるまで bootstrap(約50分)が必要です。
+- 実機へのインストールと実機上の操作は利用者が行います。
