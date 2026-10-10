@@ -307,6 +307,8 @@ async function installPage(env, url, coordinates) {
   const base = publicBase(env, url);
   const manifestUrl = `${base}/m/${issue}/${variant}/${build}/manifest.plist?e=${expires}&s=${await sign(env, 'm', issue, variant, build, expires)}`;
   const installHref = `itms-services://?action=download-manifest&url=${encodeURIComponent(manifestUrl)}`;
+  // Direct IPA download for Apple Configurator / Xcode (Devices and Simulators) installs.
+  const ipaHref = `${base}/d/${issue}/${variant}/${build}/app.ipa?e=${expires}&s=${await sign(env, 'd', issue, variant, build, expires)}`;
   const rows = [
     ['Issue', `#${record.issue}`],
     ['Prototype', record.prototypeId],
@@ -326,12 +328,14 @@ body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,B
 main{max-width:560px;margin:0 auto;padding:32px 16px}
 h1{font-size:24px;margin:0 0 4px}p{color:var(--muted);margin:0 0 24px}
 a.install{display:block;text-align:center;background:var(--accent);color:#fff;text-decoration:none;font-weight:600;padding:14px;border-radius:12px}
+p.alt{margin:12px 0 0;font-size:14px}p.alt a{color:var(--accent)}
 dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 16px;margin:24px 0 0;font-size:14px}
 dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere;font-family:ui-monospace,Menlo,monospace}
 </style></head><body><main>
 <h1>${escapeHtml(record.displayName)}</h1>
 <p>${escapeHtml(record.summary || 'Ad Hoc 署名済みプロトタイプ')}</p>
 <a class="install" href="${escapeHtml(installHref)}">インストール</a>
+<p class="alt"><a href="${escapeHtml(ipaHref)}" download="${escapeHtml(`${record.displayName || 'prototype'}.ipa`)}">IPA をダウンロード</a>(Apple Configurator や Xcode で手動インストールする場合)</p>
 <dl>${rows.map(([name, value]) => `<dt>${escapeHtml(name)}</dt><dd>${escapeHtml(`${value ?? ''}`)}</dd>`).join('')}</dl>
 </main></body></html>`;
   return new Response(page, {
