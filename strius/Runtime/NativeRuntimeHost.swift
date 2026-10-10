@@ -37,8 +37,10 @@ extension AppExtensionPoint {
     private var execLaunch: (id: UUID, requests: NativeWorkerRequests, task: Task<(process: AppExtensionProcess, workerID: String, requests: NativeWorkerRequests?), Error>)?
     private var retiredExecWorkerID: String?
     private enum CommandLaunchError: Error, Equatable { case retiredWorker }
-    nonisolated static let codexBundleID = "com.digiloglab.strius.runtime"
-    nonisolated static let execBundleID = "com.digiloglab.strius.exec"
+    /// Workers are embedded under the host identifier, which differs for Ad Hoc prototypes.
+    nonisolated static let hostBundleID = Bundle.main.bundleIdentifier ?? "com.digiloglab.strius"
+    nonisolated static let codexBundleID = "\(hostBundleID).runtime"
+    nonisolated static let execBundleID = "\(hostBundleID).exec"
     #if DEBUG && targetEnvironment(simulator)
     struct VirtualPythonCommandHandle: Sendable {
         let job: NativeVirtualPythonJob

@@ -135,7 +135,9 @@ nonisolated struct NativeVirtualPythonReply: Codable, Sendable {
 }
 #endif
 nonisolated enum NativeRuntimePaths {
-    static let group = "group.com.digiloglab.struis.runtime"
+    /// Set per build from `STRUIS_APP_GROUP` so Ad Hoc prototypes get their own container.
+    static let group = (Bundle.main.object(forInfoDictionaryKey: "StruisAppGroup") as? String)
+        .flatMap { $0.isEmpty ? nil : $0 } ?? "group.com.digiloglab.struis.runtime"
     static var sharedRoot: URL? {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group)?
             .appendingPathComponent("Runtime", isDirectory: true)

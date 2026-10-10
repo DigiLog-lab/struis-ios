@@ -5,7 +5,9 @@
 	<key>EXAppExtensionAttributes</key>
 	<dict>
 		<key>EXExtensionPointIdentifier</key>
-		<string>com.digiloglab.strius.Runtime</string>
+		<string>$(STRUIS_BUNDLE_ID_BASE).Runtime</string>
 	</dict>
+	<key>StruisAppGroup</key>
+	<string>$(STRUIS_APP_GROUP)</string>
 </dict>
 </plist>

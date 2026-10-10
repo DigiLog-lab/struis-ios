@@ -48,6 +48,8 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>解いた紙を撮って問題集に綴じます。</string>
+	<key>StruisAppGroup</key>
+	<string>$(STRUIS_APP_GROUP)</string>
 	<key>StruisAuthRequired</key>
 	<string>$(STRUIS_AUTH_REQUIRED)</string>
 	<key>StruisDeliveryAppKey</key>
