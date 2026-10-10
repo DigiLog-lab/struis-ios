@@ -35,7 +35,7 @@ jobs:
           MODE: ${{ inputs.mode }}
         working-directory: scripts/agent/probe
         run: |
-          set -uo pipefail
+          set +e -uo pipefail
           umask 077
           key="$RUNNER_TEMP/AuthKey_$APP_STORE_CONNECT_KEY_ID.p8"
           printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$key"
@@ -68,7 +68,8 @@ jobs:
           xcodebuild -exportArchive -archivePath "$archive" -exportPath "$RUNNER_TEMP/export" \
             -exportOptionsPlist "$RUNNER_TEMP/export.plist" "${auth[@]}" > "$RUNNER_TEMP/export.log" 2>&1
           echo "export exit: $?"
-          grep -vE '^\s*$' "$RUNNER_TEMP/export.log" | tail -40
+          grep -vE '^\s*$' "$RUNNER_TEMP/export.log" | tail -80
+          find "$RUNNER_TEMP" -maxdepth 2 -name '*.xcdistributionlogs' -exec sh -c 'tail -60 "$1"/IDEDistribution.standard.log' _ {} \; 2>/dev/null | tail -60
           ipa=$(ls "$RUNNER_TEMP"/export/*.ipa 2>/dev/null | head -1)
           if [[ -n "$ipa" ]]; then
             mkdir -p "$RUNNER_TEMP/ipa" && unzip -q "$ipa" -d "$RUNNER_TEMP/ipa"
