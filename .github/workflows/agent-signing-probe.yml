@@ -102,7 +102,11 @@ jobs:
             -exportOptionsPlist "$RUNNER_TEMP/export.plist" "${auth[@]}" > "$RUNNER_TEMP/export.log" 2>&1
           echo "export exit: $?"
           grep -vE '^\s*$' "$RUNNER_TEMP/export.log" | tail -80
-          find "$RUNNER_TEMP" -maxdepth 2 -name '*.xcdistributionlogs' -exec sh -c 'tail -60 "$1"/IDEDistribution.standard.log' _ {} \; 2>/dev/null | tail -60
+          logs=$(sed -n 's/.*Created bundle at path "\(.*\)".*/\1/p' "$RUNNER_TEMP/export.log" | head -1)
+          if [[ -n "$logs" ]]; then
+            ls "$logs"
+            grep -iE 'error|fail|status|401|403|auth|https://' "$logs"/IDEDistribution*.log | grep -viE 'bearer [A-Za-z0-9._-]{20,}' | tail -80 | cut -c1-400
+          fi
           ipa=$(ls "$RUNNER_TEMP"/export/*.ipa 2>/dev/null | head -1)
           if [[ -n "$ipa" ]]; then
             mkdir -p "$RUNNER_TEMP/ipa" && unzip -q "$ipa" -d "$RUNNER_TEMP/ipa"
