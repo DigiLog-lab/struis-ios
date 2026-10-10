@@ -1,0 +1,74 @@
+name: Native runtime cache
+
+# Keeps the bootstrap output (about 50 minutes to build) in the Actions cache
+# so Issue agent and prototype runs can restore it. Release CI keeps verifying
+# the cold README path separately in ios.yml.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'NativeRuntime/**'
+      - '.github/workflows/agent-native-cache.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-runtime-cache
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: cache keyを計算
+        id: key
+        run: echo "key=native-runtime-v1-${{ hashFiles('NativeRuntime/**') }}" >> "$GITHUB_OUTPUT"
+      - name: 既存cacheを確認
+        id: lookup
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: ${{ steps.key.outputs.key }}
+          lookup-only: true
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        if: steps.lookup.outputs.cache-hit != 'true'
+        with:
+          python-version: '3.14'
+      - name: ツールを準備
+        if: steps.lookup.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          brew install autoconf automake libtool
+          if ! command -v rustup >/dev/null; then
+            brew install rustup
+          fi
+          rustup toolchain install 1.95.0 --profile minimal
+          rustup target add --toolchain 1.95.0 aarch64-apple-ios aarch64-apple-ios-sim
+      - name: 固定依存を生成
+        if: steps.lookup.outputs.cache-hit != 'true'
+        env:
+          CARGO_BUILD_JOBS: '2'
+        run: |
+          set -euo pipefail
+          python3.14 NativeRuntime/Scripts/bootstrap.py --platform both
+          rm -rf NativeRuntime/.build/codex NativeRuntime/.build/codex-artifacts
+      - name: cacheを保存
+        if: steps.lookup.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: ${{ steps.key.outputs.key }}

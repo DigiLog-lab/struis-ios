@@ -1,0 +1,21 @@
+name = "struis-agent"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+workers_dev = false
+routes = [{ pattern = "agent-struis.digiloglab.com", custom_domain = true }]
+
+[[r2_buckets]]
+binding = "STORE"
+bucket_name = "struis-agent"
+
+[vars]
+PUBLIC_BASE_URL = "https://agent-struis.digiloglab.com"
+OIDC_AUDIENCE = "https://agent-struis.digiloglab.com"
+GITHUB_REPOSITORY = "DigiLog-lab/struis-ios"
+GITHUB_REPOSITORY_ID = "1412177773"
+DEFAULT_BRANCH = "main"
+ALLOWED_WORKFLOWS = ".github/workflows/agent.yml,.github/workflows/agent-prototype.yml"
+DEFAULT_LINK_TTL_SECONDS = "604800"
+
+# LINK_SECRET (HMAC key for install links) is a Worker secret:
+#   openssl rand -base64 48 | npx wrangler secret put LINK_SECRET

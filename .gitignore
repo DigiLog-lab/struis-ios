@@ -37,3 +37,7 @@ scripts/e2e/ocr
 
 # Xcode-generated service association; CI uses GitHub Actions.
 strius.xcodeproj/xcshareddata/xcodecloud/
+
+# Cloudflare Worker dependencies and local state
+cloudflare/agent/node_modules/
+cloudflare/agent/.wrangler/
