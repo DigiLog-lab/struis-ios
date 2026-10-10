@@ -229,7 +229,9 @@ def certificate_serial(p12_path, password):
     if pem.returncode:
         pem = subprocess.run(['openssl', 'pkcs12', '-legacy', '-in', p12_path, '-clcerts', '-nokeys', '-passin',
                               'env:P12_PASSWORD'], capture_output=True, env={**os.environ, 'P12_PASSWORD': password})
-    serial = subprocess.run(['openssl', 'x509', '-noout', '-serial'], input=pem.stdout, capture_output=True, check=True)
+    serial = subprocess.run(['openssl', 'x509', '-noout', '-serial'], input=pem.stdout, capture_output=True)
+    if pem.returncode or serial.returncode:
+        raise BuildError('provisioning', '署名証明書 (BUILD_CERTIFICATE_BASE64 / P12_PASSWORD) を読み取れません。')
     return serial.stdout.decode().strip().split('=', 1)[1].upper().lstrip('0')
 
 
