@@ -98,9 +98,6 @@ jobs:
           DISABLE_AUTOUPDATER: '1'
           AGENT_HOME: ${{ runner.temp }}/agent
           AGENT_CTL: ${{ runner.temp }}/agent-tools/agentctl.py
-          # 実AIテスト専用。キーはDEBUG Simulatorへ一時ファイル経由で渡す
-          STRUIS_TEST_ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_AGENT_API_KEY }}
-          STRUIS_DELIVERY_APP_KEY: ${{ secrets.STRUIS_DELIVERY_APP_KEY }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
