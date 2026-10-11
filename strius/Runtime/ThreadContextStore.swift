@@ -11,6 +11,7 @@ nonisolated private let contextStoreLog = Logger(subsystem: "com.digiloglab.stri
 /// - `developer`: そのスレッドの履歴に入っている developer 指示のハッシュ。版が変わった時だけ渡し直す。
 /// - `memory`: 直近のターンの入力に載せた記憶の根拠のハッシュ。変わらなければ次のターンでは載せない。
 /// - `notices`: 次のターンの前にスレッドへ入れる Struis からの注記(期限で止めた、など)。
+/// - `provider`: スレッドを始めた実行先。続きのターンは設定を変えてもこの実行先で動かす(履歴の形式を混ぜない)。
 nonisolated final class ThreadContextStore: @unchecked Sendable {
     static let shared = ThreadContextStore(url: HyotanBoot.root.appendingPathComponent("thread-context.json"))
 
@@ -18,6 +19,7 @@ nonisolated final class ThreadContextStore: @unchecked Sendable {
         var developer: String?
         var memory: String?
         var notices: [String]?
+        var provider: ModelProvider?
         var updatedAt: Date?
     }
 
@@ -57,9 +59,14 @@ nonisolated final class ThreadContextStore: @unchecked Sendable {
             change(&entry)
             entry.updatedAt = Date()
             entries[threadID] = entry
-            if entries.count > Self.limit {
-                let oldest = entries.sorted { ($0.value.updatedAt ?? .distantPast) < ($1.value.updatedAt ?? .distantPast) }
-                for (key, _) in oldest.prefix(entries.count - Self.limit) { entries[key] = nil }
+            // Claude で始めたスレッドの実行先は、古くても残す(OpenAI として再開すると履歴を読めない)。中身だけ捨てる。
+            let slim = { (entry: Entry) in Entry(provider: entry.provider, updatedAt: entry.updatedAt) }
+            let full = entries.filter { $0.value.provider != .anthropic || $0.value != slim($0.value) }
+            if full.count > Self.limit {
+                let oldest = full.sorted { ($0.value.updatedAt ?? .distantPast) < ($1.value.updatedAt ?? .distantPast) }
+                for (key, value) in oldest.prefix(full.count - Self.limit) {
+                    entries[key] = value.provider == .anthropic ? slim(value) : nil
+                }
             }
             return entries
         }

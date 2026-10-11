@@ -54,6 +54,30 @@ final class SettingsStore {
         }
     }
 
+    // MARK: - AIモデル(GPT / Claude)
+
+    /// 新しく始める会話・単元・採点の実行先。続きの会話は始めた時の実行先のまま動く(`CodexTurnRunner.resolvingProvider`)。
+    var modelProvider: ModelProvider = ModelProviderPreference.current {
+        didSet { ModelProviderPreference.current = modelProvider }
+    }
+    private(set) var anthropicKeyLabel: String? = AnthropicCredentials.maskedKey
+    private(set) var anthropicKeyConfigured = AnthropicCredentials.isConfigured
+
+    func saveAnthropicKey(_ key: String) {
+        AnthropicCredentials.save(key)
+        refreshAnthropicKey()
+    }
+
+    func deleteAnthropicKey() {
+        AnthropicCredentials.delete()
+        refreshAnthropicKey()
+    }
+
+    private func refreshAnthropicKey() {
+        anthropicKeyLabel = AnthropicCredentials.maskedKey
+        anthropicKeyConfigured = AnthropicCredentials.isConfigured
+    }
+
     // MARK: - 学習記録 (design §4.3) と使用量報告 (§8-4)
 
     private(set) var ledgerEventCount: Int?

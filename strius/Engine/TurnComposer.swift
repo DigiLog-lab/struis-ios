@@ -30,7 +30,8 @@ nonisolated struct TurnComposer {
             codexThreadID: nil, mode: .start, cwd: TurnPlan.guestWorkspace(id: planID), model: model.model, effort: model.effort,
             ephemeral: true, baseInstructions: try await assets.ref(asset), developerInstructions: nil,
             developerText: "Answer only with one JSON object matching the supplied output schema.",
-            injectDeveloperOnResume: false, config: Self.structuredConfig(effort: model.effort), lastTurnID: nil
+            injectDeveloperOnResume: false, config: Self.structuredConfig(effort: model.effort), lastTurnID: nil,
+            provider: model.provider
         )
     }
 

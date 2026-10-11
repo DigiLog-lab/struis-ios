@@ -118,6 +118,7 @@ actor CodexTurnRunner: TurnRunning {
         }
         var executions: [LedgerJSON] = []
         var threadID = plan.thread.codexThreadID
+        plan = await resolvingProvider(plan)
         do {
             let configured = try await configureThread(plan, session: session)
             threadID = configured.threadID
@@ -158,7 +159,7 @@ actor CodexTurnRunner: TurnRunning {
                 images: turn.images.map(\.path).map { workspace + "/" + $0 },
                 model: plan.thread.model, effort: plan.thread.effort, outputSchema: turn.outputSchema, sandboxPolicy: turn.sandboxPolicy,
                 configured: configured.response, configurationEvidence: configured.evidence, taskType: plan.kind.rawValue,
-                timeoutS: plan.limits.turnTimeoutS, deadline: deadline, skills: skills, progress: progress
+                timeoutS: plan.limits.turnTimeoutS, deadline: deadline, skills: skills, provider: plan.thread.provider, progress: progress
             ) { execution in executions.append(execution) }
             let childExecutions = await watcher?.executions ?? []
             let files = try WorkspaceStager.collect(plan: plan)
@@ -296,6 +297,44 @@ actor CodexTurnRunner: TurnRunning {
 
     // MARK: - Thread configuration
 
+    /// 続きの会話(resume・fork)は、設定画面の選択ではなくスレッドを始めた実行先で動かす。
+    /// 別の provider で再開すると、履歴の reasoning(暗号化された中身)を読めない。
+    func resolvingProvider(_ plan: TurnPlan) async -> TurnPlan {
+        guard plan.thread.mode != .start, let threadID = plan.thread.codexThreadID else { return plan }
+        // この記録より前に始めたスレッドはすべて OpenAI。
+        let started = contextStore.entry(threadID)?.provider ?? .openai
+        guard started != (plan.thread.provider ?? .openai) else { return plan }
+        var plan = plan
+        let astra = await assets.model("astra", provider: started)
+        plan.thread.provider = astra.provider
+        plan.thread.model = astra.model
+        plan.thread.effort = astra.effort
+        if case .object(var config) = plan.thread.config {
+            config["model_reasoning_effort"] = .string(astra.effort)
+            plan.thread.config = .object(config)
+        }
+        if var delegation = plan.delegation {
+            let luna = await assets.model("luna", provider: started)
+            delegation.provider = luna.provider
+            delegation.model = luna.model
+            delegation.effort = luna.effort
+            plan.delegation = delegation
+        }
+        return plan
+    }
+
+    /// Claude のスレッドは端末内のプロキシを provider として登録する(`thread/start`・`resume`・`fork` の `config`)。
+    /// 返す値は provider の接続先で、変わったら読み込み済みのスレッドも設定し直す。
+    nonisolated static func applyProvider(_ provider: ModelProvider?, to params: inout JSONObject) async throws -> String {
+        guard let provider, let providerID = provider.codexProviderID else { return "" }
+        let endpoint = try await ClaudeResponsesProxy.shared.start()
+        params["modelProvider"] = providerID
+        var config = params["config"] as? JSONObject ?? [:]
+        config["model_providers.\(providerID)"] = ClaudeResponsesProxy.providerConfig(endpoint)
+        params["config"] = config
+        return endpoint.baseURL
+    }
+
     private struct Configured {
         let threadID: String?
         let response: JSONObject
@@ -312,8 +351,16 @@ actor CodexTurnRunner: TurnRunning {
             developer = spec.developerText ?? "Answer only with one JSON object matching the supplied output schema."
         }
         let fullDeveloper = developer + "\n\n" + NativeToolRouter.instructions
-        // What a loaded thread was set up with; a different value means the delivered assets changed.
-        let instructions = ThreadContextStore.hash(base, fullDeveloper, spec.model, spec.effort)
+        var params: JSONObject = [
+            "dynamicTools": NativeToolRouter.definitions,
+            "model": spec.model, "approvalPolicy": "never", "sandbox": "danger-full-access",
+            "allowProviderModelFallback": false, "baseInstructions": base, "developerInstructions": fullDeveloper,
+            "config": NativeToolRouter.configuration(spec.config.any as? JSONObject ?? [:]),
+        ]
+        let providerEndpoint = try await Self.applyProvider(spec.provider, to: &params)
+        // What a loaded thread was set up with; a different value means the delivered assets changed
+        // (or the Claude proxy was restarted on another port).
+        let instructions = ThreadContextStore.hash(base, fullDeveloper, spec.model, spec.effort, providerEndpoint)
         let developerHash = ThreadContextStore.hash(developer)
         // A chat thread's turns run in its own directory (P1-1, set on `turn/start`). The thread itself is
         // started and resumed in the workspace root: Codex reads AGENTS.md only for a trusted project,
@@ -327,12 +374,7 @@ actor CodexTurnRunner: TurnRunning {
             try FileManager.default.createDirectory(at: plan.hostWorkspace, withIntermediateDirectories: true)
             cwd = plan.hostWorkspace.path
         }
-        var params: JSONObject = [
-            "dynamicTools": NativeToolRouter.definitions,
-            "cwd": cwd, "model": spec.model, "approvalPolicy": "never", "sandbox": "danger-full-access",
-            "allowProviderModelFallback": false, "baseInstructions": base, "developerInstructions": fullDeveloper,
-            "config": NativeToolRouter.configuration(spec.config.any as? JSONObject ?? [:]),
-        ]
+        params["cwd"] = cwd
         let generation = await session.generation
         switch spec.mode {
         case .start:
@@ -342,7 +384,12 @@ actor CodexTurnRunner: TurnRunning {
             let threadID = (response["thread"] as? JSONObject)?["id"] as? String
             guard let threadID, !threadID.isEmpty else { throw CodexAppServerError.malformed("thread/start returned no thread id") }
             loadedThreads[threadID] = (generation, instructions, response)
-            if !spec.ephemeral { contextStore.update(threadID) { $0.developer = developerHash } }
+            if !spec.ephemeral {
+                contextStore.update(threadID) {
+                    $0.developer = developerHash
+                    $0.provider = spec.provider
+                }
+            }
             return Configured(threadID: threadID, response: response, evidence: "thread/start")
         case .resume:
             guard let threadID = spec.codexThreadID else { throw CodexAppServerError.malformed("resume without thread id") }
@@ -379,7 +426,10 @@ actor CodexTurnRunner: TurnRunning {
                         throw CodexAppServerError.malformed("thread/start returned no thread id")
                     }
                     loadedThreads[id] = (generation, instructions, recovered)
-                    contextStore.update(id) { $0.developer = developerHash }
+                    contextStore.update(id) {
+                        $0.developer = developerHash
+                        $0.provider = spec.provider
+                    }
                     return Configured(threadID: id, response: recovered, evidence: "thread/start after missing rollout")
                 }
                 loadedThreads[threadID] = (generation, instructions, response)
@@ -409,6 +459,7 @@ actor CodexTurnRunner: TurnRunning {
             contextStore.update(forked) { entry in
                 entry.developer = inherited?.developer
                 entry.memory = nil
+                entry.provider = spec.provider
             }
             return Configured(threadID: forked, response: response, evidence: "thread/fork")
         }
@@ -426,7 +477,7 @@ actor CodexTurnRunner: TurnRunning {
         model: String, effort: String, outputSchema: LedgerJSON?, sandboxPolicy: String,
         configured: JSONObject, configurationEvidence: String, taskType: String, timeoutS: Int, deadline: TurnDeadline? = nil,
         parentThreadID: String? = nil, parentTurnID: String? = nil, executionID: String? = nil,
-        skills: SkillWaiting = SkillWaiting(),
+        skills: SkillWaiting = SkillWaiting(), provider: ModelProvider? = nil,
         progress: @escaping @Sendable (TurnProgressEvent) -> Void,
         record: (LedgerJSON) -> Void
     ) async throws -> Observed {
@@ -443,7 +494,7 @@ actor CodexTurnRunner: TurnRunning {
             "resolved_model": configured["model"] ?? NSNull(), "resolved_effort": configured["reasoningEffort"] ?? NSNull(),
             "configuration_evidence": configurationEvidence, "actual_model": NSNull(), "actual_effort": NSNull(), "reroutes": [Any](),
             "lookup_commands": parentThreadID == nil ? NSNull() : [Any](), "usage": NSNull(), "turn_tokens": NSNull(),
-            "status": "starting", "elapsed_ms": NSNull(), "billing_source": "byo_chatgpt", "actual_charge": NSNull(),
+            "status": "starting", "elapsed_ms": NSNull(), "billing_source": (provider ?? .openai).billingSource, "actual_charge": NSNull(),
         ]
         var input: [Any] = [["type": "text", "text": text]]
         for path in images { input.append(["type": "localImage", "path": path]) }

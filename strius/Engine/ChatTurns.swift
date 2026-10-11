@@ -220,7 +220,7 @@ nonisolated enum ChatTurns {
             developerInstructions: try await developerRef(assets: assets),
             developerText: nil, injectDeveloperOnResume: existingThread != nil && roundText == nil,
             config: .object(["model_reasoning_effort": .string(astra.effort), "features.multi_agent": .bool(false), "features.unified_exec": .bool(false)]),
-            lastTurnID: nil
+            lastTurnID: nil, provider: astra.provider
         )
 
         // The fixed protocol (desk rules, output protocol, progress contract and schema, delegation
@@ -250,7 +250,7 @@ nonisolated enum ChatTurns {
             baseInstructions: try await assets.ref("prompt:luna_child"),
             developerText: "Perform only the supplied lookup. Do not follow learner-coach write or memory instructions.",
             outputSchema: try await assets.json("schema:luna_lookup"), sourceRoots: ["tutor_desk", "struis_context"],
-            contractInDeveloper: slim
+            contractInDeveloper: slim, provider: luna.provider
         )
         return TurnPlan(
             id: planID, kind: .chat, round: state.round + 1, thread: thread,

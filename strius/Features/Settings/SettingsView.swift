@@ -60,6 +60,16 @@ struct SettingsView: View {
             .accessibilityIdentifier("settings-row-codex")
             divider
             SettingsHomeRow(
+                icon: "cpu",
+                title: "AIモデル",
+                detail: modelDetail,
+                value: settings.modelProvider.displayName
+            ) {
+                ModelProviderSettingsDetail()
+            }
+            .accessibilityIdentifier("settings-row-model")
+            divider
+            SettingsHomeRow(
                 icon: "arrow.down.circle",
                 title: "配信データ",
                 detail: learnerData.deliverySummary,
@@ -128,6 +138,13 @@ struct SettingsView: View {
         .accessibilityIdentifier("settings-replay-onboarding")
     }
 
+    private var modelDetail: String {
+        switch settings.modelProvider {
+        case .openai: return "ChatGPT / Codex で GPT を使う"
+        case .anthropic: return settings.anthropicKeyConfigured ? "API キーで Claude を使う" : "Claude の API キーが未設定"
+        }
+    }
+
     private var accountDetail: String {
         let name = bootstrap.user?.displayName ?? "Learner"
         if let email = bootstrap.user?.email, !email.isEmpty {
@@ -178,6 +195,128 @@ private struct DeliverySettingsDetail: View {
                 .settingsCard()
             }
         }
+    }
+}
+
+/// GPT と Claude の切り替え。どちらも端末内の Codex で動き、Claude は API キーで直接呼ぶ。
+private struct ModelProviderSettingsDetail: View {
+    @Environment(SettingsStore.self) private var settings
+    @Environment(\.colorScheme) private var scheme
+    @State private var keyDraft = ""
+
+    var body: some View {
+        @Bindable var settings = settings
+        SettingsDetailScaffold(eyebrow: "MODEL", title: "AIモデル") {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("使うモデル")
+                        .font(Typography.heading2)
+                    Text("新しく始める会話・単元づくり・採点から切り替わります。続きの会話は、始めたときのモデルのまま続きます。")
+                        .font(Typography.bodyCompact)
+                        .foregroundStyle(Theme.textSecondary(scheme))
+                }
+                VStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ProviderSegmented(selection: $settings.modelProvider)
+                        Text(providerSummary)
+                            .font(Typography.caption)
+                            .foregroundStyle(Theme.textSecondary(scheme))
+                            .accessibilityIdentifier("settings-model-summary")
+                    }
+                    .padding(16)
+                }
+                .settingsCard()
+
+                if settings.modelProvider == .anthropic {
+                    claudeKeyCard
+                    if !settings.anthropicKeyConfigured {
+                        Text("Claude を使うには API キーが必要です。キーがないまま送ると、返事の代わりにエラーになります。")
+                            .font(Typography.caption)
+                            .foregroundStyle(Theme.regress(scheme))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .settingsCard()
+                            .accessibilityIdentifier("settings-model-key-missing")
+                    }
+                }
+            }
+        }
+    }
+
+    private var providerSummary: String {
+        switch settings.modelProvider {
+        case .openai:
+            return "ChatGPT / Codex の接続で \(CodexModels.astraModel) を使います。"
+        case .anthropic:
+            return "Anthropic の API キーで \(ClaudeModels.displayName(ClaudeModels.astraModel)) を使います(下調べは \(ClaudeModels.displayName(ClaudeModels.lunaModel)))。利用料金はキーの持ち主に請求されます。"
+        }
+    }
+
+    private var claudeKeyCard: some View {
+        VStack(spacing: 0) {
+            if let label = settings.anthropicKeyLabel {
+                SettingsActionRow(title: "API キー", detail: "保存済み \(label)", actionTitle: "削除") {
+                    settings.deleteAnthropicKey()
+                }
+                .accessibilityIdentifier("settings-model-key-delete")
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("API キー")
+                        .font(Typography.bodyEmphasized)
+                    SecureField("sk-ant-…", text: $keyDraft)
+                        .textContentType(.password)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .font(Typography.bodyCompact)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .accessibilityIdentifier("settings-model-key-field")
+                    HStack {
+                        Text("この端末の Keychain にだけ保存します。")
+                            .font(Typography.caption)
+                            .foregroundStyle(Theme.textSecondary(scheme))
+                        Spacer()
+                        Button("保存") {
+                            settings.saveAnthropicKey(keyDraft)
+                            keyDraft = ""
+                        }
+                        .settingsActionButton()
+                        .disabled(keyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .accessibilityIdentifier("settings-model-key-save")
+                    }
+                }
+                .padding(16)
+            }
+        }
+        .settingsCard()
+    }
+}
+
+private struct ProviderSegmented: View {
+    @Binding var selection: ModelProvider
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(ModelProvider.allCases, id: \.self) { provider in
+                Button {
+                    selection = provider
+                } label: {
+                    Text(provider.displayName)
+                        .font(Typography.bodyEmphasized)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .foregroundStyle(selection == provider ? Color(uiColor: .systemBackground) : Theme.textSecondary(scheme))
+                        .background(selection == provider ? Theme.textPrimary(scheme) : Color.clear, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings-model-\(provider.rawValue)")
+                .accessibilityAddTraits(selection == provider ? .isSelected : [])
+            }
+        }
+        .padding(4)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: Capsule())
     }
 }
 
