@@ -20,6 +20,9 @@ nonisolated final class ThreadContextStore: @unchecked Sendable {
         var memory: String?
         var notices: [String]?
         var provider: ModelProvider?
+        /// 返事を最後まで受け取ったターンがあるか。false(まだ無い)のスレッドは履歴にモデルの出力が無いので、
+        /// 設定で選んだ実行先に移ってよい。nil はこの項目より前の記録(実行先を固定する)。
+        var answered: Bool?
         var updatedAt: Date?
     }
 

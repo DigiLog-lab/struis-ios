@@ -122,6 +122,18 @@ final class ClaudeProxyTests: XCTestCase {
         XCTAssertEqual(score["type"] as? String, "integer")
     }
 
+    func testOversizedSchemaCanMoveIntoTheInstructions() throws {
+        let schema: [String: Any] = ["type": "object", "properties": ["ok": ["type": "boolean"]], "required": ["ok"]]
+        let request = codexRequest(input: [["type": "message", "role": "user", "content": [["type": "input_text", "text": "go"]]]],
+                                   text: ["format": ["type": "json_schema", "name": "out", "strict": true, "schema": schema]])
+        let translation = try ClaudeRequestTranslator.translate(request, options: .init(schemaInInstructions: true))
+        XCTAssertTrue(translation.structured)
+        XCTAssertNil((translation.body["output_config"] as? [String: Any])?["format"])
+        let system = try XCTUnwrap(translation.body["system"] as? String)
+        XCTAssertTrue(system.hasPrefix("BASE"))
+        XCTAssertTrue(system.contains("\"ok\""))
+    }
+
     // MARK: - Stream
 
     private func run(_ events: [[String: Any]], tools: [[String: Any]] = []) -> [[String: Any]] {
@@ -274,6 +286,20 @@ final class ClaudeProxyTests: XCTestCase {
         let resumedOld = await runner.resolvingProvider(plan(thread: "thread-old", mode: .resume, provider: .anthropic))
         XCTAssertNil(resumedOld.thread.provider)
         XCTAssertEqual(resumedOld.thread.model, CodexModels.astraModel)
+        // 最初のターンが失敗した(返事の無い)スレッドは、切り替えた設定で送り直せる。
+        store.update("thread-unanswered") {
+            $0.provider = nil
+            $0.answered = false
+        }
+        let retried = await runner.resolvingProvider(plan(thread: "thread-unanswered", mode: .resume, provider: .anthropic))
+        XCTAssertEqual(retried.thread.provider, .anthropic)
+        XCTAssertEqual(retried.thread.model, "m")
+        // Codex は読み込み済みのスレッドの provider を変えないので、新しいスレッドで始め直す。
+        XCTAssertEqual(retried.thread.mode, .start)
+        XCTAssertNil(retried.thread.codexThreadID)
+        // 同じ実行先なら、そのまま続ける。
+        let same = await runner.resolvingProvider(plan(thread: "thread-unanswered", mode: .resume, provider: nil))
+        XCTAssertEqual(same.thread.mode, .resume)
         // 新しいスレッドは設定どおり。
         let started = await runner.resolvingProvider(plan(thread: nil, mode: .start, provider: .anthropic))
         XCTAssertEqual(started.thread.provider, .anthropic)

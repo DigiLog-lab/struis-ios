@@ -12,6 +12,8 @@ nonisolated enum ClaudeRequestTranslator {
         var maxImageBytes = 5 * 1024 * 1024
         /// 署名の合わない thinking を外してもう一度送る時に使う。
         var stripThinking = false
+        /// schema が大きすぎて structured outputs に拒まれた時は、schema を指示文で渡す(結果は Engine が検証する)。
+        var schemaInInstructions = false
     }
 
     nonisolated struct Translation {
@@ -57,7 +59,6 @@ nonisolated enum ClaudeRequestTranslator {
             // 変わらない先頭(tools・system・それまでの履歴)を毎回読み直さないよう、自動の prompt caching を使う。
             "cache_control": ["type": "ephemeral"],
         ]
-        if !systemParts.isEmpty { body["system"] = systemParts.joined(separator: "\n\n") }
         let claudeTools = tools.claudeTools
         if !claudeTools.isEmpty {
             body["tools"] = claudeTools
@@ -74,10 +75,16 @@ nonisolated enum ClaudeRequestTranslator {
         var structured = false
         if let format = (request["text"] as? [String: Any])?["format"] as? [String: Any],
            format["type"] as? String == "json_schema", let schema = format["schema"] {
-            outputConfig["format"] = ["type": "json_schema", "schema": ClaudeSchema.sanitize(schema)]
+            if options.schemaInInstructions {
+                let text = (try? JSONSerialization.data(withJSONObject: schema, options: [.sortedKeys])).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
+                systemParts.append("Answer with exactly one JSON object and nothing else. It must validate against this JSON Schema:\n" + text)
+            } else {
+                outputConfig["format"] = ["type": "json_schema", "schema": ClaudeSchema.sanitize(schema)]
+            }
             structured = true
         }
         if !outputConfig.isEmpty { body["output_config"] = outputConfig }
+        if !systemParts.isEmpty { body["system"] = systemParts.joined(separator: "\n\n") }
         // 現行の Claude は adaptive thinking。要約を見せる設定(Struis は待ち時間の見出しに使う)。
         let summary = reasoning?["summary"] as? String
         var thinking: [String: Any] = ["type": "adaptive"]

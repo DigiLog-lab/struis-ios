@@ -287,7 +287,7 @@ nonisolated private struct ClaudeRelay {
             return
         }
         var options = ClaudeRequestTranslator.Options()
-        for attempt in 0..<2 {
+        for attempt in 0..<3 {
             let translation: ClaudeRequestTranslator.Translation
             do {
                 translation = try ClaudeRequestTranslator.translate(request, options: options)
@@ -309,9 +309,16 @@ nonisolated private struct ClaudeRelay {
                     let error = ((try? JSONSerialization.jsonObject(with: collected)) as? [String: Any])?["error"] as? [String: Any]
                     let message = error?["message"] as? String ?? String(decoding: collected.prefix(2_000), as: UTF8.self)
                     // 署名の合わない thinking(履歴の編集・別モデルの履歴)は外して 1 回だけ送り直す。
-                    if status == 400, attempt == 0, !options.stripThinking, message.localizedCaseInsensitiveContains("thinking") {
+                    if status == 400, !options.stripThinking, message.localizedCaseInsensitiveContains("thinking") {
                         proxyLog.error("thinking rejected, retrying without thinking blocks")
                         options.stripThinking = true
+                        continue
+                    }
+                    // structured outputs の文法が大きすぎる schema は、指示文で渡して送り直す。
+                    if status == 400, translation.structured, !options.schemaInInstructions,
+                       message.localizedCaseInsensitiveContains("grammar") || message.localizedCaseInsensitiveContains("schema") {
+                        proxyLog.error("output schema rejected, retrying with the schema in the instructions")
+                        options.schemaInInstructions = true
                         continue
                     }
                     proxyLog.error("upstream status \(status, privacy: .public): \(message, privacy: .public)")

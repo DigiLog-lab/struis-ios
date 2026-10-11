@@ -167,6 +167,8 @@ actor CodexTurnRunner: TurnRunning {
             ) { execution in executions.append(execution) }
             let childExecutions = await watcher?.executions ?? []
             let files = try WorkspaceStager.collect(plan: plan)
+            // 返事を受け取ったので、このスレッドの実行先は以後固定する(`resolvingProvider`)。
+            if contextStore.entry(threadID)?.answered == false { contextStore.update(threadID) { $0.answered = true } }
             // Compaction rewrote the history: memory evidence sent in earlier inputs may be gone (P1-3).
             if executions.contains(where: { !($0["compactions"]?.arrayValue ?? []).isEmpty }) {
                 contextStore.update(threadID) { $0.memory = nil }
@@ -305,8 +307,20 @@ actor CodexTurnRunner: TurnRunning {
     /// 別の provider で再開すると、履歴の reasoning(暗号化された中身)を読めない。
     func resolvingProvider(_ plan: TurnPlan) async -> TurnPlan {
         guard plan.thread.mode != .start, let threadID = plan.thread.codexThreadID else { return plan }
+        let entry = contextStore.entry(threadID)
+        // まだ一度も返事を受け取っていない(最初のターンが失敗した)スレッドは、設定で選んだ実行先で続ける。
+        // 例えば ChatGPT 未接続で失敗した会話を、Claude に切り替えてから送り直せるようにする。Codex は読み込み済みの
+        // スレッドの provider を resume で変えないので、新しいスレッドで始め直す(履歴にモデルの出力は無い)。
+        if entry?.answered == false {
+            guard plan.thread.mode == .resume, (entry?.provider ?? .openai) != (plan.thread.provider ?? .openai) else { return plan }
+            var plan = plan
+            plan.thread.mode = .start
+            plan.thread.codexThreadID = nil
+            plan.thread.injectDeveloperOnResume = false
+            return plan
+        }
         // この記録より前に始めたスレッドはすべて OpenAI。
-        let started = contextStore.entry(threadID)?.provider ?? .openai
+        let started = entry?.provider ?? .openai
         guard started != (plan.thread.provider ?? .openai) else { return plan }
         var plan = plan
         let astra = await assets.model("astra", provider: started)
@@ -392,6 +406,7 @@ actor CodexTurnRunner: TurnRunning {
                 contextStore.update(threadID) {
                     $0.developer = developerHash
                     $0.provider = spec.provider
+                    $0.answered = false
                 }
             }
             return Configured(threadID: threadID, response: response, evidence: "thread/start")
@@ -433,6 +448,7 @@ actor CodexTurnRunner: TurnRunning {
                     contextStore.update(id) {
                         $0.developer = developerHash
                         $0.provider = spec.provider
+                        $0.answered = false
                     }
                     return Configured(threadID: id, response: recovered, evidence: "thread/start after missing rollout")
                 }
@@ -464,6 +480,8 @@ actor CodexTurnRunner: TurnRunning {
                 entry.developer = inherited?.developer
                 entry.memory = nil
                 entry.provider = spec.provider
+                // 複製元の履歴を引き継ぐので、返事のあるスレッドとして扱う。
+                entry.answered = inherited?.answered ?? true
             }
             return Configured(threadID: forked, response: response, evidence: "thread/fork")
         }
