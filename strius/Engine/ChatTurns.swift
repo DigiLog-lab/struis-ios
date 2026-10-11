@@ -503,7 +503,9 @@ nonisolated enum ChatTurns {
             var events: [LedgerEvent] = []
             var metadata: [String: LedgerJSON] = [
                 "handled_as": .string("codex_app_server"), "codex_turn_id": state.codexTurnID.map(LedgerJSON.string) ?? .null,
-                "billing_source": .string("byo_chatgpt"), "learning_progress_available": .bool(true), "learning_progress": trace,
+                // 実行監査に残った実行先(Claude は API キー)。古い記録は ChatGPT。
+                "billing_source": .string(state.executions.lazy.compactMap { $0["billing_source"]?.stringValue }.first ?? "byo_chatgpt"),
+                "learning_progress_available": .bool(true), "learning_progress": trace,
                 "tutor_memory_update": memorySnapshot, "executions": .array(state.executions),
             ]
             if !hintIDs.isEmpty { machine.markHints(problemIDs: Array(hintIDs)) }

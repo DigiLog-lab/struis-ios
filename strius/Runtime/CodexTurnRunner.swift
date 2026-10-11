@@ -119,6 +119,10 @@ actor CodexTurnRunner: TurnRunning {
         var executions: [LedgerJSON] = []
         var threadID = plan.thread.codexThreadID
         plan = await resolvingProvider(plan)
+        // キーが無いまま Claude に送ると、Codex の再試行の後に原因の分からない失敗になる。先に理由を返す。
+        if plan.thread.provider == .anthropic, !AnthropicCredentials.isConfigured {
+            return (Self.failed(plan, threadID: threadID, error: ModelProviderError.missingAnthropicKey, started: started), broken: false)
+        }
         do {
             let configured = try await configureThread(plan, session: session)
             threadID = configured.threadID

@@ -20,6 +20,9 @@ struct OnboardingPrototypeView: View {
     @State private var didTryConnection = false
     @State private var didOpenChatGPTSettings = false
     @State private var showsWorkspaceHelp = false
+    /// ChatGPT の代わりに Claude(Anthropic の API キー)で始める。
+    @State private var usesClaude = ModelProviderPreference.current == .anthropic
+    @State private var claudeKeyDraft = ""
 
     /// 最後の「最初の単元を作る」。回答と、選んだ教材(単元づくりの手がかり)を渡す。
     let onFinish: (OnboardingProfile, [ComposerAttachment]) -> Void
@@ -178,7 +181,7 @@ struct OnboardingPrototypeView: View {
                 advance(to: .connection)
             }
 
-            Text("このあと、ChatGPTアカウントを接続します。")
+            Text("このあと、ChatGPTアカウントか Claude の API キーを接続します。")
                 .font(Typography.caption)
                 .foregroundStyle(Theme.textSecondary(scheme))
                 .padding(.top, 14)
@@ -187,7 +190,61 @@ struct OnboardingPrototypeView: View {
         .frame(minHeight: 760)
     }
 
+    @ViewBuilder
     private var connection: some View {
+        if usesClaude {
+            claudeConnection
+        } else {
+            chatGPTConnection
+        }
+    }
+
+    private var claudeConnection: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            screenHeading(
+                eyebrow: "CLAUDE",
+                title: settings.anthropicKeyConfigured ? "Claude を使う\n準備ができました" : "Claude の API キーを\n入れます",
+                detail: settings.anthropicKeyConfigured
+                    ? "説明・判定・質問に Claude を使います。あとから設定の「AIモデル」で切り替えられます。"
+                    : "Anthropic の API キーを入れると、説明・判定・質問に Claude を使います。利用料金はキーの持ち主に請求されます。"
+            )
+            if let label = settings.anthropicKeyLabel {
+                HStack(spacing: 14) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundStyle(Theme.growth(scheme))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("API キーを保存しました")
+                            .font(Typography.bodyEmphasized)
+                            .foregroundStyle(Theme.textPrimary(scheme))
+                        Text(label)
+                            .font(Typography.caption)
+                            .foregroundStyle(Theme.textSecondary(scheme))
+                    }
+                    Spacer()
+                }
+                .padding(18)
+                .background(Theme.growth(scheme).opacity(0.10), in: RoundedRectangle(cornerRadius: Theme.Radius.card))
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    SecureField("sk-ant-…", text: $claudeKeyDraft)
+                        .textContentType(.password)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                        .font(Typography.body)
+                        .padding(16)
+                        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: Theme.Radius.card))
+                        .accessibilityIdentifier("onboarding-claude-key")
+                    Label("キーはこの iPhone の Keychain にだけ保存します。", systemImage: "lock.shield")
+                        .font(Typography.caption)
+                        .foregroundStyle(Theme.textSecondary(scheme))
+                }
+            }
+        }
+        .padding(.top, 22)
+    }
+
+    private var chatGPTConnection: some View {
         VStack(alignment: .leading, spacing: 28) {
             screenHeading(
                 eyebrow: "CHATGPT",
@@ -547,7 +604,28 @@ struct OnboardingPrototypeView: View {
 
     private var bottomAction: some View {
         VStack(spacing: 10) {
-            if step == .connection {
+            if step == .connection, usesClaude {
+                if settings.anthropicKeyConfigured {
+                    primaryButton("次へ") {
+                        advance(to: .grade)
+                    }
+                    .accessibilityIdentifier("onboarding-claude-next")
+                } else {
+                    primaryButton("キーを保存") {
+                        settings.saveAnthropicKey(claudeKeyDraft)
+                        claudeKeyDraft = ""
+                    }
+                    .disabled(claudeKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityIdentifier("onboarding-claude-save")
+                }
+                Button("ChatGPT で接続する") {
+                    usesClaude = false
+                    settings.modelProvider = .openai
+                }
+                .font(Typography.caption)
+                .foregroundStyle(Theme.accent(scheme))
+                .frame(minHeight: 44)
+            } else if step == .connection {
                 if settings.account?.isConnected == true {
                     primaryButton("次へ") {
                         advance(to: .grade)
@@ -572,8 +650,15 @@ struct OnboardingPrototypeView: View {
                     .opacity(settings.busy ? 0.6 : 1)
 
                     if !settings.busy {
-                        Button(connectionSecondaryActionTitle) {
-                            performConnectionSecondaryAction()
+                        HStack(spacing: 18) {
+                            Button(connectionSecondaryActionTitle) {
+                                performConnectionSecondaryAction()
+                            }
+                            Button("Claude の API キーで使う") {
+                                usesClaude = true
+                                settings.modelProvider = .anthropic
+                            }
+                            .accessibilityIdentifier("onboarding-use-claude")
                         }
                         .font(Typography.caption)
                         .foregroundStyle(Theme.accent(scheme))

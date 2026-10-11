@@ -188,6 +188,26 @@ def sample(schema: dict, defs: dict, name: str = "value"):
     return f"Claude検証:{name}"
 
 
+def last_tool_use(body: dict):
+    for message in reversed(body["messages"]):
+        if message["role"] == "assistant" and isinstance(message["content"], list):
+            uses = [b for b in message["content"] if b.get("type") == "tool_use"]
+            if uses:
+                return uses[-1]
+            return None
+    return None
+
+
+def last_tool_result_text(body: dict) -> str:
+    content = body["messages"][-1]["content"]
+    texts = []
+    for block in content if isinstance(content, list) else []:
+        if block.get("type") == "tool_result":
+            inner = block.get("content")
+            texts.append(inner if isinstance(inner, str) else json.dumps(inner, ensure_ascii=False))
+    return "\n".join(texts)
+
+
 def last_user_has_tool_result(body: dict) -> bool:
     last = body["messages"][-1]
     content = last.get("content")
@@ -205,13 +225,75 @@ def plan_response(body: dict) -> tuple[list[dict], str]:
         schema = fmt["schema"]
         blocks.append({"type": "text", "text": json.dumps(sample(schema, schema.get("$defs", {})), ensure_ascii=False)})
         return blocks, "end_turn"
+    latest = "\n".join(user_texts(body)[-2:])
+    if "struis__struis_delegate" in tools and "調べて" in latest:
+        previous = last_tool_use(body)
+        if not last_user_has_tool_result(body):
+            # 委任の前に、指定できる資料を探す。
+            blocks.append({"type": "tool_use", "id": f"toolu_fake{n:04d}", "name": "struis__exec_command",
+                           "input": {"cmd": "find tutor_desk struis_context -type f | head -5"}})
+            return blocks, "tool_use"
+        if previous and previous.get("name") == "struis__exec_command" and "find tutor_desk" in json.dumps(previous.get("input")):
+            found = re.findall(r"((?:tutor_desk|struis_context)/[^\\\s\"]+)", last_tool_result_text(body))
+            blocks.append({"type": "tool_use", "id": f"toolu_fake{n:04d}", "name": "struis__struis_delegate", "input": {
+                "task_type": "material_search", "purpose": "例題に近い問題を探す", "sources": found[:1] or ["struis_context/recent_thread_history.md"],
+                "search_scope": "指定したファイル全体", "conditions": "一次方程式", "count": 1, "return_information": "問題文"}})
+            return blocks, "tool_use"
     if "struis__exec_command" in tools and not last_user_has_tool_result(body):
         blocks.append({"type": "text", "text": "作業フォルダを確認します。"})
         blocks.append({"type": "tool_use", "id": f"toolu_fake{n:04d}", "name": "struis__exec_command",
                        "input": {"cmd": "ls -1 | head -20"}})
         return blocks, "tool_use"
-    blocks.append({"type": "text", "text": "Claude(検証用サーバー)からの返事です。作業フォルダを確認しました。"})
+    blocks.append({"type": "text", "text": chat_reply(body)})
     return blocks, "end_turn"
+
+
+def user_texts(body: dict) -> list[str]:
+    texts = []
+    for message in body["messages"]:
+        if message["role"] != "user":
+            continue
+        content = message["content"]
+        for block in [{"type": "text", "text": content}] if isinstance(content, str) else content:
+            if block.get("type") == "text":
+                texts.append(block["text"])
+    return texts
+
+
+def revision_of(text: str) -> int:
+    revision = 0
+    for match in re.finditer(r'"revision"\s*:\s*(\d+)', text):
+        revision = int(match.group(1))
+    return revision
+
+
+def chat_reply(body: dict) -> str:
+    """Struis のチャットの約束事(返事 + 非公開ブロック)に沿った最小の返事。"""
+    texts = user_texts(body)
+    latest = "\n".join(texts[-3:])
+    if "<struis_current_turn_source>" not in "\n".join(texts) and "progress" not in latest:
+        return "Claude(検証用サーバー)からの返事です。作業フォルダを確認しました。"
+    revision = 0
+    for match in re.finditer(r'"revision"\s*:\s*(\d+)', latest):
+        revision = int(match.group(1))
+    reply = "Claude(検証用サーバー)からの返事です。一次方程式の文章題の単元を作りましょう。"
+    if "Your private blocks failed validation" in latest:
+        # 修正の回: 書いた返事はそのまま、非公開ブロックだけを返す。
+        update = {"schema_version": 1, "base_revision": revision_of(latest), "goals": [], "problems": [], "attempts": [],
+                  "current_goal_id": None, "disposition": "not_learning", "next_action": "", "reply_quotes": [reply]}
+        return "<struis_progress_update>" + json.dumps(update, ensure_ascii=False) + "</struis_progress_update>\n<struis_memory_update>NO_UPDATE</struis_memory_update>"
+    update = {"schema_version": 1, "base_revision": revision, "goals": [], "problems": [], "attempts": [],
+              "current_goal_id": None, "disposition": "not_learning", "next_action": "", "reply_quotes": [reply]}
+    blocks = [reply,
+              "<struis_progress_update>" + json.dumps(update, ensure_ascii=False) + "</struis_progress_update>",
+              "<struis_memory_update>NO_UPDATE</struis_memory_update>"]
+    if any(word in latest for word in ("苦手", "練習問題", "単元")):
+        blocks.append('<struis_workbook_proposal>{"request": "一次方程式の文章題(中学1年)"}</struis_workbook_proposal>')
+    if "わかりました" in latest:
+        blocks.append("<struis_workbook_example_ready/>")
+    if "struis_workbook_example" in latest:
+        blocks.append('<struis_workbook_example>{"prompt": "ある数の3倍に5を足すと20になる。ある数を求めよ。"}</struis_workbook_example>')
+    return "\n".join(blocks)
 
 
 def sse(event: dict) -> bytes:

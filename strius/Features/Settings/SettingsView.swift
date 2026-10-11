@@ -115,9 +115,9 @@ struct SettingsView: View {
     private var statusPill: some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(settings.account?.isConnected == true ? Theme.growth(scheme) : Theme.textTertiary(scheme))
+                .fill(isReady ? Theme.growth(scheme) : Theme.textTertiary(scheme))
                 .frame(width: 9, height: 9)
-            Text(settings.account?.isConnected == true ? ["Codex接続済み", planLabel].compactMap { $0 }.joined(separator: " / ") : "Codex未接続")
+            Text(statusText)
                 .font(Typography.caption)
                 .foregroundStyle(Theme.textPrimary(scheme))
         }
@@ -136,6 +136,18 @@ struct SettingsView: View {
         )
         .settingsCard()
         .accessibilityIdentifier("settings-replay-onboarding")
+    }
+
+    /// 選んでいる実行先で質問できるか(GPT は ChatGPT の接続、Claude は API キー)。
+    private var isReady: Bool {
+        settings.modelProvider == .anthropic ? settings.anthropicKeyConfigured : settings.account?.isConnected == true
+    }
+
+    private var statusText: String {
+        if settings.modelProvider == .anthropic {
+            return settings.anthropicKeyConfigured ? "Claude / APIキー設定済み" : "Claude / APIキー未設定"
+        }
+        return settings.account?.isConnected == true ? ["Codex接続済み", planLabel].compactMap { $0 }.joined(separator: " / ") : "Codex未接続"
     }
 
     private var modelDetail: String {

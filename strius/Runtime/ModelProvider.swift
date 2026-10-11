@@ -77,6 +77,16 @@ nonisolated enum ClaudeModels {
     }
 }
 
+nonisolated enum ModelProviderError: Error, LocalizedError {
+    case missingAnthropicKey
+
+    var errorDescription: String? {
+        switch self {
+        case .missingAnthropicKey: "Claude の API キーが設定されていません。設定の「AIモデル」でキーを入れてください。"
+        }
+    }
+}
+
 /// Anthropic の API キー。Keychain(この端末だけ)に置き、台帳・書き出し・バックアップには入れない。
 nonisolated enum AnthropicCredentials {
     private static let keychain = KeychainStore(service: "com.digiloglab.strius.anthropic")
