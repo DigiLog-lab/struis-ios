@@ -142,7 +142,6 @@
 		E710000000000000000000006 /* WorkbookSubunitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E720000000000000000000006 /* WorkbookSubunitView.swift */; };
 		E710000000000000000000007 /* WorkbookSetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E720000000000000000000007 /* WorkbookSetView.swift */; };
 		E710000000000000000000008 /* WorkbookCaptureFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E720000000000000000000008 /* WorkbookCaptureFlow.swift */; };
-		E710000000000000000000B06 /* BatchCaptureMockups.swift in Sources */ = {isa = PBXBuildFile; fileRef = E720000000000000000000B06 /* BatchCaptureMockups.swift */; };
 		E710000000000000000000009 /* WorkbookVerdictView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E720000000000000000000009 /* WorkbookVerdictView.swift */; };
 		E710000000000000000000010 /* WorkbookTriageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E720000000000000000000010 /* WorkbookTriageView.swift */; };
 		E710000000000000000000011 /* WorkbookProblemView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E720000000000000000000011 /* WorkbookProblemView.swift */; };
@@ -406,7 +405,6 @@
 		E720000000000000000000006 /* WorkbookSubunitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkbookSubunitView.swift; sourceTree = "<group>"; };
 		E720000000000000000000007 /* WorkbookSetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkbookSetView.swift; sourceTree = "<group>"; };
 		E720000000000000000000008 /* WorkbookCaptureFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkbookCaptureFlow.swift; sourceTree = "<group>"; };
-		E720000000000000000000B06 /* BatchCaptureMockups.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BatchCaptureMockups.swift; sourceTree = "<group>"; };
 		E720000000000000000000009 /* WorkbookVerdictView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkbookVerdictView.swift; sourceTree = "<group>"; };
 		E720000000000000000000010 /* WorkbookTriageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkbookTriageView.swift; sourceTree = "<group>"; };
 		E720000000000000000000011 /* WorkbookProblemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkbookProblemView.swift; sourceTree = "<group>"; };
@@ -879,7 +877,6 @@
 				E720000000000000000000017 /* WorkbookSubunitHeader.swift */,
 				E720000000000000000000007 /* WorkbookSetView.swift */,
 				E720000000000000000000008 /* WorkbookCaptureFlow.swift */,
-				E720000000000000000000B06 /* BatchCaptureMockups.swift */,
 				E720000000000000000000009 /* WorkbookVerdictView.swift */,
 				F8330D024D4F51893CC88C35 /* WorkbookGradingStage.swift */,
 				F85B7A2C95EEFF1822723B65 /* WorkbookAnswerRegions.swift */,
@@ -1375,7 +1372,6 @@
 				E710000000000000000000017 /* WorkbookSubunitHeader.swift in Sources */,
 				E710000000000000000000007 /* WorkbookSetView.swift in Sources */,
 				E710000000000000000000008 /* WorkbookCaptureFlow.swift in Sources */,
-				E710000000000000000000B06 /* BatchCaptureMockups.swift in Sources */,
 				E710000000000000000000009 /* WorkbookVerdictView.swift in Sources */,
 				F7330D024D4F51893CC88C35 /* WorkbookGradingStage.swift in Sources */,
 				F75B7A2C95EEFF1822723B65 /* WorkbookAnswerRegions.swift in Sources */,

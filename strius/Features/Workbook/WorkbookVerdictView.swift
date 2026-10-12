@@ -10,7 +10,11 @@ struct WorkbookVerdictView: View {
     @Environment(LearnerData.self) private var learnerData
     @Environment(\.colorScheme) private var scheme
     let captureID: String
-    @State private var image: UIImage?
+    /// 答案の写真(何枚かの答案は全ページを縦に並べた 1 枚)。
+    @State private var paper: WorkbookCapturePaper?
+    private var image: UIImage? { paper?.image }
+    /// 写真の高さの上限はページ数に比例させる(並べたページが細くならないように)。
+    private var pageCount: CGFloat { CGFloat(max(1, paper?.pageCount ?? 1)) }
     @State private var busyAction: WorkbookResultDTO.Action?
     /// 判定を待つ間の演出(§5)。この画面で判定中を見た時だけ作り、丸をつけ終えるまで結果を出さない。
     @State private var stage: WorkbookGradingStageModel?
@@ -98,7 +102,7 @@ struct WorkbookVerdictView: View {
             if store.captures[captureID]?.status == .identifying, stage == nil { stage = WorkbookGradingStageModel() }
             // 次の行動が今の小単元の段に合うかを確かめるため、小単元も読み直す。
             if let subunitID = store.captures[captureID]?.subunitId { await store.loadSubunit(id: subunitID) }
-            image = await store.captureImage(id: captureID)
+            paper = await store.capturePaper(id: captureID)
             await loadStaticRegionsIfGraded()
         }
         .onChange(of: capture?.status) { _, status in
@@ -245,8 +249,8 @@ struct WorkbookVerdictView: View {
     private func gradingStage(_ capture: WorkbookCaptureDTO) -> some View {
         if let stage {
             stageStatusRow(capture, text: stage.status)
-            if let image {
-                WorkbookGradingStage(captureID: capture.id, image: image, model: stage) {
+            if let paper {
+                WorkbookGradingStage(captureID: capture.id, paper: paper, model: stage) {
                     withAnimation(.easeInOut(duration: 0.35)) { stageFinished = true }
                 }
                 .onAppear {
@@ -258,8 +262,8 @@ struct WorkbookVerdictView: View {
     }
 
     private func loadStaticRegionsIfGraded() async {
-        guard staticRegions == nil, let image, store.captures[captureID]?.status == .graded else { return }
-        staticRegions = await WorkbookAnswerRegions.detect(captureID: captureID, image: image)
+        guard staticRegions == nil, let paper, store.captures[captureID]?.status == .graded else { return }
+        staticRegions = await WorkbookAnswerRegions.detect(captureID: captureID, paper: paper)
     }
 
     /// 判定の後の写真。領域に結べた判定には、丸・△・× を描いたまま残す。
@@ -269,7 +273,8 @@ struct WorkbookVerdictView: View {
             let regions = staticRegions ?? []
             let assignment = WorkbookAnswerRegions.assign(verdictLabels: capture.verdicts.map(\.label), regions: regions)
             let marks = assignment.sorted { $0.key < $1.key }.map { (region: regions[$0.value], verdict: capture.verdicts[$0.key].verdict) }
-            WorkbookMarkedPhoto(image: image, model: nil, staticMarks: marks, maxHeight: 320)
+            WorkbookMarkedPhoto(image: image, model: nil, staticMarks: marks, maxHeight: 320 * pageCount)
+                .accessibilityValue(pageCount > 1 ? "\(Int(pageCount)) 枚" : "")
                 .accessibilityIdentifier("workbook-result-photo")
         }
     }
@@ -280,7 +285,7 @@ struct WorkbookVerdictView: View {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFit()
-                .frame(maxHeight: 220)
+                .frame(maxHeight: 220 * pageCount)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
                 .accessibilityLabel("答案")
         }

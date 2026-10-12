@@ -47,9 +47,7 @@ struct AppRootView: View {
 
     var body: some View {
         #if DEBUG
-        if let screen = BatchCaptureLabView.requestedScreen {
-            BatchCaptureLabView(screen: screen)
-        } else if ProcessInfo.processInfo.arguments.contains("-immersion-lab") {
+        if ProcessInfo.processInfo.arguments.contains("-immersion-lab") {
             ImmersionLabView()
         } else if ProcessInfo.processInfo.arguments.contains("-problem-catalog-lab") {
             ProblemCatalogLabView()

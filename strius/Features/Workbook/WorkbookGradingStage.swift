@@ -69,13 +69,14 @@ final class WorkbookGradingStageModel {
 
     // MARK: - 進行
 
-    func run(captureID: String, image: UIImage, onFinished: @escaping () -> Void) async {
-        // §5.1 読み取り: 走査線を一度だけ通し、その間に領域を検出する。
-        let detection = Task { await WorkbookAnswerRegions.detect(captureID: captureID, image: image) }
+    func run(captureID: String, paper: WorkbookCapturePaper, onFinished: @escaping () -> Void) async {
+        // §5.1 読み取り: 走査線を一度だけ通し、その間に領域を検出する。何枚かの答案は全ページを通す。
+        let detection = Task { await WorkbookAnswerRegions.detect(captureID: captureID, paper: paper) }
         if animates {
+            let duration = 2.6 * Double(paper.pageCount)
             scan = 0
-            withAnimation(.linear(duration: 2.6)) { scan = 1 }
-            await pause(2.6)
+            withAnimation(.linear(duration: duration)) { scan = 1 }
+            await pause(duration)
             withAnimation(.easeOut(duration: 0.25)) { scan = nil }
         }
         let found = await detection.value
@@ -350,14 +351,14 @@ struct HandwrittenMark: Shape {
 /// 判定を待つ間の段(§5)。写真を大きく出し、状態の文言を 1 行。「止める」は呼び手が置く。
 struct WorkbookGradingStage: View {
     let captureID: String
-    let image: UIImage
+    let paper: WorkbookCapturePaper
     let model: WorkbookGradingStageModel
     let onFinished: () -> Void
     @Environment(\.struisAnimatesWaiting) private var animates
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            WorkbookMarkedPhoto(image: image, model: model)
+            WorkbookMarkedPhoto(image: paper.image, model: model, maxHeight: 460 * CGFloat(paper.pageCount))
             // 誤りのある問題は、答案の下に誤りの種類を静かに出す(結果が届いてから)。
             if !model.taggedVerdicts.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
@@ -380,7 +381,7 @@ struct WorkbookGradingStage: View {
         .onChange(of: animates) { _, value in model.animates = value }
         .task(id: captureID) {
             model.animates = animates
-            await model.run(captureID: captureID, image: image, onFinished: onFinished)
+            await model.run(captureID: captureID, paper: paper, onFinished: onFinished)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("workbook-grading-stage")

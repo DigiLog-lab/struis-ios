@@ -63,7 +63,9 @@ struct ChatAttachmentButton: UIViewRepresentable {
 /// area inset preserves the existing chat viewport and scroll position.
 struct ChatCameraPresentation: UIViewRepresentable {
     @Binding var isPresented: Bool
-    let onPhoto: (Data) -> Void
+    /// まとめて撮る(一括採点)。シャッターの後もカメラを閉じずに撮った写真を束ね、「採点する」で全部を渡す。
+    var batch: ChatCameraBatch? = nil
+    var onPhoto: (Data) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
     func makeUIView(context: Context) -> UIView { UIView() }
@@ -80,6 +82,13 @@ struct ChatCameraPresentation: UIViewRepresentable {
         controller.onPhoto = { data in
             onPhoto(data)
             isPresented = false
+        }
+        if let batch {
+            controller.batch = batch
+            controller.onPhotos = { photos in
+                batch.onPhotos(photos)
+                isPresented = false
+            }
         }
         window.rootViewController = controller
         window.backgroundColor = .clear
@@ -165,6 +174,13 @@ struct ChatCameraPresentation: UIViewRepresentable {
     }
 }
 
+/// まとめて撮る時の設定。`existingCount` は束に既にある枚数(撮り足す時)、`limit` は束の上限。
+struct ChatCameraBatch {
+    var existingCount = 0
+    var limit = 8
+    let onPhotos: ([Data]) -> Void
+}
+
 /// The preview is the view's backing layer so UIKit keeps its bounds in sync
 /// throughout rotation, including the final layout after the transition.
 private final class ChatCameraPreviewView: UIView {
@@ -175,6 +191,12 @@ private final class ChatCameraPreviewView: UIView {
 private final class ChatCameraController: UIViewController, AVCapturePhotoCaptureDelegate {
     var onClose: (() -> Void)?
     var onPhoto: ((Data) -> Void)?
+    var batch: ChatCameraBatch?
+    var onPhotos: (([Data]) -> Void)?
+    private var shots: [Data] = []
+    private let strip = UIStackView()
+    private let done = UIButton(type: .system)
+    private let counter = UILabel()
     private let session = AVCaptureSession()
     private let output = AVCapturePhotoOutput()
     private let queue = DispatchQueue(label: "com.struis.chat-camera")
@@ -268,7 +290,7 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
             previewView.topAnchor.constraint(equalTo: panel.topAnchor, constant: 16),
             previewView.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 4),
             previewView.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -4),
-            previewView.bottomAnchor.constraint(equalTo: shutter.topAnchor, constant: -8),
+            previewView.bottomAnchor.constraint(equalTo: shutter.topAnchor, constant: batch == nil ? -8 : -76),
             shutter.centerXAnchor.constraint(equalTo: panel.centerXAnchor),
             shutter.widthAnchor.constraint(equalToConstant: 64),
             shutter.heightAnchor.constraint(equalToConstant: 64),
@@ -277,9 +299,116 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
             message.leadingAnchor.constraint(equalTo: previewView.leadingAnchor, constant: 12),
             message.trailingAnchor.constraint(equalTo: previewView.trailingAnchor, constant: -12)
         ])
+        if batch != nil { layoutBatchControls() }
         NotificationCenter.default.addObserver(self, selector: #selector(cancel),
             name: UIApplication.didEnterBackgroundNotification, object: nil)
         Task { await authorize() }
+    }
+
+    /// まとめて撮る時の、撮った写真の列・「採点する N」・何枚目かの表示。
+    private func layoutBatchControls() {
+        strip.axis = .horizontal
+        strip.spacing = 8
+        strip.alignment = .center
+        strip.translatesAutoresizingMaskIntoConstraints = false
+        let scroll = UIScrollView()
+        scroll.showsHorizontalScrollIndicator = false
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        scroll.addSubview(strip)
+        panel.addSubview(scroll)
+        var configuration = UIButton.Configuration.filled()
+        configuration.cornerStyle = .capsule
+        configuration.baseBackgroundColor = UIColor(Theme.Palette.accentLight)
+        configuration.baseForegroundColor = .white
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16)
+        done.configuration = configuration
+        done.accessibilityIdentifier = "chat-camera-done"
+        done.addTarget(self, action: #selector(finishBatch), for: .touchUpInside)
+        done.translatesAutoresizingMaskIntoConstraints = false
+        panel.addSubview(done)
+        counter.font = .preferredFont(forTextStyle: .footnote)
+        counter.textColor = .white
+        counter.backgroundColor = UIColor.black.withAlphaComponent(0.55)
+        counter.textAlignment = .center
+        counter.layer.cornerRadius = 14
+        counter.clipsToBounds = true
+        counter.accessibilityIdentifier = "chat-camera-counter"
+        counter.translatesAutoresizingMaskIntoConstraints = false
+        panel.addSubview(counter)
+        NSLayoutConstraint.activate([
+            scroll.topAnchor.constraint(equalTo: previewView.bottomAnchor, constant: 8),
+            scroll.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 16),
+            scroll.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -16),
+            scroll.heightAnchor.constraint(equalToConstant: 60),
+            strip.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),
+            strip.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor),
+            strip.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor),
+            strip.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor),
+            strip.heightAnchor.constraint(equalTo: scroll.frameLayoutGuide.heightAnchor),
+            done.centerYAnchor.constraint(equalTo: shutter.centerYAnchor),
+            done.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -16),
+            counter.topAnchor.constraint(equalTo: previewView.topAnchor, constant: 10),
+            counter.centerXAnchor.constraint(equalTo: previewView.centerXAnchor),
+            counter.heightAnchor.constraint(equalToConstant: 28),
+        ])
+        updateBatchControls()
+    }
+
+    private var batchTotal: Int { (batch?.existingCount ?? 0) + shots.count }
+
+    private func updateBatchControls() {
+        guard let batch else { return }
+        let total = batchTotal
+        done.isHidden = total == 0
+        done.configuration?.attributedTitle = AttributedString("採点する \(total)", attributes: AttributeContainer([
+            .font: UIFont.systemFont(ofSize: 15, weight: .semibold)
+        ]))
+        done.accessibilityLabel = "\(total) 枚を採点する"
+        let full = total >= batch.limit
+        counter.text = full ? "  \(batch.limit) 枚まで撮れます  " : "  \(total + 1) 枚目  "
+        counter.isHidden = total == 0
+        if full { shutter.isEnabled = false }
+    }
+
+    private func appendShot(_ data: Data) {
+        shots.append(data)
+        let thumb = UIImageView(image: UIImage(data: data)?.preparingThumbnail(of: CGSize(width: 120, height: 160)))
+        thumb.contentMode = .scaleAspectFill
+        thumb.clipsToBounds = true
+        thumb.layer.cornerRadius = 6
+        thumb.layer.borderWidth = 1
+        thumb.layer.borderColor = UIColor.white.withAlphaComponent(0.4).cgColor
+        thumb.accessibilityIdentifier = "chat-camera-shot-\(shots.count)"
+        thumb.translatesAutoresizingMaskIntoConstraints = false
+        let number = UILabel()
+        number.text = "\((batch?.existingCount ?? 0) + shots.count)"
+        number.font = .monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
+        number.textColor = .white
+        number.textAlignment = .center
+        number.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+        number.layer.cornerRadius = 8
+        number.clipsToBounds = true
+        number.translatesAutoresizingMaskIntoConstraints = false
+        thumb.addSubview(number)
+        NSLayoutConstraint.activate([
+            thumb.widthAnchor.constraint(equalToConstant: 44),
+            thumb.heightAnchor.constraint(equalToConstant: 58),
+            number.leadingAnchor.constraint(equalTo: thumb.leadingAnchor, constant: 3),
+            number.bottomAnchor.constraint(equalTo: thumb.bottomAnchor, constant: -3),
+            number.heightAnchor.constraint(equalToConstant: 16),
+            number.widthAnchor.constraint(greaterThanOrEqualToConstant: 16),
+        ])
+        strip.addArrangedSubview(thumb)
+        // 撮れたことを、写真が一瞬暗くなることで伝える。
+        previewView.alpha = 0.25
+        UIView.animate(withDuration: 0.3) { self.previewView.alpha = 1 }
+        updateBatchControls()
+    }
+
+    @objc private func finishBatch() {
+        guard !closed, !capturing, batchTotal > 0 else { return }
+        let photos = shots
+        stop { [self] in onPhotos?(photos) }
     }
 
     override func viewDidLayoutSubviews() {
@@ -321,6 +450,7 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
             imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             previewView.addSubview(imageView)
             shutter.isEnabled = true
+            updateBatchControls()
             return
         }
         #endif
@@ -354,6 +484,7 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
                 guard !self.closed else { self.stop(); return }
                 self.device = device
                 self.shutter.isEnabled = true
+                self.updateBatchControls()
                 self.view.setNeedsLayout()
             }
         }
@@ -511,11 +642,32 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
             return
         }
         processedPhoto = nil
+        if batch != nil {
+            // まとめて撮る: カメラを閉じずに次を撮れるようにする。
+            capturing = false
+            updatePreviewOrientation()
+            shutter.isEnabled = true
+            appendShot(data)
+            return
+        }
         stop { [self] in onPhoto?(data) }
     }
 
     @objc private func cancel() {
+        // まとめて撮った写真がある時は、捨ててよいかを確かめる(アプリが裏に回った時は確かめずに閉じる)。
+        if !shots.isEmpty, UIApplication.shared.applicationState == .active, presentedViewController == nil {
+            let alert = UIAlertController(title: "撮った \(shots.count) 枚を破棄しますか", message: nil, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "撮影を続ける", style: .cancel))
+            alert.addAction(UIAlertAction(title: "破棄", style: .destructive) { [weak self] _ in self?.close() })
+            present(alert, animated: true)
+            return
+        }
+        close()
+    }
+
+    private func close() {
         onPhoto = nil
+        onPhotos = nil
         onClose?()
     }
 

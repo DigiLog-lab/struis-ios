@@ -116,12 +116,14 @@ actor MockTurnRunner: TurnRunning {
         if scope["mode"] as? String == "set", let setID = scope["set_id"] as? String,
            let perPhoto = Int(ProcessInfo.processInfo.environment["STRUIS_MOCK_GRADING_PER_PHOTO"] ?? ""), perPhoto > 0 {
             // 一枚を何枚の写真に分けて撮った時(分割採点): 1 枚の写真には一枚の問題が perPhoto 問ずつ順に写っている。
+            // まとめて撮った答案(一括採点)は、そのページ数ぶんの写真を 1 回で判定する。
+            let pages = max(1, request["page_count"] as? Int ?? 1)
             let photo = photosLock.withLock { () -> Int in
                 let index = photosBySet[setID, default: 0]
-                photosBySet[setID] = index + 1
+                photosBySet[setID] = index + pages
                 return index
             }
-            shown = Array(shown.dropFirst(photo * perPhoto).prefix(perPhoto))
+            shown = Array(shown.dropFirst(photo * perPhoto).prefix(perPhoto * pages))
         }
         for (index, problem) in shown {
             let wrong = problems.count >= 3 && index == problems.count - 1
