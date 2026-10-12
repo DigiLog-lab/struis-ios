@@ -41,3 +41,6 @@ strius.xcodeproj/xcshareddata/xcodecloud/
 # Cloudflare Worker dependencies and local state
 cloudflare/agent/node_modules/
 cloudflare/agent/.wrangler/
+cloudflare/claude-relay/node_modules/
+cloudflare/claude-relay/.wrangler/
+cloudflare/claude-relay/.dev.vars

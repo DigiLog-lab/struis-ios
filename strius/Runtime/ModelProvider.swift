@@ -5,7 +5,7 @@ import Foundation
 nonisolated enum ModelProvider: String, Codable, CaseIterable, Sendable {
     /// ChatGPT / Codex 認証で OpenAI のモデルを使う(従来の経路)。
     case openai
-    /// Anthropic の API キーで Claude を使う。
+    /// Struis の relay(App Attest で端末を確認)経由で Claude を使う。
     case anthropic
 
     /// Codex の `model_providers` に登録する ID(組み込みの `openai` 等と重ならない名前)。
@@ -27,7 +27,7 @@ nonisolated enum ModelProvider: String, Codable, CaseIterable, Sendable {
     var billingSource: String {
         switch self {
         case .openai: "byo_chatgpt"
-        case .anthropic: "byo_anthropic_api_key"
+        case .anthropic: "struis_claude_relay"
         }
     }
 
@@ -78,44 +78,33 @@ nonisolated enum ClaudeModels {
 }
 
 nonisolated enum ModelProviderError: Error, LocalizedError {
-    case missingAnthropicKey
+    case claudeUnavailable
 
     var errorDescription: String? {
         switch self {
-        case .missingAnthropicKey: "Claude の API キーが設定されていません。設定の「AIモデル」でキーを入れてください。"
+        case .claudeUnavailable: "この端末では App Attest(端末の確認)を使えないため、Claude を使えません。設定の「AIモデル」で GPT を選んでください。"
         }
     }
 }
 
-/// Anthropic の API キー。Keychain(この端末だけ)に置き、台帳・書き出し・バックアップには入れない。
-nonisolated enum AnthropicCredentials {
-    private static let keychain = KeychainStore(service: "com.digiloglab.strius.anthropic")
-    private static let account = "api-key"
+/// Claude を使えるか。通常は App Attest で端末を確かめ、Struis の relay 経由で使う(API キーは端末に置かない)。
+nonisolated enum ClaudeAccess {
+    static var isAvailable: Bool {
+        AnthropicCredentials.debugAPIKey != nil || ClaudeRelayConfig.devToken != nil || AppAttestClient.isSupported
+    }
+}
 
-    static var apiKey: String? {
+/// 検証用の Anthropic の API キー。DEBUG の Simulator だけ(App Attest が使えないため)。端末向けのビルドには入らない。
+nonisolated enum AnthropicCredentials {
+    static var debugAPIKey: String? {
         #if DEBUG && targetEnvironment(simulator)
-        // Simulator の検証用: `STRUIS_DEBUG_ANTHROPIC_KEY_FILE=<host path>`(0600 の作業コピー)。端末向けには入らない。
+        // `STRUIS_DEBUG_ANTHROPIC_KEY_FILE=<host path>`(0600 の作業コピー)。
         if let path = ProcessInfo.processInfo.environment["STRUIS_DEBUG_ANTHROPIC_KEY_FILE"], !path.isEmpty,
            let text = try? String(contentsOfFile: path, encoding: .utf8) {
             let key = text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !key.isEmpty { return key }
         }
         #endif
-        return keychain.get(account)
-    }
-
-    static var isConfigured: Bool { apiKey != nil }
-
-    static func save(_ key: String) {
-        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { keychain.delete(account) } else { keychain.set(trimmed, for: account) }
-    }
-
-    static func delete() { keychain.delete(account) }
-
-    /// 画面に出す末尾 4 文字だけの表示。
-    static var maskedKey: String? {
-        guard let key = apiKey, key.count > 8 else { return nil }
-        return "…" + key.suffix(4)
+        return nil
     }
 }

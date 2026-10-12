@@ -140,12 +140,12 @@ struct SettingsView: View {
 
     /// 選んでいる実行先で質問できるか(GPT は ChatGPT の接続、Claude は API キー)。
     private var isReady: Bool {
-        settings.modelProvider == .anthropic ? settings.anthropicKeyConfigured : settings.account?.isConnected == true
+        settings.modelProvider == .anthropic ? settings.claudeAvailable : settings.account?.isConnected == true
     }
 
     private var statusText: String {
         if settings.modelProvider == .anthropic {
-            return settings.anthropicKeyConfigured ? "Claude / APIキー設定済み" : "Claude / APIキー未設定"
+            return settings.claudeAvailable ? "Claude / Struis経由" : "Claude / この端末では使えません"
         }
         return settings.account?.isConnected == true ? ["Codex接続済み", planLabel].compactMap { $0 }.joined(separator: " / ") : "Codex未接続"
     }
@@ -153,7 +153,7 @@ struct SettingsView: View {
     private var modelDetail: String {
         switch settings.modelProvider {
         case .openai: return "ChatGPT / Codex で GPT を使う"
-        case .anthropic: return settings.anthropicKeyConfigured ? "API キーで Claude を使う" : "Claude の API キーが未設定"
+        case .anthropic: return settings.claudeAvailable ? "Struis 経由で Claude を使う" : "この端末では Claude を使えません"
         }
     }
 
@@ -214,7 +214,6 @@ private struct DeliverySettingsDetail: View {
 private struct ModelProviderSettingsDetail: View {
     @Environment(SettingsStore.self) private var settings
     @Environment(\.colorScheme) private var scheme
-    @State private var keyDraft = ""
 
     var body: some View {
         @Bindable var settings = settings
@@ -239,17 +238,14 @@ private struct ModelProviderSettingsDetail: View {
                 }
                 .settingsCard()
 
-                if settings.modelProvider == .anthropic {
-                    claudeKeyCard
-                    if !settings.anthropicKeyConfigured {
-                        Text("Claude を使うには API キーが必要です。キーがないまま送ると、返事の代わりにエラーになります。")
-                            .font(Typography.caption)
-                            .foregroundStyle(Theme.regress(scheme))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                            .settingsCard()
-                            .accessibilityIdentifier("settings-model-key-missing")
-                    }
+                if settings.modelProvider == .anthropic, !settings.claudeAvailable {
+                    Text(ModelProviderError.claudeUnavailable.localizedDescription)
+                        .font(Typography.caption)
+                        .foregroundStyle(Theme.regress(scheme))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .settingsCard()
+                        .accessibilityIdentifier("settings-model-claude-unavailable")
                 }
             }
         }
@@ -260,48 +256,8 @@ private struct ModelProviderSettingsDetail: View {
         case .openai:
             return "ChatGPT / Codex の接続で \(CodexModels.astraModel) を使います。"
         case .anthropic:
-            return "Anthropic の API キーで \(ClaudeModels.displayName(ClaudeModels.astraModel)) を使います(下調べは \(ClaudeModels.displayName(ClaudeModels.lunaModel)))。利用料金はキーの持ち主に請求されます。"
+            return "Struis 経由で \(ClaudeModels.displayName(ClaudeModels.astraModel)) を使います(下調べは \(ClaudeModels.displayName(ClaudeModels.lunaModel)))。この iPhone で動いている正規の Struis かどうかを App Attest で確かめてから送ります。"
         }
-    }
-
-    private var claudeKeyCard: some View {
-        VStack(spacing: 0) {
-            if let label = settings.anthropicKeyLabel {
-                SettingsActionRow(title: "API キー", detail: "保存済み \(label)", actionTitle: "削除") {
-                    settings.deleteAnthropicKey()
-                }
-                .accessibilityIdentifier("settings-model-key-delete")
-            } else {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("API キー")
-                        .font(Typography.bodyEmphasized)
-                    SecureField("sk-ant-…", text: $keyDraft)
-                        .textContentType(.password)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .font(Typography.bodyCompact)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .accessibilityIdentifier("settings-model-key-field")
-                    HStack {
-                        Text("この端末の Keychain にだけ保存します。")
-                            .font(Typography.caption)
-                            .foregroundStyle(Theme.textSecondary(scheme))
-                        Spacer()
-                        Button("保存") {
-                            settings.saveAnthropicKey(keyDraft)
-                            keyDraft = ""
-                        }
-                        .settingsActionButton()
-                        .disabled(keyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        .accessibilityIdentifier("settings-model-key-save")
-                    }
-                }
-                .padding(16)
-            }
-        }
-        .settingsCard()
     }
 }
 

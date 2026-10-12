@@ -1,0 +1,26 @@
+name = "struis-claude-relay"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+workers_dev = false
+routes = [{ pattern = "claude-struis.digiloglab.com", custom_domain = true }]
+
+[[durable_objects.bindings]]
+name = "STATE"
+class_name = "RelayState"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RelayState"]
+
+[vars]
+TEAM_ID = "4D4W8FMKMW"
+BUNDLE_IDS = "com.digiloglab.strius"
+PREVIEW_PREFIX = "com.digiloglab.strius.preview"
+PREVIEW_SLOTS = "40"
+ALLOWED_MODELS = "claude-opus-5-5,claude-sonnet-5-5,claude-haiku-5-5"
+MAX_TOKENS = "64000"
+DAILY_REQUEST_LIMIT = "1500"
+
+# ANTHROPIC_API_KEY is a Worker secret:
+#   npx wrangler secret put ANTHROPIC_API_KEY
+# DEV_BYPASS_TOKEN is only for `wrangler dev` (.dev.vars). Never set it on the deployed Worker.

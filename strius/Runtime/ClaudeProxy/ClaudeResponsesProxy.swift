@@ -123,20 +123,43 @@ nonisolated private final class OnceFlag: @unchecked Sendable {
     }
 }
 
-/// Anthropic の Messages API への送信。テストでは送り先を差し替える。
+/// Anthropic の Messages API への送信。通常は Struis の relay に App Attest つきで送り、Anthropic の API キーは
+/// 端末に置かない。DEBUG の Simulator(App Attest が使えない)とテストだけ、キーで直接送れる。
 nonisolated struct ClaudeUpstream: Sendable {
-    var baseURL: URL
-    var apiKey: @Sendable () -> String?
+    enum Route: Sendable {
+        /// Anthropic に API キーで直接(DEBUG の Simulator・テストだけ)。
+        case direct(baseURL: URL, apiKey: String)
+        /// Struis の relay に、App Attest の assertion(か開発用 token)を付けて。
+        case relay(baseURL: URL)
+    }
+
+    var route: @Sendable () -> Route?
+    var attest: AppAttestClient
     var session: URLSession
 
-    init(baseURL: URL? = nil, apiKey: @escaping @Sendable () -> String? = { AnthropicCredentials.apiKey }, session: URLSession? = nil) {
-        var resolved = URL(string: "https://api.anthropic.com")!
-        #if DEBUG
-        // Simulator の検証用(模擬の Anthropic サーバー)。
-        if let override = ProcessInfo.processInfo.environment["STRUIS_ANTHROPIC_BASE_URL"].flatMap(URL.init(string:)) { resolved = override }
-        #endif
-        self.baseURL = baseURL ?? resolved
-        self.apiKey = apiKey
+    /// 既定: DEBUG のキーがあれば直接、それ以外は relay。App Attest も開発用 token も使えなければ nil。
+    init(session: URLSession? = nil) {
+        self.init(route: {
+            if let key = AnthropicCredentials.debugAPIKey {
+                var base = URL(string: "https://api.anthropic.com")!
+                #if DEBUG
+                // Simulator の検証用(模擬の Anthropic サーバー)。
+                if let override = ProcessInfo.processInfo.environment["STRUIS_ANTHROPIC_BASE_URL"].flatMap(URL.init(string:)) { base = override }
+                #endif
+                return .direct(baseURL: base, apiKey: key)
+            }
+            return ClaudeAccess.isAvailable ? .relay(baseURL: ClaudeRelayConfig.baseURL) : nil
+        }, session: session)
+    }
+
+    /// テスト用: 決まった送り先に API キーで送る。
+    init(baseURL: URL, apiKey: @escaping @Sendable () -> String?, session: URLSession? = nil) {
+        self.init(route: { apiKey().map { .direct(baseURL: baseURL, apiKey: $0) } }, session: session)
+    }
+
+    init(route: @escaping @Sendable () -> Route?, attest: AppAttestClient = .shared, session: URLSession?) {
+        self.route = route
+        self.attest = attest
         if let session {
             self.session = session
         } else {
@@ -149,14 +172,30 @@ nonisolated struct ClaudeUpstream: Sendable {
         }
     }
 
-    func request(body: [String: Any]) throws -> URLRequest {
-        var request = URLRequest(url: baseURL.appendingPathComponent("v1/messages"))
+    func request(body: [String: Any], route: Route) async throws -> URLRequest {
+        let data = try JSONSerialization.data(withJSONObject: body)
+        let base: URL
+        switch route {
+        case .direct(let url, _): base = url
+        case .relay(let url): base = url
+        }
+        var request = URLRequest(url: base.appendingPathComponent("v1/messages"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("text/event-stream", forHTTPHeaderField: "accept")
-        if let key = apiKey() { request.setValue(key, forHTTPHeaderField: "x-api-key") }
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        switch route {
+        case .direct(_, let key):
+            request.setValue(key, forHTTPHeaderField: "x-api-key")
+        case .relay(let url):
+            if let token = ClaudeRelayConfig.devToken {
+                request.setValue(token, forHTTPHeaderField: "X-Struis-Dev-Token")
+            } else {
+                // assertion は送る本文そのものに対する署名。本文を変えると relay で拒まれる。
+                for (name, value) in try await attest.headers(for: data, relay: url) { request.setValue(value, forHTTPHeaderField: name) }
+            }
+        }
+        request.httpBody = data
         return request
     }
 }
@@ -279,15 +318,16 @@ nonisolated private struct ClaudeRelay {
     let writer: ProxyConnection
 
     func run(_ request: [String: Any]) async {
-        guard upstream.apiKey() != nil else {
+        guard let route = upstream.route() else {
             writer.respond(status: 401, json: ["error": [
-                "message": "Claude の API キーが設定されていません。設定の「AIモデル」でキーを入れてください。",
-                "type": "invalid_request_error", "code": "missing_api_key",
+                "message": ModelProviderError.claudeUnavailable.localizedDescription,
+                "type": "invalid_request_error", "code": "claude_unavailable",
             ]])
             return
         }
         var options = ClaudeRequestTranslator.Options()
-        for attempt in 0..<3 {
+        var reattested = false
+        for _ in 0..<4 {
             let translation: ClaudeRequestTranslator.Translation
             do {
                 translation = try ClaudeRequestTranslator.translate(request, options: options)
@@ -297,7 +337,7 @@ nonisolated private struct ClaudeRelay {
             }
             ClaudeProxyDiagnostics.dump(request: request, translated: translation.body)
             do {
-                let urlRequest = try upstream.request(body: translation.body)
+                let urlRequest = try await upstream.request(body: translation.body, route: route)
                 let (bytes, response) = try await upstream.session.bytes(for: urlRequest)
                 let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                 guard status == 200 else {
@@ -312,6 +352,13 @@ nonisolated private struct ClaudeRelay {
                     if status == 400, !options.stripThinking, message.localizedCaseInsensitiveContains("thinking") {
                         proxyLog.error("thinking rejected, retrying without thinking blocks")
                         options.stripThinking = true
+                        continue
+                    }
+                    // relay が端末の鍵を知らない・counter が合わない: 鍵を登録し直して 1 回だけ送り直す。
+                    if status == 401, case .relay = route, !reattested, (error?["code"] as? String ?? "").hasPrefix("app_attest") {
+                        proxyLog.error("relay rejected the app attest key, registering again")
+                        reattested = true
+                        await upstream.attest.reset()
                         continue
                     }
                     // structured outputs の文法が大きすぎる schema は、指示文で渡して送り直す。
@@ -346,7 +393,12 @@ nonisolated private struct ClaudeRelay {
             } catch {
                 if Task.isCancelled { return }
                 proxyLog.error("upstream failed: \(String(describing: error), privacy: .public)")
-                writer.respond(status: 502, json: ["error": ["message": "Claude に接続できませんでした", "type": "api_error"]])
+                if let failure = error as? AppAttestClient.Failure {
+                    // 端末の確認ができない時は再試行しても変わらない(Codex は 4xx を再試行しない)。
+                    writer.respond(status: 401, json: ["error": ["message": failure.localizedDescription, "type": "authentication_error", "code": "app_attest"]])
+                } else {
+                    writer.respond(status: 502, json: ["error": ["message": "Claude に接続できませんでした", "type": "api_error"]])
+                }
                 return
             }
         }

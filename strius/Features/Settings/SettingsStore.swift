@@ -31,6 +31,7 @@ final class SettingsStore {
     init(runtime: DeviceRuntime?, ledger: Ledger? = nil) {
         self.runtime = runtime
         self.ledger = ledger
+        Self.removeLegacyAnthropicKey()
     }
 
     /// Show the account and record it in the ledger's `codex_account` row.
@@ -60,22 +61,12 @@ final class SettingsStore {
     var modelProvider: ModelProvider = ModelProviderPreference.current {
         didSet { ModelProviderPreference.current = modelProvider }
     }
-    private(set) var anthropicKeyLabel: String? = AnthropicCredentials.maskedKey
-    private(set) var anthropicKeyConfigured = AnthropicCredentials.isConfigured
+    /// この端末で Claude を使えるか(App Attest が使える端末)。Anthropic の API キーは端末に置かない。
+    let claudeAvailable = ClaudeAccess.isAvailable
 
-    func saveAnthropicKey(_ key: String) {
-        AnthropicCredentials.save(key)
-        refreshAnthropicKey()
-    }
-
-    func deleteAnthropicKey() {
-        AnthropicCredentials.delete()
-        refreshAnthropicKey()
-    }
-
-    private func refreshAnthropicKey() {
-        anthropicKeyLabel = AnthropicCredentials.maskedKey
-        anthropicKeyConfigured = AnthropicCredentials.isConfigured
+    /// 以前のプロトタイプで入れた API キーを消す(Claude は relay 経由になり、端末にキーを置かない)。
+    static func removeLegacyAnthropicKey() {
+        KeychainStore(service: "com.digiloglab.strius.anthropic").delete("api-key")
     }
 
     // MARK: - 学習記録 (design §4.3) と使用量報告 (§8-4)

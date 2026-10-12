@@ -156,6 +156,7 @@
 		E8079ACF2E0CF07CA6CF78E0 /* TurnActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E835D809DD03ECD5383736AB /* TurnActivity.swift */; };
 		E80C65773ADC8CE3758B39CF /* TurnPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83D8C375E6585B4FBAB8B1E /* TurnPlan.swift */; };
 		E80A0C00A104CA217D8AC3D1 /* ClaudeResponsesProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8728417FAE9142D91D47D97 /* ClaudeResponsesProxy.swift */; };
+		E8A77E5D1C2B4F0A9E3D6B21 /* AppAttestClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8A77E5D1C2B4F0A9E3D6B22 /* AppAttestClient.swift */; };
 		E816BFAA51701D4E30C727B9 /* ClaudeRequestTranslator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E879236E9647D92643B5D75E /* ClaudeRequestTranslator.swift */; };
 		E8402853B0F8E725799EF30F /* ClaudeStreamTranslator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8E4184380BF01B9E04F63CE /* ClaudeStreamTranslator.swift */; };
 		E8596D4BFFA43F9816AABF79 /* ModelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83CEAD0EE22F09C5AE734AD /* ModelProvider.swift */; };
@@ -436,6 +437,7 @@
 		E83D8C375E6585B4FBAB8B1E /* TurnPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnPlan.swift; sourceTree = "<group>"; };
 		E83CEAD0EE22F09C5AE734AD /* ModelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelProvider.swift; sourceTree = "<group>"; };
 		E8728417FAE9142D91D47D97 /* ClaudeResponsesProxy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeResponsesProxy.swift; sourceTree = "<group>"; };
+		E8A77E5D1C2B4F0A9E3D6B22 /* AppAttestClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAttestClient.swift; sourceTree = "<group>"; };
 		E879236E9647D92643B5D75E /* ClaudeRequestTranslator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeRequestTranslator.swift; sourceTree = "<group>"; };
 		E8E4184380BF01B9E04F63CE /* ClaudeStreamTranslator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeStreamTranslator.swift; sourceTree = "<group>"; };
 		E841779F967FE6357A8ABC9B /* LedgerID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerID.swift; sourceTree = "<group>"; };
@@ -1113,6 +1115,7 @@
 		E82C19CE52FC60E79B33ED3B /* ClaudeProxy */ = {
 			isa = PBXGroup;
 			children = (
+				E8A77E5D1C2B4F0A9E3D6B22 /* AppAttestClient.swift */,
 				E879236E9647D92643B5D75E /* ClaudeRequestTranslator.swift */,
 				E8728417FAE9142D91D47D97 /* ClaudeResponsesProxy.swift */,
 				E8E4184380BF01B9E04F63CE /* ClaudeStreamTranslator.swift */,
@@ -1498,6 +1501,7 @@
 				E87542C6658A8F71FB08E31B /* DelegationWatcher.swift in Sources */,
 				E85821A9466B206B2D9AFCEA /* MockTurnRunner.swift in Sources */,
 				E80C65773ADC8CE3758B39CF /* TurnPlan.swift in Sources */,
+				E8A77E5D1C2B4F0A9E3D6B21 /* AppAttestClient.swift in Sources */,
 				E816BFAA51701D4E30C727B9 /* ClaudeRequestTranslator.swift in Sources */,
 				E80A0C00A104CA217D8AC3D1 /* ClaudeResponsesProxy.swift in Sources */,
 				E8402853B0F8E725799EF30F /* ClaudeStreamTranslator.swift in Sources */,
