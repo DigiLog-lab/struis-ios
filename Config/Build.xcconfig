@@ -1,5 +1,5 @@
 // Service access is configured locally; this template contains no credential.
 STRUIS_DELIVERY_APP_KEY =
 // Claude Console の App integration の client ID(clid_...)。秘密値ではない。App Attest で端末から Claude を直接呼ぶ。
-STRUIS_CLAUDE_CLIENT_ID =
+STRUIS_CLAUDE_CLIENT_ID = clid_01VktLSgwMYeBarCsxhUjHUk
 #include? "Local.xcconfig"
