@@ -64,7 +64,7 @@ final class SettingsStore {
     /// この端末で Claude を使えるか(App Attest が使える端末)。Anthropic の API キーは端末に置かない。
     let claudeAvailable = ClaudeAccess.isAvailable
 
-    /// 以前のプロトタイプで入れた API キーを消す(Claude は relay 経由になり、端末にキーを置かない)。
+    /// 以前のプロトタイプで入れた API キーを消す(Claude は App Attest で Anthropic から token を受け取り、端末にキーを置かない)。
     static func removeLegacyAnthropicKey() {
         KeychainStore(service: "com.digiloglab.strius.anthropic").delete("api-key")
     }

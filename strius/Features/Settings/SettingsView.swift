@@ -145,7 +145,7 @@ struct SettingsView: View {
 
     private var statusText: String {
         if settings.modelProvider == .anthropic {
-            return settings.claudeAvailable ? "Claude / Struis経由" : "Claude / この端末では使えません"
+            return settings.claudeAvailable ? "Claude / App Attest" : "Claude / この端末では使えません"
         }
         return settings.account?.isConnected == true ? ["Codex接続済み", planLabel].compactMap { $0 }.joined(separator: " / ") : "Codex未接続"
     }
@@ -153,7 +153,7 @@ struct SettingsView: View {
     private var modelDetail: String {
         switch settings.modelProvider {
         case .openai: return "ChatGPT / Codex で GPT を使う"
-        case .anthropic: return settings.claudeAvailable ? "Struis 経由で Claude を使う" : "この端末では Claude を使えません"
+        case .anthropic: return settings.claudeAvailable ? "App Attest で Claude を使う" : "この端末では Claude を使えません"
         }
     }
 
@@ -256,7 +256,7 @@ private struct ModelProviderSettingsDetail: View {
         case .openai:
             return "ChatGPT / Codex の接続で \(CodexModels.astraModel) を使います。"
         case .anthropic:
-            return "Struis 経由で \(ClaudeModels.displayName(ClaudeModels.astraModel)) を使います(下調べは \(ClaudeModels.displayName(ClaudeModels.lunaModel)))。この iPhone で動いている正規の Struis かどうかを App Attest で確かめてから送ります。"
+            return "\(ClaudeModels.displayName(ClaudeModels.astraModel)) を使います(下調べは \(ClaudeModels.displayName(ClaudeModels.lunaModel)))。この iPhone の Struis が正規のアプリであることを App Attest で示し、Anthropic に直接送ります。API キーや中継サーバーはありません。"
         }
     }
 }

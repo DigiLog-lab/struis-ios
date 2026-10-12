@@ -5,7 +5,7 @@ import Foundation
 nonisolated enum ModelProvider: String, Codable, CaseIterable, Sendable {
     /// ChatGPT / Codex 認証で OpenAI のモデルを使う(従来の経路)。
     case openai
-    /// Struis の relay(App Attest で端末を確認)経由で Claude を使う。
+    /// App Attest で端末を確かめ、Anthropic の API を端末から直接使う。
     case anthropic
 
     /// Codex の `model_providers` に登録する ID(組み込みの `openai` 等と重ならない名前)。
@@ -27,7 +27,7 @@ nonisolated enum ModelProvider: String, Codable, CaseIterable, Sendable {
     var billingSource: String {
         switch self {
         case .openai: "byo_chatgpt"
-        case .anthropic: "struis_claude_relay"
+        case .anthropic: "anthropic_app_attest"
         }
     }
 
@@ -82,15 +82,17 @@ nonisolated enum ModelProviderError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .claudeUnavailable: "この端末では App Attest(端末の確認)を使えないため、Claude を使えません。設定の「AIモデル」で GPT を選んでください。"
+        case .claudeUnavailable: ClaudeAppAttestConfig.clientID == nil
+            ? "このビルドには Claude の接続設定(client ID)がありません。設定の「AIモデル」で GPT を選んでください。"
+            : "この端末では App Attest(端末の確認)を使えないため、Claude を使えません。設定の「AIモデル」で GPT を選んでください。"
         }
     }
 }
 
-/// Claude を使えるか。通常は App Attest で端末を確かめ、Struis の relay 経由で使う(API キーは端末に置かない)。
+/// Claude を使えるか。実機は App Attest で Anthropic から token を受け取り、端末から直接使う(API キーも中継サーバーも無い)。
 nonisolated enum ClaudeAccess {
     static var isAvailable: Bool {
-        AnthropicCredentials.debugAPIKey != nil || ClaudeRelayConfig.devToken != nil || AppAttestClient.isSupported
+        AnthropicCredentials.debugAPIKey != nil || (AppAttestClient.isSupported && ClaudeAppAttestConfig.clientID != nil)
     }
 }
 

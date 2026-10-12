@@ -204,7 +204,7 @@ struct OnboardingPrototypeView: View {
                 eyebrow: "CLAUDE",
                 title: settings.claudeAvailable ? "Claude を使う\n準備ができました" : "この iPhone では\nClaude を使えません",
                 detail: settings.claudeAvailable
-                    ? "説明・判定・質問に Struis 経由で Claude を使います。あとから設定の「AIモデル」で切り替えられます。"
+                    ? "説明・判定・質問に Claude を使います。あとから設定の「AIモデル」で切り替えられます。"
                     : "Claude は、正規の Struis かどうかを App Attest で確かめてから使います。この端末では App Attest を使えないため、ChatGPT で接続してください。"
             )
             Label("API キーなどの入力は要りません。この iPhone で動いている Struis かどうかを、Apple の App Attest で確かめてから送ります。", systemImage: "lock.shield")
