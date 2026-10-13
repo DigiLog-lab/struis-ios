@@ -89,6 +89,8 @@ class GateTests(unittest.TestCase):
             self.assertTrue(guard.publication_allowed({'headBefore': 'same'}))
         with mock.patch.object(guard, 'git', return_value='M changed'):
             self.assertFalse(guard.publication_allowed({'headBefore': 'same'}))
+        with mock.patch.object(guard, 'git', side_effect=['', 'same', 'tree']):
+            self.assertFalse(guard.publication_allowed({'headBefore': 'same', 'validationRequired': True}))
 
     def test_push_of_main_or_other_commit_is_blocked(self):
         for update in ['refs/heads/topic head refs/heads/main old', 'refs/heads/topic other refs/heads/topic old']:

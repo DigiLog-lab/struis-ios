@@ -98,7 +98,7 @@ def publication_allowed(run):
     if git('status', '--porcelain'):
         return False
     head = git('rev-parse', 'HEAD')
-    if head == run.get('headBefore'):
+    if head == run.get('headBefore') and not run.get('validationRequired'):
         return True
     path = agent_home() / 'validation.json'
     report = json.loads(path.read_text()) if path.exists() else None

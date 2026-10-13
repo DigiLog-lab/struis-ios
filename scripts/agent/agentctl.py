@@ -244,6 +244,8 @@ def cmd_prepare(_args):
         'restored': restored, 'recovery': recovery, 'includedComments': [c['id'] for c in pending],
         'includedIssueBody': not state.get('issueBodyProcessed'), 'startedAt': iso(now),
         'headBefore': git('rev-parse', 'HEAD'),
+        'validationRequired': (git('rev-parse', 'HEAD') != state.get('validatedHead')
+                               and git('rev-parse', 'HEAD') != git('rev-parse', 'origin/main')),
     }
     (home / 'run.json').write_text(json.dumps(run, indent=2))
     (home / 'prompt.txt').write_text(prompt)
@@ -269,7 +271,7 @@ def cmd_validate(_args):
     run = json.loads((agent_home() / 'run.json').read_text())
     if git('status', '--porcelain'):
         sys.exit('未コミットの変更があります。成果を提示できません。')
-    if git('rev-parse', 'HEAD') != run['headBefore']:
+    if run.get('validationRequired') or git('rev-parse', 'HEAD') != run['headBefore']:
         git('fetch', 'origin', run['branch'])
         if git('rev-parse', 'FETCH_HEAD') != git('rev-parse', 'HEAD'):
             sys.exit('push済みブランチとHEADが一致しません。成果を提示できません。')
@@ -466,6 +468,7 @@ def cmd_finalize(_args):
     if report['model'] and success:
         state['model'] = report['model']
     if success:
+        state['validatedHead'] = git('rev-parse', 'HEAD')
         if run['includedComments']:
             state['lastCommentId'] = max([int(state.get('lastCommentId') or 0), *run['includedComments']])
         if run['includedIssueBody']:
