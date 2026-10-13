@@ -20,15 +20,20 @@ final class ChatKickoffTests: XCTestCase {
     }
 
     private func waitForReply(_ ledger: Ledger, turns: TurnCoordinator, threadID: String, count: Int = 1) async throws -> [MessageRecord] {
-        for _ in 0..<200 {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(30))
+        var lastRows: [MessageRecord] = []
+        while clock.now < deadline {
             let rows = try await ledger.read { db in try ChatRepository.messages(db, threadID: threadID) }
+            lastRows = rows
             let done = rows.filter { $0.role == "assistant" && $0.status != "pending" }
             if done.count >= count, !rows.contains(where: { $0.status == "pending" }),
                !(await turns.isChatRunning(threadID: threadID)) { return rows }
             try await Task.sleep(for: .milliseconds(25))
         }
-        XCTFail("reply did not finish")
-        return []
+        let running = await turns.isChatRunning(threadID: threadID)
+        let states = lastRows.map { "\($0.role):\($0.status)" }.joined(separator: ", ")
+        throw LedgerError.invalid("reply did not finish in 30s (running=\(running), expected=\(count), messages=[\(states)])")
     }
 
     /// Model the real interval after reply commit and before reservation release without

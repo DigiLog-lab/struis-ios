@@ -107,6 +107,12 @@ actor CodexAppServerSession {
     private var process: GuestProcessHandle?
     private var initialized = false
     private var starting: Task<Void, Error>?
+    private enum Incoming: Sendable {
+        case line(String, Bool)
+        case exited(Int32)
+    }
+    private var incoming: AsyncStream<Incoming>.Continuation?
+    private var receiveTask: Task<Void, Never>?
     private var nextID = 1
     private var pending: [Int: CheckedContinuation<JSONObject, Error>] = [:]
     /// Owner tag of each pending request (the plan id), so a stop can release them.
@@ -189,17 +195,36 @@ actor CodexAppServerSession {
         generation += 1
         lastMethods.removeAll()
         let generation = generation
+        // One consumer preserves transport order. Independent Tasks for each line can
+        // deliver turn/completed before the agentMessage item that contains its answer.
+        let input = AsyncStream<Incoming>.makeStream()
+        incoming = input.continuation
+        receiveTask = Task { [weak self] in
+            for await event in input.stream {
+                guard !Task.isCancelled, let self else { break }
+                switch event {
+                case .line(let line, let isError):
+                    await self.receive(line: line, isError: isError, generation: generation)
+                case .exited(let code):
+                    await self.processExited(code: code, generation: generation)
+                }
+            }
+        }
         // A new process starts healthy; marks left by the previous one do not carry over.
         unresponsive = false
         abandonedRequests.removeAll()
         abandonedTurns.removeAll()
-        let handle = try await launcher({ [weak self] line, isError in
-            guard let self else { return }
-            Task { await self.receive(line: line, isError: isError, generation: generation) }
-        }, { [weak self] code in
-            guard let self else { return }
-            Task { await self.processExited(code: code, generation: generation) }
-        })
+        let handle: GuestProcessHandle
+        do {
+            handle = try await launcher({ line, isError in
+                input.continuation.yield(.line(line, isError))
+            }, { code in
+                input.continuation.yield(.exited(code))
+            })
+        } catch {
+            stopReceiving()
+            throw error
+        }
         process = handle
         initialized = false
         do {
@@ -213,6 +238,7 @@ actor CodexAppServerSession {
             initialized = true
         } catch {
             handle.terminate()
+            stopReceiving()
             process = nil
             initialized = false
             throw error
@@ -220,6 +246,7 @@ actor CodexAppServerSession {
     }
 
     func close() {
+        stopReceiving()
         process?.closeInput()
         process?.terminate()
         process = nil
@@ -231,6 +258,13 @@ actor CodexAppServerSession {
         abandonedRequests.removeAll()
         abandonedTurns.removeAll()
         retainStaleTurns()
+    }
+
+    private func stopReceiving() {
+        incoming?.finish()
+        incoming = nil
+        receiveTask?.cancel()
+        receiveTask = nil
     }
 
     private func retainStaleTurns() {
@@ -335,6 +369,7 @@ actor CodexAppServerSession {
 
     private func processExited(code: Int32, generation: Int) {
         guard generation == self.generation else { return }
+        stopReceiving()
         sessionLog.error("codex app-server exited (\(code)) after \(self.lastMethods.joined(separator: ","), privacy: .public)")
         for line in stderrTail.suffix(20) { sessionLog.error("stderr: \(line, privacy: .public)") }
         #if DEBUG
