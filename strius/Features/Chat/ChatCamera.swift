@@ -174,6 +174,18 @@ struct ChatCameraPresentation: UIViewRepresentable {
     }
 }
 
+/// 写真の下端を暗くする縦のぼかし(上は透明)。
+private final class ChatCameraScrimView: UIView {
+    override class var layerClass: AnyClass { CAGradientLayer.self }
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        let gradient = layer as! CAGradientLayer
+        gradient.colors = [UIColor.black.withAlphaComponent(0).cgColor, UIColor.black.withAlphaComponent(0.55).cgColor]
+        gradient.locations = [0, 0.6]
+    }
+    required init?(coder: NSCoder) { fatalError() }
+}
+
 /// まとめて撮る時の設定。`existingCount` は束に既にある枚数(撮り足す時)、`limit` は束の上限。
 struct ChatCameraBatch {
     var existingCount = 0
@@ -246,7 +258,15 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
         previewView.addSubview(focusIndicator)
 
         let close = UIButton(type: .system)
-        close.setTitle("キャンセル", for: .normal)
+        if batch != nil {
+            // まとめて撮る時は、写真を面いっぱいに出し、ボタンはその上にガラスで置く(黒い縁を作らない)。
+            var configuration = UIButton.Configuration.glass()
+            configuration.title = "キャンセル"
+            configuration.baseForegroundColor = .white
+            close.configuration = configuration
+        } else {
+            close.setTitle("キャンセル", for: .normal)
+        }
         close.tintColor = .white
         close.addTarget(self, action: #selector(cancel), for: .touchUpInside)
         close.translatesAutoresizingMaskIntoConstraints = false
@@ -287,10 +307,12 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
             close.centerYAnchor.constraint(equalTo: shutter.centerYAnchor),
             close.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 16),
             close.heightAnchor.constraint(equalToConstant: 44),
-            previewView.topAnchor.constraint(equalTo: panel.topAnchor, constant: 16),
-            previewView.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 4),
-            previewView.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -4),
-            previewView.bottomAnchor.constraint(equalTo: shutter.topAnchor, constant: batch == nil ? -8 : -76),
+            previewView.topAnchor.constraint(equalTo: panel.topAnchor, constant: batch == nil ? 16 : 0),
+            previewView.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: batch == nil ? 4 : 0),
+            previewView.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: batch == nil ? -4 : 0),
+            batch == nil
+                ? previewView.bottomAnchor.constraint(equalTo: shutter.topAnchor, constant: -8)
+                : previewView.bottomAnchor.constraint(equalTo: panel.bottomAnchor),
             shutter.centerXAnchor.constraint(equalTo: panel.centerXAnchor),
             shutter.widthAnchor.constraint(equalToConstant: 64),
             shutter.heightAnchor.constraint(equalToConstant: 64),
@@ -307,6 +329,11 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
 
     /// まとめて撮る時の、撮った写真の列・「採点する N」・何枚目かの表示。
     private func layoutBatchControls() {
+        // 写真の下端だけを暗くして、上に置いた白いシャッターと撮った写真を読めるようにする。
+        let scrim = ChatCameraScrimView()
+        scrim.isUserInteractionEnabled = false
+        scrim.translatesAutoresizingMaskIntoConstraints = false
+        panel.insertSubview(scrim, aboveSubview: previewView)
         strip.axis = .horizontal
         strip.spacing = 8
         strip.alignment = .center
@@ -316,11 +343,10 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
         scroll.translatesAutoresizingMaskIntoConstraints = false
         scroll.addSubview(strip)
         panel.addSubview(scroll)
-        var configuration = UIButton.Configuration.filled()
-        configuration.cornerStyle = .capsule
-        configuration.baseBackgroundColor = UIColor(Theme.Palette.accentLight)
+        var configuration = UIButton.Configuration.prominentGlass()
         configuration.baseForegroundColor = .white
         configuration.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16)
+        done.tintColor = UIColor(Theme.Palette.accentLight)
         done.configuration = configuration
         done.accessibilityIdentifier = "chat-camera-done"
         done.addTarget(self, action: #selector(finishBatch), for: .touchUpInside)
@@ -328,7 +354,7 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
         panel.addSubview(done)
         counter.font = .preferredFont(forTextStyle: .footnote)
         counter.textColor = .white
-        counter.backgroundColor = UIColor.black.withAlphaComponent(0.55)
+        counter.backgroundColor = UIColor.black.withAlphaComponent(0.45)
         counter.textAlignment = .center
         counter.layer.cornerRadius = 14
         counter.clipsToBounds = true
@@ -336,7 +362,11 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
         counter.translatesAutoresizingMaskIntoConstraints = false
         panel.addSubview(counter)
         NSLayoutConstraint.activate([
-            scroll.topAnchor.constraint(equalTo: previewView.bottomAnchor, constant: 8),
+            scrim.leadingAnchor.constraint(equalTo: panel.leadingAnchor),
+            scrim.trailingAnchor.constraint(equalTo: panel.trailingAnchor),
+            scrim.bottomAnchor.constraint(equalTo: panel.bottomAnchor),
+            scrim.topAnchor.constraint(equalTo: scroll.topAnchor, constant: -40),
+            scroll.bottomAnchor.constraint(equalTo: shutter.topAnchor, constant: -14),
             scroll.leadingAnchor.constraint(equalTo: panel.leadingAnchor, constant: 16),
             scroll.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -16),
             scroll.heightAnchor.constraint(equalToConstant: 60),
@@ -347,7 +377,7 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
             strip.heightAnchor.constraint(equalTo: scroll.frameLayoutGuide.heightAnchor),
             done.centerYAnchor.constraint(equalTo: shutter.centerYAnchor),
             done.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -16),
-            counter.topAnchor.constraint(equalTo: previewView.topAnchor, constant: 10),
+            counter.topAnchor.constraint(equalTo: previewView.topAnchor, constant: 14),
             counter.centerXAnchor.constraint(equalTo: previewView.centerXAnchor),
             counter.heightAnchor.constraint(equalToConstant: 28),
         ])
