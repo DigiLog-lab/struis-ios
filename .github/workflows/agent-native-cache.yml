@@ -1,8 +1,8 @@
 name: Native runtime cache
 
 # Keeps the bootstrap output (about 50 minutes to build) in the Actions cache
-# so Issue agent and prototype runs can restore it. Release CI keeps verifying
-# the cold README path separately in ios.yml.
+# so iOS, Issue agent and prototype runs can restore it.
+# ios-cold.yml verifies the uncached README path separately.
 on:
   workflow_dispatch:
   push:
