@@ -1,0 +1,82 @@
+name: iOS cold build
+
+# Verify the public README build without native or Cargo caches.
+# GitHub cron uses UTC; this runs Sundays at 12:00 JST.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 3 * * 0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-cold-main
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.ref == 'refs/heads/main'
+    runs-on: xcode-27
+    timeout-minutes: 150
+    steps:
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: ツールを準備
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          brew install autoconf automake libtool
+          if ! command -v rustup >/dev/null; then
+            brew install rustup
+          fi
+          rustup toolchain install 1.95.0 --profile minimal
+          rustup target add --toolchain 1.95.0 aarch64-apple-ios aarch64-apple-ios-sim
+      - name: 公開ソースを新規clone
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          git -c credential.helper= -c http.extraHeader= clone --no-checkout \
+            https://github.com/DigiLog-lab/struis-ios.git "$RUNNER_TEMP/StruisPublicClone"
+          cd "$RUNNER_TEMP/StruisPublicClone"
+          git checkout --detach "$GITHUB_SHA"
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          empty = not any(Path(path).exists() for path in (
+              'NativeRuntime/Vendor', 'NativeRuntime/.build',
+              'NativeRuntime/PackageCache', 'NativeRuntime/PythonPackages'
+          )) and not (Path(os.environ['RUNNER_TEMP']) / 'StruisCargoCold').exists()
+          assert commit == os.environ['GITHUB_SHA'] and empty
+          print(json.dumps({'publicCloneSourceCommit': commit, 'publicCloneCacheEmpty': empty}))
+          PY
+          printf 'STRUIS_SOURCE_ROOT=%s\nCARGO_HOME=%s\n' "$RUNNER_TEMP/StruisPublicClone" "$RUNNER_TEMP/StruisCargoCold" >> "$GITHUB_ENV"
+      - name: 固定依存を生成
+        env:
+          CARGO_BUILD_JOBS: '2'
+        run: |
+          set -euo pipefail
+          cd "$STRUIS_SOURCE_ROOT"
+          python3.14 NativeRuntime/Scripts/bootstrap.py --platform both
+      - name: ビルド用cacheを整理
+        run: |
+          set -euo pipefail
+          cd "$STRUIS_SOURCE_ROOT"
+          rm -rf NativeRuntime/.build/codex NativeRuntime/.build/codex-artifacts
+      - name: READMEのSimulatorビルド
+        run: |
+          set -euo pipefail
+          cd "$STRUIS_SOURCE_ROOT"
+          xcodebuild build -project strius.xcodeproj -scheme strius \
+            -destination 'generic/platform=iOS Simulator' ARCHS=arm64 CODE_SIGNING_ALLOWED=NO
+      - name: Simulatorで単体テスト
+        run: |
+          set -euo pipefail
+          cd "$STRUIS_SOURCE_ROOT"
+          xcodebuild test -project strius.xcodeproj -scheme strius \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
+            -resultBundlePath "$RUNNER_TEMP/StruisColdTests.xcresult" \
+            -collect-test-diagnostics never \
+            -only-testing:striusTests -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
