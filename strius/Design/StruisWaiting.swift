@@ -203,7 +203,7 @@ struct ChatLiveReply: View {
                 .padding(.horizontal, 4)
                 .modifier(HideHeadline())
             if let text = activity?.visibleReply, !text.isEmpty {
-                StreamingReplyText(text: text)
+                StreamingReplyText(text: text, complete: activity?.writingPrivateTail == true)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -233,19 +233,35 @@ extension EnvironmentValues {
     @Entry var turnLiveRevealChoice: (@MainActor () -> Void)? = nil
 }
 
-/// 書かれている途中の返事。閉じた数式は読める文字に直して出す(書かれるたびに WebView の数式を描き直すと、
-/// 描き終わるまで空白になるため)。書き終わった返事は、いつもの吹き出し(KaTeX)で描き直す。
+/// 書かれている途中の返事。書き終わった段落は、いつもの吹き出しと同じく KaTeX で描く(数式・強調)。
+/// 書いている途中の段落だけは、閉じた数式を読める文字に直して出す(書かれるたびに WebView の数式を描き直すと、
+/// 描き終わるまで空白になるため)。本文を書き終え、後ろの記録だけを書いている間(`complete`)は、出来上がった返事と
+/// 同じ 1 つの本文として描く(返事が確定した時に、描き終えた見た目をそのまま使い回せる)。
 struct StreamingReplyText: View {
     let text: String
+    var complete = false
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         let paragraphs = text.components(separatedBy: "\n\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
-                Text(TurnReplyStream.readable(paragraph))
-                    .font(Typography.sans(size: 15, weight: .medium))
-                    .foregroundStyle(Theme.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+        let color = MessageBubble.textPrimaryColor(scheme)
+        Group {
+            if complete {
+                KaTeXMathText(ChatTextReadability.formatAssistantText(text), foregroundColor: color)
+            } else {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(paragraphs.enumerated()), id: \.offset) { index, paragraph in
+                        if index < paragraphs.count - 1 {
+                            // 後ろに次の段落が来ている = この段落は書き終わっている(文字が変わらないので描き直さない)。
+                            KaTeXMathText(ChatTextReadability.formatAssistantText(paragraph), foregroundColor: color)
+                        } else {
+                            Text(TurnReplyStream.readableMarkdown(paragraph))
+                                .font(Typography.sans(size: 15, weight: .medium))
+                                .foregroundStyle(Theme.primaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
             }
         }
         .accessibilityElement(children: .combine)

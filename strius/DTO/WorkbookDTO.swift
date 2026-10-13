@@ -259,6 +259,8 @@ struct WorkbookResultDTO: Decodable, Hashable, Sendable {
         case captureMore = "capture_more"
         /// 途中の答案: 判定のある問題で一枚を締める。
         case closeSet = "close_set"
+        /// 全問正解の答案: 新しい一枚を作らず、作られた演習の一覧へ戻る(画面で「やり直す」から置き換える。台帳は出さない)。
+        case returnToSet = "return_to_set"
     }
 
     let stageBefore: Int

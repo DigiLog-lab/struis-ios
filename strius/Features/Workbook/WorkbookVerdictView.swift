@@ -4,6 +4,7 @@ import UIKit
 /// リザルト。撮った一枚ごとの判定の後に出す。上から、正解数と状態の 1 語、演習なら直近 n 問のマス
 /// (今回の一枚で埋まったマスを示す)、答案の写真と各問の ○× と一言、次の行動のボタン。
 /// 間違えても罰は無い。次の行動(やり直す / 例題に戻る / 質問する)は学習者が選ぶ。判定中はここで待てる。
+/// 全問正解の答案では「やり直す」(新しい一枚を作る)を出さず、「演習に戻る」で作られた演習の一覧へ戻す。
 struct WorkbookVerdictView: View {
     @Environment(WorkbookStore.self) private var store
     @Environment(WorkbookCoordinator.self) private var coordinator
@@ -341,11 +342,17 @@ struct WorkbookVerdictView: View {
         return kept.isEmpty ? [.ask] : kept
     }
 
+    /// 全問正解の答案では、「やり直す」を「演習に戻る」に置き換える(正解したのに新しい一枚を作り直させない)。
+    static func shownActions(_ actions: [WorkbookResultDTO.Action], summary: WorkbookSetResultDTO?) -> [WorkbookResultDTO.Action] {
+        guard let summary, summary.total > 0, summary.correct == summary.total else { return actions }
+        return actions.map { $0 == .retry ? .returnToSet : $0 }
+    }
+
     private func actions(_ capture: WorkbookCaptureDTO) -> some View {
-        let actions = Self.currentActions(
+        let actions = Self.shownActions(Self.currentActions(
             capture.result?.actions ?? [.ask], stageAfter: capture.result?.stageAfter,
             subunit: capture.subunitId.flatMap { store.subunits[$0] }
-        )
+        ), summary: capture.summary)
         let primary = actions.first { $0 != .ask && $0 != .returnToExample && $0 != .closeSet }
         return VStack(spacing: 10) {
             if let primary {
@@ -386,6 +393,7 @@ struct WorkbookVerdictView: View {
         switch action {
         case .practice: "演習へ"
         case .retry: "やり直す"
+        case .returnToSet: "演習に戻る"
         case .returnToExample: "例題に戻る"
         case .nextSubunit: "次の小単元へ"
         case .finishUnit: "単元を終える"
@@ -399,6 +407,7 @@ struct WorkbookVerdictView: View {
         switch action {
         case .practice: "workbook-result-practice"
         case .retry: "workbook-result-retry"
+        case .returnToSet: "workbook-result-return-to-set"
         case .returnToExample: "workbook-result-return"
         case .nextSubunit: "workbook-verdict-next"
         case .finishUnit: "workbook-result-finish"
@@ -428,6 +437,17 @@ struct WorkbookVerdictView: View {
         } else {
             button.buttonStyle(.bordered)
         }
+    }
+
+    /// 「演習に戻る」の行き先。一覧から問題を開いて撮った時は、その一覧まで戻る(道のりを残す)。
+    /// 一覧を通らずに撮った時は、答案の一枚か小単元の開いている一枚を開く。
+    private func returnToSetPath(_ capture: WorkbookCaptureDTO) -> [WorkbookDestination] {
+        if let index = coordinator.path.lastIndex(where: { if case .set = $0 { true } else { false } }) {
+            return Array(coordinator.path[...index])
+        }
+        guard let subunitID = capture.subunitId else { return [] }
+        let setID = capture.setId ?? store.subunits[subunitID]?.openSetId
+        return [.subunit(subunitID)] + (setID.map { [.set($0)] } ?? [])
     }
 
     private func perform(_ action: WorkbookResultDTO.Action, capture: WorkbookCaptureDTO) {
@@ -467,6 +487,8 @@ struct WorkbookVerdictView: View {
                 }
                 busyAction = nil
             }
+        case .returnToSet:
+            coordinator.path = returnToSetPath(capture)
         case .returnToExample:
             guard let subunitID = capture.subunitId else { return }
             busyAction = action
