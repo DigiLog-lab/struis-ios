@@ -14,8 +14,11 @@
 
 - 作業ブランチは `<github-issue-event>` の `Working branch`(通常 `agent/issue-{番号}`)です。commit して `git push origin HEAD` で push します。
 - `main` へ直接 push しないでください。`.github/workflows/` の変更は権限上 push できないため、必要なら Issue で提案してください。
-- 実装が完了したとき、または依頼されたときは `gh pr create --base main --head <作業ブランチ>` で Pull Request を作成し、本文に `Refs #{番号}` を含めてください。
+- 実装が完了したとき、または依頼されたときは、PR本文をファイルに書き、`python3 "$AGENT_CTL" request-pr --title "<タイトル>" --body-file <本文ファイル>` で作成を予約してください。本文に `Refs #{番号}` を含めてください。`gh pr create`やAPIで直接PRを作成しないでください。runnerが終了後にテストとCDと同じ署名付きarchive・bundle監査を実行し、成功した場合だけPRを作成します(アップロードはしません)。最終応答では作成予約の状態を正確に伝えてください。
 - commit message はリポジトリの既存の書き方(日本語の要約)に合わせます。
+- commit前に変更をstageしてください。runnerが設定したpre-commit/pre-push検証ゲートが、制御スクリプトのテスト・Worker構文・Simulatorビルド・iOS単体/UIテスト・実機Release archiveを強制します。失敗したら修正し、再実行してください。`--no-verify`、hooksPathの変更、検証結果の書換えで回避しないでください。
+- テスト失敗・未検証のコードを完成した成果として提示したり、PRを作成したりしないでください。検証を通せない場合は失敗原因と作業途中であることを報告してください。UI変更時は関連UIテストも追加実行してください。
+- 実行状態はIssueの専用コメントへ自動更新されます。ツールの内容や認証情報を進捗コメントへ転記しないでください。
 
 ## iOS 開発
 
