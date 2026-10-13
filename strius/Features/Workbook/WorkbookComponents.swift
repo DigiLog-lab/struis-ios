@@ -170,9 +170,12 @@ struct WorkbookQuestionPill: View {
                     .font(.system(size: 13, weight: .semibold))
                 Text("質問")
                     .font(Typography.bodyEmphasized)
+                    .lineLimit(1)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
+            // 長いタイトルと並ぶとツールバーが幅を詰め、文字がガラス面の外へはみ出す。本来の幅を譲らない。
+            .fixedSize()
         }
         .buttonStyle(.plain)
         .accessibilityLabel("質問")
