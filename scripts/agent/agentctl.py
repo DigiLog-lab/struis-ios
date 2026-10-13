@@ -570,7 +570,8 @@ def cmd_finalize(_args):
 
     table = usage_table(report, run, usage)
     try:
-        restart_note = restart_interrupted(gh, state, os.environ.get('CLAUDE_OUTCOME')) if not claude_success else None
+        outcome = os.environ.get('CLAUDE_OUTCOME') if not claude_success else os.environ.get('VALIDATION_OUTCOME')
+        restart_note = restart_interrupted(gh, state, outcome) if not claude_success or outcome == 'cancelled' else None
     except Exception as error:
         restart_note = f'作業は保存しましたが、自動再開の予約に失敗しました: {type(error).__name__}'
     if restart_note:
