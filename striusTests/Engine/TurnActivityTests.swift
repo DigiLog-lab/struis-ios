@@ -24,6 +24,13 @@ struct TurnActivityTests {
         #expect(TurnReplyStream.approximateMath("\\(\\frac{1}{2}\\)") == "(1)/(2)")
     }
 
+    @Test func streamingParagraphKeepsBoldAndHeadings() {
+        let text = TurnReplyStream.readableMarkdown("## 手がかり\n**問題の箇所** は $x^2$ です")
+        #expect(String(text.characters) == "手がかり\n問題の箇所 は x² です")
+        let bold = text.runs.filter { $0.inlinePresentationIntent == .stronglyEmphasized }.map { String(text[$0.range].characters) }
+        #expect(bold == ["手がかり", "問題の箇所"])
+    }
+
     @Test func partialScannerCountsFinishedObjects() {
         let text = #"{"items":[{"label":"(1)","verdict":"correct"},{"label":"(2)","verd"#
         let scan = PartialJSONScanner.scan(text)

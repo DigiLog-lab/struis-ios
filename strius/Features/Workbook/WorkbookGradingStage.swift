@@ -320,18 +320,13 @@ struct HandwrittenMark: Shape {
         let w = rect.width, h = rect.height
         switch kind {
         case .circle:
-            // 少し歪んだ円を、書き始めを越えて閉じる(手で書いた丸)。
-            let steps = 48
-            for step in 0...steps {
-                let t = Double(step) / Double(steps)
-                let angle = -Double.pi * 0.62 + t * Double.pi * 2.12
-                let wobble = 1 + 0.05 * sin(t * Double.pi * 3)
-                let point = CGPoint(
-                    x: rect.midX + CGFloat(cos(angle) * wobble) * w * 0.46,
-                    y: rect.midY + CGFloat(sin(angle) * wobble) * h * 0.42
-                )
-                if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
-            }
+            // 真円を、左上から書き始めて一周で閉じる(縦横の比や揺らぎで歪ませない)。
+            let radius = min(w, h) * 0.44
+            let start = -Double.pi * 0.62
+            path.addArc(
+                center: CGPoint(x: rect.midX, y: rect.midY), radius: radius,
+                startAngle: .radians(start), endAngle: .radians(start + Double.pi * 2), clockwise: false
+            )
         case .triangle:
             path.move(to: CGPoint(x: rect.midX, y: rect.minY + h * 0.08))
             path.addLine(to: CGPoint(x: rect.minX + w * 0.1, y: rect.maxY - h * 0.12))

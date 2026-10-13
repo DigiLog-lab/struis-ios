@@ -187,7 +187,7 @@ struct MessageBubble: View {
             .controlSize(.small)
     }
 
-    private static func textPrimaryColor(_ scheme: ColorScheme) -> UIColor {
+    static func textPrimaryColor(_ scheme: ColorScheme) -> UIColor {
         scheme == .dark
             ? UIColor(red: 0.953, green: 0.910, blue: 0.831, alpha: 1)
             : UIColor(red: 0.122, green: 0.102, blue: 0.078, alpha: 1)
@@ -243,9 +243,9 @@ private extension ChatMessage {
 
 enum ChatTextReadability {
     static func formatAssistantText(_ value: String) -> String {
-        let text = bulletize(value
+        let text = bulletize(emboldenHeadings(value
             .replacingOccurrences(of: "\\n", with: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines))
+            .trimmingCharacters(in: .whitespacesAndNewlines)))
         guard !text.isEmpty, !text.contains("\n") else { return text }
 
         let units = splitSentenceUnits(text)
@@ -253,6 +253,21 @@ enum ChatTextReadability {
 
         let totalLength = units.reduce(0) { $0 + $1.count }
         return units.count >= 3 || totalLength > 70 ? units.joined(separator: "\n") : text
+    }
+
+    /// Markdown の見出し(行頭の `# ` 〜 `###### `)を強調(`**…**`)の 1 行にする。テキスト表示と数式の WebView 表示は
+    /// 強調だけを読むので、見出しの `#` が文字のまま出ないようにここで直す。
+    static func emboldenHeadings(_ text: String) -> String {
+        guard text.contains("#") else { return text }
+        return text.components(separatedBy: "\n").map { line in
+            let body = line.drop { $0 == " " }
+            let level = body.prefix { $0 == "#" }.count
+            guard (1...6).contains(level), body.dropFirst(level).first == " " else { return line }
+            let title = body.dropFirst(level).trimmingCharacters(in: .whitespaces)
+                .replacingOccurrences(of: #"\s+#+$"#, with: "", options: .regularExpression)
+                .replacingOccurrences(of: "**", with: "")
+            return title.isEmpty ? line : "**" + title + "**"
+        }.joined(separator: "\n")
     }
 
     /// Markdown の箇条書き(行頭の `- ` / `* ` / `+ `)を「•」にする。テキスト表示と数式の WebView 表示の

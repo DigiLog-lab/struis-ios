@@ -51,12 +51,36 @@ struct KaTeXMathText: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
         } else {
-            Text(raw.replacingOccurrences(of: "\\n", with: "\n"))
+            Text(StruisInlineMarkdown.attributed(raw.replacingOccurrences(of: "\\n", with: "\n")))
                 .font(Typography.sans(size: fontSize, weight: fontWeight >= 500 ? .medium : .regular))
                 .foregroundStyle(Color(foregroundColor))
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
         }
+    }
+}
+
+/// 数式の無い本文の強調(`**…**`)を太字にする。WebView の描き方(`renderTextMarkdown`)と同じく強調だけを読み、
+/// ほかの記号はそのまま残す(穴埋めの `____` を強調と取り違えないよう、`__` は読まない)。
+enum StruisInlineMarkdown {
+    static func attributed(_ text: String) -> AttributedString {
+        guard text.contains("**") else { return AttributedString(text) }
+        var result = AttributedString()
+        var strong = false
+        var rest = Substring(text)
+        func append(_ part: Substring) {
+            guard !part.isEmpty else { return }
+            var piece = AttributedString(String(part))
+            if strong { piece.inlinePresentationIntent = .stronglyEmphasized }
+            result += piece
+        }
+        while let range = rest.range(of: "**") {
+            append(rest[..<range.lowerBound])
+            strong.toggle()
+            rest = rest[range.upperBound...]
+        }
+        append(rest)
+        return result
     }
 }
 
