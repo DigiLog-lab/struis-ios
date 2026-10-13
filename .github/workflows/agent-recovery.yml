@@ -1,0 +1,25 @@
+name: Agent recovery
+run-name: Recover Issue agent ${{ github.event.workflow_run.id }}
+
+on:
+  workflow_run:
+    workflows: ['Issue agent']
+    types: [completed]
+
+# The called workflow narrows the recovery job to contents:read/actions:write.
+# The ceilings also accommodate its other (skipped) jobs.
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: write
+  id-token: write
+
+jobs:
+  recover:
+    if: >-
+      startsWith(github.event.workflow_run.display_title, 'Issue agent #') &&
+      contains(fromJSON('["failure", "cancelled", "timed_out"]'), github.event.workflow_run.conclusion)
+    # Keep job_workflow_ref on the already trusted agent.yml@main for R2 OIDC.
+    # No Claude/signing secrets are inherited by this control-plane job.
+    uses: DigiLog-lab/struis-ios/.github/workflows/agent.yml@main

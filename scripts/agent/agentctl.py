@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import secrets
 import shlex
+import re
 import shutil
 import subprocess
 import sys
@@ -160,7 +161,28 @@ def restart_interrupted(gh, state, outcome):
         'ref': 'main', 'inputs': {'issue': str(state['issue']), 'automatic_retry': 'true'},
     })
     state['autoRestarts'] = count + 1
+    state['restartFromRun'] = os.environ.get('RECOVER_RUN_ID') or os.environ.get('GITHUB_RUN_ID')
     return f'保存した作業とセッションから自動再開を予約しました ({count + 1}/3)。'
+
+
+def cmd_recover(_args):
+    match = re.fullmatch(r'Issue agent #(\d+)', os.environ.get('RECOVER_TITLE', ''))
+    if not match:
+        return
+    number = int(match[1])
+    gh = GitHub()
+    store = Store()
+    state = store.get_json(session_key(number, 'state.json')) or {}
+    source = os.environ['RECOVER_RUN_ID']
+    expected = f'{os.environ.get("GITHUB_SERVER_URL", "https://github.com")}/{gh.repository}/actions/runs/{source}'
+    if (state.get('workerRun') != expected or state.get('finalizedRun') == source
+            or state.get('restartFromRun') == source
+            or str(state.get('workerRunAttempt', '1')) != os.environ.get('RECOVER_RUN_ATTEMPT', '1')):
+        print('終了処理済み、再開予約済み、または後続実行が開始済みです。')
+        return
+    note = restart_interrupted(gh, state, 'cancelled')
+    store.put_json(session_key(number, 'state.json'), state)
+    print(note)
 
 
 def prototype_summary(store, number):
@@ -247,6 +269,8 @@ def cmd_prepare(_args):
     checkpoint_restored = restore_workspace(store, number, branch)
     if os.environ.get('AUTOMATIC_RETRY') != 'true':
         state['autoRestarts'] = 0
+    state.pop('restartFromRun', None)
+    state.pop('finalizedRun', None)
     session_id = state.get('sessionId')
     restored = restore_session(store, number, session_id)
     recovery = bool(session_id) and not restored
@@ -320,7 +344,8 @@ def cmd_prepare(_args):
     (home / 'run.json').write_text(json.dumps(run, indent=2))
     (home / 'prompt.txt').write_text(prompt)
     state.update({'issue': number, 'branch': branch, 'workerStatus': 'running',
-                  'workerRun': run_url(), 'workerStartedAt': iso(now)})
+                  'workerRun': run_url(), 'workerStartedAt': iso(now),
+                  'workerRunAttempt': os.environ.get('GITHUB_RUN_ATTEMPT', '1')})
     store.put_json(session_key(number, 'state.json'), state)
 
     import progress
@@ -510,7 +535,7 @@ def cmd_finalize(_args):
     validation_ok = os.environ.get('VALIDATION_OUTCOME') == 'success' and guard.publication_allowed(run)
     success = claude_success and validation_ok
     (home / 'progress-stop').touch()
-    if not claude_success:
+    if not success:
         import progress
         progress.stop_owned_commands()
     try:
@@ -598,6 +623,8 @@ def cmd_finalize(_args):
             parts.append(restart_note)
         parts.append(table)
     gh.comment(number, '\n\n'.join(parts))
+    state['finalizedRun'] = os.environ.get('GITHUB_RUN_ID')
+    store.put_json(session_key(number, 'state.json'), state)
 
     turn = report['turnUsage']
     append_summary('\n'.join([
@@ -701,6 +728,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('route').set_defaults(func=cmd_route)
+    commands.add_parser('recover').set_defaults(func=cmd_recover)
     commands.add_parser('prepare').set_defaults(func=cmd_prepare)
     commands.add_parser('finalize').set_defaults(func=cmd_finalize)
     commands.add_parser('validate').set_defaults(func=cmd_validate)

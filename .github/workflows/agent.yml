@@ -1,8 +1,10 @@
 name: Issue agent
+run-name: ${{ github.event.workflow_run && format('Recovery {0}', github.event.workflow_run.id) || format('Issue agent #{0}', github.event.issue.number || inputs.issue) }}
 
 # Issues labeled `agent` are conversations with Claude Code. Each comment from
 # an allowed person resumes the Issue's Claude session on a macOS runner.
 on:
+  workflow_call:
   workflow_dispatch:
     inputs:
       issue:
@@ -22,7 +24,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: agent-issue-${{ github.event.issue.number || inputs.issue }}
+  group: agent-issue-${{ github.event.issue.number || inputs.issue || github.event.workflow_run.id }}
   cancel-in-progress: false
 
 env:
@@ -33,6 +35,29 @@ env:
   AUTOMATIC_RETRY: ${{ inputs.automatic_retry && 'true' || 'false' }}
 
 jobs:
+  recover:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      startsWith(github.event.workflow_run.display_title, 'Issue agent #') &&
+      contains(fromJSON('["failure", "cancelled", "timed_out"]'), github.event.workflow_run.conclusion)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/agent
+      - name: 終了処理が走らなかった実行を再開
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RECOVER_RUN_ID: ${{ github.event.workflow_run.id }}
+          RECOVER_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+          RECOVER_TITLE: ${{ github.event.workflow_run.display_title }}
+        run: python3 scripts/agent/agentctl.py recover
   route:
     if: >-
       github.event_name == 'workflow_dispatch' || (!github.event.issue.pull_request &&

@@ -222,6 +222,20 @@ class GateTests(unittest.TestCase):
             progress.stop_owned_commands()
         kill.assert_called_once_with(123, progress.signal.SIGTERM)
 
+    def test_watchdog_resumes_only_current_unfinalized_run(self):
+        gh = mock.Mock(repository='owner/repo')
+        store = mock.Mock()
+        base = {'issue': 4, 'workerRun': 'https://github.com/owner/repo/actions/runs/123', 'workerStatus': 'running'}
+        with mock.patch.dict(os.environ, {'RECOVER_TITLE': 'Issue agent #4', 'RECOVER_RUN_ID': '123', 'RECOVER_RUN_ATTEMPT': '1'}), \
+                mock.patch.object(agentctl, 'GitHub', return_value=gh), mock.patch.object(agentctl, 'Store', return_value=store):
+            for update in [{'finalizedRun': '123'}, {'restartFromRun': '123'}, {'workerRunAttempt': '2'}, {'workerRun': 'new-run'}]:
+                store.get_json.return_value = dict(base, **update)
+                agentctl.cmd_recover(None)
+                gh.request.assert_not_called()
+            store.get_json.return_value = dict(base)
+            agentctl.cmd_recover(None)
+            gh.request.assert_called_once()
+
 
 if __name__ == '__main__':
     unittest.main()
