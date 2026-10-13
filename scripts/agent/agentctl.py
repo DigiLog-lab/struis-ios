@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import shlex
 import shutil
 import subprocess
 import sys
@@ -186,6 +187,22 @@ def cmd_prepare(_args):
     (home / 'attachments').mkdir(exist_ok=True)
     (home / 'artifacts').mkdir(exist_ok=True)
 
+    # Use runner-owned scripts, outside the checkout Claude edits.
+    tools_dir = Path(__file__).resolve().parent
+    hooks_dir = home / 'git-hooks'
+    hooks_dir.mkdir(exist_ok=True)
+    for name, mode in [('pre-commit', 'commit'), ('pre-push', 'push')]:
+        hook_path = hooks_dir / name
+        hook_path.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(tools_dir / "guard.py"))} {mode}\n')
+        hook_path.chmod(0o755)
+    git('config', 'core.hooksPath', str(hooks_dir))
+    hook_command = f'{shlex.quote(sys.executable)} {shlex.quote(str(tools_dir / "progress.py"))} hook'
+    settings_path = home / 'claude-settings.json'
+    settings_path.write_text(json.dumps({'hooks': {
+        event: [{'matcher': '', 'hooks': [{'type': 'command', 'command': hook_command, 'timeout': 10}]}]
+        for event in ('PreToolUse', 'PostToolUse', 'PostToolUseFailure')
+    }}))
+
     now = utc_now()
     native = ('cacheから復元済み' if os.environ.get('NATIVE_CACHE_HIT') == 'true'
               else f"部分復元 ({os.environ['NATIVE_CACHE_KEY']})" if os.environ.get('NATIVE_CACHE_KEY')
@@ -215,7 +232,8 @@ def cmd_prepare(_args):
     prompt = '\n\n'.join(blocks)
 
     claude_args = ['--model', model, '--exclude-dynamic-system-prompt-sections',
-                   '--permission-mode', 'bypassPermissions', '--allow-dangerously-skip-permissions']
+                   '--permission-mode', 'bypassPermissions', '--allow-dangerously-skip-permissions',
+                   '--settings', str(settings_path)]
     if os.environ.get('AGENT_EFFORT'):
         claude_args += ['--effort', os.environ['AGENT_EFFORT']]
     if restored:
@@ -225,6 +243,9 @@ def cmd_prepare(_args):
         'issue': number, 'branch': branch, 'model': model, 'sessionIdBefore': session_id,
         'restored': restored, 'recovery': recovery, 'includedComments': [c['id'] for c in pending],
         'includedIssueBody': not state.get('issueBodyProcessed'), 'startedAt': iso(now),
+        'headBefore': git('rev-parse', 'HEAD'),
+        'validationRequired': (git('rev-parse', 'HEAD') != state.get('validatedHead')
+                               and git('rev-parse', 'HEAD') != git('rev-parse', 'origin/main')),
     }
     (home / 'run.json').write_text(json.dumps(run, indent=2))
     (home / 'prompt.txt').write_text(prompt)
@@ -232,15 +253,30 @@ def cmd_prepare(_args):
                   'workerRun': run_url(), 'workerStartedAt': iso(now)})
     store.put_json(session_key(number, 'state.json'), state)
 
+    import progress
+    progress.update(run, '起動中')
+
     system_prompt = (Path(__file__).resolve().parent / 'system-prompt.md').read_text()
     write_output('skip', 'false')
     write_output('prompt', prompt)
-    write_output('claude_args', ' '.join(claude_args))
+    write_output('claude_args', shlex.join(claude_args))
     write_output('system_prompt', system_prompt)
     print(json.dumps(run, indent=2))
 
 
 # --------------------------------------------------------------- finalize ---
+
+def cmd_validate(_args):
+    import guard
+    run = json.loads((agent_home() / 'run.json').read_text())
+    if git('status', '--porcelain'):
+        sys.exit('未コミットの変更があります。成果を提示できません。')
+    if run.get('validationRequired') or git('rev-parse', 'HEAD') != run['headBefore']:
+        git('fetch', 'origin', run['branch'])
+        if git('rev-parse', 'FETCH_HEAD') != git('rev-parse', 'HEAD'):
+            sys.exit('push済みブランチとHEADが一致しません。成果を提示できません。')
+        guard.verify(signed=True)  # Includes the exact CD signing/audit path without uploading.
+
 
 def load_execution(path):
     if not path or not Path(path).exists():
@@ -384,11 +420,30 @@ def cmd_finalize(_args):
     report = analyze(load_execution(os.environ.get('CLAUDE_EXECUTION_FILE')))
     result = report['result'] or {}
     success = bool(report['result']) and result.get('subtype') == 'success' and not result.get('is_error')
+    import guard
+    validation_ok = os.environ.get('VALIDATION_OUTCOME') == 'success' and guard.publication_allowed(run)
+    success = success and validation_ok
+    (home / 'progress-stop').touch()
+    try:
+        import progress
+        progress.update(run, '完了' if success else '失敗・成果提示を停止', finished=True)
+    except Exception as error:
+        print(f'Progress final update failed: {type(error).__name__}')
     session_bytes = save_session(store, number)
 
     outbox = read_outbox(home)
+    pull_requests = []
+    if success:
+        for entry in outbox:
+            if entry.get('type') != 'request-pr':
+                continue
+            existing = gh.get(f'/repos/{gh.repository}/pulls?head={gh.repository.split("/")[0]}:{run["branch"]}&base=main&state=open')
+            pr = existing[0] if existing else gh.request('POST', f'/repos/{gh.repository}/pulls', {
+                'title': entry['title'], 'body': entry['body'], 'head': run['branch'], 'base': 'main',
+            })[0]
+            pull_requests.append(f'検証済みPull Request: {pr["html_url"]}')
     decisions = [{'at': iso(), 'text': entry['text']} for entry in outbox if entry.get('type') == 'decision']
-    attachments = upload_attachments(store, [entry for entry in outbox if entry.get('type') == 'attach'])
+    attachments = upload_attachments(store, [entry for entry in outbox if entry.get('type') == 'attach']) if success else []
     record_prototype_events(store, number, [entry for entry in outbox if entry.get('type') == 'prototype-status'], 'agent')
 
     usage = {
@@ -413,6 +468,7 @@ def cmd_finalize(_args):
     if report['model'] and success:
         state['model'] = report['model']
     if success:
+        state['validatedHead'] = git('rev-parse', 'HEAD')
         if run['includedComments']:
             state['lastCommentId'] = max([int(state.get('lastCommentId') or 0), *run['includedComments']])
         if run['includedIssueBody']:
@@ -427,13 +483,16 @@ def cmd_finalize(_args):
         if len(text) > MAX_COMMENT:
             text = text[:MAX_COMMENT] + '\n\n…(長いため省略しました。全文はActionsの実行ログを参照してください)'
         parts = [REPLY_MARKER, text]
+        parts.extend(pull_requests)
         if attachments:
             parts.append('\n'.join(attachments))
         parts.append(table)
     else:
         reason = (result.get('api_error_status') or result.get('subtype')
                   or f"Claude Code step: {os.environ.get('CLAUDE_OUTCOME') or 'not run'}")
-        detail = (result.get('result') or report['lastText'] or '').strip()[:2000]
+        if not validation_ok:
+            reason = '検証が失敗・未完了、または検証対象と成果のコードが一致しません'
+        detail = (result.get('result') or report['lastText'] or '').strip()[:2000] if validation_ok else ''
         parts = [REPLY_MARKER, '⚠️ エージェントの実行に失敗しました。', '',
                  f'- 原因: `{reason}`',
                  f'- 実行ログ: {run_url()}',
@@ -466,6 +525,11 @@ def outbox_append(entry):
 def cmd_decision(args):
     outbox_append({'type': 'decision', 'text': args.text})
     print('記録しました。ターン終了時にIssueのセッション状態へ保存されます。')
+
+
+def cmd_request_pr(args):
+    outbox_append({'type': 'request-pr', 'title': args.title, 'body': Path(args.body_file).read_text()})
+    print('PR作成を予約しました。終了後の独立検証と署名付きarchiveが成功した場合だけ作成します。')
 
 
 def cmd_attach(args):
@@ -542,6 +606,11 @@ def main():
     commands.add_parser('route').set_defaults(func=cmd_route)
     commands.add_parser('prepare').set_defaults(func=cmd_prepare)
     commands.add_parser('finalize').set_defaults(func=cmd_finalize)
+    commands.add_parser('validate').set_defaults(func=cmd_validate)
+    request_pr = commands.add_parser('request-pr', help='独立検証の成功後にPRを作成する')
+    request_pr.add_argument('--title', required=True)
+    request_pr.add_argument('--body-file', required=True)
+    request_pr.set_defaults(func=cmd_request_pr)
     decision = commands.add_parser('decision', help='重要な設計判断を記録する')
     decision.add_argument('text')
     decision.set_defaults(func=cmd_decision)
