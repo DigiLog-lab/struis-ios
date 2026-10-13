@@ -515,7 +515,7 @@ actor CodexTurnRunner: TurnRunning {
             "task_type": taskType, "requested_model": model, "requested_effort": effort,
             "resolved_model": configured["model"] ?? NSNull(), "resolved_effort": configured["reasoningEffort"] ?? NSNull(),
             "configuration_evidence": configurationEvidence, "actual_model": NSNull(), "actual_effort": NSNull(), "reroutes": [Any](),
-            "lookup_commands": parentThreadID == nil ? NSNull() : [Any](), "usage": NSNull(), "turn_tokens": NSNull(),
+            "lookup_commands": parentThreadID == nil ? NSNull() : [Any](), "usage": NSNull(), "turn_tokens": NSNull(), "estimated_cost_usd": NSNull(),
             "status": "starting", "elapsed_ms": NSNull(), "billing_source": (provider ?? .openai).billingSource, "actual_charge": NSNull(),
         ]
         var input: [Any] = [["type": "text", "text": text]]
@@ -532,6 +532,8 @@ actor CodexTurnRunner: TurnRunning {
         var finalText = ""
         var reroutes: [Any] = []
         var lookupCommands: [Any] = []
+        // このターンで最初に届いたトークン数の通知(ターン前の累計を求めるため)。
+        var firstTokenUsage: JSONObject?
         // Chat turns keep the full wait: Codex reconnects a dropped stream by itself, and a chat turn
         // cannot be replayed on its thread. Structured turns are retried on a fresh thread instead.
         let watchesStall = TurnPlan.Kind(rawValue: taskType).map(Self.isStructured) ?? false
@@ -673,6 +675,13 @@ actor CodexTurnRunner: TurnRunning {
                     progress(TurnProgressEvent(kind: .reasoningSummary, label: headline ?? "", progressID: key, allowDuplicate: true))
                 case "thread/tokenUsage/updated":
                     audit["usage"] = params["tokenUsage"] ?? NSNull()
+                    if let usage = params["tokenUsage"] as? JSONObject {
+                        let first = firstTokenUsage ?? usage
+                        firstTokenUsage = first
+                        let tokens = TurnTokenUsage.turnTokens(first: first, latest: usage)
+                        audit["turn_tokens"] = tokens
+                        audit["estimated_cost_usd"] = TurnTokenUsage.estimatedCostUSD(model: model, tokens: tokens) ?? NSNull()
+                    }
                 case "model/rerouted":
                     reroutes.append(["fromModel": params["fromModel"] ?? NSNull(), "toModel": params["toModel"] ?? NSNull(), "reason": params["reason"] ?? NSNull()])
                     audit["reroutes"] = reroutes

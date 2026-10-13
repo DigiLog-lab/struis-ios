@@ -81,9 +81,20 @@ final class SettingsStore {
         didSet { UsageReporter.isEnabled = usageReportingEnabled }
     }
 
+    /// 今月のトークン使用量(台帳の `turns.executions` の `turn_tokens` をモデルごとに合計)。
+    private(set) var monthlyTokenUsage: TokenUsageSummary?
+
     func loadLedgerSummary() async {
         guard let ledger else { return }
         ledgerEventCount = try? await ledger.eventCount()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: Date())) ?? Date()
+        let since = LedgerClock.iso(monthStart)
+        let executions = try? await ledger.read { db in
+            try TurnRecord.filter(Column("created_at") >= since).fetchAll(db).map(\.executions)
+        }
+        monthlyTokenUsage = executions.map(TokenUsageSummary.summarize)
     }
 
     func exportLedger() async {

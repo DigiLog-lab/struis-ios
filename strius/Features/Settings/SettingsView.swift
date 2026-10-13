@@ -634,6 +634,14 @@ private struct AdvancedSettingsDetail: View {
                 }
                 ledgerCard
                 VStack(alignment: .leading, spacing: 4) {
+                    Text("今月のトークン使用量")
+                        .font(Typography.heading2)
+                    Text("学習記録に残したターンごとの使用量の合計です。Claude の料金は公開価格からの概算です")
+                        .font(Typography.bodyCompact)
+                        .foregroundStyle(Theme.textSecondary(scheme))
+                }
+                tokenUsageCard
+                VStack(alignment: .leading, spacing: 4) {
                     Text("実行環境")
                         .font(Typography.heading2)
                     Text("この端末で動く Codex と Python")
@@ -662,6 +670,34 @@ private struct AdvancedSettingsDetail: View {
                 .settingsCard()
             }
         }
+    }
+
+    private var tokenUsageCard: some View {
+        VStack(spacing: 0) {
+            let models = settings.monthlyTokenUsage?.models ?? []
+            if models.isEmpty {
+                SettingsInfoRow(title: "使用量", detail: "まだ記録がありません")
+            }
+            ForEach(Array(models.enumerated()), id: \.element.id) { index, usage in
+                if index > 0 { SettingsDivider() }
+                SettingsInfoRow(title: usage.model, detail: Self.tokenDetail(usage))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("settings-token-usage-\(usage.model)")
+            }
+            if let cost = settings.monthlyTokenUsage?.estimatedCostUSD {
+                SettingsDivider()
+                SettingsInfoRow(title: "Claude の概算料金", detail: String(format: "約 $%.2f", cost))
+                    .accessibilityIdentifier("settings-token-usage-cost")
+            }
+        }
+        .settingsCard()
+    }
+
+    private static func tokenDetail(_ usage: TokenUsageSummary.Model) -> String {
+        let format = { (n: Int) in n.formatted(.number.notation(.compactName)) }
+        var parts = ["入力 \(format(usage.inputTokens))(うちキャッシュ \(format(usage.cachedInputTokens)))", "出力 \(format(usage.outputTokens))", "\(usage.executions) 回"]
+        if let cost = usage.estimatedCostUSD { parts.append(String(format: "約 $%.2f", cost)) }
+        return parts.joined(separator: " / ")
     }
 
     @ViewBuilder

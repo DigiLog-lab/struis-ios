@@ -160,6 +160,7 @@
 		E816BFAA51701D4E30C727B9 /* ClaudeRequestTranslator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E879236E9647D92643B5D75E /* ClaudeRequestTranslator.swift */; };
 		E8402853B0F8E725799EF30F /* ClaudeStreamTranslator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8E4184380BF01B9E04F63CE /* ClaudeStreamTranslator.swift */; };
 		E8596D4BFFA43F9816AABF79 /* ModelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83CEAD0EE22F09C5AE734AD /* ModelProvider.swift */; };
+		E8B3C9A1D2E4F5061728394A /* TurnTokenUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8B3C9A1D2E4F5061728394B /* TurnTokenUsage.swift */; };
 		E80E07EF2B6217845816C23C /* MathPlainText.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8A3FCA6E5B68436AB96B042 /* MathPlainText.swift */; };
 		E81BD91C8134C05A56EA23CB /* ChatTurnCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E84246BD256600C1B8FA5CB8 /* ChatTurnCoordinator.swift */; };
 		E81EBA438CDADC6E746CDC36 /* NativeRuntime/threaded-foundation-policy.json in Resources */ = {isa = PBXBuildFile; fileRef = E8DDE18C0534231C468CB2A7 /* NativeRuntime/threaded-foundation-policy.json */; };
@@ -436,6 +437,7 @@
 		E83B70B43E73E7971A64CD24 /* ChatTurns.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTurns.swift; sourceTree = "<group>"; };
 		E83D8C375E6585B4FBAB8B1E /* TurnPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnPlan.swift; sourceTree = "<group>"; };
 		E83CEAD0EE22F09C5AE734AD /* ModelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelProvider.swift; sourceTree = "<group>"; };
+		E8B3C9A1D2E4F5061728394B /* TurnTokenUsage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnTokenUsage.swift; sourceTree = "<group>"; };
 		E8728417FAE9142D91D47D97 /* ClaudeResponsesProxy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeResponsesProxy.swift; sourceTree = "<group>"; };
 		E8A77E5D1C2B4F0A9E3D6B22 /* AppAttestClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAttestClient.swift; sourceTree = "<group>"; };
 		E879236E9647D92643B5D75E /* ClaudeRequestTranslator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeRequestTranslator.swift; sourceTree = "<group>"; };
@@ -1058,6 +1060,7 @@
 				E83D8C375E6585B4FBAB8B1E /* TurnPlan.swift */,
 				E82C19CE52FC60E79B33ED3B /* ClaudeProxy */,
 				E83CEAD0EE22F09C5AE734AD /* ModelProvider.swift */,
+				E8B3C9A1D2E4F5061728394B /* TurnTokenUsage.swift */,
 				E83B6F4E6822450D9CAFE155 /* NativeRuntimeHost.swift */,
 				E84B65065F3AD0607CB8744C /* NativeToolRouter.swift */,
 				C3B0000000000000000000A3 /* DocumentTool.swift */,
@@ -1506,6 +1509,7 @@
 				E80A0C00A104CA217D8AC3D1 /* ClaudeResponsesProxy.swift in Sources */,
 				E8402853B0F8E725799EF30F /* ClaudeStreamTranslator.swift in Sources */,
 				E8596D4BFFA43F9816AABF79 /* ModelProvider.swift in Sources */,
+				E8B3C9A1D2E4F5061728394A /* TurnTokenUsage.swift in Sources */,
 				E8AB32B0F61C41D330A50E5F /* LearnerData.swift in Sources */,
 				E887AF2632F868EFDAFF6BF2 /* LedgerFixtures.swift in Sources */,
 				E8B9DBEF44017C4E4E1259F2 /* TurnCoordinator.swift in Sources */,
