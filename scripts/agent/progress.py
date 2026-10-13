@@ -4,17 +4,71 @@ import os
 from pathlib import Path
 import sys
 import time
+import signal
+import subprocess
+import re
 
 from agentlib import GitHub, REPLY_MARKER, agent_home, iso, run_url
 
 
+def process_name(pid):
+    try:
+        return Path(subprocess.check_output(['ps', '-o', 'comm=', '-p', str(pid)], text=True).strip()).name
+    except subprocess.CalledProcessError:
+        return ''
+
+
+def register_claude():
+    pid = os.getppid()
+    for _ in range(5):
+        name = process_name(pid)
+        if name == 'claude' or re.fullmatch(r'\d+\.\d+\.\d+', name):
+            (agent_home() / f'claude-process-{pid}.json').write_text(json.dumps({'pid': pid, 'name': name}))
+            return
+        try:
+            pid = int(subprocess.check_output(['ps', '-o', 'ppid=', '-p', str(pid)], text=True).strip())
+        except (ValueError, subprocess.CalledProcessError):
+            return
+        if pid <= 1:
+            return
+
+
+def stop_owned_commands():
+    """Freeze an interrupted runner before saving its workspace."""
+    for path in agent_home().glob('*-process-*.json'):
+        try:
+            record = json.loads(path.read_text())
+        except (FileNotFoundError, json.JSONDecodeError):
+            continue
+        pid = record['pid']
+        if pid == os.getpid() or process_name(pid) != record['name']:
+            continue
+        try:
+            if record.get('group'):
+                if os.getpgid(pid) != pid:
+                    continue
+                send = lambda sig: os.killpg(pid, sig)
+            else:
+                send = lambda sig: os.kill(pid, sig)
+            send(signal.SIGTERM)
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline and process_name(pid) == record['name']:
+                time.sleep(0.1)
+            if process_name(pid) == record['name']:
+                send(signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        path.unlink(missing_ok=True)
+
+
 def hook():
     event = json.load(sys.stdin)
+    register_claude()
     name = event.get('tool_name', '')
     # Only names from a fixed list may appear in the public comment.
     name = name if name in {'Bash', 'Read', 'Edit', 'Write', 'Grep', 'Glob', 'Agent', 'Task', 'WebFetch', 'WebSearch'} else 'Tool'
     suffix = {'PreToolUse': '実行中', 'PostToolUseFailure': '失敗'}.get(event.get('hook_event_name'), '完了')
-    phase = f'{name} {suffix}'
+    phase = 'Claude開始' if event.get('hook_event_name') == 'SessionStart' else f'{name} {suffix}'
     (agent_home() / 'activity.json').write_text(json.dumps({'phase': phase, 'at': iso()}))
 
 

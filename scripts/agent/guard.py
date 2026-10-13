@@ -20,6 +20,9 @@ def run_check(command, stream, timeout, environment):
     """Stop on a known failing test and reap the entire owned process group."""
     process = subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT,
                                env=environment, start_new_session=True)
+    from progress import process_name
+    registration = agent_home() / f'validation-process-{process.pid}.json'
+    registration.write_text(json.dumps({'pid': process.pid, 'name': process_name(process.pid), 'group': True}))
     deadline = time.monotonic() + timeout
     old_handlers = {}
     def interrupted(signum, _frame):
@@ -50,6 +53,7 @@ def run_check(command, stream, timeout, environment):
         except ProcessLookupError:
             pass
         process.wait()
+        registration.unlink(missing_ok=True)
         for signum, handler in old_handlers.items():
             signal.signal(signum, handler)
 

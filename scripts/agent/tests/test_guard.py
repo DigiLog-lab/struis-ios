@@ -210,6 +210,18 @@ class GateTests(unittest.TestCase):
         self.assertEqual(agentctl.failure_reason({'api_error_status': 429}, False, False, 'failure'), 429)
         self.assertIn('検証が失敗', agentctl.failure_reason({}, True, False, 'success'))
 
+    def test_cleanup_does_not_kill_reused_or_unregistered_pid(self):
+        (self.home / 'claude-process-123.json').write_text(json.dumps({'pid': 123, 'name': 'claude'}))
+        with mock.patch.object(progress, 'process_name', return_value='different'), mock.patch.object(progress.os, 'kill') as kill:
+            progress.stop_owned_commands()
+        kill.assert_not_called()
+
+    def test_cleanup_only_terminates_registered_claude(self):
+        (self.home / 'claude-process-123.json').write_text(json.dumps({'pid': 123, 'name': 'claude'}))
+        with mock.patch.object(progress, 'process_name', side_effect=['claude', '', '']), mock.patch.object(progress.os, 'kill') as kill:
+            progress.stop_owned_commands()
+        kill.assert_called_once_with(123, progress.signal.SIGTERM)
+
 
 if __name__ == '__main__':
     unittest.main()

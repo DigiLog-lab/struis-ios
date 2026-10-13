@@ -269,7 +269,7 @@ def cmd_prepare(_args):
     settings_path = home / 'claude-settings.json'
     settings_path.write_text(json.dumps({'hooks': {
         event: [{'matcher': '', 'hooks': [{'type': 'command', 'command': hook_command, 'timeout': 10}]}]
-        for event in ('PreToolUse', 'PostToolUse', 'PostToolUseFailure')
+        for event in ('SessionStart', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure')
     }}))
 
     now = utc_now()
@@ -510,6 +510,9 @@ def cmd_finalize(_args):
     validation_ok = os.environ.get('VALIDATION_OUTCOME') == 'success' and guard.publication_allowed(run)
     success = claude_success and validation_ok
     (home / 'progress-stop').touch()
+    if not claude_success:
+        import progress
+        progress.stop_owned_commands()
     try:
         import progress
         progress.update(run, '完了' if success else '失敗・成果提示を停止', finished=True)
