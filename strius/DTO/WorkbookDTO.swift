@@ -198,6 +198,10 @@ struct WorkbookCaptureDTO: Decodable, Identifiable, Hashable, Sendable {
     var result: WorkbookResultDTO? = nil
     /// 一枚の今の様子。演習の一枚(2 問以上)から撮った答案だけ。
     var setProgress: WorkbookSetProgressDTO? = nil
+    /// 何枚かをまとめて撮った答案の全ページ(順に)。nil なら `imagePath` の 1 枚。
+    var pagePaths: [String]? = nil
+
+    var pages: [String] { pagePaths ?? [imagePath] }
 
     /// 演習の一枚の全問に判定がそろう前の答案(分割採点 R2)。
     var isPartial: Bool { outcome == "partial" }

@@ -23,6 +23,57 @@ nonisolated struct WorkbookAnswerRegion: Hashable, Sendable {
     )
 }
 
+extension WorkbookAnswerRegion {
+    /// ページの中の位置(0〜1)を、縦に並べた写真の上の位置にする。
+    func placed(in frame: CGRect) -> WorkbookAnswerRegion {
+        guard frame != CGRect(x: 0, y: 0, width: 1, height: 1) else { return self }
+        func map(_ rect: CGRect) -> CGRect {
+            CGRect(x: frame.minX + rect.minX * frame.width, y: frame.minY + rect.minY * frame.height,
+                   width: rect.width * frame.width, height: rect.height * frame.height)
+        }
+        return WorkbookAnswerRegion(rect: map(rect), lines: lines.map(map), label: label)
+    }
+}
+
+/// 答案の写真。何枚かをまとめて撮った答案は、全ページを順に縦へ並べた 1 枚にする(一括採点)。
+/// 領域・丸の位置は並べた写真に対する 0〜1。`pageFrames` は各ページの位置。
+nonisolated struct WorkbookCapturePaper: Sendable {
+    let image: UIImage
+    let pageImages: [UIImage]
+    let pageFrames: [CGRect]
+
+    var pageCount: Int { pageImages.count }
+
+    init?(pages: [UIImage]) {
+        guard let first = pages.first else { return nil }
+        pageImages = pages
+        guard pages.count > 1 else {
+            image = first
+            pageFrames = [CGRect(x: 0, y: 0, width: 1, height: 1)]
+            return
+        }
+        let width = pages.map(\.size.width).max() ?? first.size.width
+        let gap = (width * 0.04).rounded()
+        let heights = pages.map { ($0.size.height * width / max($0.size.width, 1)).rounded() }
+        let total = heights.reduce(0, +) + gap * CGFloat(pages.count - 1)
+        var frames: [CGRect] = []
+        var y: CGFloat = 0
+        for height in heights {
+            frames.append(CGRect(x: 0, y: y / total, width: 1, height: height / total))
+            y += height + gap
+        }
+        pageFrames = frames
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        format.opaque = false
+        image = UIGraphicsImageRenderer(size: CGSize(width: width, height: total), format: format).image { _ in
+            for (page, frame) in zip(pages, frames) {
+                page.draw(in: CGRect(x: 0, y: frame.minY * total, width: width, height: frame.height * total))
+            }
+        }
+    }
+}
+
 /// 端末の Vision で答案の行を見つけ、問題ごとの領域にまとめる。意味は読まない(W2): 使うのは行の位置と、
 /// 行頭の問題番号の形だけ。どんな写真でも短く終わるよう画像を縮小し、時間を区切る(超えたら写真全体)。
 nonisolated enum WorkbookAnswerRegions {
@@ -37,9 +88,30 @@ nonisolated enum WorkbookAnswerRegions {
 
     /// 答案の写真から領域を検出する。同じ答案は 2 回目から覚えた値を返す。
     static func detect(captureID: String, image: UIImage) async -> [WorkbookAnswerRegion] {
+        await detect(captureID: captureID, paper: WorkbookCapturePaper(pages: [image]))
+    }
+
+    /// 何枚かの答案は、ページごとに検出して、縦に並べた写真の上の位置に直す。
+    static func detect(captureID: String, paper: WorkbookCapturePaper?) async -> [WorkbookAnswerRegion] {
+        guard let paper else { return [WorkbookAnswerRegion.wholePhoto] }
         if let cached = await cache.get(captureID) { return cached }
         let started = Date()
-        let found = await withTaskGroup(of: [WorkbookAnswerRegion]?.self) { group in
+        var found: [WorkbookAnswerRegion] = []
+        var complete = true
+        for (page, frame) in zip(paper.pageImages, paper.pageFrames) {
+            let regions = await detectPage(page)
+            if regions == nil || regions?.isEmpty == true { complete = false }
+            found += (regions?.isEmpty == false ? regions! : [WorkbookAnswerRegion.wholePhoto]).map { $0.placed(in: frame) }
+        }
+        regionLog.info("detected \(found.count, privacy: .public) regions on \(paper.pageFrames.count, privacy: .public) pages in \(Int(Date().timeIntervalSince(started) * 1000), privacy: .public) ms")
+        // 写真全体で代えたページがある時は覚えない(次に開いた時にもう一度検出する)。
+        if complete { await cache.set(captureID, found) }
+        return found
+    }
+
+    /// 1 ページの領域。時間を超えたら nil。
+    private static func detectPage(_ image: UIImage) async -> [WorkbookAnswerRegion]? {
+        await withTaskGroup(of: [WorkbookAnswerRegion]?.self) { group in
             group.addTask { await recognize(image: image) }
             group.addTask {
                 try? await Task.sleep(for: timeout)
@@ -49,13 +121,6 @@ nonisolated enum WorkbookAnswerRegions {
             group.cancelAll()
             return first
         }
-        regionLog.info("detected \(found?.count ?? -1, privacy: .public) regions in \(Int(Date().timeIntervalSince(started) * 1000), privacy: .public) ms")
-        guard let found, !found.isEmpty else {
-            // 写真全体で代える時は覚えない(次に開いた時にもう一度検出する)。
-            return [WorkbookAnswerRegion.wholePhoto]
-        }
-        await cache.set(captureID, found)
-        return found
     }
 
     private static func recognize(image: UIImage) async -> [WorkbookAnswerRegion] {

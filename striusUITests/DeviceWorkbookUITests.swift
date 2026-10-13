@@ -69,6 +69,10 @@ final class DeviceWorkbookUITests: XCTestCase {
         if !shutter.isEnabled { app.tap() }
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: shutter)], timeout: 15), .completed)
         shutter.tap()
+        // カメラは閉じずに続けて撮れる(一括採点)。「採点する 1」で確認画面へ。
+        let done = app.buttons["chat-camera-done"].firstMatch
+        XCTAssertTrue(done.waitForExistence(timeout: 20), "「採点する」が出ない")
+        done.tap()
         let use = app.descendants(matching: .any)["workbook-capture-use"].firstMatch
         XCTAssertTrue(use.waitForExistence(timeout: 20), "撮影確認が出ない")
         use.tap()

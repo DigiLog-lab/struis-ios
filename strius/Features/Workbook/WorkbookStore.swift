@@ -349,23 +349,29 @@ final class WorkbookStore {
     // MARK: - Captures
 
     /// 撮った紙を綴じる。即「最近」に入り、判定は端末の Codex で裏で走る (アップロードなし)。
+    /// 何枚かをまとめて撮った時は、全ページを順に 1 つの答案にして 1 回で判定する(一括採点)。
     @discardableResult
-    func submitCapture(imageData: Data, context: WorkbookViewRef?) async -> WorkbookCaptureDTO? {
+    func submitCapture(pages: [Data], context: WorkbookViewRef?) async -> WorkbookCaptureDTO? {
+        guard let first = pages.first else { return nil }
         let pending = PendingCapture(id: UUID(), context: context, startedAt: Date())
         uploadingCaptures.insert(pending, at: 0)
         defer { uploadingCaptures.removeAll { $0.id == pending.id } }
         do {
             let id = LedgerID.make()
-            let relative = "\(id).jpg"
             try StruisPaths.prepare()
-            try imageData.write(to: StruisPaths.captures.appendingPathComponent(relative), options: .atomic)
-            let sha = SHA256.hash(data: imageData).map { String(format: "%02x", $0) }.joined()
-            let byteCount = imageData.count
+            var paths: [String] = []
+            for (index, data) in pages.enumerated() {
+                let relative = index == 0 ? "\(id).jpg" : "\(id)-\(index + 1).jpg"
+                try data.write(to: StruisPaths.captures.appendingPathComponent(relative), options: .atomic)
+                paths.append(relative)
+            }
+            let sha = SHA256.hash(data: first).map { String(format: "%02x", $0) }.joined()
+            let byteCount = first.count
             let capture = try await ledger.commit { db in
                 var machine = try WorkbookMachine(loading: db)
                 let view = try machine.createCapture(
-                    id: id, imagePath: relative, contentType: "image/jpeg", sha256: sha, byteCount: byteCount,
-                    subunitID: context?.subunitId, setID: context?.setId
+                    id: id, imagePath: paths[0], contentType: "image/jpeg", sha256: sha, byteCount: byteCount,
+                    subunitID: context?.subunitId, setID: context?.setId, pagePaths: paths
                 )
                 return (machine.events, view)
             }
@@ -419,13 +425,18 @@ final class WorkbookStore {
         }
     }
 
-    func captureImage(id: String) async -> UIImage? {
+    /// 答案の写真。何枚かの答案は、全ページを縦に並べた 1 枚にする(丸は各ページの上に描く)。
+    func capturePaper(id: String) async -> WorkbookCapturePaper? {
         var capture = captures[id]
         if capture == nil { capture = await loadCapture(id: id) }
         guard let capture else { return nil }
-        let url = StruisPaths.captures.appendingPathComponent(capture.imagePath)
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? await PreparedImage.decode(data, maxPixelSize: 1200)
+        var images: [UIImage] = []
+        for path in capture.pages {
+            guard let data = try? Data(contentsOf: StruisPaths.captures.appendingPathComponent(path)),
+                  let image = try? await PreparedImage.decode(data, maxPixelSize: 1200) else { continue }
+            images.append(image)
+        }
+        return WorkbookCapturePaper(pages: images)
     }
 
     func assign(captureID: String, request: WorkbookAssignRequest) async -> WorkbookCaptureDTO? {

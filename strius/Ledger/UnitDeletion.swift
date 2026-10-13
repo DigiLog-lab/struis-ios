@@ -198,9 +198,13 @@ nonisolated enum UnitDeletion {
                 }
                 if event.entity == .workbookCaptures, let path = event.payload["image_path"]?.stringValue {
                     if !snapshots.contains(where: { $0.entity == .workbookCaptures && !scope.contains($0.entity, $0.entityID) && $0.payload["image_path"]?.stringValue == path }) {
-                        let file = root.appendingPathComponent("captures").appendingPathComponent(path).standardizedFileURL
-                        guard file.path.hasPrefix(root.standardizedFileURL.path + "/captures/") else { throw LedgerError.invalid("答案の保存先が不正です") }
-                        files.append(file.path)
+                        // まとめて撮った答案(一括採点)は、2 枚目からの写真も消す。
+                        let pages = (event.payload["context"]?["page_paths"]?.arrayValue ?? []).compactMap(\.stringValue)
+                        for page in Set([path] + pages) {
+                            let file = root.appendingPathComponent("captures").appendingPathComponent(page).standardizedFileURL
+                            guard file.path.hasPrefix(root.standardizedFileURL.path + "/captures/") else { throw LedgerError.invalid("答案の保存先が不正です") }
+                            files.append(file.path)
+                        }
                     }
                 }
             } else if !references(event.payload).isDisjoint(with: ids) || affectedKeys.contains(event.entity.rawValue + ":" + event.entityID) {
