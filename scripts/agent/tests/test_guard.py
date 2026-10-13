@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import subprocess
+import time
 import unittest
 from unittest import mock
 
@@ -26,7 +28,7 @@ class GateTests(unittest.TestCase):
         path = self.home / 'validation.json'
         path.write_text(json.dumps({'tree': 'old', 'success': True}))
         with mock.patch.object(guard, 'tree_to_test', return_value='new'), \
-                mock.patch.object(guard.subprocess, 'run', return_value=mock.Mock(returncode=1)) as run:
+                mock.patch.object(guard, 'run_check', return_value=mock.Mock(returncode=1)) as run:
             with self.assertRaises(RuntimeError):
                 guard.verify()
         self.assertEqual(run.call_count, 1)
@@ -34,14 +36,14 @@ class GateTests(unittest.TestCase):
 
     def test_code_changed_during_test_cannot_be_approved(self):
         with mock.patch.object(guard, 'tree_to_test', side_effect=['before', 'after']), \
-                mock.patch.object(guard.subprocess, 'run', return_value=mock.Mock(returncode=0)):
+                mock.patch.object(guard, 'run_check', return_value=mock.Mock(returncode=0)):
             with self.assertRaises(RuntimeError):
                 guard.verify()
         self.assertFalse(json.loads((self.home / 'validation.json').read_text())['success'])
 
     def test_timeout_is_not_success(self):
         with mock.patch.object(guard, 'tree_to_test', return_value='tree'), \
-                mock.patch.object(guard.subprocess, 'run', side_effect=guard.subprocess.TimeoutExpired('test', 1)):
+                mock.patch.object(guard, 'run_check', side_effect=guard.subprocess.TimeoutExpired('test', 1)):
             with self.assertRaises(guard.subprocess.TimeoutExpired):
                 guard.verify()
         self.assertFalse(json.loads((self.home / 'validation.json').read_text())['success'])
@@ -49,7 +51,7 @@ class GateTests(unittest.TestCase):
     def test_signed_gate_runs_cd_script_without_upload_and_all_test_suites(self):
         with mock.patch.object(guard, 'tree_to_test', return_value='tree'), \
                 mock.patch.object(guard, 'git', return_value='work-head'), \
-                mock.patch.object(guard.subprocess, 'run', return_value=mock.Mock(returncode=0)) as run:
+                mock.patch.object(guard, 'run_check', return_value=mock.Mock(returncode=0)) as run:
             result = guard.verify(signed=True)
         commands = [call.args[0] for call in run.call_args_list]
         self.assertTrue(result['signedArchiveVerified'])
@@ -57,16 +59,16 @@ class GateTests(unittest.TestCase):
         self.assertTrue(any('-only-testing:striusTests' in command for command in commands))
         self.assertEqual(commands[-1][1], 'scripts/ci_archive.py')
         self.assertNotIn('--upload', commands[-1])
-        self.assertEqual(run.call_args_list[-1].kwargs['env']['GITHUB_SHA'], 'work-head')
+        self.assertEqual(run.call_args_list[-1].args[3]['GITHUB_SHA'], 'work-head')
 
     def test_unsigned_checks_do_not_receive_credentials(self):
         with mock.patch.dict(os.environ, {'STRUIS_DELIVERY_APP_KEY': 'secret', 'GITHUB_TOKEN': 'secret'}), \
                 mock.patch.object(guard, 'tree_to_test', return_value='tree'), \
-                mock.patch.object(guard.subprocess, 'run', return_value=mock.Mock(returncode=0)) as run:
+                mock.patch.object(guard, 'run_check', return_value=mock.Mock(returncode=0)) as run:
             guard.verify()
         for call in run.call_args_list:
-            self.assertNotIn('STRUIS_DELIVERY_APP_KEY', call.kwargs['env'])
-            self.assertNotIn('GITHUB_TOKEN', call.kwargs['env'])
+            self.assertNotIn('STRUIS_DELIVERY_APP_KEY', call.args[3])
+            self.assertNotIn('GITHUB_TOKEN', call.args[3])
 
     def test_publication_requires_current_tree_and_signed_archive(self):
         path = self.home / 'validation.json'
@@ -147,6 +149,7 @@ class GateTests(unittest.TestCase):
                 mock.patch.object(agentctl, 'Store', return_value=store), \
                 mock.patch.object(agentctl, 'load_execution', return_value=result), \
                 mock.patch.object(agentctl, 'save_session', return_value=0), \
+                mock.patch.object(agentctl, 'save_workspace'), \
                 mock.patch.object(agentctl, 'read_outbox', return_value=entries), \
                 mock.patch.object(agentctl, 'upload_attachments') as upload, \
                 mock.patch.object(agentctl, 'record_prototype_events'), \
@@ -162,6 +165,50 @@ class GateTests(unittest.TestCase):
         state = store.put_json.call_args.args[1]
         self.assertNotIn('lastCommentId', state)
         self.assertNotIn('issueBodyProcessed', state)
+
+    def test_failed_test_stops_running_command_immediately(self):
+        start = time.monotonic()
+        command = [sys.executable, '-u', '-c', 'import time; print("Test Case example failed (1 seconds)."); time.sleep(60)']
+        with (self.home / 'failed.log').open('w') as stream:
+            result = guard.run_check(command, stream, 60, dict(os.environ))
+        self.assertEqual(result.returncode, 1)
+        self.assertLess(time.monotonic() - start, 5)
+
+    def test_real_timeout_terminates_command(self):
+        start = time.monotonic()
+        with (self.home / 'timeout.log').open('w') as stream:
+            with self.assertRaises(subprocess.TimeoutExpired):
+                guard.run_check([sys.executable, '-c', 'import time; time.sleep(60)'], stream, 0.05, dict(os.environ))
+        self.assertLess(time.monotonic() - start, 5)
+
+    def test_final_signed_check_reuses_exact_successful_tree(self):
+        with mock.patch.object(guard, 'tree_to_test', return_value='tree'), \
+                mock.patch.object(guard, 'git', return_value='head'), \
+                mock.patch.object(guard, 'run_check', return_value=mock.Mock(returncode=0)) as run:
+            guard.verify()
+            run.reset_mock()
+            guard.verify(signed=True)
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args.args[0][1], 'scripts/ci_archive.py')
+
+    def test_restart_is_bounded_and_only_for_interruption(self):
+        gh = mock.Mock(repository='owner/repo')
+        state = {'issue': 4}
+        self.assertIsNone(agentctl.restart_interrupted(gh, state, 'skipped'))
+        gh.request.assert_not_called()
+        for count in range(1, 4):
+            self.assertIn(f'{count}/3', agentctl.restart_interrupted(gh, state, 'cancelled'))
+        self.assertEqual(gh.request.call_count, 3)
+        self.assertIn('停止', agentctl.restart_interrupted(gh, state, 'cancelled'))
+        self.assertEqual(gh.request.call_count, 3)
+
+    def test_claude_cancellation_is_not_reported_as_validation_failure(self):
+        reason = agentctl.failure_reason({}, False, False, 'cancelled')
+        self.assertIn('cancelled', reason)
+        self.assertIn('検証は実行されていません', reason)
+        self.assertNotIn('検証が失敗', reason)
+        self.assertEqual(agentctl.failure_reason({'api_error_status': 429}, False, False, 'failure'), 429)
+        self.assertIn('検証が失敗', agentctl.failure_reason({}, True, False, 'success'))
 
 
 if __name__ == '__main__':

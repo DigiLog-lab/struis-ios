@@ -97,6 +97,72 @@ def save_session(store, number):
     return len(data)
 
 
+def save_workspace(store, number, run):
+    """Save unfinished work without publishing an unverified commit."""
+    workspace = Path(os.environ.get('GITHUB_WORKSPACE', os.getcwd()))
+    patch = subprocess.check_output(['git', 'diff', '--binary', 'HEAD'], cwd=workspace)
+    untracked = subprocess.check_output(['git', 'ls-files', '--others', '--exclude-standard', '-z'], cwd=workspace).split(b'\0')
+    head = git('rev-parse', 'HEAD')
+    remote_head = git('ls-remote', '--heads', 'origin', run['branch']).split('\t')[0]
+    unpublished = remote_head != head and git('rev-list', '--count', 'HEAD', '--not', '--remotes') != '0'
+    if not patch and not any(untracked) and not unpublished:
+        store.put_json(session_key(number, 'workspace.json'), {'empty': True})
+        return
+    prefix = session_key(number, f'checkpoints/{os.environ.get("GITHUB_RUN_ID", "local")}-{os.environ.get("GITHUB_RUN_ATTEMPT", "1")}')
+    store.put(prefix + '/changes.patch', patch, 'application/octet-stream')
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode='w:gz') as archive:
+        for name in untracked:
+            if name:
+                path = Path(os.fsdecode(name))
+                archive.add(workspace / path, arcname=str(path), recursive=False)
+    store.put(prefix + '/untracked.tar.gz', buffer.getvalue(), 'application/gzip')
+    if unpublished:
+        bundle = agent_home() / 'workspace.bundle'
+        subprocess.run(['git', 'bundle', 'create', str(bundle), 'HEAD'], cwd=workspace, check=True)
+        store.upload_file(prefix + '/commits.bundle', bundle, 'application/octet-stream')
+    store.put_json(session_key(number, 'workspace.json'), {'head': head, 'remoteHead': remote_head, 'branch': run['branch'], 'prefix': prefix, 'bundle': unpublished})
+
+
+def restore_workspace(store, number, branch):
+    record = store.get_json(session_key(number, 'workspace.json')) or {}
+    if record.get('empty') or not record.get('prefix'):
+        return
+    if record['branch'] != branch:
+        raise RuntimeError('保存された作業ブランチが一致しません。チェックポイントを保持して停止します。')
+    if record.get('bundle'):
+        if git('ls-remote', '--heads', 'origin', branch).split('\t')[0] != record['remoteHead']:
+            raise RuntimeError('保存後にremoteが更新されています。チェックポイントを保持して停止します。')
+        bundle = agent_home() / 'restore.bundle'
+        bundle.write_bytes(store.get(record['prefix'] + '/commits.bundle'))
+        git('fetch', str(bundle), 'HEAD')
+        git('checkout', '-B', branch, record['head'])
+    if git('rev-parse', 'HEAD') != record['head']:
+        raise RuntimeError('保存後にブランチが更新されています。チェックポイントを保持して停止します。')
+    patch = store.get(record['prefix'] + '/changes.patch')
+    if patch:
+        subprocess.run(['git', 'apply', '--index', '--binary', '-'], input=patch, check=True,
+                       cwd=os.environ.get('GITHUB_WORKSPACE', os.getcwd()))
+    archive_bytes = store.get(record['prefix'] + '/untracked.tar.gz')
+    if archive_bytes:
+        with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode='r:gz') as archive:
+            archive.extractall(os.environ.get('GITHUB_WORKSPACE', os.getcwd()), filter='data')
+    return True
+
+
+def restart_interrupted(gh, state, outcome):
+    if outcome not in {'cancelled', 'failure'}:
+        return None
+    count = int(state.get('autoRestarts') or 0)
+    if count >= 3:
+        return '連続3回の自動再開後も中断したため、自動再開を停止しました。作業とセッションは保存しています。'
+    gh.request('POST', f'/repos/{gh.repository}/actions/workflows/agent.yml/dispatches', {
+        'ref': 'main', 'inputs': {'issue': str(state['issue']), 'automatic_retry': 'true'},
+    })
+    state['autoRestarts'] = count + 1
+    return f'保存した作業とセッションから自動再開を予約しました ({count + 1}/3)。'
+
+
 def prototype_summary(store, number):
     """Current prototypes of the issue, with the status from the latest event."""
     objects = store.list(f'prototypes/{number}/')
@@ -178,6 +244,9 @@ def cmd_prepare(_args):
 
     branch = state.get('branch') or f'agent/issue-{number}'
     branch_on_origin = checkout_branch(branch)
+    checkpoint_restored = restore_workspace(store, number, branch)
+    if os.environ.get('AUTOMATIC_RETRY') != 'true':
+        state['autoRestarts'] = 0
     session_id = state.get('sessionId')
     restored = restore_session(store, number, session_id)
     recovery = bool(session_id) and not restored
@@ -218,6 +287,7 @@ def cmd_prepare(_args):
         f'Working branch: {branch} (HEAD {head}; {"origin上に既存" if branch_on_origin else "originにはまだ無い。push時に作成"})',
         f'Native runtime artifacts: {native}',
         f'Session: {"復元 " + session_id if restored else "履歴から再構成した新規セッション" if recovery else "新規"}',
+        f'Workspace checkpoint: {"中断時の作業を復元済み。前runnerのバックグラウンド処理は終了しています。" if checkpoint_restored else "なし"}',
         f'Prototypes ({home / "prototypes.json"}):',
         describe_prototypes(prototypes),
         '</github-issue-event>',
@@ -405,6 +475,15 @@ def usage_table(report, run, usage):
     return '\n'.join(lines)
 
 
+def failure_reason(result, claude_success, validation_ok, outcome):
+    if not claude_success:
+        return (result.get('api_error_status') or result.get('subtype')
+                or f'Claude Codeが中断・失敗しました ({outcome or "not run"})。終了後の検証は実行されていません。')
+    if not validation_ok:
+        return '検証が失敗・未完了、または検証対象と成果のコードが一致しません'
+    return 'エージェントの実行に失敗しました'
+
+
 def cmd_finalize(_args):
     home = agent_home()
     run_file = home / 'run.json'
@@ -417,12 +496,19 @@ def cmd_finalize(_args):
     number = run['issue']
     gh = GitHub()
     store = Store()
-    report = analyze(load_execution(os.environ.get('CLAUDE_EXECUTION_FILE')))
+    messages = load_execution(os.environ.get('CLAUDE_EXECUTION_FILE'))
+    report = analyze(messages)
+    if not messages:
+        started = datetime.datetime.fromisoformat(run['startedAt'].replace('Z', '+00:00')).timestamp()
+        sessions = [p for p in (CLAUDE_DIR / 'projects').glob('*/*.jsonl') if p.stat().st_mtime >= started]
+        report['sessionId'] = max(sessions, key=lambda p: p.stat().st_mtime).stem if sessions else run.get('sessionIdBefore')
+        report['requests'] = None
+        report['turnUsage'] = {key: None for key in report['turnUsage']}
     result = report['result'] or {}
-    success = bool(report['result']) and result.get('subtype') == 'success' and not result.get('is_error')
+    claude_success = bool(report['result']) and result.get('subtype') == 'success' and not result.get('is_error')
     import guard
     validation_ok = os.environ.get('VALIDATION_OUTCOME') == 'success' and guard.publication_allowed(run)
-    success = success and validation_ok
+    success = claude_success and validation_ok
     (home / 'progress-stop').touch()
     try:
         import progress
@@ -430,6 +516,7 @@ def cmd_finalize(_args):
     except Exception as error:
         print(f'Progress final update failed: {type(error).__name__}')
     session_bytes = save_session(store, number)
+    save_workspace(store, number, run)
 
     outbox = read_outbox(home)
     pull_requests = []
@@ -452,7 +539,7 @@ def cmd_finalize(_args):
         'sessionId': report['sessionId'], 'restored': run['restored'], 'recovery': run['recovery'],
         'model': report['model'], 'claudeCodeVersion': report['claudeCodeVersion'],
         'tools': report['tools'], 'mcpServers': report['mcpServers'], 'requests': report['requests'],
-        'numTurns': result.get('num_turns'), 'durationSeconds': round((result.get('duration_ms') or 0) / 1000),
+        'numTurns': result.get('num_turns'), 'durationSeconds': round(result['duration_ms'] / 1000) if 'duration_ms' in result else None,
         'totalCostUsd': result.get('total_cost_usd'), 'turnUsage': report['turnUsage'],
         'firstRequest': report['firstRequest'], 'modelUsage': result.get('modelUsage'),
         'sessionArchiveBytes': session_bytes, 'includedComments': run['includedComments'],
@@ -468,6 +555,7 @@ def cmd_finalize(_args):
     if report['model'] and success:
         state['model'] = report['model']
     if success:
+        state['autoRestarts'] = 0
         state['validatedHead'] = git('rev-parse', 'HEAD')
         if run['includedComments']:
             state['lastCommentId'] = max([int(state.get('lastCommentId') or 0), *run['includedComments']])
@@ -478,6 +566,12 @@ def cmd_finalize(_args):
     store.put_json(session_key(number, 'state.json'), state)
 
     table = usage_table(report, run, usage)
+    try:
+        restart_note = restart_interrupted(gh, state, os.environ.get('CLAUDE_OUTCOME')) if not claude_success else None
+    except Exception as error:
+        restart_note = f'作業は保存しましたが、自動再開の予約に失敗しました: {type(error).__name__}'
+    if restart_note:
+        store.put_json(session_key(number, 'state.json'), state)
     if success:
         text = (result.get('result') or report['lastText'] or '(応答本文がありません)').strip()
         if len(text) > MAX_COMMENT:
@@ -488,10 +582,7 @@ def cmd_finalize(_args):
             parts.append('\n'.join(attachments))
         parts.append(table)
     else:
-        reason = (result.get('api_error_status') or result.get('subtype')
-                  or f"Claude Code step: {os.environ.get('CLAUDE_OUTCOME') or 'not run'}")
-        if not validation_ok:
-            reason = '検証が失敗・未完了、または検証対象と成果のコードが一致しません'
+        reason = failure_reason(result, claude_success, validation_ok, os.environ.get('CLAUDE_OUTCOME'))
         detail = (result.get('result') or report['lastText'] or '').strip()[:2000] if validation_ok else ''
         parts = [REPLY_MARKER, '⚠️ エージェントの実行に失敗しました。', '',
                  f'- 原因: `{reason}`',
@@ -499,6 +590,8 @@ def cmd_finalize(_args):
                  '- 再実行: このIssueへコメントすると、未処理のコメントと合わせて再実行します。Actionsの「Re-run jobs」でも同じ入力で再実行できます。']
         if detail:
             parts.append(f'\n```\n{detail}\n```')
+        if restart_note:
+            parts.append(restart_note)
         parts.append(table)
     gh.comment(number, '\n\n'.join(parts))
 

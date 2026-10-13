@@ -1,12 +1,57 @@
 """Runner-owned test gate. A passing result belongs to one exact Git tree."""
 import json
 import os
+import re
+import signal
 from pathlib import Path
 import subprocess
 import sys
 import time
 
 from agentlib import agent_home, iso
+
+CHECK_TIMEOUTS = {'agent-tests': 300, 'worker-syntax': 60, 'simulator-build': 1800,
+                  'unit-tests': 1800, 'ui-tests': 5400, 'release-archive': 1800, 'signed-archive': 1800}
+GATE_VERSION = 2
+FAILED_TEST = re.compile(r"^Test Case .* failed \(|^[✘×] Test .* failed", re.MULTILINE)
+
+
+def run_check(command, stream, timeout, environment):
+    """Stop on a known failing test and reap the entire owned process group."""
+    process = subprocess.Popen(command, stdout=stream, stderr=subprocess.STDOUT,
+                               env=environment, start_new_session=True)
+    deadline = time.monotonic() + timeout
+    old_handlers = {}
+    def interrupted(signum, _frame):
+        raise InterruptedError(f'検証処理が中断されました (signal {signum})')
+    try:
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            old_handlers[signum] = signal.signal(signum, interrupted)
+        with Path(stream.name).open(errors='replace') as reader:
+            pending = ''
+            while process.poll() is None:
+                pending = (pending + reader.read())[-65536:]
+                if FAILED_TEST.search(pending):
+                    return subprocess.CompletedProcess(command, 1)
+                if time.monotonic() >= deadline:
+                    raise subprocess.TimeoutExpired(command, timeout)
+                time.sleep(0.2)
+        return subprocess.CompletedProcess(command, process.returncode)
+    finally:
+        # SIGINT lets xcodebuild finish its result bundle before forced cleanup.
+        if process.poll() is None:
+            try:
+                os.killpg(process.pid, signal.SIGINT)
+                process.wait(timeout=15)
+            except (ProcessLookupError, subprocess.TimeoutExpired):
+                pass
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.wait()
+        for signum, handler in old_handlers.items():
+            signal.signal(signum, handler)
 
 
 def git(*args):
@@ -25,9 +70,11 @@ def tree_to_test():
 def verify(signed=False):
     home = agent_home()
     report_path = home / 'validation.json'
-    report_path.unlink(missing_ok=True)  # A failed attempt must invalidate old success.
     tree = tree_to_test()
-    report = {'tree': tree, 'success': False, 'startedAt': iso(), 'checks': []}
+    previous = json.loads(report_path.read_text()) if report_path.exists() else None
+    reuse = signed and approved(previous, tree) and previous.get('gateVersion') == GATE_VERSION
+    report_path.unlink(missing_ok=True)
+    report = {'tree': tree, 'success': False, 'startedAt': iso(), 'checks': [], 'gateVersion': GATE_VERSION}
     logs = home / 'artifacts' / f'validation-{time.time_ns()}'
     logs.mkdir(parents=True)
     commands = [
@@ -39,22 +86,32 @@ def verify(signed=False):
                        '-destination', 'platform=iOS Simulator,name=iPhone 17',
                        '-resultBundlePath', str(logs / 'StruisTests.xcresult'),
                        '-collect-test-diagnostics', 'never', '-only-testing:striusTests',
+                       '-test-timeouts-enabled', 'YES', '-default-test-execution-time-allowance', '180',
+                       '-maximum-test-execution-time-allowance', '300',
                        '-parallel-testing-enabled', 'NO', 'ARCHS=arm64', 'STRUIS_AUTH_REQUIRED=YES']),
         ('ui-tests', ['xcodebuild', 'test', '-project', 'strius.xcodeproj', '-scheme', 'strius',
                      '-destination', 'platform=iOS Simulator,name=iPhone 17',
                      '-resultBundlePath', str(logs / 'StruisUITests.xcresult'),
                      '-collect-test-diagnostics', 'never', '-only-testing:striusUITests',
+                     '-test-timeouts-enabled', 'YES', '-default-test-execution-time-allowance', '180',
+                     '-maximum-test-execution-time-allowance', '300',
                      '-parallel-testing-enabled', 'NO', 'ARCHS=arm64', 'STRUIS_AUTH_REQUIRED=YES']),
         ('release-archive', ['xcodebuild', 'archive', '-project', 'strius.xcodeproj', '-scheme', 'strius',
                              '-configuration', 'Release', '-destination', 'generic/platform=iOS',
                              '-archivePath', str(logs / 'Struis.xcarchive'), 'CODE_SIGNING_ALLOWED=NO']),
     ]
+    if reuse and {name for name, _ in commands} == {check['name'] for check in previous['checks'] if check['exitCode'] == 0}:
+        report['checks'] = previous['checks'][:]
+        report['reusedStartedAt'] = previous['startedAt']
+        commands = []
     if signed:
         # ci_archive keeps logs private: xcodebuild may print service credentials.
         private_archive = Path(os.environ['RUNNER_TEMP']) / f'agent-signed-{time.time_ns()}'
         commands.append(('signed-archive', [sys.executable, 'scripts/ci_archive.py', '--output', str(private_archive)]))
     try:
         for name, command in commands:
+            report['currentCheck'] = name
+            report_path.write_text(json.dumps(report, indent=2))
             (home / 'activity.json').write_text(json.dumps({'phase': f'検証中: {name}', 'at': iso()}))
             print(f'検証中: {name} ({logs / (name + ".log")})', flush=True)
             environment = dict(os.environ)
@@ -67,7 +124,7 @@ def verify(signed=False):
                     if any(word in key.upper() for word in ('TOKEN', 'PASSWORD', 'PRIVATE_KEY', 'API_KEY', 'APP_KEY', 'CERTIFICATE', 'PROVISION_PROFILE')):
                         del environment[key]
             with (logs / f'{name}.log').open('w') as stream:
-                result = subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT, timeout=5400, env=environment)
+                result = run_check(command, stream, CHECK_TIMEOUTS[name], environment)
             report['checks'].append({'name': name, 'exitCode': result.returncode})
             if result.returncode:
                 raise RuntimeError(f'{name} が失敗しました。ログ: {logs / (name + ".log")}')
@@ -75,9 +132,14 @@ def verify(signed=False):
             raise RuntimeError('検証中にコードが変わりました。再検証してください。')
         report['success'] = True
         report['signedArchiveVerified'] = signed
+    except BaseException as error:
+        report['error'] = str(error)
+        raise
     finally:
         report['finishedAt'] = iso()
         report_path.write_text(json.dumps(report, indent=2))
+        (logs / 'validation.json').write_text(json.dumps(report, indent=2))
+        (home / 'activity.json').write_text(json.dumps({'phase': '検証成功' if report['success'] else f'検証失敗: {report.get("currentCheck", "code")}', 'at': iso()}))
     return report
 
 

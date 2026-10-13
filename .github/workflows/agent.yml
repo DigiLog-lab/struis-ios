@@ -3,6 +3,16 @@ name: Issue agent
 # Issues labeled `agent` are conversations with Claude Code. Each comment from
 # an allowed person resumes the Issue's Claude session on a macOS runner.
 on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 再開するIssue番号
+        required: true
+        type: string
+      automatic_retry:
+        description: 中断後の自動再開
+        default: false
+        type: boolean
   issues:
     types: [opened, labeled]
   issue_comment:
@@ -12,21 +22,22 @@ permissions:
   contents: read
 
 concurrency:
-  group: agent-issue-${{ github.event.issue.number }}
+  group: agent-issue-${{ github.event.issue.number || inputs.issue }}
   cancel-in-progress: false
 
 env:
   AGENT_STORE_URL: ${{ vars.AGENT_STORE_URL || 'https://agent-struis.digiloglab.com' }}
   AGENT_LABEL: ${{ vars.AGENT_LABEL || 'agent' }}
   AGENT_ALLOWED_USERS: ${{ vars.AGENT_ALLOWED_USERS }}
-  ISSUE_NUMBER: ${{ github.event.issue.number }}
+  ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue }}
+  AUTOMATIC_RETRY: ${{ inputs.automatic_retry && 'true' || 'false' }}
 
 jobs:
   route:
     if: >-
-      !github.event.issue.pull_request &&
+      github.event_name == 'workflow_dispatch' || (!github.event.issue.pull_request &&
       contains(github.event.issue.labels.*.name, vars.AGENT_LABEL || 'agent') &&
-      (github.event_name != 'issue_comment' || github.event.comment.user.type != 'Bot')
+      (github.event_name != 'issue_comment' || github.event.comment.user.type != 'Bot'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -97,6 +108,7 @@ jobs:
           nohup python3 "$RUNNER_TEMP/agent-tools/progress.py" > "$AGENT_HOME/artifacts/progress.log" 2>&1 &
       - name: Claude Code
         id: claude
+        timeout-minutes: 240
         if: steps.prepare.outputs.skip == 'false'
         continue-on-error: true
         uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1.0.248
@@ -116,6 +128,7 @@ jobs:
           claude_args: ${{ steps.prepare.outputs.claude_args }}
       - name: 成果を独立して検証
         id: validate
+        timeout-minutes: 90
         if: always() && steps.prepare.outputs.skip == 'false' && steps.claude.outcome == 'success'
         continue-on-error: true
         env:
@@ -140,7 +153,7 @@ jobs:
         if: always() && steps.prepare.outputs.skip == 'false'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: agent-issue-${{ github.event.issue.number }}-run-${{ github.run_id }}-${{ github.run_attempt }}
+          name: agent-issue-${{ env.ISSUE_NUMBER }}-run-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/agent/artifacts
           if-no-files-found: ignore
           retention-days: 30
