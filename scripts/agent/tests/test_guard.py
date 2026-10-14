@@ -135,21 +135,28 @@ class GateTests(unittest.TestCase):
                 agentctl.cmd_validate(None)
             verify.assert_not_called()
 
+    def test_zero_turn_success_suppresses_pr_reply_attachments_and_ack(self):
+        self.check_failed_finalization(no_op=True)
+
     def test_failed_validation_suppresses_pr_reply_attachments_and_ack(self):
+        self.check_failed_finalization(no_op=False)
+
+    def check_failed_finalization(self, no_op):
         run = {'issue': 1, 'branch': 'agent/issue-1', 'restored': False, 'recovery': False,
                'startedAt': 'now', 'model': 'opus', 'includedComments': [123], 'includedIssueBody': True}
         (self.home / 'run.json').write_text(json.dumps(run))
-        result = [{'type': 'result', 'subtype': 'success', 'result': 'finished commit secret-result'}]
+        result = [{'type': 'result', 'subtype': 'success', 'num_turns': 0 if no_op else 1, 'result': 'finished commit secret-result'}]
         gh = mock.Mock()
         store = mock.Mock()
         store.get_json.return_value = {}
         entries = [{'type': 'request-pr', 'title': 'PR', 'body': 'body'}, {'type': 'attach', 'path': 'photo'}]
-        with mock.patch.dict(os.environ, {'VALIDATION_OUTCOME': 'failure'}), \
+        with mock.patch.dict(os.environ, {'VALIDATION_OUTCOME': 'success' if no_op else 'failure'}), \
                 mock.patch.object(agentctl, 'GitHub', return_value=gh), \
                 mock.patch.object(agentctl, 'Store', return_value=store), \
                 mock.patch.object(agentctl, 'load_execution', return_value=result), \
                 mock.patch.object(agentctl, 'save_session', return_value=0), \
                 mock.patch.object(agentctl, 'save_workspace'), \
+                mock.patch.object(guard, 'publication_allowed', return_value=no_op), \
                 mock.patch.object(agentctl, 'read_outbox', return_value=entries), \
                 mock.patch.object(agentctl, 'upload_attachments') as upload, \
                 mock.patch.object(agentctl, 'record_prototype_events'), \
@@ -157,14 +164,16 @@ class GateTests(unittest.TestCase):
                 mock.patch.object(progress, 'update'):
             with self.assertRaises(SystemExit):
                 agentctl.cmd_finalize(None)
-        gh.request.assert_not_called()
+        gh.request.assert_called_once()
+        self.assertIn('/actions/workflows/agent.yml/dispatches', gh.request.call_args.args[1])
         upload.assert_not_called()
         body = gh.comment.call_args.args[1]
         self.assertNotIn('secret-result', body)
-        self.assertIn('検証が失敗', body)
+        self.assertIn('0ターン' if no_op else '検証が失敗', body)
         state = store.put_json.call_args.args[1]
         self.assertNotIn('lastCommentId', state)
         self.assertNotIn('issueBodyProcessed', state)
+        self.assertEqual(state['lastRun']['noOp'], no_op)
 
     def test_failed_test_stops_running_command_immediately(self):
         start = time.monotonic()
@@ -173,6 +182,33 @@ class GateTests(unittest.TestCase):
             result = guard.run_check(command, stream, 60, dict(os.environ))
         self.assertEqual(result.returncode, 1)
         self.assertLess(time.monotonic() - start, 5)
+
+    def test_zero_turn_resume_never_starts_validation(self):
+        messages = [{'type': 'result', 'subtype': 'success', 'num_turns': 0, 'is_error': False}]
+        with mock.patch.object(agentctl, 'load_execution', return_value=messages), \
+                mock.patch.object(guard, 'verify') as verify:
+            with self.assertRaisesRegex(SystemExit, '0ターン'):
+                agentctl.cmd_validate(None)
+        verify.assert_not_called()
+
+    def test_zero_turn_and_legacy_zero_usage_failure_use_fresh_session(self):
+        self.assertTrue(agentctl.session_needs_recovery({'lastRun': {'noOp': True}}))
+        usage = dict(input=0, output=0, cacheRead=0, cacheCreation=0)
+        self.assertTrue(agentctl.session_needs_recovery({'lastRun': {'success': False, 'turnUsage': usage}}))
+        self.assertFalse(agentctl.session_needs_recovery({'lastRun': {'success': True, 'turnUsage': usage}}))
+        self.assertFalse(agentctl.session_needs_recovery({'lastRun': {'success': False, 'turnUsage': {'input': None}}}))
+        report = agentctl.analyze([{'type': 'result', 'num_turns': 1, 'subtype': 'success'}])
+        self.assertFalse(agentctl.execution_is_noop(report))
+
+    def test_validation_failure_context_survives_runner_replacement_without_env(self):
+        (self.home / 'validation.json').write_text(json.dumps({'success': False, 'currentCheck': 'ui-tests'}))
+        logs = self.home / 'artifacts' / 'validation-123'
+        logs.mkdir(parents=True)
+        (logs / 'ui-tests.log').write_text('API_TOKEN=secret\nfile.swift:75: error: scroll jumped\nTest Case scroll failed (140 seconds).\n')
+        feedback = agentctl.validation_feedback(self.home)
+        self.assertEqual(feedback['check'], 'ui-tests')
+        self.assertIn('scroll jumped', str(feedback))
+        self.assertNotIn('secret', str(feedback))
 
     def test_real_timeout_terminates_command(self):
         start = time.monotonic()
