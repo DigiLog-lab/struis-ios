@@ -148,6 +148,7 @@ jobs:
           STRUIS_TEST_ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_AGENT_API_KEY }}
           STRUIS_DELIVERY_APP_KEY: ${{ secrets.STRUIS_DELIVERY_APP_KEY }}
         with:
+          allowed_bots: "github-actions[bot]"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
           prompt: ${{ steps.prepare.outputs.prompt }}
