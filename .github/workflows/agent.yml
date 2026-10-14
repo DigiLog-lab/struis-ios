@@ -1,5 +1,6 @@
 name: Issue agent
-run-name: ${{ github.event.workflow_run && format('Recovery {0}', github.event.workflow_run.id) || format('Issue agent #{0}', github.event.issue.number || inputs.issue) }}
+run-name: >-
+  ${{ github.event.workflow_run && format('Recovery {0}', github.event.workflow_run.id) || format('Issue agent #{0}', github.event.issue.number || inputs.issue) }}
 
 # Issues labeled `agent` are conversations with Claude Code. Each comment from
 # an allowed person resumes the Issue's Claude session on a macOS runner.
