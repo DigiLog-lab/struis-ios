@@ -19,6 +19,7 @@ import subprocess
 import sys
 import tarfile
 import time
+import urllib.parse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from agentlib import (  # noqa: E402
@@ -186,7 +187,7 @@ def validation_feedback(home):
     if report.get('success'):
         return None
     name = report.get('currentCheck', 'code')
-    lines = []
+    lines = [report['error']] if report.get('error') else []
     from prototype import redact
     for log in sorted((home / 'artifacts').glob(f'validation-*/{name}.log'))[-1:]:
         with log.open(errors='replace') as stream:
@@ -403,7 +404,56 @@ def cmd_validate(_args):
         git('fetch', 'origin', run['branch'])
         if git('rev-parse', 'FETCH_HEAD') != git('rev-parse', 'HEAD'):
             sys.exit('push済みブランチとHEADが一致しません。成果を提示できません。')
-        # Test execution belongs to PR CI, not this session finalizer.
+        verify_pr_ci(run, git('rev-parse', 'HEAD'))
+    elif (agent_home() / 'pr-ci.json').exists():
+        verify_pr_ci(run, git('rev-parse', 'HEAD'))
+
+
+PR_CI_WORKFLOWS = {'ios.yml': 'iOS', 'agent-tests.yml': 'Agent tests'}
+
+
+def verify_pr_ci(run, head):
+    """Read GitHub conclusions only; never execute or wait for tests here."""
+    home = agent_home()
+    result = {'success': False, 'currentCheck': 'pr-ci', 'checks': []}
+    try:
+        record_path = home / 'pr-ci.json'
+        if not record_path.exists():
+            raise RuntimeError('PR CIの起動記録がありません。request-prを実行してください。')
+        record = json.loads(record_path.read_text())
+        if record['head'] != head or record['branch'] != run['branch']:
+            raise RuntimeError('PR CIの対象HEADと成果が一致しません。request-prを再実行してください。')
+        gh = GitHub()
+        problems = []
+        for workflow, label in PR_CI_WORKFLOWS.items():
+            if workflow not in record['dispatched']:
+                problems.append(f'{workflow}: 起動未完了')
+                continue
+            query = urllib.parse.urlencode({'event': 'workflow_dispatch', 'branch': run['branch'], 'per_page': 100})
+            runs = gh.get(f'/repos/{gh.repository}/actions/workflows/{workflow}/runs?{query}')['workflow_runs']
+            matches = [item for item in runs if item['head_sha'] == head
+                       and item['head_branch'] == run['branch']
+                       and item['display_title'] == f'{label} CI {record["request"]}']
+            if not matches:
+                problems.append(f'{workflow}: 起動した実行がまだ見つかりません')
+                continue
+            latest = max(matches, key=lambda item: item['id'])
+            # Fetch the identified run again to include its latest re-run attempt.
+            current = gh.get(f'/repos/{gh.repository}/actions/runs/{latest["id"]}')
+            result['checks'].append({'workflow': workflow, 'id': current['id'],
+                                     'attempt': current['run_attempt'], 'url': current['html_url'],
+                                     'status': current['status'], 'conclusion': current['conclusion']})
+            if (current['head_sha'] != head or current['status'] != 'completed'
+                    or current['conclusion'] != 'success'):
+                problems.append(f'{workflow}: {current["status"]}/{current["conclusion"]} {current["html_url"]}')
+        if problems:
+            raise RuntimeError('PR CI未成功: ' + '; '.join(problems))
+        result['success'] = True
+    except Exception as error:
+        result['error'] = str(error)
+        raise
+    finally:
+        (home / 'validation.json').write_text(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 def load_execution(path):
@@ -540,7 +590,7 @@ def failure_reason(result, claude_success, validation_ok, outcome):
         return (result.get('api_error_status') or result.get('subtype')
                 or f'Claude Codeが中断・失敗しました ({outcome or "not run"})。終了後の検証は実行されていません。')
     if not validation_ok:
-        return '検証が失敗・未完了、または検証対象と成果のコードが一致しません'
+        return '保存状態の確認、またはPR CIが失敗・未完了です。未処理の依頼は保持して再開します。'
     return 'エージェントの実行に失敗しました'
 
 
@@ -706,9 +756,15 @@ def cmd_request_pr(args):
     print(f'Pull Request: {pr["html_url"]}', flush=True)
     # GITHUB_TOKEN-created PRs/pushes do not trigger pull_request workflows.
     # Explicit dispatch works with that token and also covers subsequent repairs.
-    for workflow in ('ios.yml', 'agent-tests.yml'):
+    record = {'head': git('rev-parse', 'HEAD'), 'branch': run['branch'],
+              'request': secrets.token_hex(12), 'dispatched': []}
+    record_path = agent_home() / 'pr-ci.json'
+    record_path.write_text(json.dumps(record))
+    for workflow in PR_CI_WORKFLOWS:
         gh.request('POST', f'/repos/{gh.repository}/actions/workflows/{workflow}/dispatches',
-                   {'ref': run['branch']})
+                   {'ref': run['branch'], 'inputs': {'ci_request': record['request']}})
+        record['dispatched'].append(workflow)
+        record_path.write_text(json.dumps(record))
     print('PRのHEADでiOS・Agent tests CIを起動しました。gh run list / gh run watchで結果を確認し、失敗時は修正・push後にrequest-prを再実行してください。')
 
 

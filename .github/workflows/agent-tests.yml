@@ -1,7 +1,13 @@
 name: Agent tests
+run-name: ${{ inputs.ci_request && format('Agent tests CI {0}', inputs.ci_request) || 'Agent tests' }}
 
 on:
   workflow_dispatch:
+    inputs:
+      ci_request:
+        description: エージェントのCI要求識別子
+        type: string
+        required: false
   push:
     branches: [main]
     paths:

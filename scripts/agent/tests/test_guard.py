@@ -169,7 +169,7 @@ class GateTests(unittest.TestCase):
         upload.assert_not_called()
         body = gh.comment.call_args.args[1]
         self.assertNotIn('secret-result', body)
-        self.assertIn('0ターン' if no_op else '検証が失敗', body)
+        self.assertIn('0ターン' if no_op else 'PR CIが失敗', body)
         state = store.put_json.call_args.args[1]
         self.assertNotIn('lastCommentId', state)
         self.assertNotIn('issueBodyProcessed', state)
@@ -244,7 +244,7 @@ class GateTests(unittest.TestCase):
         self.assertIn('検証は実行されていません', reason)
         self.assertNotIn('検証が失敗', reason)
         self.assertEqual(agentctl.failure_reason({'api_error_status': 429}, False, False, 'failure'), 429)
-        self.assertIn('検証が失敗', agentctl.failure_reason({}, True, False, 'success'))
+        self.assertIn('PR CIが失敗', agentctl.failure_reason({}, True, False, 'success'))
 
     def test_cleanup_does_not_kill_reused_or_unregistered_pid(self):
         (self.home / 'claude-process-123.json').write_text(json.dumps({'pid': 123, 'name': 'claude'}))

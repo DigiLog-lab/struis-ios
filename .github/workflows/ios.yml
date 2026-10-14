@@ -1,4 +1,5 @@
 name: iOS
+run-name: ${{ inputs.ci_request && format('iOS CI {0}', inputs.ci_request) || 'iOS' }}
 
 on:
   push:
@@ -6,6 +7,10 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      ci_request:
+        description: エージェントのCI要求識別子
+        type: string
+        required: false
       upload:
         description: App Store Connectへアップロードする
         type: boolean
@@ -19,9 +24,9 @@ permissions:
   contents: read
 
 concurrency:
-  # Keep releases/manual uploads independent from cancellable push/PR verification.
-  group: ios-${{ github.event_name == 'workflow_dispatch' && 'manual' || github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+  # Only main's manual release/upload uses the shared non-cancellable group.
+  group: ios-${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && 'manual-main' || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main' }}
 
 jobs:
   build:
@@ -105,11 +110,19 @@ jobs:
             -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
             -maximum-test-execution-time-allowance 600 \
             -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
+      - name: 実機向けRelease archiveを検証
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
+        timeout-minutes: 30
+        run: |
+          set -euo pipefail
+          xcodebuild archive -project strius.xcodeproj -scheme strius \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/StruisPR.xcarchive" CODE_SIGNING_ALLOWED=NO
       - name: テスト結果を保存
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ios-test-results-${{ github.run_id }}
+          name: ios-test-results-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/*.xcresult
           if-no-files-found: ignore
       - name: 署名付きarchiveを作成
