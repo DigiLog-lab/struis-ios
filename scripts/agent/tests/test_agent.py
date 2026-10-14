@@ -150,3 +150,32 @@ class AppStoreConnectTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PullRequestCITests(unittest.TestCase):
+    def test_request_pr_creates_pr_then_dispatches_ci_without_running_tests(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / 'run.json').write_text(json.dumps({'branch': 'agent/issue-4'}))
+            body = home / 'pr.md'
+            body.write_text('Refs #4')
+            gh = mock.Mock(repository='owner/repo')
+            gh.get.return_value = []
+            gh.request.side_effect = [({'html_url': 'https://github.com/owner/repo/pull/9'}, {}), ({}, {}), ({}, {})]
+            args = mock.Mock(title='Fix', body_file=str(body))
+            with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh), mock.patch.object(agentctl, 'git', side_effect=['', '', 'abc', 'abc']), mock.patch.object(agentctl, 'outbox_append'):
+                agentctl.cmd_request_pr(args)
+            self.assertEqual([call.args[1] for call in gh.request.call_args_list], [
+                '/repos/owner/repo/pulls',
+                '/repos/owner/repo/actions/workflows/ios.yml/dispatches',
+                '/repos/owner/repo/actions/workflows/agent-tests.yml/dispatches'])
+            self.assertEqual(gh.request.call_args_list[1].args[2], {'ref': 'agent/issue-4'})
+
+    def test_uncommitted_work_does_not_create_pr(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / 'run.json').write_text(json.dumps({'branch': 'agent/issue-4'}))
+            with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'git', return_value=' M file'), mock.patch.object(agentctl, 'GitHub') as gh:
+                with self.assertRaises(SystemExit):
+                    agentctl.cmd_request_pr(mock.Mock())
+                gh.assert_not_called()

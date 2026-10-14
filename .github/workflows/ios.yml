@@ -26,7 +26,7 @@ concurrency:
 jobs:
   build:
     runs-on: xcode-27
-    timeout-minutes: 90
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -93,6 +93,25 @@ jobs:
             -resultBundlePath "$RUNNER_TEMP/StruisTests.xcresult" \
             -collect-test-diagnostics never \
             -only-testing:striusTests -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
+      - name: SimulatorでUIテスト
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
+        timeout-minutes: 90
+        run: |
+          set -euo pipefail
+          xcodebuild test -project strius.xcodeproj -scheme strius \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
+            -resultBundlePath "$RUNNER_TEMP/StruisUITests.xcresult" \
+            -collect-test-diagnostics never -only-testing:striusUITests \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
+            -maximum-test-execution-time-allowance 600 \
+            -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
+      - name: テスト結果を保存
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-test-results-${{ github.run_id }}
+          path: ${{ runner.temp }}/*.xcresult
+          if-no-files-found: ignore
       - name: 署名付きarchiveを作成
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:

@@ -153,20 +153,13 @@ jobs:
           github_token: ${{ github.token }}
           prompt: ${{ steps.prepare.outputs.prompt }}
           claude_args: ${{ steps.prepare.outputs.claude_args }}
-      - name: 成果を独立して検証
+      - name: 作業の保存状態を確認
         id: validate
-        timeout-minutes: 90
         if: always() && steps.prepare.outputs.skip == 'false' && steps.claude.outcome == 'success'
         continue-on-error: true
         env:
           AGENT_HOME: ${{ runner.temp }}/agent
           CLAUDE_EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
-          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
-          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
-          BUILD_PROVISION_PROFILE_APP_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_APP_BASE64 }}
-          BUILD_PROVISION_PROFILE_RUNTIME_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_RUNTIME_BASE64 }}
-          BUILD_PROVISION_PROFILE_EXEC_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_EXEC_BASE64 }}
-          STRUIS_DELIVERY_APP_KEY: ${{ secrets.STRUIS_DELIVERY_APP_KEY }}
         run: python3 "$RUNNER_TEMP/agent-tools/agentctl.py" validate
       - name: 返信とセッション保存
         if: always() && steps.prepare.outputs.skip == 'false'

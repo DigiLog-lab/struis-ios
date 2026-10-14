@@ -312,15 +312,9 @@ def cmd_prepare(_args):
     (home / 'attachments').mkdir(exist_ok=True)
     (home / 'artifacts').mkdir(exist_ok=True)
 
-    # Use runner-owned scripts, outside the checkout Claude edits.
+    # Commits and pushes do not run tests. CI runs after PR creation.
+    git('config', '--local', '--unset-all', 'core.hooksPath', check=False)
     tools_dir = Path(__file__).resolve().parent
-    hooks_dir = home / 'git-hooks'
-    hooks_dir.mkdir(exist_ok=True)
-    for name, mode in [('pre-commit', 'commit'), ('pre-push', 'push')]:
-        hook_path = hooks_dir / name
-        hook_path.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(tools_dir / "guard.py"))} {mode}\n')
-        hook_path.chmod(0o755)
-    git('config', 'core.hooksPath', str(hooks_dir))
     hook_command = f'{shlex.quote(sys.executable)} {shlex.quote(str(tools_dir / "progress.py"))} hook'
     settings_path = home / 'claude-settings.json'
     settings_path.write_text(json.dumps({'hooks': {
@@ -399,7 +393,6 @@ def cmd_prepare(_args):
 # --------------------------------------------------------------- finalize ---
 
 def cmd_validate(_args):
-    import guard
     report = analyze(load_execution(os.environ.get('CLAUDE_EXECUTION_FILE')))
     if execution_is_noop(report):
         sys.exit('Claude Codeが0ターンで終了しました。作業を実行していないため成果検証を開始しません。')
@@ -410,7 +403,7 @@ def cmd_validate(_args):
         git('fetch', 'origin', run['branch'])
         if git('rev-parse', 'FETCH_HEAD') != git('rev-parse', 'HEAD'):
             sys.exit('push済みブランチとHEADが一致しません。成果を提示できません。')
-        guard.verify(signed=True)  # Includes the exact CD signing/audit path without uploading.
+        # Test execution belongs to PR CI, not this session finalizer.
 
 
 def load_execution(path):
@@ -574,8 +567,7 @@ def cmd_finalize(_args):
     result = report['result'] or {}
     no_op = execution_is_noop(report)
     claude_success = bool(report['result']) and result.get('subtype') == 'success' and not result.get('is_error') and not no_op
-    import guard
-    validation_ok = os.environ.get('VALIDATION_OUTCOME') == 'success' and guard.publication_allowed(run)
+    validation_ok = os.environ.get('VALIDATION_OUTCOME') == 'success'
     success = claude_success and validation_ok
     (home / 'progress-stop').touch()
     if not success:
@@ -590,16 +582,8 @@ def cmd_finalize(_args):
     save_workspace(store, number, run)
 
     outbox = read_outbox(home)
-    pull_requests = []
-    if success:
-        for entry in outbox:
-            if entry.get('type') != 'request-pr':
-                continue
-            existing = gh.get(f'/repos/{gh.repository}/pulls?head={gh.repository.split("/")[0]}:{run["branch"]}&base=main&state=open')
-            pr = existing[0] if existing else gh.request('POST', f'/repos/{gh.repository}/pulls', {
-                'title': entry['title'], 'body': entry['body'], 'head': run['branch'], 'base': 'main',
-            })[0]
-            pull_requests.append(f'検証済みPull Request: {pr["html_url"]}')
+    pull_requests = [f'Pull Request (CI結果はActionsで確認): {entry["url"]}'
+                     for entry in outbox if entry.get('type') == 'pull-request']
     decisions = [{'at': iso(), 'text': entry['text']} for entry in outbox if entry.get('type') == 'decision']
     attachments = upload_attachments(store, [entry for entry in outbox if entry.get('type') == 'attach']) if success else []
     record_prototype_events(store, number, [entry for entry in outbox if entry.get('type') == 'prototype-status'], 'agent')
@@ -628,7 +612,7 @@ def cmd_finalize(_args):
     if success:
         state['autoRestarts'] = 0
         state.pop('validationFailure', None)
-        state['validatedHead'] = git('rev-parse', 'HEAD')
+        state.pop('validatedHead', None)
         if run['includedComments']:
             state['lastCommentId'] = max([int(state.get('lastCommentId') or 0), *run['includedComments']])
         if run['includedIssueBody']:
@@ -701,8 +685,31 @@ def cmd_decision(args):
 
 
 def cmd_request_pr(args):
-    outbox_append({'type': 'request-pr', 'title': args.title, 'body': Path(args.body_file).read_text()})
-    print('PR作成を予約しました。終了後の独立検証と署名付きarchiveが成功した場合だけ作成します。')
+    """Create the PR now so Claude can observe and repair CI in this session."""
+    run = json.loads((agent_home() / 'run.json').read_text())
+    if git('status', '--porcelain'):
+        sys.exit('変更をcommit・pushしてからPRを作成してください。')
+    git('fetch', 'origin', run['branch'])
+    if git('rev-parse', 'FETCH_HEAD') != git('rev-parse', 'HEAD'):
+        sys.exit('push済みブランチとHEADが一致しません。')
+    gh = GitHub()
+    existing = gh.get(f'/repos/{gh.repository}/pulls?head={gh.repository.split("/")[0]}:{run["branch"]}&base=main&state=open')
+    body = Path(args.body_file).read_text()
+    if existing:
+        pr = gh.request('PATCH', f'/repos/{gh.repository}/pulls/{existing[0]["number"]}',
+                        {'title': args.title, 'body': body})[0]
+    else:
+        pr = gh.request('POST', f'/repos/{gh.repository}/pulls', {
+            'title': args.title, 'body': body, 'head': run['branch'], 'base': 'main',
+        })[0]
+    outbox_append({'type': 'pull-request', 'url': pr['html_url']})
+    print(f'Pull Request: {pr["html_url"]}', flush=True)
+    # GITHUB_TOKEN-created PRs/pushes do not trigger pull_request workflows.
+    # Explicit dispatch works with that token and also covers subsequent repairs.
+    for workflow in ('ios.yml', 'agent-tests.yml'):
+        gh.request('POST', f'/repos/{gh.repository}/actions/workflows/{workflow}/dispatches',
+                   {'ref': run['branch']})
+    print('PRのHEADでiOS・Agent tests CIを起動しました。gh run list / gh run watchで結果を確認し、失敗時は修正・push後にrequest-prを再実行してください。')
 
 
 def cmd_attach(args):
@@ -781,7 +788,7 @@ def main():
     commands.add_parser('prepare').set_defaults(func=cmd_prepare)
     commands.add_parser('finalize').set_defaults(func=cmd_finalize)
     commands.add_parser('validate').set_defaults(func=cmd_validate)
-    request_pr = commands.add_parser('request-pr', help='独立検証の成功後にPRを作成する')
+    request_pr = commands.add_parser('request-pr', help='PRを作成・更新してCIを起動する')
     request_pr.add_argument('--title', required=True)
     request_pr.add_argument('--body-file', required=True)
     request_pr.set_defaults(func=cmd_request_pr)
