@@ -14,9 +14,9 @@
 
 - 作業ブランチは `<github-issue-event>` の `Working branch`(通常 `agent/issue-{番号}`)です。commit して `git push origin HEAD` で push します。
 - `main` へ直接 push しないでください。`.github/workflows/` の変更は権限上 push できないため、必要なら Issue で提案してください。
-- commit前に変更をstageし、作業途中でもcommit・pushして構いません。コミット・push時に全体テストを強制するフックはありません。
+- commit前に変更をstageし、作業途中でもcommit・pushして構いません。コミット・push時にテストは実行しません。pre-pushは現在のHEADからmain以外のブランチへのpushだけを許可します。
 - commit message はリポジトリの既存の書き方(日本語の要約)に合わせます。
-- PR本文をファイルに書き、`python3 "$AGENT_CTL" request-pr --title "<タイトル>" --body-file <本文ファイル>` でPRを作成・更新してください。本文に `Refs #{番号}` を含め、テストが未実行ならその旨を記載します。このコマンドはその場でPRを作成し、push済みHEADのiOS・Agent tests CIを起動します。PR作成前の全体テスト・署名付きarchiveは不要です。
+- PR本文はチェックアウト外の `$AGENT_HOME/pr-body.md` に書き、`python3 "$AGENT_CTL" request-pr --title "<タイトル>" --body-file <本文ファイル>` でPRを作成・更新してください。本文に `Refs #{番号}` を含め、テストが未実行ならその旨を記載します。このコマンドはその場でPRを作成し、push済みHEADのiOS・Agent tests CIを起動します。PR作成前の全体テスト・署名付きarchiveは不要です。
 - PR CIは作業ブランチのworkflow定義で起動します。古い作業ブランチでは、PR作成前に `git fetch origin` し、`origin/main` の更新を作業ブランチへ取り込んでCI定義を最新にしてください。競合は解消し、main自体にはpushしません。
 - PR作成後はあなた自身が `gh run list --branch <作業ブランチ>` と `gh run watch <run-id> --exit-status` でそのHEADのCI結果を確認してください。失敗したらログを読み、必要な個別テストで原因を確かめて修正・commit・pushし、request-prを再実行してCIを起動します。mainへのマージ・配信は行いません。
 - 終了処理はpush済みHEADのiOS・Agent tests CIが両方成功したことをGitHub APIで確認します。待機中・失敗・起動記録なしでは依頼を処理済みにせず、保存して再開します。テスト本体は終了処理で実行しません。

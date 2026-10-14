@@ -176,9 +176,10 @@ def push_gate():
         raise RuntimeError('未コミットの変更があります。pushを止めました。')
     updates = [line.split() for line in sys.stdin if line.strip()]
     head = git('rev-parse', 'HEAD')
-    if any(len(parts) != 4 or parts[1] != head or parts[2] == 'refs/heads/main' for parts in updates):
-        raise RuntimeError('検証対象のHEAD以外やmainへのpushは許可しません。')
-    commit_gate()
+    if any(len(parts) != 4 or parts[1] != head or parts[2] == 'refs/heads/main'
+           or not parts[2].startswith('refs/heads/') for parts in updates):
+        raise RuntimeError('現在のHEAD以外やmainへのpushは許可しません。')
+    # PR CI performs tests; this hook only checks the push destination and HEAD.
 
 
 if __name__ == '__main__':

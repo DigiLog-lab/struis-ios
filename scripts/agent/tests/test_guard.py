@@ -103,6 +103,13 @@ class GateTests(unittest.TestCase):
                     guard.push_gate()
                 verify.assert_not_called()
 
+    def test_allowed_head_push_runs_no_tests(self):
+        update = 'refs/heads/topic head refs/heads/topic old\nrefs/heads/topic head refs/heads/prototype/4/a old'
+        with mock.patch.object(guard, 'git', side_effect=['', 'head']), mock.patch.object(sys, 'stdin', io.StringIO(update)), mock.patch.object(guard, 'commit_gate') as commit_gate, mock.patch.object(guard, 'verify') as verify:
+            guard.push_gate()
+        commit_gate.assert_not_called()
+        verify.assert_not_called()
+
     def test_matching_commit_reuses_tests_but_edit_runs_again(self):
         (self.home / 'validation.json').write_text(json.dumps({'success': True, 'tree': 'tested'}))
         with mock.patch.object(guard, 'tree_to_test', return_value='tested'), mock.patch.object(guard, 'verify') as verify:

@@ -282,6 +282,10 @@ def recovery_context(gh, number, issue, comments, state):
     return '\n'.join(parts)
 
 
+def requires_pr_ci(head, state, main_head):
+    return head != state.get('validatedHead') and head != main_head
+
+
 def cmd_prepare(_args):
     number = issue_number()
     home = agent_home()
@@ -313,9 +317,15 @@ def cmd_prepare(_args):
     (home / 'attachments').mkdir(exist_ok=True)
     (home / 'artifacts').mkdir(exist_ok=True)
 
-    # Commits and pushes do not run tests. CI runs after PR creation.
-    git('config', '--local', '--unset-all', 'core.hooksPath', check=False)
+    # Push restrictions only: neither commit nor push runs tests.
     tools_dir = Path(__file__).resolve().parent
+    hooks_dir = home / 'git-hooks'
+    hooks_dir.mkdir(exist_ok=True)
+    (hooks_dir / 'pre-commit').unlink(missing_ok=True)
+    push_hook = hooks_dir / 'pre-push'
+    push_hook.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(tools_dir / "guard.py"))} push\n')
+    push_hook.chmod(0o755)
+    git('config', '--local', 'core.hooksPath', str(hooks_dir))
     hook_command = f'{shlex.quote(sys.executable)} {shlex.quote(str(tools_dir / "progress.py"))} hook'
     settings_path = home / 'claude-settings.json'
     settings_path.write_text(json.dumps({'hooks': {
@@ -370,8 +380,7 @@ def cmd_prepare(_args):
         'restored': restored, 'recovery': recovery, 'includedComments': [c['id'] for c in pending],
         'includedIssueBody': not state.get('issueBodyProcessed'), 'startedAt': iso(now),
         'headBefore': git('rev-parse', 'HEAD'),
-        'validationRequired': (git('rev-parse', 'HEAD') != state.get('validatedHead')
-                               and git('rev-parse', 'HEAD') != git('rev-parse', 'origin/main')),
+        'validationRequired': requires_pr_ci(git('rev-parse', 'HEAD'), state, git('rev-parse', 'origin/main')),
     }
     (home / 'run.json').write_text(json.dumps(run, indent=2))
     (home / 'prompt.txt').write_text(prompt)
@@ -662,7 +671,7 @@ def cmd_finalize(_args):
     if success:
         state['autoRestarts'] = 0
         state.pop('validationFailure', None)
-        state.pop('validatedHead', None)
+        state['validatedHead'] = git('rev-parse', 'HEAD')
         if run['includedComments']:
             state['lastCommentId'] = max([int(state.get('lastCommentId') or 0), *run['includedComments']])
         if run['includedIssueBody']:
@@ -734,9 +743,26 @@ def cmd_decision(args):
     print('記録しました。ターン終了時にIssueのセッション状態へ保存されます。')
 
 
+def read_pr_body(path):
+    """Preserve an untracked PR draft outside the checkout before cleanliness checks."""
+    source = Path(path).resolve()
+    body = source.read_text()
+    workspace = Path(os.environ.get('GITHUB_WORKSPACE', os.getcwd())).resolve()
+    if source.is_relative_to(workspace):
+        relative = str(source.relative_to(workspace))
+        if not git('ls-files', '--', relative):
+            directory = agent_home() / 'pr-bodies'
+            directory.mkdir(exist_ok=True)
+            destination = directory / f'{secrets.token_hex(8)}.md'
+            shutil.move(str(source), destination)
+            print(f'PR本文の一時ファイルを保存しました: {destination}', flush=True)
+    return body
+
+
 def cmd_request_pr(args):
     """Create the PR now so Claude can observe and repair CI in this session."""
     run = json.loads((agent_home() / 'run.json').read_text())
+    body = read_pr_body(args.body_file)
     if git('status', '--porcelain'):
         sys.exit('変更をcommit・pushしてからPRを作成してください。')
     git('fetch', 'origin', run['branch'])
@@ -744,7 +770,6 @@ def cmd_request_pr(args):
         sys.exit('push済みブランチとHEADが一致しません。')
     gh = GitHub()
     existing = gh.get(f'/repos/{gh.repository}/pulls?head={gh.repository.split("/")[0]}:{run["branch"]}&base=main&state=open')
-    body = Path(args.body_file).read_text()
     if existing:
         pr = gh.request('PATCH', f'/repos/{gh.repository}/pulls/{existing[0]["number"]}',
                         {'title': args.title, 'body': body})[0]

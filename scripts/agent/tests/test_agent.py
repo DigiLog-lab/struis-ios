@@ -175,7 +175,7 @@ class PullRequestCITests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
             (home / 'run.json').write_text(json.dumps({'branch': 'agent/issue-4'}))
-            with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'git', return_value=' M file'), mock.patch.object(agentctl, 'GitHub') as gh:
+            with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'read_pr_body', return_value='Refs #4'), mock.patch.object(agentctl, 'git', return_value=' M file'), mock.patch.object(agentctl, 'GitHub') as gh:
                 with self.assertRaises(SystemExit):
                     agentctl.cmd_request_pr(mock.Mock())
                 gh.assert_not_called()
@@ -246,6 +246,60 @@ class PRCIResultTests(unittest.TestCase):
                 with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh):
                     with self.assertRaisesRegex(RuntimeError, 'まだ見つかりません'):
                         agentctl.verify_pr_ci({'branch': 'agent/issue-4'}, 'abc')
+
+
+class PRBodyTests(unittest.TestCase):
+    def test_untracked_body_in_checkout_is_preserved_outside_git(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workspace, home = root / 'repo', root / 'agent'
+            workspace.mkdir()
+            home.mkdir()
+            body = workspace / 'PR body.md'
+            body.write_text('Refs #4\nテスト確認中')
+            with mock.patch.dict(os.environ, {'GITHUB_WORKSPACE': str(workspace)}), mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'git', return_value='') as git:
+                self.assertEqual(agentctl.read_pr_body(body), 'Refs #4\nテスト確認中')
+            self.assertFalse(body.exists())
+            saved, = (home / 'pr-bodies').glob('*.md')
+            self.assertEqual(saved.read_text(), 'Refs #4\nテスト確認中')
+            git.assert_called_once_with('ls-files', '--', 'PR body.md')
+
+    def test_tracked_body_is_never_removed_or_modified(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            body = root / 'tracked.md'
+            body.write_text('tracked PR body')
+            with mock.patch.dict(os.environ, {'GITHUB_WORKSPACE': str(root)}), mock.patch.object(agentctl, 'git', return_value='tracked.md'):
+                self.assertEqual(agentctl.read_pr_body(body), 'tracked PR body')
+            self.assertEqual(body.read_text(), 'tracked PR body')
+
+
+class ValidatedHeadTests(unittest.TestCase):
+    def test_followup_on_validated_head_skips_ci_but_edit_requires_new_ci(self):
+        self.assertFalse(agentctl.requires_pr_ci('tested', {'validatedHead': 'tested'}, 'main'))
+        self.assertTrue(agentctl.requires_pr_ci('new', {'validatedHead': 'tested'}, 'main'))
+        self.assertTrue(agentctl.requires_pr_ci('tested', {}, 'main'))
+        self.assertFalse(agentctl.requires_pr_ci('main', {}, 'main'))
+
+    def test_success_persists_validated_head_for_the_next_runner(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            run = {'issue': 4, 'branch': 'agent/issue-4', 'restored': False, 'recovery': False,
+                   'startedAt': 'now', 'model': 'opus', 'includedComments': [123], 'includedIssueBody': True}
+            (home / 'run.json').write_text(json.dumps(run))
+            result = [{'type': 'result', 'subtype': 'success', 'num_turns': 1, 'result': 'CI passed'}]
+            gh, store = mock.Mock(), mock.Mock()
+            store.get_json.return_value = {}
+            with mock.patch.dict(os.environ, {'VALIDATION_OUTCOME': 'success'}), mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh), mock.patch.object(agentctl, 'Store', return_value=store), mock.patch.object(agentctl, 'load_execution', return_value=result), mock.patch.object(agentctl, 'save_session'), mock.patch.object(agentctl, 'save_workspace'), mock.patch.object(agentctl, 'read_outbox', return_value=[]), mock.patch.object(agentctl, 'upload_attachments', return_value=[]), mock.patch.object(agentctl, 'record_prototype_events'), mock.patch.object(agentctl, 'append_summary'), mock.patch.object(agentctl, 'git', return_value='tested'), mock.patch('progress.update'):
+                agentctl.cmd_finalize(None)
+            state = store.put_json.call_args.args[1]
+            self.assertEqual(state['validatedHead'], 'tested')
+            self.assertEqual(state['lastCommentId'], 123)
+            self.assertFalse(agentctl.requires_pr_ci('tested', state, 'main'))
+            (home / 'run.json').write_text(json.dumps({'headBefore': 'tested', 'validationRequired': False}))
+            with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'git', side_effect=['', 'tested']), mock.patch.object(agentctl, 'verify_pr_ci') as ci, mock.patch.object(agentctl, 'load_execution', return_value=result):
+                agentctl.cmd_validate(None)
+            ci.assert_not_called()
 
 
 if __name__ == '__main__':
