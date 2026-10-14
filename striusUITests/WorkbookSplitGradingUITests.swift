@@ -71,6 +71,10 @@ final class WorkbookSplitGradingUITests: XCTestCase {
         if !shutter.isEnabled { app.tap() }
         _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: shutter)], timeout: 15)
         shutter.tap()
+        // カメラは閉じずに続けて撮れる(一括採点)。「採点する 1」で確認画面へ。
+        let done = app.buttons["chat-camera-done"].firstMatch
+        XCTAssertTrue(done.waitForExistence(timeout: 20), "「採点する」が出ない: \(screenSummary(app))")
+        done.tap()
         let use = element(app, "workbook-capture-use")
         XCTAssertTrue(use.waitForExistence(timeout: 20), "撮影確認が出ない: \(screenSummary(app))")
         use.tap()
@@ -145,6 +149,41 @@ final class WorkbookSplitGradingUITests: XCTestCase {
         XCTAssertTrue(waitLabel(element(app, "workbook-result-status"), "小単元 合格"), "締めた後に残りを撮っても合格にならない: \(screenSummary(app))")
         XCTAssertEqual(element(app, "workbook-verdict-score").label, "4 / 5")
         attach(app, "7-late-photo-passed")
+    }
+
+    /// 一括採点: カメラを閉じずに 3 枚続けて撮り、確認画面で 1 枚外し、2 枚を 1 つの答案にして 1 回で判定する。
+    /// モックの判定は 1 枚に 2 問ずつなので、2 枚で 1〜4 が判定され、5 だけが残る。
+    @MainActor
+    func testBatchOfPhotosGradedAsOneAnswer() throws {
+        let app = launch()
+        openPracticeSet(app)
+        tapCamera(app)
+        let shutter = app.buttons["chat-camera-shutter"].firstMatch
+        XCTAssertTrue(shutter.waitForExistence(timeout: 15), "カメラが開かない: \(screenSummary(app))")
+        let done = app.buttons["chat-camera-done"].firstMatch
+        for count in 1...3 {
+            if !shutter.isEnabled { app.tap() }
+            _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: shutter)], timeout: 15)
+            shutter.tap()
+            XCTAssertTrue(waitLabel(done, "\(count) 枚を採点する", timeout: 20), "\(count) 枚目が束に入らない: \(screenSummary(app))")
+        }
+        XCTAssertTrue(app.buttons["chat-camera-shutter"].exists, "撮った後にカメラが閉じた")
+        attach(app, "batch-1-camera")
+        done.tap()
+
+        let title = element(app, "workbook-capture-title")
+        XCTAssertTrue(waitLabel(title, "3 枚をまとめて採点します"), "確認画面に 3 枚が並ばない: \(screenSummary(app))")
+        attach(app, "batch-2-review")
+        element(app, "workbook-capture-remove-3").tap()
+        XCTAssertTrue(waitLabel(title, "2 枚をまとめて採点します", timeout: 5), "外した写真が残る: \(screenSummary(app))")
+        let use = element(app, "workbook-capture-use")
+        XCTAssertEqual(use.label, "2 枚をまとめて採点する")
+        use.tap()
+
+        XCTAssertTrue(waitLabel(element(app, "workbook-set-progress-title"), "5 が見つかりませんでした", timeout: 40), "2 枚が 1 つの答案として判定されない: \(screenSummary(app))")
+        XCTAssertEqual(element(app, "workbook-result-close-set").label, "見つかった 4 問で結果を出す")
+        XCTAssertEqual(element(app, "workbook-result-photo").value as? String, "2 枚", "答案の写真が 2 枚並ばない")
+        attach(app, "batch-3-result")
     }
 
     @MainActor

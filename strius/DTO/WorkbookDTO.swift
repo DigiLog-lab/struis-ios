@@ -198,6 +198,10 @@ struct WorkbookCaptureDTO: Decodable, Identifiable, Hashable, Sendable {
     var result: WorkbookResultDTO? = nil
     /// 一枚の今の様子。演習の一枚(2 問以上)から撮った答案だけ。
     var setProgress: WorkbookSetProgressDTO? = nil
+    /// 何枚かをまとめて撮った答案の全ページ(順に)。nil なら `imagePath` の 1 枚。
+    var pagePaths: [String]? = nil
+
+    var pages: [String] { pagePaths ?? [imagePath] }
 
     /// 演習の一枚の全問に判定がそろう前の答案(分割採点 R2)。
     var isPartial: Bool { outcome == "partial" }
@@ -255,6 +259,8 @@ struct WorkbookResultDTO: Decodable, Hashable, Sendable {
         case captureMore = "capture_more"
         /// 途中の答案: 判定のある問題で一枚を締める。
         case closeSet = "close_set"
+        /// 全問正解の答案: 新しい一枚を作らず、作られた演習の一覧へ戻る(画面で「やり直す」から置き換える。台帳は出さない)。
+        case returnToSet = "return_to_set"
     }
 
     let stageBefore: Int

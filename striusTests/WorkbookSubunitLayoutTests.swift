@@ -148,6 +148,16 @@ final class WorkbookSubunitLayoutTests: XCTestCase {
         XCTAssertEqual(WorkbookVerdictView.currentActions([.practice, .ask], stageAfter: 4, subunit: nil), [.practice, .ask], "小単元が読めない時はそのまま")
     }
 
+    func testAllCorrectResultReturnsToSetInsteadOfRetry() {
+        let allCorrect = WorkbookSetResultDTO(correct: 1, total: 1, score: 1, passed: false, note: "")
+        XCTAssertEqual(WorkbookVerdictView.shownActions([.retry, .returnToExample, .ask], summary: allCorrect), [.returnToSet, .returnToExample, .ask], "全問正解なら作り直さず演習の一覧へ戻す")
+        let someWrong = WorkbookSetResultDTO(correct: 1, total: 2, score: 0.5, passed: false, note: "")
+        XCTAssertEqual(WorkbookVerdictView.shownActions([.retry, .returnToExample, .ask], summary: someWrong), [.retry, .returnToExample, .ask], "誤りがあれば「やり直す」のまま")
+        let empty = WorkbookSetResultDTO(correct: 0, total: 0, score: 0, passed: false, note: "")
+        XCTAssertEqual(WorkbookVerdictView.shownActions([.retry, .ask], summary: empty), [.retry, .ask])
+        XCTAssertEqual(WorkbookVerdictView.shownActions([.retry, .ask], summary: nil), [.retry, .ask])
+    }
+
     // MARK: ホームの単元カード
 
     func testRemainingToPassCountsEmptySlotsAndDisplacedResults() {

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 問題。問題文、答案履歴、「解き直す」(＝この問題を撮る)。
+/// 問題。問題文、答案履歴、「採点」(＝この問題の答案を撮って採点する)。
 struct WorkbookProblemView: View {
     @Environment(WorkbookStore.self) private var store
     @Environment(WorkbookCoordinator.self) private var coordinator
@@ -106,7 +106,7 @@ struct WorkbookProblemView: View {
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "camera.fill")
-                        Text("解き直す")
+                        Text("採点")
                     }
                     .font(Typography.bodyEmphasized)
                     .padding(.horizontal, 20)

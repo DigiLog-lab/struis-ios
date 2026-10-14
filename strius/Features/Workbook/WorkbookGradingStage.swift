@@ -69,13 +69,14 @@ final class WorkbookGradingStageModel {
 
     // MARK: - 進行
 
-    func run(captureID: String, image: UIImage, onFinished: @escaping () -> Void) async {
-        // §5.1 読み取り: 走査線を一度だけ通し、その間に領域を検出する。
-        let detection = Task { await WorkbookAnswerRegions.detect(captureID: captureID, image: image) }
+    func run(captureID: String, paper: WorkbookCapturePaper, onFinished: @escaping () -> Void) async {
+        // §5.1 読み取り: 走査線を一度だけ通し、その間に領域を検出する。何枚かの答案は全ページを通す。
+        let detection = Task { await WorkbookAnswerRegions.detect(captureID: captureID, paper: paper) }
         if animates {
+            let duration = 2.6 * Double(paper.pageCount)
             scan = 0
-            withAnimation(.linear(duration: 2.6)) { scan = 1 }
-            await pause(2.6)
+            withAnimation(.linear(duration: duration)) { scan = 1 }
+            await pause(duration)
             withAnimation(.easeOut(duration: 0.25)) { scan = nil }
         }
         let found = await detection.value
@@ -320,18 +321,13 @@ struct HandwrittenMark: Shape {
         let w = rect.width, h = rect.height
         switch kind {
         case .circle:
-            // 少し歪んだ円を、書き始めを越えて閉じる(手で書いた丸)。
-            let steps = 48
-            for step in 0...steps {
-                let t = Double(step) / Double(steps)
-                let angle = -Double.pi * 0.62 + t * Double.pi * 2.12
-                let wobble = 1 + 0.05 * sin(t * Double.pi * 3)
-                let point = CGPoint(
-                    x: rect.midX + CGFloat(cos(angle) * wobble) * w * 0.46,
-                    y: rect.midY + CGFloat(sin(angle) * wobble) * h * 0.42
-                )
-                if step == 0 { path.move(to: point) } else { path.addLine(to: point) }
-            }
+            // 真円を、左上から書き始めて一周で閉じる(縦横の比や揺らぎで歪ませない)。
+            let radius = min(w, h) * 0.44
+            let start = -Double.pi * 0.62
+            path.addArc(
+                center: CGPoint(x: rect.midX, y: rect.midY), radius: radius,
+                startAngle: .radians(start), endAngle: .radians(start + Double.pi * 2), clockwise: false
+            )
         case .triangle:
             path.move(to: CGPoint(x: rect.midX, y: rect.minY + h * 0.08))
             path.addLine(to: CGPoint(x: rect.minX + w * 0.1, y: rect.maxY - h * 0.12))
@@ -350,14 +346,14 @@ struct HandwrittenMark: Shape {
 /// 判定を待つ間の段(§5)。写真を大きく出し、状態の文言を 1 行。「止める」は呼び手が置く。
 struct WorkbookGradingStage: View {
     let captureID: String
-    let image: UIImage
+    let paper: WorkbookCapturePaper
     let model: WorkbookGradingStageModel
     let onFinished: () -> Void
     @Environment(\.struisAnimatesWaiting) private var animates
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            WorkbookMarkedPhoto(image: image, model: model)
+            WorkbookMarkedPhoto(image: paper.image, model: model, maxHeight: 460 * CGFloat(paper.pageCount))
             // 誤りのある問題は、答案の下に誤りの種類を静かに出す(結果が届いてから)。
             if !model.taggedVerdicts.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
@@ -380,7 +376,7 @@ struct WorkbookGradingStage: View {
         .onChange(of: animates) { _, value in model.animates = value }
         .task(id: captureID) {
             model.animates = animates
-            await model.run(captureID: captureID, image: image, onFinished: onFinished)
+            await model.run(captureID: captureID, paper: paper, onFinished: onFinished)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("workbook-grading-stage")

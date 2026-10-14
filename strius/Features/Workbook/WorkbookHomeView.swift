@@ -43,10 +43,11 @@ struct WorkbookQuestionContext: Identifiable, Hashable {
 final class WorkbookCoordinator {
     var path: [WorkbookDestination] = []
     var question: WorkbookQuestionContext?
-    /// カメラ(別ウィンドウ)の表示。撮った紙は `pendingPhoto` に入り、確認画面へ。
+    /// カメラ(別ウィンドウ)の表示。撮った紙の束は `pendingPages` に入り、確認画面へ。
+    /// 確認画面から撮り足す時は、同じ束にカメラで撮った分を足す。
     var isCameraPresented = false
     var captureContext: WorkbookViewRef?
-    var pendingPhoto: WorkbookPendingPhoto?
+    var pendingPages: WorkbookPendingPages?
     /// 単元づくりの起動に添える教材(オンボーディングで選んだもの)。
     var unitCreationAttachments: [ComposerAttachment] = []
 
@@ -92,7 +93,7 @@ struct WorkbookHomeView: View {
             if let context = coordinator.captureContext, [context.subunitId, context.setId, context.captureId].compactMap({ $0 }).contains(where: removed.contains) {
                 coordinator.isCameraPresented = false
                 coordinator.captureContext = nil
-                coordinator.pendingPhoto = nil
+                coordinator.pendingPages = nil
             }
         }
     }
@@ -148,16 +149,23 @@ struct WorkbookHomeView: View {
         }
         .task { await store.loadHomeIfNeeded() }
         .background {
-            ChatCameraPresentation(isPresented: $coordinator.isCameraPresented) { data in
-                coordinator.pendingPhoto = WorkbookPendingPhoto(data: data, context: coordinator.captureContext)
-            }
+            ChatCameraPresentation(isPresented: $coordinator.isCameraPresented, batch: ChatCameraBatch(
+                existingCount: coordinator.pendingPages?.pages.count ?? 0, limit: WorkbookPendingPages.limit
+            ) { photos in
+                let pages = photos.map { WorkbookPendingPages.Page(data: $0) }
+                if coordinator.pendingPages != nil {
+                    coordinator.pendingPages?.pages += pages
+                } else {
+                    coordinator.pendingPages = WorkbookPendingPages(pages: pages, context: coordinator.captureContext)
+                }
+            })
         }
         .sheet(item: $coordinator.question) { context in
             WorkbookQuestionScreen(context: context)
         }
-        .fullScreenCover(item: $coordinator.pendingPhoto) { photo in
-            WorkbookCaptureFlow(photo: photo) {
-                coordinator.pendingPhoto = nil
+        .fullScreenCover(item: $coordinator.pendingPages) { _ in
+            WorkbookCaptureFlow {
+                coordinator.pendingPages = nil
             }
         }
     }

@@ -169,6 +169,83 @@ final class TurnRecoveryTests: XCTestCase {
         XCTAssertEqual(CodexAppServerSession.diagnosticMethod("Bearer secret /private/learner.pdf"), "other")
     }
 
+    @MainActor func testSessionPreservesNotificationBurstOrder() async throws {
+        let session = CodexAppServerSession(clientVersion: "ordered-input-test", launcher: { onLine, _ in
+            GuestProcessHandle(pid: 123, writeLine: { line in
+                guard let message = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? JSONObject,
+                      let id = message["id"] else { return }
+                if message["method"] as? String == "thread/read" {
+                    for index in 0..<256 {
+                        onLine(FakeAppServer.encode(["method": "test/ordered", "params": ["index": index]]), false)
+                    }
+                }
+                onLine(FakeAppServer.encode(["id": id, "result": [:]]), false)
+            })
+        })
+        _ = try await session.request("thread/read", params: [:])
+        for index in 0..<256 {
+            let event = try await session.waitForNotification(methods: ["test/ordered"], timeout: .seconds(5))
+            XCTAssertEqual(event.params["index"] as? Int, index, "Transport order must survive the actor handoff")
+        }
+        await session.close()
+    }
+
+    @MainActor func testChatCompletionWithoutItemsKeepsEarlierAnswer() async throws {
+        let server = FakeAppServer { _, method, _ in
+            method == "turn/start" ? .answerTurnStartWithItemOnly : .default
+        }
+        let session = CodexAppServerSession(clientVersion: "item-only-test", launcher: server.launcher)
+        let runner = CodexTurnRunner(session: session, assets: Self.assets(), timeouts: Self.timeouts)
+        var plan = Self.plan(threadID: nil)
+        plan.kind = .chat
+        defer { WorkspaceStager.cleanup(plan: plan) }
+        let outcome = try await runner.run(plan) { _ in }
+        XCTAssertEqual(outcome.status, .completed, outcome.error ?? "")
+        XCTAssertEqual(outcome.finalText, "こたえ")
+        XCTAssertEqual(server.count("turn/start"), 1, "Never replay an already completed chat")
+        XCTAssertEqual(server.count("thread/turns/list"), 0, "Ordered item/completed already supplied the answer")
+        await session.close()
+    }
+
+    @MainActor func testChatReadsCompletedAnswerWhenNotificationOmitsItems() async throws {
+        let server = FakeAppServer { _, method, _ in
+            if method == "turn/start" { return .answerTurnStartCompletionOnly }
+            if method == "thread/turns/list" {
+                return .result(["data": [["id": "turn-1-1", "status": "completed", "items": [
+                    ["type": "agentMessage", "text": "保存されたこたえ"],
+                ]]]])
+            }
+            return .default
+        }
+        let session = CodexAppServerSession(clientVersion: "completion-only-test", launcher: server.launcher)
+        let runner = CodexTurnRunner(session: session, assets: Self.assets(), timeouts: Self.timeouts)
+        var plan = Self.plan(threadID: nil)
+        plan.kind = .chat
+        defer { WorkspaceStager.cleanup(plan: plan) }
+        let outcome = try await runner.run(plan) { _ in }
+        XCTAssertEqual(outcome.status, .completed, outcome.error ?? "")
+        XCTAssertEqual(outcome.finalText, "保存されたこたえ")
+        XCTAssertEqual(server.count("turn/start"), 1, "Recovery reads the result without another model call")
+        XCTAssertEqual(server.count("thread/turns/list"), 1)
+        await session.close()
+    }
+
+    @MainActor func testMissingCompletedAnswerStillFailsWithoutReplayingChat() async throws {
+        let server = FakeAppServer { _, method, _ in
+            method == "turn/start" ? .answerTurnStartCompletionOnly : .default
+        }
+        let session = CodexAppServerSession(clientVersion: "empty-completion-test", launcher: server.launcher)
+        let runner = CodexTurnRunner(session: session, assets: Self.assets(), timeouts: Self.timeouts)
+        var plan = Self.plan(threadID: nil)
+        plan.kind = .chat
+        defer { WorkspaceStager.cleanup(plan: plan) }
+        let outcome = try await runner.run(plan) { _ in }
+        XCTAssertEqual(outcome.status, .failed)
+        XCTAssertEqual(server.count("turn/start"), 1)
+        XCTAssertEqual(server.count("thread/turns/list"), 1)
+        await session.close()
+    }
+
     @MainActor func testResumeOmitsUnusedResponseHistory() async throws {
         let server = FakeAppServer { _, method, params in
             if method == "thread/resume" {
@@ -513,6 +590,8 @@ nonisolated final class FakeAppServer: @unchecked Sendable {
         case ignore
         case missingRollout
         case answerTurnStart(completes: Bool)
+        case answerTurnStartWithItemOnly
+        case answerTurnStartCompletionOnly
         case answerInterruptAndComplete
         /// The answer starts (`item/started` agentMessage) and then nothing more arrives.
         case answerTurnStartThenStall
@@ -592,6 +671,10 @@ nonisolated final class FakeAppServer: @unchecked Sendable {
             output(Self.encode(["id": id, "error": ["code": -32600, "message": "no rollout found for thread id"]]), false)
         case .answerTurnStart(let completes):
             startTurn(id: id, threadID: threadID, generation: generation, completes: completes, output: output)
+        case .answerTurnStartWithItemOnly:
+            startTurn(id: id, threadID: threadID, generation: generation, completes: true, includeCompletionText: false, output: output)
+        case .answerTurnStartCompletionOnly:
+            startTurn(id: id, threadID: threadID, generation: generation, completes: true, includeItem: false, includeCompletionText: false, output: output)
         case .answerTurnStartThenStall:
             startTurn(id: id, threadID: threadID, generation: generation, completes: false, output: output)
             let turn = lock.withLock { openTurns[generation]?.last?.1 ?? "" }
@@ -628,7 +711,9 @@ nonisolated final class FakeAppServer: @unchecked Sendable {
         }
     }
 
-    private func startTurn(id: Any, threadID: String, generation: Int, completes: Bool, output: @escaping @Sendable (String, Bool) -> Void) {
+    private func startTurn(id: Any, threadID: String, generation: Int, completes: Bool,
+                           includeItem: Bool = true, includeCompletionText: Bool = true,
+                           output: @escaping @Sendable (String, Bool) -> Void) {
         let turn = lock.withLock { () -> String in
             turnSerial += 1
             let turn = "turn-\(generation)-\(turnSerial)"
@@ -637,8 +722,10 @@ nonisolated final class FakeAppServer: @unchecked Sendable {
         }
         output(Self.encode(["id": id, "result": ["turn": ["id": turn]]]), false)
         guard completes else { return }
-        output(Self.encode(["method": "item/completed", "params": ["threadId": threadID, "turnId": turn, "item": ["type": "agentMessage", "text": "こたえ"]]]), false)
-        output(Self.turnCompleted(thread: threadID, turn: turn, status: "completed", text: "こたえ"), false)
+        if includeItem {
+            output(Self.encode(["method": "item/completed", "params": ["threadId": threadID, "turnId": turn, "item": ["type": "agentMessage", "text": "こたえ"]]]), false)
+        }
+        output(Self.turnCompleted(thread: threadID, turn: turn, status: "completed", text: includeCompletionText ? "こたえ" : nil), false)
     }
 
     static func turnCompleted(thread: String, turn: String, status: String, text: String?) -> String {

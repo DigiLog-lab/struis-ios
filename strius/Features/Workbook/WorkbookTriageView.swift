@@ -8,7 +8,7 @@ struct WorkbookTriageView: View {
     @Environment(WorkbookCoordinator.self) private var coordinator
     @Environment(\.colorScheme) private var scheme
     let captureID: String
-    @State private var image: UIImage?
+    @State private var paper: WorkbookCapturePaper?
     @State private var isChoosing = false
     @State private var isAssigning = false
     /// 綴じる先を関係の深い順に並べ、先頭の数件だけ出す。残りは「ほかの小単元」で開く。
@@ -20,11 +20,11 @@ struct WorkbookTriageView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let capture {
-                    if let image {
-                        Image(uiImage: image)
+                    if let paper {
+                        Image(uiImage: paper.image)
                             .resizable()
                             .scaledToFit()
-                            .frame(maxHeight: 200)
+                            .frame(maxHeight: 200 * CGFloat(paper.pageCount))
                             .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
                     }
                     paperItems(capture)
@@ -55,7 +55,7 @@ struct WorkbookTriageView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task(id: captureID) {
             await store.loadCapture(id: captureID)
-            image = await store.captureImage(id: captureID)
+            paper = await store.capturePaper(id: captureID)
         }
         .accessibilityIdentifier("workbook-triage")
     }

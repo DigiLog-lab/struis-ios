@@ -113,18 +113,25 @@ actor MockTurnRunner: TurnRunning {
         }
         var items: [JSONObject] = []
         var shown = Array(problems.enumerated())
+        let lastOnly = ProcessInfo.processInfo.environment["STRUIS_MOCK_GRADING_LAST_ONLY"] == "1"
+        if lastOnly, let last = shown.last {
+            // 問題の画面から 1 問だけを撮った時(いちばん後ろの 1 問だけが写っていて、正解)。
+            shown = [last]
+        }
         if scope["mode"] as? String == "set", let setID = scope["set_id"] as? String,
            let perPhoto = Int(ProcessInfo.processInfo.environment["STRUIS_MOCK_GRADING_PER_PHOTO"] ?? ""), perPhoto > 0 {
             // 一枚を何枚の写真に分けて撮った時(分割採点): 1 枚の写真には一枚の問題が perPhoto 問ずつ順に写っている。
+            // まとめて撮った答案(一括採点)は、そのページ数ぶんの写真を 1 回で判定する。
+            let pages = max(1, request["page_count"] as? Int ?? 1)
             let photo = photosLock.withLock { () -> Int in
                 let index = photosBySet[setID, default: 0]
-                photosBySet[setID] = index + 1
+                photosBySet[setID] = index + pages
                 return index
             }
-            shown = Array(shown.dropFirst(photo * perPhoto).prefix(perPhoto))
+            shown = Array(shown.dropFirst(photo * perPhoto).prefix(perPhoto * pages))
         }
         for (index, problem) in shown {
-            let wrong = problems.count >= 3 && index == problems.count - 1
+            let wrong = !lastOnly && problems.count >= 3 && index == problems.count - 1
             items.append([
                 "label": "問\(index + 1)", "prompt_text": problem["prompt"] ?? "", "matched_problem_id": problem["id"] ?? "",
                 "verdict": wrong ? "wrong" : "correct", "error_tag": wrong ? "符号ミス" : "", "note": wrong ? "符号を確認" : "手順が正しい",
@@ -186,6 +193,9 @@ actor MockTurnRunner: TurnRunning {
             } else {
                 reply = "要点を話すね。この小単元では二次関数の頂点を求めます。\n\n- 全体像: 式を平方完成すると頂点が読める\n- 具体例: ボールを投げたときの一番高い点\n- できるようになること: 頂点の座標を自分で求める\n\n読み終えたら下の「先に進む」で例題へ進もう。"
             }
+        } else if learner.contains("積分") {
+            // 数式と強調の混じった返事(書いている途中・記録を書いている間の見え方を確かめる)。
+            reply = "前の行までは合っています。残りの積分を計算する部分でつまずいているので、そこを見ていこう。\n\n**問題の箇所**\n\n$$\\int\\left(\\frac{1}{2}-\\sin^2 x\\right)dx=\\frac{1}{2}x-\\left(\\frac{1}{2}-\\frac{1}{2}\\cos 2x\\right)$$\n\nこの行では、$x$ をつけて $\\frac{1}{2}x$ にした最初の項だけが積分されています。$\\sin^2 x$ のほうは積分されず、$\\frac{1}{2}-\\frac{1}{2}\\cos 2x$ に書き換えただけになっています。\n\n**手がかり**\n\n$\\cos 2x$ は、このまま直接積分できます。"
         } else if learner.contains("できた") {
             // 段階 2 で学習者が例題を解けた(UI テスト用): 準備OKを出して「先に進む」を出させる(§13.13 の 5)。
             reply = "よくできました。類題へ進もう。下の「先に進む」を押してね。"

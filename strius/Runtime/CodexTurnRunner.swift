@@ -734,6 +734,21 @@ actor CodexTurnRunner: TurnRunning {
                             }
                         }
                     }
+                    if finalText.isEmpty {
+                        // A completion notification may omit items (also after reconnect).
+                        // Read the completed turn instead of replaying the learner's input.
+                        let listed = try await session.request("thread/turns/list", params: [
+                            "threadId": threadID, "limit": 5, "itemsView": "full",
+                        ], timeout: timeouts.turnList, tag: planID, critical: false)
+                        let saved = (listed["data"] as? [JSONObject] ?? []).first { $0["id"] as? String == turnID }
+                        for item in saved?["items"] as? [JSONObject] ?? [] {
+                            let engineItem = EngineJSON(any: item)
+                            if item["type"] as? String == "agentMessage", AgentText.agentMessagePhase(engineItem) != "commentary" {
+                                finalText = AgentText.extractAgentTextFromItem(engineItem)
+                            }
+                        }
+                        audit["answer_read_back"] = !finalText.isEmpty
+                    }
                     guard !finalText.isEmpty else { throw CodexAppServerError.turnFailed("Completed turn returned no final answer") }
                     audit["status"] = "completed"
                     audit["elapsed_ms"] = Self.elapsed(started)

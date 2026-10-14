@@ -147,6 +147,29 @@ nonisolated enum TurnReplyStream {
             .joined(separator: "\n")
     }
 
+    /// `readable` と同じく読める文字に直し、強調(`**…**`)と見出し(`# …`)は太字で残す(書いている途中の段落)。
+    static func readableMarkdown(_ paragraph: String) -> AttributedString {
+        var result = AttributedString()
+        for (index, line) in paragraph.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+            if index > 0 { result += AttributedString("\n") }
+            let trimmed = line.drop { $0 == " " }
+            let heading = trimmed.hasPrefix("#")
+            var body = String(line)
+            if heading {
+                body = String(trimmed.drop { $0 == "#" || $0 == " " })
+            } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
+                body = "• " + trimmed.dropFirst(2)
+            }
+            // 閉じていない強調は `visible` が切っているので、`**` は開き・閉じの組で来る。
+            for (offset, part) in body.components(separatedBy: "**").enumerated() where !part.isEmpty {
+                var piece = AttributedString(approximateMath(part))
+                if heading || offset % 2 == 1 { piece.inlinePresentationIntent = .stronglyEmphasized }
+                result += piece
+            }
+        }
+        return result
+    }
+
     /// 返事の後ろに書いている非公開のブロック(学習者には見せない)を、何を書いているかの言葉にする。
     /// 本文が増えなくても、実際に書いているものが分かる(進み具合・記憶・全体像・例題)。
     static func privateBlockLabel(_ raw: String) -> String? {

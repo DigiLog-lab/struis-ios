@@ -12,6 +12,8 @@ import json
 import os
 from pathlib import Path
 import secrets
+import shlex
+import re
 import shutil
 import subprocess
 import sys
@@ -96,6 +98,125 @@ def save_session(store, number):
     return len(data)
 
 
+def save_workspace(store, number, run):
+    """Save unfinished work without publishing an unverified commit."""
+    workspace = Path(os.environ.get('GITHUB_WORKSPACE', os.getcwd()))
+    patch = subprocess.check_output(['git', 'diff', '--binary', 'HEAD'], cwd=workspace)
+    untracked = subprocess.check_output(['git', 'ls-files', '--others', '--exclude-standard', '-z'], cwd=workspace).split(b'\0')
+    head = git('rev-parse', 'HEAD')
+    remote_head = git('ls-remote', '--heads', 'origin', run['branch']).split('\t')[0]
+    unpublished = remote_head != head and git('rev-list', '--count', 'HEAD', '--not', '--remotes') != '0'
+    if not patch and not any(untracked) and not unpublished:
+        store.put_json(session_key(number, 'workspace.json'), {'empty': True})
+        return
+    prefix = session_key(number, f'checkpoints/{os.environ.get("GITHUB_RUN_ID", "local")}-{os.environ.get("GITHUB_RUN_ATTEMPT", "1")}')
+    store.put(prefix + '/changes.patch', patch, 'application/octet-stream')
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode='w:gz') as archive:
+        for name in untracked:
+            if name:
+                path = Path(os.fsdecode(name))
+                archive.add(workspace / path, arcname=str(path), recursive=False)
+    store.put(prefix + '/untracked.tar.gz', buffer.getvalue(), 'application/gzip')
+    if unpublished:
+        bundle = agent_home() / 'workspace.bundle'
+        subprocess.run(['git', 'bundle', 'create', str(bundle), 'HEAD'], cwd=workspace, check=True)
+        store.upload_file(prefix + '/commits.bundle', bundle, 'application/octet-stream')
+    store.put_json(session_key(number, 'workspace.json'), {'head': head, 'remoteHead': remote_head, 'branch': run['branch'], 'prefix': prefix, 'bundle': unpublished})
+
+
+def restore_workspace(store, number, branch):
+    record = store.get_json(session_key(number, 'workspace.json')) or {}
+    if record.get('empty') or not record.get('prefix'):
+        return
+    if record['branch'] != branch:
+        raise RuntimeError('保存された作業ブランチが一致しません。チェックポイントを保持して停止します。')
+    if record.get('bundle'):
+        if git('ls-remote', '--heads', 'origin', branch).split('\t')[0] != record['remoteHead']:
+            raise RuntimeError('保存後にremoteが更新されています。チェックポイントを保持して停止します。')
+        bundle = agent_home() / 'restore.bundle'
+        bundle.write_bytes(store.get(record['prefix'] + '/commits.bundle'))
+        git('fetch', str(bundle), 'HEAD')
+        git('checkout', '-B', branch, record['head'])
+    if git('rev-parse', 'HEAD') != record['head']:
+        raise RuntimeError('保存後にブランチが更新されています。チェックポイントを保持して停止します。')
+    patch = store.get(record['prefix'] + '/changes.patch')
+    if patch:
+        subprocess.run(['git', 'apply', '--index', '--binary', '-'], input=patch, check=True,
+                       cwd=os.environ.get('GITHUB_WORKSPACE', os.getcwd()))
+    archive_bytes = store.get(record['prefix'] + '/untracked.tar.gz')
+    if archive_bytes:
+        with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode='r:gz') as archive:
+            archive.extractall(os.environ.get('GITHUB_WORKSPACE', os.getcwd()), filter='data')
+    return True
+
+
+def restart_interrupted(gh, state, outcome):
+    if outcome not in {'cancelled', 'failure'}:
+        return None
+    count = int(state.get('autoRestarts') or 0)
+    if count >= 3:
+        return '連続3回の自動再開後も失敗したため、自動再開を停止しました。作業とセッションは保存しています。'
+    gh.request('POST', f'/repos/{gh.repository}/actions/workflows/agent.yml/dispatches', {
+        'ref': 'main', 'inputs': {'issue': str(state['issue']), 'automatic_retry': 'true'},
+    })
+    state['autoRestarts'] = count + 1
+    state['restartFromRun'] = os.environ.get('RECOVER_RUN_ID') or os.environ.get('GITHUB_RUN_ID')
+    return f'保存した作業とセッションから自動再開を予約しました ({count + 1}/3)。'
+
+
+def session_needs_recovery(state):
+    last = state.get('lastRun') or {}
+    usage = last.get('turnUsage') or {}
+    # Also recognize the zero-work failure recorded by older controller versions.
+    return bool(last.get('noOp') or (last.get('success') is False and usage
+                and all(usage.get(key) == 0 for key in ('input', 'output', 'cacheRead', 'cacheCreation'))))
+
+
+def execution_is_noop(report):
+    return (report.get('result') or {}).get('num_turns') == 0 and report.get('requests') == 0
+
+
+def validation_feedback(home):
+    """Carry actionable failures to the next runner, without copying command environments."""
+    path = home / 'validation.json'
+    if not path.exists():
+        return None
+    report = json.loads(path.read_text())
+    if report.get('success'):
+        return None
+    name = report.get('currentCheck', 'code')
+    lines = []
+    from prototype import redact
+    for log in sorted((home / 'artifacts').glob(f'validation-*/{name}.log'))[-1:]:
+        with log.open(errors='replace') as stream:
+            for line in stream:
+                if re.search(r'\berror:|^Test Case .* failed|^[✘×] Test .* failed|^\*\* .*FAILED', line):
+                    lines.append(redact(line.strip())[:1500])
+                    lines = lines[-20:]
+    return {'check': name, 'failures': lines, 'run': run_url()}
+
+
+def cmd_recover(_args):
+    match = re.fullmatch(r'Issue agent #(\d+)', os.environ.get('RECOVER_TITLE', ''))
+    if not match:
+        return
+    number = int(match[1])
+    gh = GitHub()
+    store = Store()
+    state = store.get_json(session_key(number, 'state.json')) or {}
+    source = os.environ['RECOVER_RUN_ID']
+    expected = f'{os.environ.get("GITHUB_SERVER_URL", "https://github.com")}/{gh.repository}/actions/runs/{source}'
+    if (state.get('workerRun') != expected or state.get('finalizedRun') == source
+            or state.get('restartFromRun') == source
+            or str(state.get('workerRunAttempt', '1')) != os.environ.get('RECOVER_RUN_ATTEMPT', '1')):
+        print('終了処理済み、再開予約済み、または後続実行が開始済みです。')
+        return
+    note = restart_interrupted(gh, state, 'cancelled')
+    store.put_json(session_key(number, 'state.json'), state)
+    print(note)
+
+
 def prototype_summary(store, number):
     """Current prototypes of the issue, with the status from the latest event."""
     objects = store.list(f'prototypes/{number}/')
@@ -177,14 +298,35 @@ def cmd_prepare(_args):
 
     branch = state.get('branch') or f'agent/issue-{number}'
     branch_on_origin = checkout_branch(branch)
+    checkpoint_restored = restore_workspace(store, number, branch)
+    if os.environ.get('AUTOMATIC_RETRY') != 'true':
+        state['autoRestarts'] = 0
+    state.pop('restartFromRun', None)
+    state.pop('finalizedRun', None)
     session_id = state.get('sessionId')
-    restored = restore_session(store, number, session_id)
+    restored = not session_needs_recovery(state) and restore_session(store, number, session_id)
     recovery = bool(session_id) and not restored
     model = state.get('model') or os.environ.get('AGENT_MODEL') or 'opus'
     prototypes = prototype_summary(store, number)
     (home / 'prototypes.json').write_text(json.dumps(prototypes, ensure_ascii=False, indent=2))
     (home / 'attachments').mkdir(exist_ok=True)
     (home / 'artifacts').mkdir(exist_ok=True)
+
+    # Use runner-owned scripts, outside the checkout Claude edits.
+    tools_dir = Path(__file__).resolve().parent
+    hooks_dir = home / 'git-hooks'
+    hooks_dir.mkdir(exist_ok=True)
+    for name, mode in [('pre-commit', 'commit'), ('pre-push', 'push')]:
+        hook_path = hooks_dir / name
+        hook_path.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(tools_dir / "guard.py"))} {mode}\n')
+        hook_path.chmod(0o755)
+    git('config', 'core.hooksPath', str(hooks_dir))
+    hook_command = f'{shlex.quote(sys.executable)} {shlex.quote(str(tools_dir / "progress.py"))} hook'
+    settings_path = home / 'claude-settings.json'
+    settings_path.write_text(json.dumps({'hooks': {
+        event: [{'matcher': '', 'hooks': [{'type': 'command', 'command': hook_command, 'timeout': 10}]}]
+        for event in ('SessionStart', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure')
+    }}))
 
     now = utc_now()
     native = ('cacheから復元済み' if os.environ.get('NATIVE_CACHE_HIT') == 'true'
@@ -201,6 +343,7 @@ def cmd_prepare(_args):
         f'Working branch: {branch} (HEAD {head}; {"origin上に既存" if branch_on_origin else "originにはまだ無い。push時に作成"})',
         f'Native runtime artifacts: {native}',
         f'Session: {"復元 " + session_id if restored else "履歴から再構成した新規セッション" if recovery else "新規"}',
+        f'Workspace checkpoint: {"中断時の作業を復元済み。前runnerのバックグラウンド処理は終了しています。" if checkpoint_restored else "なし"}',
         f'Prototypes ({home / "prototypes.json"}):',
         describe_prototypes(prototypes),
         '</github-issue-event>',
@@ -212,10 +355,16 @@ def cmd_prepare(_args):
         blocks.append(f'<issue-body author="{issue["user"]["login"]}" created="{issue["created_at"]}">\n'
                       f'{issue.get("body") or ""}\n</issue-body>')
     blocks.extend(format_comment(comment) for comment in pending)
+    if state.get('validationFailure'):
+        blocks.append('<validation-failure>\n前回の検証失敗を修正してから、検証と成果提示へ進んでください。\n'
+                      + json.dumps(state['validationFailure'], ensure_ascii=False) + '\n</validation-failure>')
+    if session_needs_recovery(state):
+        blocks.append('前回の復元セッションは0ターンで終了しました。保存済みの作業と上記履歴を引き継ぎ、新規セッションで未処理の依頼を実行してください。')
     prompt = '\n\n'.join(blocks)
 
     claude_args = ['--model', model, '--exclude-dynamic-system-prompt-sections',
-                   '--permission-mode', 'bypassPermissions', '--allow-dangerously-skip-permissions']
+                   '--permission-mode', 'bypassPermissions', '--allow-dangerously-skip-permissions',
+                   '--settings', str(settings_path)]
     if os.environ.get('AGENT_EFFORT'):
         claude_args += ['--effort', os.environ['AGENT_EFFORT']]
     if restored:
@@ -225,22 +374,44 @@ def cmd_prepare(_args):
         'issue': number, 'branch': branch, 'model': model, 'sessionIdBefore': session_id,
         'restored': restored, 'recovery': recovery, 'includedComments': [c['id'] for c in pending],
         'includedIssueBody': not state.get('issueBodyProcessed'), 'startedAt': iso(now),
+        'headBefore': git('rev-parse', 'HEAD'),
+        'validationRequired': (git('rev-parse', 'HEAD') != state.get('validatedHead')
+                               and git('rev-parse', 'HEAD') != git('rev-parse', 'origin/main')),
     }
     (home / 'run.json').write_text(json.dumps(run, indent=2))
     (home / 'prompt.txt').write_text(prompt)
     state.update({'issue': number, 'branch': branch, 'workerStatus': 'running',
-                  'workerRun': run_url(), 'workerStartedAt': iso(now)})
+                  'workerRun': run_url(), 'workerStartedAt': iso(now),
+                  'workerRunAttempt': os.environ.get('GITHUB_RUN_ATTEMPT', '1')})
     store.put_json(session_key(number, 'state.json'), state)
+
+    import progress
+    progress.update(run, '起動中')
 
     system_prompt = (Path(__file__).resolve().parent / 'system-prompt.md').read_text()
     write_output('skip', 'false')
     write_output('prompt', prompt)
-    write_output('claude_args', ' '.join(claude_args))
+    write_output('claude_args', shlex.join(claude_args))
     write_output('system_prompt', system_prompt)
     print(json.dumps(run, indent=2))
 
 
 # --------------------------------------------------------------- finalize ---
+
+def cmd_validate(_args):
+    import guard
+    report = analyze(load_execution(os.environ.get('CLAUDE_EXECUTION_FILE')))
+    if execution_is_noop(report):
+        sys.exit('Claude Codeが0ターンで終了しました。作業を実行していないため成果検証を開始しません。')
+    run = json.loads((agent_home() / 'run.json').read_text())
+    if git('status', '--porcelain'):
+        sys.exit('未コミットの変更があります。成果を提示できません。')
+    if run.get('validationRequired') or git('rev-parse', 'HEAD') != run['headBefore']:
+        git('fetch', 'origin', run['branch'])
+        if git('rev-parse', 'FETCH_HEAD') != git('rev-parse', 'HEAD'):
+            sys.exit('push済みブランチとHEADが一致しません。成果を提示できません。')
+        guard.verify(signed=True)  # Includes the exact CD signing/audit path without uploading.
+
 
 def load_execution(path):
     if not path or not Path(path).exists():
@@ -369,6 +540,17 @@ def usage_table(report, run, usage):
     return '\n'.join(lines)
 
 
+def failure_reason(result, claude_success, validation_ok, outcome):
+    if result.get('num_turns') == 0:
+        return 'Claude Codeが0ターンで終了し、未処理の依頼を実行していません。新規セッションで履歴と作業を引き継ぎます。'
+    if not claude_success:
+        return (result.get('api_error_status') or result.get('subtype')
+                or f'Claude Codeが中断・失敗しました ({outcome or "not run"})。終了後の検証は実行されていません。')
+    if not validation_ok:
+        return '検証が失敗・未完了、または検証対象と成果のコードが一致しません'
+    return 'エージェントの実行に失敗しました'
+
+
 def cmd_finalize(_args):
     home = agent_home()
     run_file = home / 'run.json'
@@ -381,14 +563,45 @@ def cmd_finalize(_args):
     number = run['issue']
     gh = GitHub()
     store = Store()
-    report = analyze(load_execution(os.environ.get('CLAUDE_EXECUTION_FILE')))
+    messages = load_execution(os.environ.get('CLAUDE_EXECUTION_FILE'))
+    report = analyze(messages)
+    if not messages:
+        started = datetime.datetime.fromisoformat(run['startedAt'].replace('Z', '+00:00')).timestamp()
+        sessions = [p for p in (CLAUDE_DIR / 'projects').glob('*/*.jsonl') if p.stat().st_mtime >= started]
+        report['sessionId'] = max(sessions, key=lambda p: p.stat().st_mtime).stem if sessions else run.get('sessionIdBefore')
+        report['requests'] = None
+        report['turnUsage'] = {key: None for key in report['turnUsage']}
     result = report['result'] or {}
-    success = bool(report['result']) and result.get('subtype') == 'success' and not result.get('is_error')
+    no_op = execution_is_noop(report)
+    claude_success = bool(report['result']) and result.get('subtype') == 'success' and not result.get('is_error') and not no_op
+    import guard
+    validation_ok = os.environ.get('VALIDATION_OUTCOME') == 'success' and guard.publication_allowed(run)
+    success = claude_success and validation_ok
+    (home / 'progress-stop').touch()
+    if not success:
+        import progress
+        progress.stop_owned_commands()
+    try:
+        import progress
+        progress.update(run, '完了' if success else '失敗・成果提示を停止', finished=True)
+    except Exception as error:
+        print(f'Progress final update failed: {type(error).__name__}')
     session_bytes = save_session(store, number)
+    save_workspace(store, number, run)
 
     outbox = read_outbox(home)
+    pull_requests = []
+    if success:
+        for entry in outbox:
+            if entry.get('type') != 'request-pr':
+                continue
+            existing = gh.get(f'/repos/{gh.repository}/pulls?head={gh.repository.split("/")[0]}:{run["branch"]}&base=main&state=open')
+            pr = existing[0] if existing else gh.request('POST', f'/repos/{gh.repository}/pulls', {
+                'title': entry['title'], 'body': entry['body'], 'head': run['branch'], 'base': 'main',
+            })[0]
+            pull_requests.append(f'検証済みPull Request: {pr["html_url"]}')
     decisions = [{'at': iso(), 'text': entry['text']} for entry in outbox if entry.get('type') == 'decision']
-    attachments = upload_attachments(store, [entry for entry in outbox if entry.get('type') == 'attach'])
+    attachments = upload_attachments(store, [entry for entry in outbox if entry.get('type') == 'attach']) if success else []
     record_prototype_events(store, number, [entry for entry in outbox if entry.get('type') == 'prototype-status'], 'agent')
 
     usage = {
@@ -397,7 +610,7 @@ def cmd_finalize(_args):
         'sessionId': report['sessionId'], 'restored': run['restored'], 'recovery': run['recovery'],
         'model': report['model'], 'claudeCodeVersion': report['claudeCodeVersion'],
         'tools': report['tools'], 'mcpServers': report['mcpServers'], 'requests': report['requests'],
-        'numTurns': result.get('num_turns'), 'durationSeconds': round((result.get('duration_ms') or 0) / 1000),
+        'numTurns': result.get('num_turns'), 'durationSeconds': round(result['duration_ms'] / 1000) if 'duration_ms' in result else None,
         'totalCostUsd': result.get('total_cost_usd'), 'turnUsage': report['turnUsage'],
         'firstRequest': report['firstRequest'], 'modelUsage': result.get('modelUsage'),
         'sessionArchiveBytes': session_bytes, 'includedComments': run['includedComments'],
@@ -413,35 +626,54 @@ def cmd_finalize(_args):
     if report['model'] and success:
         state['model'] = report['model']
     if success:
+        state['autoRestarts'] = 0
+        state.pop('validationFailure', None)
+        state['validatedHead'] = git('rev-parse', 'HEAD')
         if run['includedComments']:
             state['lastCommentId'] = max([int(state.get('lastCommentId') or 0), *run['includedComments']])
         if run['includedIssueBody']:
             state['issueBodyProcessed'] = True
     state['decisions'] = (state.get('decisions') or []) + decisions
     state['lastRun'] = {key: usage[key] for key in ('run', 'success', 'restored', 'recovery', 'turnUsage', 'firstRequest')}
+    state['lastRun']['noOp'] = no_op
+    if not success:
+        feedback = validation_feedback(home)
+        if feedback:
+            state['validationFailure'] = feedback
     store.put_json(session_key(number, 'state.json'), state)
 
     table = usage_table(report, run, usage)
+    try:
+        outcome = 'cancelled' if 'cancelled' in (os.environ.get('CLAUDE_OUTCOME'), os.environ.get('VALIDATION_OUTCOME')) else 'failure'
+        restart_note = restart_interrupted(gh, state, outcome) if not success else None
+    except Exception as error:
+        restart_note = f'作業は保存しましたが、自動再開の予約に失敗しました: {type(error).__name__}'
+    if restart_note:
+        store.put_json(session_key(number, 'state.json'), state)
     if success:
         text = (result.get('result') or report['lastText'] or '(応答本文がありません)').strip()
         if len(text) > MAX_COMMENT:
             text = text[:MAX_COMMENT] + '\n\n…(長いため省略しました。全文はActionsの実行ログを参照してください)'
         parts = [REPLY_MARKER, text]
+        parts.extend(pull_requests)
         if attachments:
             parts.append('\n'.join(attachments))
         parts.append(table)
     else:
-        reason = (result.get('api_error_status') or result.get('subtype')
-                  or f"Claude Code step: {os.environ.get('CLAUDE_OUTCOME') or 'not run'}")
-        detail = (result.get('result') or report['lastText'] or '').strip()[:2000]
+        reason = failure_reason(result, claude_success, validation_ok, os.environ.get('CLAUDE_OUTCOME'))
+        detail = (result.get('result') or report['lastText'] or '').strip()[:2000] if validation_ok and not no_op else ''
         parts = [REPLY_MARKER, '⚠️ エージェントの実行に失敗しました。', '',
                  f'- 原因: `{reason}`',
                  f'- 実行ログ: {run_url()}',
                  '- 再実行: このIssueへコメントすると、未処理のコメントと合わせて再実行します。Actionsの「Re-run jobs」でも同じ入力で再実行できます。']
         if detail:
             parts.append(f'\n```\n{detail}\n```')
+        if restart_note:
+            parts.append(restart_note)
         parts.append(table)
     gh.comment(number, '\n\n'.join(parts))
+    state['finalizedRun'] = os.environ.get('GITHUB_RUN_ID')
+    store.put_json(session_key(number, 'state.json'), state)
 
     turn = report['turnUsage']
     append_summary('\n'.join([
@@ -466,6 +698,11 @@ def outbox_append(entry):
 def cmd_decision(args):
     outbox_append({'type': 'decision', 'text': args.text})
     print('記録しました。ターン終了時にIssueのセッション状態へ保存されます。')
+
+
+def cmd_request_pr(args):
+    outbox_append({'type': 'request-pr', 'title': args.title, 'body': Path(args.body_file).read_text()})
+    print('PR作成を予約しました。終了後の独立検証と署名付きarchiveが成功した場合だけ作成します。')
 
 
 def cmd_attach(args):
@@ -540,8 +777,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('route').set_defaults(func=cmd_route)
+    commands.add_parser('recover').set_defaults(func=cmd_recover)
     commands.add_parser('prepare').set_defaults(func=cmd_prepare)
     commands.add_parser('finalize').set_defaults(func=cmd_finalize)
+    commands.add_parser('validate').set_defaults(func=cmd_validate)
+    request_pr = commands.add_parser('request-pr', help='独立検証の成功後にPRを作成する')
+    request_pr.add_argument('--title', required=True)
+    request_pr.add_argument('--body-file', required=True)
+    request_pr.set_defaults(func=cmd_request_pr)
     decision = commands.add_parser('decision', help='重要な設計判断を記録する')
     decision.add_argument('text')
     decision.set_defaults(func=cmd_decision)

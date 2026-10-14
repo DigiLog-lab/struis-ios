@@ -19,8 +19,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ios-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # Keep releases/manual uploads independent from cancellable push/PR verification.
+  group: ios-${{ github.event_name == 'workflow_dispatch' && 'manual' || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
   build:
@@ -33,56 +34,64 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14'
+      - name: Xcodeを確認
+        run: xcodebuild -version
+      - name: Native Runtime cacheを復元
+        id: native
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
       - name: ツールを準備
+        if: steps.native.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
-          xcodebuild -version
           brew install autoconf automake libtool
           if ! command -v rustup >/dev/null; then
             brew install rustup
           fi
           rustup toolchain install 1.95.0 --profile minimal
           rustup target add --toolchain 1.95.0 aarch64-apple-ios aarch64-apple-ios-sim
-      - name: 公開ソースを新規clone
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        run: |
-          set -euo pipefail
-          export GIT_TERMINAL_PROMPT=0
-          git -c credential.helper= -c http.extraHeader= clone https://github.com/DigiLog-lab/struis-ios.git "$RUNNER_TEMP/StruisPublicClone"
-          cd "$RUNNER_TEMP/StruisPublicClone"
-          python - <<'PY'
-          import json, os, subprocess
-          from pathlib import Path
-          commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
-          empty = not any(Path(path).exists() for path in ('NativeRuntime/Vendor', 'NativeRuntime/.build', 'NativeRuntime/PackageCache', 'NativeRuntime/PythonPackages')) and not Path(os.environ['RUNNER_TEMP'], 'StruisCargoCold').exists()
-          assert commit == os.environ['GITHUB_SHA'] and empty
-          print(json.dumps({'publicCloneSourceCommit': commit, 'publicCloneCacheEmpty': empty}))
-          PY
-          printf 'STRUIS_SOURCE_ROOT=%s\nCARGO_HOME=%s\n' "$RUNNER_TEMP/StruisPublicClone" "$RUNNER_TEMP/StruisCargoCold" >> "$GITHUB_ENV"
       - name: 固定依存を生成
+        if: steps.native.outputs.cache-hit != 'true'
         env:
           CARGO_BUILD_JOBS: '2'
         run: |
-          cd "${STRUIS_SOURCE_ROOT:-$GITHUB_WORKSPACE}"
+          set -euo pipefail
           python3.14 NativeRuntime/Scripts/bootstrap.py --platform both
       - name: ビルド用cacheを整理
+        if: steps.native.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
-          cd "${STRUIS_SOURCE_ROOT:-$GITHUB_WORKSPACE}"
           rm -rf NativeRuntime/.build/codex NativeRuntime/.build/codex-artifacts
+      - name: Native Runtime cacheを保存
+        if: steps.native.outputs.cache-hit != 'true'
+        # agent-native-cache.yml may already be writing this exact key.
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
       - name: READMEのSimulatorビルド
         run: |
           set -euo pipefail
-          cd "${STRUIS_SOURCE_ROOT:-$GITHUB_WORKSPACE}"
           xcodebuild build -project strius.xcodeproj -scheme strius \
             -destination 'generic/platform=iOS Simulator' ARCHS=arm64 CODE_SIGNING_ALLOWED=NO
       - name: Simulatorで単体テスト
         run: |
           set -euo pipefail
-          cd "${STRUIS_SOURCE_ROOT:-$GITHUB_WORKSPACE}"
           xcodebuild test -project strius.xcodeproj -scheme strius \
             -destination 'platform=iOS Simulator,name=iPhone 17' \
             -resultBundlePath "$RUNNER_TEMP/StruisTests.xcresult" \
+            -collect-test-diagnostics never \
             -only-testing:striusTests -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
       - name: 署名付きarchiveを作成
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -100,7 +109,6 @@ jobs:
           BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
           set -euo pipefail
-          cd "${STRUIS_SOURCE_ROOT:-$GITHUB_WORKSPACE}"
           args=(--output "$RUNNER_TEMP/StruisArchive")
           if [[ "$UPLOAD" == "true" ]]; then
             args+=(--upload --build-number "$BUILD_NUMBER")

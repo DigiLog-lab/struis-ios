@@ -309,8 +309,14 @@ nonisolated struct WorkbookMachine {
             subunitId: row.subunitId, subunitTitle: subunit?.title, unitId: unit?.id, unitTitle: unit?.title, setId: row.setId,
             verdicts: verdicts, summary: Self.setResult(summary["result"]), candidates: candidates,
             nextSetId: summary["next_set_id"]?.stringValue, outcome: summary["outcome"]?.stringValue, error: row.error,
-            imagePath: row.imagePath, result: result, setProgress: progress
+            imagePath: row.imagePath, result: result, setProgress: progress, pagePaths: Self.pagePaths(row)
         )
+    }
+
+    /// 答案の全ページの写真(順に)。1 枚の答案は `image_path` だけ。
+    nonisolated static func pagePaths(_ row: WorkbookCaptureRecord) -> [String] {
+        let pages = (row.context["page_paths"]?.arrayValue ?? []).compactMap(\.stringValue)
+        return pages.isEmpty ? [row.imagePath] : pages
     }
 
     /// リザルト画面の値。旧い答案(補習・自動降格の時代)も読めるようにする。
@@ -1307,7 +1313,8 @@ nonisolated struct WorkbookMachine {
 
     /// 撮った紙を `identifying` で登録する (`POST /v1/captures` の移植)。
     @discardableResult
-    mutating func createCapture(id: String, imagePath: String, contentType: String, sha256: String, byteCount: Int, subunitID: String?, setID: String?) throws -> WorkbookCaptureDTO {
+    /// `pagePaths`: 何枚かをまとめて撮った答案の、全ページの写真(順に。1 枚目は `imagePath`)。1 枚なら空。
+    mutating func createCapture(id: String, imagePath: String, contentType: String, sha256: String, byteCount: Int, subunitID: String?, setID: String?, pagePaths: [String] = []) throws -> WorkbookCaptureDTO {
         var context: [String: LedgerJSON] = [:]
         var resolvedSubunit: String?
         var resolvedSet: String?
@@ -1327,6 +1334,7 @@ nonisolated struct WorkbookMachine {
             let stages = subunits.values.filter { $0.status == "active" }.map { ($0.id, LedgerJSON.number(Double($0.stage))) }
             context = ["stages": .object(Dictionary(stages, uniquingKeysWith: { first, _ in first }))]
         }
+        if pagePaths.count > 1 { context["page_paths"] = .array(pagePaths.map(LedgerJSON.string)) }
         let row = WorkbookCaptureRecord(
             id: id, status: "identifying", imagePath: imagePath, contentType: contentType, sha256: sha256, byteCount: byteCount,
             context: .object(context), subunitId: resolvedSubunit, setId: resolvedSet, verdicts: .emptyArray, summary: .emptyObject,

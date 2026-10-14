@@ -4,11 +4,13 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/actionlint.yaml'
       - 'scripts/agent/**'
       - 'cloudflare/agent/**'
       - '.github/workflows/agent*.yml'
   pull_request:
     paths:
+      - '.github/actionlint.yaml'
       - 'scripts/agent/**'
       - 'cloudflare/agent/**'
       - '.github/workflows/agent*.yml'
@@ -26,5 +28,19 @@ jobs:
           persist-credentials: false
       - name: 制御スクリプトの単体テスト
         run: python3 -m unittest discover -s scripts/agent/tests -v
+      - name: Actions定義の構文と式を検証
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, io, os, tarfile, urllib.request
+          url = 'https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz'
+          data = urllib.request.urlopen(url, timeout=60).read()
+          expected = '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8'
+          if hashlib.sha256(data).hexdigest() != expected:
+              raise RuntimeError('actionlint checksum mismatch')
+          with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+              archive.extract('actionlint', os.environ['RUNNER_TEMP'], filter='data')
+          PY
+          "$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes= .github/workflows/*.yml
       - name: Workerの構文確認
         run: node --check cloudflare/agent/src/index.js

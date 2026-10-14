@@ -40,18 +40,26 @@ nonisolated struct TurnComposer {
     func grading(planID: String, machine: WorkbookMachine, captureID: String) async throws -> (plan: TurnPlan, context: WorkbookMachine.GradingContext) {
         guard let capture = machine.captures[captureID] else { throw LedgerError.notFound("capture") }
         let context = machine.gradingContext(capture: capture)
-        let request: LedgerJSON = .object([
+        let pages = WorkbookMachine.pagePaths(capture)
+        var request: [String: LedgerJSON] = [
             "task": .string("grade_answer_sheet"), "capture_id": .string(captureID), "scope": context.scope, "subunits": .array(context.subunits),
-        ])
-        let ext = (capture.imagePath as NSString).pathExtension.lowercased()
-        let image = TurnPlan.ImageRef(
-            path: "tutor_desk/inbox/captures/\(captureID)/paper.\(ext.isEmpty ? "jpg" : ext)",
-            hostPath: StruisPaths.captures.appendingPathComponent(capture.imagePath).path
-        )
+        ]
+        if pages.count > 1 {
+            // 一括採点: 添えた画像は 1 つの答案の連続したページ(順に)。全ページの問題を 1 つの答案として判定する。
+            request["page_count"] = .number(Double(pages.count))
+            request["pages_note"] = .string("The attached \(pages.count) images are consecutive pages of one answer sheet, in order. Grade every problem on every page as one answer sheet; a problem may continue onto the next page.")
+        }
+        let images = pages.enumerated().map { index, relative in
+            let ext = (relative as NSString).pathExtension.lowercased()
+            return TurnPlan.ImageRef(
+                path: "tutor_desk/inbox/captures/\(captureID)/paper\(index == 0 ? "" : "-\(index + 1)").\(ext.isEmpty ? "jpg" : ext)",
+                hostPath: StruisPaths.captures.appendingPathComponent(relative).path
+            )
+        }
         let plan = TurnPlan(
             id: planID, kind: .workbookGrading, round: 1,
             thread: try await structuredThread(planID: planID, instructions: "prompt:grading_instructions", model: await assets.model("astra")),
-            turn: TurnPlan.TurnSpec(text: Self.dump(request), images: [image], outputSchema: try await assets.json("schema:workbook_grading"), sandboxPolicy: "dangerFullAccess"),
+            turn: TurnPlan.TurnSpec(text: Self.dump(.object(request)), images: images, outputSchema: try await assets.json("schema:workbook_grading"), sandboxPolicy: "dangerFullAccess"),
             workspace: TurnPlan.WorkspaceSpec(files: [], dirs: []), delegation: nil, collect: [], limits: .structured, items: nil
         )
         return (plan, context)

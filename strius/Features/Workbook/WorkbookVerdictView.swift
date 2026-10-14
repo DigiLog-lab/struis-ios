@@ -4,13 +4,18 @@ import UIKit
 /// リザルト。撮った一枚ごとの判定の後に出す。上から、正解数と状態の 1 語、演習なら直近 n 問のマス
 /// (今回の一枚で埋まったマスを示す)、答案の写真と各問の ○× と一言、次の行動のボタン。
 /// 間違えても罰は無い。次の行動(やり直す / 例題に戻る / 質問する)は学習者が選ぶ。判定中はここで待てる。
+/// 全問正解の答案では「やり直す」(新しい一枚を作る)を出さず、「演習に戻る」で作られた演習の一覧へ戻す。
 struct WorkbookVerdictView: View {
     @Environment(WorkbookStore.self) private var store
     @Environment(WorkbookCoordinator.self) private var coordinator
     @Environment(LearnerData.self) private var learnerData
     @Environment(\.colorScheme) private var scheme
     let captureID: String
-    @State private var image: UIImage?
+    /// 答案の写真(何枚かの答案は全ページを縦に並べた 1 枚)。
+    @State private var paper: WorkbookCapturePaper?
+    private var image: UIImage? { paper?.image }
+    /// 写真の高さの上限はページ数に比例させる(並べたページが細くならないように)。
+    private var pageCount: CGFloat { CGFloat(max(1, paper?.pageCount ?? 1)) }
     @State private var busyAction: WorkbookResultDTO.Action?
     /// 判定を待つ間の演出(§5)。この画面で判定中を見た時だけ作り、丸をつけ終えるまで結果を出さない。
     @State private var stage: WorkbookGradingStageModel?
@@ -98,7 +103,7 @@ struct WorkbookVerdictView: View {
             if store.captures[captureID]?.status == .identifying, stage == nil { stage = WorkbookGradingStageModel() }
             // 次の行動が今の小単元の段に合うかを確かめるため、小単元も読み直す。
             if let subunitID = store.captures[captureID]?.subunitId { await store.loadSubunit(id: subunitID) }
-            image = await store.captureImage(id: captureID)
+            paper = await store.capturePaper(id: captureID)
             await loadStaticRegionsIfGraded()
         }
         .onChange(of: capture?.status) { _, status in
@@ -245,8 +250,8 @@ struct WorkbookVerdictView: View {
     private func gradingStage(_ capture: WorkbookCaptureDTO) -> some View {
         if let stage {
             stageStatusRow(capture, text: stage.status)
-            if let image {
-                WorkbookGradingStage(captureID: capture.id, image: image, model: stage) {
+            if let paper {
+                WorkbookGradingStage(captureID: capture.id, paper: paper, model: stage) {
                     withAnimation(.easeInOut(duration: 0.35)) { stageFinished = true }
                 }
                 .onAppear {
@@ -258,8 +263,8 @@ struct WorkbookVerdictView: View {
     }
 
     private func loadStaticRegionsIfGraded() async {
-        guard staticRegions == nil, let image, store.captures[captureID]?.status == .graded else { return }
-        staticRegions = await WorkbookAnswerRegions.detect(captureID: captureID, image: image)
+        guard staticRegions == nil, let paper, store.captures[captureID]?.status == .graded else { return }
+        staticRegions = await WorkbookAnswerRegions.detect(captureID: captureID, paper: paper)
     }
 
     /// 判定の後の写真。領域に結べた判定には、丸・△・× を描いたまま残す。
@@ -269,7 +274,8 @@ struct WorkbookVerdictView: View {
             let regions = staticRegions ?? []
             let assignment = WorkbookAnswerRegions.assign(verdictLabels: capture.verdicts.map(\.label), regions: regions)
             let marks = assignment.sorted { $0.key < $1.key }.map { (region: regions[$0.value], verdict: capture.verdicts[$0.key].verdict) }
-            WorkbookMarkedPhoto(image: image, model: nil, staticMarks: marks, maxHeight: 320)
+            WorkbookMarkedPhoto(image: image, model: nil, staticMarks: marks, maxHeight: 320 * pageCount)
+                .accessibilityValue(pageCount > 1 ? "\(Int(pageCount)) 枚" : "")
                 .accessibilityIdentifier("workbook-result-photo")
         }
     }
@@ -280,7 +286,7 @@ struct WorkbookVerdictView: View {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFit()
-                .frame(maxHeight: 220)
+                .frame(maxHeight: 220 * pageCount)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
                 .accessibilityLabel("答案")
         }
@@ -336,11 +342,17 @@ struct WorkbookVerdictView: View {
         return kept.isEmpty ? [.ask] : kept
     }
 
+    /// 全問正解の答案では、「やり直す」を「演習に戻る」に置き換える(正解したのに新しい一枚を作り直させない)。
+    static func shownActions(_ actions: [WorkbookResultDTO.Action], summary: WorkbookSetResultDTO?) -> [WorkbookResultDTO.Action] {
+        guard let summary, summary.total > 0, summary.correct == summary.total else { return actions }
+        return actions.map { $0 == .retry ? .returnToSet : $0 }
+    }
+
     private func actions(_ capture: WorkbookCaptureDTO) -> some View {
-        let actions = Self.currentActions(
+        let actions = Self.shownActions(Self.currentActions(
             capture.result?.actions ?? [.ask], stageAfter: capture.result?.stageAfter,
             subunit: capture.subunitId.flatMap { store.subunits[$0] }
-        )
+        ), summary: capture.summary)
         let primary = actions.first { $0 != .ask && $0 != .returnToExample && $0 != .closeSet }
         return VStack(spacing: 10) {
             if let primary {
@@ -381,6 +393,7 @@ struct WorkbookVerdictView: View {
         switch action {
         case .practice: "演習へ"
         case .retry: "やり直す"
+        case .returnToSet: "演習に戻る"
         case .returnToExample: "例題に戻る"
         case .nextSubunit: "次の小単元へ"
         case .finishUnit: "単元を終える"
@@ -394,6 +407,7 @@ struct WorkbookVerdictView: View {
         switch action {
         case .practice: "workbook-result-practice"
         case .retry: "workbook-result-retry"
+        case .returnToSet: "workbook-result-return-to-set"
         case .returnToExample: "workbook-result-return"
         case .nextSubunit: "workbook-verdict-next"
         case .finishUnit: "workbook-result-finish"
@@ -423,6 +437,17 @@ struct WorkbookVerdictView: View {
         } else {
             button.buttonStyle(.bordered)
         }
+    }
+
+    /// 「演習に戻る」の行き先。一覧から問題を開いて撮った時は、その一覧まで戻る(道のりを残す)。
+    /// 一覧を通らずに撮った時は、答案の一枚か小単元の開いている一枚を開く。
+    private func returnToSetPath(_ capture: WorkbookCaptureDTO) -> [WorkbookDestination] {
+        if let index = coordinator.path.lastIndex(where: { if case .set = $0 { true } else { false } }) {
+            return Array(coordinator.path[...index])
+        }
+        guard let subunitID = capture.subunitId else { return [] }
+        let setID = capture.setId ?? store.subunits[subunitID]?.openSetId
+        return [.subunit(subunitID)] + (setID.map { [.set($0)] } ?? [])
     }
 
     private func perform(_ action: WorkbookResultDTO.Action, capture: WorkbookCaptureDTO) {
@@ -462,6 +487,8 @@ struct WorkbookVerdictView: View {
                 }
                 busyAction = nil
             }
+        case .returnToSet:
+            coordinator.path = returnToSetPath(capture)
         case .returnToExample:
             guard let subunitID = capture.subunitId else { return }
             busyAction = action
