@@ -156,13 +156,45 @@ def restart_interrupted(gh, state, outcome):
         return None
     count = int(state.get('autoRestarts') or 0)
     if count >= 3:
-        return '連続3回の自動再開後も中断したため、自動再開を停止しました。作業とセッションは保存しています。'
+        return '連続3回の自動再開後も失敗したため、自動再開を停止しました。作業とセッションは保存しています。'
     gh.request('POST', f'/repos/{gh.repository}/actions/workflows/agent.yml/dispatches', {
         'ref': 'main', 'inputs': {'issue': str(state['issue']), 'automatic_retry': 'true'},
     })
     state['autoRestarts'] = count + 1
     state['restartFromRun'] = os.environ.get('RECOVER_RUN_ID') or os.environ.get('GITHUB_RUN_ID')
     return f'保存した作業とセッションから自動再開を予約しました ({count + 1}/3)。'
+
+
+def session_needs_recovery(state):
+    last = state.get('lastRun') or {}
+    usage = last.get('turnUsage') or {}
+    # Also recognize the zero-work failure recorded by older controller versions.
+    return bool(last.get('noOp') or (last.get('success') is False and usage
+                and all(usage.get(key) == 0 for key in ('input', 'output', 'cacheRead', 'cacheCreation'))))
+
+
+def execution_is_noop(report):
+    return (report.get('result') or {}).get('num_turns') == 0 and report.get('requests') == 0
+
+
+def validation_feedback(home):
+    """Carry actionable failures to the next runner, without copying command environments."""
+    path = home / 'validation.json'
+    if not path.exists():
+        return None
+    report = json.loads(path.read_text())
+    if report.get('success'):
+        return None
+    name = report.get('currentCheck', 'code')
+    lines = []
+    from prototype import redact
+    for log in sorted((home / 'artifacts').glob(f'validation-*/{name}.log'))[-1:]:
+        with log.open(errors='replace') as stream:
+            for line in stream:
+                if re.search(r'\berror:|^Test Case .* failed|^[✘×] Test .* failed|^\*\* .*FAILED', line):
+                    lines.append(redact(line.strip())[:1500])
+                    lines = lines[-20:]
+    return {'check': name, 'failures': lines, 'run': run_url()}
 
 
 def cmd_recover(_args):
@@ -272,7 +304,7 @@ def cmd_prepare(_args):
     state.pop('restartFromRun', None)
     state.pop('finalizedRun', None)
     session_id = state.get('sessionId')
-    restored = restore_session(store, number, session_id)
+    restored = not session_needs_recovery(state) and restore_session(store, number, session_id)
     recovery = bool(session_id) and not restored
     model = state.get('model') or os.environ.get('AGENT_MODEL') or 'opus'
     prototypes = prototype_summary(store, number)
@@ -323,6 +355,11 @@ def cmd_prepare(_args):
         blocks.append(f'<issue-body author="{issue["user"]["login"]}" created="{issue["created_at"]}">\n'
                       f'{issue.get("body") or ""}\n</issue-body>')
     blocks.extend(format_comment(comment) for comment in pending)
+    if state.get('validationFailure'):
+        blocks.append('<validation-failure>\n前回の検証失敗を修正してから、検証と成果提示へ進んでください。\n'
+                      + json.dumps(state['validationFailure'], ensure_ascii=False) + '\n</validation-failure>')
+    if session_needs_recovery(state):
+        blocks.append('前回の復元セッションは0ターンで終了しました。保存済みの作業と上記履歴を引き継ぎ、新規セッションで未処理の依頼を実行してください。')
     prompt = '\n\n'.join(blocks)
 
     claude_args = ['--model', model, '--exclude-dynamic-system-prompt-sections',
@@ -363,6 +400,9 @@ def cmd_prepare(_args):
 
 def cmd_validate(_args):
     import guard
+    report = analyze(load_execution(os.environ.get('CLAUDE_EXECUTION_FILE')))
+    if execution_is_noop(report):
+        sys.exit('Claude Codeが0ターンで終了しました。作業を実行していないため成果検証を開始しません。')
     run = json.loads((agent_home() / 'run.json').read_text())
     if git('status', '--porcelain'):
         sys.exit('未コミットの変更があります。成果を提示できません。')
@@ -501,6 +541,8 @@ def usage_table(report, run, usage):
 
 
 def failure_reason(result, claude_success, validation_ok, outcome):
+    if result.get('num_turns') == 0:
+        return 'Claude Codeが0ターンで終了し、未処理の依頼を実行していません。新規セッションで履歴と作業を引き継ぎます。'
     if not claude_success:
         return (result.get('api_error_status') or result.get('subtype')
                 or f'Claude Codeが中断・失敗しました ({outcome or "not run"})。終了後の検証は実行されていません。')
@@ -530,7 +572,8 @@ def cmd_finalize(_args):
         report['requests'] = None
         report['turnUsage'] = {key: None for key in report['turnUsage']}
     result = report['result'] or {}
-    claude_success = bool(report['result']) and result.get('subtype') == 'success' and not result.get('is_error')
+    no_op = execution_is_noop(report)
+    claude_success = bool(report['result']) and result.get('subtype') == 'success' and not result.get('is_error') and not no_op
     import guard
     validation_ok = os.environ.get('VALIDATION_OUTCOME') == 'success' and guard.publication_allowed(run)
     success = claude_success and validation_ok
@@ -584,6 +627,7 @@ def cmd_finalize(_args):
         state['model'] = report['model']
     if success:
         state['autoRestarts'] = 0
+        state.pop('validationFailure', None)
         state['validatedHead'] = git('rev-parse', 'HEAD')
         if run['includedComments']:
             state['lastCommentId'] = max([int(state.get('lastCommentId') or 0), *run['includedComments']])
@@ -591,12 +635,17 @@ def cmd_finalize(_args):
             state['issueBodyProcessed'] = True
     state['decisions'] = (state.get('decisions') or []) + decisions
     state['lastRun'] = {key: usage[key] for key in ('run', 'success', 'restored', 'recovery', 'turnUsage', 'firstRequest')}
+    state['lastRun']['noOp'] = no_op
+    if not success:
+        feedback = validation_feedback(home)
+        if feedback:
+            state['validationFailure'] = feedback
     store.put_json(session_key(number, 'state.json'), state)
 
     table = usage_table(report, run, usage)
     try:
-        outcome = os.environ.get('CLAUDE_OUTCOME') if not claude_success else os.environ.get('VALIDATION_OUTCOME')
-        restart_note = restart_interrupted(gh, state, outcome) if not claude_success or outcome == 'cancelled' else None
+        outcome = 'cancelled' if 'cancelled' in (os.environ.get('CLAUDE_OUTCOME'), os.environ.get('VALIDATION_OUTCOME')) else 'failure'
+        restart_note = restart_interrupted(gh, state, outcome) if not success else None
     except Exception as error:
         restart_note = f'作業は保存しましたが、自動再開の予約に失敗しました: {type(error).__name__}'
     if restart_note:
@@ -612,7 +661,7 @@ def cmd_finalize(_args):
         parts.append(table)
     else:
         reason = failure_reason(result, claude_success, validation_ok, os.environ.get('CLAUDE_OUTCOME'))
-        detail = (result.get('result') or report['lastText'] or '').strip()[:2000] if validation_ok else ''
+        detail = (result.get('result') or report['lastText'] or '').strip()[:2000] if validation_ok and not no_op else ''
         parts = [REPLY_MARKER, '⚠️ エージェントの実行に失敗しました。', '',
                  f'- 原因: `{reason}`',
                  f'- 実行ログ: {run_url()}',
