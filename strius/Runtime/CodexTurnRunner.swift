@@ -163,7 +163,8 @@ actor CodexTurnRunner: TurnRunning {
                 images: turn.images.map(\.path).map { workspace + "/" + $0 },
                 model: plan.thread.model, effort: plan.thread.effort, outputSchema: turn.outputSchema, sandboxPolicy: turn.sandboxPolicy,
                 configured: configured.response, configurationEvidence: configured.evidence, taskType: plan.kind.rawValue,
-                timeoutS: plan.limits.turnTimeoutS, deadline: deadline, skills: skills, provider: plan.thread.provider, progress: progress
+                timeoutS: plan.limits.turnTimeoutS, deadline: deadline, skills: skills, provider: plan.thread.provider,
+                repairRound: plan.round > 1, progress: progress
             ) { execution in executions.append(execution) }
             let childExecutions = await watcher?.executions ?? []
             let files = try WorkspaceStager.collect(plan: plan)
@@ -171,7 +172,7 @@ actor CodexTurnRunner: TurnRunning {
             if contextStore.entry(threadID)?.answered == false { contextStore.update(threadID) { $0.answered = true } }
             // Compaction rewrote the history: memory evidence sent in earlier inputs may be gone (P1-3).
             if executions.contains(where: { !($0["compactions"]?.arrayValue ?? []).isEmpty }) {
-                contextStore.update(threadID) { $0.memory = nil }
+                contextStore.forgetMemory(threadID)
             }
             // The answer is ready: return it now and read the rate limits afterwards (M3). A slow read
             // no longer delays the reply or marks the connection unhealthy (H4).
@@ -349,8 +350,28 @@ actor CodexTurnRunner: TurnRunning {
         params["modelProvider"] = providerID
         var config = params["config"] as? JSONObject ?? [:]
         config["model_providers.\(providerID)"] = ClaudeResponsesProxy.providerConfig(endpoint)
+        if provider == .anthropic {
+            // Codex は Claude のモデルを知らない(未知のモデルの既定値で動く)。上限と要約の条件を明示する。
+            config["model_context_window"] = ClaudeModelInfo.contextWindow
+            config["model_auto_compact_token_limit"] = ClaudeModelInfo.autoCompactTokenLimit
+        }
         params["config"] = config
         return endpoint.baseURL
+    }
+
+    /// スレッドを始めた時の設定の版(`ThreadContextStore.Profile`)。
+    nonisolated static func threadProfile(_ plan: TurnPlan, base: String, developer: String) -> ThreadContextStore.Profile {
+        let claude = plan.thread.provider == .anthropic
+        let tools = (try? JSONSerialization.data(withJSONObject: NativeToolRouter.definitions, options: [.sortedKeys]))
+            .map { String(decoding: $0, as: UTF8.self) } ?? ""
+        let schema = plan.turn?.outputSchema.flatMap { try? JSONSerialization.data(withJSONObject: $0.any, options: [.sortedKeys]) }
+            .map { ThreadContextStore.hash(String(decoding: $0, as: UTF8.self)) }
+        return ThreadContextStore.Profile(
+            kind: plan.kind.rawValue, model: plan.thread.model, effort: plan.thread.effort,
+            instructions: ThreadContextStore.hash(base, developer), tools: ThreadContextStore.hash(tools), schema: schema,
+            thinking: claude ? "adaptive/summarized" : "codex", translation: claude ? ClaudeTranslation.current : nil,
+            cacheTTL: claude ? ClaudeTranslation.tailCacheTTL(kind: plan.kind.rawValue) : nil, startedAt: Date()
+        )
     }
 
     private struct Configured {
@@ -403,10 +424,12 @@ actor CodexTurnRunner: TurnRunning {
             guard let threadID, !threadID.isEmpty else { throw CodexAppServerError.malformed("thread/start returned no thread id") }
             loadedThreads[threadID] = (generation, instructions, response)
             if !spec.ephemeral {
+                let profile = Self.threadProfile(plan, base: base, developer: fullDeveloper)
                 contextStore.update(threadID) {
                     $0.developer = developerHash
                     $0.provider = spec.provider
                     $0.answered = false
+                    $0.profile = profile
                 }
             }
             return Configured(threadID: threadID, response: response, evidence: "thread/start")
@@ -445,10 +468,12 @@ actor CodexTurnRunner: TurnRunning {
                         throw CodexAppServerError.malformed("thread/start returned no thread id")
                     }
                     loadedThreads[id] = (generation, instructions, recovered)
+                    let profile = Self.threadProfile(plan, base: base, developer: params["developerInstructions"] as? String ?? fullDeveloper)
                     contextStore.update(id) {
                         $0.developer = developerHash
                         $0.provider = spec.provider
                         $0.answered = false
+                        $0.profile = profile
                     }
                     return Configured(threadID: id, response: recovered, evidence: "thread/start after missing rollout")
                 }
@@ -479,6 +504,10 @@ actor CodexTurnRunner: TurnRunning {
             contextStore.update(forked) { entry in
                 entry.developer = inherited?.developer
                 entry.memory = nil
+                entry.memoryFiles = nil
+                // 複製は元の履歴(署名付きの thinking を含む)を引き継ぐので、送り方の版も引き継ぐ。
+                entry.profile = inherited?.profile
+                entry.thinkingStripped = inherited?.thinkingStripped
                 entry.provider = spec.provider
                 // 複製元の履歴を引き継ぐので、返事のあるスレッドとして扱う。
                 entry.answered = inherited?.answered ?? true
@@ -499,7 +528,7 @@ actor CodexTurnRunner: TurnRunning {
         model: String, effort: String, outputSchema: LedgerJSON?, sandboxPolicy: String,
         configured: JSONObject, configurationEvidence: String, taskType: String, timeoutS: Int, deadline: TurnDeadline? = nil,
         parentThreadID: String? = nil, parentTurnID: String? = nil, executionID: String? = nil,
-        skills: SkillWaiting = SkillWaiting(), provider: ModelProvider? = nil,
+        skills: SkillWaiting = SkillWaiting(), provider: ModelProvider? = nil, repairRound: Bool = false,
         progress: @escaping @Sendable (TurnProgressEvent) -> Void,
         record: (LedgerJSON) -> Void
     ) async throws -> Observed {
@@ -517,7 +546,33 @@ actor CodexTurnRunner: TurnRunning {
             "configuration_evidence": configurationEvidence, "actual_model": NSNull(), "actual_effort": NSNull(), "reroutes": [Any](),
             "lookup_commands": parentThreadID == nil ? NSNull() : [Any](), "usage": NSNull(), "turn_tokens": NSNull(), "estimated_cost_usd": NSNull(),
             "status": "starting", "elapsed_ms": NSNull(), "billing_source": (provider ?? .openai).billingSource, "actual_charge": NSNull(),
+            "round_reason": repairRound ? ClaudeRequestReason.validationRepair.rawValue : ClaudeRequestReason.turnStart.rawValue,
         ]
+        // Claude: 要求 1 回ごとの記録(端末内のプロキシが書く)を実行監査に移し、料金は要求ごとに計算して足す。
+        let claude = provider == .anthropic
+        func attachRequests() {
+            guard claude, let turn = audit["turn_id"] as? String, !turn.isEmpty else { return }
+            var requests = (audit["requests"] as? [[String: Any]] ?? []) + ClaudeRequestLog.shared.take(threadID: threadID, turnID: turn)
+            if repairRound, let index = requests.firstIndex(where: { $0["reason"] as? String == ClaudeRequestReason.turnStart.rawValue }) {
+                requests[index]["reason"] = ClaudeRequestReason.validationRepair.rawValue
+            }
+            audit["requests"] = requests
+            var reasons: [String: Int] = [:]
+            for request in requests { reasons[request["reason"] as? String ?? "unknown", default: 0] += 1 }
+            audit["request_reasons"] = reasons
+            let cost = ClaudeRequestLog.turnCost(requests)
+            audit["estimated_cost_usd"] = cost.usd ?? NSNull()
+            audit["cost_status"] = cost.status
+            audit["pricing_version"] = ClaudePricing.version
+            if let actual = requests.last(where: { $0["actual_model"] is String })?["actual_model"] { audit["actual_model"] = actual }
+            // thinking の内訳: すべての要求が返した時だけ足す(1 つでも返らなければ内訳なし。0 にしない)。
+            if var tokens = audit["turn_tokens"] as? JSONObject {
+                let billed = requests.filter { $0["usage"] is [String: Any] }
+                let reported = billed.compactMap { $0["thinking_tokens"] as? Int }
+                tokens["reasoning_output_tokens"] = !billed.isEmpty && reported.count == billed.count ? reported.reduce(0, +) : NSNull()
+                audit["turn_tokens"] = tokens
+            }
+        }
         var input: [Any] = [["type": "text", "text": text]]
         for path in images { input.append(["type": "localImage", "path": path]) }
         var params: JSONObject = [
@@ -679,8 +734,15 @@ actor CodexTurnRunner: TurnRunning {
                         let first = firstTokenUsage ?? usage
                         firstTokenUsage = first
                         let tokens = TurnTokenUsage.turnTokens(first: first, latest: usage)
-                        audit["turn_tokens"] = tokens
-                        audit["estimated_cost_usd"] = TurnTokenUsage.estimatedCostUSD(model: model, tokens: tokens) ?? NSNull()
+                        if claude {
+                            // thinking の内訳はターンの終わりに要求ごとの記録から入れる(それまでは内訳なし)。料金も要求ごとに出す。
+                            var tokens = tokens
+                            tokens["reasoning_output_tokens"] = NSNull()
+                            audit["turn_tokens"] = tokens
+                        } else {
+                            audit["turn_tokens"] = tokens
+                            audit["estimated_cost_usd"] = TurnTokenUsage.estimatedCostUSD(model: model, tokens: tokens) ?? NSNull()
+                        }
                     }
                 case "model/rerouted":
                     reroutes.append(["fromModel": params["fromModel"] ?? NSNull(), "toModel": params["toModel"] ?? NSNull(), "reason": params["reason"] ?? NSNull()])
@@ -752,6 +814,7 @@ actor CodexTurnRunner: TurnRunning {
                     guard !finalText.isEmpty else { throw CodexAppServerError.turnFailed("Completed turn returned no final answer") }
                     audit["status"] = "completed"
                     audit["elapsed_ms"] = Self.elapsed(started)
+                    attachRequests()
                     record(LedgerJSON(any: audit))
                     liveTurns[planID] = nil
                     await session.unwatch(turnID: turnID, finished: true)
@@ -772,6 +835,8 @@ actor CodexTurnRunner: TurnRunning {
             }
             audit["error"] = Self.describe(error).prefix(2000).description
             audit["elapsed_ms"] = Self.elapsed(started)
+            // 出力上限・中断・失敗で終わった要求も記録に残す。
+            attachRequests()
             record(LedgerJSON(any: audit))
             if !turnID.isEmpty {
                 await session.unwatch(turnID: turnID, finished: turnFinished)

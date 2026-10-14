@@ -14,6 +14,13 @@ nonisolated enum ClaudeRequestTranslator {
         var stripThinking = false
         /// schema が大きすぎて structured outputs に拒まれた時は、schema を指示文で渡す(結果は Engine が検証する)。
         var schemaInInstructions = false
+        /// 変換方式の版(`ClaudeTranslation`)。スレッドを始めた時の版で続ける(送信済みの履歴の形を変えない)。
+        var translation = ClaudeTranslation.current
+        /// 会話の末尾(自動の breakpoint)の TTL。版 2 以降だけ使う。
+        var tailCacheTTL = "5m"
+        /// cache diagnostics で比べる直前の応答 ID。版 2 以降で、`includeDiagnostics` の時だけ送る。
+        var previousResponseID: String?
+        var includeDiagnostics = true
     }
 
     nonisolated struct Translation {
@@ -21,6 +28,12 @@ nonisolated enum ClaudeRequestTranslator {
         var tools: ClaudeToolNames
         /// `text.format` があった(構造化ターン)。
         var structured: Bool
+        var translation: Int
+
+        /// Anthropic へ送る本文。版 2 以降はキーの順を固定する(再起動をまたいでも同じ内容を同じバイト列で送る)。
+        func data() throws -> Data {
+            try JSONSerialization.data(withJSONObject: body, options: translation >= 2 ? [.sortedKeys, .withoutEscapingSlashes] : [])
+        }
     }
 
     enum TranslationError: Error, LocalizedError {
@@ -34,7 +47,7 @@ nonisolated enum ClaudeRequestTranslator {
 
     static func translate(_ request: [String: Any], options: Options = Options()) throws -> Translation {
         guard let model = request["model"] as? String, !model.isEmpty else { throw TranslationError.malformed("model") }
-        let tools = ClaudeToolNames(responsesTools: request["tools"] as? [[String: Any]] ?? [])
+        let tools = ClaudeToolNames(responsesTools: request["tools"] as? [[String: Any]] ?? [], sorted: options.translation >= 2)
         var builder = MessageBuilder(tools: tools, options: options)
         var systemParts: [String] = []
         if let instructions = request["instructions"] as? String, !instructions.isEmpty { systemParts.append(instructions) }
@@ -57,8 +70,12 @@ nonisolated enum ClaudeRequestTranslator {
             "stream": true,
             "messages": messages,
             // 変わらない先頭(tools・system・それまでの履歴)を毎回読み直さないよう、自動の prompt caching を使う。
-            "cache_control": ["type": "ephemeral"],
+            "cache_control": ClaudeTranslation.cacheControl(ttl: options.translation >= 2 ? options.tailCacheTTL : nil),
         ]
+        if options.translation >= 2, options.includeDiagnostics {
+            // cache diagnostics: 直前の要求と比べて、どこで先頭が変わったか(指示・tools・履歴・設定)を返してもらう。
+            body["diagnostics"] = ["previous_message_id": options.previousResponseID.map { $0 as Any } ?? NSNull()]
+        }
         let claudeTools = tools.claudeTools
         if !claudeTools.isEmpty {
             body["tools"] = claudeTools
@@ -84,13 +101,22 @@ nonisolated enum ClaudeRequestTranslator {
             structured = true
         }
         if !outputConfig.isEmpty { body["output_config"] = outputConfig }
-        if !systemParts.isEmpty { body["system"] = systemParts.joined(separator: "\n\n") }
+        if !systemParts.isEmpty {
+            let system = systemParts.joined(separator: "\n\n")
+            if options.translation >= 2 {
+                // 固定の指示(tools と system)に独立した breakpoint を置く。処理をまたいで共有されるので 1 時間。
+                // 末尾の自動 breakpoint より前に置くので、長い TTL が先に来る規則も守れる。
+                body["system"] = [["type": "text", "text": system, "cache_control": ClaudeTranslation.cacheControl(ttl: "1h")]]
+            } else {
+                body["system"] = system
+            }
+        }
         // 現行の Claude は adaptive thinking。要約を見せる設定(Struis は待ち時間の見出しに使う)。
         let summary = reasoning?["summary"] as? String
         var thinking: [String: Any] = ["type": "adaptive"]
         if summary != nil, summary != "none" { thinking["display"] = "summarized" }
         body["thinking"] = thinking
-        return Translation(body: body, tools: tools, structured: structured)
+        return Translation(body: body, tools: tools, structured: structured, translation: options.translation)
     }
 
     /// Codex の reasoning effort → Claude の effort。`none` / `minimal` は Claude にないので `low`。
@@ -328,7 +354,8 @@ nonisolated struct ClaudeToolNames: Sendable {
     private(set) var entries: [String: Entry] = [:]
     private(set) var order: [String] = []
 
-    init(responsesTools: [[String: Any]]) {
+    /// `sorted`: Claude の名前の順に並べる(版 2 以降。Codex の並べ方が変わっても tools の先頭を変えない)。
+    init(responsesTools: [[String: Any]], sorted: Bool = false) {
         for tool in responsesTools {
             switch tool["type"] as? String {
             case "function":
@@ -343,6 +370,7 @@ nonisolated struct ClaudeToolNames: Sendable {
                 break
             }
         }
+        if sorted { order.sort() }
     }
 
     private mutating func add(_ tool: [String: Any], namespace: String?) {
@@ -378,6 +406,27 @@ nonisolated struct ClaudeToolNames: Sendable {
     }
 
     func entry(claudeName: String) -> Entry? { entries[claudeName] }
+}
+
+/// Claude への要求の変換方式の版。スレッドごとに始めた時の版を `ThreadContextStore` に記録し、続きのターンもその版で送る。
+/// - 1: 最初の版。自動の prompt caching(5 分)だけ。キーの順は決めない。
+/// - 2: キーの順・tools の順を固定し、固定の指示に 1 時間の breakpoint、会話の末尾は処理群ごとの TTL。cache diagnostics。
+nonisolated enum ClaudeTranslation {
+    static let current = 2
+
+    static func cacheControl(ttl: String?) -> [String: Any] {
+        guard let ttl, ttl != "5m" else { return ["type": "ephemeral"] }
+        return ["type": "ephemeral", "ttl": ttl]
+    }
+
+    /// 末尾の TTL。解答を考えて撮影する継続会話は 1 時間、一度で終わる処理(単元の構成・出題・採点・下調べ)は 5 分
+    /// (固有の入力まで 1 時間の倍の書き込み料金を払わない)。
+    static func tailCacheTTL(kind: String?) -> String {
+        switch kind {
+        case "chat", "thread_fork", "thread_inject": "1h"
+        default: "5m"
+        }
+    }
 }
 
 /// `[String: Any]` を Sendable な値として持ち運ぶための箱(JSON の値だけを入れる)。

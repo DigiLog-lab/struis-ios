@@ -28,8 +28,16 @@ nonisolated final class ClaudeStreamTranslator {
     private var cachedTokens = 0
     private var cacheWriteTokens = 0
     private var outputTokens = 0
-    private var stopReason: String?
+    private(set) var stopReason: String?
     private(set) var model: String?
+    /// Anthropic の応答 ID(`msg_...`)。
+    private(set) var messageID: String?
+    /// Anthropic の `usage`(message_start に message_delta の値を重ねたもの)。要求ごとの記録にそのまま残す。
+    private(set) var rawUsage: [String: Any] = [:]
+    /// cache diagnostics の結果(`message_start` の `message.diagnostics`)。
+    private(set) var diagnostics: Any?
+    /// ストリームの `error` イベントの種類。
+    private(set) var errorType: String?
 
     init(tools: ClaudeToolNames, responseID: String = "resp_" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()) {
         self.tools = tools
@@ -46,6 +54,8 @@ nonisolated final class ClaudeStreamTranslator {
         case "message_start":
             let message = event["message"] as? [String: Any] ?? [:]
             model = message["model"] as? String
+            messageID = message["id"] as? String
+            diagnostics = message["diagnostics"]
             readUsage(message["usage"] as? [String: Any])
             out += createdEvent()
         case "content_block_start":
@@ -65,6 +75,7 @@ nonisolated final class ClaudeStreamTranslator {
             out += finish()
         case "error":
             let error = event["error"] as? [String: Any] ?? [:]
+            errorType = error["type"] as? String ?? "api_error"
             out += failed(type: error["type"] as? String ?? "api_error", message: error["message"] as? String ?? "Claude stream error")
         default:
             break // ping など
@@ -109,7 +120,7 @@ nonisolated final class ClaudeStreamTranslator {
             let name = block["name"] as? String ?? ""
             var json = ""
             if let input = block["input"] as? [String: Any], !input.isEmpty,
-               let data = try? JSONSerialization.data(withJSONObject: input) {
+               let data = try? JSONSerialization.data(withJSONObject: input, options: [.sortedKeys]) {
                 json = String(decoding: data, as: UTF8.self)
             }
             blocks[index] = .toolUse(itemID: itemID, callID: callID, name: name, json: json)
@@ -229,15 +240,18 @@ nonisolated final class ClaudeStreamTranslator {
         case "model_context_window_exceeded":
             out += failedEvents(code: "context_length_exceeded", message: "The conversation is longer than the model's context window.")
         default:
+            var usage: [String: Any] = [
+                "input_tokens": inputTokens + cachedTokens + cacheWriteTokens,
+                "input_tokens_details": ["cached_tokens": cachedTokens, "cache_write_tokens": cacheWriteTokens],
+                "output_tokens": outputTokens,
+                "total_tokens": inputTokens + cachedTokens + cacheWriteTokens + outputTokens,
+            ]
+            // 出力のうち thinking の分。返らない時は 0 を入れず、内訳なしのままにする。
+            if let thinking = (rawUsage["output_tokens_details"] as? [String: Any])?["thinking_tokens"] as? Int {
+                usage["output_tokens_details"] = ["reasoning_tokens": thinking]
+            }
             out.append(["type": "response.completed", "response": [
-                "id": responseID, "object": "response", "status": "completed",
-                "usage": [
-                    "input_tokens": inputTokens + cachedTokens + cacheWriteTokens,
-                    "input_tokens_details": ["cached_tokens": cachedTokens, "cache_write_tokens": cacheWriteTokens],
-                    "output_tokens": outputTokens,
-                    "output_tokens_details": ["reasoning_tokens": 0],
-                    "total_tokens": inputTokens + cachedTokens + cacheWriteTokens + outputTokens,
-                ],
+                "id": responseID, "object": "response", "status": "completed", "usage": usage,
             ]])
         }
         return out
@@ -267,6 +281,7 @@ nonisolated final class ClaudeStreamTranslator {
 
     private func readUsage(_ usage: [String: Any]?) {
         guard let usage else { return }
+        for (key, value) in usage where !(value is NSNull) { rawUsage[key] = value }
         if let value = usage["input_tokens"] as? Int { inputTokens = value }
         if let value = usage["cache_read_input_tokens"] as? Int { cachedTokens = value }
         if let value = usage["cache_creation_input_tokens"] as? Int { cacheWriteTokens = value }

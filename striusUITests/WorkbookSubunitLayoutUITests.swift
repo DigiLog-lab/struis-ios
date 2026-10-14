@@ -259,6 +259,8 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         let advance = element(app, "workbook-advance")
         XCTAssertTrue(waitEnabled(advance, timeout: 30), "要点の「先に進む」が押せない")
         let input = app.textViews.matching(identifier: "chat-page").firstMatch
+        // 開いた直後の約 3 秒は会話の末尾へ送り直す(`ChatTimeline.scrollToEnd`)。それが終わってから動かす。
+        Thread.sleep(forTimeInterval: 3.5)
         // 少しだけ戻して、吹き出しが段にかかる位置にする。
         let page = element(app, "chat-page")
         page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))

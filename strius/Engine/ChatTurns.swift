@@ -123,9 +123,9 @@ nonisolated enum ChatTurns {
         var executions: [LedgerJSON] = []
         var memoryQueueFiles: [TurnOutcome.CollectedFile] = []
         var rateLimits: LedgerJSON?
-        /// Hash of the memory evidence this turn's input carried (nil: not carried). Recorded for the
-        /// Codex thread once the turn completes, so the next turn sends it only if it changed (P1-3).
-        var deliveredMemory: String?
+        /// The memory evidence (per file) the thread holds after this turn's input (nil: not tracked).
+        /// Recorded for the Codex thread once the turn completes, so the next turn sends only changes (P1-3).
+        var deliveredMemory: DeliveredMemory?
         /// The learner-facing reply of a rejected round. A repair round returns only the private
         /// blocks; the reply already written is kept (B5).
         var rejectedCandidate: String?
@@ -236,12 +236,10 @@ nonisolated enum ChatTurns {
             // when they changed since the thread last received them (or after a compaction).
             let session = "current/session.yaml"
             let sessionContext = try await ledger.withMemory { _ in try TutorMemory.renderTutorMemoryContext(workspace: StruisPaths.memory, only: [session]) }
-            let memoryContext = try await ledger.withMemory { _ in try TutorMemory.renderTutorMemoryContext(workspace: StruisPaths.memory, excluding: [session]) }
-            let memoryHash = ThreadContextStore.hash(memoryContext)
-            let unchanged = existingThread.flatMap { ThreadContextStore.shared.entry($0)?.memory } == memoryHash
-            state.deliveredMemory = memoryHash
-            text = try firstRoundSlimText(state: state, manifestPath: manifestPath, sessionContext: sessionContext,
-                                          memoryContext: unchanged ? nil : memoryContext)
+            let sections = try await ledger.withMemory { _ in try TutorMemory.tutorMemorySections(workspace: StruisPaths.memory, excluding: [session]) }
+            let update = MemoryUpdate(sections: sections, delivered: existingThread.flatMap { ThreadContextStore.shared.entry($0)?.memoryFiles })
+            state.deliveredMemory = update.delivered
+            text = try firstRoundSlimText(state: state, manifestPath: manifestPath, sessionContext: sessionContext, memory: update)
         } else {
             text = try await firstRoundText(ledger: ledger, assets: assets, state: state, manifestPath: manifestPath)
         }
@@ -289,20 +287,68 @@ nonisolated enum ChatTurns {
 
     /// Only what changes per turn (P1-3): identifiers, the learner's message and screen, the latest
     /// attachment manifest, the memory evidence when it changed, and the progress context.
-    private static func firstRoundSlimText(state: State, manifestPath: String?, sessionContext: String, memoryContext: String?) throws -> String {
+    private static func firstRoundSlimText(state: State, manifestPath: String?, sessionContext: String, memory: MemoryUpdate) throws -> String {
         var text = turnSourceText(state: state)
         var lines: [String] = []
         if let manifestPath { lines.append("The latest attachment inbox manifest is `\(manifestPath)`.") }
-        if let memoryContext {
-            let body = [sessionContext, memoryContext].filter { !$0.isEmpty }.joined(separator: "\n\n")
-            if !body.isEmpty { lines += ["<tutor_memory_evidence>", body, "</tutor_memory_evidence>"] }
-        } else {
-            if !sessionContext.isEmpty { lines += ["<tutor_memory_evidence>", sessionContext, "</tutor_memory_evidence>"] }
-            lines.append("Tutor Desk memory evidence other than current/session.yaml: unchanged since the latest full <tutor_memory_evidence> in this conversation.")
-        }
+        lines += memory.lines(sessionContext: sessionContext)
         if !lines.isEmpty { text += "\n\n" + lines.joined(separator: "\n") }
         text += try LearningProgress.turnProgressContext(state: state.progressBefore, assistantMessageID: state.assistantMessageID)
         return text
+    }
+
+    /// What of the durable memory a turn sends (P1-3). Sent input is never rewritten: a thread first gets
+    /// every file; later turns append only the files whose model view changed, and name the files that are
+    /// no longer part of the evidence. After a compaction, a fork or a restored history the thread has no
+    /// record, so it gets everything again.
+    nonisolated struct MemoryUpdate: Equatable {
+        enum Mode: Equatable {
+            case full
+            case changes(changed: [TutorMemory.MemorySection], removed: [String])
+            case unchanged
+        }
+
+        let mode: Mode
+        let sections: [TutorMemory.MemorySection]
+        let delivered: DeliveredMemory
+
+        init(sections: [TutorMemory.MemorySection], delivered previous: [String: String]?) {
+            self.sections = sections
+            var files: [String: String] = [:]
+            for section in sections { files[section.path] = section.digest }
+            delivered = DeliveredMemory(files: files)
+            guard let previous else {
+                mode = .full
+                return
+            }
+            let changed = sections.filter { previous[$0.path] != $0.digest }
+            let removed = previous.keys.filter { files[$0] == nil }.sorted()
+            mode = changed.isEmpty && removed.isEmpty ? .unchanged : .changes(changed: changed, removed: removed)
+        }
+
+        func lines(sessionContext: String) -> [String] {
+            var lines: [String] = []
+            switch mode {
+            case .full:
+                let body = [sessionContext, TutorMemory.render(sections)].filter { !$0.isEmpty }.joined(separator: "\n\n")
+                if !body.isEmpty { lines += ["<tutor_memory_evidence>", body, "</tutor_memory_evidence>"] }
+            case .changes(let changed, let removed):
+                let body = [sessionContext, TutorMemory.render(changed)].filter { !$0.isEmpty }.joined(separator: "\n\n")
+                if !body.isEmpty { lines += ["<tutor_memory_evidence>", body, "</tutor_memory_evidence>"] }
+                var note = "Tutor Desk memory update: the files above replace their earlier versions in this conversation"
+                if !changed.isEmpty { note += " (" + changed.map { "`\($0.path)`" }.joined(separator: ", ") + ")" }
+                note += ". Every other file is unchanged since its latest version in this conversation."
+                if !removed.isEmpty {
+                    note += " No longer part of the memory evidence (deleted or superseded; do not rely on them): "
+                        + removed.map { "`\($0)`" }.joined(separator: ", ") + "."
+                }
+                lines.append(note)
+            case .unchanged:
+                if !sessionContext.isEmpty { lines += ["<tutor_memory_evidence>", sessionContext, "</tutor_memory_evidence>"] }
+                lines.append("Tutor Desk memory evidence other than current/session.yaml: unchanged since the latest full <tutor_memory_evidence> in this conversation.")
+            }
+            return lines
+        }
     }
 
     // MARK: - Apply one round (§3.3 repair loop)
@@ -372,15 +418,57 @@ nonisolated enum ChatTurns {
             let written = visibleReply(of: outcome.finalText)
             if !written.isEmpty { state.rejectedCandidate = written }
             if state.rejectedCandidate != nil {
-                return .again(text:
-                    "Your private blocks failed validation, so nothing has been delivered or saved yet. Struis keeps the learner-facing reply you already wrote; do NOT write the reply again. "
-                    + "Return ONLY the corrected private blocks: exactly one <struis_progress_update> and one <struis_memory_update> (and a <struis_workbook_*> block if the correction needs it). "
-                    + "Progress quotes must be copied from the reply you already wrote. Do not change grading standards to bypass validation. Validation error: " + String(detail.prefix(2000)))
+                // Keep every private block that was valid, so the repair regenerates only what failed.
+                let kept = keepValidBlocks(of: outcome.finalText, state: &state)
+                var requested = "exactly one <struis_progress_update>"
+                if !kept.contains("struis_memory_update") { requested += " and one <struis_memory_update>" }
+                var text = "Your private blocks failed validation, so nothing has been delivered or saved yet. Struis keeps the learner-facing reply you already wrote; do NOT write the reply again. "
+                if !kept.isEmpty {
+                    text += "Struis also kept your valid " + kept.map { "<\($0)>" }.joined(separator: ", ") + "; do NOT send them again. "
+                }
+                text += "Return ONLY the corrected private blocks: \(requested) (and a <struis_workbook_*> block only if the correction needs it). "
+                    + "To change an existing goal you may send only what changes, instead of the whole goal in \"goals\": "
+                    + "\"goal_changes\": [{\"id\": \"<existing goal id>\", <only the changed fields>, \"add_evidence\": [<new evidence>]}] (omitted fields keep their saved values). "
+                    + "Progress quotes must be copied from the reply you already wrote. The current base_revision is \(state.progressAfter.revision). "
+                    + "Do not change grading standards to bypass validation. Validation error: " + String(detail.prefix(2000))
+                return .again(text: text)
             }
             return .again(text:
                 "Your reply and progress update have NOT been delivered or saved. Repair both and return a complete reply with both private blocks. "
                 + "Do not change grading standards to bypass validation. Validation error: " + String(detail.prefix(2000)))
         }
+    }
+
+    /// Private blocks of a rejected round that are valid on their own (memory update, workbook example,
+    /// proposal, hint) are kept for the accepted round, as an accepted round keeps the first ones it saw.
+    /// Returns the kept tags. The progress update is never kept: it is what the repair replaces.
+    static func keepValidBlocks(of text: String, state: inout State) -> [String] {
+        var kept: [String] = []
+        let (_, memoryPayload, memoryError) = TutorMemory.extractEmbeddedMemoryUpdate(text)
+        if let memoryPayload, memoryError == nil, state.embeddedMemoryPayload == nil {
+            state.embeddedMemoryPayload = memoryPayload
+            kept.append("struis_memory_update")
+        }
+        let (afterExampleProblem, example) = LearnerText.extractWorkbookExample(text)
+        if let example, state.exampleProblem == nil {
+            state.exampleProblem = example
+            kept.append("struis_workbook_example")
+        }
+        let (afterExample, ready) = LearnerText.extractWorkbookExampleReady(afterExampleProblem)
+        if ready, !state.exampleReady {
+            state.exampleReady = true
+            kept.append("struis_workbook_example_ready")
+        }
+        let (_, proposal, hint) = LearnerText.extractWorkbookBlocks(afterExample)
+        if let proposal, state.workbookProposal == nil {
+            state.workbookProposal = LedgerJSON(any: proposal)
+            kept.append("struis_workbook_proposal")
+        }
+        if let hint, state.workbookHint == nil {
+            state.workbookHint = LedgerJSON(any: hint)
+            kept.append("struis_workbook_hint")
+        }
+        return kept
     }
 
     /// The learner-facing part of a model reply with every private block removed (complete or not).
@@ -401,6 +489,11 @@ nonisolated enum ChatTurns {
         var ids = Set<String>()
         for goal in raw["goals"] as? [JSONObject] ?? [] {
             for evidence in goal["evidence"] as? [JSONObject] ?? [] {
+                if let id = evidence["message_id"] as? String { ids.insert(id) }
+            }
+        }
+        for change in raw["goal_changes"] as? [JSONObject] ?? [] {
+            for evidence in change["add_evidence"] as? [JSONObject] ?? [] {
                 if let id = evidence["message_id"] as? String { ids.insert(id) }
             }
         }

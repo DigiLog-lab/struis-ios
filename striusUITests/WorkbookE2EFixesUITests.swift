@@ -137,11 +137,13 @@ final class WorkbookE2EFixesUITests: XCTestCase {
     @MainActor
     func testLongSubunitConversationDoesNotFreeze() throws {
         // 数式入りの返事と全体像カードを含む 40 往復を、ヘッダーのある小単元の画面(表示域が狭い)に読み込み、
-        // 送信とスクロールを 20 回繰り返す。毎回、送ったメッセージが会話に入って見える位置にあること、
+        // 送信とスクロールを 12 回繰り返す。毎回、送ったメッセージが会話に入って見える位置にあること、
         // 次の操作が受け付けられることを確かめる。
         // メインスレッドの止まりの上限(2 秒)は、アプリ内の見張り(`-hang-watchdog`)を HID 入力だけで回して測る
         // (関連する画面・動作)。XCUITest の要素検索はアプリのメインスレッドで
         // ツリーを作り、WebView が多いとそれ自体が数秒かかるので、ここでの値は参考として記録だけする。
+        // 遅い Simulator では 1 往復に 17 秒ほどかかり、20 往復では実行時間の上限(最大 300 秒)を超える。12 往復にする。
+        executionTimeAllowance = 300
         let app = launch(["-skip-onboarding", "-workbook-model-stage", "-workbook-long-chat", "-hang-watchdog"])
         let row = element(app, "workbook-subunit-sub-1")
         XCTAssertTrue(row.waitForExistence(timeout: 30))
@@ -149,7 +151,7 @@ final class WorkbookE2EFixesUITests: XCTestCase {
         let input = app.textViews.matching(identifier: "chat-page").firstMatch
         XCTAssertTrue(input.waitForExistence(timeout: 30))
         let page = element(app, "chat-page")
-        for round in 1...20 {
+        for round in 1...12 {
             input.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).tap()
             input.typeText("確認 \(round)")
             let send = sendButton(app)
@@ -212,7 +214,8 @@ final class WorkbookE2EFixesUITests: XCTestCase {
             }
         }
         let start = element(app, "workbook-proposal-start")
-        XCTAssertTrue(start.waitForExistence(timeout: 25), "全体像カードが出ない")
+        // 小単元を並べる間(「小単元を並べています」)は、遅い Simulator では 25 秒を超えることがある。
+        XCTAssertTrue(start.waitForExistence(timeout: 60), "全体像カードが出ない")
         attach(app, "unit-proposal")
         start.tap()
 

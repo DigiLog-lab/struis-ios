@@ -28,31 +28,19 @@ nonisolated enum TurnTokenUsage {
         return result
     }
 
-    /// Claude の料金(USD / 100 万トークン)。入力・出力・キャッシュ読み出し・キャッシュ書き込み(5 分)。
-    /// GPT は ChatGPT のプランの枠で動くため料金を出さない。
-    nonisolated struct Rates: Sendable {
-        let input: Double
-        let output: Double
-        let cacheRead: Double
-        let cacheWrite: Double
-    }
-
-    static let claudeRates: [String: Rates] = [
-        "claude-opus-5-5": Rates(input: 4, output: 20, cacheRead: 0.20, cacheWrite: 5),
-        "claude-sonnet-5-5": Rates(input: 2, output: 10, cacheRead: 0.20, cacheWrite: 2.5),
-        "claude-haiku-5-5": Rates(input: 0.10, output: 0.50, cacheRead: 0.01, cacheWrite: 0.125),
-    ]
-
-    /// 概算料金。料金表に無いモデルは nil。100 万分の 1 ドル単位に丸める。
+    /// ターンの合計からの概算(要求ごとの記録が無い、この版より前の記録の見直し用)。書き込みは 5 分として数え、
+    /// Haiku の段階は選ばない(段階は要求 1 回の入力量で決まり、ターンの合計からは分からない)。
+    /// 料金表に無いモデル(GPT は ChatGPT のプランの枠で動く)は nil。要求ごとの料金は `ClaudePricing` で計算する。
     static func estimatedCostUSD(model: String, tokens: JSONObject) -> Double? {
-        guard let rates = claudeRates[model] else { return nil }
         let input = number(tokens["input_tokens"])
         let cached = number(tokens["cached_input_tokens"])
         let written = number(tokens["cache_write_input_tokens"])
-        let uncached = max(0, input - cached - written)
-        let cost = (Double(uncached) * rates.input + Double(cached) * rates.cacheRead + Double(written) * rates.cacheWrite
-            + Double(number(tokens["output_tokens"])) * rates.output) / 1_000_000
-        return (cost * 1_000_000).rounded() / 1_000_000
+        var split = ClaudePricing.Tokens()
+        split.input = max(0, input - cached - written)
+        split.cacheRead = cached
+        split.cacheWrite5m = written
+        split.output = number(tokens["output_tokens"])
+        return ClaudePricing.cost(model: model, tokens: split, tiered: false)?.usd
     }
 
     private static func number(_ value: Any?) -> Int {
@@ -69,7 +57,15 @@ nonisolated struct TokenUsageSummary: Equatable, Sendable {
         var cachedInputTokens = 0
         var cacheWriteInputTokens = 0
         var outputTokens = 0
+        /// 要求ごとの記録がある実行の、キャッシュ書き込みの TTL ごとの内訳。
+        var cacheWrite5mTokens = 0
+        var cacheWrite1hTokens = 0
+        /// Claude への要求の数と、そのうち最初の要求以外(検証修正・処理継続・再試行など)の数。
+        var requests = 0
+        var extraRequests = 0
         var estimatedCostUSD: Double?
+        /// 料金を出せなかった実行・要求がある(合計は少なめに出ている)。
+        var costIncomplete = false
         var id: String { model }
     }
 
@@ -88,6 +84,35 @@ nonisolated struct TokenUsageSummary: Equatable, Sendable {
                 latest[id] = execution
             }
             for execution in order.compactMap({ latest[$0] }) {
+                if let requests = execution["requests"]?.arrayValue, !requests.isEmpty {
+                    // 要求ごとの記録: 応答で実際に使われたモデルごとに、要求の料金を足す。
+                    for request in requests {
+                        let name = request["actual_model"]?.stringValue ?? request["requested_model"]?.stringValue ?? "unknown"
+                        var model = byModel[name] ?? Model(model: name)
+                        model.requests += 1
+                        if let reason = request["reason"]?.stringValue, reason != ClaudeRequestReason.turnStart.rawValue { model.extraRequests += 1 }
+                        if let tokens = request["tokens"]?.objectValue {
+                            let read = tokens["cache_read"]?.intValue ?? 0
+                            let write5m = tokens["cache_write_5m"]?.intValue ?? 0
+                            let write1h = tokens["cache_write_1h"]?.intValue ?? 0
+                            model.inputTokens += (tokens["input"]?.intValue ?? 0) + read + write5m + write1h
+                            model.cachedInputTokens += read
+                            model.cacheWriteInputTokens += write5m + write1h
+                            model.cacheWrite5mTokens += write5m
+                            model.cacheWrite1hTokens += write1h
+                            model.outputTokens += tokens["output"]?.intValue ?? 0
+                        }
+                        if case .number(let cost)? = request["estimated_cost_usd"] {
+                            model.estimatedCostUSD = (model.estimatedCostUSD ?? 0) + cost
+                        } else if request["cost_status"]?.stringValue != "not_billed" {
+                            model.costIncomplete = true
+                        }
+                        byModel[name] = model
+                    }
+                    let name = execution["actual_model"]?.stringValue ?? execution["requested_model"]?.stringValue ?? "unknown"
+                    byModel[name, default: Model(model: name)].executions += 1
+                    continue
+                }
                 guard let tokens = execution["turn_tokens"]?.objectValue else { continue }
                 let name = execution["actual_model"]?.stringValue ?? execution["requested_model"]?.stringValue ?? "unknown"
                 var model = byModel[name] ?? Model(model: name)

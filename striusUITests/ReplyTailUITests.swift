@@ -63,7 +63,8 @@ final class ReplyTailUITests: XCTestCase {
     /// 質問シート: 記録を書いている間も送信ボタンのまま送れる。送った質問は記録が終わってから答え、前の返事は止まらない。
     @MainActor
     func testQuestionSheetSendsWhileReplyIsRecording() throws {
-        let app = launch(["-skip-onboarding"], tailMs: 12_000)
+        // 記録の時間は、2 つ目を打って送り、待ちの言葉を確かめるまでより長くする(遅い Simulator では入力に 10 秒以上かかる)。
+        let app = launch(["-skip-onboarding"], tailMs: 30_000)
         XCTAssertTrue(app.openQuestionSheet())
         type(app, "最初の質問です")
         let send = sendButton(app)
@@ -77,7 +78,8 @@ final class ReplyTailUITests: XCTestCase {
         XCTAssertFalse(stopButton(app).exists, "記録だけを書いている間に入力欄が停止ボタンになっている")
 
         type(app, "なんですかこれ")
-        XCTAssertTrue(wait(send, "exists == true AND enabled == true", timeout: 5), "記録の間に送信ボタンが押せない")
+        // 遅い Simulator では、打った文字が入力欄に届くまで数秒かかる(記録の時間は 30 秒あるので、待っても確かめられる)。
+        XCTAssertTrue(wait(send, "exists == true AND enabled == true", timeout: 15), "記録の間に送信ボタンが押せない")
         send.press(forDuration: 0.15)
         XCTAssertTrue(text(app, containing: "なんですかこれ").waitForExistence(timeout: 10), "送った質問が吹き出しに出ない")
         XCTAssertTrue(text(app, containing: "前の返事の記録が終わりしだい、答えます").waitForExistence(timeout: 10),
@@ -89,7 +91,7 @@ final class ReplyTailUITests: XCTestCase {
         let replies = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "自信がある行"))
         XCTAssertTrue(XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "count >= 2"), object: replies)], timeout: 60) == .completed,
                       "並べた質問に答えない: \(screenSummary(app))")
-        XCTAssertTrue(wait(text(app, containing: Self.recordingText), "exists == false", timeout: 30), "記録が終わらない")
+        XCTAssertTrue(wait(text(app, containing: Self.recordingText), "exists == false", timeout: 60), "記録が終わらない")
         XCTAssertFalse(text(app, containing: "停止しました").exists, "前の返事が止められた")
         XCTAssertFalse(text(app, containing: "応答を生成できませんでした").exists)
         attach(app, "3-both-replies-done")
@@ -160,7 +162,8 @@ final class ReplyTailUITests: XCTestCase {
         XCTAssertFalse(stopButton(app).exists, "記録だけを書いている間に入力欄が停止ボタンになっている")
 
         type(app, "なんですかこれ")
-        XCTAssertTrue(wait(send, "exists == true AND enabled == true", timeout: 5), "記録の間に送信ボタンが押せない")
+        // 遅い Simulator では、打った文字が入力欄に届くまで数秒かかる(記録の時間は 30 秒あるので、待っても確かめられる)。
+        XCTAssertTrue(wait(send, "exists == true AND enabled == true", timeout: 15), "記録の間に送信ボタンが押せない")
         send.press(forDuration: 0.15)
         XCTAssertTrue(text(app, containing: "なんですかこれ").waitForExistence(timeout: 10), "送った質問が吹き出しに出ない")
         attach(app, "real-2-queued-question")

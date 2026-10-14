@@ -251,7 +251,7 @@ extension TurnCoordinator {
         if error == nil {
             // The thread now holds this memory evidence; the next turn sends it only if it changes (P1-3).
             if let codexThreadID = state.codexThreadID, let memory = state.deliveredMemory {
-                ThreadContextStore.shared.update(codexThreadID) { $0.memory = memory }
+                ThreadContextStore.shared.recordMemory(codexThreadID, memory)
             }
             do {
                 let finished = try await ChatTurns.finish(ledger: ledger, state: state)

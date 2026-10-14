@@ -5,6 +5,12 @@ import XCTest
 final class ClaudeProxyTests: XCTestCase {
     // MARK: - Request
 
+    /// system は版 1 で文字列、版 2 で breakpoint 付きの text ブロック。
+    static func systemText(_ body: [String: Any]) -> String? {
+        if let text = body["system"] as? String { return text }
+        return (body["system"] as? [[String: Any]])?.compactMap { $0["text"] as? String }.joined()
+    }
+
     private func codexRequest(input: [[String: Any]], tools: [[String: Any]] = [], text: [String: Any]? = nil) -> [String: Any] {
         var request: [String: Any] = [
             "model": "claude-opus-5-5", "instructions": "BASE", "input": input, "tool_choice": "auto",
@@ -36,7 +42,7 @@ final class ClaudeProxyTests: XCTestCase {
             ["type": "message", "role": "user", "content": [["type": "input_text", "text": "next"]]],
         ])
         let body = try ClaudeRequestTranslator.translate(request).body
-        XCTAssertEqual(body["system"] as? String, "BASE\n\nDEV")
+        XCTAssertEqual(Self.systemText(body), "BASE\n\nDEV")
         let messages = try XCTUnwrap(body["messages"] as? [[String: Any]])
         XCTAssertEqual(messages.map { $0["role"] as? String }, ["user", "assistant", "user"])
         let last = try XCTUnwrap(messages.last?["content"] as? [[String: Any]])
@@ -59,7 +65,10 @@ final class ClaudeProxyTests: XCTestCase {
         ], tools: namespaceTools)
         let body = try ClaudeRequestTranslator.translate(request).body
         let tools = try XCTUnwrap(body["tools"] as? [[String: Any]])
-        XCTAssertEqual(tools.map { $0["name"] as? String }, ["struis__exec_command", "apply_patch"])
+        // 版 2 は tools を名前の順に固定する(版 1 は Codex の順)。
+        XCTAssertEqual(tools.map { $0["name"] as? String }, ["apply_patch", "struis__exec_command"])
+        let legacy = try ClaudeRequestTranslator.translate(request, options: .init(translation: 1)).body
+        XCTAssertEqual((legacy["tools"] as? [[String: Any]])?.map { $0["name"] as? String }, ["struis__exec_command", "apply_patch"])
         XCTAssertEqual((body["tool_choice"] as? [String: Any])?["disable_parallel_tool_use"] as? Bool, true)
         let messages = try XCTUnwrap(body["messages"] as? [[String: Any]])
         XCTAssertEqual(messages.map { $0["role"] as? String }, ["user", "assistant", "user"])
@@ -129,7 +138,7 @@ final class ClaudeProxyTests: XCTestCase {
         let translation = try ClaudeRequestTranslator.translate(request, options: .init(schemaInInstructions: true))
         XCTAssertTrue(translation.structured)
         XCTAssertNil((translation.body["output_config"] as? [String: Any])?["format"])
-        let system = try XCTUnwrap(translation.body["system"] as? String)
+        let system = try XCTUnwrap(Self.systemText(translation.body))
         XCTAssertTrue(system.hasPrefix("BASE"))
         XCTAssertTrue(system.contains("\"ok\""))
     }

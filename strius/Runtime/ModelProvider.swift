@@ -77,6 +77,16 @@ nonisolated enum ClaudeModels {
     }
 }
 
+/// Codex に渡す Claude のモデル情報。Codex は Claude のモデルを知らないので、未知のモデルの既定値
+/// (想定の上限 272,000・利用できる枠 95% の 258,400・自動要約 90% の 244,800)で動いていた。値は明示して変えない:
+/// Claude の上限(100 万)まで履歴を伸ばすと、要求ごとのキャッシュ読み込みが伸びた分だけ毎回かかる。要約は
+/// 署名付きの thinking を含む古い履歴を Codex の要約に置き換える(要約の後は記憶を渡し直す。`forgetMemory`)。
+/// 入力は文字と画像(Codex の既定。Struis は長辺 2048px までに縮小して送る)。
+nonisolated enum ClaudeModelInfo {
+    static let contextWindow = 272_000
+    static let autoCompactTokenLimit = 244_800
+}
+
 nonisolated enum ModelProviderError: Error, LocalizedError {
     case claudeUnavailable
 

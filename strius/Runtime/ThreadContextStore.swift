@@ -12,7 +12,29 @@ nonisolated private let contextStoreLog = Logger(subsystem: "com.digiloglab.stri
 /// - `memory`: 直近のターンの入力に載せた記憶の根拠のハッシュ。変わらなければ次のターンでは載せない。
 /// - `notices`: 次のターンの前にスレッドへ入れる Struis からの注記(期限で止めた、など)。
 /// - `provider`: スレッドを始めた実行先。続きのターンは設定を変えてもこの実行先で動かす(履歴の形式を混ぜない)。
+/// - `profile`: スレッドを始めた時のモデル・指示・tools・思考の設定・Claude への変換方式の版。続きはこの版で送る。
+/// - `memoryFiles`: スレッドに渡し済みの記憶(ファイルごとのモデル向けの表示のハッシュ)。変わったファイルだけ送る。
 nonisolated final class ThreadContextStore: @unchecked Sendable {
+    /// スレッドを始めた時の設定の版。送信済みの指示・tools・署名付きの thinking を書き換えないため、続きのターンはこれに従う。
+    nonisolated struct Profile: Codable, Equatable, Sendable {
+        var kind: String?
+        var model: String?
+        var effort: String?
+        /// base + developer 指示のハッシュ。
+        var instructions: String?
+        /// 端末の tool 定義のハッシュ。
+        var tools: String?
+        /// 構造化ターンの output schema のハッシュ。
+        var schema: String?
+        /// 思考の設定(Claude は adaptive + 要約の表示)。
+        var thinking: String?
+        /// Claude への変換方式の版(`ClaudeTranslation`)。nil は OpenAI のスレッド。
+        var translation: Int?
+        /// 会話の末尾の cache TTL。
+        var cacheTTL: String?
+        var startedAt: Date?
+    }
+
     static let shared = ThreadContextStore(url: HyotanBoot.root.appendingPathComponent("thread-context.json"))
 
     nonisolated struct Entry: Codable, Equatable, Sendable {
@@ -23,6 +45,14 @@ nonisolated final class ThreadContextStore: @unchecked Sendable {
         /// 返事を最後まで受け取ったターンがあるか。false(まだ無い)のスレッドは履歴にモデルの出力が無いので、
         /// 設定で選んだ実行先に移ってよい。nil はこの項目より前の記録(実行先を固定する)。
         var answered: Bool?
+        var profile: Profile?
+        /// 渡し済みの記憶のファイルごとのハッシュ(`memory` の内訳)。nil は全部を渡し直す。
+        var memoryFiles: [String: String]?
+        /// 署名の合わない thinking を外して送り直したことがある。以後この会話は thinking を外して送る
+        /// (毎ターン同じ不整合で拒まれ、送り直す経路を繰り返さない)。
+        var thinkingStripped: Bool?
+        /// Claude の直前の応答 ID(cache diagnostics で、再起動の後も直前の要求と比べる)。
+        var lastClaudeMessageID: String?
         var updatedAt: Date?
     }
 
@@ -46,7 +76,10 @@ nonisolated final class ThreadContextStore: @unchecked Sendable {
         let snapshot = lock.withLock {
             for id in ids { entries[id] = nil }
             // Every existing conversation must receive the changed memory on its next turn.
-            for id in entries.keys { entries[id]?.memory = nil }
+            for id in entries.keys {
+                entries[id]?.memory = nil
+                entries[id]?.memoryFiles = nil
+            }
             return entries
         }
         persist(snapshot)
@@ -63,7 +96,9 @@ nonisolated final class ThreadContextStore: @unchecked Sendable {
             entry.updatedAt = Date()
             entries[threadID] = entry
             // Claude で始めたスレッドの実行先は、古くても残す(OpenAI として再開すると履歴を読めない)。中身だけ捨てる。
-            let slim = { (entry: Entry) in Entry(provider: entry.provider, updatedAt: entry.updatedAt) }
+            let slim = { (entry: Entry) in
+                Entry(provider: entry.provider, profile: entry.profile, thinkingStripped: entry.thinkingStripped, updatedAt: entry.updatedAt)
+            }
             let full = entries.filter { $0.value.provider != .anthropic || $0.value != slim($0.value) }
             if full.count > Self.limit {
                 let oldest = full.sorted { ($0.value.updatedAt ?? .distantPast) < ($1.value.updatedAt ?? .distantPast) }
@@ -94,6 +129,29 @@ nonisolated final class ThreadContextStore: @unchecked Sendable {
         }
     }
 
+    /// このターンの入力に載せた記憶を、スレッドに渡し済みとして記録する。
+    func recordMemory(_ threadID: String, _ delivered: DeliveredMemory) {
+        update(threadID) { entry in
+            entry.memory = delivered.digest
+            entry.memoryFiles = delivered.files
+        }
+    }
+
+    /// 履歴の要約(compaction)や複製の後: 前に渡した記憶が履歴に残っているとは限らないので、次は全部を渡す。
+    func forgetMemory(_ threadID: String) {
+        update(threadID) { entry in
+            entry.memory = nil
+            entry.memoryFiles = nil
+        }
+    }
+
+    /// Claude への変換方式の版。この記録より前に Claude で始めたスレッドは版 1。記録の無いスレッド(下調べの子など、
+    /// 1 ターンで終わるもの)は今の版。
+    static func claudeTranslation(_ entry: Entry?) -> Int {
+        if let version = entry?.profile?.translation { return version }
+        return entry?.provider == .anthropic ? 1 : ClaudeTranslation.current
+    }
+
     private func persist(_ snapshot: [String: Entry]) {
         guard let url else { return }
         do {
@@ -111,5 +169,13 @@ nonisolated final class ThreadContextStore: @unchecked Sendable {
             hasher.update(data: Data([0]))
         }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+/// ターンの入力に載せた記憶(ファイルごとのモデル向けの表示のハッシュ)。
+nonisolated struct DeliveredMemory: Equatable, Sendable {
+    var files: [String: String]
+    var digest: String {
+        ThreadContextStore.hash(files.keys.sorted().map { $0 + "=" + (files[$0] ?? "") }.joined(separator: "\n"))
     }
 }

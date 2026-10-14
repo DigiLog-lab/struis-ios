@@ -176,6 +176,10 @@ nonisolated struct ClaudeUpstream: Sendable {
 
     /// 送る要求と、App Attest の時はその token(401 の時に捨てるため)。
     func request(body: [String: Any], route: Route) async throws -> (URLRequest, bearer: String?) {
+        try await request(data: try JSONSerialization.data(withJSONObject: body), route: route)
+    }
+
+    func request(data: Data, route: Route) async throws -> (URLRequest, bearer: String?) {
         let base: URL
         switch route {
         case .apiKey(let url, _): base = url
@@ -186,7 +190,7 @@ nonisolated struct ClaudeUpstream: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "content-type")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("text/event-stream", forHTTPHeaderField: "accept")
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.httpBody = data
         switch route {
         case .apiKey(_, let key):
             request.setValue(key, forHTTPHeaderField: "x-api-key")
@@ -311,12 +315,91 @@ nonisolated private final class ProxyConnection: @unchecked Sendable {
     }
 }
 
-/// 1 つの Responses 要求を Claude に送り、応答を変換して返す。
+/// 1 つの Responses 要求を Claude に送り、応答を変換して返す。送った要求は 1 回ごとに `ClaudeRequestLog` に記録する。
 nonisolated private struct ClaudeRelay {
     let upstream: ClaudeUpstream
     let writer: ProxyConnection
+    var log: ClaudeRequestLog = .shared
+    var contexts: ThreadContextStore = .shared
+
+    /// 1 回の要求の記録(実行監査の `requests[]`)。
+    private struct Attempt {
+        var record: [String: Any]
+        let started = Date()
+
+        /// 直前の応答と比べる cache diagnostics を頼んだか。
+        let compared: Bool
+
+        init(reason: ClaudeRequestReason, model: String, translation: Int, tailTTL: String, options: ClaudeRequestTranslator.Options) {
+            compared = translation >= 2 && options.includeDiagnostics && options.previousResponseID != nil
+            record = [
+                "reason": reason.rawValue, "requested_model": model, "translation": translation,
+                "cache_ttl": ["system": translation >= 2 ? "1h" : NSNull(), "tail": translation >= 2 ? tailTTL : "5m"],
+                "thinking_stripped": options.stripThinking, "schema_in_instructions": options.schemaInInstructions,
+                "pricing_version": ClaudePricing.version, "started_at": LedgerClock.iso(Date()),
+            ]
+        }
+
+        mutating func finish(status: String, translator: ClaudeStreamTranslator?, httpStatus: Int?, error: (type: String?, message: String)?) -> [String: Any] {
+            record["status"] = status
+            record["elapsed_ms"] = Int((Date().timeIntervalSince(started) * 1000).rounded())
+            if let httpStatus { record["http_status"] = httpStatus }
+            if let error {
+                record["error_type"] = error.type ?? NSNull()
+                record["error"] = String(error.message.prefix(500))
+            }
+            let usage = translator?.rawUsage ?? [:]
+            record["response_id"] = translator?.messageID ?? NSNull()
+            record["actual_model"] = translator?.model ?? NSNull()
+            record["stop_reason"] = translator?.stopReason ?? NSNull()
+            record["usage"] = usage.isEmpty ? NSNull() : usage
+            // 出力のうち thinking の分(`output_tokens_details.thinking_tokens`)。返らなければ 0 ではなく内訳なしとする。
+            if let thinking = (usage["output_tokens_details"] as? [String: Any])?["thinking_tokens"] as? Int {
+                record["thinking_tokens"] = thinking
+                record["thinking_breakdown"] = "reported"
+            } else {
+                record["thinking_tokens"] = NSNull()
+                record["thinking_breakdown"] = "unavailable"
+            }
+            var diagnosis: String?
+            if compared, let translator, translator.messageID != nil {
+                let summary = ClaudeCacheDiagnosis.summarize(translator.diagnostics ?? NSNull())
+                record["cache_diagnostics"] = summary
+                diagnosis = (summary as? [String: Any])?["result"] as? String
+            }
+            if usage.isEmpty {
+                // 拒まれた要求(4xx)は課金されない。届いたのに使用量が読めなかった要求は「不明」として残す(0 にしない)。
+                let unbilled = translator?.messageID == nil && (httpStatus.map { $0 >= 400 } ?? true)
+                record["estimated_cost_usd"] = NSNull()
+                record["cost_status"] = unbilled ? "not_billed" : "usage_unavailable"
+                return record
+            }
+            // 料金は応答で実際に使われたモデルで計算する。
+            let model = translator?.model ?? record["requested_model"] as? String ?? ""
+            let tail = (record["cache_ttl"] as? [String: Any])?["tail"] as? String ?? "5m"
+            let tokens = ClaudePricing.Tokens(usage: usage, assumedWriteTTL: tail)
+            record["tokens"] = [
+                "input": tokens.input, "cache_read": tokens.cacheRead, "cache_write_5m": tokens.cacheWrite5m,
+                "cache_write_1h": tokens.cacheWrite1h, "output": tokens.output, "prompt_total": tokens.promptTotal,
+                "write_split": tokens.writeSplitEstimated ? "estimated" : "reported",
+            ]
+            record["cache_state"] = ClaudeCacheDiagnosis.state(diagnosis: diagnosis, tokens: tokens)
+            if let cost = ClaudePricing.cost(model: model, tokens: tokens) {
+                record["estimated_cost_usd"] = cost.usd
+                record["pricing_tier"] = cost.tier
+                record["cost_status"] = "estimated"
+            } else {
+                record["estimated_cost_usd"] = NSNull()
+                record["cost_status"] = "unknown_model"
+            }
+            return record
+        }
+    }
 
     func run(_ request: [String: Any]) async {
+        let classified = log.classify(request: request)
+        let threadID = classified.key?.threadID
+        let model = request["model"] as? String ?? ""
         guard let route = upstream.route() else {
             writer.respond(status: 401, json: ["error": [
                 "message": ModelProviderError.claudeUnavailable.localizedDescription,
@@ -324,19 +407,30 @@ nonisolated private struct ClaudeRelay {
             ]])
             return
         }
+        let entry = threadID.flatMap { contexts.entry($0) }
         var options = ClaudeRequestTranslator.Options()
+        options.translation = ThreadContextStore.claudeTranslation(entry)
+        options.tailCacheTTL = entry?.profile?.cacheTTL ?? ClaudeTranslation.tailCacheTTL(kind: entry?.profile?.kind)
+        // 一度署名の不整合で thinking を外した会話は、以後も外して送る(毎ターン拒まれて送り直さない)。
+        options.stripThinking = entry?.thinkingStripped == true
+        options.previousResponseID = threadID.flatMap { log.previousResponseID(threadID: $0) } ?? entry?.lastClaudeMessageID
+        var reason = classified.reason
         var retriedToken = false
-        for _ in 0..<4 {
+        for _ in 0..<5 {
             let translation: ClaudeRequestTranslator.Translation
+            let data: Data
             do {
                 translation = try ClaudeRequestTranslator.translate(request, options: options)
+                data = try translation.data()
             } catch {
                 writer.respond(status: 400, json: ["error": ["message": error.localizedDescription, "type": "invalid_request_error"]])
                 return
             }
             ClaudeProxyDiagnostics.dump(request: request, translated: translation.body)
+            var attempt = Attempt(reason: reason, model: model, translation: options.translation, tailTTL: options.tailCacheTTL, options: options)
+            var translator: ClaudeStreamTranslator?
             do {
-                let (urlRequest, bearer) = try await upstream.request(body: translation.body, route: route)
+                let (urlRequest, bearer) = try await upstream.request(data: data, route: route)
                 let (bytes, response) = try await upstream.session.bytes(for: urlRequest)
                 let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                 guard status == 200 else {
@@ -347,16 +441,32 @@ nonisolated private struct ClaudeRelay {
                     }
                     let error = ((try? JSONSerialization.jsonObject(with: collected)) as? [String: Any])?["error"] as? [String: Any]
                     let message = error?["message"] as? String ?? String(decoding: collected.prefix(2_000), as: UTF8.self)
+                    log.append(attempt.finish(status: "http_error", translator: nil, httpStatus: status, error: (error?["type"] as? String, message)), key: classified.key)
+                    // cache diagnostics を受け付けない経路では外して送り直す(診断は無くても要求は通す)。
+                    if status == 400, options.includeDiagnostics, translation.body["diagnostics"] != nil,
+                       message.localizedCaseInsensitiveContains("diagnostics") {
+                        proxyLog.error("diagnostics rejected, retrying without them")
+                        options.includeDiagnostics = false
+                        reason = .diagnosticsRetry
+                        continue
+                    }
                     // 署名の合わない thinking(履歴の編集・別モデルの履歴)は外して 1 回だけ送り直す。
                     if status == 400, !options.stripThinking, message.localizedCaseInsensitiveContains("thinking") {
-                        proxyLog.error("thinking rejected, retrying without thinking blocks")
+                        let kind = ClaudeThinkingRejection.classify(message)
+                        proxyLog.error("thinking rejected (\(kind.rawValue, privacy: .public)), retrying without thinking blocks")
                         options.stripThinking = true
+                        reason = .thinkingStripRetry
+                        if kind == .signatureMismatch, let threadID {
+                            // 同じ不整合を毎ターン繰り返さない。以後この会話は thinking を外して送る。
+                            contexts.update(threadID) { $0.thinkingStripped = true }
+                        }
                         continue
                     }
                     // App Attest の token が失効・取り消された: 捨てて取り直し、1 回だけ送り直す。
                     if status == 401, case .appAttest(let clientID) = route, let bearer, !retriedToken {
                         proxyLog.error("claude rejected the app attest token, minting a new one")
                         retriedToken = true
+                        reason = .authRetry
                         await upstream.attest.invalidate(token: bearer, clientID: clientID)
                         continue
                     }
@@ -365,6 +475,7 @@ nonisolated private struct ClaudeRelay {
                        message.localizedCaseInsensitiveContains("grammar") || message.localizedCaseInsensitiveContains("schema") {
                         proxyLog.error("output schema rejected, retrying with the schema in the instructions")
                         options.schemaInInstructions = true
+                        reason = .schemaRetry
                         continue
                     }
                     proxyLog.error("upstream status \(status, privacy: .public): \(message, privacy: .public)")
@@ -376,20 +487,43 @@ nonisolated private struct ClaudeRelay {
                     return
                 }
                 try await writer.beginStream()
-                let translator = ClaudeStreamTranslator(tools: translation.tools)
+                let streamTranslator = ClaudeStreamTranslator(tools: translation.tools)
+                translator = streamTranslator
                 for try await line in bytes.lines {
                     guard line.hasPrefix("data:") else { continue }
                     let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
                     guard let event = (try? JSONSerialization.jsonObject(with: Data(payload.utf8))) as? [String: Any] else { continue }
-                    for out in translator.consume(event) { try await writer.sendEvent(out) }
-                    if translator.isFinished { break }
+                    let out = streamTranslator.consume(event)
+                    if streamTranslator.isFinished {
+                        // Codex に終わりを渡す前に記録する(ターンの終わりで実行監査に移すため)。
+                        let status = streamTranslator.errorType != nil ? "stream_error" : Self.status(stopReason: streamTranslator.stopReason)
+                        log.append(attempt.finish(status: status, translator: streamTranslator, httpStatus: 200,
+                                                  error: streamTranslator.errorType.map { ($0, "stream error") }), key: classified.key)
+                        if let threadID, let id = streamTranslator.messageID {
+                            log.setPreviousResponseID(id, threadID: threadID)
+                            // 再起動の後も比べられるよう、控えのあるスレッドには残す(下調べの子などの控えは作らない)。
+                            if entry != nil { contexts.update(threadID) { $0.lastClaudeMessageID = id } }
+                        }
+                    }
+                    for event in out { try await writer.sendEvent(event) }
+                    if streamTranslator.isFinished { break }
                 }
-                for out in translator.streamEnded() { try await writer.sendEvent(out) }
+                if !streamTranslator.isFinished {
+                    log.append(attempt.finish(status: "stream_ended", translator: streamTranslator, httpStatus: 200, error: (nil, "stream ended early")), key: classified.key)
+                }
+                for out in streamTranslator.streamEnded() { try await writer.sendEvent(out) }
                 writer.endStream()
                 return
             } catch is CancellationError {
+                if translator?.isFinished != true {
+                    log.append(attempt.finish(status: "cancelled", translator: translator, httpStatus: nil, error: nil), key: classified.key)
+                }
                 return
             } catch {
+                if translator?.isFinished != true {
+                    log.append(attempt.finish(status: Task.isCancelled ? "cancelled" : "failed", translator: translator, httpStatus: nil,
+                                              error: (nil, String(describing: error))), key: classified.key)
+                }
                 if Task.isCancelled { return }
                 proxyLog.error("upstream failed: \(String(describing: error), privacy: .public)")
                 if let failure = error as? AppAttestClient.Failure {
@@ -404,6 +538,16 @@ nonisolated private struct ClaudeRelay {
         }
     }
 
+    static func status(stopReason: String?) -> String {
+        switch stopReason {
+        case "max_tokens": "max_tokens"
+        case "refusal": "refusal"
+        case "model_context_window_exceeded": "context_window_exceeded"
+        case "pause_turn": "paused"
+        default: "completed"
+        }
+    }
+
     /// Codex は 429・5xx を再試行し、4xx はそのまま失敗にする。
     static func codexStatus(_ status: Int) -> Int {
         switch status {
@@ -413,6 +557,40 @@ nonisolated private struct ClaudeRelay {
         case 529, 500...599: 503
         default: 502
         }
+    }
+}
+
+/// thinking を含む要求が 400 で拒まれた理由。外して送り直すかどうかと、以後も外すかどうかを分ける。
+nonisolated enum ClaudeThinkingRejection: String, Sendable {
+    /// 履歴の thinking の署名が合わない(履歴の編集・別の会話・別のモデルの thinking)。
+    case signatureMismatch = "signature_mismatch"
+    /// それ以外(thinking の設定など)。外して送り直しても次のターンでまた起こるとは限らない。
+    case other
+
+    static func classify(_ message: String) -> ClaudeThinkingRejection {
+        let lowered = message.lowercased()
+        if lowered.contains("signature") || lowered.contains("bound to a different conversation") { return .signatureMismatch }
+        return .other
+    }
+}
+
+/// cache diagnostics の結果を、実行監査に残す形にする。`*_changed` は指示・tools・履歴・モデルの変更、
+/// 変更が無いのに読み込みが無ければ期限切れ(`ClaudeRequestLog` の利用側で usage と合わせて判断する)。
+nonisolated enum ClaudeCacheDiagnosis {
+    static func summarize(_ diagnostics: Any) -> Any {
+        guard let object = diagnostics as? [String: Any] else { return ["result": "no_divergence"] }
+        guard let reason = object["cache_miss_reason"] as? [String: Any] else { return ["result": "pending"] }
+        var summary: [String: Any] = ["result": reason["type"] as? String ?? "unknown"]
+        if let missed = reason["cache_missed_input_tokens"] { summary["cache_missed_input_tokens"] = missed }
+        return summary
+    }
+
+    /// キャッシュの状態: 読めた(`hit`)・要求が変わった(`*_changed`)・同じ要求なのに読めなかった(期限切れ・追い出し)。
+    static func state(diagnosis: String?, tokens: ClaudePricing.Tokens) -> String {
+        if let diagnosis, diagnosis.hasSuffix("_changed") { return diagnosis }
+        if tokens.cacheRead > 0 { return tokens.input + tokens.cacheWrite5m + tokens.cacheWrite1h > 0 ? "partial_hit" : "hit" }
+        if diagnosis == "no_divergence" { return "expired" }
+        return diagnosis == nil ? "cold" : "miss_" + diagnosis!
     }
 }
 

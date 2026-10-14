@@ -696,7 +696,11 @@ private struct AdvancedSettingsDetail: View {
     private static func tokenDetail(_ usage: TokenUsageSummary.Model) -> String {
         let format = { (n: Int) in n.formatted(.number.notation(.compactName)) }
         var parts = ["入力 \(format(usage.inputTokens))(うちキャッシュ \(format(usage.cachedInputTokens)))", "出力 \(format(usage.outputTokens))", "\(usage.executions) 回"]
-        if let cost = usage.estimatedCostUSD { parts.append(String(format: "約 $%.2f", cost)) }
+        if usage.cacheWrite1hTokens > 0 || usage.cacheWrite5mTokens > 0 {
+            parts.append("書き込み 5分 \(format(usage.cacheWrite5mTokens))・1時間 \(format(usage.cacheWrite1hTokens))")
+        }
+        if usage.extraRequests > 0 { parts.append("追加の要求 \(usage.extraRequests) 回") }
+        if let cost = usage.estimatedCostUSD { parts.append(String(format: usage.costIncomplete ? "約 $%.2f 以上" : "約 $%.2f", cost)) }
         return parts.joined(separator: " / ")
     }
 
