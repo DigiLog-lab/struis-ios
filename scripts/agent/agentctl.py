@@ -286,6 +286,25 @@ def requires_pr_ci(head, state, main_head):
     return head != state.get('validatedHead') and head != main_head
 
 
+def save_pr_ci(number, record, store):
+    """Checkpoint dispatch metadata before finalization or runner termination."""
+    (agent_home() / 'pr-ci.json').write_text(json.dumps(record))
+    key = session_key(number, 'state.json')
+    state = store.get_json(key) or {}
+    state['prCI'] = record
+    store.put_json(key, state)
+
+
+def restore_pr_ci(state, branch, head):
+    path = agent_home() / 'pr-ci.json'
+    record = state.get('prCI')
+    if record and record.get('branch') == branch and record.get('head') == head:
+        path.write_text(json.dumps(record))
+        return record
+    path.unlink(missing_ok=True)
+    return None
+
+
 def cmd_prepare(_args):
     number = issue_number()
     home = agent_home()
@@ -304,6 +323,7 @@ def cmd_prepare(_args):
     branch = state.get('branch') or f'agent/issue-{number}'
     branch_on_origin = checkout_branch(branch)
     checkpoint_restored = restore_workspace(store, number, branch)
+    restored_ci = restore_pr_ci(state, branch, git('rev-parse', 'HEAD'))
     if os.environ.get('AUTOMATIC_RETRY') != 'true':
         state['autoRestarts'] = 0
     state.pop('restartFromRun', None)
@@ -360,6 +380,9 @@ def cmd_prepare(_args):
         blocks.append(f'<issue-body author="{issue["user"]["login"]}" created="{issue["created_at"]}">\n'
                       f'{issue.get("body") or ""}\n</issue-body>')
     blocks.extend(format_comment(comment) for comment in pending)
+    if restored_ci:
+        blocks.append('<pending-pr-ci>\n前runnerが起動したPR CIの記録を復元しました。まずこの要求識別子の実行結果を確認してください。実行中なら待ち、同じHEADのCIを重複起動しないでください。\n'
+                      + json.dumps(restored_ci, ensure_ascii=False) + '\n</pending-pr-ci>')
     if state.get('validationFailure'):
         blocks.append('<validation-failure>\n前回の検証失敗を修正してから、検証と成果提示へ進んでください。\n'
                       + json.dumps(state['validationFailure'], ensure_ascii=False) + '\n</validation-failure>')
@@ -672,6 +695,7 @@ def cmd_finalize(_args):
         state['autoRestarts'] = 0
         state.pop('validationFailure', None)
         state['validatedHead'] = git('rev-parse', 'HEAD')
+        state.pop('prCI', None)
         if run['includedComments']:
             state['lastCommentId'] = max([int(state.get('lastCommentId') or 0), *run['includedComments']])
         if run['includedIssueBody']:
@@ -783,13 +807,13 @@ def cmd_request_pr(args):
     # Explicit dispatch works with that token and also covers subsequent repairs.
     record = {'head': git('rev-parse', 'HEAD'), 'branch': run['branch'],
               'request': secrets.token_hex(12), 'dispatched': []}
-    record_path = agent_home() / 'pr-ci.json'
-    record_path.write_text(json.dumps(record))
+    store = Store()
+    save_pr_ci(run['issue'], record, store)
     for workflow in PR_CI_WORKFLOWS:
         gh.request('POST', f'/repos/{gh.repository}/actions/workflows/{workflow}/dispatches',
                    {'ref': run['branch'], 'inputs': {'ci_request': record['request']}})
         record['dispatched'].append(workflow)
-        record_path.write_text(json.dumps(record))
+        save_pr_ci(run['issue'], record, store)
     print('PRのHEADでiOS・Agent tests CIを起動しました。gh run list / gh run watchで結果を確認し、失敗時は修正・push後にrequest-prを再実行してください。')
 
 

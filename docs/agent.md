@@ -33,7 +33,7 @@ Claudeのstepは240分で終了させ、340分のjob上限に対して保存・�
 
 PR本文はチェックアウト外の`$AGENT_HOME/pr-body.md`に書き、`agentctl.py request-pr --title … --body-file …`を実行します。チェックアウト内に新規作成した未追跡の本文ファイルを指定した場合は、内容を`$AGENT_HOME/pr-bodies/`へ移して保存します。追跡済みファイルや本文以外の変更はこの対象にしません。
 
-`request-pr`は、その場でPRを作成・更新し、push済みの作業ブランチで`iOS`と`Agent tests`のCIを明示的に起動します。`GITHUB_TOKEN`が作成したPRやpushからは通常の`pull_request`イベントが起動されないため、`workflow_dispatch`を使います。CI要求には一意の識別子を付け、ブランチと対象HEADを記録します。古い作業ブランチは事前に`origin/main`のCI定義を取り込みます。
+`request-pr`は、その場でPRを作成・更新し、push済みの作業ブランチで`iOS`と`Agent tests`のCIを明示的に起動します。`GITHUB_TOKEN`が作成したPRやpushからは通常の`pull_request`イベントが起動されないため、`workflow_dispatch`を使います。CI要求には一意の識別子を付け、ブランチ・対象HEAD・起動済みworkflowを記録します。要求の作成時と各workflowの起動直後にR2の`state.json`へ保存するため、終了処理前の中断でも記録を引き継ぎます。再開時は作業ブランチとHEADが一致する記録を復元し、元のCIを確認して待機中の重複起動を避けます。古い作業ブランチは事前に`origin/main`のCI定義を取り込みます。
 
 PR CIは制御スクリプトのテスト、Worker構文、Actions定義、Simulatorビルド、iOS単体/UIテスト、署名なし実機Release archiveを検証します。Claudeは実行結果を確認し、失敗時は個別テストで調査・修正・commit・pushして`request-pr`を再実行します。UIテストには個別タイムアウトと90分のstep上限があります。CIのxcresultは実行IDと再実行番号を含むartifact名で保存します。iOSのエージェントCIはブランチごとに実行を制御し、mainの手動リリース・アップロードの待ち行列と分離します。
 
@@ -51,7 +51,7 @@ Actionsの`Claude Code`ログでは、説明文・実行コマンドなどのツ
 
 | キー | 内容 |
 |---|---|
-| `state.json` | Claude セッション ID、モデル、作業ブランチ、最終処理済みコメント ID、検証済みHEAD(`validatedHead`)、Worker の稼働状態と実行 URL、記録された設計判断 |
+| `state.json` | Claude セッション ID、モデル、作業ブランチ、最終処理済みコメント ID、検証済みHEAD(`validatedHead`)、未完了のCI要求(`prCI`)、Worker の稼働状態と実行 URL、記録された設計判断 |
 | `claude-projects.tar.gz` | Claude Code の会話記録 |
 
 使用量は `usage/{Issue番号}/{run}-{attempt}.json`、プロトタイプは `prototypes/{Issue番号}/{ID}/` に保存します。セッション記録を復元できない場合は、Issue の履歴・記録済みの設計判断・作業ブランチの log を prompt に入れた新しいセッションで再開します。

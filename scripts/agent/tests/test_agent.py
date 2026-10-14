@@ -152,14 +152,18 @@ class PullRequestCITests(unittest.TestCase):
     def test_request_pr_creates_pr_then_dispatches_ci_without_running_tests(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
-            (home / 'run.json').write_text(json.dumps({'branch': 'agent/issue-4'}))
+            (home / 'run.json').write_text(json.dumps({'issue': 4, 'branch': 'agent/issue-4'}))
             body = home / 'pr.md'
             body.write_text('Refs #4')
             gh = mock.Mock(repository='owner/repo')
             gh.get.return_value = []
             gh.request.side_effect = [({'html_url': 'https://github.com/owner/repo/pull/9'}, {}), ({}, {}), ({}, {})]
             args = mock.Mock(title='Fix', body_file=str(body))
-            with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh), mock.patch.object(agentctl, 'git', side_effect=['', '', 'abc', 'abc', 'abc']), mock.patch.object(agentctl, 'outbox_append'):
+            store = mock.Mock()
+            store.get_json.return_value = {}
+            snapshots = []
+            store.put_json.side_effect = lambda key, value: snapshots.append(json.loads(json.dumps(value)))
+            with mock.patch.object(agentctl, 'Store', return_value=store), mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh), mock.patch.object(agentctl, 'git', side_effect=['', '', 'abc', 'abc', 'abc']), mock.patch.object(agentctl, 'outbox_append'):
                 agentctl.cmd_request_pr(args)
             self.assertEqual([call.args[1] for call in gh.request.call_args_list], [
                 '/repos/owner/repo/pulls',
@@ -167,6 +171,8 @@ class PullRequestCITests(unittest.TestCase):
                 '/repos/owner/repo/actions/workflows/agent-tests.yml/dispatches'])
             record = json.loads((home / 'pr-ci.json').read_text())
             self.assertEqual(record['head'], 'abc')
+            self.assertEqual([state['prCI']['dispatched'] for state in snapshots],
+                             [[], ['ios.yml'], ['ios.yml', 'agent-tests.yml']])
             self.assertEqual(record['dispatched'], ['ios.yml', 'agent-tests.yml'])
             self.assertEqual(gh.request.call_args_list[1].args[2],
                              {'ref': 'agent/issue-4', 'inputs': {'ci_request': record['request']}})
@@ -174,7 +180,7 @@ class PullRequestCITests(unittest.TestCase):
     def test_uncommitted_work_does_not_create_pr(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
-            (home / 'run.json').write_text(json.dumps({'branch': 'agent/issue-4'}))
+            (home / 'run.json').write_text(json.dumps({'issue': 4, 'branch': 'agent/issue-4'}))
             with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'read_pr_body', return_value='Refs #4'), mock.patch.object(agentctl, 'git', return_value=' M file'), mock.patch.object(agentctl, 'GitHub') as gh:
                 with self.assertRaises(SystemExit):
                     agentctl.cmd_request_pr(mock.Mock())
@@ -300,6 +306,47 @@ class ValidatedHeadTests(unittest.TestCase):
             with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'git', side_effect=['', 'tested']), mock.patch.object(agentctl, 'verify_pr_ci') as ci, mock.patch.object(agentctl, 'load_execution', return_value=result):
                 agentctl.cmd_validate(None)
             ci.assert_not_called()
+
+
+class PendingCICheckpointTests(unittest.TestCase):
+    def test_new_runner_can_finish_original_ci_without_redispatch(self):
+        persisted = {}
+        store = mock.Mock()
+        store.get_json.side_effect = lambda key: json.loads(json.dumps(persisted.get(key)))
+        store.put_json.side_effect = lambda key, value: persisted.update({key: json.loads(json.dumps(value))})
+        record = {'head': 'abc', 'branch': 'agent/issue-4', 'request': 'unique',
+                  'dispatched': ['ios.yml', 'agent-tests.yml']}
+        with tempfile.TemporaryDirectory() as first:
+            with mock.patch.object(agentctl, 'agent_home', return_value=Path(first)):
+                agentctl.save_pr_ci(4, record, store)
+        # The old runner and all its local files are gone, before finalize ran.
+        with tempfile.TemporaryDirectory() as second:
+            home = Path(second)
+            state = store.get_json(agentlib.session_key(4, 'state.json'))
+            gh = mock.Mock(repository='owner/repo')
+            gh.get.side_effect = PRCIResultTests().responses()
+            with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh):
+                self.assertEqual(agentctl.restore_pr_ci(state, record['branch'], 'abc'), record)
+                agentctl.verify_pr_ci({'branch': record['branch']}, 'abc')
+            self.assertTrue(json.loads((home / 'validation.json').read_text())['success'])
+            gh.request.assert_not_called()
+
+    def test_pending_or_partial_record_survives_and_stale_head_is_not_restored(self):
+        for dispatched in (['ios.yml'], ['ios.yml', 'agent-tests.yml']):
+            with self.subTest(dispatched=dispatched), tempfile.TemporaryDirectory() as directory:
+                home = Path(directory)
+                record = {'head': 'abc', 'branch': 'agent/issue-4', 'request': 'unique', 'dispatched': dispatched}
+                store = mock.Mock()
+                store.get_json.return_value = {'lastCommentId': 12}
+                with mock.patch.object(agentctl, 'agent_home', return_value=home):
+                    agentctl.save_pr_ci(4, record, store)
+                    state = json.loads(json.dumps(store.put_json.call_args.args[1]))
+                    self.assertEqual(state['lastCommentId'], 12)
+                    self.assertEqual(agentctl.restore_pr_ci(state, 'agent/issue-4', 'abc'), record)
+                    self.assertIsNone(agentctl.restore_pr_ci(state, 'agent/issue-4', 'new-head'))
+                    self.assertFalse((home / 'pr-ci.json').exists())
+                    self.assertIsNone(agentctl.restore_pr_ci(state, 'other-branch', 'abc'))
+                    self.assertEqual(state['prCI'], record)
 
 
 if __name__ == '__main__':
