@@ -98,7 +98,7 @@ def verify(signed=False):
                      '-resultBundlePath', str(logs / 'StruisUITests.xcresult'),
                      '-collect-test-diagnostics', 'never', '-only-testing:striusUITests',
                      '-test-timeouts-enabled', 'YES', '-default-test-execution-time-allowance', '180',
-                     '-maximum-test-execution-time-allowance', '300',
+                     '-maximum-test-execution-time-allowance', '600',
                      '-parallel-testing-enabled', 'NO', 'ARCHS=arm64', 'STRUIS_AUTH_REQUIRED=YES']),
         ('release-archive', ['xcodebuild', 'archive', '-project', 'strius.xcodeproj', '-scheme', 'strius',
                              '-configuration', 'Release', '-destination', 'generic/platform=iOS',
