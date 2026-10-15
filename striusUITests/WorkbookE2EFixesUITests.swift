@@ -226,7 +226,7 @@ final class WorkbookE2EFixesUITests: XCTestCase {
             }
         }
         let start = element(app, "workbook-proposal-start")
-        XCTAssertTrue(start.waitForExistence(timeout: 25), "全体像カードが出ない")
+        XCTAssertTrue(start.waitForExistence(timeout: 25), "全体像カードが出ない: \(screenSummary(app))")
         attach(app, "unit-proposal")
         start.tap()
 
