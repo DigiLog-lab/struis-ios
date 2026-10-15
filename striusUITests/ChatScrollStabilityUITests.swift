@@ -61,8 +61,7 @@ final class ChatScrollStabilityUITests: XCTestCase {
             let settled = bubbleOrigins(app)
             var later = settled
             var trace: [String] = []
-            // 跳びは指を離して 1 秒ほどの間に出る(計測では最初の読み取りで出た)。1.5 秒の間に 3 回読む。
-            for _ in 0..<3 {
+            for _ in 0..<6 {
                 Thread.sleep(forTimeInterval: 0.5)
                 let sample = bubbleOrigins(app)
                 trace.append(sample.sorted { $0.value < $1.value }.map { "\($0.key.suffix(4)):\(Int($0.value))" }.joined(separator: ","))
@@ -75,13 +74,7 @@ final class ChatScrollStabilityUITests: XCTestCase {
             if shift > 2 { attach(app, "jump-step-\(step)") }
         }
         print("PROBE jumps=\(jumps.map { Int($0.rounded()) })")
-        // 既知の不具合(2026-10-14 調査、未修正): 初めて描く数式の行は、WebView が描き終えるまでの仮の文字が低く、
-        // 出てから約 6 秒後に 17〜32pt 高くなる(59→77・103→120・189→221)。その時にスクロール位置の基準が
-        // 付け直されると、見えている会話がまとめて 17〜34pt 動く。仮の文字の高さを描き終えた高さに揃えるまで、
-        // 跳びは記録して失敗としては数えない(直ったら、この印は外す)。
-        XCTExpectFailure("初めて描く数式の行の高さが後から変わり、指を離した後に会話が動く(未修正)", strict: false) {
-            XCTAssertLessThanOrEqual(jumps.max() ?? 0, 2, "指を離した後に会話が動いた(跳んだ): \(jumps.map { Int($0.rounded()) })")
-        }
+        XCTAssertLessThanOrEqual(jumps.max() ?? 0, 2, "指を離した後に会話が動いた(跳んだ): \(jumps.map { Int($0.rounded()) })")
     }
 
     /// 画面の中ほどにある数式の WebView の枠(1 回の snapshot で探す)。
@@ -89,11 +82,19 @@ final class ChatScrollStabilityUITests: XCTestCase {
     private func mathFrame(_ app: XCUIApplication) -> CGRect? {
         guard let root = try? app.snapshot() else { return nil }
         let screen = app.windows.firstMatch.frame
+        // ドラッグの始点(枠の縦の中ほど)が会話の表示領域の中にあるものだけ(小単元の見出しに隠れた所をつかまない)。
+        var visible = screen
+        var queue: [XCUIElementSnapshot] = [root]
+        while let node = queue.popLast() {
+            if node.elementType == .scrollView, node.identifier == "chat-page" { visible = node.frame; break }
+            queue.append(contentsOf: node.children)
+        }
         var stack: [XCUIElementSnapshot] = [root]
         var found: [CGRect] = []
         while let node = stack.popLast() {
             if node.elementType == .webView, node.frame.height > 12,
-               node.frame.minY > screen.height * 0.25, node.frame.maxY < screen.height * 0.7 {
+               node.frame.minY > screen.height * 0.25, node.frame.maxY < screen.height * 0.7,
+               node.frame.midY > visible.minY + 16, node.frame.midY < visible.maxY - 16 {
                 found.append(node.frame)
             }
             stack.append(contentsOf: node.children)
@@ -218,6 +219,8 @@ final class ChatScrollStabilityUITests: XCTestCase {
     /// 表示用の数式(背の高い WebView)を横にドラッグし、その WebView の見た目が変わる(中身が横に動く)ものがあることを確かめる。
     @MainActor
     func testOverflowingDisplayMathStillScrollsSideways() throws {
+        // 候補の数式ごとに見た目が落ち着くのを待って撮り比べるので、遅い Simulator では 3 分を超えることがある。
+        executionTimeAllowance = 600
         let app = XCUIApplication()
         app.launchArguments += ["-skip-onboarding", "-screens-fixture", "-workbook-model-stage", "-katex-fresh"]
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
@@ -233,11 +236,17 @@ final class ChatScrollStabilityUITests: XCTestCase {
         var scrolled = false
         for _ in 0..<10 where !scrolled {
             Thread.sleep(forTimeInterval: 3)
-            let webs = app.webViews.allElementsBoundByIndex.filter {
-                $0.exists && $0.frame.height > 30 && $0.frame.maxY > screen.height * 0.2 && $0.frame.minY < screen.height * 0.75
+            // 位置は 1 回の snapshot から読む(`exists` の後に `frame` を読むと、その間に行が描き直されて番号の指す要素が
+            // 無くなった時に、取得の失敗でテストが止まる)。
+            let webs = app.webViews.allElementsBoundByIndex.filter { web in
+                guard let frame = try? web.snapshot().frame else { return false }
+                return frame.height > 30 && frame.maxY > screen.height * 0.2 && frame.minY < screen.height * 0.75
             }
-            for web in webs where !scrolled {
-                let key = "\(Int(web.frame.minY))-\(Int(web.frame.height))-\(web.label)"
+            // 開き直した後は、前に取った一覧の要素(番号で指す)が別のものか無いものを指すので、一覧を取り直す。
+            var reopened = false
+            for web in webs where !scrolled && !reopened {
+                guard let found = try? web.snapshot() else { continue }
+                let key = "\(Int(found.frame.minY))-\(Int(found.frame.height))-\(found.label)"
                 guard tried.insert(key).inserted else { continue }
                 // 吹き出し全体が 1 つの WebView なので、表示用の数式の行に当たるよう縦の位置を 22pt おきに変えて試す。
                 // 描画の途中の変化を数えないよう、見た目が落ち着いてから比べ、左へ動いた後に右へ戻すとまた変わる(往復する)ことを見る。
@@ -259,6 +268,15 @@ final class ChatScrollStabilityUITests: XCTestCase {
                     let back = web.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: dy))
                     back.press(forDuration: 0.05, thenDragTo: back.withOffset(CGVector(dx: 200, dy: 0)), withVelocity: .slow, thenHoldForDuration: 0.3)
                     Thread.sleep(forTimeInterval: 0.6)
+                    // 戻す量が横にずれた分より大きいと、残りの右への動きで会話からホームへ戻る(右スワイプと同じ。
+                    // `testHorizontalSwipeInSubunitConversationStaysOnTheConversation`)。その時は開き直して次を試す。
+                    guard web.exists else {
+                        let subunit = app.descendants(matching: .any)["workbook-subunit-sub-1"].firstMatch
+                        if subunit.isHittable { subunit.tap() }
+                        XCTAssertTrue(page.waitForExistence(timeout: 20))
+                        reopened = true
+                        break
+                    }
                     let returned = web.screenshot()
                     let reversible = returned.pngRepresentation != moved.pngRepresentation
                     print("PROBE overflow candidate h=\(Int(web.frame.height)) row=\(row) movedLeft=true movedBack=\(reversible)")

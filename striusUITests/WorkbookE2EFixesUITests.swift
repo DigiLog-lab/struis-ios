@@ -137,13 +137,12 @@ final class WorkbookE2EFixesUITests: XCTestCase {
     @MainActor
     func testLongSubunitConversationDoesNotFreeze() throws {
         // 数式入りの返事と全体像カードを含む 40 往復を、ヘッダーのある小単元の画面(表示域が狭い)に読み込み、
-        // 送信とスクロールを 12 回繰り返す。毎回、送ったメッセージが会話に入って見える位置にあること、
+        // 送信とスクロールを 20 回繰り返す。毎回、送ったメッセージが会話に入って見える位置にあること、
         // 次の操作が受け付けられることを確かめる。
         // メインスレッドの止まりの上限(2 秒)は、アプリ内の見張り(`-hang-watchdog`)を HID 入力だけで回して測る
         // (関連する画面・動作)。XCUITest の要素検索はアプリのメインスレッドで
         // ツリーを作り、WebView が多いとそれ自体が数秒かかるので、ここでの値は参考として記録だけする。
-        // 遅い Simulator では 1 往復に 17 秒ほどかかり、20 往復では実行時間の上限(最大 300 秒)を超える。12 往復にする。
-        executionTimeAllowance = 300
+        executionTimeAllowance = 600
         let app = launch(["-skip-onboarding", "-workbook-model-stage", "-workbook-long-chat", "-hang-watchdog"])
         let row = element(app, "workbook-subunit-sub-1")
         XCTAssertTrue(row.waitForExistence(timeout: 30))
@@ -151,21 +150,23 @@ final class WorkbookE2EFixesUITests: XCTestCase {
         let input = app.textViews.matching(identifier: "chat-page").firstMatch
         XCTAssertTrue(input.waitForExistence(timeout: 30))
         let page = element(app, "chat-page")
-        for round in 1...12 {
+        for round in 1...20 {
             input.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).tap()
             input.typeText("確認 \(round)")
             let send = sendButton(app)
-            XCTAssertTrue(waitEnabled(send, timeout: 30), "送信ボタンが押せない (\(round))")
-            Thread.sleep(forTimeInterval: 0.5)
+            // 押せる状態なら待たない(述語の待ちは、満たしていても次の確かめまで 1 秒ほど待つ)。押す操作は、アプリが
+            // 落ち着くのを待ってから押すので、押す前の決まった待ちは置かない。
+            XCTAssertTrue(send.isEnabled || waitEnabled(send, timeout: 30), "送信ボタンが押せない (\(round))")
             send.press(forDuration: 0.15)
             let mine = app.staticTexts["確認 \(round)"].firstMatch
-            XCTAssertTrue(mine.waitForExistence(timeout: 30), "送ったメッセージが出ない (\(round))")
+            // 出ていれば待たない(`waitForExistence` は最初の確かめまで 1 秒ほど待つ)。
+            XCTAssertTrue(mine.exists || mine.waitForExistence(timeout: 30), "送ったメッセージが出ない (\(round))")
             XCTAssertTrue(mine.isHittable, "送ったメッセージが見える位置にない (\(round))")
             page.swipeDown(velocity: .fast)
             page.swipeUp(velocity: .fast)
         }
         let watchdog = element(app, "debug-hang-watchdog")
-        if watchdog.waitForExistence(timeout: 30) {
+        if watchdog.exists || watchdog.waitForExistence(timeout: 30) {
             print("MAX_MAIN_THREAD_STALL_MS_UNDER_XCUITEST \(watchdog.value as? String ?? watchdog.label)")
         }
         attach(app, "long-chat-after-20-rounds")
