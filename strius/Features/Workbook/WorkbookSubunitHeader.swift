@@ -185,7 +185,13 @@ struct WorkbookSubunitHeader: View {
                 }
                 guard expandedHeight > Self.collapsedHeight else { return }
                 if abs(dy) < 6 {
-                    toggle()
+                    // 横へのドラッグ(縦にほとんど動かない)はタップとして扱わない。会話の数式を横に動かそうとして
+                    // ヘッダーの上から始めた指で開閉すると、会話全体が上下にずれる。
+                    if abs(value.translation.width) < 6 {
+                        toggle()
+                    } else {
+                        withAnimation(.snappy(duration: 0.28)) { dragHeight = nil }
+                    }
                     return
                 }
                 let collapsed = abs(dy) > 24 ? dy < 0 : progress > 0.5
