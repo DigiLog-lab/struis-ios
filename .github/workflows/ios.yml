@@ -86,18 +86,22 @@ jobs:
             NativeRuntime/.build
           key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
       - name: READMEのSimulatorビルド
+        timeout-minutes: 30
         run: |
           set -euo pipefail
           xcodebuild build -project strius.xcodeproj -scheme strius \
             -destination 'generic/platform=iOS Simulator' ARCHS=arm64 CODE_SIGNING_ALLOWED=NO
       - name: Simulatorで単体テスト
+        timeout-minutes: 30
         run: |
           set -euo pipefail
           xcodebuild test -project strius.xcodeproj -scheme strius \
             -destination 'platform=iOS Simulator,name=iPhone 17' \
             -resultBundlePath "$RUNNER_TEMP/StruisTests.xcresult" \
             -collect-test-diagnostics never \
-            -only-testing:striusTests -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
+            -only-testing:striusTests -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
+            -maximum-test-execution-time-allowance 300 ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
       - name: SimulatorでUIテスト
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
         timeout-minutes: 90

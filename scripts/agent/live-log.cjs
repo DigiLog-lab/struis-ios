@@ -40,7 +40,7 @@ function formatLiveMessage(message, environment = process.env) {
   let text = redact(lines.join('\n'), environment);
   if (text.length > 24000) text = text.slice(0, 12000) + '\n[長い出力の中間を省略]\n' + text.slice(-12000);
   // Prefix every line so tool output cannot become an Actions workflow command.
-  return text.split('\n').map(line => `[Claude] ${line}`).join('\n');
+  return text.replace(/\r\n?/g, '\n').split('\n').map(line => `[Claude] ${line}`).join('\n');
 }
 
 module.exports = {redact, formatLiveMessage};

@@ -229,7 +229,7 @@ class PRCIResultTests(unittest.TestCase):
                 self.assertFalse(json.loads((home / 'validation.json').read_text())['success'])
 
     def test_stale_head_missing_record_and_partial_dispatch_are_rejected(self):
-        for scenario in ('stale', 'missing', 'partial'):
+        for scenario in ('stale', 'missing'):
             with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
                 home = Path(directory)
                 if scenario != 'missing':
@@ -347,6 +347,111 @@ class PendingCICheckpointTests(unittest.TestCase):
                     self.assertFalse((home / 'pr-ci.json').exists())
                     self.assertIsNone(agentctl.restore_pr_ci(state, 'other-branch', 'abc'))
                     self.assertEqual(state['prCI'], record)
+
+
+class PRCIDispatchReuseTests(unittest.TestCase):
+    def execute(self, home, persisted, statuses, dispatched=None, completed=False):
+        record = {'head': 'abc', 'branch': 'agent/issue-4', 'request': 'original',
+                  'dispatched': list(agentctl.PR_CI_WORKFLOWS) if dispatched is None else dispatched}
+        persisted.update({'validatedCI' if completed else 'prCI': record})
+        store = mock.Mock()
+        store.get_json.side_effect = lambda key: json.loads(json.dumps(persisted))
+        store.put_json.side_effect = lambda key, value: (persisted.clear(), persisted.update(json.loads(json.dumps(value))))
+        (home / 'run.json').write_text(json.dumps({'issue': 4, 'branch': 'agent/issue-4'}))
+        body = home / 'body.md'
+        body.write_text('Refs #4')
+        gh = mock.Mock(repository='owner/repo')
+        gh.get.return_value = [{'number': 9}]
+        gh.request.return_value = ({'html_url': 'https://github.com/owner/repo/pull/9'}, {})
+        def find(_gh, workflow, _record):
+            status = statuses[workflow]
+            if status is None:
+                return None
+            return {'status': status[0], 'conclusion': status[1], 'html_url': 'https://github.com/owner/repo/actions/runs/10'}
+        with mock.patch.object(agentctl, 'Store', return_value=store), mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh), mock.patch.object(agentctl, 'git', side_effect=['', '', 'abc', 'abc', 'abc']), mock.patch.object(agentctl, 'find_pr_ci_run', side_effect=find):
+            agentctl.cmd_request_pr(mock.Mock(title='Fix', body_file=str(body)))
+        return gh
+
+    def test_repeated_request_reuses_running_queued_and_successful_ci(self):
+        for ios in [('in_progress', None), ('queued', None), ('completed', 'success')]:
+            with self.subTest(ios=ios), tempfile.TemporaryDirectory() as directory:
+                state = {}
+                gh = self.execute(Path(directory), state, {'ios.yml': ios, 'agent-tests.yml': ('completed', 'success')})
+                self.assertEqual(gh.request.call_count, 1)  # PR metadata update only.
+                self.assertEqual(state['prCI']['request'], 'original')
+                self.assertNotIn('requests', state['prCI'])
+
+    def test_metadata_update_after_successful_turn_reuses_completed_ci(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = {'validatedHead': 'abc'}
+            gh = self.execute(Path(directory), state, {'ios.yml': ('completed', 'success'), 'agent-tests.yml': ('completed', 'success')}, completed=True)
+            self.assertEqual(gh.request.call_count, 1)
+            self.assertEqual(state['prCI']['request'], 'original')
+            self.assertEqual(state['validatedHead'], 'abc')
+
+    def test_only_failed_workflow_gets_a_new_request(self):
+        for conclusion in ('failure', 'cancelled', 'timed_out'):
+            with self.subTest(conclusion=conclusion), tempfile.TemporaryDirectory() as directory:
+                state = {}
+                gh = self.execute(Path(directory), state, {'ios.yml': ('completed', conclusion), 'agent-tests.yml': ('completed', 'success')})
+                self.assertEqual(gh.request.call_count, 2)
+                call = gh.request.call_args_list[-1]
+                self.assertEqual(call.args[1], '/repos/owner/repo/actions/workflows/ios.yml/dispatches')
+                record = state['prCI']
+                self.assertNotEqual(agentctl.ci_request_id(record, 'ios.yml'), 'original')
+                self.assertEqual(agentctl.ci_request_id(record, 'agent-tests.yml'), 'original')
+                self.assertEqual(call.args[2]['inputs']['ci_request'], record['requests']['ios.yml'])
+
+    def test_accepted_run_with_lost_ack_is_recovered_without_duplicate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = {}
+            gh = self.execute(Path(directory), state, {'ios.yml': ('in_progress', None), 'agent-tests.yml': None}, dispatched=[])
+            self.assertEqual(gh.request.call_count, 2)
+            self.assertIn('/agent-tests.yml/dispatches', gh.request.call_args.args[1])
+            self.assertEqual(state['prCI']['dispatched'], ['ios.yml', 'agent-tests.yml'])
+
+    def test_accepted_dispatch_not_yet_in_github_listing_is_not_repeated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            state = {}
+            gh = self.execute(Path(directory), state, {'ios.yml': None, 'agent-tests.yml': None})
+            self.assertEqual(gh.request.call_count, 1)
+
+
+class PRCILookupBoundaryTests(unittest.TestCase):
+    def test_lost_dispatch_ack_does_not_hide_a_successful_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            PRCIResultTests().record(home, dispatched=[])
+            gh = mock.Mock(repository='owner/repo')
+            gh.get.side_effect = PRCIResultTests().responses()
+            with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh):
+                agentctl.verify_pr_ci({'branch': 'agent/issue-4'}, 'abc')
+            self.assertTrue(json.loads((home / 'validation.json').read_text())['success'])
+
+    def test_partial_dispatch_without_remote_run_is_not_successful(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            PRCIResultTests().record(home, dispatched=[])
+            gh = mock.Mock(repository='owner/repo')
+            gh.get.return_value = {'workflow_runs': []}
+            with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh):
+                with self.assertRaisesRegex(RuntimeError, '起動未完了'):
+                    agentctl.verify_pr_ci({'branch': 'agent/issue-4'}, 'abc')
+
+    def test_current_run_is_rechecked_against_request_and_head(self):
+        record = {'head': 'abc', 'branch': 'agent/issue-4', 'request': 'unique'}
+        responses = PRCIResultTests().responses()[:2]
+        responses[1] = dict(responses[1], head_sha='other')
+        gh = mock.Mock(repository='owner/repo')
+        gh.get.side_effect = responses
+        with self.assertRaisesRegex(RuntimeError, '一致しません'):
+            agentctl.find_pr_ci_run(gh, 'ios.yml', record)
+
+    def test_old_success_cannot_satisfy_new_per_workflow_request(self):
+        record = {'head': 'abc', 'branch': 'agent/issue-4', 'request': 'unique', 'requests': {'ios.yml': 'new'}}
+        gh = mock.Mock(repository='owner/repo')
+        gh.get.return_value = PRCIResultTests().responses()[0]
+        self.assertIsNone(agentctl.find_pr_ci_run(gh, 'ios.yml', record))
 
 
 if __name__ == '__main__':

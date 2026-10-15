@@ -29,10 +29,11 @@ assert(log.includes('xcodebuild test -only-testing:Example'));
 assert(!log.includes('hidden-reasoning'));
 assert.equal(JSON.stringify(msg), before);
 const result = formatLiveMessage({type:'user', message:{content:[{type:'tool_result',tool_use_id:'tool-1',is_error:true,
- content:'failed: '+env.CUSTOM_API_KEY+'\n::warning::untrusted\n'+env.GITHUB_TOKEN}]}}, env);
+ content:'failed: '+env.CUSTOM_API_KEY+'\n::warning::untrusted\r::error::also-untrusted\n'+env.GITHUB_TOKEN}]}}, env);
 assert(result.includes('[失敗]'));
 assert(!result.includes(env.GITHUB_TOKEN));
 assert(!result.includes(env.CUSTOM_API_KEY));
+assert(!result.includes('\r'));
 assert(result.split('\n').every(line => line.startsWith('[Claude] ')));
 assert.equal(formatLiveMessage({type:'user',message:{content:[{type:'text',text:'private prompt'}]}}, env), null);
 const multiline = '-----BEGIN PRIVATE KEY-----\nabc123private\n-----END PRIVATE KEY-----';

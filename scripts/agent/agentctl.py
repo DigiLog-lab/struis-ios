@@ -381,7 +381,7 @@ def cmd_prepare(_args):
                       f'{issue.get("body") or ""}\n</issue-body>')
     blocks.extend(format_comment(comment) for comment in pending)
     if restored_ci:
-        blocks.append('<pending-pr-ci>\n前runnerが起動したPR CIの記録を復元しました。まずこの要求識別子の実行結果を確認してください。実行中なら待ち、同じHEADのCIを重複起動しないでください。\n'
+        blocks.append('<pending-pr-ci>\n前runnerが起動したPR CIの記録を復元しました。まずworkflowごとの要求識別子（requestsに指定がなければrequest）の実行結果を確認してください。実行中なら待ち、同じHEADのCIを重複起動しないでください。\n'
                       + json.dumps(restored_ci, ensure_ascii=False) + '\n</pending-pr-ci>')
     if state.get('validationFailure'):
         blocks.append('<validation-failure>\n前回の検証失敗を修正してから、検証と成果提示へ進んでください。\n'
@@ -444,6 +444,33 @@ def cmd_validate(_args):
 PR_CI_WORKFLOWS = {'ios.yml': 'iOS', 'agent-tests.yml': 'Agent tests'}
 
 
+def ci_request_id(record, workflow):
+    return record.get('requests', {}).get(workflow, record['request'])
+
+
+def find_pr_ci_run(gh, workflow, record):
+    """Find this exact request, including a run accepted before checkpointing failed."""
+    page = 1
+    label = PR_CI_WORKFLOWS[workflow]
+    title = f'{label} CI {ci_request_id(record, workflow)}'
+    while True:
+        query = urllib.parse.urlencode({'event': 'workflow_dispatch', 'branch': record['branch'],
+                                        'head_sha': record['head'], 'per_page': 100, 'page': page})
+        runs = gh.get(f'/repos/{gh.repository}/actions/workflows/{workflow}/runs?{query}')['workflow_runs']
+        matches = [item for item in runs if item['head_sha'] == record['head']
+                   and item['head_branch'] == record['branch'] and item['display_title'] == title]
+        if matches:
+            latest = max(matches, key=lambda item: item['id'])
+            current = gh.get(f'/repos/{gh.repository}/actions/runs/{latest["id"]}')
+            if (current['head_sha'] != record['head'] or current['head_branch'] != record['branch']
+                    or current['display_title'] != title):
+                raise RuntimeError('取得したCI実行の要求識別子・ブランチ・HEADが一致しません。')
+            return current
+        if len(runs) < 100:
+            return None
+        page += 1
+
+
 def verify_pr_ci(run, head):
     """Read GitHub conclusions only; never execute or wait for tests here."""
     home = agent_home()
@@ -457,21 +484,12 @@ def verify_pr_ci(run, head):
             raise RuntimeError('PR CIの対象HEADと成果が一致しません。request-prを再実行してください。')
         gh = GitHub()
         problems = []
-        for workflow, label in PR_CI_WORKFLOWS.items():
-            if workflow not in record['dispatched']:
-                problems.append(f'{workflow}: 起動未完了')
+        for workflow in PR_CI_WORKFLOWS:
+            current = find_pr_ci_run(gh, workflow, record)
+            if not current:
+                detail = '起動未完了' if workflow not in record.get('dispatched', []) else '起動した実行がまだ見つかりません'
+                problems.append(f'{workflow}: {detail}')
                 continue
-            query = urllib.parse.urlencode({'event': 'workflow_dispatch', 'branch': run['branch'], 'per_page': 100})
-            runs = gh.get(f'/repos/{gh.repository}/actions/workflows/{workflow}/runs?{query}')['workflow_runs']
-            matches = [item for item in runs if item['head_sha'] == head
-                       and item['head_branch'] == run['branch']
-                       and item['display_title'] == f'{label} CI {record["request"]}']
-            if not matches:
-                problems.append(f'{workflow}: 起動した実行がまだ見つかりません')
-                continue
-            latest = max(matches, key=lambda item: item['id'])
-            # Fetch the identified run again to include its latest re-run attempt.
-            current = gh.get(f'/repos/{gh.repository}/actions/runs/{latest["id"]}')
             result['checks'].append({'workflow': workflow, 'id': current['id'],
                                      'attempt': current['run_attempt'], 'url': current['html_url'],
                                      'status': current['status'], 'conclusion': current['conclusion']})
@@ -695,7 +713,10 @@ def cmd_finalize(_args):
         state['autoRestarts'] = 0
         state.pop('validationFailure', None)
         state['validatedHead'] = git('rev-parse', 'HEAD')
-        state.pop('prCI', None)
+        completed_ci = state.pop('prCI', None)
+        if (completed_ci and completed_ci.get('head') == state['validatedHead']
+                and completed_ci.get('branch') == run['branch']):
+            state['validatedCI'] = completed_ci
         if run['includedComments']:
             state['lastCommentId'] = max([int(state.get('lastCommentId') or 0), *run['includedComments']])
         if run['includedIssueBody']:
@@ -805,16 +826,38 @@ def cmd_request_pr(args):
     print(f'Pull Request: {pr["html_url"]}', flush=True)
     # GITHUB_TOKEN-created PRs/pushes do not trigger pull_request workflows.
     # Explicit dispatch works with that token and also covers subsequent repairs.
-    record = {'head': git('rev-parse', 'HEAD'), 'branch': run['branch'],
-              'request': secrets.token_hex(12), 'dispatched': []}
+    head = git('rev-parse', 'HEAD')
     store = Store()
+    state = store.get_json(session_key(run['issue'], 'state.json')) or {}
+    previous = next((record for record in (state.get('prCI'), state.get('validatedCI'))
+                     if record and record.get('head') == head and record.get('branch') == run['branch']), None)
+    reused = previous is not None
+    record = previous if reused else {'head': head, 'branch': run['branch'],
+                                     'request': secrets.token_hex(12), 'dispatched': []}
     save_pr_ci(run['issue'], record, store)
     for workflow in PR_CI_WORKFLOWS:
+        current = find_pr_ci_run(gh, workflow, record) if reused else None
+        if current and (current['status'] != 'completed' or current['conclusion'] == 'success'):
+            if workflow not in record['dispatched']:
+                record['dispatched'].append(workflow)
+            save_pr_ci(run['issue'], record, store)
+            print(f'既存CIを使用: {workflow} {current["status"]}/{current["conclusion"]} {current["html_url"]}', flush=True)
+            continue
+        if not current and workflow in record['dispatched']:
+            # GitHub accepted it; an eventually consistent listing is not a reason to dispatch again.
+            print(f'既に起動予約済み: {workflow}。GitHubへの反映を待ちます。', flush=True)
+            continue
+        if current:
+            # Retry only the failed/cancelled workflow, preserving the other workflow's request.
+            record.setdefault('requests', {})[workflow] = secrets.token_hex(12)
+            record['dispatched'] = [name for name in record['dispatched'] if name != workflow]
+            save_pr_ci(run['issue'], record, store)
         gh.request('POST', f'/repos/{gh.repository}/actions/workflows/{workflow}/dispatches',
-                   {'ref': run['branch'], 'inputs': {'ci_request': record['request']}})
+                   {'ref': run['branch'], 'inputs': {'ci_request': ci_request_id(record, workflow)}})
         record['dispatched'].append(workflow)
         save_pr_ci(run['issue'], record, store)
-    print('PRのHEADでiOS・Agent tests CIを起動しました。gh run list / gh run watchで結果を確認し、失敗時は修正・push後にrequest-prを再実行してください。')
+        print(f'CI起動: {workflow} / request={ci_request_id(record, workflow)}', flush=True)
+    print('PRのHEADでiOS・Agent tests CIを起動・再利用しました。gh run list / gh run watchで結果を確認し、失敗時は修正・push後にrequest-prを再実行してください。')
 
 
 def cmd_attach(args):
