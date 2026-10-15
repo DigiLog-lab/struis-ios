@@ -13,12 +13,18 @@ on:
     paths:
       - '.github/actionlint.yaml'
       - 'scripts/agent/**'
+      - 'scripts/ci/**'
+      - 'striusUITests/**'
+      - '.github/workflows/ios.yml'
       - 'cloudflare/agent/**'
       - '.github/workflows/agent*.yml'
   pull_request:
     paths:
       - '.github/actionlint.yaml'
       - 'scripts/agent/**'
+      - 'scripts/ci/**'
+      - 'striusUITests/**'
+      - '.github/workflows/ios.yml'
       - 'cloudflare/agent/**'
       - '.github/workflows/agent*.yml'
 
@@ -35,6 +41,8 @@ jobs:
           persist-credentials: false
       - name: 制御スクリプトの単体テスト
         run: python3 -m unittest discover -s scripts/agent/tests -v
+      - name: UIテストの割り当てスクリプトの単体テスト
+        run: python3 -m unittest discover -s scripts/ci -p 'test_*.py' -v
       - name: Actions定義の構文と式を検証
         run: |
           set -euo pipefail

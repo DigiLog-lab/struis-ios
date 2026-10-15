@@ -25,3 +25,15 @@ UIで教育ループを確認する場合は、`STRUIS_IOS_USE_FIXTURES=0`、`ST
 `striusUITests/Fixtures/handwritten_eigenvalue.jpeg`は同梱フォントで描画した合成数学答案です。実機カメラ、端末のsandbox、既存インストール互換性は、実機上の操作で別に確認します。
 
 HTTP bootstrapの同時読込テストは認証有効のビルドを前提にしています。READMEの単体テストコマンドでは`STRUIS_AUTH_REQUIRED=YES`を検証ビルドにだけ渡します。通常の認証不要設定では`BootstrapStore`がbootstrap通信を行わず、そのテストの「userを取得・1回通信」の期待値を満たしません。認証不要経路は同じ設定の`APIClientTests/noAuthStartupDoesNotCreateASignedInUserOrFetchBootstrap`で確認できます。この検証設定で配布用の設定やサーバー契約を変更しません。
+
+## CIでのUIテストの割り当て
+
+`iOS` workflowは、UIテストをテストメソッド単位で複数のrunnerへ割り当てて並行に実行します。runnerごとにSimulatorは1台です(`xcode-27`の標準runnerは3コア・メモリ7GBで、1台の中で並列にすると遅くなるため)。
+
+- 割り当ては`scripts/ci/ui_test_plan.py`が`scripts/ci/ui-test-plan.json`を読んで決めます。所要時間の長いテストから順に、合計時間が最も短いrunnerへ入れます。
+- `shards`: runnerの数。macOSのrunnerは同時に5台までで、エージェント本体や他のCIと共有するため、3にしています。
+- `durations`: テストメソッドごとの所要秒数(CIの実測値)。載っていないテストは60秒として扱います。テストが大きく変わったら更新します。
+- `pr`(任意): PRのCIで必ず実行するテストクラスの一覧。無ければPRでもすべてのUIテストを実行します。
+- `paths`(任意): `{"変更ファイルのglob": ["テストクラス", ...]}`。PRで変更したファイルが一致すれば、そのクラスも実行します。
+- リリースブランチ(`release/*`)へのpushと、リリースブランチでの手動実行は、常にすべてのUIテストを実行します。
+- 各runnerの結果は`ios-ui-test-results-<実行ID>-<再実行番号>-<runner番号>`のartifactに保存します。runnerごとに終わるので、他のrunnerの実行中でも終わった分の結果を見られます。
