@@ -26,7 +26,7 @@ PLAN = Path(__file__).resolve().parent / 'ui-test-plan.json'
 DEFAULT_SECONDS = 60
 # Type declarations only count at the top level (no indentation); nested helper types stay inside.
 CLASS = re.compile(r'^(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:final|open|public|internal)\s+)*class\s+(\w+)\s*:\s*(\w+)')
-EXTENSION = re.compile(r'^(?:(?:public|internal|private|fileprivate)\s+)?extension\s+(\w+)\b')
+EXTENSION = re.compile(r'^(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:public|internal|private|fileprivate)\s+)?extension\s+(\w+)\b')
 OTHER_TYPE = re.compile(r'^(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:final|private|fileprivate|public|internal|open)\s+)*(?:class|struct|enum|actor|extension|protocol)\s+(\w+)')
 TOP_LEVEL_CLOSE = re.compile(r'^}')
 # Any indented test-shaped function, whatever attributes or modifiers precede it. Private ones are
@@ -36,30 +36,48 @@ TEST_FUNC = re.compile(r'^(?!\s*//)\s+(?:.*\s)?func\s+(test\w*)\s*\(\s*\)')
 PRIVATE = re.compile(r'\b(?:private|fileprivate)\b')
 
 
-def code_lines(text):
-    """Lines outside /* */ comments and multi-line string literals."""
+def strip_comments(line):
+    """Drop one-line /* */ comments and a trailing // comment (approximate; strings are rare here)."""
+    line = re.sub(r'/\*.*?\*/', '', line)
+    return line.split('//', 1)[0]
+
+
+def code_lines(text, name='source'):
+    """Code lines outside block comments and multi-line string literals.
+
+    A file that ends while still inside a comment or string means the parse went wrong; that is
+    reported instead of silently skipping the rest of the file.
+    """
     in_comment = in_string = False
     for line in text.splitlines():
         if in_comment:
             if '*/' in line:
                 in_comment = False
+                rest = strip_comments(line.split('*/', 1)[1])
+                if rest.strip():
+                    yield rest
             continue
         if in_string:
             if line.count('"""') % 2 == 1:
                 in_string = False
             continue
-        stripped = line.strip()
-        if stripped.startswith('/*') and '*/' not in stripped:
+        code = strip_comments(line)
+        if '/*' in code:
             in_comment = True
-            continue
-        yield line
-        if line.count('"""') % 2 == 1:
+            code = code.split('/*', 1)[0]
+        yield code
+        if code.count('"""') % 2 == 1:
             in_string = True
+    if in_comment or in_string:
+        raise SystemExit(f'UI test discovery: {name} ends inside a {"comment" if in_comment else "multi-line string"}; '
+                         'the parse is unreliable, so no test list was produced.')
 
 
 def test_name(line):
     match = TEST_FUNC.match(line)
-    if not match or PRIVATE.search(line.split('func', 1)[0]):
+    prefix = line.split('func', 1)[0]
+    # XCTest runs instance methods only; private ones are invisible to it.
+    if not match or PRIVATE.search(prefix) or re.search(r'\b(?:static|class)\s*$', prefix):
         return None
     return match[1]
 
@@ -71,7 +89,7 @@ def discover(directory=TESTS):
     run. It therefore fails when any test-shaped function is not attributed to a test class.
     Test methods of a test base class also run in each subclass, so they are listed for both.
     """
-    sources = [(path, list(code_lines(path.read_text()))) for path in sorted(directory.glob('*.swift'))]
+    sources = [(path, list(code_lines(path.read_text(), path.name))) for path in sorted(directory.glob('*.swift'))]
     parents = {}
     for _, lines in sources:
         for line in lines:

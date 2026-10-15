@@ -91,6 +91,32 @@ final class EpsilonUITests: XCTestCase {
 '''
         self.assertEqual(self.discover(source), ['EpsilonUITests/testReal'])
 
+    def test_stray_triple_quotes_and_comments_do_not_hide_tests(self):
+        source = '''import XCTest
+
+@MainActor
+final class EtaUITests: XCTestCase {
+    /// splits on """ markers
+    func testA() {}
+    /* func testOld() {} */
+    let x = 1 /* start
+    func testInComment() {}
+    end */
+    static func testStatic() {}
+    func testB() {}
+}
+
+@MainActor extension EtaUITests {
+    func testC() {}
+}
+'''
+        self.assertEqual(self.discover(source), ['EtaUITests/testA', 'EtaUITests/testB', 'EtaUITests/testC'])
+
+    def test_file_ending_inside_a_string_or_comment_fails(self):
+        for tail in ('let s = """\nnever closed\n', '/*\nnever closed\n'):
+            with self.subTest(tail=tail), self.assertRaises(SystemExit):
+                self.discover('final class ThetaUITests: XCTestCase {\n    func testA() {}\n}\n' + tail)
+
     def test_inherited_test_methods_run_in_each_subclass(self):
         source = '''import XCTest
 
