@@ -73,6 +73,10 @@ struct ChatTimeline: View {
             // 高さが変わる(初めて描く数式は高さが前もって分からない)。上端や中身の先頭を基準にすると、指を離した後に
             // 見えている会話が丸ごと押し下げられる(2026-10-07 の計測で 17〜51pt)。下端の吹き出しは描き終えているので動かない。
             .scrollPosition(id: $anchorMessageID, anchor: .bottom)
+            // 開いた時は最初から下端に置く。上端から始めると、`LazyVStack` が会話の先頭の行を作ってから下端へ送るので、
+            // 長い会話では見えない先頭の行の数式の WebView(とその中身のプロセス)がいくつも作られ、開いてから数十秒
+            // 端末が重くなっていた(先頭の行は画面に全部見えることが無いので画像にも残らず、開くたびに繰り返していた)。
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
             // 基準は学習者のスクロールでだけ付く。基準が変わるたびにこちらから書き換えない(SwiftUI が付け直す値と打ち消し合い、
             // 更新が止まらず画面が固まる)。こちらから送る時だけ、送る直前に外す(`releaseAnchor`)。
             .scrollDismissesKeyboard(.interactively)

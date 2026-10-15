@@ -157,10 +157,14 @@ final class WorkbookE2EFixesUITests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.5)
             send.press(forDuration: 0.15)
             let mine = app.staticTexts["確認 \(round)"].firstMatch
-            XCTAssertTrue(mine.waitForExistence(timeout: 30), "送ったメッセージが出ない (\(round))")
+            XCTAssertTrue(mine.appears(timeout: 30), "送ったメッセージが出ない (\(round))")
             XCTAssertTrue(mine.isHittable, "送ったメッセージが見える位置にない (\(round))")
-            page.swipeDown(velocity: .fast)
-            page.swipeUp(velocity: .fast)
+            // 上へ読み返して、下へ戻す。速く動かすが、指を止めてから離す(慣性で流さない)。`swipeDown`/`swipeUp` は
+            // 慣性のスクロールが止まるまで次の操作を待たされ、1 往復に約 4.5 秒かかっていた。
+            let top = page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            let bottom = page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+            top.press(forDuration: 0.05, thenDragTo: bottom, withVelocity: .fast, thenHoldForDuration: 0.1)
+            bottom.press(forDuration: 0.05, thenDragTo: top, withVelocity: .fast, thenHoldForDuration: 0.1)
         }
         let watchdog = element(app, "debug-hang-watchdog")
         if watchdog.waitForExistence(timeout: 30) {

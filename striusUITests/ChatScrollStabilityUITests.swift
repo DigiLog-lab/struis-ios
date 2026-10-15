@@ -25,10 +25,12 @@ final class ChatScrollStabilityUITests: XCTestCase {
     }
 
     /// 見えている吹き出しの位置(識別子 → 画面上の y)。1 回の snapshot で読む(要素ごとに問い合わせない)。
+    /// 画面の枠は snapshot の根(アプリ)の枠を使い、窓を別に探さない(要素の検索はアプリのメインスレッドで木を作るので、
+    /// 数式の WebView が多い会話では 1 回ごとに数秒かかることがある)。
     @MainActor
     private func bubbleOrigins(_ app: XCUIApplication) -> [String: CGFloat] {
         guard let root = try? app.snapshot() else { return [:] }
-        let screen = app.windows.firstMatch.frame
+        let screen = root.frame
         var result: [String: CGFloat] = [:]
         var stack: [XCUIElementSnapshot] = [root]
         while let node = stack.popLast() {
@@ -45,16 +47,25 @@ final class ChatScrollStabilityUITests: XCTestCase {
         a.keys.compactMap { key in b[key].map { abs($0 - a[key]!) } }.max() ?? 0
     }
 
+    /// 会話の枠の中の点(0〜1 の割合)を、アプリを起点にした座標にする。会話の枠は最初に 1 回だけ読む。
+    /// 会話の ScrollView を起点にした座標は、指を動かすたびに ScrollView を探し直す(1 回のドラッグで 5 回以上)ので、
+    /// 何度もドラッグする観測ではこちらを使う。
+    @MainActor
+    private func pagePoints(_ app: XCUIApplication) -> (CGFloat, CGFloat) -> XCUICoordinate {
+        let frame = app.scrollViews["chat-page"].firstMatch.frame
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        return { x, y in origin.withOffset(CGVector(dx: frame.minX + frame.width * x, dy: frame.minY + frame.height * y)) }
+    }
+
     /// 指を離した後(慣性も止まった後)に、会話の中身が動かない。上へ読み返す 8 回のドラッグで確かめる。
     @MainActor
     func testConversationDoesNotJumpAfterTheFingerLifts() throws {
         let app = launchLongChat()
         Thread.sleep(forTimeInterval: 4)
-        let page = app.scrollViews["chat-page"].firstMatch
+        let point = pagePoints(app)
         var jumps: [CGFloat] = []
         for step in 0..<8 {
-            page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
-                .press(forDuration: 0.05, thenDragTo: page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)), withVelocity: .slow, thenHoldForDuration: 0.3)
+            point(0.5, 0.3).press(forDuration: 0.05, thenDragTo: point(0.5, 0.75), withVelocity: .slow, thenHoldForDuration: 0.3)
             Thread.sleep(forTimeInterval: 0.6)
             let settled = bubbleOrigins(app)
             var later = settled

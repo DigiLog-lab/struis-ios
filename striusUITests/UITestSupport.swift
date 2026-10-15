@@ -67,3 +67,12 @@ extension XCUIApplication {
         } while Date() < deadline
     }
 }
+
+extension XCUIElement {
+    /// 今あればすぐ true を返し、無ければ `timeout` まで待つ。`waitForExistence` は要素がすでにあっても、
+    /// 最初の確認まで約 1 秒待つ。
+    @MainActor
+    func appears(timeout: TimeInterval) -> Bool {
+        exists || waitForExistence(timeout: timeout)
+    }
+}
