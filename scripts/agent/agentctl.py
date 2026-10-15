@@ -66,13 +66,26 @@ def cmd_route(_args):
 
 # ---------------------------------------------------------------- prepare ---
 
-def checkout_branch(branch):
+def base_branch(state):
+    """Branch that agent work starts from and PRs target.
+
+    While a release is open, `vars.RELEASE_BRANCH` (AGENT_BASE_BRANCH) names it, so work
+    never starts from or lands on main directly. An Issue keeps the base it started on
+    until that branch is gone (the release was merged and deleted).
+    """
+    for candidate in (state.get('baseBranch'), os.environ.get('AGENT_BASE_BRANCH')):
+        if candidate and candidate != 'main' and git('ls-remote', '--heads', 'origin', candidate):
+            return candidate
+    return 'main'
+
+
+def checkout_branch(branch, base='main'):
     git('fetch', '--prune', 'origin')
     remote = git('ls-remote', '--heads', 'origin', branch)
     if remote:
         git('checkout', '-B', branch, f'origin/{branch}')
         return True
-    git('checkout', '-B', branch, 'origin/main')
+    git('checkout', '-B', branch, f'origin/{base}')
     return False
 
 
@@ -321,7 +334,8 @@ def cmd_prepare(_args):
         return
 
     branch = state.get('branch') or f'agent/issue-{number}'
-    branch_on_origin = checkout_branch(branch)
+    base = base_branch(state)
+    branch_on_origin = checkout_branch(branch, base)
     checkpoint_restored = restore_workspace(store, number, branch)
     restored_ci = restore_pr_ci(state, branch, git('rev-parse', 'HEAD'))
     if os.environ.get('AUTOMATIC_RETRY') != 'true':
@@ -366,6 +380,7 @@ def cmd_prepare(_args):
         f'Time: {iso(now)} (JST {now.astimezone(JST).strftime("%Y-%m-%d %H:%M")})',
         f'Run: {run_url()}',
         f'Working branch: {branch} (HEAD {head}; {"origin上に既存" if branch_on_origin else "originにはまだ無い。push時に作成"})',
+        f'Base branch: {base} (作業の起点とPRの向き先{"。リリースブランチ" if base != "main" else ""})',
         f'Native runtime artifacts: {native}',
         f'Session: {"復元 " + session_id if restored else "履歴から再構成した新規セッション" if recovery else "新規"}',
         f'Workspace checkpoint: {"中断時の作業を復元済み。前runnerのバックグラウンド処理は終了しています。" if checkpoint_restored else "なし"}',
@@ -403,11 +418,12 @@ def cmd_prepare(_args):
         'restored': restored, 'recovery': recovery, 'includedComments': [c['id'] for c in pending],
         'includedIssueBody': not state.get('issueBodyProcessed'), 'startedAt': iso(now),
         'headBefore': git('rev-parse', 'HEAD'),
-        'validationRequired': requires_pr_ci(git('rev-parse', 'HEAD'), state, git('rev-parse', 'origin/main')),
+        'base': base,
+        'validationRequired': requires_pr_ci(git('rev-parse', 'HEAD'), state, git('rev-parse', f'origin/{base}')),
     }
     (home / 'run.json').write_text(json.dumps(run, indent=2))
     (home / 'prompt.txt').write_text(prompt)
-    state.update({'issue': number, 'branch': branch, 'workerStatus': 'running',
+    state.update({'issue': number, 'branch': branch, 'baseBranch': base, 'workerStatus': 'running',
                   'workerRun': run_url(), 'workerStartedAt': iso(now),
                   'workerRunAttempt': os.environ.get('GITHUB_RUN_ATTEMPT', '1')})
     store.put_json(session_key(number, 'state.json'), state)
@@ -814,13 +830,15 @@ def cmd_request_pr(args):
     if git('rev-parse', 'FETCH_HEAD') != git('rev-parse', 'HEAD'):
         sys.exit('push済みブランチとHEADが一致しません。')
     gh = GitHub()
-    existing = gh.get(f'/repos/{gh.repository}/pulls?head={gh.repository.split("/")[0]}:{run["branch"]}&base=main&state=open')
+    base = run.get('base') or 'main'
+    # Any open PR from this branch, so a PR left on a finished release is retargeted, not duplicated.
+    existing = gh.get(f'/repos/{gh.repository}/pulls?head={gh.repository.split("/")[0]}:{run["branch"]}&state=open')
     if existing:
         pr = gh.request('PATCH', f'/repos/{gh.repository}/pulls/{existing[0]["number"]}',
-                        {'title': args.title, 'body': body})[0]
+                        {'title': args.title, 'body': body, 'base': base})[0]
     else:
         pr = gh.request('POST', f'/repos/{gh.repository}/pulls', {
-            'title': args.title, 'body': body, 'head': run['branch'], 'base': 'main',
+            'title': args.title, 'body': body, 'head': run['branch'], 'base': base,
         })[0]
     outbox_append({'type': 'pull-request', 'url': pr['html_url']})
     print(f'Pull Request: {pr["html_url"]}', flush=True)

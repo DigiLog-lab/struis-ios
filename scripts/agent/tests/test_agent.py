@@ -453,6 +453,69 @@ class PRCILookupBoundaryTests(unittest.TestCase):
         gh.get.return_value = PRCIResultTests().responses()[0]
         self.assertIsNone(agentctl.find_pr_ci_run(gh, 'ios.yml', record))
 
+class BaseBranchTests(unittest.TestCase):
+    def test_open_release_branch_becomes_the_base(self):
+        with mock.patch.dict(os.environ, {'AGENT_BASE_BRANCH': 'release/1.2'}), \
+                mock.patch.object(agentctl, 'git', return_value='abc refs/heads/release/1.2') as git:
+            self.assertEqual(agentctl.base_branch({}), 'release/1.2')
+        git.assert_called_with('ls-remote', '--heads', 'origin', 'release/1.2')
+
+    def test_issue_keeps_its_release_until_it_is_deleted(self):
+        with mock.patch.dict(os.environ, {'AGENT_BASE_BRANCH': 'release/1.3'}), \
+                mock.patch.object(agentctl, 'git', return_value='abc refs/heads/release/1.2'):
+            self.assertEqual(agentctl.base_branch({'baseBranch': 'release/1.2'}), 'release/1.2')
+        with mock.patch.dict(os.environ, {'AGENT_BASE_BRANCH': 'release/1.3'}), \
+                mock.patch.object(agentctl, 'git', side_effect=['', 'abc refs/heads/release/1.3']):
+            self.assertEqual(agentctl.base_branch({'baseBranch': 'release/1.2'}), 'release/1.3')
+
+    def test_main_without_open_release(self):
+        with mock.patch.dict(os.environ, {'AGENT_BASE_BRANCH': ''}), mock.patch.object(agentctl, 'git', return_value=''):
+            self.assertEqual(agentctl.base_branch({}), 'main')
+        with mock.patch.dict(os.environ, {'AGENT_BASE_BRANCH': 'release/9.9'}), mock.patch.object(agentctl, 'git', return_value=''):
+            self.assertEqual(agentctl.base_branch({}), 'main')
+
+    def test_new_work_branch_starts_from_base(self):
+        calls = []
+        def git(*args, check=True):
+            calls.append(args)
+            return ''
+        with mock.patch.object(agentctl, 'git', side_effect=git):
+            self.assertFalse(agentctl.checkout_branch('agent/issue-7', 'release/1.2'))
+        self.assertIn(('checkout', '-B', 'agent/issue-7', 'origin/release/1.2'), calls)
+
+    def test_pull_request_targets_the_run_base(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / 'run.json').write_text(json.dumps({'issue': 4, 'branch': 'agent/issue-4', 'base': 'release/1.2'}))
+            body = home / 'pr.md'
+            body.write_text('Refs #4')
+            gh = mock.Mock(repository='owner/repo')
+            gh.get.return_value = []
+            gh.request.side_effect = [({'html_url': 'https://github.com/owner/repo/pull/9'}, {}), ({}, {}), ({}, {})]
+            store = mock.Mock()
+            store.get_json.return_value = {}
+            with mock.patch.object(agentctl, 'Store', return_value=store), mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh), mock.patch.object(agentctl, 'git', side_effect=['', '', 'abc', 'abc', 'abc']), mock.patch.object(agentctl, 'outbox_append'):
+                agentctl.cmd_request_pr(mock.Mock(title='Fix', body_file=str(body)))
+            self.assertNotIn('base=', gh.get.call_args_list[0].args[0])
+            self.assertEqual(gh.request.call_args_list[0].args[2]['base'], 'release/1.2')
+
+    def test_existing_pull_request_is_retargeted_to_the_run_base(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / 'run.json').write_text(json.dumps({'issue': 4, 'branch': 'agent/issue-4', 'base': 'release/1.3'}))
+            body = home / 'pr.md'
+            body.write_text('Refs #4')
+            gh = mock.Mock(repository='owner/repo')
+            gh.get.return_value = [{'number': 9}]
+            gh.request.side_effect = [({'html_url': 'https://github.com/owner/repo/pull/9'}, {}), ({}, {}), ({}, {})]
+            store = mock.Mock()
+            store.get_json.return_value = {}
+            with mock.patch.object(agentctl, 'Store', return_value=store), mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh), mock.patch.object(agentctl, 'git', side_effect=['', '', 'abc', 'abc', 'abc']), mock.patch.object(agentctl, 'outbox_append'):
+                agentctl.cmd_request_pr(mock.Mock(title='Fix', body_file=str(body)))
+            first = gh.request.call_args_list[0].args
+            self.assertEqual(first[:2], ('PATCH', '/repos/owner/repo/pulls/9'))
+            self.assertEqual(first[2]['base'], 'release/1.3')
+
 
 if __name__ == '__main__':
     unittest.main()

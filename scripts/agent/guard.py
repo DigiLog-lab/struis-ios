@@ -177,8 +177,9 @@ def push_gate():
     updates = [line.split() for line in sys.stdin if line.strip()]
     head = git('rev-parse', 'HEAD')
     if any(len(parts) != 4 or parts[1] != head or parts[2] == 'refs/heads/main'
+           or parts[2].startswith('refs/heads/release/')
            or not parts[2].startswith('refs/heads/') for parts in updates):
-        raise RuntimeError('現在のHEAD以外やmainへのpushは許可しません。')
+        raise RuntimeError('現在のHEAD以外や、main・リリースブランチ(release/*)へのpushは許可しません。')
     # PR CI performs tests; this hook only checks the push destination and HEAD.
 
 

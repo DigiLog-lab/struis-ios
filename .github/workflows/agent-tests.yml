@@ -9,7 +9,7 @@ on:
         type: string
         required: false
   push:
-    branches: [main]
+    branches: [main, 'release/**']
     paths:
       - '.github/actionlint.yaml'
       - 'scripts/agent/**'

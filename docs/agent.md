@@ -17,6 +17,12 @@ GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Cla
 | native 依存の cache | `.github/workflows/agent-native-cache.yml` | 約50分かかる bootstrap の生成物を Actions cache に保存 |
 | プロトタイプ | `.github/workflows/agent-prototype.yml`、`scripts/agent/prototype.py` | 識別子の割当、App Store Connect API、Ad Hoc 署名、IPA、配布ページ、Issue への投稿 |
 
+## 起点ブランチとリリースブランチ
+
+エージェントの作業ブランチは、進行中のリリースブランチ(Repository variable `RELEASE_BRANCH`、例: `release/1.2`)から切り、PRもそこへ向けます。変数が空、またはそのブランチがoriginに無い場合は`main`です。Issueは最初に使った起点を`state.json`の`baseBranch`に保存し、そのブランチが消える(リリースを終えて削除する)まで使い続けます。起点はClaudeへの入力の`Base branch`に表示します。
+
+mainにはリリースブランチでTestFlightの確認を終えたものだけを入れます。手順は[公開ソースと配布版の対応](source-and-releases.md#リリースの流れ)にあります。
+
 ## 会話の流れ
 
 1. `agent` ラベルの付いた Issue を作成するか、Issue にコメントします。
@@ -29,15 +35,15 @@ GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Cla
 
 Claudeのstepは240分で終了させ、340分のjob上限に対して保存・検証・再開予約の時間を確保します。中断時にはセッション、未コミットの差分・未追跡ファイル、未pushのcommitをR2のチェックポイントへ保存し、`workflow_dispatch`で同じIssueを新しいrunnerへ自動で引き継ぎます。入力コメントは未処理のまま保持し、同一Issueのconcurrencyで直列化します。連続自動再開は3回までです。成功または新しいユーザー指示で回数をリセットします。remoteが保存後に変わった場合は、上書きせずチェックポイントを保持して停止します。runnerの強制終了などで終了処理自体が走らない場合は、`agent-recovery.yml`が終了イベントを受け取り、未終了状態の同じ実行だけを再開します。この場合は最後に保存できた作業から復元します。通常の終了処理で再開予約済みの実行、後続runnerが始まった実行、別attemptの終了通知は重複起動しません。
 
-コミット・push時にはテストを実行しません。pre-commitフックは設定せず、固定した`guard.py`の軽いpre-pushフックで、現在のHEADからmain以外のブランチへのpushだけを許可します。調査中に必要な個別テストはClaude自身が選んで実行します。
+コミット・push時にはテストを実行しません。pre-commitフックは設定せず、固定した`guard.py`の軽いpre-pushフックで、現在のHEADから main・`release/*` 以外のブランチへのpushだけを許可します。調査中に必要な個別テストはClaude自身が選んで実行します。
 
 PR本文はチェックアウト外の`$AGENT_HOME/pr-body.md`に書き、`agentctl.py request-pr --title … --body-file …`を実行します。チェックアウト内に新規作成した未追跡の本文ファイルを指定した場合は、内容を`$AGENT_HOME/pr-bodies/`へ移して保存します。追跡済みファイルや本文以外の変更はこの対象にしません。
 
-`request-pr`は、その場でPRを作成・更新し、push済みの作業ブランチで`iOS`と`Agent tests`のCIを明示的に起動します。`GITHUB_TOKEN`が作成したPRやpushからは通常の`pull_request`イベントが起動されないため、`workflow_dispatch`を使います。CI要求には一意の識別子を付け、ブランチ・対象HEAD・起動済みworkflowを記録します。要求の作成時と各workflowの起動直後にR2の`state.json`へ保存するため、終了処理前の中断でも記録を引き継ぎます。再開時は作業ブランチとHEADが一致する記録を復元します。`request-pr`を再実行しても、同じHEADで実行中・待機中・成功済みのCIは再利用します。完了したCI要求も`validatedCI`に保存し、次の会話からPRの説明だけを更新する場合も再利用できます。失敗・キャンセルしたworkflowだけに新しい要求識別子を発行して再起動します。起動成功の応答を保存する前に中断した場合も、GitHub上の同じ要求識別子の実行を検索して確認します。古い作業ブランチは事前に`origin/main`のCI定義を取り込みます。
+`request-pr`は、その場でPRを作成・更新し、push済みの作業ブランチで`iOS`と`Agent tests`のCIを明示的に起動します。`GITHUB_TOKEN`が作成したPRやpushからは通常の`pull_request`イベントが起動されないため、`workflow_dispatch`を使います。CI要求には一意の識別子を付け、ブランチ・対象HEAD・起動済みworkflowを記録します。要求の作成時と各workflowの起動直後にR2の`state.json`へ保存するため、終了処理前の中断でも記録を引き継ぎます。再開時は作業ブランチとHEADが一致する記録を復元します。`request-pr`を再実行しても、同じHEADで実行中・待機中・成功済みのCIは再利用します。完了したCI要求も`validatedCI`に保存し、次の会話からPRの説明だけを更新する場合も再利用できます。失敗・キャンセルしたworkflowだけに新しい要求識別子を発行して再起動します。起動成功の応答を保存する前に中断した場合も、GitHub上の同じ要求識別子の実行を検索して確認します。古い作業ブランチは事前に起点ブランチ(後述)のCI定義を取り込みます。
 
 PR CIは制御スクリプトのテスト、Worker構文、Actions定義、Simulatorビルド、iOS単体/UIテスト、署名なし実機Release archiveを検証します。Claudeは実行結果を確認し、失敗時は個別テストで調査・修正・commit・pushして`request-pr`を再実行します。単体テストには1件あたり最大300秒・step全体30分、UIテストには1件あたり最大600秒・step全体90分の上限があります。CIのxcresultは実行IDと再実行番号を含むartifact名で保存します。iOSのエージェントCIはブランチごとに実行を制御し、mainの手動リリース・アップロードの待ち行列と分離します。
 
-Claude終了後のPython処理はテストや署名処理を実行しません。作業の保存・push状態とGitHub API上のCI結果を確認し、要求識別子・ブランチ・HEADが一致する両CIの最新attemptが成功した場合だけ、完成応答を投稿して入力を処理済みにします。未完了・失敗・記録不足では作業と依頼を保持し、上記の上限内で自動再開します。成功したHEADは`state.json`の`validatedHead`に保存します。同じHEADでコード変更のない次の相談は再検証せず、コードが変われば新しいCI結果が必要です。署名付きarchive・bundle監査はmainの既存CIで実行し、アップロードは明示的な配信操作で行います。任意の実AIテストは既存の条件に従ってskipされるため、全実AI経路の成功は保証しません。
+Claude終了後のPython処理はテストや署名処理を実行しません。作業の保存・push状態とGitHub API上のCI結果を確認し、要求識別子・ブランチ・HEADが一致する両CIの最新attemptが成功した場合だけ、完成応答を投稿して入力を処理済みにします。未完了・失敗・記録不足では作業と依頼を保持し、上記の上限内で自動再開します。成功したHEADは`state.json`の`validatedHead`に保存します。同じHEADでコード変更のない次の相談は再検証せず、コードが変われば新しいCI結果が必要です。署名付きarchive・bundle監査はmainとリリースブランチへのpushで実行し、アップロードは明示的な配信操作で行います。任意の実AIテストは既存の条件に従ってskipされるため、全実AI経路の成功は保証しません。
 
 実行開始時に専用のIssueコメントを作り、60秒ごとに更新します。Issueコメントにはツール名・開始/完了/失敗・最後の動作時刻だけを表示します。監視の更新時刻とClaudeの最後の動作時刻は別に表示します。
 
@@ -107,7 +113,7 @@ App Store Connect API キーでは App Group の作成と App ID への割当が
    openssl rand -base64 48 | npx wrangler secret put LINK_SECRET
    ```
    Worker の URL が既定と異なる場合は Repository variable `AGENT_STORE_URL` に設定します。保存用の秘密値は GitHub に置きません。
-3. **GitHub**: ラベル `agent` を作成し、environment `prototype-distribution` を `main` 限定で作成します。エージェントに Pull Request を作らせる場合は、Settings → Actions → General → Workflow permissions の「Allow GitHub Actions to create and approve pull requests」を有効にします(無効のままだと、エージェントはブランチを push して PR の作成手順を Issue に返します)。任意の Repository variables は `AGENT_MODEL`(既定 `opus`)、`AGENT_EFFORT`、`AGENT_ALLOWED_USERS`、`AGENT_LABEL`、`AGENT_BUNDLE_PREFIX` です。
+3. **GitHub**: ラベル `agent` を作成し、environment `prototype-distribution` を `main` 限定で作成します。エージェントに Pull Request を作らせる場合は、Settings → Actions → General → Workflow permissions の「Allow GitHub Actions to create and approve pull requests」を有効にします(無効のままだと、エージェントはブランチを push して PR の作成手順を Issue に返します)。任意の Repository variables は `RELEASE_BRANCH`(進行中のリリースブランチ。後述)、`AGENT_MODEL`(既定 `opus`)、`AGENT_EFFORT`、`AGENT_ALLOWED_USERS`、`AGENT_LABEL`、`AGENT_BUNDLE_PREFIX` です。
 4. **Apple**: 既存の署名用 Secrets(`BUILD_CERTIFICATE_BASE64`、`P12_PASSWORD`、`APP_STORE_CONNECT_*`、`STRUIS_DELIVERY_APP_KEY`)を使います。API キーは App ID と profile を作成できる権限が必要です。`register-slots` を実行し、Developer ポータルで App Group を登録・割り当てます。テスト端末は Apple Developer に登録しておきます(Ad Hoc の端末数上限に従います)。
 5. `Native runtime cache` workflow を一度実行して cache を作ります。
 
