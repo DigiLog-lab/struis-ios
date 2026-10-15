@@ -14,11 +14,16 @@
 
 - 作業ブランチは `<github-issue-event>` の `Working branch`(通常 `agent/issue-{番号}`)です。commit して `git push origin HEAD` で push します。
 - `main` へ直接 push しないでください。`.github/workflows/` の変更は権限上 push できないため、必要なら Issue で提案してください。
-- 実装が完了したとき、または依頼されたときは、PR本文をファイルに書き、`python3 "$AGENT_CTL" request-pr --title "<タイトル>" --body-file <本文ファイル>` で作成を予約してください。本文に `Refs #{番号}` を含めてください。`gh pr create`やAPIで直接PRを作成しないでください。runnerが終了後にテストとCDと同じ署名付きarchive・bundle監査を実行し、成功した場合だけPRを作成します(アップロードはしません)。最終応答では作成予約の状態を正確に伝えてください。
+- commit前に変更をstageし、作業途中でもcommit・pushして構いません。コミット・push時にテストは実行しません。pre-pushは現在のHEADからmain以外のブランチへのpushだけを許可します。
 - commit message はリポジトリの既存の書き方(日本語の要約)に合わせます。
-- commit前に変更をstageしてください。runnerが設定したpre-commit/pre-push検証ゲートが、制御スクリプトのテスト・Worker構文・Simulatorビルド・iOS単体/UIテスト・実機Release archiveを強制します。失敗したら修正し、再実行してください。`--no-verify`、hooksPathの変更、検証結果の書換えで回避しないでください。
-- 検証付きのcommitはBashの最大待機時間を超えることがあります。バックグラウンド実行し、終了コードとログを確認してください。成功するまではpushやPR作成予約へ進まないでください。
-- テスト失敗・未検証のコードを完成した成果として提示したり、PRを作成したりしないでください。検証を通せない場合は失敗原因と作業途中であることを報告してください。UI変更時は関連UIテストも追加実行してください。
+- PR本文はチェックアウト外の `$AGENT_HOME/pr-body.md` に書き、`python3 "$AGENT_CTL" request-pr --title "<タイトル>" --body-file <本文ファイル>` でPRを作成・更新してください。本文に `Refs #{番号}` を含め、テストが未実行ならその旨を記載します。このコマンドはその場でPRを作成し、push済みHEADのiOS・Agent tests CIを起動します。同じHEADの起動済みCIは再利用し、失敗・キャンセルしたworkflowだけを再実行します。PR作成前の全体テスト・署名付きarchiveは不要です。
+- PR CIは作業ブランチのworkflow定義で起動します。古い作業ブランチでは、PR作成前に `git fetch origin` し、`origin/main` の更新を作業ブランチへ取り込んでCI定義を最新にしてください。競合は解消し、main自体にはpushしません。
+- `<pending-pr-ci>` があれば前runnerのCI要求を引き継いでいます。まずその要求識別子・HEADの実行結果を確認し、待機中の同一CIを重複起動しないでください。
+- PR作成後はあなた自身が `gh run list --branch <作業ブランチ>` と `gh run watch <run-id> --exit-status` でそのHEADのCI結果を確認してください。失敗したらログを読み、必要な個別テストで原因を確かめて修正・commit・pushし、request-prを再実行してCIを起動します。mainへのマージ・配信は行いません。
+- 終了処理はpush済みHEADのiOS・Agent tests CIが両方成功したことをGitHub APIで確認します。待機中・失敗・起動記録なしでは依頼を処理済みにせず、保存して再開します。テスト本体は終了処理で実行しません。
+- 全体テストはPR CIで行います。同じコードの全体検証を手元で重複実行しないでください。調査に必要な個別テストはあなたの判断で実行してください。
+- CI実行中・失敗・成功を区別し、未確認の結果を成功と報告しないでください。失敗したテストを無効化・期待失敗化して通さないでください。
+- 調査の方針、分かったこと、次に行うことを短い説明文で随時伝えてください。説明文・ツール呼出し・結果はActionsログへ逐次表示されます。
 - 実行状態はIssueの専用コメントへ自動更新されます。ツールの内容や認証情報を進捗コメントへ転記しないでください。
 
 ## iOS 開発

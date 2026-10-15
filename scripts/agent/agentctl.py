@@ -19,6 +19,7 @@ import subprocess
 import sys
 import tarfile
 import time
+import urllib.parse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from agentlib import (  # noqa: E402
@@ -186,7 +187,7 @@ def validation_feedback(home):
     if report.get('success'):
         return None
     name = report.get('currentCheck', 'code')
-    lines = []
+    lines = [report['error']] if report.get('error') else []
     from prototype import redact
     for log in sorted((home / 'artifacts').glob(f'validation-*/{name}.log'))[-1:]:
         with log.open(errors='replace') as stream:
@@ -281,6 +282,29 @@ def recovery_context(gh, number, issue, comments, state):
     return '\n'.join(parts)
 
 
+def requires_pr_ci(head, state, main_head):
+    return head != state.get('validatedHead') and head != main_head
+
+
+def save_pr_ci(number, record, store):
+    """Checkpoint dispatch metadata before finalization or runner termination."""
+    (agent_home() / 'pr-ci.json').write_text(json.dumps(record))
+    key = session_key(number, 'state.json')
+    state = store.get_json(key) or {}
+    state['prCI'] = record
+    store.put_json(key, state)
+
+
+def restore_pr_ci(state, branch, head):
+    path = agent_home() / 'pr-ci.json'
+    record = state.get('prCI')
+    if record and record.get('branch') == branch and record.get('head') == head:
+        path.write_text(json.dumps(record))
+        return record
+    path.unlink(missing_ok=True)
+    return None
+
+
 def cmd_prepare(_args):
     number = issue_number()
     home = agent_home()
@@ -299,6 +323,7 @@ def cmd_prepare(_args):
     branch = state.get('branch') or f'agent/issue-{number}'
     branch_on_origin = checkout_branch(branch)
     checkpoint_restored = restore_workspace(store, number, branch)
+    restored_ci = restore_pr_ci(state, branch, git('rev-parse', 'HEAD'))
     if os.environ.get('AUTOMATIC_RETRY') != 'true':
         state['autoRestarts'] = 0
     state.pop('restartFromRun', None)
@@ -312,15 +337,15 @@ def cmd_prepare(_args):
     (home / 'attachments').mkdir(exist_ok=True)
     (home / 'artifacts').mkdir(exist_ok=True)
 
-    # Use runner-owned scripts, outside the checkout Claude edits.
+    # Push restrictions only: neither commit nor push runs tests.
     tools_dir = Path(__file__).resolve().parent
     hooks_dir = home / 'git-hooks'
     hooks_dir.mkdir(exist_ok=True)
-    for name, mode in [('pre-commit', 'commit'), ('pre-push', 'push')]:
-        hook_path = hooks_dir / name
-        hook_path.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(tools_dir / "guard.py"))} {mode}\n')
-        hook_path.chmod(0o755)
-    git('config', 'core.hooksPath', str(hooks_dir))
+    (hooks_dir / 'pre-commit').unlink(missing_ok=True)
+    push_hook = hooks_dir / 'pre-push'
+    push_hook.write_text(f'#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(tools_dir / "guard.py"))} push\n')
+    push_hook.chmod(0o755)
+    git('config', '--local', 'core.hooksPath', str(hooks_dir))
     hook_command = f'{shlex.quote(sys.executable)} {shlex.quote(str(tools_dir / "progress.py"))} hook'
     settings_path = home / 'claude-settings.json'
     settings_path.write_text(json.dumps({'hooks': {
@@ -355,6 +380,9 @@ def cmd_prepare(_args):
         blocks.append(f'<issue-body author="{issue["user"]["login"]}" created="{issue["created_at"]}">\n'
                       f'{issue.get("body") or ""}\n</issue-body>')
     blocks.extend(format_comment(comment) for comment in pending)
+    if restored_ci:
+        blocks.append('<pending-pr-ci>\n前runnerが起動したPR CIの記録を復元しました。まずworkflowごとの要求識別子（requestsに指定がなければrequest）の実行結果を確認してください。実行中なら待ち、同じHEADのCIを重複起動しないでください。\n'
+                      + json.dumps(restored_ci, ensure_ascii=False) + '\n</pending-pr-ci>')
     if state.get('validationFailure'):
         blocks.append('<validation-failure>\n前回の検証失敗を修正してから、検証と成果提示へ進んでください。\n'
                       + json.dumps(state['validationFailure'], ensure_ascii=False) + '\n</validation-failure>')
@@ -375,8 +403,7 @@ def cmd_prepare(_args):
         'restored': restored, 'recovery': recovery, 'includedComments': [c['id'] for c in pending],
         'includedIssueBody': not state.get('issueBodyProcessed'), 'startedAt': iso(now),
         'headBefore': git('rev-parse', 'HEAD'),
-        'validationRequired': (git('rev-parse', 'HEAD') != state.get('validatedHead')
-                               and git('rev-parse', 'HEAD') != git('rev-parse', 'origin/main')),
+        'validationRequired': requires_pr_ci(git('rev-parse', 'HEAD'), state, git('rev-parse', 'origin/main')),
     }
     (home / 'run.json').write_text(json.dumps(run, indent=2))
     (home / 'prompt.txt').write_text(prompt)
@@ -399,7 +426,6 @@ def cmd_prepare(_args):
 # --------------------------------------------------------------- finalize ---
 
 def cmd_validate(_args):
-    import guard
     report = analyze(load_execution(os.environ.get('CLAUDE_EXECUTION_FILE')))
     if execution_is_noop(report):
         sys.exit('Claude Codeが0ターンで終了しました。作業を実行していないため成果検証を開始しません。')
@@ -410,7 +436,74 @@ def cmd_validate(_args):
         git('fetch', 'origin', run['branch'])
         if git('rev-parse', 'FETCH_HEAD') != git('rev-parse', 'HEAD'):
             sys.exit('push済みブランチとHEADが一致しません。成果を提示できません。')
-        guard.verify(signed=True)  # Includes the exact CD signing/audit path without uploading.
+        verify_pr_ci(run, git('rev-parse', 'HEAD'))
+    elif (agent_home() / 'pr-ci.json').exists():
+        verify_pr_ci(run, git('rev-parse', 'HEAD'))
+
+
+PR_CI_WORKFLOWS = {'ios.yml': 'iOS', 'agent-tests.yml': 'Agent tests'}
+
+
+def ci_request_id(record, workflow):
+    return record.get('requests', {}).get(workflow, record['request'])
+
+
+def find_pr_ci_run(gh, workflow, record):
+    """Find this exact request, including a run accepted before checkpointing failed."""
+    page = 1
+    label = PR_CI_WORKFLOWS[workflow]
+    title = f'{label} CI {ci_request_id(record, workflow)}'
+    while True:
+        query = urllib.parse.urlencode({'event': 'workflow_dispatch', 'branch': record['branch'],
+                                        'head_sha': record['head'], 'per_page': 100, 'page': page})
+        runs = gh.get(f'/repos/{gh.repository}/actions/workflows/{workflow}/runs?{query}')['workflow_runs']
+        matches = [item for item in runs if item['head_sha'] == record['head']
+                   and item['head_branch'] == record['branch'] and item['display_title'] == title]
+        if matches:
+            latest = max(matches, key=lambda item: item['id'])
+            current = gh.get(f'/repos/{gh.repository}/actions/runs/{latest["id"]}')
+            if (current['head_sha'] != record['head'] or current['head_branch'] != record['branch']
+                    or current['display_title'] != title):
+                raise RuntimeError('取得したCI実行の要求識別子・ブランチ・HEADが一致しません。')
+            return current
+        if len(runs) < 100:
+            return None
+        page += 1
+
+
+def verify_pr_ci(run, head):
+    """Read GitHub conclusions only; never execute or wait for tests here."""
+    home = agent_home()
+    result = {'success': False, 'currentCheck': 'pr-ci', 'checks': []}
+    try:
+        record_path = home / 'pr-ci.json'
+        if not record_path.exists():
+            raise RuntimeError('PR CIの起動記録がありません。request-prを実行してください。')
+        record = json.loads(record_path.read_text())
+        if record['head'] != head or record['branch'] != run['branch']:
+            raise RuntimeError('PR CIの対象HEADと成果が一致しません。request-prを再実行してください。')
+        gh = GitHub()
+        problems = []
+        for workflow in PR_CI_WORKFLOWS:
+            current = find_pr_ci_run(gh, workflow, record)
+            if not current:
+                detail = '起動未完了' if workflow not in record.get('dispatched', []) else '起動した実行がまだ見つかりません'
+                problems.append(f'{workflow}: {detail}')
+                continue
+            result['checks'].append({'workflow': workflow, 'id': current['id'],
+                                     'attempt': current['run_attempt'], 'url': current['html_url'],
+                                     'status': current['status'], 'conclusion': current['conclusion']})
+            if (current['head_sha'] != head or current['status'] != 'completed'
+                    or current['conclusion'] != 'success'):
+                problems.append(f'{workflow}: {current["status"]}/{current["conclusion"]} {current["html_url"]}')
+        if problems:
+            raise RuntimeError('PR CI未成功: ' + '; '.join(problems))
+        result['success'] = True
+    except Exception as error:
+        result['error'] = str(error)
+        raise
+    finally:
+        (home / 'validation.json').write_text(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 def load_execution(path):
@@ -547,7 +640,7 @@ def failure_reason(result, claude_success, validation_ok, outcome):
         return (result.get('api_error_status') or result.get('subtype')
                 or f'Claude Codeが中断・失敗しました ({outcome or "not run"})。終了後の検証は実行されていません。')
     if not validation_ok:
-        return '検証が失敗・未完了、または検証対象と成果のコードが一致しません'
+        return '保存状態の確認、またはPR CIが失敗・未完了です。未処理の依頼は保持して再開します。'
     return 'エージェントの実行に失敗しました'
 
 
@@ -574,8 +667,7 @@ def cmd_finalize(_args):
     result = report['result'] or {}
     no_op = execution_is_noop(report)
     claude_success = bool(report['result']) and result.get('subtype') == 'success' and not result.get('is_error') and not no_op
-    import guard
-    validation_ok = os.environ.get('VALIDATION_OUTCOME') == 'success' and guard.publication_allowed(run)
+    validation_ok = os.environ.get('VALIDATION_OUTCOME') == 'success'
     success = claude_success and validation_ok
     (home / 'progress-stop').touch()
     if not success:
@@ -590,16 +682,8 @@ def cmd_finalize(_args):
     save_workspace(store, number, run)
 
     outbox = read_outbox(home)
-    pull_requests = []
-    if success:
-        for entry in outbox:
-            if entry.get('type') != 'request-pr':
-                continue
-            existing = gh.get(f'/repos/{gh.repository}/pulls?head={gh.repository.split("/")[0]}:{run["branch"]}&base=main&state=open')
-            pr = existing[0] if existing else gh.request('POST', f'/repos/{gh.repository}/pulls', {
-                'title': entry['title'], 'body': entry['body'], 'head': run['branch'], 'base': 'main',
-            })[0]
-            pull_requests.append(f'検証済みPull Request: {pr["html_url"]}')
+    pull_requests = [f'Pull Request (CI結果はActionsで確認): {entry["url"]}'
+                     for entry in outbox if entry.get('type') == 'pull-request']
     decisions = [{'at': iso(), 'text': entry['text']} for entry in outbox if entry.get('type') == 'decision']
     attachments = upload_attachments(store, [entry for entry in outbox if entry.get('type') == 'attach']) if success else []
     record_prototype_events(store, number, [entry for entry in outbox if entry.get('type') == 'prototype-status'], 'agent')
@@ -629,6 +713,10 @@ def cmd_finalize(_args):
         state['autoRestarts'] = 0
         state.pop('validationFailure', None)
         state['validatedHead'] = git('rev-parse', 'HEAD')
+        completed_ci = state.pop('prCI', None)
+        if (completed_ci and completed_ci.get('head') == state['validatedHead']
+                and completed_ci.get('branch') == run['branch']):
+            state['validatedCI'] = completed_ci
         if run['includedComments']:
             state['lastCommentId'] = max([int(state.get('lastCommentId') or 0), *run['includedComments']])
         if run['includedIssueBody']:
@@ -700,9 +788,76 @@ def cmd_decision(args):
     print('記録しました。ターン終了時にIssueのセッション状態へ保存されます。')
 
 
+def read_pr_body(path):
+    """Preserve an untracked PR draft outside the checkout before cleanliness checks."""
+    source = Path(path).resolve()
+    body = source.read_text()
+    workspace = Path(os.environ.get('GITHUB_WORKSPACE', os.getcwd())).resolve()
+    if source.is_relative_to(workspace):
+        relative = str(source.relative_to(workspace))
+        if not git('ls-files', '--', relative):
+            directory = agent_home() / 'pr-bodies'
+            directory.mkdir(exist_ok=True)
+            destination = directory / f'{secrets.token_hex(8)}.md'
+            shutil.move(str(source), destination)
+            print(f'PR本文の一時ファイルを保存しました: {destination}', flush=True)
+    return body
+
+
 def cmd_request_pr(args):
-    outbox_append({'type': 'request-pr', 'title': args.title, 'body': Path(args.body_file).read_text()})
-    print('PR作成を予約しました。終了後の独立検証と署名付きarchiveが成功した場合だけ作成します。')
+    """Create the PR now so Claude can observe and repair CI in this session."""
+    run = json.loads((agent_home() / 'run.json').read_text())
+    body = read_pr_body(args.body_file)
+    if git('status', '--porcelain'):
+        sys.exit('変更をcommit・pushしてからPRを作成してください。')
+    git('fetch', 'origin', run['branch'])
+    if git('rev-parse', 'FETCH_HEAD') != git('rev-parse', 'HEAD'):
+        sys.exit('push済みブランチとHEADが一致しません。')
+    gh = GitHub()
+    existing = gh.get(f'/repos/{gh.repository}/pulls?head={gh.repository.split("/")[0]}:{run["branch"]}&base=main&state=open')
+    if existing:
+        pr = gh.request('PATCH', f'/repos/{gh.repository}/pulls/{existing[0]["number"]}',
+                        {'title': args.title, 'body': body})[0]
+    else:
+        pr = gh.request('POST', f'/repos/{gh.repository}/pulls', {
+            'title': args.title, 'body': body, 'head': run['branch'], 'base': 'main',
+        })[0]
+    outbox_append({'type': 'pull-request', 'url': pr['html_url']})
+    print(f'Pull Request: {pr["html_url"]}', flush=True)
+    # GITHUB_TOKEN-created PRs/pushes do not trigger pull_request workflows.
+    # Explicit dispatch works with that token and also covers subsequent repairs.
+    head = git('rev-parse', 'HEAD')
+    store = Store()
+    state = store.get_json(session_key(run['issue'], 'state.json')) or {}
+    previous = next((record for record in (state.get('prCI'), state.get('validatedCI'))
+                     if record and record.get('head') == head and record.get('branch') == run['branch']), None)
+    reused = previous is not None
+    record = previous if reused else {'head': head, 'branch': run['branch'],
+                                     'request': secrets.token_hex(12), 'dispatched': []}
+    save_pr_ci(run['issue'], record, store)
+    for workflow in PR_CI_WORKFLOWS:
+        current = find_pr_ci_run(gh, workflow, record) if reused else None
+        if current and (current['status'] != 'completed' or current['conclusion'] == 'success'):
+            if workflow not in record['dispatched']:
+                record['dispatched'].append(workflow)
+            save_pr_ci(run['issue'], record, store)
+            print(f'既存CIを使用: {workflow} {current["status"]}/{current["conclusion"]} {current["html_url"]}', flush=True)
+            continue
+        if not current and workflow in record['dispatched']:
+            # GitHub accepted it; an eventually consistent listing is not a reason to dispatch again.
+            print(f'既に起動予約済み: {workflow}。GitHubへの反映を待ちます。', flush=True)
+            continue
+        if current:
+            # Retry only the failed/cancelled workflow, preserving the other workflow's request.
+            record.setdefault('requests', {})[workflow] = secrets.token_hex(12)
+            record['dispatched'] = [name for name in record['dispatched'] if name != workflow]
+            save_pr_ci(run['issue'], record, store)
+        gh.request('POST', f'/repos/{gh.repository}/actions/workflows/{workflow}/dispatches',
+                   {'ref': run['branch'], 'inputs': {'ci_request': ci_request_id(record, workflow)}})
+        record['dispatched'].append(workflow)
+        save_pr_ci(run['issue'], record, store)
+        print(f'CI起動: {workflow} / request={ci_request_id(record, workflow)}', flush=True)
+    print('PRのHEADでiOS・Agent tests CIを起動・再利用しました。gh run list / gh run watchで結果を確認し、失敗時は修正・push後にrequest-prを再実行してください。')
 
 
 def cmd_attach(args):
@@ -781,7 +936,7 @@ def main():
     commands.add_parser('prepare').set_defaults(func=cmd_prepare)
     commands.add_parser('finalize').set_defaults(func=cmd_finalize)
     commands.add_parser('validate').set_defaults(func=cmd_validate)
-    request_pr = commands.add_parser('request-pr', help='独立検証の成功後にPRを作成する')
+    request_pr = commands.add_parser('request-pr', help='PRを作成・更新してCIを起動する')
     request_pr.add_argument('--title', required=True)
     request_pr.add_argument('--body-file', required=True)
     request_pr.set_defaults(func=cmd_request_pr)
