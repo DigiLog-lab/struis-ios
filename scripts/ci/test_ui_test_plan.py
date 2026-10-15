@@ -56,6 +56,68 @@ class DiscoverTests(unittest.TestCase):
             with self.subTest(extra=extra), self.assertRaises(SystemExit):
                 self.discover(SOURCE + extra)
 
+    def test_any_modifier_or_attribute_before_a_test_is_found(self):
+        source = '''import XCTest
+
+@MainActor
+final class DeltaUITests: XCTestCase {
+    nonisolated func testA() {}
+    @available(iOS 18, *) func testB() {}
+    public func testC() async throws {}
+    @MainActor override func testD() throws {}
+    private func testHidden() {}
+    // func testOld() {}
+    func testWithArgument(_ value: Int) {}
+}
+'''
+        self.assertEqual(self.discover(source), [
+            'DeltaUITests/testA', 'DeltaUITests/testB', 'DeltaUITests/testC', 'DeltaUITests/testD'])
+
+    def test_nested_types_strings_and_block_comments_do_not_confuse_discovery(self):
+        source = '''import XCTest
+
+final class EpsilonUITests: XCTestCase {
+    final class Delegate: NSObject {
+        func helper() {}
+    }
+    let script = """
+    func testInsideString() {}
+    """
+    /*
+    func testCommentedOut() {}
+    */
+    func testReal() {}
+}
+'''
+        self.assertEqual(self.discover(source), ['EpsilonUITests/testReal'])
+
+    def test_inherited_test_methods_run_in_each_subclass(self):
+        source = '''import XCTest
+
+class SharedUITests: XCTestCase {
+    func testShared() {}
+}
+
+final class SubUITests: SharedUITests {
+    func testOwn() {}
+}
+'''
+        self.assertEqual(self.discover(source), [
+            'SharedUITests/testShared', 'SubUITests/testOwn', 'SubUITests/testShared'])
+
+    def test_conditional_duplicates_are_listed_once(self):
+        source = '''import XCTest
+
+final class ZetaUITests: XCTestCase {
+#if DEBUG
+    func testA() {}
+#else
+    func testA() {}
+#endif
+}
+'''
+        self.assertEqual(self.discover(source), ['ZetaUITests/testA'])
+
     def test_repository_plan_covers_every_discovered_test(self):
         plan = json.loads(ui_test_plan.PLAN.read_text())
         tests = ui_test_plan.discover()
@@ -64,9 +126,11 @@ class DiscoverTests(unittest.TestCase):
         self.assertEqual(everything, tests)
 
     def test_repository_discovery_matches_every_test_function(self):
-        lines = sum(1 for source in ui_test_plan.TESTS.glob('*.swift')
-                    for line in source.read_text().splitlines() if ui_test_plan.ANY_TEST_FUNC.match(line))
-        self.assertEqual(len(ui_test_plan.discover()), lines)
+        names = {(source.stem, line.split('func', 1)[1].split('(')[0].strip())
+                 for source in ui_test_plan.TESTS.glob('*.swift')
+                 for line in source.read_text().splitlines()
+                 if 'func test' in line and not line.strip().startswith('//') and '(_' not in line}
+        self.assertEqual(len(ui_test_plan.discover()), len(names))
 
 
 class ShardTests(unittest.TestCase):

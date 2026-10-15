@@ -24,27 +24,57 @@ ROOT = Path(__file__).resolve().parents[2]
 TESTS = ROOT / 'striusUITests'
 PLAN = Path(__file__).resolve().parent / 'ui-test-plan.json'
 DEFAULT_SECONDS = 60
-CLASS = re.compile(r'^\s*(?:@\w+\s+)*(?:(?:final|open|public|internal)\s+)*class\s+(\w+)\s*:\s*(\w+)')
-EXTENSION = re.compile(r'^\s*extension\s+(\w+)\b')
-# Only an unindented declaration ends a test class; nested helper types stay inside it.
-OTHER_TYPE = re.compile(r'^(?:@\w+\s+)*(?:(?:final|private|fileprivate|public|internal)\s+)*(?:class|struct|enum|actor|extension)\s+(\w+)')
-METHOD = re.compile(r'^\s*(?:@\w+\s+)*(?:override\s+)?func\s+(test\w*)\s*\(\s*\)')
-# Any indented `func test…()` line; used to prove discovery missed nothing.
-ANY_TEST_FUNC = re.compile(r'^\s+(?:@\w+\s+)*(?:override\s+)?func\s+test\w*\s*\(\s*\)')
+# Type declarations only count at the top level (no indentation); nested helper types stay inside.
+CLASS = re.compile(r'^(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:final|open|public|internal)\s+)*class\s+(\w+)\s*:\s*(\w+)')
+EXTENSION = re.compile(r'^(?:(?:public|internal|private|fileprivate)\s+)?extension\s+(\w+)\b')
+OTHER_TYPE = re.compile(r'^(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:final|private|fileprivate|public|internal|open)\s+)*(?:class|struct|enum|actor|extension|protocol)\s+(\w+)')
 TOP_LEVEL_CLOSE = re.compile(r'^}')
+# Any indented test-shaped function, whatever attributes or modifiers precede it. Private ones are
+# invisible to XCTest. Discovery and the completeness check use the same pattern, so a test is
+# either attributed to a test class or reported, never silently skipped.
+TEST_FUNC = re.compile(r'^(?!\s*//)\s+(?:.*\s)?func\s+(test\w*)\s*\(\s*\)')
+PRIVATE = re.compile(r'\b(?:private|fileprivate)\b')
+
+
+def code_lines(text):
+    """Lines outside /* */ comments and multi-line string literals."""
+    in_comment = in_string = False
+    for line in text.splitlines():
+        if in_comment:
+            if '*/' in line:
+                in_comment = False
+            continue
+        if in_string:
+            if line.count('"""') % 2 == 1:
+                in_string = False
+            continue
+        stripped = line.strip()
+        if stripped.startswith('/*') and '*/' not in stripped:
+            in_comment = True
+            continue
+        yield line
+        if line.count('"""') % 2 == 1:
+            in_string = True
+
+
+def test_name(line):
+    match = TEST_FUNC.match(line)
+    if not match or PRIVATE.search(line.split('func', 1)[0]):
+        return None
+    return match[1]
 
 
 def discover(directory=TESTS):
     """Return sorted 'Class/method' names of XCTestCase test methods.
 
-    Every UI test now runs from an explicit -only-testing list, so a test this misses would
-    silently never run. It therefore fails when any indented `func test…()` line is not
-    attributed to a test class.
+    Every UI test runs from an explicit -only-testing list, so a test this misses would never
+    run. It therefore fails when any test-shaped function is not attributed to a test class.
+    Test methods of a test base class also run in each subclass, so they are listed for both.
     """
-    sources = sorted(directory.glob('*.swift'))
+    sources = [(path, list(code_lines(path.read_text()))) for path in sorted(directory.glob('*.swift'))]
     parents = {}
-    for source in sources:
-        for line in source.read_text().splitlines():
+    for _, lines in sources:
+        for line in lines:
             match = CLASS.match(line)
             if match:
                 parents[match[1]] = match[2]
@@ -55,13 +85,11 @@ def discover(directory=TESTS):
             break
         classes |= more
     classes.discard('XCTestCase')
-    found = set()
-    seen = 0
-    for source in sources:
+    methods = {name: set() for name in classes}
+    unattributed = []
+    for path, lines in sources:
         current = None
-        for line in source.read_text().splitlines():
-            if ANY_TEST_FUNC.match(line):
-                seen += 1
+        for line in lines:
             match = CLASS.match(line) or EXTENSION.match(line)
             if match:
                 current = match[1] if match[1] in classes else None
@@ -69,12 +97,22 @@ def discover(directory=TESTS):
             if OTHER_TYPE.match(line) or TOP_LEVEL_CLOSE.match(line):
                 current = None
                 continue
-            match = METHOD.match(line)
-            if match and current:
-                found.add(f'{current}/{match[1]}')
-    if seen != len(found):
-        raise SystemExit(f'UI test discovery found {len(found)} test methods but {seen} `func test…()` lines '
-                         f'in {directory}. Update scripts/ci/ui_test_plan.py so no test is silently skipped.')
+            name = test_name(line)
+            if name:
+                if current:
+                    methods[current].add(name)
+                else:
+                    unattributed.append(f'{path.name}: {line.strip()}')
+    if unattributed:
+        raise SystemExit('UI test discovery could not tell which test class these belong to, so they would '
+                         'never run. Fix the declaration or scripts/ci/ui_test_plan.py:\n  ' + '\n  '.join(unattributed))
+    found = set()
+    for name in classes:
+        inherited, ancestor = set(methods[name]), parents.get(name)
+        while ancestor in methods:
+            inherited |= methods[ancestor]
+            ancestor = parents.get(ancestor)
+        found.update(f'{name}/{method}' for method in inherited)
     return sorted(found)
 
 
