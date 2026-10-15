@@ -228,6 +228,36 @@ jobs:
             NativeRuntime/.build
           key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
           fail-on-cache-miss: true
+      - name: UIテスト用にビルドし、Simulatorを温める
+        # On a fresh runner the app's first launch takes 40 s or more (once over 3 minutes), which
+        # used to land inside the first test's time allowance. Boot, install and launch once here.
+        timeout-minutes: 40
+        run: |
+          set -euo pipefail
+          xcodebuild build-for-testing -project strius.xcodeproj -scheme strius \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          ios = sorted((key for key in runtimes if ".iOS-" in key),
+                       key=lambda key: [int(part) for part in key.rsplit(".iOS-", 1)[1].split("-")])
+          for key in reversed(ios):
+              for device in runtimes[key]:
+                  if device["name"] == "iPhone 17":
+                      print(device["udid"]); sys.exit()
+          sys.exit("iPhone 17 simulator not found")')
+          echo "SIMULATOR_UDID=$udid" >> "$GITHUB_ENV"
+          xcrun simctl boot "$udid" 2>/dev/null || true
+          xcrun simctl bootstatus "$udid" -b
+          app="$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator/strius.app"
+          bundle=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")
+          xcrun simctl install "$udid" "$app"
+          started=$(date +%s)
+          xcrun simctl launch "$udid" "$bundle"
+          sleep 45
+          xcrun simctl terminate "$udid" "$bundle" || true
+          echo "Warm-up launch of $bundle on $udid finished in $(( $(date +%s) - started ))s"
       - name: SimulatorでUIテスト
         env:
           TESTS: ${{ matrix.tests }}
@@ -239,8 +269,8 @@ jobs:
             echo 'No UI tests assigned to this runner.' >&2
             exit 1
           fi
-          xcodebuild test -project strius.xcodeproj -scheme strius \
-            -destination 'platform=iOS Simulator,name=iPhone 17' \
+          xcodebuild test-without-building -project strius.xcodeproj -scheme strius \
+            -destination "id=$SIMULATOR_UDID" -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             -resultBundlePath "$RUNNER_TEMP/StruisUITests.xcresult" \
             -collect-test-diagnostics never "${only[@]}" \
             -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
