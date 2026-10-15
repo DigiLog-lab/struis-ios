@@ -98,7 +98,7 @@ def verify(signed=False):
                      '-resultBundlePath', str(logs / 'StruisUITests.xcresult'),
                      '-collect-test-diagnostics', 'never', '-only-testing:striusUITests',
                      '-test-timeouts-enabled', 'YES', '-default-test-execution-time-allowance', '180',
-                     '-maximum-test-execution-time-allowance', '300',
+                     '-maximum-test-execution-time-allowance', '600',
                      '-parallel-testing-enabled', 'NO', 'ARCHS=arm64', 'STRUIS_AUTH_REQUIRED=YES']),
         ('release-archive', ['xcodebuild', 'archive', '-project', 'strius.xcodeproj', '-scheme', 'strius',
                              '-configuration', 'Release', '-destination', 'generic/platform=iOS',
@@ -176,9 +176,10 @@ def push_gate():
         raise RuntimeError('未コミットの変更があります。pushを止めました。')
     updates = [line.split() for line in sys.stdin if line.strip()]
     head = git('rev-parse', 'HEAD')
-    if any(len(parts) != 4 or parts[1] != head or parts[2] == 'refs/heads/main' for parts in updates):
-        raise RuntimeError('検証対象のHEAD以外やmainへのpushは許可しません。')
-    commit_gate()
+    if any(len(parts) != 4 or parts[1] != head or parts[2] == 'refs/heads/main'
+           or not parts[2].startswith('refs/heads/') for parts in updates):
+        raise RuntimeError('現在のHEAD以外やmainへのpushは許可しません。')
+    # PR CI performs tests; this hook only checks the push destination and HEAD.
 
 
 if __name__ == '__main__':

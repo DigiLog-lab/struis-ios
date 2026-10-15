@@ -132,6 +132,9 @@ jobs:
           RUNNER_TRACKING_ID: ''
         run: |
           nohup python3 "$RUNNER_TEMP/agent-tools/progress.py" > "$AGENT_HOME/artifacts/progress.log" 2>&1 &
+      - name: Claudeの逐次ログを設定
+        if: steps.prepare.outputs.skip == 'false'
+        run: python3 "$RUNNER_TEMP/agent-tools/configure_logging.py"
       - name: Claude Code
         id: claude
         timeout-minutes: 240
@@ -148,24 +151,21 @@ jobs:
           STRUIS_TEST_ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_AGENT_API_KEY }}
           STRUIS_DELIVERY_APP_KEY: ${{ secrets.STRUIS_DELIVERY_APP_KEY }}
         with:
+          show_full_output: "false"
+          display_report: "false"
+          allowed_bots: "github-actions[bot]"
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
           prompt: ${{ steps.prepare.outputs.prompt }}
           claude_args: ${{ steps.prepare.outputs.claude_args }}
-      - name: 成果を独立して検証
+      - name: 保存状態とPRのCI結果を確認
         id: validate
-        timeout-minutes: 90
         if: always() && steps.prepare.outputs.skip == 'false' && steps.claude.outcome == 'success'
         continue-on-error: true
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           AGENT_HOME: ${{ runner.temp }}/agent
           CLAUDE_EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
-          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
-          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
-          BUILD_PROVISION_PROFILE_APP_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_APP_BASE64 }}
-          BUILD_PROVISION_PROFILE_RUNTIME_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_RUNTIME_BASE64 }}
-          BUILD_PROVISION_PROFILE_EXEC_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_EXEC_BASE64 }}
-          STRUIS_DELIVERY_APP_KEY: ${{ secrets.STRUIS_DELIVERY_APP_KEY }}
         run: python3 "$RUNNER_TEMP/agent-tools/agentctl.py" validate
       - name: 返信とセッション保存
         if: always() && steps.prepare.outputs.skip == 'false'

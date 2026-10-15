@@ -103,6 +103,13 @@ class GateTests(unittest.TestCase):
                     guard.push_gate()
                 verify.assert_not_called()
 
+    def test_allowed_head_push_runs_no_tests(self):
+        update = 'refs/heads/topic head refs/heads/topic old\nrefs/heads/topic head refs/heads/prototype/4/a old'
+        with mock.patch.object(guard, 'git', side_effect=['', 'head']), mock.patch.object(sys, 'stdin', io.StringIO(update)), mock.patch.object(guard, 'commit_gate') as commit_gate, mock.patch.object(guard, 'verify') as verify:
+            guard.push_gate()
+        commit_gate.assert_not_called()
+        verify.assert_not_called()
+
     def test_matching_commit_reuses_tests_but_edit_runs_again(self):
         (self.home / 'validation.json').write_text(json.dumps({'success': True, 'tree': 'tested'}))
         with mock.patch.object(guard, 'tree_to_test', return_value='tested'), mock.patch.object(guard, 'verify') as verify:
@@ -169,7 +176,7 @@ class GateTests(unittest.TestCase):
         upload.assert_not_called()
         body = gh.comment.call_args.args[1]
         self.assertNotIn('secret-result', body)
-        self.assertIn('0ターン' if no_op else '検証が失敗', body)
+        self.assertIn('0ターン' if no_op else 'PR CIが失敗', body)
         state = store.put_json.call_args.args[1]
         self.assertNotIn('lastCommentId', state)
         self.assertNotIn('issueBodyProcessed', state)
@@ -244,7 +251,7 @@ class GateTests(unittest.TestCase):
         self.assertIn('検証は実行されていません', reason)
         self.assertNotIn('検証が失敗', reason)
         self.assertEqual(agentctl.failure_reason({'api_error_status': 429}, False, False, 'failure'), 429)
-        self.assertIn('検証が失敗', agentctl.failure_reason({}, True, False, 'success'))
+        self.assertIn('PR CIが失敗', agentctl.failure_reason({}, True, False, 'success'))
 
     def test_cleanup_does_not_kill_reused_or_unregistered_pid(self):
         (self.home / 'claude-process-123.json').write_text(json.dumps({'pid': 123, 'name': 'claude'}))
