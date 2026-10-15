@@ -12,9 +12,9 @@ final class ReplyTailUITests: XCTestCase {
     }
 
     @MainActor
-    private func launch(_ arguments: [String], tailMs: Int) -> XCUIApplication {
+    private func launch(_ arguments: [String], tailMs: String) -> XCUIApplication {
         let app = UITestSupport.deviceApp(arguments: arguments)
-        app.launchEnvironment["STRUIS_MOCK_TAIL_DELAY_MS"] = String(tailMs)
+        app.launchEnvironment["STRUIS_MOCK_TAIL_DELAY_MS"] = tailMs
         app.launch()
         return app
     }
@@ -63,10 +63,9 @@ final class ReplyTailUITests: XCTestCase {
     /// 質問シート: 記録を書いている間も送信ボタンのまま送れる。送った質問は記録が終わってから答え、前の返事は止まらない。
     @MainActor
     func testQuestionSheetSendsWhileReplyIsRecording() throws {
-        // 記録の時間は、本文が出てから 2 つ目の質問を打って送るまで(CI の runner で 12 秒前後)より十分長くする。
-        // 12 秒では送る前に記録が終わり、並べる場面にならなかった。20 秒なら送るまでに 7 秒以上、並べた質問の記録が
-        // 終わるのを待つ 30 秒にも 10 秒ほどの余裕が残る。
-        let app = launch(["-skip-onboarding"], tailMs: 20_000)
+        // 1 つ目の返事の記録は、本文が出てから 2 つ目の質問を打って送るまで(Simulator で 12〜17 秒)より十分長くする。
+        // 12 秒では送る前に記録が終わり、並べる場面にならなかった。並べた質問の返事の記録は短くし、後の待ちは延ばさない。
+        let app = launch(["-skip-onboarding"], tailMs: "40000,3000")
         XCTAssertTrue(app.openQuestionSheet())
         type(app, "最初の質問です")
         let send = sendButton(app)
@@ -101,7 +100,7 @@ final class ReplyTailUITests: XCTestCase {
     /// 例題の段: 準備OKの返事が記録を書いている間に「先に進む」が出て押せる。押すと類題の段に進み、記録は裏で終わる。
     @MainActor
     func testAdvanceAppearsWhileReadyReplyIsRecording() throws {
-        let app = launch(["-skip-onboarding", "-workbook-model-stage"], tailMs: 15_000)
+        let app = launch(["-skip-onboarding", "-workbook-model-stage"], tailMs: "15000")
         let row = element(app, "workbook-subunit-sub-1")
         XCTAssertTrue(row.waitForExistence(timeout: 30), "ホームに小単元の行が無い")
         row.tap()

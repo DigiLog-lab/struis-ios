@@ -80,12 +80,15 @@ final class ChatCameraUITests: XCTestCase {
         let field = app.textViews.matching(identifier: "chat-page").firstMatch
         field.tap()
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        app.dismissKeyboardIntroductionIfShown()
         openCamera()
         XCUIDevice.shared.orientation = .landscapeRight
         verifyPreview("rotation-07-keyboard-landscape")
         cancel.tap()
         XCTAssertTrue(shutter.waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        // 新しい Simulator では、戻ったキーボードにシステムの初回案内が重なり「添付」を覆う(アプリの表示ではない)。
+        app.dismissKeyboardIntroductionIfShown()
         XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(plus.isHittable)
         screenScreenshot("rotation-08-chat-restored")

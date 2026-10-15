@@ -12,11 +12,21 @@ actor MockTurnRunner: TurnRunning {
 
     private var counter = 0
     private var interrupted: Set<String> = []
+    /// 記録を書いた返事の数(返事ごとの記録の時間を選ぶ)。
+    private var tails = 0
 
     /// 返事の本文を流した後、後ろの記録(進み具合)を書いている時間(`STRUIS_MOCK_TAIL_DELAY_MS`)。0 なら本文も流さない。
     /// 本物のモデルが長い記録を書いている間の画面(送信・「先に進む」)を確かめる時に延ばす。
-    nonisolated private static var tailDelay: Int {
-        Int(ProcessInfo.processInfo.environment["STRUIS_MOCK_TAIL_DELAY_MS"] ?? "") ?? 0
+    /// 「40000,3000」のようにカンマで並べると、返事の順に使う(最後の値をその後の返事にも使う)。1 つ目の返事の記録の間に
+    /// 送る場面を、Simulator の速さに左右されずに作る(並べた返事の記録は短くして待ち時間を延ばさない)。
+    nonisolated static func tailDelay(forReply index: Int, setting: String?) -> Int {
+        let values = (setting ?? "").split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+        guard let last = values.last else { return 0 }
+        return index < values.count ? values[index] : last
+    }
+
+    nonisolated private static var tailDelaySetting: String? {
+        ProcessInfo.processInfo.environment["STRUIS_MOCK_TAIL_DELAY_MS"]
     }
 
     /// 返事までの時間(`STRUIS_MOCK_TURN_DELAY_MS`。待ちの演出を目で確かめる時に延ばす)。
@@ -36,11 +46,15 @@ actor MockTurnRunner: TurnRunning {
         case .chat:
             progress(TurnProgressEvent(label: "説明を組み立てます", progressID: nil, allowDuplicate: false))
             text = Self.chat(plan)
-            if Self.tailDelay > 0, await streamWithSlowTail(plan, text: text, progress: progress) {
-                return TurnOutcome(
-                    planID: plan.id, round: plan.round, status: .interrupted, codexThreadID: plan.thread.codexThreadID, codexTurnID: nil,
-                    finalText: "", executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: Self.tailDelay
-                )
+            let tailDelay = Self.tailDelay(forReply: tails, setting: Self.tailDelaySetting)
+            if tailDelay > 0 {
+                tails += 1
+                if await streamWithSlowTail(plan, text: text, tailDelay: tailDelay, progress: progress) {
+                    return TurnOutcome(
+                        planID: plan.id, round: plan.round, status: .interrupted, codexThreadID: plan.thread.codexThreadID, codexTurnID: nil,
+                        finalText: "", executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: tailDelay
+                    )
+                }
             }
         case .lunaLookup: text = Self.json(["findings": [], "missing_information": [], "uncertainties": [], "failure_reasons": []])
         case .threadFork, .threadInject: text = ""
@@ -57,7 +71,9 @@ actor MockTurnRunner: TurnRunning {
     func interrupt(planID: String) async { interrupted.insert(planID) }
 
     /// 本文を流し、準備OK(あれば本文のすぐ後)と記録の書き出しを流してから、記録を書いている時間だけ待つ。止められたら true。
-    private func streamWithSlowTail(_ plan: TurnPlan, text: String, progress: @escaping @Sendable (TurnProgressEvent) -> Void) async -> Bool {
+    private func streamWithSlowTail(
+        _ plan: TurnPlan, text: String, tailDelay: Int, progress: @escaping @Sendable (TurnProgressEvent) -> Void
+    ) async -> Bool {
         func delta(_ value: String) {
             progress(TurnProgressEvent(kind: .replyDelta(itemID: "msg_mock_\(plan.id)", text: value), label: "返事を書いています", progressID: nil, allowDuplicate: true))
         }
@@ -66,7 +82,7 @@ actor MockTurnRunner: TurnRunning {
         let ready = "\n<struis_workbook_example_ready/>"
         if text.contains(ready) { delta(ready) }
         delta("\n<struis_progress_update>\n{\"goals\": [{\"title\": \"頂点の座標を求める\", \"status\": ")
-        let deadline = Date().addingTimeInterval(Double(Self.tailDelay) / 1000)
+        let deadline = Date().addingTimeInterval(Double(tailDelay) / 1000)
         while Date() < deadline {
             if interrupted.remove(plan.id) != nil { return true }
             try? await Task.sleep(for: .milliseconds(100))
