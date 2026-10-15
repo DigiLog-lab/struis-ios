@@ -44,3 +44,7 @@ python3 NativeRuntime/Scripts/bootstrap.py --platform both
 | libsqlite3, libresolv | iOS SDK(システム) | Apple SDK | リンクのみ。再配布しない |
 
 SPM パッケージの版は `strius.xcodeproj` の package reference(いずれも up to next major)で解決します。
+
+## Claude App Attest
+
+`strius/Runtime/ClaudeProxy/AppAttestClient.swift` の token 取得の手順(エンドポイント、client data の組み立て、取り直しの規則)は、[anthropics/ClaudeForFoundationModels](https://github.com/anthropics/ClaudeForFoundationModels) の `AppAttestSession`(Copyright 2026 Anthropic PBC、Apache-2.0)に倣って書き直したものです。パッケージ自体は同梱していません。

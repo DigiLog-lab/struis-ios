@@ -20,6 +20,8 @@ struct OnboardingPrototypeView: View {
     @State private var didTryConnection = false
     @State private var didOpenChatGPTSettings = false
     @State private var showsWorkspaceHelp = false
+    /// ChatGPT の代わりに Claude(Anthropic の API キー)で始める。
+    @State private var usesClaude = ModelProviderPreference.current == .anthropic
 
     /// 最後の「最初の単元を作る」。回答と、選んだ教材(単元づくりの手がかり)を渡す。
     let onFinish: (OnboardingProfile, [ComposerAttachment]) -> Void
@@ -178,7 +180,7 @@ struct OnboardingPrototypeView: View {
                 advance(to: .connection)
             }
 
-            Text("このあと、ChatGPTアカウントを接続します。")
+            Text("このあと、ChatGPTアカウントを接続するか、Claude を選びます。")
                 .font(Typography.caption)
                 .foregroundStyle(Theme.textSecondary(scheme))
                 .padding(.top, 14)
@@ -187,7 +189,33 @@ struct OnboardingPrototypeView: View {
         .frame(minHeight: 760)
     }
 
+    @ViewBuilder
     private var connection: some View {
+        if usesClaude {
+            claudeConnection
+        } else {
+            chatGPTConnection
+        }
+    }
+
+    private var claudeConnection: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            screenHeading(
+                eyebrow: "CLAUDE",
+                title: settings.claudeAvailable ? "Claude を使う\n準備ができました" : "この iPhone では\nClaude を使えません",
+                detail: settings.claudeAvailable
+                    ? "説明・判定・質問に Claude を使います。あとから設定の「AIモデル」で切り替えられます。"
+                    : "Claude は、正規の Struis かどうかを App Attest で確かめてから使います。この端末では App Attest を使えないため、ChatGPT で接続してください。"
+            )
+            Label("API キーなどの入力は要りません。この iPhone で動いている Struis かどうかを、Apple の App Attest で確かめてから送ります。", systemImage: "lock.shield")
+                .font(Typography.caption)
+                .foregroundStyle(Theme.textSecondary(scheme))
+                .lineSpacing(3)
+        }
+        .padding(.top, 22)
+    }
+
+    private var chatGPTConnection: some View {
         VStack(alignment: .leading, spacing: 28) {
             screenHeading(
                 eyebrow: "CHATGPT",
@@ -547,7 +575,21 @@ struct OnboardingPrototypeView: View {
 
     private var bottomAction: some View {
         VStack(spacing: 10) {
-            if step == .connection {
+            if step == .connection, usesClaude {
+                primaryButton("次へ") {
+                    advance(to: .grade)
+                }
+                .disabled(!settings.claudeAvailable)
+                .opacity(settings.claudeAvailable ? 1 : 0.38)
+                .accessibilityIdentifier("onboarding-claude-next")
+                Button("ChatGPT で接続する") {
+                    usesClaude = false
+                    settings.modelProvider = .openai
+                }
+                .font(Typography.caption)
+                .foregroundStyle(Theme.accent(scheme))
+                .frame(minHeight: 44)
+            } else if step == .connection {
                 if settings.account?.isConnected == true {
                     primaryButton("次へ") {
                         advance(to: .grade)
@@ -572,8 +614,15 @@ struct OnboardingPrototypeView: View {
                     .opacity(settings.busy ? 0.6 : 1)
 
                     if !settings.busy {
-                        Button(connectionSecondaryActionTitle) {
-                            performConnectionSecondaryAction()
+                        HStack(spacing: 18) {
+                            Button(connectionSecondaryActionTitle) {
+                                performConnectionSecondaryAction()
+                            }
+                            Button("Claude で使う") {
+                                usesClaude = true
+                                settings.modelProvider = .anthropic
+                            }
+                            .accessibilityIdentifier("onboarding-use-claude")
                         }
                         .font(Typography.caption)
                         .foregroundStyle(Theme.accent(scheme))

@@ -142,6 +142,7 @@ final class WorkbookE2EFixesUITests: XCTestCase {
         // メインスレッドの止まりの上限(2 秒)は、アプリ内の見張り(`-hang-watchdog`)を HID 入力だけで回して測る
         // (関連する画面・動作)。XCUITest の要素検索はアプリのメインスレッドで
         // ツリーを作り、WebView が多いとそれ自体が数秒かかるので、ここでの値は参考として記録だけする。
+        executionTimeAllowance = 600
         let app = launch(["-skip-onboarding", "-workbook-model-stage", "-workbook-long-chat", "-hang-watchdog"])
         let row = element(app, "workbook-subunit-sub-1")
         XCTAssertTrue(row.waitForExistence(timeout: 30))
@@ -153,17 +154,19 @@ final class WorkbookE2EFixesUITests: XCTestCase {
             input.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).tap()
             input.typeText("確認 \(round)")
             let send = sendButton(app)
-            XCTAssertTrue(waitEnabled(send, timeout: 30), "送信ボタンが押せない (\(round))")
-            Thread.sleep(forTimeInterval: 0.5)
+            // 押せる状態なら待たない(述語の待ちは、満たしていても次の確かめまで 1 秒ほど待つ)。押す操作は、アプリが
+            // 落ち着くのを待ってから押すので、押す前の決まった待ちは置かない。
+            XCTAssertTrue(send.isEnabled || waitEnabled(send, timeout: 30), "送信ボタンが押せない (\(round))")
             send.press(forDuration: 0.15)
             let mine = app.staticTexts["確認 \(round)"].firstMatch
-            XCTAssertTrue(mine.waitForExistence(timeout: 30), "送ったメッセージが出ない (\(round))")
+            // 出ていれば待たない(`waitForExistence` は最初の確かめまで 1 秒ほど待つ)。
+            XCTAssertTrue(mine.exists || mine.waitForExistence(timeout: 30), "送ったメッセージが出ない (\(round))")
             XCTAssertTrue(mine.isHittable, "送ったメッセージが見える位置にない (\(round))")
             page.swipeDown(velocity: .fast)
             page.swipeUp(velocity: .fast)
         }
         let watchdog = element(app, "debug-hang-watchdog")
-        if watchdog.waitForExistence(timeout: 30) {
+        if watchdog.exists || watchdog.waitForExistence(timeout: 30) {
             print("MAX_MAIN_THREAD_STALL_MS_UNDER_XCUITEST \(watchdog.value as? String ?? watchdog.label)")
         }
         attach(app, "long-chat-after-20-rounds")
@@ -212,7 +215,8 @@ final class WorkbookE2EFixesUITests: XCTestCase {
             }
         }
         let start = element(app, "workbook-proposal-start")
-        XCTAssertTrue(start.waitForExistence(timeout: 25), "全体像カードが出ない")
+        // 小単元を並べる間(「小単元を並べています」)は、遅い Simulator では 25 秒を超えることがある。
+        XCTAssertTrue(start.waitForExistence(timeout: 60), "全体像カードが出ない")
         attach(app, "unit-proposal")
         start.tap()
 

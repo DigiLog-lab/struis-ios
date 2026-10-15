@@ -118,6 +118,11 @@ actor CodexTurnRunner: TurnRunning {
         }
         var executions: [LedgerJSON] = []
         var threadID = plan.thread.codexThreadID
+        plan = await resolvingProvider(plan)
+        // App Attest が使えない端末で Claude に送ると、Codex の再試行の後に原因の分からない失敗になる。先に理由を返す。
+        if plan.thread.provider == .anthropic, !ClaudeAccess.isAvailable {
+            return (Self.failed(plan, threadID: threadID, error: ModelProviderError.claudeUnavailable, started: started), broken: false)
+        }
         do {
             let configured = try await configureThread(plan, session: session)
             threadID = configured.threadID
@@ -158,13 +163,16 @@ actor CodexTurnRunner: TurnRunning {
                 images: turn.images.map(\.path).map { workspace + "/" + $0 },
                 model: plan.thread.model, effort: plan.thread.effort, outputSchema: turn.outputSchema, sandboxPolicy: turn.sandboxPolicy,
                 configured: configured.response, configurationEvidence: configured.evidence, taskType: plan.kind.rawValue,
-                timeoutS: plan.limits.turnTimeoutS, deadline: deadline, skills: skills, progress: progress
+                timeoutS: plan.limits.turnTimeoutS, deadline: deadline, skills: skills, provider: plan.thread.provider,
+                repairRound: plan.round > 1, progress: progress
             ) { execution in executions.append(execution) }
             let childExecutions = await watcher?.executions ?? []
             let files = try WorkspaceStager.collect(plan: plan)
+            // 返事を受け取ったので、このスレッドの実行先は以後固定する(`resolvingProvider`)。
+            if contextStore.entry(threadID)?.answered == false { contextStore.update(threadID) { $0.answered = true } }
             // Compaction rewrote the history: memory evidence sent in earlier inputs may be gone (P1-3).
             if executions.contains(where: { !($0["compactions"]?.arrayValue ?? []).isEmpty }) {
-                contextStore.update(threadID) { $0.memory = nil }
+                contextStore.forgetMemory(threadID)
             }
             // The answer is ready: return it now and read the rate limits afterwards (M3). A slow read
             // no longer delays the reply or marks the connection unhealthy (H4).
@@ -296,6 +304,76 @@ actor CodexTurnRunner: TurnRunning {
 
     // MARK: - Thread configuration
 
+    /// 続きの会話(resume・fork)は、設定画面の選択ではなくスレッドを始めた実行先で動かす。
+    /// 別の provider で再開すると、履歴の reasoning(暗号化された中身)を読めない。
+    func resolvingProvider(_ plan: TurnPlan) async -> TurnPlan {
+        guard plan.thread.mode != .start, let threadID = plan.thread.codexThreadID else { return plan }
+        let entry = contextStore.entry(threadID)
+        // まだ一度も返事を受け取っていない(最初のターンが失敗した)スレッドは、設定で選んだ実行先で続ける。
+        // 例えば ChatGPT 未接続で失敗した会話を、Claude に切り替えてから送り直せるようにする。Codex は読み込み済みの
+        // スレッドの provider を resume で変えないので、新しいスレッドで始め直す(履歴にモデルの出力は無い)。
+        if entry?.answered == false {
+            guard plan.thread.mode == .resume, (entry?.provider ?? .openai) != (plan.thread.provider ?? .openai) else { return plan }
+            var plan = plan
+            plan.thread.mode = .start
+            plan.thread.codexThreadID = nil
+            plan.thread.injectDeveloperOnResume = false
+            return plan
+        }
+        // この記録より前に始めたスレッドはすべて OpenAI。
+        let started = entry?.provider ?? .openai
+        guard started != (plan.thread.provider ?? .openai) else { return plan }
+        var plan = plan
+        let astra = await assets.model("astra", provider: started)
+        plan.thread.provider = astra.provider
+        plan.thread.model = astra.model
+        plan.thread.effort = astra.effort
+        if case .object(var config) = plan.thread.config {
+            config["model_reasoning_effort"] = .string(astra.effort)
+            plan.thread.config = .object(config)
+        }
+        if var delegation = plan.delegation {
+            let luna = await assets.model("luna", provider: started)
+            delegation.provider = luna.provider
+            delegation.model = luna.model
+            delegation.effort = luna.effort
+            plan.delegation = delegation
+        }
+        return plan
+    }
+
+    /// Claude のスレッドは端末内のプロキシを provider として登録する(`thread/start`・`resume`・`fork` の `config`)。
+    /// 返す値は provider の接続先で、変わったら読み込み済みのスレッドも設定し直す。
+    nonisolated static func applyProvider(_ provider: ModelProvider?, to params: inout JSONObject) async throws -> String {
+        guard let provider, let providerID = provider.codexProviderID else { return "" }
+        let endpoint = try await ClaudeResponsesProxy.shared.start()
+        params["modelProvider"] = providerID
+        var config = params["config"] as? JSONObject ?? [:]
+        config["model_providers.\(providerID)"] = ClaudeResponsesProxy.providerConfig(endpoint)
+        if provider == .anthropic {
+            // Codex は Claude のモデルを知らない(未知のモデルの既定値で動く)。上限と要約の条件を明示する。
+            config["model_context_window"] = ClaudeModelInfo.contextWindow
+            config["model_auto_compact_token_limit"] = ClaudeModelInfo.autoCompactTokenLimit
+        }
+        params["config"] = config
+        return endpoint.baseURL
+    }
+
+    /// スレッドを始めた時の設定の版(`ThreadContextStore.Profile`)。
+    nonisolated static func threadProfile(_ plan: TurnPlan, base: String, developer: String) -> ThreadContextStore.Profile {
+        let claude = plan.thread.provider == .anthropic
+        let tools = (try? JSONSerialization.data(withJSONObject: NativeToolRouter.definitions, options: [.sortedKeys]))
+            .map { String(decoding: $0, as: UTF8.self) } ?? ""
+        let schema = plan.turn?.outputSchema.flatMap { try? JSONSerialization.data(withJSONObject: $0.any, options: [.sortedKeys]) }
+            .map { ThreadContextStore.hash(String(decoding: $0, as: UTF8.self)) }
+        return ThreadContextStore.Profile(
+            kind: plan.kind.rawValue, model: plan.thread.model, effort: plan.thread.effort,
+            instructions: ThreadContextStore.hash(base, developer), tools: ThreadContextStore.hash(tools), schema: schema,
+            thinking: claude ? "adaptive/summarized" : "codex", translation: claude ? ClaudeTranslation.current : nil,
+            cacheTTL: claude ? ClaudeTranslation.tailCacheTTL(kind: plan.kind.rawValue) : nil, startedAt: Date()
+        )
+    }
+
     private struct Configured {
         let threadID: String?
         let response: JSONObject
@@ -312,8 +390,16 @@ actor CodexTurnRunner: TurnRunning {
             developer = spec.developerText ?? "Answer only with one JSON object matching the supplied output schema."
         }
         let fullDeveloper = developer + "\n\n" + NativeToolRouter.instructions
-        // What a loaded thread was set up with; a different value means the delivered assets changed.
-        let instructions = ThreadContextStore.hash(base, fullDeveloper, spec.model, spec.effort)
+        var params: JSONObject = [
+            "dynamicTools": NativeToolRouter.definitions,
+            "model": spec.model, "approvalPolicy": "never", "sandbox": "danger-full-access",
+            "allowProviderModelFallback": false, "baseInstructions": base, "developerInstructions": fullDeveloper,
+            "config": NativeToolRouter.configuration(spec.config.any as? JSONObject ?? [:]),
+        ]
+        let providerEndpoint = try await Self.applyProvider(spec.provider, to: &params)
+        // What a loaded thread was set up with; a different value means the delivered assets changed
+        // (or the Claude proxy was restarted on another port).
+        let instructions = ThreadContextStore.hash(base, fullDeveloper, spec.model, spec.effort, providerEndpoint)
         let developerHash = ThreadContextStore.hash(developer)
         // A chat thread's turns run in its own directory (P1-1, set on `turn/start`). The thread itself is
         // started and resumed in the workspace root: Codex reads AGENTS.md only for a trusted project,
@@ -327,12 +413,7 @@ actor CodexTurnRunner: TurnRunning {
             try FileManager.default.createDirectory(at: plan.hostWorkspace, withIntermediateDirectories: true)
             cwd = plan.hostWorkspace.path
         }
-        var params: JSONObject = [
-            "dynamicTools": NativeToolRouter.definitions,
-            "cwd": cwd, "model": spec.model, "approvalPolicy": "never", "sandbox": "danger-full-access",
-            "allowProviderModelFallback": false, "baseInstructions": base, "developerInstructions": fullDeveloper,
-            "config": NativeToolRouter.configuration(spec.config.any as? JSONObject ?? [:]),
-        ]
+        params["cwd"] = cwd
         let generation = await session.generation
         switch spec.mode {
         case .start:
@@ -342,7 +423,15 @@ actor CodexTurnRunner: TurnRunning {
             let threadID = (response["thread"] as? JSONObject)?["id"] as? String
             guard let threadID, !threadID.isEmpty else { throw CodexAppServerError.malformed("thread/start returned no thread id") }
             loadedThreads[threadID] = (generation, instructions, response)
-            if !spec.ephemeral { contextStore.update(threadID) { $0.developer = developerHash } }
+            if !spec.ephemeral {
+                let profile = Self.threadProfile(plan, base: base, developer: fullDeveloper)
+                contextStore.update(threadID) {
+                    $0.developer = developerHash
+                    $0.provider = spec.provider
+                    $0.answered = false
+                    $0.profile = profile
+                }
+            }
             return Configured(threadID: threadID, response: response, evidence: "thread/start")
         case .resume:
             guard let threadID = spec.codexThreadID else { throw CodexAppServerError.malformed("resume without thread id") }
@@ -379,7 +468,13 @@ actor CodexTurnRunner: TurnRunning {
                         throw CodexAppServerError.malformed("thread/start returned no thread id")
                     }
                     loadedThreads[id] = (generation, instructions, recovered)
-                    contextStore.update(id) { $0.developer = developerHash }
+                    let profile = Self.threadProfile(plan, base: base, developer: params["developerInstructions"] as? String ?? fullDeveloper)
+                    contextStore.update(id) {
+                        $0.developer = developerHash
+                        $0.provider = spec.provider
+                        $0.answered = false
+                        $0.profile = profile
+                    }
                     return Configured(threadID: id, response: recovered, evidence: "thread/start after missing rollout")
                 }
                 loadedThreads[threadID] = (generation, instructions, response)
@@ -409,6 +504,13 @@ actor CodexTurnRunner: TurnRunning {
             contextStore.update(forked) { entry in
                 entry.developer = inherited?.developer
                 entry.memory = nil
+                entry.memoryFiles = nil
+                // 複製は元の履歴(署名付きの thinking を含む)を引き継ぐので、送り方の版も引き継ぐ。
+                entry.profile = inherited?.profile
+                entry.thinkingStripped = inherited?.thinkingStripped
+                entry.provider = spec.provider
+                // 複製元の履歴を引き継ぐので、返事のあるスレッドとして扱う。
+                entry.answered = inherited?.answered ?? true
             }
             return Configured(threadID: forked, response: response, evidence: "thread/fork")
         }
@@ -426,7 +528,7 @@ actor CodexTurnRunner: TurnRunning {
         model: String, effort: String, outputSchema: LedgerJSON?, sandboxPolicy: String,
         configured: JSONObject, configurationEvidence: String, taskType: String, timeoutS: Int, deadline: TurnDeadline? = nil,
         parentThreadID: String? = nil, parentTurnID: String? = nil, executionID: String? = nil,
-        skills: SkillWaiting = SkillWaiting(),
+        skills: SkillWaiting = SkillWaiting(), provider: ModelProvider? = nil, repairRound: Bool = false,
         progress: @escaping @Sendable (TurnProgressEvent) -> Void,
         record: (LedgerJSON) -> Void
     ) async throws -> Observed {
@@ -442,9 +544,35 @@ actor CodexTurnRunner: TurnRunning {
             "task_type": taskType, "requested_model": model, "requested_effort": effort,
             "resolved_model": configured["model"] ?? NSNull(), "resolved_effort": configured["reasoningEffort"] ?? NSNull(),
             "configuration_evidence": configurationEvidence, "actual_model": NSNull(), "actual_effort": NSNull(), "reroutes": [Any](),
-            "lookup_commands": parentThreadID == nil ? NSNull() : [Any](), "usage": NSNull(), "turn_tokens": NSNull(),
-            "status": "starting", "elapsed_ms": NSNull(), "billing_source": "byo_chatgpt", "actual_charge": NSNull(),
+            "lookup_commands": parentThreadID == nil ? NSNull() : [Any](), "usage": NSNull(), "turn_tokens": NSNull(), "estimated_cost_usd": NSNull(),
+            "status": "starting", "elapsed_ms": NSNull(), "billing_source": (provider ?? .openai).billingSource, "actual_charge": NSNull(),
+            "round_reason": repairRound ? ClaudeRequestReason.validationRepair.rawValue : ClaudeRequestReason.turnStart.rawValue,
         ]
+        // Claude: 要求 1 回ごとの記録(端末内のプロキシが書く)を実行監査に移し、料金は要求ごとに計算して足す。
+        let claude = provider == .anthropic
+        func attachRequests() {
+            guard claude, let turn = audit["turn_id"] as? String, !turn.isEmpty else { return }
+            var requests = (audit["requests"] as? [[String: Any]] ?? []) + ClaudeRequestLog.shared.take(threadID: threadID, turnID: turn)
+            if repairRound, let index = requests.firstIndex(where: { $0["reason"] as? String == ClaudeRequestReason.turnStart.rawValue }) {
+                requests[index]["reason"] = ClaudeRequestReason.validationRepair.rawValue
+            }
+            audit["requests"] = requests
+            var reasons: [String: Int] = [:]
+            for request in requests { reasons[request["reason"] as? String ?? "unknown", default: 0] += 1 }
+            audit["request_reasons"] = reasons
+            let cost = ClaudeRequestLog.turnCost(requests)
+            audit["estimated_cost_usd"] = cost.usd ?? NSNull()
+            audit["cost_status"] = cost.status
+            audit["pricing_version"] = ClaudePricing.version
+            if let actual = requests.last(where: { $0["actual_model"] is String })?["actual_model"] { audit["actual_model"] = actual }
+            // thinking の内訳: すべての要求が返した時だけ足す(1 つでも返らなければ内訳なし。0 にしない)。
+            if var tokens = audit["turn_tokens"] as? JSONObject {
+                let billed = requests.filter { $0["usage"] is [String: Any] }
+                let reported = billed.compactMap { $0["thinking_tokens"] as? Int }
+                tokens["reasoning_output_tokens"] = !billed.isEmpty && reported.count == billed.count ? reported.reduce(0, +) : NSNull()
+                audit["turn_tokens"] = tokens
+            }
+        }
         var input: [Any] = [["type": "text", "text": text]]
         for path in images { input.append(["type": "localImage", "path": path]) }
         var params: JSONObject = [
@@ -459,6 +587,8 @@ actor CodexTurnRunner: TurnRunning {
         var finalText = ""
         var reroutes: [Any] = []
         var lookupCommands: [Any] = []
+        // このターンで最初に届いたトークン数の通知(ターン前の累計を求めるため)。
+        var firstTokenUsage: JSONObject?
         // Chat turns keep the full wait: Codex reconnects a dropped stream by itself, and a chat turn
         // cannot be replayed on its thread. Structured turns are retried on a fresh thread instead.
         let watchesStall = TurnPlan.Kind(rawValue: taskType).map(Self.isStructured) ?? false
@@ -600,6 +730,20 @@ actor CodexTurnRunner: TurnRunning {
                     progress(TurnProgressEvent(kind: .reasoningSummary, label: headline ?? "", progressID: key, allowDuplicate: true))
                 case "thread/tokenUsage/updated":
                     audit["usage"] = params["tokenUsage"] ?? NSNull()
+                    if let usage = params["tokenUsage"] as? JSONObject {
+                        let first = firstTokenUsage ?? usage
+                        firstTokenUsage = first
+                        let tokens = TurnTokenUsage.turnTokens(first: first, latest: usage)
+                        if claude {
+                            // thinking の内訳はターンの終わりに要求ごとの記録から入れる(それまでは内訳なし)。料金も要求ごとに出す。
+                            var tokens = tokens
+                            tokens["reasoning_output_tokens"] = NSNull()
+                            audit["turn_tokens"] = tokens
+                        } else {
+                            audit["turn_tokens"] = tokens
+                            audit["estimated_cost_usd"] = TurnTokenUsage.estimatedCostUSD(model: model, tokens: tokens) ?? NSNull()
+                        }
+                    }
                 case "model/rerouted":
                     reroutes.append(["fromModel": params["fromModel"] ?? NSNull(), "toModel": params["toModel"] ?? NSNull(), "reason": params["reason"] ?? NSNull()])
                     audit["reroutes"] = reroutes
@@ -670,6 +814,7 @@ actor CodexTurnRunner: TurnRunning {
                     guard !finalText.isEmpty else { throw CodexAppServerError.turnFailed("Completed turn returned no final answer") }
                     audit["status"] = "completed"
                     audit["elapsed_ms"] = Self.elapsed(started)
+                    attachRequests()
                     record(LedgerJSON(any: audit))
                     liveTurns[planID] = nil
                     await session.unwatch(turnID: turnID, finished: true)
@@ -690,6 +835,8 @@ actor CodexTurnRunner: TurnRunning {
             }
             audit["error"] = Self.describe(error).prefix(2000).description
             audit["elapsed_ms"] = Self.elapsed(started)
+            // 出力上限・中断・失敗で終わった要求も記録に残す。
+            attachRequests()
             record(LedgerJSON(any: audit))
             if !turnID.isEmpty {
                 await session.unwatch(turnID: turnID, finished: turnFinished)

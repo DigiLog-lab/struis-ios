@@ -7,6 +7,8 @@ final class UnitDeletionUITests: XCTestCase {
         app.launchEnvironment["STRUIS_LEDGER"] = "memory"
         app.launchEnvironment["STRUIS_UNIT_DELETION_UI_TEST"] = "1"
         app.launchEnvironment["STRUIS_IOS_USE_FIXTURES"] = "0"
+        // フィクスチャを切ると認証の省略も切れる(STRUIS_AUTH_REQUIRED=YES のビルドではログイン画面で止まる)。
+        app.launchEnvironment["STRUIS_DEV_AUTH_BYPASS"] = "1"
         app.launch()
         let card = app.buttons["workbook-unit-card-unit-1"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 20))
@@ -41,6 +43,8 @@ final class UnitDeletionUITests: XCTestCase {
         app.launchEnvironment["STRUIS_LEDGER"] = "memory"
         app.launchEnvironment["STRUIS_UNIT_DELETION_UI_TEST"] = "1"
         app.launchEnvironment["STRUIS_IOS_USE_FIXTURES"] = "0"
+        // フィクスチャを切ると認証の省略も切れる(STRUIS_AUTH_REQUIRED=YES のビルドではログイン画面で止まる)。
+        app.launchEnvironment["STRUIS_DEV_AUTH_BYPASS"] = "1"
         app.launch()
         let card = app.buttons["workbook-unit-card-unit-1"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 20))

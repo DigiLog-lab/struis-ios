@@ -31,6 +31,8 @@ struct ChatTimeline: View {
     @State private var followTarget: UUID?
     /// 画面の下端にある吹き出し(スクロールの位置の基準)。行の高さが変わっても、この吹き出しの位置を保つ。
     @State private var anchorMessageID: UUID?
+    @State private var timelineWidth: CGFloat = 0
+    @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
@@ -66,6 +68,8 @@ struct ChatTimeline: View {
                     Color.clear.frame(height: 12 + bottomInset).id(Self.bottomAnchor)
                 }
                 .scrollTargetLayout()
+                // 会話の行の幅。画面に出る前に数式の高さを測る幅(`prefetchMath`)。
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { timelineWidth = $0 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
             }
@@ -98,6 +102,9 @@ struct ChatTimeline: View {
                 await Task.yield()
                 scrollToEnd(reader, animated: false)
             }
+            // 読み返す前に、まだ描いていない数式の高さを新しい返事から測る。行が画面に出た後で高くなって会話が動かないように。
+            .onChange(of: timelineWidth, initial: true) { prefetchMath() }
+            .onChange(of: messages.count) { prefetchMath() }
             .onChange(of: followToken) { _, token in
                 // 段が変わった: 前の段の返事への送り直しはここでやめる(新しい返事がまだ無い間も戻さない)。
                 followTarget = nil
@@ -171,6 +178,17 @@ struct ChatTimeline: View {
     }
 
     private static let bottomAnchor = "chat-bottom"
+
+    /// 最後の数件は画面に出ている(出す)ので、行が自分で描いて高さを記録する。測るのはその上の、読み返す行だけ。
+    /// 新しい返事のたびに測ると、画面の行の WebView と描く処理を取り合い、段の切り替えが遅れた。
+    private static let prefetchSkipsLatest = 3
+
+    private func prefetchMath() {
+        guard timelineWidth > 0, messages.count > Self.prefetchSkipsLatest else { return }
+        KaTeXPrefetcher.shared.prefetch(messages.dropLast(Self.prefetchSkipsLatest).reversed().flatMap {
+            MessageBubble.katexItems($0, scheme: scheme, timelineWidth: timelineWidth)
+        })
+    }
 
     /// こちらから送る直前に、学習者のスクロールで付いた位置の基準を外す。残すと、送った後に行の高さが変わった時、
     /// SwiftUI が古い基準の吹き出しの位置へ引き戻す(送り先と取り合う)。

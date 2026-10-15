@@ -39,6 +39,18 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: format), object: element)], timeout: timeout) == .completed
     }
 
+    /// `timeout` 秒以内に始めた確かめのどれかで、要素が無くなっていれば true。述語の待ち(`wait`)は 1 秒おきにしか
+    /// 確かめず、段の切り替え直後のようにツリーの取得に 2 秒以上かかると、3 秒の間に 1 回しか確かめられない。
+    @MainActor
+    private func disappears(_ element: XCUIElement, within timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !element.exists { return true }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return false
+    }
+
     @MainActor
     private func text(_ app: XCUIApplication, containing fragment: String) -> XCUIElement {
         app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", fragment)).firstMatch
@@ -194,7 +206,7 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         XCTAssertTrue(element(app, "workbook-subunit-header").waitForExistence(timeout: 5))
 
         // 例題の返事が出終わっても、準備OKが無ければ「先に進む」は出ない(薄く出すのでもない)。
-        XCTAssertTrue(wait(advance, "exists == false", timeout: 3), "準備OKの前に「先に進む」が出ている")
+        XCTAssertTrue(disappears(advance, within: 3), "準備OKの前に「先に進む」が出ている: \(screenSummary(app))")
         let input = app.textViews.matching(identifier: "chat-page").firstMatch
         let send = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == %@", "送信", "chat-page")).firstMatch
 
@@ -204,6 +216,7 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         XCTAssertTrue(waitEnabled(send, timeout: 10))
         send.press(forDuration: 0.15)
         XCTAssertTrue(text(app, containing: "自信がある行").waitForExistence(timeout: 20), "途中の答えへの返事が出ない")
+        XCTAssertFalse(advance.exists, "途中の答えの後に「先に進む」が出ている: \(screenSummary(app))")
         attach(app, "example-not-ready")
 
         // 解けた答え → モデルが準備OKを出す。block は本文に出ない。
@@ -259,6 +272,8 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         let advance = element(app, "workbook-advance")
         XCTAssertTrue(waitEnabled(advance, timeout: 30), "要点の「先に進む」が押せない")
         let input = app.textViews.matching(identifier: "chat-page").firstMatch
+        // 開いた直後の約 3 秒は会話の末尾へ送り直す(`ChatTimeline.scrollToEnd`)。それが終わってから動かす。
+        Thread.sleep(forTimeInterval: 3.5)
         // 少しだけ戻して、吹き出しが段にかかる位置にする。
         let page = element(app, "chat-page")
         page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))

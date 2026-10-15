@@ -43,9 +43,11 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
         var config: LedgerJSON
         /// `thread/fork` source turn.
         var lastTurnID: String?
+        /// 実行先。nil は OpenAI(この項目より前に保存された plan と互換)。
+        var provider: ModelProvider? = nil
 
         enum CodingKeys: String, CodingKey {
-            case mode, cwd, model, effort, ephemeral, config
+            case mode, cwd, model, effort, ephemeral, config, provider
             case codexThreadID = "codex_thread_id"
             case baseInstructions = "base_instructions"
             case developerInstructions = "developer_instructions"
@@ -128,9 +130,11 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
         /// The delegation contract is in the thread's developer instructions (P1-3); the turn text
         /// does not repeat it.
         var contractInDeveloper: Bool?
+        /// 子の実行先。親のスレッドと同じ provider にする。
+        var provider: ModelProvider? = nil
 
         enum CodingKeys: String, CodingKey {
-            case enabled, inbox, model, effort
+            case enabled, inbox, model, effort, provider
             case baseInstructions = "base_instructions"
             case developerText = "developer_text"
             case outputSchema = "output_schema"
