@@ -89,7 +89,9 @@ def discover(directory=TESTS):
     run. It therefore fails when any test-shaped function is not attributed to a test class.
     Test methods of a test base class also run in each subclass, so they are listed for both.
     """
-    sources = [(path, list(code_lines(path.read_text(), path.name))) for path in sorted(directory.glob('*.swift'))]
+    # Xcode compiles every Swift file under the synchronized test folder, subfolders included.
+    sources = [(path, list(code_lines(path.read_text(), str(path.relative_to(directory)))))
+               for path in sorted(directory.rglob('*.swift'))]
     parents = {}
     for _, lines in sources:
         for line in lines:
@@ -120,7 +122,7 @@ def discover(directory=TESTS):
                 if current:
                     methods[current].add(name)
                 else:
-                    unattributed.append(f'{path.name}: {line.strip()}')
+                    unattributed.append(f'{path.relative_to(directory)}: {line.strip()}')
     if unattributed:
         raise SystemExit('UI test discovery could not tell which test class these belong to, so they would '
                          'never run. Fix the declaration or scripts/ci/ui_test_plan.py:\n  ' + '\n  '.join(unattributed))

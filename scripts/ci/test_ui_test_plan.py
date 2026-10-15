@@ -144,6 +144,13 @@ final class ZetaUITests: XCTestCase {
 '''
         self.assertEqual(self.discover(source), ['ZetaUITests/testA'])
 
+    def test_tests_in_subfolders_are_found(self):
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, 'Chat').mkdir()
+            Path(directory, 'Chat', 'IotaUITests.swift').write_text(
+                'import XCTest\n\nfinal class IotaUITests: XCTestCase {\n    func testA() {}\n}\n')
+            self.assertEqual(ui_test_plan.discover(Path(directory)), ['IotaUITests/testA'])
+
     def test_repository_plan_covers_every_discovered_test(self):
         plan = json.loads(ui_test_plan.PLAN.read_text())
         tests = ui_test_plan.discover()
@@ -153,7 +160,7 @@ final class ZetaUITests: XCTestCase {
 
     def test_repository_discovery_matches_every_test_function(self):
         names = {(source.stem, line.split('func', 1)[1].split('(')[0].strip())
-                 for source in ui_test_plan.TESTS.glob('*.swift')
+                 for source in ui_test_plan.TESTS.rglob('*.swift')
                  for line in source.read_text().splitlines()
                  if 'func test' in line and not line.strip().startswith('//') and '(_' not in line}
         self.assertEqual(len(ui_test_plan.discover()), len(names))
