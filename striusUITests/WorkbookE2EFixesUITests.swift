@@ -142,6 +142,12 @@ final class WorkbookE2EFixesUITests: XCTestCase {
         // メインスレッドの止まりの上限(2 秒)は、アプリ内の見張り(`-hang-watchdog`)を HID 入力だけで回して測る
         // (関連する画面・動作)。XCUITest の要素検索はアプリのメインスレッドで
         // ツリーを作り、WebView が多いとそれ自体が数秒かかるので、ここでの値は参考として記録だけする。
+        //
+        // 実行時間の上限は 6 分にする(既定は 3 分)。20 往復のそれぞれで、入力欄を押す・打つ・送る・確かめる・上下に
+        // ドラッグする、の 6 回の操作があり、XCUITest は操作ごとにアプリが落ち着くのを待つ(1 回 0.6 秒前後)。無駄を
+        // 除いた後も 1 往復に約 10〜12 秒かかり、3 コアの GitHub の runner で起動を含めて約 4 分になる(2026-10-15)。
+        // 3 分に収めるには往復の回数を減らすしかなく、確かめる内容が変わるので、往復は減らさず上限を延ばす。
+        executionTimeAllowance = 6 * 60
         let app = launch(["-skip-onboarding", "-workbook-model-stage", "-workbook-long-chat", "-hang-watchdog"])
         let row = element(app, "workbook-subunit-sub-1")
         XCTAssertTrue(row.waitForExistence(timeout: 30))
@@ -160,9 +166,13 @@ final class WorkbookE2EFixesUITests: XCTestCase {
             XCTAssertTrue(mine.appears(timeout: 30), "送ったメッセージが出ない (\(round))")
             XCTAssertTrue(mine.isHittable, "送ったメッセージが見える位置にない (\(round))")
             // 上へ読み返して、下へ戻す。速く動かすが、指を止めてから離す(慣性で流さない)。`swipeDown`/`swipeUp` は
-            // 慣性のスクロールが止まるまで次の操作を待たされ、1 往復に約 4.5 秒かかっていた。
-            let top = page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
-            let bottom = page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
+            // 慣性のスクロールが止まるまで次の操作を待たされ、1 往復に約 4.5 秒かかっていた。会話の枠は往復ごとに 1 回だけ
+            // 読み(キーボードの有無で変わる)、アプリを起点にした座標で動かす(会話を起点にすると、指を動かす間に会話を
+            // 5 回以上探し直す)。
+            let frame = page.frame
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            let top = origin.withOffset(CGVector(dx: frame.midX, dy: frame.minY + frame.height * 0.3))
+            let bottom = origin.withOffset(CGVector(dx: frame.midX, dy: frame.minY + frame.height * 0.6))
             top.press(forDuration: 0.05, thenDragTo: bottom, withVelocity: .fast, thenHoldForDuration: 0.1)
             bottom.press(forDuration: 0.05, thenDragTo: top, withVelocity: .fast, thenHoldForDuration: 0.1)
         }
