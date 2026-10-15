@@ -29,6 +29,8 @@ final class ChatStore {
     /// 起動メッセージも含む全メッセージ(段の起動の返事を探すため)。
     private(set) var allMessages: [ChatMessage] = []
     private(set) var isSending = false
+    /// 学習者の送信で始まった返事(いちばん新しいもの)。台帳で出来上がったかを見る。
+    private var sentReplyID: UUID?
     private(set) var sendError: String?
     /// 答案の写真を添えた会話と答案(`thread|capture`)。同じ会話で同じ答案を何度も送らない。
     /// 進行中の返信に付く進捗ラベル (`codex.turn.status` の端末版)。
@@ -36,12 +38,15 @@ final class ChatStore {
 
     /// 動いている返事が、見える本文を書き終えて後ろの記録(進み具合・記憶など)だけを書いている。
     /// この間の送信は返事を止めず、その後ろに並べる(記録が終わってから答える)。
+    /// 学習者が送った返事が台帳で出来上がってから、終わりの知らせで `isSending` が下りるまでの間も含める。含めないと、
+    /// 記録を書き終えた直後だけ入力欄が停止ボタンに戻り、ちょうど押した送信が断られて下書きに戻る(並べた送信は、
+    /// 前の返事が終わっていればそのまま始まる)。
     var replyFinishingInBackground: Bool {
         guard isSending, sendPreparations.isEmpty,
-              let reply = allMessages.last(where: { $0.role == .assistant }), reply.status == .pending,
-              let activity = TurnActivityBoard.shared.activity(TurnActivityKey.reply(reply.id))
-        else { return false }
-        return activity.writingPrivateTail && !activity.finished && !activity.queuedBehindReply
+              let reply = allMessages.last(where: { $0.role == .assistant }) else { return false }
+        guard reply.status == .pending else { return reply.id == sentReplyID }
+        guard let activity = TurnActivityBoard.shared.activity(TurnActivityKey.reply(reply.id)) else { return false }
+        return activity.writingPrivateTail && !activity.queuedBehindReply
     }
 
     /// 入力欄を「返事を書いている最中」として扱うか(停止ボタン・送信を止める)。記録だけを書いている間は扱わない。
@@ -305,6 +310,7 @@ final class ChatStore {
                 await turns.interruptChat(threadID: thread.uuidString.lowercased())
                 return false
             }
+            sentReplyID = UUID(uuidString: result.assistantMessageID)
             await turns.setProgressHandler(turnID: result.turnID) { [weak self] event in
                 Task { @MainActor [weak self] in self?.progressLabel = event.label }
             }

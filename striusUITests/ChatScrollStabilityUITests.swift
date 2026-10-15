@@ -75,16 +75,19 @@ final class ChatScrollStabilityUITests: XCTestCase {
         XCTAssertLessThanOrEqual(jumps.max() ?? 0, 2, "指を離した後に会話が動いた(跳んだ): \(jumps.map { Int($0.rounded()) })")
     }
 
-    /// 画面の中ほどにある数式の WebView の枠(1 回の snapshot で探す)。
+    /// 画面の中ほどにある数式の WebView の枠(1 回の snapshot で探す)。枠の一部が小単元のヘッダーの裏にあるものは選ばない
+    /// (枠の中ほどがヘッダーに覆われていると、指がヘッダーに当たり数式の吹き出しに届かない)。
     @MainActor
     private func mathFrame(_ app: XCUIApplication) -> CGRect? {
+        let header = app.descendants(matching: .any)["workbook-subunit-header"].firstMatch
+        let visibleTop = header.exists ? header.frame.maxY : 0
         guard let root = try? app.snapshot() else { return nil }
         let screen = app.windows.firstMatch.frame
         var stack: [XCUIElementSnapshot] = [root]
         var found: [CGRect] = []
         while let node = stack.popLast() {
             if node.elementType == .webView, node.frame.height > 12,
-               node.frame.minY > screen.height * 0.25, node.frame.maxY < screen.height * 0.7 {
+               node.frame.minY > max(screen.height * 0.25, visibleTop), node.frame.maxY < screen.height * 0.7 {
                 found.append(node.frame)
             }
             stack.append(contentsOf: node.children)
@@ -231,31 +234,33 @@ final class ChatScrollStabilityUITests: XCTestCase {
                 guard tried.insert(key).inserted else { continue }
                 // 吹き出し全体が 1 つの WebView なので、表示用の数式の行に当たるよう縦の位置を 22pt おきに変えて試す。
                 // 描画の途中の変化を数えないよう、見た目が落ち着いてから比べ、左へ動いた後に右へ戻すとまた変わる(往復する)ことを見る。
-                let settledA = web.screenshot().pngRepresentation
+                // 比べるのは WebView のうち会話に見えている部分だけ(枠が見出しや状態バーの裏まで伸びていると、時計や見出しの
+                // 変化まで数えてしまう)。指を置くのもその中だけにする(見出しの上から始めた指は数式に届かない)。
+                let band = visibleBand(app, screen: screen)
+                let settledA = visibleImage(app, web, band: band)?.pngData()
                 Thread.sleep(forTimeInterval: 1)
-                guard web.exists, web.screenshot().pngRepresentation == settledA else { tried.remove(key); continue }
+                guard settledA != nil, visibleImage(app, web, band: band)?.pngData() == settledA else { tried.remove(key); continue }
                 let rows = max(1, Int(web.frame.height / 22))
                 for row in 0..<rows where !scrolled && web.exists {
                     let dy = (CGFloat(row) + 0.5) / CGFloat(rows)
                     let y = web.frame.minY + web.frame.height * dy
-                    guard y > screen.height * 0.2, y < screen.height * 0.75 else { continue }
-                    let before = web.screenshot()
+                    guard y > max(screen.height * 0.2, band.lowerBound + 4), y < screen.height * 0.75 else { continue }
+                    guard let before = visibleImage(app, web, band: band) else { break }
                     let start = web.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: dy))
                     start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: -200, dy: 0)), withVelocity: .slow, thenHoldForDuration: 0.3)
                     Thread.sleep(forTimeInterval: 0.6)
-                    guard web.exists else { break }
-                    let moved = web.screenshot()
-                    guard moved.pngRepresentation != before.pngRepresentation else { continue }
+                    guard let moved = visibleImage(app, web, band: band) else { break }
+                    guard moved.pngData() != before.pngData() else { continue }
                     let back = web.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: dy))
                     back.press(forDuration: 0.05, thenDragTo: back.withOffset(CGVector(dx: 200, dy: 0)), withVelocity: .slow, thenHoldForDuration: 0.3)
                     Thread.sleep(forTimeInterval: 0.6)
-                    let returned = web.screenshot()
-                    let reversible = returned.pngRepresentation != moved.pngRepresentation
+                    guard let returned = visibleImage(app, web, band: band) else { break }
+                    let reversible = returned.pngData() != moved.pngData()
                     print("PROBE overflow candidate h=\(Int(web.frame.height)) row=\(row) movedLeft=true movedBack=\(reversible)")
                     if reversible {
                         scrolled = true
                         for (name, shot) in [("overflow-math-before", before), ("overflow-math-scrolled-left", moved), ("overflow-math-scrolled-back", returned)] {
-                            let attachment = XCTAttachment(screenshot: shot)
+                            let attachment = XCTAttachment(image: shot)
                             attachment.name = name
                             attachment.lifetime = .keepAlways
                             add(attachment)
@@ -270,6 +275,30 @@ final class ChatScrollStabilityUITests: XCTestCase {
         }
         print("PROBE overflow scrolled=\(scrolled) tried=\(tried.count)")
         XCTAssertTrue(scrolled, "はみ出す表示用の数式を横に動かせない(または見つからない)")
+    }
+
+    /// 会話のうち、ほかの部品に覆われずに見えている縦の範囲(小単元のヘッダーの下端から、入力欄と「先に進む」の上まで)。
+    @MainActor
+    private func visibleBand(_ app: XCUIApplication, screen: CGRect) -> ClosedRange<CGFloat> {
+        let header = app.descendants(matching: .any)["workbook-subunit-header"].firstMatch
+        let top = header.exists ? header.frame.maxY : app.scrollViews["chat-page"].firstMatch.frame.minY
+        return top...max(top, screen.height * 0.75)
+    }
+
+    /// WebView のうち `band` に入っている部分の画像(画面の写真から切り出す)。WebView が無ければ nil。
+    @MainActor
+    private func visibleImage(_ app: XCUIApplication, _ web: XCUIElement, band: ClosedRange<CGFloat>) -> UIImage? {
+        guard web.exists else { return nil }
+        let frame = web.frame
+        let minY = max(frame.minY, band.lowerBound)
+        let maxY = min(frame.maxY, band.upperBound)
+        guard maxY - minY > 1 else { return nil }
+        let image = app.screenshot().image
+        guard let cgImage = image.cgImage else { return nil }
+        let scale = CGFloat(cgImage.width) / app.windows.firstMatch.frame.width
+        let rect = CGRect(x: frame.minX * scale, y: minY * scale, width: frame.width * scale, height: (maxY - minY) * scale).integral
+        guard let cropped = cgImage.cropping(to: rect) else { return nil }
+        return UIImage(cgImage: cropped, scale: scale, orientation: .up)
     }
 
     @MainActor

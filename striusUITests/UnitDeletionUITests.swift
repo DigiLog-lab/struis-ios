@@ -7,6 +7,9 @@ final class UnitDeletionUITests: XCTestCase {
         app.launchEnvironment["STRUIS_LEDGER"] = "memory"
         app.launchEnvironment["STRUIS_UNIT_DELETION_UI_TEST"] = "1"
         app.launchEnvironment["STRUIS_IOS_USE_FIXTURES"] = "0"
+        // フィクスチャを切るとシミュレータの認証の迂回も切れる。CI の `STRUIS_AUTH_REQUIRED=YES` のビルドでも
+        // サインイン済みとして台帳(メモリ)の単元を開けるよう、迂回だけを明示する。
+        app.launchEnvironment["STRUIS_DEV_AUTH_BYPASS"] = "1"
         app.launch()
         let card = app.buttons["workbook-unit-card-unit-1"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 20))
@@ -41,6 +44,9 @@ final class UnitDeletionUITests: XCTestCase {
         app.launchEnvironment["STRUIS_LEDGER"] = "memory"
         app.launchEnvironment["STRUIS_UNIT_DELETION_UI_TEST"] = "1"
         app.launchEnvironment["STRUIS_IOS_USE_FIXTURES"] = "0"
+        // フィクスチャを切るとシミュレータの認証の迂回も切れる。CI の `STRUIS_AUTH_REQUIRED=YES` のビルドでも
+        // サインイン済みとして台帳(メモリ)の単元を開けるよう、迂回だけを明示する。
+        app.launchEnvironment["STRUIS_DEV_AUTH_BYPASS"] = "1"
         app.launch()
         let card = app.buttons["workbook-unit-card-unit-1"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 20))

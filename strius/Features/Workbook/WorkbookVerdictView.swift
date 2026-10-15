@@ -343,8 +343,12 @@ struct WorkbookVerdictView: View {
     }
 
     /// 全問正解の答案では、「やり直す」を「演習に戻る」に置き換える(正解したのに新しい一枚を作り直させない)。
-    static func shownActions(_ actions: [WorkbookResultDTO.Action], summary: WorkbookSetResultDTO?) -> [WorkbookResultDTO.Action] {
-        guard let summary, summary.total > 0, summary.correct == summary.total else { return actions }
+    /// 一枚に未提出の問題を残して締めた答案(分割採点)は、見つかった問題が全部正解でも全問正解ではないので置き換えない。
+    static func shownActions(
+        _ actions: [WorkbookResultDTO.Action], summary: WorkbookSetResultDTO?, progress: WorkbookSetProgressDTO? = nil
+    ) -> [WorkbookResultDTO.Action] {
+        guard let summary, summary.total > 0, summary.correct == summary.total,
+              progress?.missingPositions.isEmpty ?? true else { return actions }
         return actions.map { $0 == .retry ? .returnToSet : $0 }
     }
 
@@ -352,7 +356,7 @@ struct WorkbookVerdictView: View {
         let actions = Self.shownActions(Self.currentActions(
             capture.result?.actions ?? [.ask], stageAfter: capture.result?.stageAfter,
             subunit: capture.subunitId.flatMap { store.subunits[$0] }
-        ), summary: capture.summary)
+        ), summary: capture.summary, progress: capture.setProgress)
         let primary = actions.first { $0 != .ask && $0 != .returnToExample && $0 != .closeSet }
         return VStack(spacing: 10) {
             if let primary {

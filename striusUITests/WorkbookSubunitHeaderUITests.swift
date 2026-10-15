@@ -45,6 +45,22 @@ final class WorkbookSubunitHeaderUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["平方完成で頂点を求める"].waitForExistence(timeout: 3))
     }
 
+    /// ヘッダーの上から始めた横のドラッグ(会話の数式を横に動かそうとした指)では開閉しない。タップとだけ区別する。
+    @MainActor
+    func testHorizontalDragOnHeaderDoesNotToggle() throws {
+        let app = launch()
+        let header = openIntroductionSubunit(app)
+        if header.value as? String == "collapsed" {
+            header.tap()
+            XCTAssertTrue(waitForValue(header, "expanded"), "タップで開かない")
+        }
+        // 右へのドラッグはシステムの「戻る」として働くので、左へのドラッグで確かめる。
+        let start = header.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: -200, dy: 0)), withVelocity: .slow, thenHoldForDuration: 0.3)
+        XCTAssertFalse(waitForValue(header, "collapsed", timeout: 1.5), "横のドラッグでヘッダーが畳まれた")
+        XCTAssertTrue(app.staticTexts["平方完成で頂点を求める"].exists, "横のドラッグの後に到達目標が見えない")
+    }
+
     @MainActor
     private func launch() -> XCUIApplication {
         let app = XCUIApplication()

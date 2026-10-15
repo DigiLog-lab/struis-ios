@@ -110,16 +110,17 @@ nonisolated enum WorkbookAnswerRegions {
     }
 
     /// 1 ページの領域。時間を超えたら nil。
+    /// Vision の認識は取り消せない(GCD の上で最後まで走る)ので、task group で競わせると、group が子の終わりを待つ間
+    /// 時間の上限が効かない(認識の遅いシミュレータで「答案を読み取っています」のまま止まった)。先に来た方で返す。
     private static func detectPage(_ image: UIImage) async -> [WorkbookAnswerRegion]? {
-        await withTaskGroup(of: [WorkbookAnswerRegion]?.self) { group in
-            group.addTask { await recognize(image: image) }
-            group.addTask {
+        let race = FirstResult<[WorkbookAnswerRegion]?>()
+        return await withCheckedContinuation { continuation in
+            race.attach(continuation)
+            Task.detached(priority: .userInitiated) { race.resolve(await recognize(image: image)) }
+            Task.detached {
                 try? await Task.sleep(for: timeout)
-                return nil
+                race.resolve(nil)
             }
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first
         }
     }
 
@@ -299,4 +300,23 @@ private actor RegionCache {
     private var values: [String: [WorkbookAnswerRegion]] = [:]
     func get(_ key: String) -> [WorkbookAnswerRegion]? { values[key] }
     func set(_ key: String, _ value: [WorkbookAnswerRegion]) { values[key] = value }
+}
+
+/// 最初に届いた値だけで continuation を 1 回だけ再開する(後から届いた値は捨てる)。
+private nonisolated final class FirstResult<Value: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Value, Never>?
+
+    func attach(_ continuation: CheckedContinuation<Value, Never>) {
+        lock.withLock { self.continuation = continuation }
+    }
+
+    func resolve(_ value: Value) {
+        let pending = lock.withLock {
+            let pending = continuation
+            continuation = nil
+            return pending
+        }
+        pending?.resume(returning: value)
+    }
 }

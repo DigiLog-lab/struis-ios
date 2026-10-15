@@ -46,3 +46,24 @@ extension XCUIApplication {
         return true
     }
 }
+
+extension XCUIApplication {
+    /// 新しい Simulator で初めてキーボードを出すと、システムが「なぞり入力」の案内(Continue)をキーボードの上に重ねる。
+    /// アプリの画面ではなく Simulator ごとに 1 回だけ出るもので、出ている間は入力欄の周りが押せない。
+    /// キーボードを出した後に呼び、出ていれば閉じる(出ていなければ何もしない)。
+    @MainActor
+    func dismissKeyboardIntroductionIfShown(timeout: TimeInterval = 2) {
+        let labels = ["Continue", "続ける"]
+        let predicate = NSPredicate(format: "label IN %@", labels)
+        let candidates = [keyboards.buttons.matching(predicate).firstMatch, buttons.matching(predicate).firstMatch]
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            if let shown = candidates.first(where: { $0.exists && $0.isHittable }) {
+                shown.tap()
+                _ = shown.waitForNonExistence(timeout: 3)
+                return
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        } while Date() < deadline
+    }
+}

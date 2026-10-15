@@ -234,4 +234,13 @@ final class ReplyTailQueueTests: XCTestCase {
         let row = try await ledger.read { db in try WorkbookMachine(loading: db).subunits[subunitID] }
         XCTAssertEqual(row?.metadata["example_ready"]?["message_id"]?.stringValue, reply?.id)
     }
+
+    /// モックの記録の時間は、カンマで並べると返事の順に使い、最後の値をその後の返事にも使う(UI テストの並べる場面)。
+    func testMockTailDelayPerReply() {
+        XCTAssertEqual(MockTurnRunner.tailDelay(forReply: 0, setting: nil), 0)
+        XCTAssertEqual(MockTurnRunner.tailDelay(forReply: 3, setting: "12000"), 12000)
+        XCTAssertEqual(MockTurnRunner.tailDelay(forReply: 0, setting: "40000,3000"), 40000)
+        XCTAssertEqual(MockTurnRunner.tailDelay(forReply: 1, setting: "40000,3000"), 3000)
+        XCTAssertEqual(MockTurnRunner.tailDelay(forReply: 5, setting: "40000, 3000"), 3000)
+    }
 }
