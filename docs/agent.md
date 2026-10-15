@@ -41,7 +41,7 @@ PR本文はチェックアウト外の`$AGENT_HOME/pr-body.md`に書き、`agent
 
 `request-pr`は、その場でPRを作成・更新し、push済みの作業ブランチで`iOS`と`Agent tests`のCIを明示的に起動します。`GITHUB_TOKEN`が作成したPRやpushからは通常の`pull_request`イベントが起動されないため、`workflow_dispatch`を使います。CI要求には一意の識別子を付け、ブランチ・対象HEAD・起動済みworkflowを記録します。要求の作成時と各workflowの起動直後にR2の`state.json`へ保存するため、終了処理前の中断でも記録を引き継ぎます。再開時は作業ブランチとHEADが一致する記録を復元します。`request-pr`を再実行しても、同じHEADで実行中・待機中・成功済みのCIは再利用します。完了したCI要求も`validatedCI`に保存し、次の会話からPRの説明だけを更新する場合も再利用できます。失敗・キャンセルしたworkflowだけに新しい要求識別子を発行して再起動します。起動成功の応答を保存する前に中断した場合も、GitHub上の同じ要求識別子の実行を検索して確認します。古い作業ブランチは事前に起点ブランチ(後述)のCI定義を取り込みます。
 
-PR CIは制御スクリプトのテスト、Worker構文、Actions定義、Simulatorビルド、iOS単体/UIテスト、署名なし実機Release archiveを検証します。Claudeは実行結果を確認し、失敗時は個別テストで調査・修正・commit・pushして`request-pr`を再実行します。単体テストには1件あたり最大300秒・step全体30分、UIテストには1件あたり最大600秒・step全体90分の上限があります。CIのxcresultは実行IDと再実行番号を含むartifact名で保存します。iOSのエージェントCIはブランチごとに実行を制御し、mainの手動リリース・アップロードの待ち行列と分離します。
+PR CIは制御スクリプトのテスト、Worker構文、Actions定義、Simulatorビルド、iOS単体/UIテスト、署名なし実機Release archiveを検証します。Claudeは実行結果を確認し、失敗時は個別テストで調査・修正・commit・pushして`request-pr`を再実行します。単体テストには1件あたり最大300秒・step全体30分、UIテストには1件あたり最大600秒・runnerごとに90分の上限があります。UIテストは`scripts/ci/ui_test_plan.py`がテストメソッド単位で複数のrunnerへ割り当て、並行して実行します(割り当ての設定は`scripts/ci/ui-test-plan.json`。詳細は[テスト](testing.md#ciでのuiテストの割り当て))。CIのxcresultは実行IDと再実行番号を含むartifact名で保存します。iOSのエージェントCIはブランチごとに実行を制御し、mainの手動リリース・アップロードの待ち行列と分離します。
 
 Claude終了後のPython処理はテストや署名処理を実行しません。作業の保存・push状態とGitHub API上のCI結果を確認し、要求識別子・ブランチ・HEADが一致する両CIの最新attemptが成功した場合だけ、完成応答を投稿して入力を処理済みにします。未完了・失敗・記録不足では作業と依頼を保持し、上記の上限内で自動再開します。成功したHEADは`state.json`の`validatedHead`に保存します。同じHEADでコード変更のない次の相談は再検証せず、コードが変われば新しいCI結果が必要です。署名付きarchive・bundle監査はmainとリリースブランチへのpushで実行し、アップロードは明示的な配信操作で行います。任意の実AIテストは既存の条件に従ってskipされるため、全実AI経路の成功は保証しません。
 

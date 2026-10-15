@@ -29,9 +29,11 @@ concurrency:
   cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || (github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/release/')) }}
 
 jobs:
-  build:
+  # Guarantees the bootstrap output (about 50 minutes to build) is in the cache, so the
+  # build and UI test runners below can start in parallel and only restore it.
+  native:
     runs-on: xcode-27
-    timeout-minutes: 180
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -39,9 +41,7 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14'
-      - name: Xcodeを確認
-        run: xcodebuild -version
-      - name: Native Runtime cacheを復元
+      - name: Native Runtime cacheを確認
         id: native
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -51,6 +51,7 @@ jobs:
             NativeRuntime/PackageCache
             NativeRuntime/.build
           key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          lookup-only: true
       - name: ツールを準備
         if: steps.native.outputs.cache-hit != 'true'
         run: |
@@ -85,6 +86,47 @@ jobs:
             NativeRuntime/PackageCache
             NativeRuntime/.build
           key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+      - name: Native Runtime cacheが使えることを確認
+        if: steps.native.outputs.cache-hit != 'true'
+        id: saved
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          lookup-only: true
+      - name: cacheが無ければ止める
+        if: steps.native.outputs.cache-hit != 'true' && steps.saved.outputs.cache-hit != 'true'
+        run: |
+          echo '::error::Native Runtime cacheを保存できませんでした。agent-native-cache.yml が同じcacheを保存中の可能性があります。その実行が終わってから、このworkflowを再実行してください。'
+          exit 1
+
+  build:
+    needs: native
+    runs-on: xcode-27
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: Xcodeを確認
+        run: xcodebuild -version
+      - name: Native Runtime cacheを復元
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          fail-on-cache-miss: true
       - name: READMEのSimulatorビルド
         timeout-minutes: 30
         run: |
@@ -102,18 +144,6 @@ jobs:
             -only-testing:striusTests -parallel-testing-enabled NO \
             -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
             -maximum-test-execution-time-allowance 300 ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
-      - name: SimulatorでUIテスト
-        if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/release/') || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
-        timeout-minutes: 90
-        run: |
-          set -euo pipefail
-          xcodebuild test -project strius.xcodeproj -scheme strius \
-            -destination 'platform=iOS Simulator,name=iPhone 17' \
-            -resultBundlePath "$RUNNER_TEMP/StruisUITests.xcresult" \
-            -collect-test-diagnostics never -only-testing:striusUITests \
-            -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
-            -maximum-test-execution-time-allowance 600 \
-            -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
       - name: 実機向けRelease archiveを検証
         if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/release/') || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
         timeout-minutes: 30
@@ -129,9 +159,158 @@ jobs:
           name: ios-test-results-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/*.xcresult
           if-no-files-found: ignore
+
+  # Decides which UI tests run and splits them across runners (scripts/ci/ui_test_plan.py,
+  # scripts/ci/ui-test-plan.json). Release branches always run every UI test.
+  ui-plan:
+    if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/release/') || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: 実行するUIテストを決める
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          PR_BASE: ${{ github.base_ref }}
+          RELEASE_BRANCH: ${{ vars.RELEASE_BRANCH }}
+        run: |
+          set -euo pipefail
+          if [[ "$REF" == refs/heads/release/* ]]; then
+            tier=full
+            : > "$RUNNER_TEMP/changed.txt"
+          else
+            tier=pr
+            base="${PR_BASE:-${RELEASE_BRANCH:-main}}"
+            git rev-parse --verify --quiet "origin/$base" >/dev/null || base=main
+            git diff --name-only --no-renames "origin/$base...HEAD" > "$RUNNER_TEMP/changed.txt"
+          fi
+          matrix=$(python3 scripts/ci/ui_test_plan.py --matrix --tier "$tier" --changed-files "$RUNNER_TEMP/changed.txt")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          python3 - "$matrix" "$tier" <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, sys
+          matrix = json.loads(sys.argv[1])
+          print(f'### UIテストの割り当て ({sys.argv[2]})\n')
+          for item in matrix:
+              print(f"- runner {item['shard']}: {item['count']}件、約{item['minutes']}分")
+          PY
+
+  ui-tests:
+    needs: [native, ui-plan]
+    if: needs.ui-plan.outputs.matrix != '[]'
+    name: UIテスト (${{ matrix.shard }})
+    runs-on: xcode-27
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.ui-plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: Native Runtime cacheを復元
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          fail-on-cache-miss: true
+      - name: UIテスト用にビルドし、Simulatorを温める
+        # On a fresh runner the app's first launch takes 40 s or more (once over 3 minutes), which
+        # used to land inside the first test's time allowance. Boot, install and launch once here.
+        timeout-minutes: 40
+        run: |
+          set -euo pipefail
+          xcodebuild build-for-testing -project strius.xcodeproj -scheme strius \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          ios = sorted((key for key in runtimes if ".iOS-" in key),
+                       key=lambda key: [int(part) for part in key.rsplit(".iOS-", 1)[1].split("-")])
+          for key in reversed(ios):
+              for device in runtimes[key]:
+                  if device["name"] == "iPhone 17":
+                      print(device["udid"]); sys.exit()
+          sys.exit("iPhone 17 simulator not found")')
+          echo "SIMULATOR_UDID=$udid" >> "$GITHUB_ENV"
+          xcrun simctl boot "$udid" 2>/dev/null || true
+          xcrun simctl bootstatus "$udid" -b
+          app="$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator/strius.app"
+          bundle=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")
+          xcrun simctl install "$udid" "$app"
+          started=$(date +%s)
+          xcrun simctl launch "$udid" "$bundle"
+          sleep 45
+          xcrun simctl terminate "$udid" "$bundle" || true
+          echo "Warm-up launch of $bundle on $udid finished in $(( $(date +%s) - started ))s"
+      - name: SimulatorでUIテスト
+        env:
+          TESTS: ${{ matrix.tests }}
+        run: |
+          set -euo pipefail
+          # One -only-testing argument per selected test; an empty list never reaches here.
+          read -r -a only <<< "$TESTS"
+          if (( ${#only[@]} == 0 )); then
+            echo 'No UI tests assigned to this runner.' >&2
+            exit 1
+          fi
+          xcodebuild test-without-building -project strius.xcodeproj -scheme strius \
+            -destination "id=$SIMULATOR_UDID" -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -resultBundlePath "$RUNNER_TEMP/StruisUITests.xcresult" \
+            -collect-test-diagnostics never "${only[@]}" \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
+            -maximum-test-execution-time-allowance 600 \
+            -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
+      - name: テスト結果を保存
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-ui-test-results-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/*.xcresult
+          if-no-files-found: ignore
+
+  signed-archive:
+    needs: [build, ui-plan, ui-tests]
+    # main: after the build job. Release branches: only after every UI test runner passed.
+    if: >-
+      !cancelled() && github.event_name != 'pull_request' && needs.build.result == 'success' &&
+      ((github.ref == 'refs/heads/main' && needs.ui-tests.result != 'failure' && needs.ui-tests.result != 'cancelled') ||
+       (startsWith(github.ref, 'refs/heads/release/') && needs.ui-plan.result == 'success' && needs.ui-tests.result == 'success'))
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: Native Runtime cacheを復元
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          fail-on-cache-miss: true
       - name: 署名付きarchiveを作成
-        # Release branches: runs only after the full UI suite above passed on this commit.
-        if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && github.event_name != 'pull_request'
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
           P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
