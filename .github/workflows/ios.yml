@@ -86,6 +86,23 @@ jobs:
             NativeRuntime/PackageCache
             NativeRuntime/.build
           key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+      - name: Native Runtime cacheが使えることを確認
+        if: steps.native.outputs.cache-hit != 'true'
+        id: saved
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          lookup-only: true
+      - name: cacheが無ければ止める
+        if: steps.native.outputs.cache-hit != 'true' && steps.saved.outputs.cache-hit != 'true'
+        run: |
+          echo '::error::Native Runtime cacheを保存できませんでした。agent-native-cache.yml が同じcacheを保存中の可能性があります。その実行が終わってから、このworkflowを再実行してください。'
+          exit 1
 
   build:
     needs: native
@@ -172,7 +189,7 @@ jobs:
             tier=pr
             base="${PR_BASE:-${RELEASE_BRANCH:-main}}"
             git rev-parse --verify --quiet "origin/$base" >/dev/null || base=main
-            git diff --name-only "origin/$base...HEAD" > "$RUNNER_TEMP/changed.txt"
+            git diff --name-only --no-renames "origin/$base...HEAD" > "$RUNNER_TEMP/changed.txt"
           fi
           matrix=$(python3 scripts/ci/ui_test_plan.py --matrix --tier "$tier" --changed-files "$RUNNER_TEMP/changed.txt")
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
@@ -241,7 +258,7 @@ jobs:
     needs: [build, ui-plan, ui-tests]
     # main: after the build job. Release branches: only after every UI test runner passed.
     if: >-
-      always() && github.event_name != 'pull_request' && needs.build.result == 'success' &&
+      !cancelled() && github.event_name != 'pull_request' && needs.build.result == 'success' &&
       ((github.ref == 'refs/heads/main' && needs.ui-tests.result != 'failure' && needs.ui-tests.result != 'cancelled') ||
        (startsWith(github.ref, 'refs/heads/release/') && needs.ui-plan.result == 'success' && needs.ui-tests.result == 'success'))
     runs-on: xcode-27

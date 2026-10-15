@@ -24,26 +24,37 @@ extension AlphaUITests {
     func testThree() {}
 }
 
-struct Support {
-    func testIgnored() {}
-}
-
-extension XCUIApplication {
-    func testAlsoIgnored() {}
-}
-
-class BetaUITests: XCTestCase {
+@MainActor final class BetaUITests: XCTestCase {
     func testFour() {}
 }
+
+class BaseUITestCase: XCTestCase {}
+
+class GammaUITests: BaseUITestCase {
+    override func testFive() {}
+}
+
+func testFreeFunction() {}
 '''
 
 
 class DiscoverTests(unittest.TestCase):
-    def test_finds_methods_of_test_classes_and_their_extensions_only(self):
+    def discover(self, source):
         with tempfile.TemporaryDirectory() as directory:
-            Path(directory, 'A.swift').write_text(SOURCE)
-            self.assertEqual(ui_test_plan.discover(Path(directory)), [
-                'AlphaUITests/testOne', 'AlphaUITests/testThree', 'AlphaUITests/testTwo', 'BetaUITests/testFour'])
+            Path(directory, 'A.swift').write_text(source)
+            return ui_test_plan.discover(Path(directory))
+
+    def test_finds_test_methods_including_attributes_extensions_and_subclasses(self):
+        self.assertEqual(self.discover(SOURCE), [
+            'AlphaUITests/testOne', 'AlphaUITests/testThree', 'AlphaUITests/testTwo',
+            'BetaUITests/testFour', 'GammaUITests/testFive'])
+
+    def test_unattributed_test_function_fails_instead_of_being_skipped(self):
+        for extra in ('struct Support {\n    func testIgnored() {}\n}\n',
+                      'extension XCUIApplication {\n    func testAlsoIgnored() {}\n}\n',
+                      'class NotATest: NSObject {\n    func testNope() {}\n}\n'):
+            with self.subTest(extra=extra), self.assertRaises(SystemExit):
+                self.discover(SOURCE + extra)
 
     def test_repository_plan_covers_every_discovered_test(self):
         plan = json.loads(ui_test_plan.PLAN.read_text())
@@ -51,6 +62,11 @@ class DiscoverTests(unittest.TestCase):
         self.assertTrue(tests)
         everything = sorted(test for _, part in ui_test_plan.shard(tests, plan['shards'], plan['durations']) for test in part)
         self.assertEqual(everything, tests)
+
+    def test_repository_discovery_matches_every_test_function(self):
+        lines = sum(1 for source in ui_test_plan.TESTS.glob('*.swift')
+                    for line in source.read_text().splitlines() if ui_test_plan.ANY_TEST_FUNC.match(line))
+        self.assertEqual(len(ui_test_plan.discover()), lines)
 
 
 class ShardTests(unittest.TestCase):

@@ -24,36 +24,57 @@ ROOT = Path(__file__).resolve().parents[2]
 TESTS = ROOT / 'striusUITests'
 PLAN = Path(__file__).resolve().parent / 'ui-test-plan.json'
 DEFAULT_SECONDS = 60
-CLASS = re.compile(r'^\s*(?:final\s+)?class\s+(\w+)\s*:\s*XCTestCase\b')
+CLASS = re.compile(r'^\s*(?:@\w+\s+)*(?:(?:final|open|public|internal)\s+)*class\s+(\w+)\s*:\s*(\w+)')
 EXTENSION = re.compile(r'^\s*extension\s+(\w+)\b')
 # Only an unindented declaration ends a test class; nested helper types stay inside it.
 OTHER_TYPE = re.compile(r'^(?:@\w+\s+)*(?:(?:final|private|fileprivate|public|internal)\s+)*(?:class|struct|enum|actor|extension)\s+(\w+)')
-METHOD = re.compile(r'^\s*(?:@MainActor\s+)?(?:override\s+)?func\s+(test\w*)\s*\(\s*\)')
+METHOD = re.compile(r'^\s*(?:@\w+\s+)*(?:override\s+)?func\s+(test\w*)\s*\(\s*\)')
+# Any indented `func test…()` line; used to prove discovery missed nothing.
+ANY_TEST_FUNC = re.compile(r'^\s+(?:@\w+\s+)*(?:override\s+)?func\s+test\w*\s*\(\s*\)')
+TOP_LEVEL_CLOSE = re.compile(r'^}')
 
 
 def discover(directory=TESTS):
-    """Return sorted 'Class/method' names of XCTestCase test methods."""
+    """Return sorted 'Class/method' names of XCTestCase test methods.
+
+    Every UI test now runs from an explicit -only-testing list, so a test this misses would
+    silently never run. It therefore fails when any indented `func test…()` line is not
+    attributed to a test class.
+    """
     sources = sorted(directory.glob('*.swift'))
-    classes = set()
+    parents = {}
     for source in sources:
         for line in source.read_text().splitlines():
             match = CLASS.match(line)
             if match:
-                classes.add(match[1])
+                parents[match[1]] = match[2]
+    classes = {'XCTestCase'}
+    while True:  # subclasses of test classes are test classes too
+        more = {name for name, parent in parents.items() if parent in classes} - classes
+        if not more:
+            break
+        classes |= more
+    classes.discard('XCTestCase')
     found = set()
+    seen = 0
     for source in sources:
         current = None
         for line in source.read_text().splitlines():
+            if ANY_TEST_FUNC.match(line):
+                seen += 1
             match = CLASS.match(line) or EXTENSION.match(line)
             if match:
                 current = match[1] if match[1] in classes else None
                 continue
-            if OTHER_TYPE.match(line):
+            if OTHER_TYPE.match(line) or TOP_LEVEL_CLOSE.match(line):
                 current = None
                 continue
             match = METHOD.match(line)
             if match and current:
                 found.add(f'{current}/{match[1]}')
+    if seen != len(found):
+        raise SystemExit(f'UI test discovery found {len(found)} test methods but {seen} `func test…()` lines '
+                         f'in {directory}. Update scripts/ci/ui_test_plan.py so no test is silently skipped.')
     return sorted(found)
 
 
@@ -94,7 +115,7 @@ def main(argv=None):
     count = int(plan.get('shards', 1))
     if args.shard is not None and not 0 <= args.shard < count:
         raise SystemExit(f'--shard must be within 0..{count - 1}')
-    changed = args.changed_files.read_text().split() if args.changed_files else []
+    changed = [line for line in args.changed_files.read_text().splitlines() if line] if args.changed_files else []
     tests = select(discover(), plan, args.tier, changed)
     durations = plan.get('durations', {})
     shards = shard(tests, count, durations)
