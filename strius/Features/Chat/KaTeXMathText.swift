@@ -195,18 +195,31 @@ private struct KaTeXWebView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> WKWebView {
-        let userContentController = WKUserContentController()
-        userContentController.add(context.coordinator, name: "height")
+        // 描画のページを読み込み終えた WebView があれば使い回す(新しく作ると、中身のプロセスの起動とページの読み込みで
+        // 描き終えるまで数秒かかる)。
+        if let webView = KaTeXWebViewPool.dequeue() {
+            webView.configuration.userContentController.add(context.coordinator, name: "height")
+            webView.navigationDelegate = context.coordinator
+            context.coordinator.pageReady = true
+            context.coordinator.webView = webView
+            return webView
+        }
+        let webView = Self.makeWebView()
+        webView.configuration.userContentController.add(context.coordinator, name: "height")
+        webView.navigationDelegate = context.coordinator
+        context.coordinator.webView = webView
+        return webView
+    }
 
+    static func makeWebView() -> WKWebView {
         let configuration = WKWebViewConfiguration()
-        configuration.userContentController = userContentController
+        configuration.userContentController = WKUserContentController()
         // 保存領域は全 WebView で 1 つを共有する(1 通ごとに作らない)。
         configuration.websiteDataStore = KaTeXWebEnvironment.dataStore
         configuration.allowsInlineMediaPlayback = false
         configuration.suppressesIncrementalRendering = false
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
-        webView.navigationDelegate = context.coordinator
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
@@ -219,7 +232,6 @@ private struct KaTeXWebView: UIViewRepresentable {
         webView.scrollView.showsVerticalScrollIndicator = false
         webView.scrollView.showsHorizontalScrollIndicator = false
         webView.scrollView.contentInsetAdjustmentBehavior = .never
-        context.coordinator.webView = webView
         return webView
     }
 
@@ -240,8 +252,12 @@ private struct KaTeXWebView: UIViewRepresentable {
         let options = renderOptions
         coordinator.lastOptions = options
         if coordinator.pageReady {
-            // ページは読み込み済み: 本文だけを描き直す。
-            webView.evaluateJavaScript("struisRender(\(options))")
+            // ページは読み込み済み: 本文だけを描き直す。描けなかった(使い回した WebView のページが失われていた)時は読み込み直す。
+            webView.evaluateJavaScript("struisRender(\(options))") { [weak webView, weak coordinator] _, error in
+                guard error != nil, let webView, let coordinator, coordinator.lastOptions == options else { return }
+                coordinator.pageReady = false
+                webView.loadHTMLString(KaTeXWebEnvironment.shell(initialRender: options), baseURL: KaTeXWebEnvironment.baseURL)
+            }
         } else {
             webView.loadHTMLString(KaTeXWebEnvironment.shell(initialRender: options), baseURL: KaTeXWebEnvironment.baseURL)
         }
@@ -250,6 +266,8 @@ private struct KaTeXWebView: UIViewRepresentable {
     static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
         coordinator.cancelSnapshot()
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "height")
+        // ページを読み込み終えていれば、次の行で使い回す。
+        if coordinator.pageReady { KaTeXWebViewPool.enqueue(uiView) }
     }
 
     private var renderOptions: String {
@@ -370,6 +388,78 @@ private struct KaTeXWebView: UIViewRepresentable {
     }
 }
 
+/// 描画のページ(KaTeX と描画のスクリプト)を読み込み終えた WebView の置き場。会話を読み返すと、画面の上で行が
+/// 作られ、下で消える。新しく作った WebView は中身のプロセスの起動とページの読み込みで描き終えるまで数秒かかり、
+/// 指を離した後に数式の高さが決まって会話がずれた(#19)。消えた行の WebView を次の行で使い回し、本文だけを描き直す
+/// (数十 ms)。会話を開いた時に数個を先に用意しておく(最初の読み返しの分)。
+@MainActor
+enum KaTeXWebViewPool {
+    private static var idle: [WKWebView] = []
+    /// 用意している最中(ページの読み込みを待っている)の WebView。
+    private static var loading: [WKWebView] = []
+    private static let limit = 8
+    private static let watcher = Watcher()
+
+    static func dequeue() -> WKWebView? {
+        idle.popLast()
+    }
+
+    static func enqueue(_ webView: WKWebView) {
+        guard idle.count + loading.count < limit, !idle.contains(webView) else { return }
+        webView.navigationDelegate = watcher
+        webView.removeFromSuperview()
+        idle.append(webView)
+    }
+
+    /// 置き場が `count` 個になるまで、ページを読み込んだ WebView を先に作っておく。
+    static func prewarm(_ count: Int) {
+        let missing = min(count, limit) - idle.count - loading.count
+        guard missing > 0 else { return }
+        for _ in 0..<missing {
+            let webView = KaTeXWebView.makeWebView()
+            webView.navigationDelegate = watcher
+            loading.append(webView)
+            webView.loadHTMLString(KaTeXWebEnvironment.shell(initialRender: "{}"), baseURL: KaTeXWebEnvironment.baseURL)
+        }
+    }
+
+    fileprivate static func finishedLoading(_ webView: WKWebView) {
+        guard let index = loading.firstIndex(of: webView) else { return }
+        loading.remove(at: index)
+        idle.append(webView)
+    }
+
+    /// サインアウトの時: 前に描いた本文(学習者の会話の中身)が残っている WebView を捨てる。
+    static func removeAll() {
+        idle.removeAll()
+        loading.removeAll()
+    }
+
+    /// 置き場にある間に中身のプロセスが落ちた・読み込みに失敗した WebView は捨てる。
+    fileprivate static func discard(_ webView: WKWebView) {
+        idle.removeAll { $0 === webView }
+        loading.removeAll { $0 === webView }
+    }
+
+    private final class Watcher: NSObject, WKNavigationDelegate {
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            KaTeXWebViewPool.finishedLoading(webView)
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            KaTeXWebViewPool.discard(webView)
+        }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            KaTeXWebViewPool.discard(webView)
+        }
+
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            KaTeXWebViewPool.discard(webView)
+        }
+    }
+}
+
 /// WebView の共有の持ち物。
 @MainActor
 private enum KaTeXWebEnvironment {
@@ -444,10 +534,11 @@ enum KaTeXLayoutCache {
         cache.setObject(NSNumber(value: Double(height)), forKey: "\(key):\(Int(width.rounded()))" as NSString)
     }
 
-    /// サインアウトの時: 高さの記録と、描き終えた画像(学習者の会話の中身)を消す。
+    /// サインアウトの時: 高さの記録と、描き終えた画像・使い回す WebView(学習者の会話の中身)を消す。
     static func clear() {
         cache.removeAllObjects()
         KaTeXSnapshotStore.shared.removeAll()
+        KaTeXWebViewPool.removeAll()
     }
 }
 
