@@ -19,7 +19,7 @@ GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Cla
 
 ## 起点ブランチとリリースブランチ
 
-エージェントの作業ブランチは、進行中のリリースブランチ(Repository variable `RELEASE_BRANCH`、例: `release/1.2`)から切り、PRもそこへ向けます。変数が空、またはそのブランチがoriginに無い場合は`main`です。Issueは最初に使った起点を`state.json`の`baseBranch`に保存し、そのブランチが消える(リリースを終えて削除する)まで使い続けます。起点はClaudeへの入力の`Base branch`に表示します。
+エージェントの作業ブランチは、進行中のリリースブランチ(Repository variable `RELEASE_BRANCH`、例: `release/1.2`)から切り、PRもそこへ向けます。変数が空、またはそのブランチがoriginに無い場合は`main`です。Issueは使ったリリースブランチを`state.json`の`baseBranch`に保存し、そのブランチが消える(リリースを終えて削除する)まで使い続けます。`main`で始めたIssueは、リリースブランチが設定された時点でそちらへ移ります。既存のPRは、次の`request-pr`で向き先を付け替えます(リリースブランチをmainへマージしてブランチを消すと、GitHubがそこへ向いていたPRをmainへ付け替えるため、その場合も次のリリースへ移ります)。起点はClaudeへの入力の`Base branch`に表示します。
 
 mainにはリリースブランチでTestFlightの確認を終えたものだけを入れます。手順は[公開ソースと配布版の対応](source-and-releases.md#リリースの流れ)にあります。
 

@@ -831,7 +831,8 @@ def cmd_request_pr(args):
         sys.exit('push済みブランチとHEADが一致しません。')
     gh = GitHub()
     base = run.get('base') or 'main'
-    # Any open PR from this branch, so a PR left on a finished release is retargeted, not duplicated.
+    # Any open PR from this branch: GitHub moves PRs to main when their release branch is merged
+    # and deleted, and an Issue started on main moves to a newly opened release. Retarget, never duplicate.
     existing = gh.get(f'/repos/{gh.repository}/pulls?head={gh.repository.split("/")[0]}:{run["branch"]}&state=open')
     if existing:
         pr = gh.request('PATCH', f'/repos/{gh.repository}/pulls/{existing[0]["number"]}',
