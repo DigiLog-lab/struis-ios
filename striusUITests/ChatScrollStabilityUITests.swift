@@ -75,16 +75,19 @@ final class ChatScrollStabilityUITests: XCTestCase {
         XCTAssertLessThanOrEqual(jumps.max() ?? 0, 2, "指を離した後に会話が動いた(跳んだ): \(jumps.map { Int($0.rounded()) })")
     }
 
-    /// 画面の中ほどにある数式の WebView の枠(1 回の snapshot で探す)。
+    /// 画面の中ほどにある数式の WebView の枠(1 回の snapshot で探す)。枠の一部が小単元のヘッダーの裏にあるものは選ばない
+    /// (枠の中ほどがヘッダーに覆われていると、指がヘッダーに当たり数式の吹き出しに届かない)。
     @MainActor
     private func mathFrame(_ app: XCUIApplication) -> CGRect? {
+        let header = app.descendants(matching: .any)["workbook-subunit-header"].firstMatch
+        let visibleTop = header.exists ? header.frame.maxY : 0
         guard let root = try? app.snapshot() else { return nil }
         let screen = app.windows.firstMatch.frame
         var stack: [XCUIElementSnapshot] = [root]
         var found: [CGRect] = []
         while let node = stack.popLast() {
             if node.elementType == .webView, node.frame.height > 12,
-               node.frame.minY > screen.height * 0.25, node.frame.maxY < screen.height * 0.7 {
+               node.frame.minY > max(screen.height * 0.25, visibleTop), node.frame.maxY < screen.height * 0.7 {
                 found.append(node.frame)
             }
             stack.append(contentsOf: node.children)

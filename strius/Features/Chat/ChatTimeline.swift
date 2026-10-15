@@ -97,8 +97,6 @@ struct ChatTimeline: View {
             .task {
                 await Task.yield()
                 scrollToEnd(reader, animated: false)
-                // 上へ読み返した時に画面の上で作られる行の数式を、すぐ描けるようにしておく(#19)。
-                KaTeXWebViewPool.prewarm(4)
             }
             .onChange(of: followToken) { _, token in
                 // 段が変わった: 前の段の返事への送り直しはここでやめる(新しい返事がまだ無い間も戻さない)。

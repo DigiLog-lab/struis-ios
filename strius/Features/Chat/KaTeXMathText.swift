@@ -208,6 +208,9 @@ private struct KaTeXWebView: UIViewRepresentable {
         webView.configuration.userContentController.add(context.coordinator, name: "height")
         webView.navigationDelegate = context.coordinator
         context.coordinator.webView = webView
+        // 画像の無い本文を WebView で描き始めた(初めて開いた会話など): この後に読み返して作られる行の分を先に用意する。
+        // 画像で足りる画面では作らない(使わない WebView の起動で画面を重くしない)。
+        KaTeXWebViewPool.prewarm(KaTeXWebViewPool.warmCount)
         return webView
     }
 
@@ -391,13 +394,15 @@ private struct KaTeXWebView: UIViewRepresentable {
 /// 描画のページ(KaTeX と描画のスクリプト)を読み込み終えた WebView の置き場。会話を読み返すと、画面の上で行が
 /// 作られ、下で消える。新しく作った WebView は中身のプロセスの起動とページの読み込みで描き終えるまで数秒かかり、
 /// 指を離した後に数式の高さが決まって会話がずれた(#19)。消えた行の WebView を次の行で使い回し、本文だけを描き直す
-/// (数十 ms)。会話を開いた時に数個を先に用意しておく(最初の読み返しの分)。
+/// (数十 ms)。WebView で描き始めた時に数個を先に用意しておく(最初の読み返しの分)。
 @MainActor
 enum KaTeXWebViewPool {
     private static var idle: [WKWebView] = []
     /// 用意している最中(ページの読み込みを待っている)の WebView。
     private static var loading: [WKWebView] = []
     private static let limit = 8
+    /// 新しく WebView を作った時に、先に用意しておく数。
+    static let warmCount = 4
     private static let watcher = Watcher()
 
     static func dequeue() -> WKWebView? {
