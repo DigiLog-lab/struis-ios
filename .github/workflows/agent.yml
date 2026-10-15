@@ -32,6 +32,8 @@ env:
   AGENT_STORE_URL: ${{ vars.AGENT_STORE_URL || 'https://agent-struis.digiloglab.com' }}
   AGENT_LABEL: ${{ vars.AGENT_LABEL || 'agent' }}
   AGENT_ALLOWED_USERS: ${{ vars.AGENT_ALLOWED_USERS }}
+  # Open release branch (e.g. release/1.2). Agent work starts from it and PRs target it; empty means main.
+  AGENT_BASE_BRANCH: ${{ vars.RELEASE_BRANCH }}
   ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue }}
   AUTOMATIC_RETRY: ${{ inputs.automatic_retry && 'true' || 'false' }}
 

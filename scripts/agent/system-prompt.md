@@ -13,13 +13,14 @@
 ## Git と Pull Request
 
 - 作業ブランチは `<github-issue-event>` の `Working branch`(通常 `agent/issue-{番号}`)です。commit して `git push origin HEAD` で push します。
-- `main` へ直接 push しないでください。`.github/workflows/` の変更は権限上 push できないため、必要なら Issue で提案してください。
-- commit前に変更をstageし、作業途中でもcommit・pushして構いません。コミット・push時にテストは実行しません。pre-pushは現在のHEADからmain以外のブランチへのpushだけを許可します。
+- 作業の起点とPRの向き先は `<github-issue-event>` の `Base branch` です。リリース中はリリースブランチ(`release/x.y`)、そうでなければ `main` です。main はリリースブランチで TestFlight の確認を終えたものだけが入るので、Base branch 以外を起点にしないでください。
+- `main` とリリースブランチ(`release/*`)へ直接 push しないでください。`.github/workflows/` の変更は権限上 push できないため、必要なら Issue で提案してください。
+- commit前に変更をstageし、作業途中でもcommit・pushして構いません。コミット・push時にテストは実行しません。pre-pushは現在のHEADから main・`release/*` 以外のブランチへのpushだけを許可します。
 - commit message はリポジトリの既存の書き方(日本語の要約)に合わせます。
 - PR本文はチェックアウト外の `$AGENT_HOME/pr-body.md` に書き、`python3 "$AGENT_CTL" request-pr --title "<タイトル>" --body-file <本文ファイル>` でPRを作成・更新してください。本文に `Refs #{番号}` を含め、テストが未実行ならその旨を記載します。このコマンドはその場でPRを作成し、push済みHEADのiOS・Agent tests CIを起動します。同じHEADの起動済みCIは再利用し、失敗・キャンセルしたworkflowだけを再実行します。PR作成前の全体テスト・署名付きarchiveは不要です。
-- PR CIは作業ブランチのworkflow定義で起動します。古い作業ブランチでは、PR作成前に `git fetch origin` し、`origin/main` の更新を作業ブランチへ取り込んでCI定義を最新にしてください。競合は解消し、main自体にはpushしません。
+- PRは Base branch に向けて作成されます。PR CIは作業ブランチのworkflow定義で起動します。古い作業ブランチでは、PR作成前に `git fetch origin` し、`origin/<Base branch>` の更新を作業ブランチへ取り込んでCI定義を最新にしてください。競合は解消し、Base branch 自体にはpushしません。
 - `<pending-pr-ci>` があれば前runnerのCI要求を引き継いでいます。まずその要求識別子・HEADの実行結果を確認し、待機中の同一CIを重複起動しないでください。
-- PR作成後はあなた自身が `gh run list --branch <作業ブランチ>` と `gh run watch <run-id> --exit-status` でそのHEADのCI結果を確認してください。失敗したらログを読み、必要な個別テストで原因を確かめて修正・commit・pushし、request-prを再実行してCIを起動します。mainへのマージ・配信は行いません。
+- PR作成後はあなた自身が `gh run list --branch <作業ブランチ>` と `gh run watch <run-id> --exit-status` でそのHEADのCI結果を確認してください。失敗したらログを読み、必要な個別テストで原因を確かめて修正・commit・pushし、request-prを再実行してCIを起動します。Base branch・mainへのマージと配信は行いません。
 - 終了処理はpush済みHEADのiOS・Agent tests CIが両方成功したことをGitHub APIで確認します。待機中・失敗・起動記録なしでは依頼を処理済みにせず、保存して再開します。テスト本体は終了処理で実行しません。
 - 全体テストはPR CIで行います。同じコードの全体検証を手元で重複実行しないでください。調査に必要な個別テストはあなたの判断で実行してください。
 - CI実行中・失敗・成功を区別し、未確認の結果を成功と報告しないでください。失敗したテストを無効化・期待失敗化して通さないでください。
@@ -44,7 +45,7 @@
 複数の実装案・UI 案を、登録済みの iPhone に同時インストールして比較するための仕組みです。
 
 1. 案ごとに小文字の英字で Prototype ID を決めます(`a`、`b`、`c`…)。既存の案(`<github-issue-event>` のプロトタイプ一覧)を更新するときは同じ ID を使い、新しい案には未使用の ID を使います。
-2. 案ごとのブランチ `prototype/{Issue番号}/{ID}` を作成して実装し、commit して push します。通常は作業ブランチまたは `main` から分岐します。案同士の変更は混ぜないでください。
+2. 案ごとのブランチ `prototype/{Issue番号}/{ID}` を作成して実装し、commit して push します。通常は作業ブランチまたは Base branch から分岐します。案同士の変更は混ぜないでください。
 3. `python3 "$AGENT_CTL" prototype-build <ID> --title "<案の名前>" --summary "<変更内容の要約>" --wait` を実行します(最大9分待ち、それ以降は表示された `gh run watch` をバックグラウンドで実行して完了を待ちます。初回や native 依存の更新時は1時間ほどかかります)。専用の workflow が Bundle ID の割り当て、Apple Developer の設定、Ad Hoc 署名、IPA の生成、配布ページの発行を行い、結果を Issue に投稿します。同じ ID を再ビルドすると、Bundle ID を維持して Build Number が増えます。
 4. 失敗した場合は表示された `gh run view <id> --log-failed` で原因を調べ、修正して push し、再実行してください。
 5. 状態の変更(検証中、採用、保管など)は `python3 "$AGENT_CTL" prototype-status <ID> <draft|building|ready|testing|selected|archived|failed> --note "<理由>"` で記録します。採用された案は作業ブランチへ統合し、Pull Request を作成します。

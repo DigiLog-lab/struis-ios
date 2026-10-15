@@ -95,7 +95,8 @@ class GateTests(unittest.TestCase):
             self.assertFalse(guard.publication_allowed({'headBefore': 'same', 'validationRequired': True}))
 
     def test_push_of_main_or_other_commit_is_blocked(self):
-        for update in ['refs/heads/topic head refs/heads/main old', 'refs/heads/topic other refs/heads/topic old']:
+        for update in ['refs/heads/topic head refs/heads/main old', 'refs/heads/topic other refs/heads/topic old',
+                       'refs/heads/topic head refs/heads/release/1.2 old']:
             with mock.patch.object(guard, 'git', side_effect=['', 'head']), \
                     mock.patch.object(sys, 'stdin', io.StringIO(update)), \
                     mock.patch.object(guard, 'commit_gate') as verify:

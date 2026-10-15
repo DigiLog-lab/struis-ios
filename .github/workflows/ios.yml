@@ -3,7 +3,7 @@ run-name: ${{ inputs.ci_request && format('iOS CI {0}', inputs.ci_request) || 'i
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'release/**']
   pull_request:
   workflow_dispatch:
     inputs:
@@ -24,9 +24,9 @@ permissions:
   contents: read
 
 concurrency:
-  # Only main's manual release/upload uses the shared non-cancellable group.
-  group: ios-${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && 'manual-main' || github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main' }}
+  # Manual release/upload runs on main or a release branch use a shared non-cancellable group.
+  group: ios-${{ github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && format('manual-{0}', github.ref_name) || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || (github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/release/')) }}
 
 jobs:
   build:
@@ -103,7 +103,7 @@ jobs:
             -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
             -maximum-test-execution-time-allowance 300 ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
       - name: SimulatorでUIテスト
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
+        if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/release/') || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
         timeout-minutes: 90
         run: |
           set -euo pipefail
@@ -115,7 +115,7 @@ jobs:
             -maximum-test-execution-time-allowance 600 \
             -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
       - name: 実機向けRelease archiveを検証
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
+        if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/release/') || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
         timeout-minutes: 30
         run: |
           set -euo pipefail
@@ -130,7 +130,8 @@ jobs:
           path: ${{ runner.temp }}/*.xcresult
           if-no-files-found: ignore
       - name: 署名付きarchiveを作成
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        # Release branches: runs only after the full UI suite above passed on this commit.
+        if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && github.event_name != 'pull_request'
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
           P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
