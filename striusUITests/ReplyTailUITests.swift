@@ -63,7 +63,10 @@ final class ReplyTailUITests: XCTestCase {
     /// 質問シート: 記録を書いている間も送信ボタンのまま送れる。送った質問は記録が終わってから答え、前の返事は止まらない。
     @MainActor
     func testQuestionSheetSendsWhileReplyIsRecording() throws {
-        let app = launch(["-skip-onboarding"], tailMs: 12_000)
+        // 記録の時間は、本文が出てから 2 つ目の質問を打って送るまで(CI の runner で 12 秒前後)より十分長くする。
+        // 12 秒では送る前に記録が終わり、並べる場面にならなかった。20 秒なら送るまでに 7 秒以上、並べた質問の記録が
+        // 終わるのを待つ 30 秒にも 10 秒ほどの余裕が残る。
+        let app = launch(["-skip-onboarding"], tailMs: 20_000)
         XCTAssertTrue(app.openQuestionSheet())
         type(app, "最初の質問です")
         let send = sendButton(app)

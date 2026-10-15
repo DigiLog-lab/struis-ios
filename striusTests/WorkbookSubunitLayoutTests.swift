@@ -156,6 +156,17 @@ final class WorkbookSubunitLayoutTests: XCTestCase {
         let empty = WorkbookSetResultDTO(correct: 0, total: 0, score: 0, passed: false, note: "")
         XCTAssertEqual(WorkbookVerdictView.shownActions([.retry, .ask], summary: empty), [.retry, .ask])
         XCTAssertEqual(WorkbookVerdictView.shownActions([.retry, .ask], summary: nil), [.retry, .ask])
+        // 5 問の一枚を、見つかった 2 問(どちらも正解)で締めた(分割採点): 3〜5 は未提出なので全問正解ではない。
+        let closedWithMissing = WorkbookSetProgressDTO(
+            states: [.correct, .correct, .notStarted, .notStarted, .notStarted],
+            capturedHere: [true, true, false, false, false], missingPositions: [3, 4, 5], isOpen: false
+        )
+        let twoCorrect = WorkbookSetResultDTO(correct: 2, total: 2, score: 1, passed: false, note: "")
+        XCTAssertEqual(WorkbookVerdictView.shownActions([.retry, .ask], summary: twoCorrect, progress: closedWithMissing), [.retry, .ask], "未提出を残して締めた答案は「やり直す」のまま")
+        let complete = WorkbookSetProgressDTO(
+            states: [.correct, .correct], capturedHere: [true, true], missingPositions: [], isOpen: false
+        )
+        XCTAssertEqual(WorkbookVerdictView.shownActions([.retry, .ask], summary: twoCorrect, progress: complete), [.returnToSet, .ask], "一枚の全問がそろって全問正解なら演習の一覧へ戻す")
     }
 
     // MARK: ホームの単元カード

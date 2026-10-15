@@ -36,12 +36,15 @@ final class ChatStore {
 
     /// 動いている返事が、見える本文を書き終えて後ろの記録(進み具合・記憶など)だけを書いている。
     /// この間の送信は返事を止めず、その後ろに並べる(記録が終わってから答える)。
+    /// 記録を書き終えて活動が終わってから、終わりの知らせで `isSending` が下りるまでの間も含める。含めないと、その間だけ
+    /// 入力欄が停止ボタンに戻り、ちょうど押した送信が断られて下書きに戻る(並べた送信は、前の返事が終わっていれば
+    /// そのまま始まる)。
     var replyFinishingInBackground: Bool {
         guard isSending, sendPreparations.isEmpty,
               let reply = allMessages.last(where: { $0.role == .assistant }), reply.status == .pending,
               let activity = TurnActivityBoard.shared.activity(TurnActivityKey.reply(reply.id))
         else { return false }
-        return activity.writingPrivateTail && !activity.finished && !activity.queuedBehindReply
+        return activity.writingPrivateTail && !activity.queuedBehindReply
     }
 
     /// 入力欄を「返事を書いている最中」として扱うか(停止ボタン・送信を止める)。記録だけを書いている間は扱わない。
