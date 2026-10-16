@@ -221,7 +221,8 @@ final class ChatScrollStabilityUITests: XCTestCase {
         let after = bubbleOrigins(app)
         let common = Set(reading.keys).intersection(after.keys).count
         let shift = maxShift(reading, after)
-        print("PROBE readback common=\(common) shift=\(shift)")
+        let describe = { (o: [String: CGFloat]) in o.sorted { $0.value < $1.value }.map { "\($0.key.suffix(4)):\(Int($0.value))" }.joined(separator: ",") }
+        print("PROBE readback common=\(common) shift=\(shift) reading=[\(describe(reading))] after=[\(describe(after))]")
         attach(app, "reading-back-after-reply")
         XCTAssertGreaterThan(common, 0, "読み返していた吹き出しが画面から消えた(引き戻された)")
         XCTAssertLessThanOrEqual(shift, 2, "返事が出来上がった時に、読み返している会話が動いた")
