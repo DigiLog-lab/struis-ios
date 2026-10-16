@@ -208,4 +208,18 @@ final class ClaudeCostTests: XCTestCase {
         XCTAssertEqual(opus.estimatedCostUSD ?? -1, 0.012, accuracy: 1e-9)
         XCTAssertTrue(opus.costIncomplete)
     }
+
+    // MARK: - Codex の設定(毎要求に入るものを増やさない)
+
+    /// ChatGPT の Apps(コネクタ)・Plugins・tool_suggest を切る。Claude のモデルは Codex に未知で tool 定義が遅延されず、
+    /// サインイン中のアカウントの全コネクタの定義(実機で約 19 万トークン)が毎要求に入っていた。
+    func testCodexConfigurationDisablesAppsPluginsAndBundledSkills() {
+        let config = NativeToolRouter.configuration(["model_reasoning_effort": "medium"])
+        XCTAssertEqual(config["model_reasoning_effort"] as? String, "medium")
+        XCTAssertEqual(config["features.apps"] as? Bool, false)
+        XCTAssertEqual(config["features.plugins"] as? Bool, false)
+        XCTAssertEqual(config["features.tool_suggest"] as? Bool, false)
+        XCTAssertEqual(config["skills.bundled.enabled"] as? Bool, false)
+        XCTAssertEqual((config["features.code_mode"] as? [String: Any])?["enabled"] as? Bool, false)
+    }
 }

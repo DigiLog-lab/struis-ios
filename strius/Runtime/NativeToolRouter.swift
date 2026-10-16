@@ -26,6 +26,13 @@ actor NativeToolRouter {
         // Codex 同梱の Skills(画像生成・Skill のインストールなど)は学習に関係なく、一覧が毎スレッド入るだけなので外す。
         // Struis の Skill は作業フォルダの `.agents/skills` に置く(配信Skillの説明)。
         config["skills.bundled.enabled"] = false
+        // ChatGPT の Apps(コネクタ)と Plugins は Struis では使わない。Apps は既定で有効で、ChatGPT にサインインしていると
+        // Codex が `codex_apps` MCP サーバーをつなぎ、アカウントの全コネクタの tool 定義を毎要求に入れる。
+        // Claude のモデルは Codex に未知で `supports_search_tool` が false のため、定義が遅延(名前だけ)されず
+        // 全文が送られ、1 要求あたり約 19 万トークン(2026-10-16 の実機の台帳: 要約の要求 5 万に対し通常の要求 25 万)になった。
+        config["features.apps"] = false
+        config["features.plugins"] = false
+        config["features.tool_suggest"] = false
         return config
     }
 
