@@ -14,21 +14,31 @@ final class ChatImmediateImageSendUITests: XCTestCase {
 
     @MainActor
     func testCancelWhileCaptureIsFinishing() throws {
-        let app = try launchCameraTestApp()
+        let app = UITestSupport.deviceApp()
+        // キャンセルを撮影が終わる前に押すため、シミュレータの撮影が終わるまでを長くする(既定の 3 秒では、遅い CI で
+        // シャッターからキャンセルが届くまでに 3.5 秒かかり、撮影が先に終わって写真が添付されていた)。
+        let finishSeconds: TimeInterval = 8
+        app.launchEnvironment["STRUIS_TEST_CAPTURE_FINISH_SECONDS"] = String(finishSeconds)
+        app.launch()
+        app.openQuestionSheet()
         let plus = app.buttons["添付"].firstMatch
         XCTAssertTrue(plus.appears(timeout: 30))
         plus.press(forDuration: 0.6)
         let shutter = app.buttons["chat-camera-shutter"]
         XCTAssertTrue(shutter.appears(timeout: 5))
+        let shutterTapped = Date()
         shutter.tap()
         app.buttons["キャンセル"].tap()
+        XCTAssertLessThan(Date().timeIntervalSince(shutterTapped), finishSeconds, "キャンセルが撮影の終わりより後に届いた")
         XCTAssertTrue(shutter.waitForNonExistence(timeout: 5))
         let attachment = app.buttons.matching(NSPredicate(format:
             "label BEGINSWITH 'photo-' AND label ENDSWITH 'を解除'")).firstMatch
         let unexpectedAttachment = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "exists == true"), object: attachment)
         unexpectedAttachment.isInverted = true
-        XCTAssertEqual(XCTWaiter.wait(for: [unexpectedAttachment], timeout: 4), .completed)
+        // 撮影が終わった後(写真が遅れて届く時)まで見る。少なくとも以前と同じ 4 秒は見る。
+        let window = max(4, finishSeconds + 2 - Date().timeIntervalSince(shutterTapped))
+        XCTAssertEqual(XCTWaiter.wait(for: [unexpectedAttachment], timeout: window), .completed)
         XCTAssertTrue(plus.isEnabled)
     }
 
