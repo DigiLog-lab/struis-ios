@@ -125,6 +125,10 @@ private struct KaTeXRenderedText: View {
                 .frame(height: webHeight(key: key, snapshot: snapshot))
                 .opacity(webReady ? 1 : 0)
                 .allowsHitTesting(webReady)
+                // WebView の中身(KaTeX の部品の一つ一つ)ではなく、読める文字の 1 つの要素として VoiceOver と XCTest に見せる
+                // (描き終えた画像と同じ)。中身を見せると、XCTest の要素の検索のたびに中身のプロセスへ問い合わせが行き、
+                // 数式の多い会話では 1 回に数秒〜十数秒かかっていた。
+                .accessibilityRepresentation { mathWebAccessibility }
                 .accessibilityHidden(!webReady)
             }
             if !webReady {
@@ -146,6 +150,16 @@ private struct KaTeXRenderedText: View {
         if let rendered, rendered.key == key { return rendered.height }
         if let snapshot { return snapshot.size.height }
         return KaTeXLayoutCache.height(for: key, width: width) ?? fontSize * 1.58
+    }
+
+    /// 数式の WebView を表す要素。UI テストは DEBUG の起動引数 `-mark-math-views` で値 `katex-web` を付けて、画像や仮の文字と
+    /// 見分ける(横にはみ出す数式のドラッグは WebView でしか試せない)。
+    private var mathWebAccessibility: some View {
+        #if DEBUG
+        Text(readable).accessibilityValue(ProcessInfo.processInfo.arguments.contains("-mark-math-views") ? "katex-web" : "")
+        #else
+        Text(readable)
+        #endif
     }
 
     private var readable: String {

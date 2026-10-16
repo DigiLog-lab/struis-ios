@@ -4,6 +4,10 @@ import XCTest
 /// 始めた縦のドラッグでも会話が動く(止まらない)、左右のスワイプで別のページへ動かない(旧・分岐や答案のページは無い)。
 /// 小単元 1 の 40 往復の数式入りの会話(`-workbook-long-chat`)を、初めて開く状態(数式の画像がまだ無い)で使う。
 final class ChatScrollStabilityUITests: XCTestCase {
+    /// 数式の WebView の要素の値(DEBUG の起動引数 `-mark-math-views` の時だけ付く)。WebView は読める文字の 1 要素として見えるので、
+    /// 種類(`.webView`)ではなくこの値で探す。
+    static let mathWebValue = "katex-web"
+
     override func setUpWithError() throws {
         continueAfterFailure = true
         XCUIDevice.shared.orientation = .portrait
@@ -12,7 +16,7 @@ final class ChatScrollStabilityUITests: XCTestCase {
     @MainActor
     private func launchLongChat(environment: [String: String] = [:]) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments += ["-skip-onboarding", "-workbook-long-chat", "-workbook-model-stage", "-katex-fresh"]
+        app.launchArguments += ["-skip-onboarding", "-workbook-long-chat", "-workbook-model-stage", "-katex-fresh", "-mark-math-views"]
         app.launchEnvironment.merge(environment) { $1 }
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
@@ -97,7 +101,7 @@ final class ChatScrollStabilityUITests: XCTestCase {
         var stack: [XCUIElementSnapshot] = [root]
         var found: [CGRect] = []
         while let node = stack.popLast() {
-            if node.elementType == .webView, node.frame.height > 12,
+            if node.value as? String == Self.mathWebValue, node.frame.height > 12,
                node.frame.minY > max(screen.height * 0.25, visibleTop), node.frame.maxY < screen.height * 0.7 {
                 found.append(node.frame)
             }
@@ -223,7 +227,7 @@ final class ChatScrollStabilityUITests: XCTestCase {
     @MainActor
     func testOverflowingDisplayMathStillScrollsSideways() throws {
         let app = XCUIApplication()
-        app.launchArguments += ["-skip-onboarding", "-screens-fixture", "-workbook-model-stage", "-katex-fresh"]
+        app.launchArguments += ["-skip-onboarding", "-screens-fixture", "-workbook-model-stage", "-katex-fresh", "-mark-math-views"]
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
         app.launch()
@@ -238,7 +242,7 @@ final class ChatScrollStabilityUITests: XCTestCase {
         for _ in 0..<10 where !scrolled {
             Thread.sleep(forTimeInterval: 3)
             // 背の高い WebView(表示用の数式を含む吹き出し)から試す。
-            let webs = app.webViews.allElementsBoundByIndex.filter {
+            let webs = app.descendants(matching: .any).matching(NSPredicate(format: "value == %@", Self.mathWebValue)).allElementsBoundByIndex.filter {
                 $0.exists && $0.frame.height > 30 && $0.frame.maxY > screen.height * 0.2 && $0.frame.minY < screen.height * 0.75
             }.sorted { $0.frame.height > $1.frame.height }
             for web in webs where !scrolled {
