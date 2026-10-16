@@ -133,7 +133,7 @@ final class ClaudeAppAttestTests: XCTestCase {
             case "/v1/oauth/app-attest/register":
                 let json = try! JSONSerialization.jsonObject(with: body) as! [String: Any]
                 registered.append(json["key_id"] as? String ?? "")
-                return (200, ["access_token": "token-\(registered.count)", "expires_in": 1])  // すぐ期限切れにして assertion の経路を通す
+                return (200, ["access_token": "token-\(registered.count)", "expires_in": 3600])
             case "/v1/oauth/token": return (200, ["access_token": "token-minted", "expires_in": 3600])
             default: return (404, [:])
             }
@@ -144,16 +144,16 @@ final class ClaudeAppAttestTests: XCTestCase {
         _ = try await before.currentToken(clientID: "clid_test")
         XCTAssertEqual(registered, [staleKeyID])
 
-        // 入れ直した後: 同じ Keychain、鍵は無い。
+        // 入れ直した後: 同じ Keychain に古い鍵の ID が残り、鍵は無い。token は期限切れ(Messages API の 401 で捨てた状態)。
         let log = Log()
         let after = AppAttestClient(baseURL: URL(string: "https://auth.test")!, attestation: ReinstalledAttestation(staleKeyID: staleKeyID, log: log),
                                     session: URLSession(configuration: configuration), keychainService: service)
-        try await Task.sleep(for: .seconds(1.1))  // 残っている token の期限を過ぎさせる
+        await after.invalidate(token: "token-1", clientID: "clid_test")
         let token = try await after.currentToken(clientID: "clid_test")
         XCTAssertEqual(registered.count, 2, "使えない鍵の後に新しい鍵を登録する")
         XCTAssertEqual(registered.last, Data(repeating: 8, count: 32).base64EncodedString())
         XCTAssertEqual(log.all, ["assert:stale", "attest:fresh"], "古い鍵で 1 回だけ試し、作り直す")
-        XCTAssertFalse(token.isEmpty)
+        XCTAssertEqual(token, "token-2")
     }
 
     func testUpstreamSendsTheBearerTokenToAnthropic() async throws {
