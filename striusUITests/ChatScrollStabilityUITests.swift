@@ -237,10 +237,21 @@ final class ChatScrollStabilityUITests: XCTestCase {
         var scrolled = false
         for _ in 0..<10 where !scrolled {
             Thread.sleep(forTimeInterval: 3)
+            // 背の高い WebView(表示用の数式を含む吹き出し)から試す。
             let webs = app.webViews.allElementsBoundByIndex.filter {
                 $0.exists && $0.frame.height > 30 && $0.frame.maxY > screen.height * 0.2 && $0.frame.minY < screen.height * 0.75
-            }
+            }.sorted { $0.frame.height > $1.frame.height }
             for web in webs where !scrolled {
+                // 吹き出しの上が見出しに隠れていると、隠れた行には指が届かず試せない。吹き出しが見える範囲に収まるなら、
+                // 先に上端が見えるまで会話を下へ送る(送らないと、ほかの吹き出しを全部試してから会話を送ることになる)。
+                let hidden = visibleBand(app, screen: screen)
+                if web.frame.minY < hidden.lowerBound, web.frame.height < hidden.upperBound - hidden.lowerBound - 24 {
+                    let from = page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+                    from.press(forDuration: 0.05, thenDragTo: from.withOffset(CGVector(dx: 0, dy: hidden.lowerBound + 24 - web.frame.minY)),
+                               withVelocity: .slow, thenHoldForDuration: 0.5)
+                    Thread.sleep(forTimeInterval: 1)
+                    guard web.exists else { continue }
+                }
                 let key = "\(Int(web.frame.minY))-\(Int(web.frame.height))-\(web.label)"
                 guard tried.insert(key).inserted else { continue }
                 // 吹き出し全体が 1 つの WebView なので、表示用の数式の行に当たるよう縦の位置を 22pt おきに変えて試す。
