@@ -128,8 +128,7 @@ final class WorkbookSplitGradingUITests: XCTestCase {
         let missing = element(app, "workbook-set-progress-missing")
         XCTAssertTrue(waitLabel(missing, "3〜5 は未提出", timeout: 10), "締めた後に未提出の番号が出ない: \(screenSummary(app))")
         XCTAssertEqual(element(app, "workbook-verdict-score").label, "2 / 2")
-        // 見つかった問題が全問正解なので、「やり直す」ではなく「演習に戻る」(残りはその一枚から撮る)。
-        XCTAssertTrue(element(app, "workbook-result-return-to-set").exists, "締めた後に次の行動が出ない: \(screenSummary(app))")
+        XCTAssertTrue(element(app, "workbook-result-retry").exists, "締めた後に次の行動が出ない")
         XCTAssertFalse(element(app, "workbook-result-capture-more").exists)
         attach(app, "4-closed-with-missing")
 
