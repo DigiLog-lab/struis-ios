@@ -99,6 +99,63 @@ final class ClaudeAppAttestTests: XCTestCase {
         XCTAssertEqual(AppAttestClient.decodeBase64Loose("-_8"), Data([0xfb, 0xff]))
     }
 
+    /// 入れ直した端末: Keychain に前の鍵の ID だけが残り、Secure Enclave に鍵は無い。assertion が DeviceCheck の
+    /// エラー(実機では invalidInput(2)・invalidKey)で失敗したら、待たずに鍵を作り直して登録し直す(Apple の「入れ直しでは
+    /// 最初からやり直す」)。2026-10-16 の実機では未処理で 15 回の再試行の末に失敗していた。
+    func testReinstalledDeviceRegistersANewKeyWhenTheStoredKeyIsUnusable() async throws {
+        struct ReinstalledAttestation: AppAttestClient.Attestation {
+            let staleKeyID: String
+            let freshKeyID = Data(repeating: 8, count: 32).base64EncodedString()
+            let log: Log
+            var isSupported: Bool { true }
+            func generateKey() async throws -> String { freshKeyID }
+            func attestKey(_ keyID: String, clientDataHash: Data) async throws -> Data {
+                log.append("attest:\(keyID == freshKeyID ? "fresh" : "stale")")
+                return Data("attestation".utf8)
+            }
+            func generateAssertion(_ keyID: String, clientDataHash: Data) async throws -> Data {
+                if keyID == staleKeyID {
+                    log.append("assert:stale")
+                    throw AppAttestClient.Failure.keyUnusable  // DeviceAttestation が DCError(invalidInput / invalidKey)から写す
+                }
+                log.append("assert:fresh")
+                return Data("assertion".utf8)
+            }
+        }
+        let service = "test.app-attest." + UUID().uuidString
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubAnthropicAuth.self]
+        let staleKeyID = Data(repeating: 7, count: 32).base64EncodedString()
+        var registered: [String] = []
+        StubAnthropicAuth.handler = { [challenge1] request, body in
+            switch request.url?.path {
+            case "/v1/oauth/app-attest/challenge": return (200, ["challenge": challenge1.base64EncodedString(), "expires_in": 300])
+            case "/v1/oauth/app-attest/register":
+                let json = try! JSONSerialization.jsonObject(with: body) as! [String: Any]
+                registered.append(json["key_id"] as? String ?? "")
+                return (200, ["access_token": "token-\(registered.count)", "expires_in": 1])  // すぐ期限切れにして assertion の経路を通す
+            case "/v1/oauth/token": return (200, ["access_token": "token-minted", "expires_in": 3600])
+            default: return (404, [:])
+            }
+        }
+        // 入れ直す前: 前の鍵を登録して ID を Keychain に残す。
+        let before = AppAttestClient(baseURL: URL(string: "https://auth.test")!, attestation: FakeAttestation(log: Log()),
+                                     session: URLSession(configuration: configuration), keychainService: service)
+        _ = try await before.currentToken(clientID: "clid_test")
+        XCTAssertEqual(registered, [staleKeyID])
+
+        // 入れ直した後: 同じ Keychain、鍵は無い。
+        let log = Log()
+        let after = AppAttestClient(baseURL: URL(string: "https://auth.test")!, attestation: ReinstalledAttestation(staleKeyID: staleKeyID, log: log),
+                                    session: URLSession(configuration: configuration), keychainService: service)
+        try await Task.sleep(for: .seconds(1.1))  // 残っている token の期限を過ぎさせる
+        let token = try await after.currentToken(clientID: "clid_test")
+        XCTAssertEqual(registered.count, 2, "使えない鍵の後に新しい鍵を登録する")
+        XCTAssertEqual(registered.last, Data(repeating: 8, count: 32).base64EncodedString())
+        XCTAssertEqual(log.all, ["assert:stale", "attest:fresh"], "古い鍵で 1 回だけ試し、作り直す")
+        XCTAssertFalse(token.isEmpty)
+    }
+
     func testUpstreamSendsTheBearerTokenToAnthropic() async throws {
         let log = Log()
         let attest = client(log)

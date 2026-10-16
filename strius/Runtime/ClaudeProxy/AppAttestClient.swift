@@ -35,6 +35,8 @@ actor AppAttestClient {
         case unsupported
         case notConfigured
         case keyInvalidated
+        /// 端末側で鍵が使えない(アプリの入れ直し・端末の移行・復元の後は Keychain の ID だけが残る。Apple の指針では鍵を作り直す)。
+        case keyUnusable
         case rateLimited
         case requestFailed(endpoint: String, status: Int)
         case malformedResponse
@@ -44,6 +46,7 @@ actor AppAttestClient {
             case .unsupported: "この端末では App Attest を使えないため、Claude を使えません。"
             case .notConfigured: "Claude の接続設定(client ID)がこのアプリにありません。"
             case .keyInvalidated: "この端末の確認(App Attest)が通りませんでした。少し時間をおいてもう一度試してください。"
+            case .keyUnusable: "この端末の確認(App Attest)の鍵を作り直せませんでした。アプリを開き直してもう一度試してください。"
             case .rateLimited: "Claude の利用が一時的に混み合っています。少し時間をおいてもう一度試してください。"
             case .requestFailed(let endpoint, let status): "Claude を使う準備に失敗しました(\(endpoint) HTTP \(status))。"
             case .malformedResponse: "Claude の認証サーバーから想定外の応答が返りました。"
@@ -68,9 +71,11 @@ actor AppAttestClient {
         func generateAssertion(_ keyID: String, clientDataHash: Data) async throws -> Data {
             do {
                 return try await DCAppAttestService.shared.generateAssertion(keyID, clientDataHash: clientDataHash)
-            } catch let error as DCError where error.code == .invalidKey {
-                // 端末の消去と復元で Keychain の ID だけが戻り、Secure Enclave の鍵は無い。
-                throw Failure.keyInvalidated
+            } catch let error as DCError where error.code != .serverUnavailable {
+                // アプリの入れ直し・端末の移行・復元では Keychain の ID だけが残り、Secure Enclave の鍵は無い
+                // (invalidKey。実機では invalidInput(2) で返ることもある。2026-10-16 の台帳)。Apple の指針どおり鍵を作り直す。
+                attestLog.error("app attest assertion failed on device: DCError \(error.code.rawValue)")
+                throw Failure.keyUnusable
             }
         }
     }
@@ -129,6 +134,13 @@ actor AppAttestClient {
         let minted: StoredToken
         do {
             minted = try await mint(clientID: clientID, keyID: keyID)
+        } catch Failure.keyUnusable {
+            // 端末側で鍵が使えない。サーバーの 401 と違って待っても変わらないので、すぐ作り直す(1 回だけ。作り直した鍵でも
+            // 使えなければ keyUnusable のまま返す)。
+            attestLog.error("app attest key unusable on this device, registering a new key")
+            let newKey = try await ensureKey(clientID: clientID, replacing: keyID)
+            if let token, token.expiresAt > Date() { return token.value }
+            minted = try await mint(clientID: clientID, keyID: newKey)
         } catch Failure.keyInvalidated {
             // 期限切れ・競合したチャレンジも同じ 401 になる。もう一度だけ試し、続けて拒まれたら鍵を作り直す(10 分に 1 回まで)。
             do {
@@ -158,6 +170,13 @@ actor AppAttestClient {
     // MARK: - Key
 
     private func ensureKey(clientID: String, replacing rejected: String?) async throws -> String {
+        if rejected != nil {
+            // 使えない ID を残さない(登録に失敗しても、次は新しい鍵から始める)。
+            keyID = nil
+            token = nil
+            keychainDelete("\(clientID)#key-id")
+            keychainDelete("\(clientID)#token")
+        }
         if rejected == nil {
             if let keyID { return keyID }
             if let stored = keychainGet("\(clientID)#key-id").map({ String(decoding: $0, as: UTF8.self) }) {

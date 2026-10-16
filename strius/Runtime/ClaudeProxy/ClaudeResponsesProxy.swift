@@ -527,9 +527,14 @@ nonisolated private struct ClaudeRelay {
                 if Task.isCancelled { return }
                 proxyLog.error("upstream failed: \(String(describing: error), privacy: .public)")
                 if let failure = error as? AppAttestClient.Failure {
-                    // 端末の確認ができない時は再試行しても変わらない(Codex は 4xx を再試行しない)。混雑は 429 で再試行させる。
-                    writer.respond(status: failure == .rateLimited ? 429 : 401,
-                                   json: ["error": ["message": failure.localizedDescription, "type": "authentication_error", "code": "app_attest"]])
+                    // 端末の確認ができない時は再試行しても変わらない。Codex が再試行しないのは 400(InvalidRequest)で、
+                    // 401・5xx は request_max_retries × stream_max_retries 回(15 回)送り直す(2026-10-16 の台帳)。混雑は 429。
+                    writer.respond(status: failure == .rateLimited ? 429 : 400,
+                                   json: ["error": ["message": failure.localizedDescription, "type": "invalid_request_error", "code": "app_attest"]])
+                } else if (error as NSError).domain == "com.apple.devicecheck.error" {
+                    // App Attest の端末側の失敗(鍵の作成・attestation)。再試行しても変わらない。
+                    writer.respond(status: 400, json: ["error": ["message": "この端末の確認(App Attest)に失敗しました(DeviceCheck \((error as NSError).code))。アプリを開き直してもう一度試してください。",
+                                                                "type": "invalid_request_error", "code": "app_attest"]])
                 } else {
                     writer.respond(status: 502, json: ["error": ["message": "Claude に接続できませんでした", "type": "api_error"]])
                 }
