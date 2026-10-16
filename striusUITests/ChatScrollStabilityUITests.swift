@@ -33,14 +33,23 @@ final class ChatScrollStabilityUITests: XCTestCase {
         let screen = root.frame
         var result: [String: CGFloat] = [:]
         var stack: [XCUIElementSnapshot] = [root]
+        var layout: [String] = []
         while let node = stack.popLast() {
             if node.identifier.hasPrefix("assistant-message-"), node.frame.intersects(screen), node.frame.height > 0 {
                 result[node.identifier] = node.frame.minY
+            } else if node.identifier == "chat-page", node.elementType == .scrollView {
+                layout.append("page:\(Int(node.frame.minY))+\(Int(node.frame.height))")
+            } else if node.identifier == "workbook-subunit-header" {
+                layout.append("header:\(Int(node.frame.maxY))")
             }
             stack.append(contentsOf: node.children)
         }
+        lastLayout = layout.sorted().joined(separator: ",")
         return result
     }
+
+    /// 最後の `bubbleOrigins` で見えた会話の枠と小単元のヘッダーの下端(吹き出しが動いた時に、会話の枠ごと動いたのかを見分ける)。
+    private var lastLayout = ""
 
     /// 2 つの読み取りで共通する吹き出しの、いちばん大きい縦の移動。
     private func maxShift(_ a: [String: CGFloat], _ b: [String: CGFloat]) -> CGFloat {
@@ -73,7 +82,7 @@ final class ChatScrollStabilityUITests: XCTestCase {
             for _ in 0..<6 {
                 Thread.sleep(forTimeInterval: 0.5)
                 let sample = bubbleOrigins(app)
-                trace.append(sample.sorted { $0.value < $1.value }.map { "\($0.key.suffix(4)):\(Int($0.value))" }.joined(separator: ","))
+                trace.append(sample.sorted { $0.value < $1.value }.map { "\($0.key.suffix(4)):\(Int($0.value))" }.joined(separator: ",") + " " + lastLayout)
                 later = sample
             }
             let shift = maxShift(settled, later)
