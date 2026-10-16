@@ -16,11 +16,11 @@ final class ChatTypingExperienceUITests: XCTestCase {
         ]
         app.launch()
         let field = app.textViews.matching(identifier: "chat-page").firstMatch
-        XCTAssertTrue(field.waitForExistence(timeout: 20))
-        XCTAssertTrue(app.staticTexts["どこまで分かっているか、途中の考え方も書いてみてください。"].waitForExistence(timeout: 20))
+        XCTAssertTrue(field.appears(timeout: 20))
+        XCTAssertTrue(app.staticTexts["どこまで分かっているか、途中の考え方も書いてみてください。"].appears(timeout: 20))
         event("入力欄をタップ", field)
         field.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.appears(timeout: 5))
         print("TYPING_PHASE \(Date().timeIntervalSince1970) | 日本語を入力")
         let first = "平方完成の途中で迷いました。"
         field.typeText(first)
@@ -49,8 +49,8 @@ final class ChatTypingExperienceUITests: XCTestCase {
         XCTAssertTrue(send.isHittable)
         event("送信ボタンをタップ", send)
         send.press(forDuration: 0.15)
-        XCTAssertTrue(app.staticTexts[expected].firstMatch.waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["送信を受け付けました。（録画用の検証応答）"].firstMatch.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts[expected].firstMatch.appears(timeout: 10))
+        XCTAssertTrue(app.staticTexts["送信を受け付けました。（録画用の検証応答）"].firstMatch.appears(timeout: 15))
         XCTAssertEqual(field.value as? String, "")
         capture("japanese-sent")
         print("TYPING_PHASE \(Date().timeIntervalSince1970) | 送信完了")
@@ -64,10 +64,10 @@ final class ChatTypingExperienceUITests: XCTestCase {
         app.launchEnvironment = ["STRUIS_API_BASE_URL": "http://127.0.0.1:18765", "STRUIS_IOS_USE_FIXTURES": "0", "STRUIS_DEV_ACCESS_TOKEN": "local-typing-verification-token"]
         app.launch()
         let field = app.textViews.matching(identifier: "chat-page").firstMatch
-        XCTAssertTrue(field.waitForExistence(timeout: 20))
-        XCTAssertTrue(app.staticTexts["どこまで分かっているか、途中の考え方も書いてみてください。"].waitForExistence(timeout: 20))
+        XCTAssertTrue(field.appears(timeout: 20))
+        XCTAssertTrue(app.staticTexts["どこまで分かっているか、途中の考え方も書いてみてください。"].appears(timeout: 20))
         field.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.appears(timeout: 5))
         field.typeText(" ")
         field.typeText(XCUIKeyboardKey.delete.rawValue)
         app.buttons["Next keyboard"].press(forDuration: 1)
@@ -89,7 +89,7 @@ final class ChatTypingExperienceUITests: XCTestCase {
         settings.buttons["MOTION_TITLE"].tap()
         let reduced = settings.switches["REDUCE_MOTION"]
         if reduced.value as? String != "1" { reduced.switches.firstMatch.tap() }
-        XCTAssertTrue(reduced.waitForExistence(timeout: 3))
+        XCTAssertTrue(reduced.appears(timeout: 3))
         XCTAssertEqual(reduced.value as? String, "1")
         capture("reduce-motion-on")
         app.activate()
@@ -99,7 +99,7 @@ final class ChatTypingExperienceUITests: XCTestCase {
         capture("reduce-motion-composer")
         let send = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == %@", "送信", "chat-page")).firstMatch
         send.press(forDuration: 0.15)
-        XCTAssertTrue(app.staticTexts["感じ\n確認"].firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["感じ\n確認"].firstMatch.appears(timeout: 10))
         XCTAssertEqual(field.value as? String, "")
         capture("reduce-motion-sent")
         settings.activate()

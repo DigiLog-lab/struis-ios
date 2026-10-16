@@ -18,9 +18,9 @@ final class ChatScrollStabilityUITests: XCTestCase {
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
         app.launch()
         let row = app.descendants(matching: .any)["workbook-subunit-sub-1"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 30), "ホームに小単元の行が無い")
+        XCTAssertTrue(row.appears(timeout: 30), "ホームに小単元の行が無い")
         row.tap()
-        XCTAssertTrue(app.scrollViews["chat-page"].firstMatch.waitForExistence(timeout: 20), "会話が出ない")
+        XCTAssertTrue(app.scrollViews["chat-page"].firstMatch.appears(timeout: 20), "会話が出ない")
         return app
     }
 
@@ -166,7 +166,7 @@ final class ChatScrollStabilityUITests: XCTestCase {
         let app = launchLongChat()
         let page = app.scrollViews["chat-page"].firstMatch
         let input = app.textViews.matching(identifier: "chat-page").firstMatch
-        XCTAssertTrue(input.waitForExistence(timeout: 10))
+        XCTAssertTrue(input.appears(timeout: 10))
         let before = input.frame
         page.swipeLeft()
         Thread.sleep(forTimeInterval: 1)
@@ -190,14 +190,14 @@ final class ChatScrollStabilityUITests: XCTestCase {
         let app = launchLongChat(environment: ["STRUIS_MOCK_TURN_DELAY_MS": "6000"])
         Thread.sleep(forTimeInterval: 3)
         let input = app.textViews.matching(identifier: "chat-page").firstMatch
-        XCTAssertTrue(input.waitForExistence(timeout: 10))
+        XCTAssertTrue(input.appears(timeout: 10))
         input.tap()
         input.typeText("読み返しの確認")
         let send = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == %@", "送信", "chat-page")).firstMatch
-        XCTAssertTrue(send.waitForExistence(timeout: 5))
+        XCTAssertTrue(send.appears(timeout: 5))
         send.press(forDuration: 0.15)
         let sent = app.staticTexts["読み返しの確認"].firstMatch
-        XCTAssertTrue(sent.waitForExistence(timeout: 10), "送った文が出ない")
+        XCTAssertTrue(sent.appears(timeout: 10), "送った文が出ない")
         XCTAssertTrue(sent.isHittable, "送った直後に自分のメッセージまで送られない")
         // 返事を待っている間に、キーボードを閉じて上へ読み返す。
         let page = app.scrollViews["chat-page"].firstMatch
@@ -228,10 +228,10 @@ final class ChatScrollStabilityUITests: XCTestCase {
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
         app.launch()
         let row = app.descendants(matching: .any)["workbook-subunit-sub-1"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        XCTAssertTrue(row.appears(timeout: 30))
         row.tap()
         let page = app.scrollViews["chat-page"].firstMatch
-        XCTAssertTrue(page.waitForExistence(timeout: 20))
+        XCTAssertTrue(page.appears(timeout: 20))
         let screen = app.windows.firstMatch.frame
         var tried = Set<String>()
         var scrolled = false

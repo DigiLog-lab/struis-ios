@@ -17,26 +17,26 @@ final class LearningProgressUITests: XCTestCase {
         app.launchEnvironment["STRUIS_DEV_ACCESS_TOKEN"] = token
         app.launch()
         let message = app.descendants(matching: .any).matching(identifier: "assistant-message-\(messageID.uppercased())").firstMatch
-        if !message.waitForExistence(timeout: 12) {
+        if !message.appears(timeout: 12) {
             app.buttons["履歴"].tap()
             let title = environment["STRUIS_E2E_PROGRESS_THREAD_TITLE"] ?? "学習進行の実経路検証"
             let thread = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title)).firstMatch
-            XCTAssertTrue(thread.waitForExistence(timeout: 20))
+            XCTAssertTrue(thread.appears(timeout: 20))
             thread.tap()
         }
-        XCTAssertTrue(message.waitForExistence(timeout: 30))
+        XCTAssertTrue(message.appears(timeout: 30))
         attach("01-通常チャット")
         message.press(forDuration: 1.2)
         let inspect = app.buttons["進行を確認"]
-        XCTAssertTrue(inspect.waitForExistence(timeout: 5))
+        XCTAssertTrue(inspect.appears(timeout: 5))
         attach("02-長押しメニュー")
         inspect.tap()
-        XCTAssertTrue(app.navigationBars["学習の進行"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["今の取り組み"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.navigationBars["学習の進行"].appears(timeout: 5))
+        XCTAssertTrue(app.staticTexts["今の取り組み"].appears(timeout: 15))
         attach("03-進行の概要")
         let parents = app.buttons["親ゴール"]
         if !parents.isHittable { app.swipeUp() }
-        XCTAssertTrue(parents.waitForExistence(timeout: 5))
+        XCTAssertTrue(parents.appears(timeout: 5))
         parents.tap()
         attach("04-親ゴール")
         let trials = app.buttons["試行履歴"]
@@ -47,10 +47,10 @@ final class LearningProgressUITests: XCTestCase {
         for _ in 0..<5 where !copy.isHittable { app.swipeUp() }
         XCTAssertTrue(copy.isHittable)
         copy.tap()
-        XCTAssertTrue(app.buttons["コピーしました"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["コピーしました"].appears(timeout: 5))
         attach("06-検証情報コピー")
         app.buttons["閉じる"].tap()
-        XCTAssertTrue(message.waitForExistence(timeout: 5))
+        XCTAssertTrue(message.appears(timeout: 5))
         print("LEARNING_PROGRESS_UI: 実返信の長押し、概要、親ゴール、試行履歴、コピー、チャット復帰を確認")
     }
 
