@@ -34,6 +34,11 @@ struct ChatTimeline: View {
     @State private var anchorMessageID: UUID?
     /// 指を離した後に、画面の上の外の行の高さが変わっても、見えている会話を動かさない(状態ではないので書いても描き直さない)。
     @State private var keeper = ChatAnchorKeeper()
+    /// こちらから送る意図の世代。新しい送り(送信・段の切り替え・返事の完成)が始まったら、前の送り直しはやめる
+    /// (2 つの送りが同じ時間に別の所へ送ると、吹き出しが上下に揺れる)。
+    @State private var scrollIntent = 0
+    /// 送信直後に続けて `scrollToEnd` が呼ばれた時(自分のメッセージと返事待ちの吹き出し)に、送りを 1 回にまとめる。
+    @State private var scrollToEndStartedAt: Date?
     @State private var timelineWidth: CGFloat = 0
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -138,6 +143,7 @@ struct ChatTimeline: View {
             .onChange(of: messages.last?.status) { old, new in
                 // 返事が出来上がった: 生成中に学習者が読み返していなければ、返事の頭から読めるように送る。
                 guard old == .pending, new != .pending, isNearBottom || !learnerScrolled, let lastID = messages.last?.id else { return }
+                scrollIntent += 1  // 送信時の下端への送り直しが残っていたら、ここでやめる(頭へ送るのと取り合わない)
                 releaseAnchor()
                 withAnimation(reduceMotion ? nil : .easeOut(duration: Theme.Duration.standard)) {
                     reader.scrollTo(lastID, anchor: .top)
@@ -147,24 +153,37 @@ struct ChatTimeline: View {
     }
 
     /// 最後のメッセージの下端へ送る。`LazyVStack` は画面外の行の高さを見積もりで持つので、1 回の
-    /// scrollTo では行き過ぎて何も無い所に止まることがある。行が実体化した後に決まった回数(2 回)だけ
+    /// scrollTo では行き過ぎて何も無い所に止まることがある。行が実体化した後に決まった回数だけ
     /// 送り直す。高さの変化を監視して送り続けることはしない(帰還ループにしない)。
+    ///
+    /// 送り直しは、アニメーション(0.25 秒)が終わってから、下端から 12pt 以上離れている時だけ。以前は 120ms 後
+    /// (アニメーションの途中)から数 pt の差でも送り直し、しかも送信直後は自分のメッセージと返事待ちの吹き出しで
+    /// 2 回始まっていたので、送信のたびに吹き出しが数 mm 上下に何度も揺れていた(実機 2026-10-17)。
     private func scrollToEnd(_ reader: ScrollViewProxy, animated: Bool) {
-        guard let lastID = messages.last?.id else { return }
+        guard messages.last != nil else { return }
+        let now = Date()
+        if animated, let started = scrollToEndStartedAt, now.timeIntervalSince(started) < 0.3 {
+            // 続けて増えた行(返事待ちの吹き出し)は、進行中の送り直しが拾う。
+            return
+        }
+        scrollToEndStartedAt = now
+        scrollIntent += 1
+        let intent = scrollIntent
         // 最後の行の下の余白(右下に浮かせたボタンの分)まで送る。最後の行がボタンの下に隠れないように。
+        releaseAnchor()
         if animated {
-            releaseAnchor()
             withAnimation(.easeOut(duration: Theme.Duration.standard)) { reader.scrollTo(Self.bottomAnchor, anchor: .bottom) }
         } else {
-            releaseAnchor()
             reader.scrollTo(Self.bottomAnchor, anchor: .bottom)
         }
         Task { @MainActor in
             // 上の行(数式など)の高さが決まると下端がずれるので、決まった回数だけ送り直す(D8。監視はしない)。
-            for delay in [120, 400, 900, 1600] {
+            for delay in [400, 500, 900] {
                 try? await Task.sleep(for: .milliseconds(delay))
-                // 学習者が読み返し始めたら引き戻さない。
-                guard messages.last?.id == lastID, !learnerScrolled else { return }
+                // 学習者が読み返し始めたか、別の送りが始まっていたら引き戻さない。
+                guard scrollIntent == intent, !learnerScrolled else { return }
+                // 下端にほぼ着いているなら動かさない(数 pt のために動かすと揺れに見える)。枠が見つかる前は従来どおり送る。
+                if let gap = keeper.distanceFromBottom(), gap < 12 { continue }
                 releaseAnchor()
                 reader.scrollTo(Self.bottomAnchor, anchor: .bottom)
             }
@@ -176,6 +195,7 @@ struct ChatTimeline: View {
     /// 学習者が自分で動かしたら、そこでやめる。
     private func follow(_ target: UUID, _ reader: ScrollViewProxy) {
         followTarget = target
+        scrollIntent += 1  // 下端への送り直しが残っていたらやめる
         releaseAnchor()
         withAnimation(reduceMotion ? nil : .easeOut(duration: Theme.Duration.standard)) {
             reader.scrollTo(target, anchor: .top)
@@ -255,6 +275,13 @@ final class ChatAnchorKeeper {
     func release() {
         active = false
         reference = nil
+    }
+
+    /// 下端までの残り(pt)。会話の枠がまだ見つかっていなければ nil。
+    func distanceFromBottom() -> CGFloat? {
+        guard let scrollView else { return nil }
+        let inset = scrollView.adjustedContentInset
+        return scrollView.contentSize.height + inset.bottom - (scrollView.contentOffset.y + scrollView.bounds.height)
     }
 
     func rowGone(_ id: UUID) {
