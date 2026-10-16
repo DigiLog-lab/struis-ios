@@ -293,6 +293,22 @@ nonisolated enum TutorMemory {
     /// `only` limits the sections to these desk-relative paths; `excluding` drops them (reliability plan
     /// P1-3 sends the per-turn session record every turn and the durable rest only when it changed).
     static func renderTutorMemoryContext(workspace: URL, only: Set<String>? = nil, excluding: Set<String> = []) throws -> String {
+        render(try tutorMemorySections(workspace: workspace, only: only, excluding: excluding))
+    }
+
+    /// One memory file as the model sees it. `digest` covers only what affects teaching: bookkeeping
+    /// such as the staging time is left out of the view, so a turn that changes nothing else does not
+    /// re-send the whole memory.
+    struct MemorySection: Equatable {
+        var path: String
+        var body: String
+        var digest: String { EngineSHA256.hexDigest(Data(body.utf8)) }
+    }
+
+    /// Keys the backend rewrites every turn without any change for the model (kept on disk).
+    static let modelViewOmittedKeys: [String: Set<String>] = ["current/task.yaml": ["staged_at"]]
+
+    static func tutorMemorySections(workspace: URL, only: Set<String>? = nil, excluding: Set<String> = []) throws -> [MemorySection] {
         UnitDeletion.gate.lock(); defer { UnitDeletion.gate.unlock() }
         let desk = workspace.appendingPathComponent("tutor_desk", isDirectory: true)
         var paths = ["current/deletions.yaml", "current/session.yaml", "current/task.yaml", "goals/current.yaml", "learner/profile.yaml", "learner/preferences.yaml",
@@ -306,29 +322,43 @@ nonisolated enum TutorMemory {
             paths.append(contentsOf: candidates.prefix(4))
         }
         let plansCurrent = desk.appendingPathComponent("plans/current.yaml")
-        var sections: [String] = []
-        var used = 0
+        var sections: [MemorySection] = []
         for path in paths {
             if !isRegularFile(path) || isSymlink(path) { continue }
             let relative = relative(path, to: workspace)
+            let deskRelative = Self.relative(path, to: desk)
             let body: String
             if path.standardizedFileURL.path == plansCurrent.standardizedFileURL.path {
                 var document = try readYAMLMapping(path, default: .init())
                 document["learning_progress"] = nil
                 body = EnginePyText.strip(EnginePyText.prefix(try EngineYAML.dump(.object(document)), 6000))
+            } else if let omitted = modelViewOmittedKeys[deskRelative] {
+                var document = try readYAMLMapping(path, default: .init())
+                for key in omitted { document[key] = nil }
+                body = EnginePyText.strip(EnginePyText.prefix(try EngineYAML.dump(.object(document)), 6000))
             } else {
                 body = EnginePyText.strip(EnginePyText.prefix(String(decoding: try Data(contentsOf: path), as: UTF8.self), 6000))
             }
-            var section = "--- \(relative) ---\n\(body)\n"
+            sections.append(MemorySection(path: relative, body: body))
+        }
+        return sections
+    }
+
+    /// Joins sections within the injected-memory budget.
+    static func render(_ sections: [MemorySection]) -> String {
+        var rendered: [String] = []
+        var used = 0
+        for item in sections {
+            var section = "--- \(item.path) ---\n\(item.body)\n"
             let remaining = maxInjectedMemoryChars - used
             if remaining <= 0 { break }
             if EnginePyText.length(section) > remaining {
                 section = EnginePyText.rstrip(EnginePyText.prefix(section, remaining)) + "\n[truncated]\n"
             }
-            sections.append(section)
+            rendered.append(section)
             used += EnginePyText.length(section)
         }
-        return EnginePyText.strip(sections.joined(separator: "\n"))
+        return EnginePyText.strip(rendered.joined(separator: "\n"))
     }
 
     struct MemoryManifest: Equatable {

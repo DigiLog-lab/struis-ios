@@ -60,6 +60,16 @@ struct SettingsView: View {
             .accessibilityIdentifier("settings-row-codex")
             divider
             SettingsHomeRow(
+                icon: "cpu",
+                title: "AIモデル",
+                detail: modelDetail,
+                value: settings.modelProvider.displayName
+            ) {
+                ModelProviderSettingsDetail()
+            }
+            .accessibilityIdentifier("settings-row-model")
+            divider
+            SettingsHomeRow(
                 icon: "arrow.down.circle",
                 title: "配信データ",
                 detail: learnerData.deliverySummary,
@@ -105,9 +115,9 @@ struct SettingsView: View {
     private var statusPill: some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(settings.account?.isConnected == true ? Theme.growth(scheme) : Theme.textTertiary(scheme))
+                .fill(isReady ? Theme.growth(scheme) : Theme.textTertiary(scheme))
                 .frame(width: 9, height: 9)
-            Text(settings.account?.isConnected == true ? ["Codex接続済み", planLabel].compactMap { $0 }.joined(separator: " / ") : "Codex未接続")
+            Text(statusText)
                 .font(Typography.caption)
                 .foregroundStyle(Theme.textPrimary(scheme))
         }
@@ -126,6 +136,25 @@ struct SettingsView: View {
         )
         .settingsCard()
         .accessibilityIdentifier("settings-replay-onboarding")
+    }
+
+    /// 選んでいる実行先で質問できるか(GPT は ChatGPT の接続、Claude は API キー)。
+    private var isReady: Bool {
+        settings.modelProvider == .anthropic ? settings.claudeAvailable : settings.account?.isConnected == true
+    }
+
+    private var statusText: String {
+        if settings.modelProvider == .anthropic {
+            return settings.claudeAvailable ? "Claude / App Attest" : "Claude / この端末では使えません"
+        }
+        return settings.account?.isConnected == true ? ["Codex接続済み", planLabel].compactMap { $0 }.joined(separator: " / ") : "Codex未接続"
+    }
+
+    private var modelDetail: String {
+        switch settings.modelProvider {
+        case .openai: return "ChatGPT / Codex で GPT を使う"
+        case .anthropic: return settings.claudeAvailable ? "App Attest で Claude を使う" : "この端末では Claude を使えません"
+        }
     }
 
     private var accountDetail: String {
@@ -178,6 +207,84 @@ private struct DeliverySettingsDetail: View {
                 .settingsCard()
             }
         }
+    }
+}
+
+/// GPT と Claude の切り替え。どちらも端末内の Codex で動き、Claude は API キーで直接呼ぶ。
+private struct ModelProviderSettingsDetail: View {
+    @Environment(SettingsStore.self) private var settings
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        @Bindable var settings = settings
+        SettingsDetailScaffold(eyebrow: "MODEL", title: "AIモデル") {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("使うモデル")
+                        .font(Typography.heading2)
+                    Text("新しく始める会話・単元づくり・採点から切り替わります。続きの会話は、始めたときのモデルのまま続きます。")
+                        .font(Typography.bodyCompact)
+                        .foregroundStyle(Theme.textSecondary(scheme))
+                }
+                VStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ProviderSegmented(selection: $settings.modelProvider)
+                        Text(providerSummary)
+                            .font(Typography.caption)
+                            .foregroundStyle(Theme.textSecondary(scheme))
+                            .accessibilityIdentifier("settings-model-summary")
+                    }
+                    .padding(16)
+                }
+                .settingsCard()
+
+                if settings.modelProvider == .anthropic, !settings.claudeAvailable {
+                    Text(ModelProviderError.claudeUnavailable.localizedDescription)
+                        .font(Typography.caption)
+                        .foregroundStyle(Theme.regress(scheme))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .settingsCard()
+                        .accessibilityIdentifier("settings-model-claude-unavailable")
+                }
+            }
+        }
+    }
+
+    private var providerSummary: String {
+        switch settings.modelProvider {
+        case .openai:
+            return "ChatGPT / Codex の接続で \(CodexModels.astraModel) を使います。"
+        case .anthropic:
+            return "\(ClaudeModels.displayName(ClaudeModels.astraModel)) を使います(下調べは \(ClaudeModels.displayName(ClaudeModels.lunaModel)))。この iPhone の Struis が正規のアプリであることを App Attest で示し、Anthropic に直接送ります。API キーや中継サーバーはありません。"
+        }
+    }
+}
+
+private struct ProviderSegmented: View {
+    @Binding var selection: ModelProvider
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(ModelProvider.allCases, id: \.self) { provider in
+                Button {
+                    selection = provider
+                } label: {
+                    Text(provider.displayName)
+                        .font(Typography.bodyEmphasized)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .foregroundStyle(selection == provider ? Color(uiColor: .systemBackground) : Theme.textSecondary(scheme))
+                        .background(selection == provider ? Theme.textPrimary(scheme) : Color.clear, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings-model-\(provider.rawValue)")
+                .accessibilityAddTraits(selection == provider ? .isSelected : [])
+            }
+        }
+        .padding(4)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: Capsule())
     }
 }
 
@@ -527,6 +634,14 @@ private struct AdvancedSettingsDetail: View {
                 }
                 ledgerCard
                 VStack(alignment: .leading, spacing: 4) {
+                    Text("今月のトークン使用量")
+                        .font(Typography.heading2)
+                    Text("学習記録に残したターンごとの使用量の合計です。Claude の料金は公開価格からの概算です")
+                        .font(Typography.bodyCompact)
+                        .foregroundStyle(Theme.textSecondary(scheme))
+                }
+                tokenUsageCard
+                VStack(alignment: .leading, spacing: 4) {
                     Text("実行環境")
                         .font(Typography.heading2)
                     Text("この端末で動く Codex と Python")
@@ -555,6 +670,38 @@ private struct AdvancedSettingsDetail: View {
                 .settingsCard()
             }
         }
+    }
+
+    private var tokenUsageCard: some View {
+        VStack(spacing: 0) {
+            let models = settings.monthlyTokenUsage?.models ?? []
+            if models.isEmpty {
+                SettingsInfoRow(title: "使用量", detail: "まだ記録がありません")
+            }
+            ForEach(Array(models.enumerated()), id: \.element.id) { index, usage in
+                if index > 0 { SettingsDivider() }
+                SettingsInfoRow(title: usage.model, detail: Self.tokenDetail(usage))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("settings-token-usage-\(usage.model)")
+            }
+            if let cost = settings.monthlyTokenUsage?.estimatedCostUSD {
+                SettingsDivider()
+                SettingsInfoRow(title: "Claude の概算料金", detail: String(format: "約 $%.2f", cost))
+                    .accessibilityIdentifier("settings-token-usage-cost")
+            }
+        }
+        .settingsCard()
+    }
+
+    private static func tokenDetail(_ usage: TokenUsageSummary.Model) -> String {
+        let format = { (n: Int) in n.formatted(.number.notation(.compactName)) }
+        var parts = ["入力 \(format(usage.inputTokens))(うちキャッシュ \(format(usage.cachedInputTokens)))", "出力 \(format(usage.outputTokens))", "\(usage.executions) 回"]
+        if usage.cacheWrite1hTokens > 0 || usage.cacheWrite5mTokens > 0 {
+            parts.append("書き込み 5分 \(format(usage.cacheWrite5mTokens))・1時間 \(format(usage.cacheWrite1hTokens))")
+        }
+        if usage.extraRequests > 0 { parts.append("追加の要求 \(usage.extraRequests) 回") }
+        if let cost = usage.estimatedCostUSD { parts.append(String(format: usage.costIncomplete ? "約 $%.2f 以上" : "約 $%.2f", cost)) }
+        return parts.joined(separator: " / ")
     }
 
     @ViewBuilder

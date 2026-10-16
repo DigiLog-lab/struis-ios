@@ -25,3 +25,9 @@ UIで教育ループを確認する場合は、`STRUIS_IOS_USE_FIXTURES=0`、`ST
 `striusUITests/Fixtures/handwritten_eigenvalue.jpeg`は同梱フォントで描画した合成数学答案です。実機カメラ、端末のsandbox、既存インストール互換性は、実機上の操作で別に確認します。
 
 HTTP bootstrapの同時読込テストは認証有効のビルドを前提にしています。READMEの単体テストコマンドでは`STRUIS_AUTH_REQUIRED=YES`を検証ビルドにだけ渡します。通常の認証不要設定では`BootstrapStore`がbootstrap通信を行わず、そのテストの「userを取得・1回通信」の期待値を満たしません。認証不要経路は同じ設定の`APIClientTests/noAuthStartupDoesNotCreateASignedInUserOrFetchBootstrap`で確認できます。この検証設定で配布用の設定やサーバー契約を変更しません。
+
+## Claude の経路の確認
+
+`ClaudeProxyTests` は、Codex の Responses API と Claude の Messages API の変換(tool、thinking の署名の往復、画像、structured outputs の schema)、端末内プロキシの往復、スレッドを始めた実行先で続ける規則を確認します。
+
+実キーなしで Simulator の配線を確かめる場合は、`scripts/e2e/fake_anthropic.py`(現行の Claude が拒む要求の形を 400 で返す模擬サーバー)と `scripts/e2e/standin_assets.py`(配信の代わりの最小の prompt・schema)を使い、DEBUG の Simulator に `STRUIS_ANTHROPIC_BASE_URL=http://127.0.0.1:8787`・`STRUIS_DEVICE_ASSETS_DIR=<出力先>` を渡します。模擬サーバーの返事は決まった文で、Claude の答えの質の確認にはなりません。Simulator は App Attest を使えないため、実キーで確認する場合は 0600 の作業コピーを `STRUIS_DEBUG_ANTHROPIC_KEY_FILE` で渡します(DEBUG の Simulator のみ。端末向けのビルドにはこの経路が入りません)。実機は App Attest で Anthropic から token を受け取ります。token 取得の手順(チャレンジ・登録・交換・401 での取り直し)は `ClaudeAppAttestTests` が模擬の Apple・Anthropic で確かめ、Apple の本物の attestation は実機で確かめます。`STRUIS_CLAUDE_PROXY_DUMP_DIR` を付けると、変換前後の要求(画像は省略)を書き出します。
