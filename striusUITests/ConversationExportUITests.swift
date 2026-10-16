@@ -9,17 +9,17 @@ final class ConversationExportUITests: XCTestCase {
         // 前のテストや手動の操作で横向きが残っていると、入力欄や送信ボタンが画面外に出て落ちる。
         XCUIDevice.shared.orientation = .portrait
         app.openQuestionSheet()
-        XCTAssertTrue(app.staticTexts["写真で送ります。"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["写真で送ります。"].appears(timeout: 30))
         let export = app.buttons["会話を書き出す"]
-        XCTAssertTrue(export.waitForExistence(timeout: 30))
+        XCTAssertTrue(export.appears(timeout: 30))
         let before = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         before.name = "export-chat-header"
         before.lifetime = .keepAlways
         add(before)
         export.tap()
-        XCTAssertTrue(app.navigationBars["会話の書き出し"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["会話の書き出し"].appears(timeout: 5))
         app.buttons["コピー"].tap()
-        XCTAssertTrue(app.buttons["コピーしました"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["コピーしました"].appears(timeout: 5))
         let sheet = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         sheet.name = "export-copied"
         sheet.lifetime = .keepAlways
@@ -30,12 +30,12 @@ final class ConversationExportUITests: XCTestCase {
         field.tap()
         field.press(forDuration: 1.2)
         let paste = app.menuItems["ペースト"].exists ? app.menuItems["ペースト"] : app.menuItems["Paste"]
-        if paste.waitForExistence(timeout: 3) {
+        if paste.appears(timeout: 3) {
             paste.tap()
         } else {
             app.typeKey("v", modifierFlags: .command)
         }
-        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "value CONTAINS %@", "[Struis]")).firstMatch.waitForExistence(timeout: 5), "コピーした会話を入力欄へ貼り付けられる")
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "value CONTAINS %@", "[Struis]")).firstMatch.appears(timeout: 5), "コピーした会話を入力欄へ貼り付けられる")
         print("EXPORT_UI: header visible; sheet opened; copied; pasted text contains [Struis]")
     }
 }

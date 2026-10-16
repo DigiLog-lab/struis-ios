@@ -24,20 +24,20 @@ final class MinimumLoopE2ETests: XCTestCase {
         attachScreenshot(app, name: "01-launch")
 
         let startButton = app.buttons["はじめる"]
-        if startButton.waitForExistence(timeout: 5) {
+        if startButton.appears(timeout: 5) {
             startButton.tap()
             attachScreenshot(app, name: "02-after-start")
         }
 
         let devSignIn = app.buttons["Dev sign-in (DEBUG)"]
-        if devSignIn.waitForExistence(timeout: 5) {
+        if devSignIn.appears(timeout: 5) {
             devSignIn.tap()
             attachScreenshot(app, name: "03-after-dev-signin")
         }
 
         let composer = app.textViews.matching(identifier: "chat-page").firstMatch
         XCTAssertTrue(
-            composer.waitForExistence(timeout: 30),
+            composer.appears(timeout: 30),
             "ChatMainView composer did not appear within 30s (bootstrap likely failed)"
         )
         attachScreenshot(app, name: "04-chat-loaded")
@@ -59,7 +59,7 @@ final class MinimumLoopE2ETests: XCTestCase {
         // visible we consider the loop complete.
         let pendingLabel = app.staticTexts["考えています…"]
         XCTAssertTrue(
-            pendingLabel.waitForExistence(timeout: 30),
+            pendingLabel.appears(timeout: 30),
             "Pending assistant bubble never appeared — POST /messages likely failed"
         )
         attachScreenshot(app, name: "07-pending")

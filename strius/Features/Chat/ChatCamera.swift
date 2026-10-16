@@ -597,7 +597,10 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
             processPhoto(data)
             // Leave a deterministic interval between processing and completion
             // to exercise immediate-send races without a physical camera.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [self] in
+            // `STRUIS_TEST_CAPTURE_FINISH_SECONDS` lengthens it for a test that must act inside the interval
+            // (on a slow CI runner, XCUITest's next tap can take more than 3 s to land).
+            let finish = ProcessInfo.processInfo.environment["STRUIS_TEST_CAPTURE_FINISH_SECONDS"].flatMap(Double.init) ?? 3
+            DispatchQueue.main.asyncAfter(deadline: .now() + finish) { [self] in
                 finishCapture(error: nil)
             }
             return

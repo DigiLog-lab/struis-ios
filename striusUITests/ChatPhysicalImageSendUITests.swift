@@ -12,14 +12,14 @@ final class ChatPhysicalImageSendUITests: XCTestCase {
         app.launchEnvironment["OS_ACTIVITY_DT_MODE"] = "YES"
         app.launch()
         let plus = app.buttons["添付"].firstMatch
-        guard plus.waitForExistence(timeout: 30) else {
+        guard plus.appears(timeout: 30) else {
             capture("chat-unavailable")
             XCTFail("実機の認証済みチャットへ到達できません")
             return
         }
         app.buttons["履歴"].firstMatch.tap()
         let previousThread = app.scrollViews.buttons.firstMatch
-        XCTAssertTrue(previousThread.waitForExistence(timeout: 10))
+        XCTAssertTrue(previousThread.appears(timeout: 10))
         previousThread.tap()
         let marker = "Upload-check-" + UUID().uuidString.prefix(8)
         let field = app.textViews.matching(identifier: "chat-page").firstMatch
@@ -28,14 +28,14 @@ final class ChatPhysicalImageSendUITests: XCTestCase {
         capture("before-camera")
         plus.press(forDuration: 0.6)
         let shutter = app.buttons["chat-camera-shutter"]
-        XCTAssertTrue(shutter.waitForExistence(timeout: 10))
+        XCTAssertTrue(shutter.appears(timeout: 10))
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "enabled == true"), object: shutter)], timeout: 15), .completed)
         capture("physical-preview")
         shutter.tap()
         let attachment = app.buttons.matching(NSPredicate(format:
             "label BEGINSWITH 'photo-' AND label ENDSWITH 'を解除'")).firstMatch
-        XCTAssertTrue(attachment.waitForExistence(timeout: 15))
+        XCTAssertTrue(attachment.appears(timeout: 15))
         let send = app.buttons.matching(NSPredicate(format:
             "label == %@ AND identifier == %@", "送信", "chat-page")).firstMatch
         let started = Date()
@@ -54,15 +54,15 @@ final class ChatPhysicalImageSendUITests: XCTestCase {
         // Optimistic bubbles cannot satisfy this check: relaunch discards them.
         app.terminate()
         app.launch()
-        XCTAssertTrue(plus.waitForExistence(timeout: 30))
+        XCTAssertTrue(plus.appears(timeout: 30))
         app.buttons["履歴"].firstMatch.tap()
         let savedThread = app.scrollViews.buttons.firstMatch
-        XCTAssertTrue(savedThread.waitForExistence(timeout: 10))
+        XCTAssertTrue(savedThread.appears(timeout: 10))
         savedThread.tap()
-        XCTAssertTrue(app.staticTexts[marker].waitForExistence(timeout: 20), "再起動後も送信が保存されていること")
+        XCTAssertTrue(app.staticTexts[marker].appears(timeout: 20), "再起動後も送信が保存されていること")
         let savedImage = app.buttons.matching(NSPredicate(format:
             "label CONTAINS 'photo-1.jpg' AND NOT label CONTAINS 'を解除'")).firstMatch
-        XCTAssertTrue(savedImage.waitForExistence(timeout: 20))
+        XCTAssertTrue(savedImage.appears(timeout: 20))
         capture("physical-send-reopened")
     }
 

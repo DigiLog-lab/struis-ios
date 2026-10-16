@@ -6,7 +6,8 @@ import SwiftUI
 /// 破棄で高さが変わる → また送る」の帰還ループになる(E2E 2026-09-23 H2)。
 ///
 /// 読み返している間の位置は、画面の下端の吹き出しを基準に保つ(`scrollPosition(id:anchor: .bottom)`)。画面の上の外で
-/// 行が実体化して数式の高さが決まっても、見えている会話を押し下げない(2026-10-07)。
+/// 行が実体化して数式の高さが決まっても、見えている会話を押し下げない(2026-10-07)。SwiftUI の基準が打ち消さない
+/// 時があるので、指を離した後は `ChatAnchorKeeper` でも下端の吹き出しの位置を保つ(2026-10-16)。
 ///
 /// 小単元で段が変わった直後は、学習者がどこを読んでいても、新しい段の返事(作られている最中の吹き出し)の
 /// 頭まで送る。`followToken` はその段のモデルの返事の id で、新しい返事が現れて値が変わった時に送る
@@ -31,6 +32,8 @@ struct ChatTimeline: View {
     @State private var followTarget: UUID?
     /// 画面の下端にある吹き出し(スクロールの位置の基準)。行の高さが変わっても、この吹き出しの位置を保つ。
     @State private var anchorMessageID: UUID?
+    /// 指を離した後に、画面の上の外の行の高さが変わっても、見えている会話を動かさない(状態ではないので書いても描き直さない)。
+    @State private var keeper = ChatAnchorKeeper()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
@@ -62,10 +65,15 @@ struct ChatTimeline: View {
                             folded: folded.contains(message.id)
                         )
                             .id(message.id)
+                            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .scrollView).maxY } action: { maxY in
+                                keeper.rowMoved(message.id, maxY: maxY)
+                            }
+                            .onDisappear { keeper.rowGone(message.id) }
                     }
                     Color.clear.frame(height: 12 + bottomInset).id(Self.bottomAnchor)
                 }
                 .scrollTargetLayout()
+                .background(ChatScrollViewFinder { keeper.scrollView = $0 })
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
             }
@@ -73,6 +81,10 @@ struct ChatTimeline: View {
             // 高さが変わる(初めて描く数式は高さが前もって分からない)。上端や中身の先頭を基準にすると、指を離した後に
             // 見えている会話が丸ごと押し下げられる(2026-10-07 の計測で 17〜51pt)。下端の吹き出しは描き終えているので動かない。
             .scrollPosition(id: $anchorMessageID, anchor: .bottom)
+            // 開いた時は最初から下端に置く。上端から始めると、`LazyVStack` が会話の先頭の行を作ってから下端へ送るので、
+            // 長い会話では見えない先頭の行の数式の WebView(とその中身のプロセス)がいくつも作られ、開いてから数十秒
+            // 端末が重くなっていた(先頭の行は画面に全部見えることが無いので画像にも残らず、開くたびに繰り返していた)。
+            .defaultScrollAnchor(.bottom, for: .initialOffset)
             // 基準は学習者のスクロールでだけ付く。基準が変わるたびにこちらから書き換えない(SwiftUI が付け直す値と打ち消し合い、
             // 更新が止まらず画面が固まる)。こちらから送る時だけ、送る直前に外す(`releaseAnchor`)。
             .scrollDismissesKeyboard(.interactively)
@@ -89,6 +101,7 @@ struct ChatTimeline: View {
                 if isNearBottom != nearBottom { isNearBottom = nearBottom }
             }
             .onScrollPhaseChange { _, phase in
+                keeper.phaseChanged(idle: phase == .idle, interacting: phase == .interacting)
                 if phase == .interacting {
                     learnerScrolled = true
                     onLearnerScroll?()
@@ -175,6 +188,7 @@ struct ChatTimeline: View {
     /// こちらから送る直前に、学習者のスクロールで付いた位置の基準を外す。残すと、送った後に行の高さが変わった時、
     /// SwiftUI が古い基準の吹き出しの位置へ引き戻す(送り先と取り合う)。
     private func releaseAnchor() {
+        keeper.release()
         if anchorMessageID != nil { anchorMessageID = nil }
     }
 
@@ -192,5 +206,97 @@ struct ChatTimeline: View {
             }
         }
         return folded
+    }
+}
+
+/// 学習者が読み返して指を離した後、画面の下端の吹き出しの位置を保つ。画面の上の外の行は、実体化した時や、同じ本文の
+/// 数式が別の行で描き終えて高さが分かった時(`KaTeXLayoutCache`)に高さが変わる。`scrollPosition(id:anchor: .bottom)` が
+/// 打ち消すはずだが、打ち消さない時があり、見えている会話が丸ごと動いていた(CI で 31.33pt。返事が出来上がった時に、
+/// 同じ本文の上の行が仮の文字から描き終えた高さに変わった)。
+///
+/// 指を離して止まった時に下端の吹き出しとその下端の位置を覚え、止まっている間にその吹き出しが動いたら、会話の
+/// スクロールの位置を同じだけずらして戻す(SwiftUI が打ち消していれば動きは 0 で、何もしない)。指で動かしている間、
+/// こちらから送った後(`release`)、会話の枠の大きさが変わった時(キーボードなど)は何もしない。
+@MainActor
+final class ChatAnchorKeeper {
+    weak var scrollView: UIScrollView?
+    /// 実体化している行の、会話の枠から見た下端。
+    private var rows: [UUID: CGFloat] = [:]
+    /// 学習者が自分で動かした後か(こちらから送ると外れる。`scrollPosition` の基準と同じ扱い)。
+    private var active = false
+    private var idle = true
+    private var reference: (id: UUID, maxY: CGFloat, frame: CGRect, inset: UIEdgeInsets)?
+
+    func phaseChanged(idle: Bool, interacting: Bool) {
+        if interacting { active = true }
+        self.idle = idle
+        reference = nil
+        if idle, active { pickReference() }
+    }
+
+    func release() {
+        active = false
+        reference = nil
+    }
+
+    func rowGone(_ id: UUID) {
+        rows[id] = nil
+        if reference?.id == id { reference = nil }
+    }
+
+    func rowMoved(_ id: UUID, maxY: CGFloat) {
+        rows[id] = maxY
+        guard let reference, reference.id == id, idle, active, let scrollView else { return }
+        guard scrollView.frame == reference.frame, scrollView.adjustedContentInset == reference.inset else {
+            // 会話の枠の大きさが変わった(キーボード・回転など): 動いたのは中身ではないので、今の位置を覚え直す。
+            self.reference = (id, maxY, scrollView.frame, scrollView.adjustedContentInset)
+            return
+        }
+        let delta = maxY - reference.maxY
+        guard abs(delta) >= 0.5 else { return }
+        let inset = scrollView.adjustedContentInset
+        let lowest = -inset.top
+        let highest = max(lowest, scrollView.contentSize.height + inset.bottom - scrollView.bounds.height)
+        let target = min(max(scrollView.contentOffset.y + delta, lowest), highest)
+        guard abs(target - scrollView.contentOffset.y) >= 0.5 else { return }
+        scrollView.contentOffset.y = target
+    }
+
+    /// 画面に見えている中で、いちばん下の吹き出し。
+    private func pickReference() {
+        guard let scrollView else { return }
+        let height = scrollView.bounds.height
+        guard let bottom = rows.filter({ $0.value > 0 && $0.value <= height }).max(by: { $0.value < $1.value }) else { return }
+        reference = (bottom.key, bottom.value, scrollView.frame, scrollView.adjustedContentInset)
+    }
+}
+
+/// 会話の `ScrollView` の中に置き、それを描いている `UIScrollView` を見つける(`ChatAnchorKeeper` が位置を戻すため)。
+private struct ChatScrollViewFinder: UIViewRepresentable {
+    let found: (UIScrollView) -> Void
+
+    func makeUIView(context: Context) -> FinderView {
+        let view = FinderView()
+        view.found = found
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ view: FinderView, context: Context) {}
+
+    final class FinderView: UIView {
+        var found: ((UIScrollView) -> Void)?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            var next = superview
+            while let view = next {
+                if let scroll = view as? UIScrollView {
+                    found?(scroll)
+                    return
+                }
+                next = view.superview
+            }
+        }
     }
 }

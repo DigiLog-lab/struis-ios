@@ -89,14 +89,14 @@ final class E2EDriverUITests: XCTestCase {
                     .press(forDuration: 0.05, thenDragTo: point(command.x2 ?? 0, command.y2 ?? 0))
             case "tapid":
                 let target = element(command.id ?? "")
-                if target.waitForExistence(timeout: command.timeout ?? 5) {
+                if target.appears(timeout: command.timeout ?? 5) {
                     target.tap()
                 } else {
                     result = "missing \(command.id ?? "")"
                 }
             case "wait":
                 let target = element(command.id ?? "")
-                result = target.waitForExistence(timeout: command.timeout ?? 30) ? "exists" : "missing"
+                result = target.appears(timeout: command.timeout ?? 30) ? "exists" : "missing"
             case "type":
                 // A failed synthesize ends the whole run, so only type into a focused field.
                 if app.keyboards.count > 0 {
@@ -107,7 +107,7 @@ final class E2EDriverUITests: XCTestCase {
             case "alert":
                 let label = command.text ?? "許可"
                 let button = springboard.buttons[label].firstMatch
-                if button.waitForExistence(timeout: command.timeout ?? 3) {
+                if button.appears(timeout: command.timeout ?? 3) {
                     button.tap()
                 } else {
                     result = "no alert button \(label)"

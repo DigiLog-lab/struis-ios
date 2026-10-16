@@ -20,10 +20,10 @@ final class WorkbookSubunitHeaderUITests: XCTestCase {
             header.tap()
             XCTAssertTrue(waitForValue(header, "expanded"), "タップで開かない")
         }
-        XCTAssertTrue(app.staticTexts["平方完成で頂点を求める"].waitForExistence(timeout: 3), "開いた状態で到達目標が出ない")
+        XCTAssertTrue(app.staticTexts["平方完成で頂点を求める"].appears(timeout: 3), "開いた状態で到達目標が出ない")
 
         let grabber = app.descendants(matching: .any)["workbook-subunit-header-grabber"].firstMatch
-        XCTAssertTrue(grabber.waitForExistence(timeout: 3))
+        XCTAssertTrue(grabber.appears(timeout: 3))
         let start = grabber.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
         let end = start.withOffset(CGVector(dx: 0, dy: -120))
         start.press(forDuration: 0.05, thenDragTo: end)
@@ -42,7 +42,7 @@ final class WorkbookSubunitHeaderUITests: XCTestCase {
 
         header.tap()
         XCTAssertTrue(waitForValue(header, "expanded"), "畳んだ行のタップで開かない")
-        XCTAssertTrue(app.staticTexts["平方完成で頂点を求める"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["平方完成で頂点を求める"].appears(timeout: 3))
     }
 
     /// ヘッダーの上から始めた横のドラッグ(会話の数式を横に動かそうとした指)では開閉しない。タップとだけ区別する。
@@ -72,10 +72,10 @@ final class WorkbookSubunitHeaderUITests: XCTestCase {
     @MainActor
     private func openIntroductionSubunit(_ app: XCUIApplication) -> XCUIElement {
         let row = app.descendants(matching: .any)["workbook-subunit-sub-1"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 10), "ホームに小単元の行が無い")
+        XCTAssertTrue(row.appears(timeout: 10), "ホームに小単元の行が無い")
         row.tap()
         let header = app.descendants(matching: .any)["workbook-subunit-header"].firstMatch
-        XCTAssertTrue(header.waitForExistence(timeout: 10), "折りたたみヘッダーが無い")
+        XCTAssertTrue(header.appears(timeout: 10), "折りたたみヘッダーが無い")
         return header
     }
 

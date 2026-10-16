@@ -18,31 +18,52 @@ final class ChatScrollStabilityUITests: XCTestCase {
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
         app.launch()
         let row = app.descendants(matching: .any)["workbook-subunit-sub-1"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 30), "ホームに小単元の行が無い")
+        XCTAssertTrue(row.appears(timeout: 30), "ホームに小単元の行が無い")
         row.tap()
-        XCTAssertTrue(app.scrollViews["chat-page"].firstMatch.waitForExistence(timeout: 20), "会話が出ない")
+        XCTAssertTrue(app.scrollViews["chat-page"].firstMatch.appears(timeout: 20), "会話が出ない")
         return app
     }
 
     /// 見えている吹き出しの位置(識別子 → 画面上の y)。1 回の snapshot で読む(要素ごとに問い合わせない)。
+    /// 画面の枠は snapshot の根(アプリ)の枠を使い、窓を別に探さない(要素の検索はアプリのメインスレッドで木を作るので、
+    /// 数式の WebView が多い会話では 1 回ごとに数秒かかることがある)。
     @MainActor
     private func bubbleOrigins(_ app: XCUIApplication) -> [String: CGFloat] {
         guard let root = try? app.snapshot() else { return [:] }
-        let screen = app.windows.firstMatch.frame
+        let screen = root.frame
         var result: [String: CGFloat] = [:]
         var stack: [XCUIElementSnapshot] = [root]
+        var layout: [String] = []
         while let node = stack.popLast() {
             if node.identifier.hasPrefix("assistant-message-"), node.frame.intersects(screen), node.frame.height > 0 {
                 result[node.identifier] = node.frame.minY
+            } else if node.identifier == "chat-page", node.elementType == .scrollView {
+                layout.append("page:\(Int(node.frame.minY))+\(Int(node.frame.height))")
+            } else if node.identifier == "workbook-subunit-header" {
+                layout.append("header:\(Int(node.frame.maxY))")
             }
             stack.append(contentsOf: node.children)
         }
+        lastLayout = layout.sorted().joined(separator: ",")
         return result
     }
+
+    /// 最後の `bubbleOrigins` で見えた会話の枠と小単元のヘッダーの下端(吹き出しが動いた時に、会話の枠ごと動いたのかを見分ける)。
+    private var lastLayout = ""
 
     /// 2 つの読み取りで共通する吹き出しの、いちばん大きい縦の移動。
     private func maxShift(_ a: [String: CGFloat], _ b: [String: CGFloat]) -> CGFloat {
         a.keys.compactMap { key in b[key].map { abs($0 - a[key]!) } }.max() ?? 0
+    }
+
+    /// 会話の枠の中の点(0〜1 の割合)を、アプリを起点にした座標にする。会話の枠は最初に 1 回だけ読む。
+    /// 会話の ScrollView を起点にした座標は、指を動かすたびに ScrollView を探し直す(1 回のドラッグで 5 回以上)ので、
+    /// 何度もドラッグする観測ではこちらを使う。
+    @MainActor
+    private func pagePoints(_ app: XCUIApplication) -> (CGFloat, CGFloat) -> XCUICoordinate {
+        let frame = app.scrollViews["chat-page"].firstMatch.frame
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        return { x, y in origin.withOffset(CGVector(dx: frame.minX + frame.width * x, dy: frame.minY + frame.height * y)) }
     }
 
     /// 指を離した後(慣性も止まった後)に、会話の中身が動かない。上へ読み返す 8 回のドラッグで確かめる。
@@ -50,11 +71,10 @@ final class ChatScrollStabilityUITests: XCTestCase {
     func testConversationDoesNotJumpAfterTheFingerLifts() throws {
         let app = launchLongChat()
         Thread.sleep(forTimeInterval: 4)
-        let page = app.scrollViews["chat-page"].firstMatch
+        let point = pagePoints(app)
         var jumps: [CGFloat] = []
         for step in 0..<8 {
-            page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
-                .press(forDuration: 0.05, thenDragTo: page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)), withVelocity: .slow, thenHoldForDuration: 0.3)
+            point(0.5, 0.3).press(forDuration: 0.05, thenDragTo: point(0.5, 0.75), withVelocity: .slow, thenHoldForDuration: 0.3)
             Thread.sleep(forTimeInterval: 0.6)
             let settled = bubbleOrigins(app)
             var later = settled
@@ -62,7 +82,7 @@ final class ChatScrollStabilityUITests: XCTestCase {
             for _ in 0..<6 {
                 Thread.sleep(forTimeInterval: 0.5)
                 let sample = bubbleOrigins(app)
-                trace.append(sample.sorted { $0.value < $1.value }.map { "\($0.key.suffix(4)):\(Int($0.value))" }.joined(separator: ","))
+                trace.append(sample.sorted { $0.value < $1.value }.map { "\($0.key.suffix(4)):\(Int($0.value))" }.joined(separator: ",") + " " + lastLayout)
                 later = sample
             }
             let shift = maxShift(settled, later)
@@ -155,7 +175,7 @@ final class ChatScrollStabilityUITests: XCTestCase {
         let app = launchLongChat()
         let page = app.scrollViews["chat-page"].firstMatch
         let input = app.textViews.matching(identifier: "chat-page").firstMatch
-        XCTAssertTrue(input.waitForExistence(timeout: 10))
+        XCTAssertTrue(input.appears(timeout: 10))
         let before = input.frame
         page.swipeLeft()
         Thread.sleep(forTimeInterval: 1)
@@ -179,14 +199,14 @@ final class ChatScrollStabilityUITests: XCTestCase {
         let app = launchLongChat(environment: ["STRUIS_MOCK_TURN_DELAY_MS": "6000"])
         Thread.sleep(forTimeInterval: 3)
         let input = app.textViews.matching(identifier: "chat-page").firstMatch
-        XCTAssertTrue(input.waitForExistence(timeout: 10))
+        XCTAssertTrue(input.appears(timeout: 10))
         input.tap()
         input.typeText("読み返しの確認")
         let send = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == %@", "送信", "chat-page")).firstMatch
-        XCTAssertTrue(send.waitForExistence(timeout: 5))
+        XCTAssertTrue(send.appears(timeout: 5))
         send.press(forDuration: 0.15)
         let sent = app.staticTexts["読み返しの確認"].firstMatch
-        XCTAssertTrue(sent.waitForExistence(timeout: 10), "送った文が出ない")
+        XCTAssertTrue(sent.appears(timeout: 10), "送った文が出ない")
         XCTAssertTrue(sent.isHittable, "送った直後に自分のメッセージまで送られない")
         // 返事を待っている間に、キーボードを閉じて上へ読み返す。
         let page = app.scrollViews["chat-page"].firstMatch
@@ -201,7 +221,8 @@ final class ChatScrollStabilityUITests: XCTestCase {
         let after = bubbleOrigins(app)
         let common = Set(reading.keys).intersection(after.keys).count
         let shift = maxShift(reading, after)
-        print("PROBE readback common=\(common) shift=\(shift)")
+        let describe = { (o: [String: CGFloat]) in o.sorted { $0.value < $1.value }.map { "\($0.key.suffix(4)):\(Int($0.value))" }.joined(separator: ",") }
+        print("PROBE readback common=\(common) shift=\(shift) reading=[\(describe(reading))] after=[\(describe(after))]")
         attach(app, "reading-back-after-reply")
         XCTAssertGreaterThan(common, 0, "読み返していた吹き出しが画面から消えた(引き戻された)")
         XCTAssertLessThanOrEqual(shift, 2, "返事が出来上がった時に、読み返している会話が動いた")
@@ -217,19 +238,30 @@ final class ChatScrollStabilityUITests: XCTestCase {
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
         app.launch()
         let row = app.descendants(matching: .any)["workbook-subunit-sub-1"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        XCTAssertTrue(row.appears(timeout: 30))
         row.tap()
         let page = app.scrollViews["chat-page"].firstMatch
-        XCTAssertTrue(page.waitForExistence(timeout: 20))
+        XCTAssertTrue(page.appears(timeout: 20))
         let screen = app.windows.firstMatch.frame
         var tried = Set<String>()
         var scrolled = false
         for _ in 0..<10 where !scrolled {
             Thread.sleep(forTimeInterval: 3)
+            // 背の高い WebView(表示用の数式を含む吹き出し)から試す。
             let webs = app.webViews.allElementsBoundByIndex.filter {
                 $0.exists && $0.frame.height > 30 && $0.frame.maxY > screen.height * 0.2 && $0.frame.minY < screen.height * 0.75
-            }
+            }.sorted { $0.frame.height > $1.frame.height }
             for web in webs where !scrolled {
+                // 吹き出しの上が見出しに隠れていると、隠れた行には指が届かず試せない。吹き出しが見える範囲に収まるなら、
+                // 先に上端が見えるまで会話を下へ送る(送らないと、ほかの吹き出しを全部試してから会話を送ることになる)。
+                let hidden = visibleBand(app, screen: screen)
+                if web.frame.minY < hidden.lowerBound, web.frame.height < hidden.upperBound - hidden.lowerBound - 24 {
+                    let from = page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+                    from.press(forDuration: 0.05, thenDragTo: from.withOffset(CGVector(dx: 0, dy: hidden.lowerBound + 24 - web.frame.minY)),
+                               withVelocity: .slow, thenHoldForDuration: 0.5)
+                    Thread.sleep(forTimeInterval: 1)
+                    guard web.exists else { continue }
+                }
                 let key = "\(Int(web.frame.minY))-\(Int(web.frame.height))-\(web.label)"
                 guard tried.insert(key).inserted else { continue }
                 // 吹き出し全体が 1 つの WebView なので、表示用の数式の行に当たるよう縦の位置を 22pt おきに変えて試す。
