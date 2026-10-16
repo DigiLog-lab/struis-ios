@@ -44,9 +44,9 @@ final class striusUITests: XCTestCase {
         app.openQuestionSheet()
 
         let chatPage = app.scrollViews["chat-page"]
-        XCTAssertTrue(chatPage.waitForExistence(timeout: 10))
+        XCTAssertTrue(chatPage.appears(timeout: 10))
         let composer = app.textViews.matching(identifier: "chat-page").firstMatch
-        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        XCTAssertTrue(composer.appears(timeout: 5))
         let before = composer.frame
 
         chatPage.swipeRight()

@@ -22,7 +22,7 @@ final class WorkbookHomeUITests: XCTestCase {
 
         // 最近: 行は小単元名と点数を読み上げに含む。判定中の行は点数を出さない。
         let graded = app.descendants(matching: .any)["workbook-recent-demo-cap-1"].firstMatch
-        XCTAssertTrue(graded.waitForExistence(timeout: 20), "判定済みの行が無い")
+        XCTAssertTrue(graded.appears(timeout: 20), "判定済みの行が無い")
         XCTAssertTrue(graded.label.contains("頂点の座標が求められる"), "行に小単元名が無い: \(graded.label)")
         XCTAssertTrue(graded.label.contains("4 / 5"), "行に点数が無い: \(graded.label)")
         // 「合格」は小単元が合格した一枚だけに出す(一枚が 8 割でも、小単元が合格していなければ出さない)。
@@ -44,10 +44,10 @@ final class WorkbookHomeUITests: XCTestCase {
         // 小単元の画面: 道のりに 4 語が並び、ボタンは「類題 1問」。
         now.tap()
         for label in ["要点", "例題", "類題", "演習"] {
-            XCTAssertTrue(app.staticTexts[label].firstMatch.waitForExistence(timeout: 5), "道のりに「\(label)」が無い")
+            XCTAssertTrue(app.staticTexts[label].firstMatch.appears(timeout: 5), "道のりに「\(label)」が無い")
         }
         let request = app.buttons["workbook-request-set"].firstMatch
-        XCTAssertTrue(request.waitForExistence(timeout: 5), "一枚を出すボタンが無い")
+        XCTAssertTrue(request.appears(timeout: 5), "一枚を出すボタンが無い")
         XCTAssertTrue(request.label.contains("類題 1問"), "ボタンの文言が違う: \(request.label)")
         XCTAssertTrue(app.descendants(matching: .any)["workbook-capture-button"].firstMatch.isHittable, "小単元の画面で撮るボタンが押せない")
     }

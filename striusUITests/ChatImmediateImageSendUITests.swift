@@ -16,10 +16,10 @@ final class ChatImmediateImageSendUITests: XCTestCase {
     func testCancelWhileCaptureIsFinishing() throws {
         let app = try launchCameraTestApp()
         let plus = app.buttons["添付"].firstMatch
-        XCTAssertTrue(plus.waitForExistence(timeout: 30))
+        XCTAssertTrue(plus.appears(timeout: 30))
         plus.press(forDuration: 0.6)
         let shutter = app.buttons["chat-camera-shutter"]
-        XCTAssertTrue(shutter.waitForExistence(timeout: 5))
+        XCTAssertTrue(shutter.appears(timeout: 5))
         shutter.tap()
         app.buttons["キャンセル"].tap()
         XCTAssertTrue(shutter.waitForNonExistence(timeout: 5))
@@ -40,7 +40,7 @@ final class ChatImmediateImageSendUITests: XCTestCase {
         app.launch()
         app.openQuestionSheet()
         let plus = app.buttons["添付"].firstMatch
-        XCTAssertTrue(plus.waitForExistence(timeout: 30))
+        XCTAssertTrue(plus.appears(timeout: 30))
         app.buttons["履歴"].firstMatch.tap()
         app.buttons["新しい会話"].tap()
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
@@ -49,7 +49,7 @@ final class ChatImmediateImageSendUITests: XCTestCase {
         for count in 1...2 {
             plus.press(forDuration: 0.6)
             let shutter = app.buttons["chat-camera-shutter"]
-            XCTAssertTrue(shutter.waitForExistence(timeout: 10))
+            XCTAssertTrue(shutter.appears(timeout: 10))
             shutter.tap()
             let attachments = app.buttons.matching(NSPredicate(format:
                 "label BEGINSWITH 'photo-' AND label ENDSWITH 'を解除'"))
@@ -62,7 +62,7 @@ final class ChatImmediateImageSendUITests: XCTestCase {
         for name in ["photo-1.jpg", "photo-2.jpg"] {
             let image = app.buttons.matching(NSPredicate(format:
                 "label CONTAINS %@ AND NOT label CONTAINS 'を解除'", name)).firstMatch
-            XCTAssertTrue(image.waitForExistence(timeout: 30), "\(name) が送信後の会話に出ない")
+            XCTAssertTrue(image.appears(timeout: 30), "\(name) が送信後の会話に出ない")
         }
         capture("two-images-sent")
 
@@ -72,7 +72,7 @@ final class ChatImmediateImageSendUITests: XCTestCase {
         app.openQuestionSheet()
         for name in ["photo-1.jpg", "photo-2.jpg"] {
             XCTAssertTrue(app.buttons.matching(NSPredicate(format:
-                "label CONTAINS %@ AND NOT label CONTAINS 'を解除'", name)).firstMatch.waitForExistence(timeout: 30),
+                "label CONTAINS %@ AND NOT label CONTAINS 'を解除'", name)).firstMatch.appears(timeout: 30),
                 "\(name) が再起動後に残っていない")
         }
         capture("two-images-reopened")
@@ -90,7 +90,7 @@ final class ChatImmediateImageSendUITests: XCTestCase {
         let app = try launchCameraTestApp()
 
         let plus = app.buttons["添付"].firstMatch
-        XCTAssertTrue(plus.waitForExistence(timeout: 30))
+        XCTAssertTrue(plus.appears(timeout: 30))
         app.buttons["履歴"].firstMatch.tap()
         app.buttons["新しい会話"].tap()
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
@@ -98,7 +98,7 @@ final class ChatImmediateImageSendUITests: XCTestCase {
         )], timeout: 30), .completed)
         plus.press(forDuration: 0.6)
         let shutter = app.buttons["chat-camera-shutter"]
-        XCTAssertTrue(shutter.waitForExistence(timeout: 5))
+        XCTAssertTrue(shutter.appears(timeout: 5))
         XCTAssertTrue(shutter.isEnabled)
         shutter.tap()
 
@@ -108,7 +108,7 @@ final class ChatImmediateImageSendUITests: XCTestCase {
         let removeAttachment = app.buttons.matching(NSPredicate(format:
             "label BEGINSWITH 'photo-' AND label ENDSWITH 'を解除'")).firstMatch
         XCTAssertFalse(removeAttachment.exists, "撮影完了前には送信対象を公開しないこと")
-        XCTAssertTrue(removeAttachment.waitForExistence(timeout: 10))
+        XCTAssertTrue(removeAttachment.appears(timeout: 10))
         let send = app.buttons.matching(NSPredicate(format:
             "label == %@ AND identifier == %@", "送信", "chat-page")).firstMatch
         XCTAssertTrue(send.isEnabled)
@@ -117,7 +117,7 @@ final class ChatImmediateImageSendUITests: XCTestCase {
 
         let sentImage = app.buttons.matching(NSPredicate(format:
             "label CONTAINS 'photo-1.jpg' AND NOT label CONTAINS 'を解除'")).firstMatch
-        XCTAssertTrue(sentImage.waitForExistence(timeout: 150), "送信済み画像が履歴に表示されること")
+        XCTAssertTrue(sentImage.appears(timeout: 150), "送信済み画像が履歴に表示されること")
         XCTAssertFalse(app.staticTexts["ネットワークに接続できません"].exists)
         XCTAssertFalse(removeAttachment.exists, "成功後に未送信の添付へ戻らないこと")
         let screenshot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())

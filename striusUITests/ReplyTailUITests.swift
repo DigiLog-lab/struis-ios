@@ -47,7 +47,7 @@ final class ReplyTailUITests: XCTestCase {
     @MainActor
     private func type(_ app: XCUIApplication, _ value: String) {
         let input = app.textViews.matching(identifier: "chat-page").firstMatch
-        XCTAssertTrue(input.waitForExistence(timeout: 15), "入力欄が無い")
+        XCTAssertTrue(input.appears(timeout: 15), "入力欄が無い")
         input.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).tap()
         input.typeText(value)
     }
@@ -73,16 +73,16 @@ final class ReplyTailUITests: XCTestCase {
         send.press(forDuration: 0.15)
 
         // 本文が出て、後ろの記録を書いている。
-        XCTAssertTrue(text(app, containing: "自信がある行").waitForExistence(timeout: 20), "返事の本文が流れない")
-        XCTAssertTrue(text(app, containing: Self.recordingText).waitForExistence(timeout: 10), "記録の言葉が出ない: \(screenSummary(app))")
+        XCTAssertTrue(text(app, containing: "自信がある行").appears(timeout: 20), "返事の本文が流れない")
+        XCTAssertTrue(text(app, containing: Self.recordingText).appears(timeout: 10), "記録の言葉が出ない: \(screenSummary(app))")
         attach(app, "1-recording-composer-is-send")
         XCTAssertFalse(stopButton(app).exists, "記録だけを書いている間に入力欄が停止ボタンになっている")
 
         type(app, "なんですかこれ")
         XCTAssertTrue(wait(send, "exists == true AND enabled == true", timeout: 5), "記録の間に送信ボタンが押せない")
         send.press(forDuration: 0.15)
-        XCTAssertTrue(text(app, containing: "なんですかこれ").waitForExistence(timeout: 10), "送った質問が吹き出しに出ない")
-        XCTAssertTrue(text(app, containing: "前の返事の記録が終わりしだい、答えます").waitForExistence(timeout: 10),
+        XCTAssertTrue(text(app, containing: "なんですかこれ").appears(timeout: 10), "送った質問が吹き出しに出ない")
+        XCTAssertTrue(text(app, containing: "前の返事の記録が終わりしだい、答えます").appears(timeout: 10),
                       "並べた質問の待ちの言葉が出ない: \(screenSummary(app))")
         XCTAssertTrue(text(app, containing: Self.recordingText).exists, "送った後も前の返事の記録は続いている")
         attach(app, "2-queued-question-while-recording")
@@ -102,15 +102,15 @@ final class ReplyTailUITests: XCTestCase {
     func testAdvanceAppearsWhileReadyReplyIsRecording() throws {
         let app = launch(["-skip-onboarding", "-workbook-model-stage"], tailMs: "15000")
         let row = element(app, "workbook-subunit-sub-1")
-        XCTAssertTrue(row.waitForExistence(timeout: 30), "ホームに小単元の行が無い")
+        XCTAssertTrue(row.appears(timeout: 30), "ホームに小単元の行が無い")
         row.tap()
         // 段階 1 の要点(これも記録を書く)。出終わったら「先に進む」。
-        XCTAssertTrue(text(app, containing: "要点を話すね").waitForExistence(timeout: 20))
+        XCTAssertTrue(text(app, containing: "要点を話すね").appears(timeout: 20))
         let advance = element(app, "workbook-advance")
         XCTAssertTrue(wait(advance, "exists == true AND enabled == true", timeout: 30), "要点の後に「先に進む」が押せない: \(screenSummary(app))")
         attach(app, "4-intro-advance-while-recording")
         advance.press(forDuration: 0.15)
-        XCTAssertTrue(text(app, containing: "頂点の座標を求めよ").waitForExistence(timeout: 60), "例題が出ない: \(screenSummary(app))")
+        XCTAssertTrue(text(app, containing: "頂点の座標を求めよ").appears(timeout: 60), "例題が出ない: \(screenSummary(app))")
         // 例題の起動の返事の記録が終わるまで待つ(例題は返事の終わりに保存される)。
         XCTAssertTrue(wait(text(app, containing: Self.recordingText), "exists == false", timeout: 40))
 
@@ -118,7 +118,7 @@ final class ReplyTailUITests: XCTestCase {
         let send = sendButton(app)
         XCTAssertTrue(wait(send, "exists == true AND enabled == true"))
         send.press(forDuration: 0.15)
-        XCTAssertTrue(text(app, containing: "よくできました").waitForExistence(timeout: 20), "準備OKの返事が出ない")
+        XCTAssertTrue(text(app, containing: "よくできました").appears(timeout: 20), "準備OKの返事が出ない")
         // 入力中は「先に進む」を隠すので、キーボードが出ていれば閉じる。
         let keyboard = app.keyboards.firstMatch
         if keyboard.exists {
@@ -130,7 +130,7 @@ final class ReplyTailUITests: XCTestCase {
         XCTAssertTrue(text(app, containing: Self.recordingText).exists, "まだ記録を書いている最中であること")
         attach(app, "5-advance-while-ready-reply-recording")
         advance.press(forDuration: 0.15)
-        XCTAssertTrue(element(app, "workbook-request-set").waitForExistence(timeout: 20) || text(app, containing: "類題").waitForExistence(timeout: 5),
+        XCTAssertTrue(element(app, "workbook-request-set").appears(timeout: 20) || text(app, containing: "類題").appears(timeout: 5),
                       "類題の段に進まない: \(screenSummary(app))")
         attach(app, "6-advanced-to-similar-problem")
     }
@@ -157,14 +157,14 @@ final class ReplyTailUITests: XCTestCase {
         send.press(forDuration: 0.15)
 
         let recording = text(app, containing: Self.recordingText)
-        XCTAssertTrue(recording.waitForExistence(timeout: 300), "返事の後ろの記録の言葉が出ない: \(screenSummary(app))")
+        XCTAssertTrue(recording.appears(timeout: 300), "返事の後ろの記録の言葉が出ない: \(screenSummary(app))")
         attach(app, "real-1-recording-composer-is-send")
         XCTAssertFalse(stopButton(app).exists, "記録だけを書いている間に入力欄が停止ボタンになっている")
 
         type(app, "なんですかこれ")
         XCTAssertTrue(wait(send, "exists == true AND enabled == true", timeout: 5), "記録の間に送信ボタンが押せない")
         send.press(forDuration: 0.15)
-        XCTAssertTrue(text(app, containing: "なんですかこれ").waitForExistence(timeout: 10), "送った質問が吹き出しに出ない")
+        XCTAssertTrue(text(app, containing: "なんですかこれ").appears(timeout: 10), "送った質問が吹き出しに出ない")
         attach(app, "real-2-queued-question")
 
         // 前の返事の記録と、並べた質問の返事が両方とも出来上がる(どちらも止まらない)。

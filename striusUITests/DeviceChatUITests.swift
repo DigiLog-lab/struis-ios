@@ -73,12 +73,12 @@ final class DeviceChatUITests: XCTestCase {
         assertTurnSucceeded(reply, "計画の依頼")
         XCTAssertFalse(reply.contains("<struis_"), "私的ブロックが画面に漏れている: \(reply)")
         let start = app.descendants(matching: .any)["workbook-proposal-start"].firstMatch
-        XCTAssertTrue(start.waitForExistence(timeout: 300), "単元の提案カードが出ない")
+        XCTAssertTrue(start.appears(timeout: 300), "単元の提案カードが出ない")
         snapshot(app, "chat-real-codex-proposal")
         start.tap()
         // 「はじめる」の後は質問画面を閉じて小単元 1 の要点を開く(質問画面に取り残されない)。
         let header = app.descendants(matching: .any)["workbook-subunit-header"].firstMatch
-        XCTAssertTrue(header.waitForExistence(timeout: 30), "提案から単元を始められない")
+        XCTAssertTrue(header.appears(timeout: 30), "提案から単元を始められない")
         app.navigationBars.buttons.firstMatch.tap()
 
         let lookup = try ask(app, "さっき私が何を予習したいと言ったか、会話の記録を調べて一言で確認してください。", timeout: 300)
@@ -109,10 +109,10 @@ final class DeviceChatUITests: XCTestCase {
         let chatSend = app.buttons.matching(NSPredicate(format: "label == %@", "送信")).allElementsBoundByIndex.first { $0.isHittable && $0.frame.minX >= 0 }
         chatSend?.press(forDuration: 0.15)
         let stop = app.buttons["停止"].firstMatch
-        XCTAssertTrue(stop.waitForExistence(timeout: 20), "停止ボタンが出ない")
+        XCTAssertTrue(stop.appears(timeout: 20), "停止ボタンが出ない")
         sleep(6)
         stop.tap()
-        XCTAssertTrue(app.staticTexts["停止しました。"].firstMatch.waitForExistence(timeout: 60), "停止が反映されない")
+        XCTAssertTrue(app.staticTexts["停止しました。"].firstMatch.appears(timeout: 60), "停止が反映されない")
         snapshot(app, "chat-real-codex-interrupted")
         let resent = try ask(app, "13 と 17 の積だけ答えてください。", timeout: 240, openSheet: false)
         assertTurnSucceeded(resent, "停止後の再送")
@@ -166,22 +166,22 @@ final class DeviceChatUITests: XCTestCase {
     private func ask(_ app: XCUIApplication, _ text: String, timeout: TimeInterval, openSheet: Bool = true) throws -> String {
         if openSheet {
             let pill = app.buttons["workbook-question-pill"].firstMatch
-            XCTAssertTrue(pill.waitForExistence(timeout: 20), "質問ボタンが無い")
+            XCTAssertTrue(pill.appears(timeout: 20), "質問ボタンが無い")
             pill.tap()
         }
         let field = app.textViews.matching(identifier: "chat-page").firstMatch
-        XCTAssertTrue(field.waitForExistence(timeout: 10), "入力欄が無い")
+        XCTAssertTrue(field.appears(timeout: 10), "入力欄が無い")
         field.tap()
         field.typeText(text)
         let sendButtons = app.buttons.matching(NSPredicate(format: "label == %@", "送信"))
-        XCTAssertTrue(sendButtons.firstMatch.waitForExistence(timeout: 5), "送信ボタンが無い")
+        XCTAssertTrue(sendButtons.firstMatch.appears(timeout: 5), "送信ボタンが無い")
         let send = sendButtons.allElementsBoundByIndex.first { $0.isHittable && $0.frame.minX >= 0 }
         XCTAssertNotNil(send, "表示中の送信ボタンが無い")
         let replies = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", "assistant-message-"))
         let before = Set(replies.allElementsBoundByIndex.map(\.identifier))
         Thread.sleep(forTimeInterval: 0.5)
         send?.press(forDuration: 0.15)
-        XCTAssertTrue(app.staticTexts[text].firstMatch.waitForExistence(timeout: 10), "学習者の発言が出ない")
+        XCTAssertTrue(app.staticTexts[text].firstMatch.appears(timeout: 10), "学習者の発言が出ない")
 
         // 返信の本文は Text と数式ビュー (KaTeX) が混ざるので、識別子を継いだ全要素から
         // 保留中の進捗表示以外の要素を拾う。
