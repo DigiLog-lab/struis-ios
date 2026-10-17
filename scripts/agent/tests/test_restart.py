@@ -285,6 +285,63 @@ class RestartKindTests(unittest.TestCase):
         self.assertIn('<comment id="30"', prompt)
         self.assertIn('<validation-failure>', prompt)
 
+    def test_new_session_history_excludes_unauthorized_comments(self):
+        # A rerun after a failure (new session with the live thread) and a session
+        # that cannot be restored show the thread as history: outsiders stay out.
+        comments = [comment(5, login='stranger', body='古い部外者コメント', association='NONE'),
+                    comment(10, body='処理済みの依頼'),
+                    {'id': 15, 'user': {'login': 'agent[bot]', 'type': 'Bot'}, 'author_association': 'NONE',
+                     'body': 'agentの返信', 'created_at': '2026-10-10T00:00:00Z'},
+                    comment(25, login='stranger', body='部外者の後出しコメント', association='NONE'),
+                    comment(30, body='権限者の新しい依頼')]
+        failed = {'issue': 4, 'branch': 'agent/issue-4', 'sessionId': 'sess', 'lastCommentId': 10,
+                  'issueBodyProcessed': True, 'lastRun': {'success': False, 'noOp': False, 'turnUsage': {'input': 5}}}
+        succeeded = dict(failed, lastRun={'success': True, 'noOp': False, 'turnUsage': {'input': 5}})
+        for state, session_present in ((failed, True), (succeeded, False)):
+            run, prompt, _saved, _restore = self.prepare(state, comments, automatic=False, session_present=session_present)
+            self.assertTrue(run['recovery'])
+            self.assertIn('処理済みの依頼', prompt)
+            self.assertIn('agentの返信', prompt)
+            self.assertIn('<comment id="30"', prompt)
+            self.assertNotIn('古い部外者コメント', prompt)
+            self.assertNotIn('部外者の後出しコメント', prompt)
+            self.assertNotIn('stranger', prompt)
+
+    def test_lost_rerun_does_not_resume_the_session_it_replaced(self):
+        # A human rerun after a failure starts a new session and marks the saved one stale.
+        state = {'issue': 4, 'branch': 'agent/issue-4', 'sessionId': 'sess', 'lastCommentId': 10,
+                 'issueBodyProcessed': True, 'lastRun': {'success': False, 'noOp': False, 'turnUsage': {'input': 5}}}
+        run, _prompt, saved, restore = self.prepare(state, [comment(20)], automatic=False)
+        restore.assert_not_called()
+        self.assertTrue(saved['sessionStale'])
+        # Its runner is lost before finalize: the watchdog restarts it as interrupted,
+        # yet the old failed session is not resumed; the rerun starts over.
+        lost = dict(saved, restartKind='interrupted', autoRestarts=1)
+        run, prompt, saved, restore = self.prepare(lost, [comment(20)], automatic=True)
+        restore.assert_not_called()
+        self.assertFalse(run['restored'])
+        self.assertTrue(run['recovery'])
+        self.assertIn('失敗した後の再実行', prompt)
+        self.assertIn('<comment id="20"', prompt)
+        self.assertTrue(saved['sessionStale'])
+        # A run that resumes its session clears the marker.
+        resumed = dict(saved, restartKind='interrupted', sessionStale=False)
+        _run, _prompt, saved, restore = self.prepare(resumed, [comment(20)], automatic=True)
+        restore.assert_called_once()
+        self.assertNotIn('sessionStale', saved)
+
+    def test_finalize_clears_the_stale_marker_once_the_replacement_session_is_saved(self):
+        stale = {'issue': 4, 'lastCommentId': 10, 'sessionId': 'old', 'sessionStale': True}
+        # Cancelled before any session of its own: the old session stays stale.
+        state, _gh = self.finalize(stale, claude_outcome='cancelled', validation_outcome='skipped')
+        self.assertTrue(state['sessionStale'])
+        self.assertEqual(state['sessionId'], 'old')
+        # Claude ran in the new session (and failed there): the saved session is the replacement.
+        state, _gh = self.finalize(stale, is_error=True, validation_outcome='skipped')
+        self.assertNotIn('sessionStale', state)
+        self.assertEqual(state['sessionId'], 'sess')
+        self.assertEqual(state['restartKind'], 'interrupted')
+
     def test_next_comment_after_success_resumes_session(self):
         state = {'issue': 4, 'branch': 'agent/issue-4', 'sessionId': 'sess', 'lastCommentId': 10,
                  'issueBodyProcessed': True, 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}}
@@ -770,7 +827,8 @@ class RestartKindTests(unittest.TestCase):
         self.assertEqual([c['id'] for c in record['comments']], [10, 15, 20])
         # The repair succeeds: state carries no repair, the session resumes next time.
         state = persisted['sessions/4/state.json']
-        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None)
+        # As finalize leaves the state after a successful repair in a saved session.
+        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None); state.pop('sessionStale', None)
         state.update({'lastCommentId': 20, 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}})
         # Earlier text is edited in place, then a new request arrives.
         issue['body'] = '編集後のIssue本文: 範囲を広げた'
@@ -802,7 +860,8 @@ class RestartKindTests(unittest.TestCase):
         # A new session (recovery) is shown the live thread: its edited text is what the run saw.
         persisted, issue, comments = self.failed_run()
         state = persisted['sessions/4/state.json']
-        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None)
+        # As finalize leaves the state after a successful repair in a saved session.
+        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None); state.pop('sessionStale', None)
         state.update({'lastCommentId': 20, 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}})
         comments[2]['body'] = '編集後の依頼'
         comments.append(comment(30, body='三つ目の依頼'))
@@ -816,7 +875,8 @@ class RestartKindTests(unittest.TestCase):
     def test_resumed_run_without_a_record_snapshots_the_live_text(self):
         persisted, issue, comments = self.failed_run()
         state = persisted['sessions/4/state.json']
-        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None)
+        # As finalize leaves the state after a successful repair in a saved session.
+        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None); state.pop('sessionStale', None)
         state.update({'lastCommentId': 20, 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}})
         del persisted['sessions/4/request-history.json']  # state older than the record
         comments[2]['body'] = '編集後の依頼'
@@ -829,7 +889,8 @@ class RestartKindTests(unittest.TestCase):
     def test_lost_history_record_write_does_not_stop_the_run(self):
         persisted, issue, comments = self.failed_run()
         state = persisted['sessions/4/state.json']
-        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None)
+        # As finalize leaves the state after a successful repair in a saved session.
+        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None); state.pop('sessionStale', None)
         state.update({'lastCommentId': 20, 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}})
         comments.append(comment(30, body='三つ目の依頼'))
         store = self.persisted_store(persisted)

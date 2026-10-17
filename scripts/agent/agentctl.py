@@ -556,9 +556,18 @@ def cmd_prepare(_args):
     # Only an interrupted run resumes its session. A validation repair and a
     # human-triggered rerun after a failure start a new session with the Issue
     # thread as context.
-    resumable = restart_kind == 'interrupted' if automatic else not last_failed
+    # A saved session that a previous run deliberately replaced (a repair or a
+    # rerun that started a new session, then was lost before finalize saved
+    # the replacement) is stale: resuming it would redo or advance work the
+    # replacement was meant to start over.
+    stale = bool(state.get('sessionStale'))
+    resumable = (restart_kind == 'interrupted' if automatic else not last_failed) and not stale
     restored = resumable and not session_needs_recovery(state) and restore_session(store, number, session_id)
     recovery = not restored and (bool(session_id) or bool(repair))
+    if restored:
+        state.pop('sessionStale', None)
+    elif session_id:
+        state['sessionStale'] = True  # cleared by finalize once this run's own session is saved
     snapshot = snapshot_note = None
     if repair:
         # History is the text the failed run saw: its request snapshot when one
@@ -584,10 +593,14 @@ def cmd_prepare(_args):
         included_comments = sorted(carried)
         included_issue_body = bool(repair.get('includedIssueBody'))
     else:
-        history = [c for c in comments if c not in pending]
+        # History shown to a new session: agent replies and authorized authors
+        # only, like the pending requests. An outsider's comment never reaches
+        # the prompt, as history or as a request.
+        history = [c for c in comments if c not in pending and (
+            is_bot(c.get('user')) or allowed_author(c['user']['login'], c.get('author_association')))]
         included_comments = [c['id'] for c in pending]
         included_issue_body = not state.get('issueBodyProcessed')
-    reason = 'validation' if repair else 'rerun' if not automatic and last_failed else 'unrestorable'
+    reason = 'validation' if repair else 'rerun' if (not automatic and last_failed) or stale else 'unrestorable'
     model = state.get('model') or os.environ.get('AGENT_MODEL') or 'opus'
     prototypes = prototype_summary(store, number)
     (home / 'prototypes.json').write_text(json.dumps(prototypes, ensure_ascii=False, indent=2))
@@ -1040,6 +1053,8 @@ def cmd_finalize(_args):
                   'workerFinishedAt': iso(), 'runs': int(state.get('runs') or 0) + 1})
     if report['sessionId']:
         state['sessionId'] = report['sessionId']
+    if report['sessionId'] != run.get('sessionIdBefore'):
+        state.pop('sessionStale', None)  # the saved session is this run's own replacement
     # Whether the saved session is the repair's own: an interrupted repair
     # resumes it, a repair whose session was never saved starts a new one.
     state['sessionRepair'] = bool(run.get('repair')) and (
