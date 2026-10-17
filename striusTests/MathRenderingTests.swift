@@ -36,7 +36,7 @@ struct MathRenderingTests {
                 unexpected.append("\(item.expect) [\(item.source)] \(item.latex)")
             }
         }
-        #expect(unexpected.isEmpty, "期待と違う: \(unexpected.joined(separator: "\n"))")
+        #expect(unexpected.isEmpty, Comment(rawValue: "期待と違う: " + unexpected.joined(separator: "\n")))
     }
 
     @Test func everyNativeFixtureFormulaRendersToANonEmptyImage() throws {
@@ -55,7 +55,7 @@ struct MathRenderingTests {
                 empty.append((spacer ? "spacer: " : "empty: ") + item.latex)
             }
         }
-        #expect(empty.isEmpty, empty.joined(separator: "\n"))
+        #expect(empty.isEmpty, Comment(rawValue: empty.joined(separator: "\n")))
     }
 
     // MARK: - 置き換え
