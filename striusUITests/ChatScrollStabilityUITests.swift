@@ -259,6 +259,14 @@ final class ChatScrollStabilityUITests: XCTestCase {
             let webs = candidates.filter {
                 $0.exists && $0.frame.height > 12 && $0.frame.maxY > screen.height * 0.2 && $0.frame.minY < screen.height * 0.75
             }.sorted { $0.frame.height > $1.frame.height }
+            let all = candidates.filter(\.exists).map { "\(Int($0.frame.minY)):\(Int($0.frame.width))x\(Int($0.frame.height))" }
+            print("PROBE overflow candidates visible=\(webs.count) all=\(all)")
+            if webs.isEmpty {
+                // 数式の行は 1 行ずつの要素なので(WebView の時は吹き出し全体が 1 つの要素だった)、画面に無ければ会話を上へ読み返して探す。
+                page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+                    .press(forDuration: 0.05, thenDragTo: page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)), withVelocity: .slow, thenHoldForDuration: 0.3)
+                continue
+            }
             for web in webs where !scrolled {
                 // 吹き出しの上が見出しに隠れていると、隠れた行には指が届かず試せない。吹き出しが見える範囲に収まるなら、
                 // 先に上端が見えるまで会話を下へ送る(送らないと、ほかの吹き出しを全部試してから会話を送ることになる)。
