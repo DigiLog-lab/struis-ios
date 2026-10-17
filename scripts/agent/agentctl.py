@@ -58,10 +58,17 @@ def cmd_route(_args):
     state = Store().get_json(session_key(number, 'state.json')) or {}
     pending = pending_comments(gh.comments(number), state)
     body_pending = issue_is_pending(issue, state)
-    run = bool(pending) or body_pending
+    # A persisted validation repair is work in itself: the automatic restart must
+    # run even when the comment that started the failed run was deleted since.
+    repair_pending = automatic_retry() and bool(state.get('repair'))
+    run = bool(pending) or body_pending or repair_pending
     write_output('run', 'true' if run else 'false')
     print(json.dumps({'issue': number, 'pendingComments': [c['id'] for c in pending],
-                      'issueBodyPending': body_pending, 'run': run}))
+                      'issueBodyPending': body_pending, 'repairPending': repair_pending, 'run': run}))
+
+
+def automatic_retry():
+    return os.environ.get('AUTOMATIC_RETRY') == 'true'
 
 
 # ---------------------------------------------------------------- prepare ---
@@ -74,6 +81,20 @@ def checkout_branch(branch):
         return True
     git('checkout', '-B', branch, 'origin/main')
     return False
+
+
+def head_descends_from(sha):
+    """True when HEAD is `sha` or one of its descendants."""
+    workspace = os.environ.get('GITHUB_WORKSPACE', os.getcwd())
+    result = subprocess.run(['git', '-C', workspace, 'merge-base', '--is-ancestor', sha, 'HEAD'],
+                            capture_output=True, text=True)
+    return result.returncode == 0
+
+
+def repair_scope(run):
+    """What a validation repair may touch: the failed run's requests and its pushed HEAD."""
+    return {'includedComments': run['includedComments'], 'includedIssueBody': run['includedIssueBody'],
+            'head': git('rev-parse', 'HEAD')}
 
 
 def restore_session(store, number, session_id):
@@ -223,7 +244,10 @@ def cmd_recover(_args):
             or str(state.get('workerRunAttempt', '1')) != os.environ.get('RECOVER_RUN_ATTEMPT', '1')):
         print('終了処理済み、再開予約済み、または後続実行が開始済みです。')
         return
-    note = restart_interrupted(gh, state, 'cancelled')
+    # A validation failure recorded before the runner was lost restarts as a
+    # repair of that HEAD, not as a resumed session that could advance the Issue.
+    kind = state.pop('pendingRestartKind', None) or 'interrupted'
+    note = restart_interrupted(gh, state, 'cancelled', kind)
     store.put_json(session_key(number, 'state.json'), state)
     print(note)
 
@@ -351,7 +375,14 @@ def cmd_prepare(_args):
     state = store.get_json(session_key(number, 'state.json')) or {}
     comments = gh.comments(number)
     pending = pending_comments(comments, state)
-    if not pending and not issue_is_pending(issue, state):
+    automatic = automatic_retry()
+    # Claude finished but the PR CI on the pushed HEAD was not green: repair that
+    # HEAD only, also when the repair run itself is interrupted and resumed. The
+    # failed run's requests stay in scope so they become processed once CI is
+    # green; newer comments are left for the next human-triggered run. The
+    # repair is work on its own, even if its comment has been deleted since.
+    repair = state.get('repair') if automatic else None
+    if not pending and not issue_is_pending(issue, state) and not repair:
         (home / 'run.json').write_text(json.dumps({'skip': True}))
         write_output('skip', 'true')
         print('Nothing new to process')
@@ -360,10 +391,19 @@ def cmd_prepare(_args):
     branch = state.get('branch') or f'agent/issue-{number}'
     branch_on_origin = checkout_branch(branch)
     checkpoint_restored = restore_workspace(store, number, branch)
+    if repair and repair.get('head') and not head_descends_from(repair['head']):
+        # Like a diverged checkpoint: stop before Claude runs and keep the
+        # state untouched, so the next human comment starts a normal run.
+        message = (f'修正対象のHEAD {repair["head"][:12]} が作業ブランチ {branch} の履歴にありません'
+                   f'(現在のHEAD {git("rev-parse", "HEAD")[:12]})。ブランチが書き換えられたため、'
+                   'CI修正の自動再開を停止します。状態は保持しています。Issueへコメントすると通常の実行として再開します。')
+        gh.comment(number, f'{REPLY_MARKER}\n\n⚠️ {message}\n\n- 実行ログ: {run_url()}')
+        raise RuntimeError(message)
     restored_ci = restore_pr_ci(state, branch, git('rev-parse', 'HEAD'))
-    automatic = os.environ.get('AUTOMATIC_RETRY') == 'true'
-    # Restarts dispatched by older controller versions carry no kind: resume as before.
-    restart_kind = (state.pop('restartKind', None) or 'interrupted') if automatic else None
+    # Restarts dispatched by older controller versions carry no kind: resume as
+    # before. A kind recorded by validate but never finalized counts as well.
+    pending_kind = state.pop('pendingRestartKind', None)
+    restart_kind = (state.pop('restartKind', None) or pending_kind or 'interrupted') if automatic else None
     if not automatic:
         state['autoRestarts'] = 0
         state.pop('restartKind', None)
@@ -377,11 +417,6 @@ def cmd_prepare(_args):
     # thread as context.
     resumable = restart_kind == 'interrupted' if automatic else not last_failed
     restored = resumable and not session_needs_recovery(state) and restore_session(store, number, session_id)
-    # Claude finished but the PR CI on the pushed HEAD was not green: repair that
-    # HEAD only, also when the repair run itself is interrupted and resumed. The
-    # failed run's requests stay in scope so they become processed once CI is
-    # green; newer comments are left for the next human-triggered run.
-    repair = state.get('repair') if automatic else None
     recovery = not restored and (bool(session_id) or bool(repair))
     if repair:
         carried = set(repair.get('includedComments') or [])
@@ -496,6 +531,20 @@ def cmd_validate(_args):
     if execution_is_noop(report):
         sys.exit('Claude Codeが0ターンで終了しました。作業を実行していないため成果検証を開始しません。')
     run = json.loads((agent_home() / 'run.json').read_text())
+    try:
+        verify_outcome(run)
+    except (Exception, SystemExit):
+        # Claude finished normally, so any failure from here on is a validation
+        # failure. Record it now: if the runner is lost before finalize, the
+        # watchdog must restart as a repair of this HEAD, not resume the session.
+        try:
+            record_validation_failure(run)
+        except Exception as error:
+            print(f'検証失敗の記録に失敗しました: {type(error).__name__}', file=sys.stderr)
+        raise
+
+
+def verify_outcome(run):
     if git('status', '--porcelain'):
         sys.exit('未コミットの変更があります。成果を提示できません。')
     if run.get('validationRequired') or git('rev-parse', 'HEAD') != run['headBefore']:
@@ -505,6 +554,19 @@ def cmd_validate(_args):
         verify_pr_ci(run, git('rev-parse', 'HEAD'))
     elif (agent_home() / 'pr-ci.json').exists():
         verify_pr_ci(run, git('rev-parse', 'HEAD'))
+
+
+def record_validation_failure(run):
+    """Persist the repair scope before finalize, which rewrites it with the same values."""
+    store = Store()
+    key = session_key(run['issue'], 'state.json')
+    state = store.get_json(key) or {}
+    state['repair'] = repair_scope(run)
+    state['pendingRestartKind'] = 'validation'
+    feedback = validation_feedback(agent_home())
+    if feedback:
+        state['validationFailure'] = feedback
+    store.put_json(key, state)
 
 
 PR_CI_WORKFLOWS = {'ios.yml': 'iOS', 'agent-tests.yml': 'Agent tests'}
@@ -779,6 +841,7 @@ def cmd_finalize(_args):
         state['autoRestarts'] = 0
         state.pop('validationFailure', None)
         state.pop('restartKind', None)
+        state.pop('pendingRestartKind', None)
         state.pop('repair', None)
         state['validatedHead'] = git('rev-parse', 'HEAD')
         completed_ci = state.pop('prCI', None)
@@ -798,9 +861,12 @@ def cmd_finalize(_args):
             state['validationFailure'] = feedback
     # Claude finished normally but the pushed HEAD did not pass: the next run only
     # repairs that HEAD, keeping the scope of this run until its CI is green.
-    validation_failed = claude_success and os.environ.get('VALIDATION_OUTCOME') == 'failure'
+    # validate already recorded the same scope; rewriting it is harmless.
+    pending_kind = state.pop('pendingRestartKind', None)
+    validation_failed = claude_success and not success and (
+        os.environ.get('VALIDATION_OUTCOME') == 'failure' or pending_kind == 'validation')
     if validation_failed:
-        state['repair'] = {'includedComments': run['includedComments'], 'includedIssueBody': run['includedIssueBody']}
+        state['repair'] = repair_scope(run)
     store.put_json(session_key(number, 'state.json'), state)
 
     table = usage_table(report, run, usage)
