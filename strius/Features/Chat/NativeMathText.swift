@@ -205,14 +205,17 @@ final class NativeMathRenderer {
         guard let list = measurer.displayList, list.width >= 0.5, list.ascent + list.descent >= 0.5 else {
             return NativeMathGlyph(image: UIImage(), size: CGSize(width: 1, height: 1), baseline: 0)
         }
+        // `MTMathImage` は画像の高さを ascent + descent にし、基線を下端から descent の所に置く。ただし高さが fontSize/2 未満の
+        // 数式(`-`、`\ldots` など)は fontSize/2 の中央に寄せるので、そのままだと下にはみ出して描かれない(CI で `\ldots` が空になった)。
+        // 下の余白をその分だけ足して全部を画像の中に入れる。左右 1pt は斜体のはみ出し分。基線は常に下端から descent + 1。
+        let height = list.ascent + list.descent
+        let shift = max(0, (style.mathSize / 2 - height) / 2)
         let renderer = MTMathImage(latex: prepared, fontSize: style.mathSize, textColor: style.color, labelMode: display ? .display : .text, textAlignment: .left)
         renderer.font = font
+        renderer.contentInsets = MTEdgeInsets(top: 1, left: 1, bottom: shift + 1, right: 1)
         let (error, rendered) = renderer.asImage()
         guard error == nil, let rendered, rendered.size.width >= 1, rendered.size.height >= 1 else { return nil }
-        // 基線: `MTMathImage` は高さを ascent + descent にし、基線を下端から descent の所に置く(高さが fontSize/2 未満なら中央に寄せる)。
-        let height = list.ascent + list.descent
-        let minimum = style.mathSize / 2
-        let baseline = height < minimum ? (height - minimum) / 2 + list.descent : list.descent
+        let baseline = list.descent + 1
         let image = highlighted ? Self.withHighlight(rendered, color: style.highlightColor, scale: rendered.scale) : rendered
         let glyph = NativeMathGlyph(image: image, size: image.size, baseline: baseline)
         images.setObject(Box(glyph), forKey: key, cost: Int(image.size.width * image.scale * image.size.height * image.scale * 4))
