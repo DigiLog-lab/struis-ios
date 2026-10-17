@@ -328,7 +328,7 @@ private struct MathDisplayRow: View {
             let image = Image(uiImage: glyph.image)
                 .resizable()
                 .frame(width: glyph.size.width, height: glyph.size.height)
-                .accessibilityRepresentation { Text(MathPlainText.convert(latex)) }
+            // VoiceOver と UI テストには 1 つの要素(`math-display`)として見せる(画像のままだと要素にならない)。
             if availableWidth > 0, glyph.size.width > availableWidth {
                 ScrollView(.horizontal, showsIndicators: false) {
                     image.padding(.trailing, 24)
@@ -338,9 +338,13 @@ private struct MathDisplayRow: View {
                     LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.9), .init(color: .black.opacity(0.15), location: 1)],
                                    startPoint: .leading, endPoint: .trailing)
                 )
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(MathPlainText.convert(latex))
                 .accessibilityIdentifier("math-display")
             } else {
                 image
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(MathPlainText.convert(latex))
                     .accessibilityIdentifier("math-display")
             }
         } else {
