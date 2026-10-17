@@ -260,7 +260,11 @@ final class ChatScrollStabilityUITests: XCTestCase {
                 $0.exists && $0.frame.height > 12 && $0.frame.maxY > screen.height * 0.2 && $0.frame.minY < screen.height * 0.75
             }.sorted { $0.frame.height > $1.frame.height }
             let all = candidates.filter(\.exists).map { "\(Int($0.frame.minY)):\(Int($0.frame.width))x\(Int($0.frame.height))" }
-            print("PROBE overflow candidates visible=\(webs.count) all=\(all)")
+            // 候補が無い時の手がかり: 数式の段落の数と、表示用の数式の文字(-x+8)を持つ要素の種類。
+            let texts = app.descendants(matching: .any).matching(identifier: "math-text").count
+            let holders = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "-x+8")).allElementsBoundByIndex
+                .prefix(5).map { "\($0.elementType.rawValue):\($0.identifier):\(Int($0.frame.minY)):\(Int($0.frame.width))x\(Int($0.frame.height))" }
+            print("PROBE overflow candidates visible=\(webs.count) all=\(all) mathText=\(texts) holders=\(holders)")
             if webs.isEmpty {
                 // 数式の行は 1 行ずつの要素なので(WebView の時は吹き出し全体が 1 つの要素だった)、画面に無ければ会話を上へ読み返して探す。
                 page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))

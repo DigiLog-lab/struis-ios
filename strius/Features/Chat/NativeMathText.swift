@@ -328,6 +328,7 @@ private struct MathDisplayRow: View {
         if let glyph = NativeMathRenderer.shared.glyph(latex: latex, display: true, style: style, highlighted: highlighted) {
             MathDisplayView(glyph: glyph, readable: MathPlainText.convert(latex))
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("math-display")
         } else {
             Text(MathPlainText.convert(latex))
                 .font(Typography.sans(size: style.fontSize, weight: .medium))
