@@ -141,8 +141,12 @@ def resumed_request_snapshot(store, number, issue, live, included_comments, incl
         return snapshot
     earlier = {c['id']: c for c in record['comments'] if isinstance(c, dict) and 'id' in c}
     fresh = set(included_comments)
-    snapshot['comments'] = [c if c['id'] in fresh or c['id'] not in earlier else dict(earlier[c['id']], id=c['id'])
-                            for c in snapshot['comments']]
+    # Recorded entries stay even when deleted from GitHub since: the transcript
+    # still holds them. Live entries add this run's requests and anything the
+    # record does not know (an agent reply posted since).
+    merged = {identifier: entry for identifier, entry in earlier.items() if identifier not in fresh}
+    merged.update({c['id']: c for c in snapshot['comments'] if c['id'] in fresh or c['id'] not in earlier})
+    snapshot['comments'] = [merged[identifier] for identifier in sorted(merged)]
     if not included_issue_body and 'body' in record['issue']:
         snapshot['issue']['body'] = record['issue']['body']
     return snapshot

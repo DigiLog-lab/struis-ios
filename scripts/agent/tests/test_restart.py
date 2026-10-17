@@ -856,6 +856,23 @@ class RestartKindTests(unittest.TestCase):
         self.assertIn('三つ目の依頼', prompt)
         self.assertNotIn('編集後', prompt)
 
+    def test_resumed_run_keeps_recorded_requests_deleted_from_github(self):
+        persisted, issue, comments = self.failed_run()
+        state = persisted['sessions/4/state.json']
+        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None); state.pop('sessionStale', None)
+        state.update({'lastCommentId': 20, 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}})
+        del comments[2]  # comment 20, processed by the failed run, is deleted before the next run
+        comments.append(comment(30, body='三つ目の依頼'))
+        self.prepare_with(persisted, issue, comments, automatic=False, restored=True)
+        snapshot = json.loads((self.home / agentctl.REQUEST_SNAPSHOT_FILE).read_text())
+        self.assertEqual([(c['id'], c['body']) for c in snapshot['comments']],
+                         [(10, '処理済みの依頼'), (15, '一つ目を実装しました'), (20, '元の依頼: 二つ目の項目をやって'),
+                          (30, '三つ目の依頼')])
+        self.fail_validation(persisted)
+        _run, prompt = self.prepare_with(persisted, issue, comments, automatic=True)
+        self.assertIn('<validation-repair>', prompt)
+        self.assertIn('元の依頼: 二つ目の項目をやって', prompt)
+
     def test_run_shown_the_live_thread_records_the_live_text(self):
         # A new session (recovery) is shown the live thread: its edited text is what the run saw.
         persisted, issue, comments = self.failed_run()
