@@ -2,9 +2,10 @@ import SwiftUI
 import WebKit
 import CryptoKit
 
-/// 本文と数式を描く。数式を含む本文は KaTeX(WebView)で描く。
+/// 本文と数式を描く。数式を含む本文は SwiftMath(`NativeMathText`、Issue #28)で描く。SwiftMath で解析できない数式を含む
+/// 本文だけ、従来の KaTeX(WebView)に落とす(落ちた数式は `MathRenderDiagnostics` が台帳の書き出しに記録する)。
 ///
-/// 数式の吹き出しが空のまま待たされないように(K1、2026-10-03 作り直し):
+/// 以下は WebView の経路の説明。数式の吹き出しが空のまま待たされないように(K1、2026-10-03 作り直し):
 /// - 描き終えた見た目を画像として端末に残し(`KaTeXSnapshotStore`)、次に同じ本文を出す時は WebView を作らずに画像で出す。
 ///   再起動の後に長い会話を開いても、WebView の起動や KaTeX の読み込みを待たない。
 /// - 画像がまだ無い本文は、WebView が描き終えるまで、数式を読める文字に直した仮の文字(`MathPlainText`)を出す(空にしない)。
@@ -40,10 +41,14 @@ struct KaTeXMathText: View {
 
     var body: some View {
         if raw.needsKaTeX || display {
-            KaTeXRenderedText(
-                raw: raw, display: display, foregroundColor: foregroundColor, fontSize: fontSize,
-                fontWeight: fontWeight, highlightCount: highlightCount
-            )
+            if let document = NativeMathDocument.make(raw, display: display) {
+                NativeMathText(document: document, foregroundColor: foregroundColor, fontSize: fontSize, fontWeight: fontWeight, highlightCount: highlightCount)
+            } else {
+                KaTeXRenderedText(
+                    raw: raw, display: display, foregroundColor: foregroundColor, fontSize: fontSize,
+                    fontWeight: fontWeight, highlightCount: highlightCount
+                )
+            }
         } else if highlightCount > 0 {
             Text(StruisMarkedSpans.highlighted(raw.replacingOccurrences(of: "\\n", with: "\n"), count: highlightCount))
                 .font(Typography.sans(size: fontSize, weight: fontWeight >= 500 ? .medium : .regular))
@@ -494,13 +499,13 @@ private enum KaTeXWebEnvironment {
     }
 }
 
-private extension String {
+extension String {
     var needsKaTeX: Bool {
         contains("$") || contains("\\(") || contains("\\[") || contains("\\begin{")
     }
 }
 
-private extension UIColor {
+extension UIColor {
     var hexString: String {
         var red: CGFloat = 0
         var green: CGFloat = 0
@@ -514,6 +519,121 @@ private extension UIColor {
             Int(blue * 255),
             Double(alpha)
         )
+    }
+}
+
+/// 画面に出る前の数式の高さを測る(2026-10-14)。
+///
+/// 初めて描く数式の行は、その行の WebView が KaTeX を読み込んで描き終えるまで(遅い端末では数秒)、仮の文字の高さで置かれる。
+/// 描き終えると行が高くなり(17〜32pt)、読み返している会話がその分動いた。会話を開いた時に、まだ高さの分からない本文を
+/// 新しい返事から順に、読み込み済みの 1 つの WebView で実際の幅で描いて高さを記録し(`KaTeXLayoutCache`)、行は画面に
+/// 出た時から描き終えた高さで置く。測る WebView は画面(window)に置かない(VoiceOver・UI テストのツリーに入れず、
+/// 描画の時機も使わない)。高さはフォントの読み込みを待ってから、配置を直接読む。
+@MainActor
+final class KaTeXPrefetcher: NSObject, WKNavigationDelegate {
+    static let shared = KaTeXPrefetcher()
+
+    struct Item: Hashable {
+        let raw: String
+        let display: Bool
+        let color: UIColor
+        let fontSize: CGFloat
+        let fontWeight: Int
+        let width: CGFloat
+
+        var key: String {
+            KaTeXLayoutCache.renderKey(raw: raw, display: display, color: color, fontSize: fontSize, fontWeight: fontWeight)
+        }
+
+        var needsMeasure: Bool {
+            (raw.needsKaTeX || display) && width > 0 && KaTeXLayoutCache.height(for: key, width: width) == nil
+        }
+
+        /// `struisRender` の引数(行の WebView と同じ。色をつける数は 0)。
+        var options: [String: Any] {
+            ["source": raw, "display": display, "key": key, "color": color.hexString,
+             "fontSize": Double(fontSize), "fontWeight": fontWeight, "highlight": 0]
+        }
+    }
+
+    private var webView: WKWebView?
+    private var pageReady = false
+    /// 先頭から測る(呼び手が新しい返事から並べる)。
+    private var queue: [Item] = []
+    private var measuring = false
+    /// 会話が変わった直後(段の切り替え・返事の表示中)は測らない。画面の行の WebView と描く処理を取り合い、
+    /// 画面の切り替えと読み上げのツリーの更新が遅れた(2026-10-14、例題の段への切り替えで 2 秒)。
+    private var holding: Task<Void, Never>?
+    private static let quietDelay: Duration = .seconds(1)
+
+    /// 測る本文を差し替える(まだ測っていないものだけ。前に頼んだものより先に測る)。頼まれてから 1 秒、
+    /// 次の頼みが無ければ測り始める(画面に出ている行は、その間に自分で描いて高さを記録するので測らずに済む)。
+    func prefetch(_ items: [Item]) {
+        // SwiftMath で描ける本文は高さがレイアウトで決まるので測らない。測るのは WebView に落ちる本文だけ。
+        let fresh = items.filter { $0.needsMeasure && NativeMathDocument.make($0.raw, display: $0.display) == nil }
+        guard !fresh.isEmpty else { return }
+        var seen = Set<String>()
+        queue = (fresh + queue).filter { seen.insert("\($0.key):\(Int($0.width.rounded()))").inserted }
+        if queue.count > 200 { queue.removeLast(queue.count - 200) }
+        holding?.cancel()
+        holding = Task { [weak self] in
+            try? await Task.sleep(for: Self.quietDelay)
+            guard !Task.isCancelled, let self else { return }
+            self.holding = nil
+            if self.webView == nil { self.load() } else { self.next() }
+        }
+    }
+
+    private func load() {
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = KaTeXWebEnvironment.dataStore
+        let view = WKWebView(frame: CGRect(x: 0, y: 0, width: 320, height: 100), configuration: configuration)
+        view.navigationDelegate = self
+        view.isOpaque = false
+        view.scrollView.isScrollEnabled = false
+        webView = view
+        pageReady = false
+        view.loadHTMLString(KaTeXWebEnvironment.shell(initialRender: "{}"), baseURL: KaTeXWebEnvironment.baseURL)
+    }
+
+    private func next() {
+        guard pageReady, !measuring, holding == nil, let webView else { return }
+        while let item = queue.first {
+            queue.removeFirst()
+            guard item.needsMeasure else { continue }
+            measuring = true
+            webView.frame.size = CGSize(width: item.width, height: 100)
+            let script = """
+            struisRender(opts);
+            await document.fonts.ready;
+            const rect = document.getElementById("root").getBoundingClientRect();
+            return [rect.width, Math.ceil(rect.height)];
+            """
+            webView.callAsyncJavaScript(script, arguments: ["opts": item.options], in: nil, in: .page) { [weak self] result in
+                guard let self else { return }
+                if case .success(let value) = result, let pair = value as? [NSNumber], pair.count == 2 {
+                    let width = pair[0].doubleValue
+                    let height = pair[1].doubleValue
+                    if width > 0, height > 0, abs(width - item.width) < 2 {
+                        KaTeXLayoutCache.store(CGFloat(height), for: item.key, width: CGFloat(width))
+                    }
+                }
+                self.measuring = false
+                self.next()
+            }
+            return
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        pageReady = true
+        next()
+    }
+
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        self.webView = nil
+        measuring = false
+        if !queue.isEmpty { load() }
     }
 }
 
@@ -544,6 +664,7 @@ enum KaTeXLayoutCache {
         cache.removeAllObjects()
         KaTeXSnapshotStore.shared.removeAll()
         KaTeXWebViewPool.removeAll()
+        NativeMathRenderer.shared.removeAll()
     }
 }
 

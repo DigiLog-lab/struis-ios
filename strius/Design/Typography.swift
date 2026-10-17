@@ -28,11 +28,20 @@ enum Typography {
         weight: SansFontName = .regular,
         relativeTo textStyle: Font.TextStyle = .body
     ) -> Font {
+        Font(sansUIFont(size: size, weight: weight, relativeTo: textStyle))
+    }
+
+    /// `sans` と同じ書体の `UIFont`(UIKit で本文を描く所: `NativeMathText`)。Dynamic Type の倍率込み。
+    static func sansUIFont(
+        size: CGFloat,
+        weight: SansFontName = .regular,
+        relativeTo textStyle: Font.TextStyle = .body
+    ) -> UIFont {
         let latin = UIFont.systemFont(ofSize: size, weight: weight.systemWeight)
         let japanese = UIFontDescriptor(fontAttributes: [.name: weight.rawValue])
         let descriptor = latin.fontDescriptor.addingAttributes([.cascadeList: [japanese]])
         let mixed = UIFont(descriptor: descriptor, size: size)
-        return Font(UIFontMetrics(forTextStyle: textStyle.uiTextStyle).scaledFont(for: mixed))
+        return UIFontMetrics(forTextStyle: textStyle.uiTextStyle).scaledFont(for: mixed)
     }
 
     static func serif(

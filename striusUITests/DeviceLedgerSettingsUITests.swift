@@ -27,28 +27,28 @@ final class DeviceLedgerSettingsUITests: XCTestCase {
         app.launch()
 
         let gear = app.buttons["workbook-open-settings"].firstMatch
-        XCTAssertTrue(gear.waitForExistence(timeout: 20), "設定ボタンが無い")
+        XCTAssertTrue(gear.appears(timeout: 20), "設定ボタンが無い")
         gear.tap()
         let advanced = app.buttons["settings-row-advanced"].firstMatch
-        XCTAssertTrue(advanced.waitForExistence(timeout: 10))
+        XCTAssertTrue(advanced.appears(timeout: 10))
         advanced.tap()
 
         // 使用量報告は既定オフ。
         let toggle = app.switches.matching(NSPredicate(format: "label CONTAINS %@", "使用量を送る")).firstMatch
-        XCTAssertTrue(toggle.waitForExistence(timeout: 10), "使用量のトグルが無い")
+        XCTAssertTrue(toggle.appears(timeout: 10), "使用量のトグルが無い")
         XCTAssertEqual(toggle.value as? String, "0", "使用量報告が既定でオンになっている")
 
         // 台帳に記録がある端末では取り込みはできない (空の台帳だけ)。
         let importButton = app.buttons["選ぶ"].firstMatch
-        XCTAssertTrue(importButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(importButton.appears(timeout: 5))
         XCTAssertFalse(importButton.isEnabled, "記録がある台帳に取り込めてしまう")
 
         // 書き出す → zip ができ、共有の導線が出る。
         let export = app.buttons["書き出す"].firstMatch
-        XCTAssertTrue(export.waitForExistence(timeout: 5))
+        XCTAssertTrue(export.appears(timeout: 5))
         export.tap()
         let message = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "書き出しました")).firstMatch
-        XCTAssertTrue(message.waitForExistence(timeout: 20), "書き出しの完了が出ない")
+        XCTAssertTrue(message.appears(timeout: 20), "書き出しの完了が出ない")
         let fileName = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "struis-ledger-")).firstMatch
         XCTAssertTrue(fileName.exists, "書き出したファイル名が出ない")
         XCTAssertTrue(fileName.label.hasSuffix(".zip"))

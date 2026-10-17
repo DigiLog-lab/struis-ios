@@ -371,6 +371,10 @@ struct UnitCreationWaitPane: View {
             chipRow
             StruisWaitingStatus(text: model.status, font: Typography.body)
                 .accessibilityIdentifier("unit-sieve-status")
+                #if DEBUG
+                // UI テストが失敗した時に、画面がどの状態を見て待っているかを残す(返事・覚えている全体像の状態・演出の段階)。
+                .accessibilityValue("\(stateKey)|\(model.phase)")
+                #endif
             if !model.showsCard, let target {
                 // 範囲を決める返事・全体像を組むターンで、実際に起きた出来事(信頼性計画 P2)。
                 TurnLiveLine(keys: liveKeys(target.reply), onStop: { stop(target.reply) }, showsReplyExcerpt: true)

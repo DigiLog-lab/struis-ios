@@ -33,13 +33,13 @@ extension XCUIApplication {
     @discardableResult
     func openQuestionSheet(timeout: TimeInterval = 30, file: StaticString = #filePath, line: UInt = #line) -> Bool {
         let pill = buttons["workbook-question-pill"].firstMatch
-        guard pill.waitForExistence(timeout: timeout) else {
+        guard pill.appears(timeout: timeout) else {
             XCTFail("ホームの「質問」ボタンが無い", file: file, line: line)
             return false
         }
         pill.tap()
         let field = textViews.matching(identifier: "chat-page").firstMatch
-        guard field.waitForExistence(timeout: 10) else {
+        guard field.appears(timeout: 10) else {
             XCTFail("質問シートが開かない", file: file, line: line)
             return false
         }
@@ -65,5 +65,14 @@ extension XCUIApplication {
             }
             Thread.sleep(forTimeInterval: 0.25)
         } while Date() < deadline
+    }
+}
+
+extension XCUIElement {
+    /// 今あればすぐ true を返し、無ければ `timeout` まで待つ。`waitForExistence` は要素がすでにあっても、
+    /// 最初の確認まで約 1 秒待つ。
+    @MainActor
+    func appears(timeout: TimeInterval) -> Bool {
+        exists || waitForExistence(timeout: timeout)
     }
 }

@@ -31,6 +31,7 @@ final class SettingsStore {
     init(runtime: DeviceRuntime?, ledger: Ledger? = nil) {
         self.runtime = runtime
         self.ledger = ledger
+        Self.removeLegacyAnthropicKey()
     }
 
     /// Show the account and record it in the ledger's `codex_account` row.
@@ -54,6 +55,20 @@ final class SettingsStore {
         }
     }
 
+    // MARK: - AIモデル(GPT / Claude)
+
+    /// 新しく始める会話・単元・採点の実行先。続きの会話は始めた時の実行先のまま動く(`CodexTurnRunner.resolvingProvider`)。
+    var modelProvider: ModelProvider = ModelProviderPreference.current {
+        didSet { ModelProviderPreference.current = modelProvider }
+    }
+    /// この端末で Claude を使えるか(App Attest が使える端末)。Anthropic の API キーは端末に置かない。
+    let claudeAvailable = ClaudeAccess.isAvailable
+
+    /// 以前のプロトタイプで入れた API キーを消す(Claude は App Attest で Anthropic から token を受け取り、端末にキーを置かない)。
+    static func removeLegacyAnthropicKey() {
+        KeychainStore(service: "com.digiloglab.strius.anthropic").delete("api-key")
+    }
+
     // MARK: - 学習記録 (design §4.3) と使用量報告 (§8-4)
 
     private(set) var ledgerEventCount: Int?
@@ -66,9 +81,20 @@ final class SettingsStore {
         didSet { UsageReporter.isEnabled = usageReportingEnabled }
     }
 
+    /// 今月のトークン使用量(台帳の `turns.executions` の `turn_tokens` をモデルごとに合計)。
+    private(set) var monthlyTokenUsage: TokenUsageSummary?
+
     func loadLedgerSummary() async {
         guard let ledger else { return }
         ledgerEventCount = try? await ledger.eventCount()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: Date())) ?? Date()
+        let since = LedgerClock.iso(monthStart)
+        let executions = try? await ledger.read { db in
+            try TurnRecord.filter(Column("created_at") >= since).fetchAll(db).map(\.executions)
+        }
+        monthlyTokenUsage = executions.map(TokenUsageSummary.summarize)
     }
 
     func exportLedger() async {

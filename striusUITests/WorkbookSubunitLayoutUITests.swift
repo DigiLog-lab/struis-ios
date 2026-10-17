@@ -56,7 +56,7 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
     @MainActor
     private func openFirstSubunit(_ app: XCUIApplication) {
         let row = element(app, "workbook-subunit-sub-1")
-        XCTAssertTrue(row.waitForExistence(timeout: 30), "ホームに小単元の行が無い")
+        XCTAssertTrue(row.appears(timeout: 30), "ホームに小単元の行が無い")
         row.tap()
     }
 
@@ -69,12 +69,12 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
 
         // 要点: 進捗バーは開いた状態から(今までと同じ)。「先に進む」は入力欄の上、会話の右下。
         let header = element(app, "workbook-subunit-header")
-        XCTAssertTrue(header.waitForExistence(timeout: 10))
-        XCTAssertTrue(text(app, containing: "要点を話すね").waitForExistence(timeout: 20), "要点が始まらない")
+        XCTAssertTrue(header.appears(timeout: 10))
+        XCTAssertTrue(text(app, containing: "要点を話すね").appears(timeout: 20), "要点が始まらない")
         let advance = element(app, "workbook-advance")
         XCTAssertTrue(waitEnabled(advance), "説明が出終わっても「先に進む」が押せない")
         let input = app.textViews.matching(identifier: "chat-page").firstMatch
-        XCTAssertTrue(input.waitForExistence(timeout: 10))
+        XCTAssertTrue(input.appears(timeout: 10))
         let window = app.windows.firstMatch.frame
         XCTAssertLessThanOrEqual(advance.frame.maxY, input.frame.minY + 1, "「先に進む」が入力欄の上に無い")
         XCTAssertGreaterThan(advance.frame.midX, window.midX, "「先に進む」が右側に無い")
@@ -84,14 +84,14 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
 
         // 例題: 進捗バーは畳んだ 1 行から始まり、例題バーは全文。
         let card = element(app, "workbook-example-card")
-        XCTAssertTrue(card.waitForExistence(timeout: 15), "例題バーが無い")
+        XCTAssertTrue(card.appears(timeout: 15), "例題バーが無い")
         XCTAssertTrue(waitValue(header, "collapsed"), "例題の段で進捗バーが畳んだ 1 行から始まらない: \(header.value ?? "-")")
         XCTAssertLessThan(header.frame.height, 50, "畳んだ進捗バーが 40pt の 1 行でない: \(header.frame.height)")
         let prompt = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "頂点の座標を求めよ")).firstMatch
-        XCTAssertTrue(prompt.waitForExistence(timeout: 20), "例題の問題文が出ない: \(screenSummary(app))")
+        XCTAssertTrue(prompt.appears(timeout: 20), "例題の問題文が出ない: \(screenSummary(app))")
         XCTAssertTrue(waitValue(card, "expanded"), "入った直後に例題が全文でない")
         let reply = text(app, containing: "例題を一緒に解こう")
-        XCTAssertTrue(reply.waitForExistence(timeout: 20))
+        XCTAssertTrue(reply.appears(timeout: 20))
         XCTAssertTrue(wait(reply, "hittable == true", timeout: 5), "例題の返事の位置まで送られていない")
         // 例題の段では、モデルが準備OKを出すまで「先に進む」自体を出さない(§13.13 の 5)。
         XCTAssertFalse(advance.exists, "準備OKの前に「先に進む」が出ている")
@@ -101,13 +101,13 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         // 進捗バーはタップでだけ開閉する。
         header.tap()
         XCTAssertTrue(waitValue(header, "expanded"), "進捗バーのタップで開かない")
-        XCTAssertTrue(app.staticTexts["平方完成で頂点を求める"].waitForExistence(timeout: 3), "開いた進捗バーに到達目標が無い")
+        XCTAssertTrue(app.staticTexts["平方完成で頂点を求める"].appears(timeout: 3), "開いた進捗バーに到達目標が無い")
 
         // 会話のスクロールで例題バーが 1 行にしまう。進捗バーは勝手に動かない。
         let page = element(app, "chat-page")
         page.swipeDown()
         XCTAssertTrue(waitValue(card, "collapsed"), "会話のスクロールで例題バーがしまわない")
-        XCTAssertTrue(element(app, "workbook-example-collapsed").waitForExistence(timeout: 3), "1 行の例題が無い")
+        XCTAssertTrue(element(app, "workbook-example-collapsed").appears(timeout: 3), "1 行の例題が無い")
         XCTAssertLessThan(card.frame.height, expandedHeight, "しまった例題バーが低くならない")
         XCTAssertEqual(header.value as? String, "expanded", "会話の操作で進捗バーが動いた")
         attach(app, "example-collapsed")
@@ -130,7 +130,7 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         XCTAssertTrue(wait(advance, "exists == false"), "入力中も「先に進む」が見えている")
         // シミュレータがハードウェアキーボードにつながっているとソフトウェアキーボードは出ない。出た時だけ位置を確かめる。
         let keyboard = app.keyboards.firstMatch
-        guard keyboard.waitForExistence(timeout: 5) else {
+        guard keyboard.appears(timeout: 5) else {
             attach(app, "example-typing-no-software-keyboard")
             return
         }
@@ -142,7 +142,7 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         let send = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == %@", "送信", "chat-page")).firstMatch
         XCTAssertTrue(waitEnabled(send, timeout: 10))
         send.press(forDuration: 0.15)
-        XCTAssertTrue(text(app, containing: "よくできました").waitForExistence(timeout: 20), "準備OKの返事が出ない")
+        XCTAssertTrue(text(app, containing: "よくできました").appears(timeout: 20), "準備OKの返事が出ない")
 
         // キーボードを閉じると「先に進む」が現れる。会話はキーボードまで指を引き下ろすと閉じる(`.interactively`)ので、
         // 会話の上の方から画面の下端まで引き下ろす(短いスワイプでは閉じないことがある)。
@@ -163,9 +163,9 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         XCTAssertTrue(waitEnabled(advance, timeout: 20))
         advance.press(forDuration: 0.15)
         let card = element(app, "workbook-example-card")
-        XCTAssertTrue(card.waitForExistence(timeout: 15))
-        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "頂点の座標を求めよ")).firstMatch.waitForExistence(timeout: 20), "例題の問題文が出ない: \(screenSummary(app))")
-        XCTAssertTrue(text(app, containing: "例題を一緒に解こう").waitForExistence(timeout: 20), "例題の返事が終わらない")
+        XCTAssertTrue(card.appears(timeout: 15))
+        XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "頂点の座標を求めよ")).firstMatch.appears(timeout: 20), "例題の問題文が出ない: \(screenSummary(app))")
+        XCTAssertTrue(text(app, containing: "例題を一緒に解こう").appears(timeout: 20), "例題の返事が終わらない")
 
         // 入力欄を押すとしまい、送った後も 1 行のまま(会話の操作で勝手に開かない)。
         let input = app.textViews.matching(identifier: "chat-page").firstMatch
@@ -178,7 +178,7 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 0.5)
         send.press(forDuration: 0.15)
         XCTAssertTrue(waitValue(card, "collapsed"), "送信の後に例題バーが 1 行でない")
-        XCTAssertTrue(app.staticTexts["x^2 - 4x + 3 = (x - 2)^2 - 1"].firstMatch.waitForExistence(timeout: 15), "送った文が出ない")
+        XCTAssertTrue(app.staticTexts["x^2 - 4x + 3 = (x - 2)^2 - 1"].firstMatch.appears(timeout: 15), "送った文が出ない")
     }
 
     // MARK: 例題の「先に進む」はモデルの準備OKの後だけ
@@ -190,8 +190,8 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         let advance = element(app, "workbook-advance")
         XCTAssertTrue(waitEnabled(advance, timeout: 20), "要点の「先に進む」が押せない")
         advance.press(forDuration: 0.15)
-        XCTAssertTrue(text(app, containing: "例題を一緒に解こう").waitForExistence(timeout: 20), "例題の返事が出ない: \(screenSummary(app))")
-        XCTAssertTrue(element(app, "workbook-subunit-header").waitForExistence(timeout: 5))
+        XCTAssertTrue(text(app, containing: "例題を一緒に解こう").appears(timeout: 20), "例題の返事が出ない: \(screenSummary(app))")
+        XCTAssertTrue(element(app, "workbook-subunit-header").appears(timeout: 5))
 
         // 例題の返事が出終わっても、準備OKが無ければ「先に進む」は出ない(薄く出すのでもない)。
         XCTAssertTrue(wait(advance, "exists == false", timeout: 3), "準備OKの前に「先に進む」が出ている")
@@ -203,7 +203,7 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         input.typeText("(x - 2)^2 - 1")
         XCTAssertTrue(waitEnabled(send, timeout: 10))
         send.press(forDuration: 0.15)
-        XCTAssertTrue(text(app, containing: "自信がある行").waitForExistence(timeout: 20), "途中の答えへの返事が出ない")
+        XCTAssertTrue(text(app, containing: "自信がある行").appears(timeout: 20), "途中の答えへの返事が出ない")
         attach(app, "example-not-ready")
 
         // 解けた答え → モデルが準備OKを出す。block は本文に出ない。
@@ -211,18 +211,18 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         input.typeText("できた")
         XCTAssertTrue(waitEnabled(send, timeout: 10))
         send.press(forDuration: 0.15)
-        XCTAssertTrue(text(app, containing: "よくできました").waitForExistence(timeout: 20), "準備OKの返事が出ない")
+        XCTAssertTrue(text(app, containing: "よくできました").appears(timeout: 20), "準備OKの返事が出ない")
         XCTAssertFalse(text(app, containing: "struis_workbook_example_ready").exists, "準備OKの block が本文に出ている")
 
         // 開き直すと(入力欄のフォーカスが外れる)、記録された準備OKで「先に進む」が出て押せる。
         app.navigationBars.buttons.firstMatch.tap()
         let row = element(app, "workbook-subunit-sub-1")
-        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        XCTAssertTrue(row.appears(timeout: 10))
         row.tap()
         XCTAssertTrue(waitEnabled(advance, timeout: 15), "準備OKの後に「先に進む」が出ない: \(screenSummary(app))")
         attach(app, "example-ready")
         advance.press(forDuration: 0.15)
-        XCTAssertTrue(element(app, "workbook-request-set").waitForExistence(timeout: 15) || element(app, "workbook-open-set").exists,
+        XCTAssertTrue(element(app, "workbook-request-set").appears(timeout: 15) || element(app, "workbook-open-set").exists,
                       "「先に進む」で類題へ進まない: \(screenSummary(app))")
         attach(app, "advanced-to-similar")
     }
@@ -243,7 +243,7 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         advance.press(forDuration: 0.15)
 
         let reply = text(app, containing: "例題を一緒に解こう")
-        XCTAssertTrue(reply.waitForExistence(timeout: 20), "例題の返事が出ない: \(screenSummary(app))")
+        XCTAssertTrue(reply.appears(timeout: 20), "例題の返事が出ない: \(screenSummary(app))")
         XCTAssertTrue(wait(reply, "hittable == true", timeout: 10), "段が変わった後、新しい段の返事の位置まで送られない")
         attach(app, "advance-followed-new-reply")
     }
@@ -288,10 +288,10 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         app.launch()
 
         let card = element(app, "workbook-unit-card-unit-1")
-        if !card.waitForExistence(timeout: 20) {
+        if !card.appears(timeout: 20) {
             app.swipeUp()
         }
-        XCTAssertTrue(card.waitForExistence(timeout: 5), "単元カードが無い")
+        XCTAssertTrue(card.appears(timeout: 5), "単元カードが無い")
         let label = card.label
         // フィクスチャ: 小単元 1 は 5 問中 4 問正解、小単元 2 は 2 問正解、小単元 3(n = 6)は手つかず。
         XCTAssertTrue(label.contains("4 / 5"), "小単元 1 の「正解数 / n」が無い: \(label)")
@@ -302,7 +302,7 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
 
         // マスは小単元の中に残す。
         element(app, "workbook-subunit-sub-1").tap()
-        XCTAssertTrue(element(app, "workbook-subunit-tiles").waitForExistence(timeout: 10), "小単元の中のマスが無い")
+        XCTAssertTrue(element(app, "workbook-subunit-tiles").appears(timeout: 10), "小単元の中のマスが無い")
     }
 
     @MainActor

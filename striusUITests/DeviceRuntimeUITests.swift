@@ -18,15 +18,15 @@ final class DeviceRuntimeUITests: XCTestCase {
         app.launch()
 
         let gear = app.buttons["workbook-open-settings"].firstMatch
-        XCTAssertTrue(gear.waitForExistence(timeout: 20), "設定ボタンが無い")
+        XCTAssertTrue(gear.appears(timeout: 20), "設定ボタンが無い")
         gear.tap()
 
         // 実行環境の状態: rootfs の展開 (初回) と起動、app-server の initialize を待つ。
         let advanced = app.buttons["settings-row-advanced"].firstMatch
-        XCTAssertTrue(advanced.waitForExistence(timeout: 10))
+        XCTAssertTrue(advanced.appears(timeout: 10))
         advanced.tap()
         let appServer = app.staticTexts["settings-runtime-appserver"].firstMatch
-        XCTAssertTrue(appServer.waitForExistence(timeout: 10))
+        XCTAssertTrue(appServer.appears(timeout: 10))
         let running = NSPredicate(format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@", "実行中", "実行中")
         let deadline = Date().addingTimeInterval(240)
         var runtimeText = ""
@@ -45,10 +45,10 @@ final class DeviceRuntimeUITests: XCTestCase {
 
         // ChatGPT / Codex: デバイスコードログインを開始する。
         let codexRow = app.buttons["settings-row-codex"].firstMatch
-        XCTAssertTrue(codexRow.waitForExistence(timeout: 10))
+        XCTAssertTrue(codexRow.appears(timeout: 10))
         codexRow.tap()
         let connect = app.buttons["settings-codex-connect"].firstMatch
-        XCTAssertTrue(connect.waitForExistence(timeout: 20), "接続ボタンが無い")
+        XCTAssertTrue(connect.appears(timeout: 20), "接続ボタンが無い")
         connect.tap()
 
         let code = app.staticTexts["settings-codex-user-code"].firstMatch

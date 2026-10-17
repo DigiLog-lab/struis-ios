@@ -64,11 +64,15 @@ actor DelegationWatcher {
 
     /// The private contract appended to the parent turn text (port of `DelegationInbox.prompt`).
     nonisolated var prompt: String {
-        "\n<private_delegation_contract>\n"
-            + "You are GPT-6.1 Sol, medium effort, and own every learner-facing response and all "
+        // Claude のスレッドでは、自分と子のモデル名を Claude の名前で伝える(GPT の名前のままだと自己紹介を誤る)。
+        let (parent, child) = delegation.provider == .anthropic
+            ? ("\(ClaudeModels.displayName(plan.thread.model)), \(plan.thread.effort) effort", "\(ClaudeModels.displayName(delegation.model)), \(delegation.effort) effort")
+            : ("GPT-6.1 Sol, medium effort", "GPT-5.6 Luna, low effort")
+        return "\n<private_delegation_contract>\n"
+            + "You are \(parent), and own every learner-facing response and all "
             + "teaching, evaluation and memory decisions. Answer short questions and ordinary "
             + "corrections directly. When bounded material search or fact extraction is needed, "
-            + "you may delegate that work to GPT-5.6 Luna, low effort. Do not delegate other work. "
+            + "you may delegate that work to \(child). Do not delegate other work. "
             + "Only one child may run for this conversation. Do not use native subagent tools.\n"
             + "To delegate, call the struis_delegate tool with one JSON object. It waits asynchronously and returns the child's result. "
             + "Required fields: task_type (material_search or fact_extraction), purpose, sources "
@@ -221,12 +225,12 @@ actor DelegationWatcher {
             "execution_id": requestID, "thread_id": NSNull(), "turn_id": NSNull(), "parent_thread_id": parentThreadID ?? plan.thread.codexThreadID ?? NSNull(),
             "parent_turn_id": parentTurnID ?? NSNull(), "task_type": request.taskType, "requested_model": delegation.model, "requested_effort": delegation.effort,
             "actual_model": NSNull(), "actual_effort": NSNull(), "usage": NSNull(), "turn_tokens": NSNull(), "status": "starting",
-            "elapsed_ms": NSNull(), "billing_source": "byo_chatgpt", "actual_charge": NSNull(),
+            "elapsed_ms": NSNull(), "billing_source": (delegation.provider ?? .openai).billingSource, "actual_charge": NSNull(),
         ]
         executions.append(LedgerJSON(any: audit))
         do {
             let base = try await assets.text(delegation.baseInstructions)
-            let configured = try await session.request("thread/start", params: [
+            var params: JSONObject = [
                 "dynamicTools": NativeToolRouter.lookupDefinitions,
                 "cwd": cwd, "model": delegation.model, "ephemeral": true, "approvalPolicy": "never", "sandbox": "danger-full-access",
                 "allowProviderModelFallback": false, "baseInstructions": base, "developerInstructions": delegation.developerText + "\n\n" + NativeToolRouter.lookupInstructions,
@@ -234,7 +238,9 @@ actor DelegationWatcher {
                     "model_reasoning_effort": delegation.effort, "features.multi_agent": false, "features.unified_exec": false,
                     "features.apps": false, "features.browser_use": false, "features.computer_use": false, "web_search": "disabled",
                 ]),
-            ], timeout: .seconds(180))
+            ]
+            _ = try await CodexTurnRunner.applyProvider(delegation.provider, to: &params)
+            let configured = try await session.request("thread/start", params: params, timeout: .seconds(180))
             let childID = (configured["thread"] as? JSONObject)?["id"] as? String ?? ""
             guard !childID.isEmpty else { throw CodexAppServerError.malformed("thread/start returned no thread id") }
             var schema = delegation.outputSchema.objectValue ?? [:]
@@ -248,7 +254,8 @@ actor DelegationWatcher {
                 session: session, planID: plan.id + ":" + requestID, threadID: childID, cwd: cwd, text: requestJSON, images: [],
                 model: delegation.model, effort: delegation.effort, outputSchema: .object(schema), sandboxPolicy: "dangerFullAccess",
                 configured: configured, configurationEvidence: "thread/start", taskType: request.taskType, timeoutS: 300,
-                parentThreadID: parentThreadID ?? plan.thread.codexThreadID, parentTurnID: parentTurnID, executionID: requestID, progress: { _ in }
+                parentThreadID: parentThreadID ?? plan.thread.codexThreadID, parentTurnID: parentTurnID, executionID: requestID,
+                provider: delegation.provider, progress: { _ in }
             ) { execution in
                 if let index = self.executions.firstIndex(where: { $0["execution_id"]?.stringValue == requestID }) {
                     self.executions[index] = execution

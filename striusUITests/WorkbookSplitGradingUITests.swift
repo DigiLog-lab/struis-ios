@@ -42,24 +42,24 @@ final class WorkbookSplitGradingUITests: XCTestCase {
     @MainActor
     private func openPracticeSet(_ app: XCUIApplication) {
         let row = element(app, "workbook-subunit-sub-1")
-        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        XCTAssertTrue(row.appears(timeout: 15))
         row.tap()
         let request = element(app, "workbook-request-set")
-        XCTAssertTrue(request.waitForExistence(timeout: 10))
+        XCTAssertTrue(request.appears(timeout: 10))
         request.tap()
-        XCTAssertTrue(element(app, "workbook-set-problem-1").waitForExistence(timeout: 20))
+        XCTAssertTrue(element(app, "workbook-set-problem-1").appears(timeout: 20))
         tapCamera(app)
         shoot(app)
         let status = element(app, "workbook-result-status")
         XCTAssertTrue(waitLabel(status, "クリア"), "類題がクリアにならない: \(screenSummary(app))")
         element(app, "workbook-result-practice").tap()
-        XCTAssertTrue(element(app, "workbook-set-problem-5").waitForExistence(timeout: 20), "演習の一枚が開かない")
+        XCTAssertTrue(element(app, "workbook-set-problem-5").appears(timeout: 20), "演習の一枚が開かない")
     }
 
     @MainActor
     private func tapCamera(_ app: XCUIApplication) {
         let camera = element(app, "workbook-capture-button")
-        XCTAssertTrue(camera.waitForExistence(timeout: 5))
+        XCTAssertTrue(camera.appears(timeout: 5))
         camera.tap()
     }
 
@@ -67,16 +67,16 @@ final class WorkbookSplitGradingUITests: XCTestCase {
     @MainActor
     private func shoot(_ app: XCUIApplication) {
         let shutter = app.buttons["chat-camera-shutter"].firstMatch
-        XCTAssertTrue(shutter.waitForExistence(timeout: 15), "カメラが開かない: \(screenSummary(app))")
+        XCTAssertTrue(shutter.appears(timeout: 15), "カメラが開かない: \(screenSummary(app))")
         if !shutter.isEnabled { app.tap() }
         _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: shutter)], timeout: 15)
         shutter.tap()
         // カメラは閉じずに続けて撮れる(一括採点)。「採点する 1」で確認画面へ。
         let done = app.buttons["chat-camera-done"].firstMatch
-        XCTAssertTrue(done.waitForExistence(timeout: 20), "「採点する」が出ない: \(screenSummary(app))")
+        XCTAssertTrue(done.appears(timeout: 20), "「採点する」が出ない: \(screenSummary(app))")
         done.tap()
         let use = element(app, "workbook-capture-use")
-        XCTAssertTrue(use.waitForExistence(timeout: 20), "撮影確認が出ない: \(screenSummary(app))")
+        XCTAssertTrue(use.appears(timeout: 20), "撮影確認が出ない: \(screenSummary(app))")
         use.tap()
     }
 
@@ -98,7 +98,7 @@ final class WorkbookSplitGradingUITests: XCTestCase {
 
         // 撮り足す(3・4): 同じ一枚を文脈にしてカメラが開く。まだ 5 が残る。
         element(app, "workbook-result-capture-more").tap()
-        XCTAssertTrue(app.buttons["chat-camera-shutter"].firstMatch.waitForExistence(timeout: 15), "「撮り足す」でカメラが開かない")
+        XCTAssertTrue(app.buttons["chat-camera-shutter"].firstMatch.appears(timeout: 15), "「撮り足す」でカメラが開かない")
         attach(app, "1b-capture-more-camera")
         shoot(app)
         XCTAssertTrue(waitLabel(element(app, "workbook-set-progress-title"), "5 が見つかりませんでした"), "2 枚目の後の途中のリザルトにならない: \(screenSummary(app))")
@@ -134,7 +134,7 @@ final class WorkbookSplitGradingUITests: XCTestCase {
 
         // 締めた後に一枚の画面から残りを撮る(3・4、次に 5): 一枚の集計に足し直し、窓が届けば合格(R4)。
         app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(element(app, "workbook-set-problem-5").waitForExistence(timeout: 10), "一枚の画面に戻れない: \(screenSummary(app))")
+        XCTAssertTrue(element(app, "workbook-set-problem-5").appears(timeout: 10), "一枚の画面に戻れない: \(screenSummary(app))")
         attach(app, "5-set-after-close")
         tapCamera(app)
         shoot(app)
@@ -143,7 +143,7 @@ final class WorkbookSplitGradingUITests: XCTestCase {
         XCTAssertFalse(element(app, "workbook-set-progress-title").exists, "締めた後の答案を途中にしている")
         attach(app, "6-late-photo-added")
         app.navigationBars.buttons.firstMatch.tap()
-        XCTAssertTrue(element(app, "workbook-set-problem-5").waitForExistence(timeout: 10))
+        XCTAssertTrue(element(app, "workbook-set-problem-5").appears(timeout: 10))
         tapCamera(app)
         shoot(app)
         XCTAssertTrue(waitLabel(element(app, "workbook-result-status"), "小単元 合格"), "締めた後に残りを撮っても合格にならない: \(screenSummary(app))")
@@ -159,7 +159,7 @@ final class WorkbookSplitGradingUITests: XCTestCase {
         openPracticeSet(app)
         tapCamera(app)
         let shutter = app.buttons["chat-camera-shutter"].firstMatch
-        XCTAssertTrue(shutter.waitForExistence(timeout: 15), "カメラが開かない: \(screenSummary(app))")
+        XCTAssertTrue(shutter.appears(timeout: 15), "カメラが開かない: \(screenSummary(app))")
         let done = app.buttons["chat-camera-done"].firstMatch
         for count in 1...3 {
             if !shutter.isEnabled { app.tap() }

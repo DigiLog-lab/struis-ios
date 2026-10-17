@@ -204,7 +204,7 @@ extension TurnCoordinator {
             }
             examplePrefetches[subunitID] = nil
             if let codexThreadID = state.codexThreadID, let memory = state.deliveredMemory {
-                ThreadContextStore.shared.update(codexThreadID) { $0.memory = memory }
+                ThreadContextStore.shared.recordMemory(codexThreadID, memory)
             }
             if let prefetchSetID { await startPrefetchedSet(setID: prefetchSetID) }
             if let plan = prefetch.plan { WorkspaceStager.cleanup(plan: plan) }
