@@ -152,7 +152,13 @@ def restore_workspace(store, number, branch):
     return True
 
 
-def restart_interrupted(gh, state, outcome):
+def restart_interrupted(gh, state, outcome, kind='interrupted'):
+    """Schedule an automatic restart.
+
+    kind: 'interrupted' (Claude was cancelled, failed or did nothing; the saved
+    session is resumed) or 'validation' (Claude finished normally but the PR CI
+    on the pushed HEAD is not green; a new session repairs only that HEAD).
+    """
     if outcome not in {'cancelled', 'failure'}:
         return None
     count = int(state.get('autoRestarts') or 0)
@@ -162,7 +168,11 @@ def restart_interrupted(gh, state, outcome):
         'ref': 'main', 'inputs': {'issue': str(state['issue']), 'automatic_retry': 'true'},
     })
     state['autoRestarts'] = count + 1
+    state['restartKind'] = kind
     state['restartFromRun'] = os.environ.get('RECOVER_RUN_ID') or os.environ.get('GITHUB_RUN_ID')
+    if kind == 'validation':
+        return (f'現在のHEADのPR CIを修正する自動再開を予約しました ({count + 1}/3)。'
+                '次の実行は新しいセッションでCIの失敗だけを直し、Issueの次の項目や新しいコメントには着手しません。')
     return f'保存した作業とセッションから自動再開を予約しました ({count + 1}/3)。'
 
 
@@ -259,10 +269,17 @@ def format_comment(comment):
     return f'<comment id="{comment["id"]}" author="{user}" created="{created}">\n{comment.get("body") or ""}\n</comment>'
 
 
-def recovery_context(gh, number, issue, comments, state):
-    """History used when the saved session cannot be restored (spec 4.4)."""
+SESSION_RECOVERY_REASONS = {
+    'unrestorable': '保存済みのClaudeセッションを復元できなかったため、新しいセッションで再開しています。',
+    'validation': '前回の実行は正常に終了しましたが、PR CIの検証に失敗したため、新しいセッションで修正作業を行います。',
+    'rerun': '前回の実行が失敗した後の再実行のため、新しいセッションで再開しています。',
+}
+
+
+def recovery_context(gh, number, issue, comments, state, reason='unrestorable'):
+    """History used when a run starts a new session instead of resuming (spec 4.4)."""
     parts = ['<session-recovery>',
-             '保存済みのClaudeセッションを復元できなかったため、新しいセッションで再開しています。',
+             SESSION_RECOVERY_REASONS[reason],
              '以下はIssueの履歴、記録済みの設計判断、作業ブランチの状態です。これを前提に会話を継続してください。']
     if state.get('decisions'):
         parts.append('記録済みの設計判断:')
@@ -280,6 +297,26 @@ def recovery_context(gh, number, issue, comments, state):
         parts.append(f'<branch-status>\n{status}\n</branch-status>')
     parts.append('</session-recovery>')
     return '\n'.join(parts)
+
+
+def repair_instructions(head, failure):
+    """Prompt for a restart after a validation failure: fix the pushed HEAD's CI, nothing else."""
+    detail = (json.dumps(failure, ensure_ascii=False) if failure
+              else '終了処理の検証(保存状態の確認、またはPR CI)に失敗しました。`git status` と `gh run list --branch <作業ブランチ>` で現在の状態を確認してください。')
+    return '\n'.join([
+        '<validation-repair>',
+        f'前回の実行は正常に終了しましたが、push済みHEAD ({head}) のPR CIが成功していません。この実行の目的は、現在のHEADのPR CIを成功させることだけです。',
+        '失敗の記録:',
+        detail,
+        '行うこと:',
+        '- 記録と `gh run view <run-id> --log-failed` で失敗したテスト・ビルドの原因を確かめ、このブランチの該当箇所を修正してcommit・pushし、request-prを再実行してCIを起動する。CIが成功するまで確認を続ける。',
+        '- 失敗が不安定なテスト(flaky)に見える場合も、原因を確かめて安定させる修正を行う。',
+        '禁止すること:',
+        '- Issueの次の項目や未着手の作業に進むこと。未処理のコメントがあっても、この実行では扱わない(次の人間による実行に残す)。',
+        '- テストをskip・無効化・期待失敗(XCTExpectFailure等)にすること、アサーションを緩めること、修正なしでCIを再実行(Re-run)して通そうとすること。',
+        '- CI修正に不要なリファクタリングや機能変更など、作業範囲を広げること。',
+        '</validation-repair>',
+    ])
 
 
 def requires_pr_ci(head, state, main_head):
@@ -324,13 +361,40 @@ def cmd_prepare(_args):
     branch_on_origin = checkout_branch(branch)
     checkpoint_restored = restore_workspace(store, number, branch)
     restored_ci = restore_pr_ci(state, branch, git('rev-parse', 'HEAD'))
-    if os.environ.get('AUTOMATIC_RETRY') != 'true':
+    automatic = os.environ.get('AUTOMATIC_RETRY') == 'true'
+    # Restarts dispatched by older controller versions carry no kind: resume as before.
+    restart_kind = (state.pop('restartKind', None) or 'interrupted') if automatic else None
+    if not automatic:
         state['autoRestarts'] = 0
+        state.pop('restartKind', None)
+        state.pop('repair', None)
     state.pop('restartFromRun', None)
     state.pop('finalizedRun', None)
     session_id = state.get('sessionId')
-    restored = not session_needs_recovery(state) and restore_session(store, number, session_id)
-    recovery = bool(session_id) and not restored
+    last_failed = (state.get('lastRun') or {}).get('success') is False
+    # Only an interrupted run resumes its session. A validation repair and a
+    # human-triggered rerun after a failure start a new session with the Issue
+    # thread as context.
+    resumable = restart_kind == 'interrupted' if automatic else not last_failed
+    restored = resumable and not session_needs_recovery(state) and restore_session(store, number, session_id)
+    # Claude finished but the PR CI on the pushed HEAD was not green: repair that
+    # HEAD only, also when the repair run itself is interrupted and resumed. The
+    # failed run's requests stay in scope so they become processed once CI is
+    # green; newer comments are left for the next human-triggered run.
+    repair = state.get('repair') if automatic else None
+    recovery = not restored and (bool(session_id) or bool(repair))
+    if repair:
+        carried = set(repair.get('includedComments') or [])
+        newer = {c['id'] for c in pending if c['id'] not in carried}
+        history = [c for c in comments if c['id'] not in newer]
+        pending = []
+        included_comments = sorted(carried)
+        included_issue_body = bool(repair.get('includedIssueBody'))
+    else:
+        history = [c for c in comments if c not in pending]
+        included_comments = [c['id'] for c in pending]
+        included_issue_body = not state.get('issueBodyProcessed')
+    reason = 'validation' if repair else 'rerun' if not automatic and last_failed else 'unrestorable'
     model = state.get('model') or os.environ.get('AGENT_MODEL') or 'opus'
     prototypes = prototype_summary(store, number)
     (home / 'prototypes.json').write_text(json.dumps(prototypes, ensure_ascii=False, indent=2))
@@ -375,7 +439,7 @@ def cmd_prepare(_args):
     ]
     blocks = ['\n'.join(environment)]
     if recovery:
-        blocks.append(recovery_context(gh, number, issue, [c for c in comments if c not in pending], state))
+        blocks.append(recovery_context(gh, number, issue, history, state, reason))
     elif not state.get('issueBodyProcessed'):
         blocks.append(f'<issue-body author="{issue["user"]["login"]}" created="{issue["created_at"]}">\n'
                       f'{issue.get("body") or ""}\n</issue-body>')
@@ -383,7 +447,9 @@ def cmd_prepare(_args):
     if restored_ci:
         blocks.append('<pending-pr-ci>\n前runnerが起動したPR CIの記録を復元しました。まずworkflowごとの要求識別子（requestsに指定がなければrequest）の実行結果を確認してください。実行中なら待ち、同じHEADのCIを重複起動しないでください。\n'
                       + json.dumps(restored_ci, ensure_ascii=False) + '\n</pending-pr-ci>')
-    if state.get('validationFailure'):
+    if repair:
+        blocks.append(repair_instructions(head, state.get('validationFailure')))
+    elif state.get('validationFailure'):
         blocks.append('<validation-failure>\n前回の検証失敗を修正してから、検証と成果提示へ進んでください。\n'
                       + json.dumps(state['validationFailure'], ensure_ascii=False) + '\n</validation-failure>')
     if session_needs_recovery(state):
@@ -400,8 +466,8 @@ def cmd_prepare(_args):
 
     run = {
         'issue': number, 'branch': branch, 'model': model, 'sessionIdBefore': session_id,
-        'restored': restored, 'recovery': recovery, 'includedComments': [c['id'] for c in pending],
-        'includedIssueBody': not state.get('issueBodyProcessed'), 'startedAt': iso(now),
+        'restored': restored, 'recovery': recovery, 'repair': bool(repair),
+        'includedComments': included_comments, 'includedIssueBody': included_issue_body, 'startedAt': iso(now),
         'headBefore': git('rev-parse', 'HEAD'),
         'validationRequired': requires_pr_ci(git('rev-parse', 'HEAD'), state, git('rev-parse', 'origin/main')),
     }
@@ -712,6 +778,8 @@ def cmd_finalize(_args):
     if success:
         state['autoRestarts'] = 0
         state.pop('validationFailure', None)
+        state.pop('restartKind', None)
+        state.pop('repair', None)
         state['validatedHead'] = git('rev-parse', 'HEAD')
         completed_ci = state.pop('prCI', None)
         if (completed_ci and completed_ci.get('head') == state['validatedHead']
@@ -728,12 +796,18 @@ def cmd_finalize(_args):
         feedback = validation_feedback(home)
         if feedback:
             state['validationFailure'] = feedback
+    # Claude finished normally but the pushed HEAD did not pass: the next run only
+    # repairs that HEAD, keeping the scope of this run until its CI is green.
+    validation_failed = claude_success and os.environ.get('VALIDATION_OUTCOME') == 'failure'
+    if validation_failed:
+        state['repair'] = {'includedComments': run['includedComments'], 'includedIssueBody': run['includedIssueBody']}
     store.put_json(session_key(number, 'state.json'), state)
 
     table = usage_table(report, run, usage)
     try:
         outcome = 'cancelled' if 'cancelled' in (os.environ.get('CLAUDE_OUTCOME'), os.environ.get('VALIDATION_OUTCOME')) else 'failure'
-        restart_note = restart_interrupted(gh, state, outcome) if not success else None
+        kind = 'validation' if validation_failed else 'interrupted'
+        restart_note = restart_interrupted(gh, state, outcome, kind) if not success else None
     except Exception as error:
         restart_note = f'作業は保存しましたが、自動再開の予約に失敗しました: {type(error).__name__}'
     if restart_note:
