@@ -267,6 +267,7 @@ def restart_interrupted(gh, state, outcome, kind='interrupted'):
     })
     state['autoRestarts'] = count + 1
     state['restartKind'] = kind
+    state.pop('pendingRestartKind', None)  # carried by restartKind from here on
     state['restartFromRun'] = os.environ.get('RECOVER_RUN_ID') or os.environ.get('GITHUB_RUN_ID')
     if kind == 'validation':
         return (f'現在のHEADのPR CIを修正する自動再開を予約しました ({count + 1}/3)。'
@@ -485,10 +486,14 @@ def cmd_prepare(_args):
         gh.comment(number, f'{REPLY_MARKER}\n\n⚠️ {message}\n\n- 実行ログ: {run_url()}')
         raise RuntimeError(message)
     restored_ci = restore_pr_ci(state, branch, git('rev-parse', 'HEAD'))
-    # Restarts dispatched by older controller versions carry no kind: resume as
-    # before. A kind recorded by validate but never finalized counts as well.
+    # A kind recorded by validate but never finalized counts as well. A repair
+    # with no kind at all (finalize dispatched the restart but lost the write
+    # that records the kind) is still a repair of that HEAD: resuming the saved
+    # session instead could advance the Issue on an unverified HEAD. Only a
+    # restart without any repair carries no kind and resumes as before.
     pending_kind = state.pop('pendingRestartKind', None)
-    restart_kind = (state.pop('restartKind', None) or pending_kind or 'interrupted') if automatic else None
+    fallback_kind = 'validation' if state.get('repair') else 'interrupted'
+    restart_kind = (state.pop('restartKind', None) or pending_kind or fallback_kind) if automatic else None
     # A validation failure that validate recorded but finalize never processed
     # (or a repair left behind) is a failed previous run, even though lastRun
     # still describes the earlier turn that finished normally.
@@ -1018,6 +1023,10 @@ def cmd_finalize(_args):
         (home / CI_FAILURE_FILE).exists() or pending_kind == 'validation')
     if validation_failed:
         state['repair'] = attach_request_snapshot(store, number, repair_scope(run), state.get('repair'))
+        # Saved before the restart is dispatched: if the write that records
+        # restartKind after the dispatch is lost, the queued run still finds
+        # the kind next to the repair and does not resume the session.
+        state['pendingRestartKind'] = 'validation'
     elif not success and not run.get('repair'):
         dropped_repair = state.pop('repair', None)
     store.put_json(session_key(number, 'state.json'), state)

@@ -30,7 +30,7 @@ class RestartKindTests(unittest.TestCase):
     # ---------------------------------------------------------- finalize ---
 
     def finalize(self, state, claude_outcome='success', validation_outcome='failure', num_turns=1,
-                 ci_failed=None, is_error=False, repair_run=False, store=None, head='head'):
+                 ci_failed=None, is_error=False, repair_run=False, store=None, head='head', gh=None):
         run = {'issue': 4, 'branch': 'agent/issue-4', 'restored': True, 'recovery': False, 'repair': repair_run,
                'startedAt': '2026-10-10T00:00:00Z', 'model': 'opus', 'includedComments': [20], 'includedIssueBody': False}
         (self.home / 'run.json').write_text(json.dumps(run))
@@ -42,7 +42,7 @@ class RestartKindTests(unittest.TestCase):
         messages = ([{'type': 'result', 'subtype': 'success' if not is_error else 'error_during_execution',
                       'num_turns': num_turns, 'is_error': is_error, 'result': 'done', 'session_id': 'sess'}]
                     if claude_outcome == 'success' else [])
-        gh = mock.Mock(repository='owner/repo')
+        gh = gh or mock.Mock(repository='owner/repo')
         if store is None:
             store = mock.Mock()
             store.get_json.return_value = json.loads(json.dumps(state))
@@ -79,6 +79,26 @@ class RestartKindTests(unittest.TestCase):
         gh.request.assert_called_once()
         self.assertIn('/actions/workflows/agent.yml/dispatches', gh.request.call_args.args[1])
         self.assertIn('CIの失敗だけ', gh.comment.call_args.args[1])
+
+    def test_validation_kind_is_saved_with_the_repair_before_the_restart_is_dispatched(self):
+        # The write after the dispatch may be lost; the state saved before it
+        # must already tell the queued run that this is a repair, not a resume.
+        saved, dispatched_after = [], []
+        store = mock.Mock()
+        store.get_json.return_value = {'issue': 4, 'lastCommentId': 10}
+        store.put_json.side_effect = lambda key, value: saved.append((key, json.loads(json.dumps(value))))
+        gh = mock.Mock(repository='owner/repo')
+        gh.request.side_effect = lambda *_args, **_kwargs: dispatched_after.append(len(saved))
+        state, _gh = self.finalize({'issue': 4, 'lastCommentId': 10}, store=store, gh=gh)
+        self.assertEqual(len(dispatched_after), 1)
+        states_before_dispatch = [value for key, value in saved[:dispatched_after[0]] if key.endswith('state.json')]
+        self.assertEqual(len(states_before_dispatch), 1)
+        before = states_before_dispatch[0]
+        self.assertEqual(before['pendingRestartKind'], 'validation')
+        self.assertEqual(before['repair']['head'], 'head')
+        self.assertNotIn('restartKind', before)
+        self.assertEqual(state['restartKind'], 'validation')
+        self.assertNotIn('pendingRestartKind', state)
 
     def test_cancelled_claude_schedules_interrupted_restart(self):
         state, gh = self.finalize({'issue': 4}, claude_outcome='cancelled', validation_outcome='skipped')
@@ -384,6 +404,29 @@ class RestartKindTests(unittest.TestCase):
         self.assertTrue(run['repair'])
         self.assertNotIn('pendingRestartKind', saved)
         self.assertIn('<validation-repair>', prompt)
+
+    def test_prepare_treats_a_repair_without_any_kind_as_validation_restart(self):
+        # finalize dispatched the restart but the write recording restartKind
+        # was lost: the repair alone must not resume the session.
+        state = {'issue': 4, 'branch': 'agent/issue-4', 'sessionId': 'sess', 'lastCommentId': 10,
+                 'autoRestarts': 1, 'issueBodyProcessed': True,
+                 'repair': {'includedComments': [20], 'includedIssueBody': False, 'head': 'headsha'},
+                 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}}
+        run, prompt, saved, restore = self.prepare(state, [comment(20)], automatic=True)
+        restore.assert_not_called()
+        self.assertTrue(run['repair'])
+        self.assertNotIn('restartKind', saved)
+        self.assertNotIn('pendingRestartKind', saved)
+        self.assertIn('<validation-repair>', prompt)
+
+    def test_prepare_still_resumes_an_interrupted_run_without_a_repair(self):
+        state = {'issue': 4, 'branch': 'agent/issue-4', 'sessionId': 'sess', 'lastCommentId': 10,
+                 'autoRestarts': 1, 'issueBodyProcessed': True,
+                 'lastRun': {'success': False, 'noOp': False, 'turnUsage': {'input': 5}}}
+        run, prompt, _saved, restore = self.prepare(state, [comment(20)], automatic=True)
+        restore.assert_called_once()
+        self.assertFalse(run['repair'])
+        self.assertNotIn('<validation-repair>', prompt)
 
     # -------------------------------------------- repair pinned to the HEAD ---
 
