@@ -95,7 +95,8 @@ final class ChatScrollStabilityUITests: XCTestCase {
         XCTAssertLessThanOrEqual(jumps.max() ?? 0, 2, "指を離した後に会話が動いた(跳んだ): \(jumps.map { Int($0.rounded()) })")
     }
 
-    /// 画面の中ほどにある数式の WebView の枠(1 回の snapshot で探す)。枠の一部が小単元のヘッダーの裏にあるものは選ばない
+    /// 画面の中ほどにある数式の枠(1 回の snapshot で探す)。数式は SwiftMath で描いた段落(`math-text`)か表示用の行(`math-display`)。
+    /// SwiftMath で描けず WebView に落ちた本文(`webView`)も数える。枠の一部が小単元のヘッダーの裏にあるものは選ばない
     /// (枠の中ほどがヘッダーに覆われていると、指がヘッダーに当たり数式の吹き出しに届かない)。
     @MainActor
     private func mathFrame(_ app: XCUIApplication) -> CGRect? {
@@ -106,13 +107,17 @@ final class ChatScrollStabilityUITests: XCTestCase {
         var stack: [XCUIElementSnapshot] = [root]
         var found: [CGRect] = []
         while let node = stack.popLast() {
-            if node.elementType == .webView, node.frame.height > 12,
+            if Self.isMathElement(node), node.frame.height > 12,
                node.frame.minY > max(screen.height * 0.25, visibleTop), node.frame.maxY < screen.height * 0.7 {
                 found.append(node.frame)
             }
             stack.append(contentsOf: node.children)
         }
         return found.min { $0.minY < $1.minY }
+    }
+
+    static func isMathElement(_ node: XCUIElementSnapshot) -> Bool {
+        node.elementType == .webView || node.identifier == "math-display" || node.identifier == "math-text"
     }
 
     /// 開いた直後の最初のドラッグが、指の動きどおりに会話を動かす(位置の基準の切り替えで止めない)。
@@ -228,8 +233,9 @@ final class ChatScrollStabilityUITests: XCTestCase {
         XCTAssertLessThanOrEqual(shift, 2, "返事が出来上がった時に、読み返している会話が動いた")
     }
 
-    /// 横にはみ出す表示用の数式(D5)は、WebView 自体のスクロールを止めた後も、横にドラッグして続きを読める。
-    /// 表示用の数式(背の高い WebView)を横にドラッグし、その WebView の見た目が変わる(中身が横に動く)ものがあることを確かめる。
+    /// 横にはみ出す表示用の数式(D5)は、横にドラッグして続きを読める。
+    /// 表示用の数式の行(`math-display`。SwiftMath で描けず WebView に落ちた本文は `webView`)を横にドラッグし、
+    /// その見た目が変わる(中身が横に動く)ものがあることを確かめる。
     @MainActor
     func testOverflowingDisplayMathStillScrollsSideways() throws {
         let app = XCUIApplication()
@@ -247,9 +253,11 @@ final class ChatScrollStabilityUITests: XCTestCase {
         var scrolled = false
         for _ in 0..<10 where !scrolled {
             Thread.sleep(forTimeInterval: 3)
-            // 背の高い WebView(表示用の数式を含む吹き出し)から試す。
-            let webs = app.webViews.allElementsBoundByIndex.filter {
-                $0.exists && $0.frame.height > 30 && $0.frame.maxY > screen.height * 0.2 && $0.frame.minY < screen.height * 0.75
+            // 表示用の数式の行(と、WebView に落ちた吹き出し)のうち背の高いものから試す。
+            let candidates = app.descendants(matching: .any).matching(identifier: "math-display").allElementsBoundByIndex
+                + app.webViews.allElementsBoundByIndex
+            let webs = candidates.filter {
+                $0.exists && $0.frame.height > 12 && $0.frame.maxY > screen.height * 0.2 && $0.frame.minY < screen.height * 0.75
             }.sorted { $0.frame.height > $1.frame.height }
             for web in webs where !scrolled {
                 // 吹き出しの上が見出しに隠れていると、隠れた行には指が届かず試せない。吹き出しが見える範囲に収まるなら、
@@ -264,7 +272,8 @@ final class ChatScrollStabilityUITests: XCTestCase {
                 }
                 let key = "\(Int(web.frame.minY))-\(Int(web.frame.height))-\(web.label)"
                 guard tried.insert(key).inserted else { continue }
-                // 吹き出し全体が 1 つの WebView なので、表示用の数式の行に当たるよう縦の位置を 22pt おきに変えて試す。
+                // WebView に落ちた吹き出しは全体が 1 つの要素なので、表示用の数式の行に当たるよう縦の位置を 22pt おきに変えて試す
+                // (`math-display` は 1 行なので 1 回)。
                 // 描画の途中の変化を数えないよう、見た目が落ち着いてから比べ、左へ動いた後に右へ戻すとまた変わる(往復する)ことを見る。
                 // 比べるのは WebView のうち会話に見えている部分だけ(枠が見出しや状態バーの裏まで伸びていると、時計や見出しの
                 // 変化まで数えてしまう)。指を置くのもその中だけにする(見出しの上から始めた指は数式に届かない)。

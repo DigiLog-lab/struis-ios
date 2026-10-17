@@ -2,9 +2,10 @@ import SwiftUI
 import WebKit
 import CryptoKit
 
-/// 本文と数式を描く。数式を含む本文は KaTeX(WebView)で描く。
+/// 本文と数式を描く。数式を含む本文は SwiftMath(`NativeMathText`、Issue #28)で描く。SwiftMath で解析できない数式を含む
+/// 本文だけ、従来の KaTeX(WebView)に落とす(落ちた数式は `MathRenderDiagnostics` が台帳の書き出しに記録する)。
 ///
-/// 数式の吹き出しが空のまま待たされないように(K1、2026-10-03 作り直し):
+/// 以下は WebView の経路の説明。数式の吹き出しが空のまま待たされないように(K1、2026-10-03 作り直し):
 /// - 描き終えた見た目を画像として端末に残し(`KaTeXSnapshotStore`)、次に同じ本文を出す時は WebView を作らずに画像で出す。
 ///   再起動の後に長い会話を開いても、WebView の起動や KaTeX の読み込みを待たない。
 /// - 画像がまだ無い本文は、WebView が描き終えるまで、数式を読める文字に直した仮の文字(`MathPlainText`)を出す(空にしない)。
@@ -40,10 +41,14 @@ struct KaTeXMathText: View {
 
     var body: some View {
         if raw.needsKaTeX || display {
-            KaTeXRenderedText(
-                raw: raw, display: display, foregroundColor: foregroundColor, fontSize: fontSize,
-                fontWeight: fontWeight, highlightCount: highlightCount
-            )
+            if let document = NativeMathDocument.make(raw, display: display) {
+                NativeMathText(document: document, foregroundColor: foregroundColor, fontSize: fontSize, fontWeight: fontWeight, highlightCount: highlightCount)
+            } else {
+                KaTeXRenderedText(
+                    raw: raw, display: display, foregroundColor: foregroundColor, fontSize: fontSize,
+                    fontWeight: fontWeight, highlightCount: highlightCount
+                )
+            }
         } else if highlightCount > 0 {
             Text(StruisMarkedSpans.highlighted(raw.replacingOccurrences(of: "\\n", with: "\n"), count: highlightCount))
                 .font(Typography.sans(size: fontSize, weight: fontWeight >= 500 ? .medium : .regular))
@@ -564,7 +569,8 @@ final class KaTeXPrefetcher: NSObject, WKNavigationDelegate {
     /// 測る本文を差し替える(まだ測っていないものだけ。前に頼んだものより先に測る)。頼まれてから 1 秒、
     /// 次の頼みが無ければ測り始める(画面に出ている行は、その間に自分で描いて高さを記録するので測らずに済む)。
     func prefetch(_ items: [Item]) {
-        let fresh = items.filter(\.needsMeasure)
+        // SwiftMath で描ける本文は高さがレイアウトで決まるので測らない。測るのは WebView に落ちる本文だけ。
+        let fresh = items.filter { $0.needsMeasure && NativeMathDocument.make($0.raw, display: $0.display) == nil }
         guard !fresh.isEmpty else { return }
         var seen = Set<String>()
         queue = (fresh + queue).filter { seen.insert("\($0.key):\(Int($0.width.rounded()))").inserted }
@@ -658,6 +664,7 @@ enum KaTeXLayoutCache {
         cache.removeAllObjects()
         KaTeXSnapshotStore.shared.removeAll()
         KaTeXWebViewPool.removeAll()
+        NativeMathRenderer.shared.removeAll()
     }
 }
 
