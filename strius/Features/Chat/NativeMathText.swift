@@ -27,7 +27,7 @@ struct NativeMathText: View {
                     MathParagraph(runs: runs, style: style, highlightCount: highlightCount, readable: document.readable)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 case .display(let latex, let mark):
-                    MathDisplayRow(latex: latex, style: style, highlighted: mark < highlightCount, availableWidth: width)
+                    MathDisplayRow(latex: latex, style: style, highlighted: mark < highlightCount)
                         .padding(.top, fontSize * 0.42)
                         .padding(.bottom, fontSize * 0.54)
                 }
@@ -317,40 +317,94 @@ private struct MathParagraph: UIViewRepresentable {
 }
 
 /// 表示用の数式の行。左寄せ。行の幅より広ければ横スクロールにし、右端を薄くして続きがあることを示す(D5)。
+/// UIKit(`UIScrollView` + `UIImageView`)で描く: SwiftUI の `Image` は識別子を付けても UI テストの要素にならなかった(CI 2 回)。
+/// 高さは画像の高さで、`sizeThatFits` でレイアウトの時に決まる。
 private struct MathDisplayRow: View {
     let latex: String
     let style: NativeMathStyle
     let highlighted: Bool
-    let availableWidth: CGFloat
 
     var body: some View {
         if let glyph = NativeMathRenderer.shared.glyph(latex: latex, display: true, style: style, highlighted: highlighted) {
-            let image = Image(uiImage: glyph.image)
-                .resizable()
-                .frame(width: glyph.size.width, height: glyph.size.height)
-            // VoiceOver と UI テストには 1 つの要素(`math-display`)として見せる(画像のままだと要素にならない)。
-            if availableWidth > 0, glyph.size.width > availableWidth {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    image.padding(.trailing, 24)
-                }
-                .frame(height: glyph.size.height)
-                .mask(
-                    LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black, location: 0.9), .init(color: .black.opacity(0.15), location: 1)],
-                                   startPoint: .leading, endPoint: .trailing)
-                )
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(MathPlainText.convert(latex))
-                .accessibilityIdentifier("math-display")
-            } else {
-                image
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(MathPlainText.convert(latex))
-                    .accessibilityIdentifier("math-display")
-            }
+            MathDisplayView(glyph: glyph, readable: MathPlainText.convert(latex))
+                .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             Text(MathPlainText.convert(latex))
                 .font(Typography.sans(size: style.fontSize, weight: .medium))
                 .foregroundStyle(Color(style.color))
+        }
+    }
+}
+
+private struct MathDisplayView: UIViewRepresentable {
+    let glyph: NativeMathGlyph
+    let readable: String
+
+    func makeUIView(context: Context) -> MathDisplayScrollView {
+        let view = MathDisplayScrollView()
+        view.isAccessibilityElement = true
+        view.accessibilityIdentifier = "math-display"
+        view.accessibilityTraits = .staticText
+        return view
+    }
+
+    func updateUIView(_ view: MathDisplayScrollView, context: Context) {
+        view.imageView.image = glyph.image
+        view.imageSize = glyph.size
+        view.accessibilityLabel = readable
+        view.setNeedsLayout()
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView view: MathDisplayScrollView, context: Context) -> CGSize? {
+        var width = glyph.size.width
+        if let proposed = proposal.width, proposed.isFinite, proposed > 0 { width = min(width, proposed) }
+        return CGSize(width: width, height: glyph.size.height)
+    }
+}
+
+/// 横にはみ出した数式を横に動かす枠。はみ出している間は右端を薄くする(端まで送ったら薄くしない)。
+final class MathDisplayScrollView: UIScrollView {
+    let imageView = UIImageView()
+    var imageSize: CGSize = .zero
+    private let fade = CAGradientLayer()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        showsHorizontalScrollIndicator = false
+        showsVerticalScrollIndicator = false
+        alwaysBounceVertical = false
+        contentInsetAdjustmentBehavior = .never
+        backgroundColor = .clear
+        imageView.contentMode = .scaleAspectFit
+        addSubview(imageView)
+        fade.colors = [UIColor.black.cgColor, UIColor.black.cgColor, UIColor.black.withAlphaComponent(0.15).cgColor]
+        fade.locations = [0, 0.9, 1]
+        fade.startPoint = CGPoint(x: 0, y: 0.5)
+        fade.endPoint = CGPoint(x: 1, y: 0.5)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        imageView.frame = CGRect(origin: .zero, size: imageSize)
+        let overflowing = imageSize.width > bounds.width + 1
+        contentSize = CGSize(width: overflowing ? imageSize.width + 24 : bounds.width, height: imageSize.height)
+        isScrollEnabled = overflowing
+        updateFade()
+    }
+
+    override var contentOffset: CGPoint {
+        didSet { updateFade() }
+    }
+
+    private func updateFade() {
+        let more = imageSize.width > bounds.width + 1 && contentOffset.x + bounds.width < imageSize.width - 1
+        if more {
+            fade.frame = bounds
+            layer.mask = fade
+        } else {
+            layer.mask = nil
         }
     }
 }
