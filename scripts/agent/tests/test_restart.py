@@ -30,10 +30,11 @@ class RestartKindTests(unittest.TestCase):
     # ---------------------------------------------------------- finalize ---
 
     def finalize(self, state, claude_outcome='success', validation_outcome='failure', num_turns=1,
-                 ci_failed=None, is_error=False, repair_run=False, store=None, head='head', gh=None):
+                 ci_failed=None, is_error=False, repair_run=False, store=None, head='head', gh=None, keep_run=False):
         run = {'issue': 4, 'branch': 'agent/issue-4', 'restored': True, 'recovery': False, 'repair': repair_run,
                'startedAt': '2026-10-10T00:00:00Z', 'model': 'opus', 'includedComments': [20], 'includedIssueBody': False}
-        (self.home / 'run.json').write_text(json.dumps(run))
+        if not keep_run:  # otherwise finalize the run prepare wrote to AGENT_HOME
+            (self.home / 'run.json').write_text(json.dumps(run))
         # validate marks a CI failure of a clean, pushed HEAD for finalize on the same runner.
         marker = self.home / agentctl.CI_FAILURE_FILE
         marker.unlink(missing_ok=True)
@@ -719,6 +720,29 @@ class RestartKindTests(unittest.TestCase):
         self.assertEqual(persisted['sessions/4/repair-request.json'], snapshot)
         return persisted, issue, comments
 
+    def successful_run(self, restored=False):
+        """A run on comment 20 that Claude finished and whose CI passed: persisted store, issue and comments."""
+        issue = {'number': 4, 'title': 'T', 'html_url': 'https://github.com/owner/repo/issues/4',
+                 'body': '元のIssue本文', 'created_at': '2026-10-01T00:00:00Z',
+                 'user': {'login': 'owner'}, 'author_association': 'OWNER'}
+        comments = [comment(10, body='処理済みの依頼'),
+                    {'id': 15, 'user': {'login': 'agent[bot]', 'type': 'Bot'}, 'author_association': 'NONE',
+                     'body': '一つ目を実装しました', 'created_at': '2026-10-10T00:00:00Z'},
+                    comment(20, body='元の依頼: 二つ目の項目をやって')]
+        persisted = {'sessions/4/state.json': {'issue': 4, 'branch': 'agent/issue-4', 'sessionId': 'sess',
+                                               'lastCommentId': 10, 'issueBodyProcessed': True,
+                                               'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}}}
+        run, _prompt = self.prepare_with(persisted, issue, comments, automatic=False, restored=restored)
+        self.assertEqual(run['includedComments'], [20])
+        self.assertNotIn('sessions/4/request-history.json', persisted)  # recorded by finalize, not prepare
+        self.finalize(persisted['sessions/4/state.json'], store=self.persisted_store(persisted),
+                      validation_outcome='success', head='headsha', keep_run=True)
+        state = persisted['sessions/4/state.json']
+        self.assertNotIn('repair', state)
+        self.assertNotIn('sessionStale', state)
+        self.assertEqual(state['lastCommentId'], 20)
+        return persisted, issue, comments
+
     def test_repair_uses_the_comment_text_the_failed_run_saw_even_after_an_edit(self):
         persisted, issue, comments = self.failed_run()
         comments[2]['body'] = '編集後の依頼: 三つ目の項目もやって'  # same ID, edited in place
@@ -820,16 +844,11 @@ class RestartKindTests(unittest.TestCase):
     # -------- a resumed session's snapshot keeps the text earlier runs were given ---
 
     def test_resumed_run_snapshots_earlier_requests_as_they_were_supplied(self):
-        # Run 1 (new session) is shown the live thread and records it.
-        persisted, issue, comments = self.failed_run()
+        # Run 1 (new session) is shown the live thread; finalize records it.
+        persisted, issue, comments = self.successful_run()
         record = persisted['sessions/4/request-history.json']
         self.assertEqual(record['issue']['body'], '元のIssue本文')
         self.assertEqual([c['id'] for c in record['comments']], [10, 15, 20])
-        # The repair succeeds: state carries no repair, the session resumes next time.
-        state = persisted['sessions/4/state.json']
-        # As finalize leaves the state after a successful repair in a saved session.
-        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None); state.pop('sessionStale', None)
-        state.update({'lastCommentId': 20, 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}})
         # Earlier text is edited in place, then a new request arrives.
         issue['body'] = '編集後のIssue本文: 範囲を広げた'
         comments[2]['body'] = '編集後の依頼: 三つ目の項目もやって'
@@ -846,7 +865,7 @@ class RestartKindTests(unittest.TestCase):
         self.assertEqual([(c['id'], c['body']) for c in snapshot['comments']],
                          [(10, '処理済みの依頼'), (15, '一つ目を実装しました'), (20, '元の依頼: 二つ目の項目をやって'),
                           (25, '二つ目を実装しました'), (30, '三つ目の依頼')])
-        self.assertEqual(persisted['sessions/4/request-history.json'], snapshot)
+        self.assertEqual(persisted['sessions/4/request-history.json'], record)  # not yet supplied
         # Its CI fails: the repair sees what the resumed run saw, not the edited text.
         self.fail_validation(persisted)
         _run, prompt = self.prepare_with(persisted, issue, comments, automatic=True)
@@ -857,11 +876,8 @@ class RestartKindTests(unittest.TestCase):
         self.assertNotIn('編集後', prompt)
 
     def test_resumed_run_keeps_recorded_requests_deleted_from_github(self):
-        persisted, issue, comments = self.failed_run()
-        state = persisted['sessions/4/state.json']
-        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None); state.pop('sessionStale', None)
-        state.update({'lastCommentId': 20, 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}})
-        del comments[2]  # comment 20, processed by the failed run, is deleted before the next run
+        persisted, issue, comments = self.successful_run()
+        del comments[2]  # comment 20, processed by run 1, is deleted before the next run
         comments.append(comment(30, body='三つ目の依頼'))
         self.prepare_with(persisted, issue, comments, automatic=False, restored=True)
         snapshot = json.loads((self.home / agentctl.REQUEST_SNAPSHOT_FILE).read_text())
@@ -875,11 +891,7 @@ class RestartKindTests(unittest.TestCase):
 
     def test_run_shown_the_live_thread_records_the_live_text(self):
         # A new session (recovery) is shown the live thread: its edited text is what the run saw.
-        persisted, issue, comments = self.failed_run()
-        state = persisted['sessions/4/state.json']
-        # As finalize leaves the state after a successful repair in a saved session.
-        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None); state.pop('sessionStale', None)
-        state.update({'lastCommentId': 20, 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}})
+        persisted, issue, comments = self.successful_run()
         comments[2]['body'] = '編集後の依頼'
         comments.append(comment(30, body='三つ目の依頼'))
         run, prompt = self.prepare_with(persisted, issue, comments, automatic=False, restored=False)
@@ -887,29 +899,42 @@ class RestartKindTests(unittest.TestCase):
         self.assertIn('編集後の依頼', prompt)
         snapshot = json.loads((self.home / agentctl.REQUEST_SNAPSHOT_FILE).read_text())
         self.assertEqual([c['body'] for c in snapshot['comments'] if c['id'] == 20], ['編集後の依頼'])
+        self.finalize(persisted['sessions/4/state.json'], store=self.persisted_store(persisted),
+                      validation_outcome='success', head='headsha', keep_run=True)
         self.assertEqual(persisted['sessions/4/request-history.json'], snapshot)
 
     def test_resumed_run_without_a_record_snapshots_the_live_text(self):
-        persisted, issue, comments = self.failed_run()
-        state = persisted['sessions/4/state.json']
-        # As finalize leaves the state after a successful repair in a saved session.
-        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None); state.pop('sessionStale', None)
-        state.update({'lastCommentId': 20, 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}})
+        persisted, issue, comments = self.successful_run()
         del persisted['sessions/4/request-history.json']  # state older than the record
         comments[2]['body'] = '編集後の依頼'
         comments.append(comment(30, body='三つ目の依頼'))
         self.prepare_with(persisted, issue, comments, automatic=False, restored=True)
         snapshot = json.loads((self.home / agentctl.REQUEST_SNAPSHOT_FILE).read_text())
         self.assertEqual([c['body'] for c in snapshot['comments'] if c['id'] == 20], ['編集後の依頼'])
-        self.assertEqual(persisted['sessions/4/request-history.json'], snapshot)
 
-    def test_lost_history_record_write_does_not_stop_the_run(self):
-        persisted, issue, comments = self.failed_run()
-        state = persisted['sessions/4/state.json']
-        # As finalize leaves the state after a successful repair in a saved session.
-        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None); state.pop('sessionStale', None)
-        state.update({'lastCommentId': 20, 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}})
+    def test_request_text_is_recorded_only_once_claude_received_it(self):
+        # Run 1 recorded [10, 15, 20]. A resumed run on comment 30 is cancelled before
+        # Claude starts: the record keeps run 1's text, so a deleted comment 30 never
+        # becomes "earlier history" of a later run.
+        persisted, issue, comments = self.successful_run()
+        record = json.loads(json.dumps(persisted['sessions/4/request-history.json']))
+        comments.append(comment(30, body='届かなかった依頼'))
+        self.prepare_with(persisted, issue, comments, automatic=False, restored=True)
+        self.finalize(persisted['sessions/4/state.json'], store=self.persisted_store(persisted),
+                      claude_outcome='cancelled', validation_outcome='skipped', keep_run=True)
+        self.assertEqual(persisted['sessions/4/request-history.json'], record)
+        del comments[-1]
+        comments.append(comment(40, body='次の依頼'))
+        self.prepare_with(persisted, issue, comments, automatic=False, restored=True)
+        snapshot = json.loads((self.home / agentctl.REQUEST_SNAPSHOT_FILE).read_text())
+        self.assertEqual([c['id'] for c in snapshot['comments']], [10, 15, 20, 40])
+        # A replayed repair snapshot is not re-recorded.
+        self.assertFalse(json.loads((self.home / 'run.json').read_text()).get('repair'))
+
+    def test_lost_history_record_write_does_not_stop_finalize(self):
+        persisted, issue, comments = self.successful_run()
         comments.append(comment(30, body='三つ目の依頼'))
+        self.prepare_with(persisted, issue, comments, automatic=False, restored=True)
         store = self.persisted_store(persisted)
         original = store.put_json.side_effect
 
@@ -919,9 +944,10 @@ class RestartKindTests(unittest.TestCase):
             return original(key, value)
 
         store.put_json.side_effect = put_json
-        run, _prompt = self.prepare_with(persisted, issue, comments, automatic=False, store=store, restored=True)
-        self.assertEqual(run['includedComments'], [30])
-        self.assertEqual(persisted['sessions/4/state.json']['workerStatus'], 'running')
+        self.finalize(persisted['sessions/4/state.json'], store=store, validation_outcome='success',
+                      head='headsha', keep_run=True)
+        self.assertEqual(persisted['sessions/4/state.json']['lastCommentId'], 30)
+        self.assertEqual([c['id'] for c in persisted['sessions/4/request-history.json']['comments']], [10, 15, 20])
 
     # ------------------- the snapshot pointer goes before its object is cleared ---
 
@@ -1053,6 +1079,17 @@ class RestartKindTests(unittest.TestCase):
         self.assertTrue(run['repair'])
         self.assertIn('<validation-repair>', prompt)
         self.assertIn('Workspace checkpoint: なし', prompt)
+
+    def test_validation_failure_persists_the_repair_before_clearing_the_checkpoint(self):
+        persisted, _issue, _comments = self.failed_run()
+        order = []
+        store = self.persisted_store(persisted)
+        original = store.put_json.side_effect
+        store.put_json.side_effect = lambda key, value: (order.append(key), original(key, value))[1]
+        self.fail_validation(persisted, store=store)
+        self.assertEqual(order[-2:], ['sessions/4/state.json', 'sessions/4/workspace.json'])
+        self.assertEqual(persisted['sessions/4/state.json']['pendingRestartKind'], 'validation')
+        self.assertEqual(persisted['sessions/4/workspace.json'], {'empty': True})
 
     def test_prepare_skips_without_repair_when_nothing_is_pending(self):
         state = dict(self.repair_state(), lastCommentId=20)

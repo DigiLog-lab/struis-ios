@@ -153,7 +153,10 @@ def resumed_request_snapshot(store, number, issue, live, included_comments, incl
 
 
 def record_request_history(store, number, snapshot):
-    """Best effort: a lost record makes the next resumed run fall back to the live text."""
+    """Called by finalize once Claude has received the prompt built from `snapshot`.
+
+    Best effort: a lost record makes the next resumed run fall back to the live text.
+    """
     try:
         store.put_json(session_key(number, REQUEST_HISTORY_OBJECT), snapshot)
     except Exception as error:
@@ -682,7 +685,6 @@ def cmd_prepare(_args):
                                                 included_issue_body, iso(now))
         else:
             captured = request_snapshot(issue, source, iso(now))  # the live history is what this run is shown
-        record_request_history(store, number, captured)
     (home / REQUEST_SNAPSHOT_FILE).write_text(json.dumps(captured, ensure_ascii=False, indent=2))
 
     claude_args = ['--model', model, '--exclude-dynamic-system-prompt-sections',
@@ -697,6 +699,9 @@ def cmd_prepare(_args):
         'issue': number, 'branch': branch, 'model': model, 'sessionIdBefore': session_id,
         'restored': restored, 'recovery': recovery, 'repair': bool(repair),
         'includedComments': included_comments, 'includedIssueBody': included_issue_body, 'startedAt': iso(now),
+        # finalize records the snapshot as supplied text once Claude has received
+        # it; a replayed repair snapshot is already recorded.
+        'recordRequest': not (repair and snapshot),
         'headBefore': git('rev-parse', 'HEAD'),
         'validationRequired': requires_pr_ci(git('rev-parse', 'HEAD'), state, git('rev-parse', 'origin/main')),
     }
@@ -777,12 +782,16 @@ def record_validation_failure(run):
     feedback = validation_feedback(agent_home())
     if feedback:
         state['validationFailure'] = feedback
+    # The repair goes first: a runner lost between the two writes then
+    # restarts as a repair, which restore_workspace stops on the stale
+    # checkpoint, instead of resuming the session against the failing HEAD
+    # with the checkpoint already gone.
+    store.put_json(key, state)
     # verify_outcome found the tree clean and HEAD pushed: there is nothing to
     # checkpoint. A checkpoint this run restored still describes the pre-run
     # HEAD and would stop the repair in restore_workspace if the runner is lost
     # before finalize saves the workspace.
     store.put_json(session_key(run['issue'], 'workspace.json'), {'empty': True})
-    store.put_json(key, state)
 
 
 PR_CI_WORKFLOWS = {'ios.yml': 'iOS', 'agent-tests.yml': 'Agent tests'}
@@ -1030,6 +1039,10 @@ def cmd_finalize(_args):
         print(f'Progress final update failed: {type(error).__name__}')
     session_bytes = save_session(store, number)
     save_workspace(store, number, run)
+    # The request text became supplied text only if Claude received the prompt:
+    # a run cancelled before that leaves the record as it was.
+    if run.get('recordRequest') and messages and (home / REQUEST_SNAPSHOT_FILE).exists():
+        record_request_history(store, number, json.loads((home / REQUEST_SNAPSHOT_FILE).read_text()))
 
     outbox = read_outbox(home)
     pull_requests = [f'Pull Request (CI結果はActionsで確認): {entry["url"]}'
@@ -1071,6 +1084,7 @@ def cmd_finalize(_args):
         state.pop('validationFailure', None)
         state.pop('restartKind', None)
         state.pop('pendingRestartKind', None)
+        state.pop('sessionStale', None)  # the saved session is the one that just succeeded
         dropped_repair = state.pop('repair', None)
         state['validatedHead'] = git('rev-parse', 'HEAD')
         completed_ci = state.pop('prCI', None)
