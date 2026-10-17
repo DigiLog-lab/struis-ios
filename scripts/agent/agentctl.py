@@ -103,6 +103,12 @@ def repair_scope(run):
 # edited in place after the failed run cannot change what the repair sees.
 REQUEST_SNAPSHOT_FILE = 'request-snapshot.json'
 REPAIR_REQUEST_OBJECT = 'repair-request.json'
+# The request text as it was supplied to the runs so far (the Issue body and
+# every comment, in the version the run that processed it was given). A run
+# that resumes its session is not shown the earlier text again - it sits in
+# the transcript - so its snapshot takes the earlier text from here, and only
+# this run's own requests from the live Issue.
+REQUEST_HISTORY_OBJECT = 'request-history.json'
 
 
 def request_snapshot(issue, comments, run_started):
@@ -118,6 +124,36 @@ def request_snapshot(issue, comments, run_started):
         'comments': [{'id': c['id'], 'author': c['user']['login'], 'created': c['created_at'],
                       'bot': is_bot(c.get('user')), 'body': c.get('body') or ''} for c in comments],
     }
+
+
+def resumed_request_snapshot(store, number, issue, live, included_comments, included_issue_body, run_started):
+    """Snapshot of a run that resumed its session: earlier text as earlier runs were given it.
+
+    `live` is the current text of the thread up to this run's newest request.
+    Entries this run was shown (its own requests, and the Issue body when it is
+    processed by this run) come from `live`; the rest comes from the recorded
+    history. Text with no record (state older than the record, or a comment
+    posted by the agent since) stays live.
+    """
+    snapshot = request_snapshot(issue, live, run_started)
+    record = store.get_json(session_key(number, REQUEST_HISTORY_OBJECT))
+    if not snapshot_is_valid(record):
+        return snapshot
+    earlier = {c['id']: c for c in record['comments'] if isinstance(c, dict) and 'id' in c}
+    fresh = set(included_comments)
+    snapshot['comments'] = [c if c['id'] in fresh or c['id'] not in earlier else dict(earlier[c['id']], id=c['id'])
+                            for c in snapshot['comments']]
+    if not included_issue_body and 'body' in record['issue']:
+        snapshot['issue']['body'] = record['issue']['body']
+    return snapshot
+
+
+def record_request_history(store, number, snapshot):
+    """Best effort: a lost record makes the next resumed run fall back to the live text."""
+    try:
+        store.put_json(session_key(number, REQUEST_HISTORY_OBJECT), snapshot)
+    except Exception as error:
+        print(f'依頼本文の履歴の保存に失敗しました(次回は現在の本文を使います): {type(error).__name__}', file=sys.stderr)
 
 
 def snapshot_digest(snapshot):
@@ -275,6 +311,20 @@ def restart_interrupted(gh, state, outcome, kind='interrupted'):
     return f'保存した作業とセッションから自動再開を予約しました ({count + 1}/3)。'
 
 
+def fallback_restart_kind(state):
+    """Kind of an automatic restart whose state names none.
+
+    Restarts dispatched by older controller versions carry no kind and resume
+    the saved session, as does a repair whose own session has been saved. A
+    repair whose session was never saved (finalize lost the write after the
+    dispatch, or the runner was lost before finalize) must not resume the
+    pre-repair session: it starts a new session that repairs the HEAD.
+    """
+    if state.get('repair') and not state.get('sessionRepair'):
+        return 'validation'
+    return 'interrupted'
+
+
 def session_needs_recovery(state):
     last = state.get('lastRun') or {}
     usage = last.get('turnUsage') or {}
@@ -331,7 +381,7 @@ def cmd_recover(_args):
         return
     # A validation failure recorded before the runner was lost restarts as a
     # repair of that HEAD, not as a resumed session that could advance the Issue.
-    kind = state.pop('pendingRestartKind', None) or 'interrupted'
+    kind = state.pop('pendingRestartKind', None) or fallback_restart_kind(state)
     note = restart_interrupted(gh, state, 'cancelled', kind)
     store.put_json(session_key(number, 'state.json'), state)
     print(note)
@@ -486,14 +536,10 @@ def cmd_prepare(_args):
         gh.comment(number, f'{REPLY_MARKER}\n\n⚠️ {message}\n\n- 実行ログ: {run_url()}')
         raise RuntimeError(message)
     restored_ci = restore_pr_ci(state, branch, git('rev-parse', 'HEAD'))
-    # A kind recorded by validate but never finalized counts as well. A repair
-    # with no kind at all (finalize dispatched the restart but lost the write
-    # that records the kind) is still a repair of that HEAD: resuming the saved
-    # session instead could advance the Issue on an unverified HEAD. Only a
-    # restart without any repair carries no kind and resumes as before.
+    # A kind recorded by validate but never finalized counts as well; without
+    # any kind, fallback_restart_kind decides from the repair and its session.
     pending_kind = state.pop('pendingRestartKind', None)
-    fallback_kind = 'validation' if state.get('repair') else 'interrupted'
-    restart_kind = (state.pop('restartKind', None) or pending_kind or fallback_kind) if automatic else None
+    restart_kind = (state.pop('restartKind', None) or pending_kind or fallback_restart_kind(state)) if automatic else None
     # A validation failure that validate recorded but finalize never processed
     # (or a repair left behind) is a failed previous run, even though lastRun
     # still describes the earlier turn that finished normally.
@@ -609,9 +655,17 @@ def cmd_prepare(_args):
         captured = snapshot  # replayed verbatim: a repair that fails again keeps the same record
     else:
         newest_request = max(included_comments, default=int(state.get('lastCommentId') or 0))
-        source = [c for c in (history + pending) if c['id'] <= newest_request and (
-            is_bot(c.get('user')) or allowed_author(c['user']['login'], c.get('author_association')))]
-        captured = request_snapshot(issue, sorted(source, key=lambda c: c['id']), iso(now))
+        source = sorted((c for c in (history + pending) if c['id'] <= newest_request and (
+            is_bot(c.get('user')) or allowed_author(c['user']['login'], c.get('author_association')))),
+                        key=lambda c: c['id'])
+        if restored:
+            # The resumed transcript holds the earlier text as it was given;
+            # this run reads only its own requests from the live Issue.
+            captured = resumed_request_snapshot(store, number, issue, source, included_comments,
+                                                included_issue_body, iso(now))
+        else:
+            captured = request_snapshot(issue, source, iso(now))  # the live history is what this run is shown
+        record_request_history(store, number, captured)
     (home / REQUEST_SNAPSHOT_FILE).write_text(json.dumps(captured, ensure_ascii=False, indent=2))
 
     claude_args = ['--model', model, '--exclude-dynamic-system-prompt-sections',
@@ -986,6 +1040,10 @@ def cmd_finalize(_args):
                   'workerFinishedAt': iso(), 'runs': int(state.get('runs') or 0) + 1})
     if report['sessionId']:
         state['sessionId'] = report['sessionId']
+    # Whether the saved session is the repair's own: an interrupted repair
+    # resumes it, a repair whose session was never saved starts a new one.
+    state['sessionRepair'] = bool(run.get('repair')) and (
+        report['sessionId'] != run.get('sessionIdBefore') or bool(state.get('sessionRepair')))
     if report['model'] and success:
         state['model'] = report['model']
     dropped_repair = None  # its snapshot object is cleared only after the state without it is saved
@@ -1035,7 +1093,10 @@ def cmd_finalize(_args):
     table = usage_table(report, run, usage)
     try:
         outcome = 'cancelled' if 'cancelled' in (os.environ.get('CLAUDE_OUTCOME'), os.environ.get('VALIDATION_OUTCOME')) else 'failure'
-        kind = 'validation' if validation_failed else 'interrupted'
+        # A repair interrupted before it had a session of its own restarts as a
+        # repair too: resuming would load the pre-repair session.
+        repair_without_session = bool(state.get('repair')) and not state.get('sessionRepair')
+        kind = 'validation' if validation_failed or repair_without_session else 'interrupted'
         restart_note = restart_interrupted(gh, state, outcome, kind) if not success else None
     except Exception as error:
         restart_note = f'作業は保存しましたが、自動再開の予約に失敗しました: {type(error).__name__}'

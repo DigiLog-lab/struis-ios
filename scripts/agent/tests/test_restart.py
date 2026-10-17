@@ -126,8 +126,16 @@ class RestartKindTests(unittest.TestCase):
     def test_interrupted_repair_run_keeps_its_repair_for_the_resume(self):
         before = {'issue': 4, 'lastCommentId': 10, 'autoRestarts': 1,
                   'repair': {'includedComments': [20], 'includedIssueBody': False, 'head': 'head'}}
-        state, _gh = self.finalize(before, claude_outcome='cancelled', validation_outcome='skipped', repair_run=True)
+        # The repair's own session exists (Claude failed inside it): the restart resumes it.
+        state, _gh = self.finalize(before, is_error=True, validation_outcome='skipped', repair_run=True)
         self.assertEqual(state['restartKind'], 'interrupted')
+        self.assertTrue(state['sessionRepair'])
+        self.assertEqual(state['repair'], before['repair'])
+        # Cancelled before any session of its own was written: a resume would load
+        # the pre-repair session, so the restart is a repair in a new session.
+        state, _gh = self.finalize(before, claude_outcome='cancelled', validation_outcome='skipped', repair_run=True)
+        self.assertEqual(state['restartKind'], 'validation')
+        self.assertFalse(state['sessionRepair'])
         self.assertEqual(state['repair'], before['repair'])
 
     def test_unfinished_workspace_failure_restarts_interrupted_not_as_repair(self):
@@ -381,6 +389,64 @@ class RestartKindTests(unittest.TestCase):
         self.assertNotIn('pendingRestartKind', recovered)
         self.assertEqual(recovered['repair']['head'], 'failedsha')
 
+    def recover(self, state):
+        gh = mock.Mock(repository='owner/repo')
+        store = mock.Mock()
+        store.get_json.return_value = json.loads(json.dumps(state))
+        with mock.patch.dict(os.environ, {'RECOVER_TITLE': 'Issue agent #4', 'RECOVER_RUN_ID': '777',
+                                          'RECOVER_RUN_ATTEMPT': '1'}), \
+                mock.patch.object(agentctl, 'GitHub', return_value=gh), \
+                mock.patch.object(agentctl, 'Store', return_value=store):
+            agentctl.cmd_recover(None)
+        gh.request.assert_called_once()
+        return store.put_json.call_args.args[1]
+
+    def test_lost_repair_runner_restarts_as_validation_unless_its_session_was_saved(self):
+        # prepare consumed both kind fields; the repair run was lost before finalize.
+        running = {'issue': 4, 'workerStatus': 'running', 'workerRun': 'https://github.com/owner/repo/actions/runs/777',
+                   'workerRunAttempt': '1', 'sessionId': 'pre-repair',
+                   'repair': {'includedComments': [20], 'includedIssueBody': False, 'head': 'failedsha'}}
+        self.assertEqual(self.recover(running)['restartKind'], 'validation')
+        # The repair's own session was saved by an earlier interrupted finalize: resume it.
+        self.assertEqual(self.recover(dict(running, sessionRepair=True))['restartKind'], 'interrupted')
+        # No repair at all: resume as before.
+        plain = {key: value for key, value in running.items() if key != 'repair'}
+        self.assertEqual(self.recover(plain)['restartKind'], 'interrupted')
+
+    def test_prepare_resumes_a_saved_repair_session_when_the_kind_was_lost(self):
+        state = {'issue': 4, 'branch': 'agent/issue-4', 'sessionId': 'repair-sess', 'lastCommentId': 10,
+                 'autoRestarts': 1, 'issueBodyProcessed': True, 'sessionRepair': True,
+                 'repair': {'includedComments': [20], 'includedIssueBody': False, 'head': 'headsha'},
+                 'lastRun': {'success': False, 'noOp': False, 'turnUsage': {'input': 5}}}
+        run, prompt, _saved, restore = self.prepare(state, [comment(20)], automatic=True)
+        restore.assert_called_once()
+        self.assertTrue(run['repair'])
+        self.assertTrue(run['restored'])
+        self.assertIn('<validation-repair>', prompt)
+
+    def test_finalize_records_whether_the_saved_session_is_the_repairs_own(self):
+        # A normal run: not a repair session.
+        state, _gh = self.finalize({'issue': 4, 'lastCommentId': 10}, validation_outcome='success')
+        self.assertFalse(state['sessionRepair'])
+        # A repair run that produced its own session (whose CI failed again): the saved session is the repair's.
+        repair = {'issue': 4, 'lastCommentId': 10, 'sessionId': 'pre-repair',
+                  'repair': {'includedComments': [20], 'includedIssueBody': False, 'head': 'head'}}
+        state, _gh = self.finalize(repair, repair_run=True)
+        self.assertTrue(state['sessionRepair'])
+        self.assertEqual(state['sessionId'], 'sess')
+        self.assertEqual(state['restartKind'], 'validation')
+        # A repair run cancelled before it produced any session: the saved session is still the earlier
+        # one, so the restart is a repair in a new session, not a resume.
+        state, _gh = self.finalize(repair, claude_outcome='cancelled', validation_outcome='skipped', repair_run=True)
+        self.assertFalse(state['sessionRepair'])
+        self.assertEqual(state['restartKind'], 'validation')
+        self.assertIn('repair', state)
+        # The same interruption of a repair run that resumed its own saved session: resume it again.
+        state, _gh = self.finalize(dict(repair, sessionRepair=True), claude_outcome='cancelled',
+                                   validation_outcome='skipped', repair_run=True)
+        self.assertTrue(state['sessionRepair'])
+        self.assertEqual(state['restartKind'], 'interrupted')
+
     def test_finalize_after_persisted_validation_failure_keeps_the_same_repair(self):
         before = {'issue': 4, 'lastCommentId': 10, 'pendingRestartKind': 'validation',
                   'repair': {'includedComments': [20], 'includedIssueBody': False, 'head': 'head'}}
@@ -527,7 +593,7 @@ class RestartKindTests(unittest.TestCase):
         store.list.return_value = []
         return store
 
-    def prepare_with(self, persisted, issue, comments, automatic, store=None, real_checkpoint=False):
+    def prepare_with(self, persisted, issue, comments, automatic, store=None, real_checkpoint=False, restored=False):
         gh = mock.Mock(repository='owner/repo')
         gh.issue.return_value = json.loads(json.dumps(issue))
         gh.comments.return_value = json.loads(json.dumps(comments))
@@ -544,7 +610,7 @@ class RestartKindTests(unittest.TestCase):
                 mock.patch.object(agentctl, 'Store', return_value=store or self.persisted_store(persisted)), \
                 mock.patch.object(agentctl, 'checkout_branch', return_value=True), \
                 restore, \
-                mock.patch.object(agentctl, 'restore_session', return_value=False), \
+                mock.patch.object(agentctl, 'restore_session', return_value=restored), \
                 mock.patch.object(agentctl, 'head_descends_from', return_value=True), \
                 mock.patch.object(agentctl, 'git', side_effect=git), \
                 mock.patch.object(agentctl, 'write_output'), \
@@ -693,6 +759,91 @@ class RestartKindTests(unittest.TestCase):
         self.assertIn('Issue: #4 編集後のタイトル', prompt)
         self.assertIn('元のIssue本文', prompt)
         self.assertNotIn('依頼本文の記録がない', prompt)
+
+    # -------- a resumed session's snapshot keeps the text earlier runs were given ---
+
+    def test_resumed_run_snapshots_earlier_requests_as_they_were_supplied(self):
+        # Run 1 (new session) is shown the live thread and records it.
+        persisted, issue, comments = self.failed_run()
+        record = persisted['sessions/4/request-history.json']
+        self.assertEqual(record['issue']['body'], '元のIssue本文')
+        self.assertEqual([c['id'] for c in record['comments']], [10, 15, 20])
+        # The repair succeeds: state carries no repair, the session resumes next time.
+        state = persisted['sessions/4/state.json']
+        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None)
+        state.update({'lastCommentId': 20, 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}})
+        # Earlier text is edited in place, then a new request arrives.
+        issue['body'] = '編集後のIssue本文: 範囲を広げた'
+        comments[2]['body'] = '編集後の依頼: 三つ目の項目もやって'
+        comments.append({'id': 25, 'user': {'login': 'agent[bot]', 'type': 'Bot'}, 'author_association': 'NONE',
+                         'body': '二つ目を実装しました', 'created_at': '2026-10-11T00:00:00Z'})
+        comments.append(comment(30, body='三つ目の依頼'))
+        run, prompt = self.prepare_with(persisted, issue, comments, automatic=False, restored=True)
+        self.assertTrue(run['restored'])
+        self.assertEqual(run['includedComments'], [30])
+        self.assertIn('三つ目の依頼', prompt)
+        self.assertNotIn('編集後の依頼', prompt)  # the transcript holds the original; only comment 30 is shown
+        snapshot = json.loads((self.home / agentctl.REQUEST_SNAPSHOT_FILE).read_text())
+        self.assertEqual(snapshot['issue']['body'], '元のIssue本文')
+        self.assertEqual([(c['id'], c['body']) for c in snapshot['comments']],
+                         [(10, '処理済みの依頼'), (15, '一つ目を実装しました'), (20, '元の依頼: 二つ目の項目をやって'),
+                          (25, '二つ目を実装しました'), (30, '三つ目の依頼')])
+        self.assertEqual(persisted['sessions/4/request-history.json'], snapshot)
+        # Its CI fails: the repair sees what the resumed run saw, not the edited text.
+        self.fail_validation(persisted)
+        _run, prompt = self.prepare_with(persisted, issue, comments, automatic=True)
+        self.assertIn('<validation-repair>', prompt)
+        self.assertIn('元のIssue本文', prompt)
+        self.assertIn('元の依頼: 二つ目の項目をやって', prompt)
+        self.assertIn('三つ目の依頼', prompt)
+        self.assertNotIn('編集後', prompt)
+
+    def test_run_shown_the_live_thread_records_the_live_text(self):
+        # A new session (recovery) is shown the live thread: its edited text is what the run saw.
+        persisted, issue, comments = self.failed_run()
+        state = persisted['sessions/4/state.json']
+        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None)
+        state.update({'lastCommentId': 20, 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}})
+        comments[2]['body'] = '編集後の依頼'
+        comments.append(comment(30, body='三つ目の依頼'))
+        run, prompt = self.prepare_with(persisted, issue, comments, automatic=False, restored=False)
+        self.assertTrue(run['recovery'])
+        self.assertIn('編集後の依頼', prompt)
+        snapshot = json.loads((self.home / agentctl.REQUEST_SNAPSHOT_FILE).read_text())
+        self.assertEqual([c['body'] for c in snapshot['comments'] if c['id'] == 20], ['編集後の依頼'])
+        self.assertEqual(persisted['sessions/4/request-history.json'], snapshot)
+
+    def test_resumed_run_without_a_record_snapshots_the_live_text(self):
+        persisted, issue, comments = self.failed_run()
+        state = persisted['sessions/4/state.json']
+        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None)
+        state.update({'lastCommentId': 20, 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}})
+        del persisted['sessions/4/request-history.json']  # state older than the record
+        comments[2]['body'] = '編集後の依頼'
+        comments.append(comment(30, body='三つ目の依頼'))
+        self.prepare_with(persisted, issue, comments, automatic=False, restored=True)
+        snapshot = json.loads((self.home / agentctl.REQUEST_SNAPSHOT_FILE).read_text())
+        self.assertEqual([c['body'] for c in snapshot['comments'] if c['id'] == 20], ['編集後の依頼'])
+        self.assertEqual(persisted['sessions/4/request-history.json'], snapshot)
+
+    def test_lost_history_record_write_does_not_stop_the_run(self):
+        persisted, issue, comments = self.failed_run()
+        state = persisted['sessions/4/state.json']
+        state.pop('repair'); state.pop('pendingRestartKind'); state.pop('validationFailure', None)
+        state.update({'lastCommentId': 20, 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}})
+        comments.append(comment(30, body='三つ目の依頼'))
+        store = self.persisted_store(persisted)
+        original = store.put_json.side_effect
+
+        def put_json(key, value):
+            if key.endswith('request-history.json'):
+                raise RuntimeError('R2 down')
+            return original(key, value)
+
+        store.put_json.side_effect = put_json
+        run, _prompt = self.prepare_with(persisted, issue, comments, automatic=False, store=store, restored=True)
+        self.assertEqual(run['includedComments'], [30])
+        self.assertEqual(persisted['sessions/4/state.json']['workerStatus'], 'running')
 
     # ------------------- the snapshot pointer goes before its object is cleared ---
 
