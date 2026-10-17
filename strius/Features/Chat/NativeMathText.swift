@@ -343,9 +343,10 @@ private struct MathDisplayView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> MathDisplayScrollView {
         let view = MathDisplayScrollView()
+        // 1 つの要素として見せる。識別子は吹き出しの `assistant-message-…` に上書きされる(SwiftUI は親の identifier を子に広げる)ので、
+        // UI テストは要素の型(scrollView)で見つける。staticText の trait は付けない(付けると型が staticText になる)。
         view.isAccessibilityElement = true
         view.accessibilityIdentifier = "math-display"
-        view.accessibilityTraits = .staticText
         return view
     }
 

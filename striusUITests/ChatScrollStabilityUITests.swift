@@ -118,6 +118,7 @@ final class ChatScrollStabilityUITests: XCTestCase {
 
     static func isMathElement(_ node: XCUIElementSnapshot) -> Bool {
         node.elementType == .webView || node.identifier == "math-display" || node.identifier == "math-text"
+            || (node.elementType == .scrollView && node.identifier.hasPrefix("assistant-message-"))
     }
 
     /// 開いた直後の最初のドラッグが、指の動きどおりに会話を動かす(位置の基準の切り替えで止めない)。
@@ -253,18 +254,19 @@ final class ChatScrollStabilityUITests: XCTestCase {
         var scrolled = false
         for _ in 0..<10 where !scrolled {
             Thread.sleep(forTimeInterval: 3)
-            // 表示用の数式の行(と、WebView に落ちた吹き出し)のうち背の高いものから試す。
-            let candidates = app.descendants(matching: .any).matching(identifier: "math-display").allElementsBoundByIndex
+            // 表示用の数式の行(と、WebView に落ちた吹き出し)のうち背の高いものから試す。数式の行は UIScrollView で、識別子は吹き出しの
+            // `assistant-message-…` に上書きされる(CI 2026-10-17 の 8 回目の要素の木で確認)ので、吹き出しの中の scrollView で探す。
+            let candidates = app.scrollViews.allElementsBoundByIndex.filter { $0.identifier.hasPrefix("assistant-message-") || $0.identifier == "math-display" }
                 + app.webViews.allElementsBoundByIndex
             let webs = candidates.filter {
                 $0.exists && $0.frame.height > 12 && $0.frame.maxY > screen.height * 0.2 && $0.frame.minY < screen.height * 0.75
             }.sorted { $0.frame.height > $1.frame.height }
             let all = candidates.filter(\.exists).map { "\(Int($0.frame.minY)):\(Int($0.frame.width))x\(Int($0.frame.height))" }
-            // 候補が無い時の手がかり: 数式の段落の数と、表示用の数式の文字(-x+8)を持つ要素の種類。
-            let texts = app.descendants(matching: .any).matching(identifier: "math-text").count
-            let holders = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "-x+8")).allElementsBoundByIndex
+            // 候補が無い時の手がかり: 吹き出しの中の scrollView の数と、表示用の数式の文字(−x+8)を持つ要素の種類。
+            let texts = app.scrollViews.allElementsBoundByIndex.filter { $0.identifier.hasPrefix("assistant-message-") }.count
+            let holders = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "−x+8")).allElementsBoundByIndex
                 .prefix(5).map { "\($0.elementType.rawValue):\($0.identifier):\(Int($0.frame.minY)):\(Int($0.frame.width))x\(Int($0.frame.height))" }
-            print("PROBE overflow candidates visible=\(webs.count) all=\(all) mathText=\(texts) holders=\(holders)")
+            print("PROBE overflow candidates visible=\(webs.count) all=\(all) mathRows=\(texts) holders=\(holders)")
             if webs.isEmpty, tried.isEmpty, texts == 0 {
                 // 数式の要素が 1 つも無い(CI 2026-10-17 の 7 回目まで mathText=0): 画面の写真と要素の木を 1 回だけ残す。
                 // 写真は xcresult ではなく `STRUIS_PROBE_DIR`(CI が artifact に入れる場所)に書く。
