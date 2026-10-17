@@ -12,8 +12,8 @@ import agentctl  # noqa: E402
 import progress  # noqa: E402
 
 
-def comment(identifier, login='owner', body='hello'):
-    return {'id': identifier, 'user': {'login': login, 'type': 'User'}, 'author_association': 'OWNER',
+def comment(identifier, login='owner', body='hello', association='OWNER'):
+    return {'id': identifier, 'user': {'login': login, 'type': 'User'}, 'author_association': association,
             'body': body, 'created_at': '2026-10-10T00:00:00Z'}
 
 
@@ -29,12 +29,19 @@ class RestartKindTests(unittest.TestCase):
 
     # ---------------------------------------------------------- finalize ---
 
-    def finalize(self, state, claude_outcome='success', validation_outcome='failure', num_turns=1):
-        run = {'issue': 4, 'branch': 'agent/issue-4', 'restored': True, 'recovery': False,
+    def finalize(self, state, claude_outcome='success', validation_outcome='failure', num_turns=1,
+                 ci_failed=None, is_error=False, repair_run=False):
+        run = {'issue': 4, 'branch': 'agent/issue-4', 'restored': True, 'recovery': False, 'repair': repair_run,
                'startedAt': '2026-10-10T00:00:00Z', 'model': 'opus', 'includedComments': [20], 'includedIssueBody': False}
         (self.home / 'run.json').write_text(json.dumps(run))
-        messages = ([{'type': 'result', 'subtype': 'success', 'num_turns': num_turns, 'is_error': False,
-                      'result': 'done', 'session_id': 'sess'}] if claude_outcome == 'success' else [])
+        # validate marks a CI failure of a clean, pushed HEAD for finalize on the same runner.
+        marker = self.home / agentctl.CI_FAILURE_FILE
+        marker.unlink(missing_ok=True)
+        if ci_failed if ci_failed is not None else validation_outcome == 'failure':
+            marker.write_text('{"head": "head"}')
+        messages = ([{'type': 'result', 'subtype': 'success' if not is_error else 'error_during_execution',
+                      'num_turns': num_turns, 'is_error': is_error, 'result': 'done', 'session_id': 'sess'}]
+                    if claude_outcome == 'success' else [])
         gh = mock.Mock(repository='owner/repo')
         store = mock.Mock()
         store.get_json.return_value = json.loads(json.dumps(state))
@@ -83,6 +90,34 @@ class RestartKindTests(unittest.TestCase):
         self.assertEqual(state['restartKind'], 'interrupted')
         self.assertTrue(state['lastRun']['noOp'])
         self.assertNotIn('repair', state)
+
+    def test_failed_claude_execution_drops_a_recorded_repair_and_resumes(self):
+        stale = {'issue': 4, 'lastCommentId': 10, 'pendingRestartKind': 'validation',
+                 'repair': {'includedComments': [20], 'includedIssueBody': False, 'head': 'head'}}
+        for kwargs in ({'is_error': True}, {'claude_outcome': 'failure', 'validation_outcome': 'skipped'},
+                       {'num_turns': 0}):
+            state, gh = self.finalize(stale, **kwargs)
+            self.assertEqual(state['restartKind'], 'interrupted', kwargs)
+            self.assertNotIn('repair', state, kwargs)
+            self.assertNotIn('pendingRestartKind', state, kwargs)
+            gh.request.assert_called_once()
+
+    def test_interrupted_repair_run_keeps_its_repair_for_the_resume(self):
+        before = {'issue': 4, 'lastCommentId': 10, 'autoRestarts': 1,
+                  'repair': {'includedComments': [20], 'includedIssueBody': False, 'head': 'head'}}
+        state, _gh = self.finalize(before, claude_outcome='cancelled', validation_outcome='skipped', repair_run=True)
+        self.assertEqual(state['restartKind'], 'interrupted')
+        self.assertEqual(state['repair'], before['repair'])
+
+    def test_unfinished_workspace_failure_restarts_interrupted_not_as_repair(self):
+        # validate failed before any CI check (uncommitted or unpushed work): no CI marker.
+        (self.home / 'validation.json').write_text(json.dumps({'success': False, 'currentCheck': 'unit-tests'}))
+        state, gh = self.finalize({'issue': 4, 'lastCommentId': 10}, validation_outcome='failure', ci_failed=False)
+        self.assertEqual(state['restartKind'], 'interrupted')
+        self.assertNotIn('repair', state)
+        self.assertNotIn('pendingRestartKind', state)
+        gh.request.assert_called_once()
+        self.assertIn('保存した作業とセッションから', gh.comment.call_args.args[1])
 
     def test_successful_repair_clears_restart_state_and_marks_scope_processed(self):
         state, gh = self.finalize({'issue': 4, 'restartKind': 'validation', 'autoRestarts': 1, 'lastCommentId': 10,
@@ -154,6 +189,24 @@ class RestartKindTests(unittest.TestCase):
         self.assertNotIn('<comment id=', prompt)
         self.assertNotIn('<validation-failure>', prompt)
 
+    def test_validation_repair_history_is_the_failed_runs_authorized_snapshot(self):
+        state = {'issue': 4, 'branch': 'agent/issue-4', 'sessionId': 'sess', 'lastCommentId': 10,
+                 'restartKind': 'validation', 'autoRestarts': 1, 'issueBodyProcessed': True,
+                 'repair': {'includedComments': [20], 'includedIssueBody': False, 'head': 'headsha'},
+                 'lastRun': {'success': False, 'noOp': False, 'turnUsage': {'input': 5}}}
+        comments = [comment(5, login='stranger', body='古い部外者コメント', association='NONE'),
+                    comment(10, body='処理済みの依頼'),
+                    comment(20, body='失敗したrunの依頼'),
+                    comment(25, login='stranger', body='部外者の後出しコメント', association='NONE'),
+                    comment(30, body='権限者の新しい依頼')]
+        _run, prompt, _saved, _restore = self.prepare(state, comments, automatic=True)
+        self.assertIn('処理済みの依頼', prompt)
+        self.assertIn('失敗したrunの依頼', prompt)
+        self.assertNotIn('古い部外者コメント', prompt)
+        self.assertNotIn('部外者の後出しコメント', prompt)
+        self.assertNotIn('権限者の新しい依頼', prompt)
+        self.assertNotIn('<comment id=', prompt)
+
     def test_interrupted_restart_resumes_saved_session(self):
         state = {'issue': 4, 'branch': 'agent/issue-4', 'sessionId': 'sess', 'lastCommentId': 10,
                  'restartKind': 'interrupted', 'autoRestarts': 1,
@@ -210,20 +263,44 @@ class RestartKindTests(unittest.TestCase):
         restore.assert_called_once()
         self.assertTrue(run['restored'])
 
+    def test_human_run_after_unfinalized_validation_failure_starts_new_session(self):
+        # validate recorded the failure but finalize never ran: lastRun still says success.
+        state = {'issue': 4, 'branch': 'agent/issue-4', 'sessionId': 'sess', 'lastCommentId': 10,
+                 'pendingRestartKind': 'validation', 'issueBodyProcessed': True,
+                 'repair': {'includedComments': [20], 'includedIssueBody': False, 'head': 'headsha'},
+                 'validationFailure': {'check': 'pr-ci', 'failures': ['PR CI未成功'], 'run': 'url'},
+                 'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}}
+        run, prompt, saved, restore = self.prepare(state, [comment(20), comment(30, body='新しい依頼')], automatic=False)
+        restore.assert_not_called()
+        self.assertFalse(run['restored'])
+        self.assertTrue(run['recovery'])
+        self.assertFalse(run['repair'])
+        self.assertEqual(run['includedComments'], [20, 30])
+        self.assertNotIn('pendingRestartKind', saved)
+        self.assertNotIn('repair', saved)
+        self.assertIn('失敗した後の再実行', prompt)
+        self.assertIn('<comment id="30"', prompt)
+        self.assertIn('<validation-failure>', prompt)
+
     # ---------------------------------- validation failure before finalize ---
 
-    def validate(self, persisted):
+    def validate(self, persisted, messages=None, git_state='', pushed=True):
         """Run validate against an in-memory state store; returns the state it left behind."""
         run = {'issue': 4, 'branch': 'agent/issue-4', 'headBefore': 'old', 'validationRequired': True,
                'includedComments': [20], 'includedIssueBody': False}
         (self.home / 'run.json').write_text(json.dumps(run))
-        messages = [{'type': 'result', 'subtype': 'success', 'num_turns': 3, 'is_error': False}]
+        if messages is None:
+            messages = [{'type': 'result', 'subtype': 'success', 'num_turns': 3, 'is_error': False}]
         store = mock.Mock()
         store.get_json.side_effect = lambda key: json.loads(json.dumps(persisted.get(key)))
         store.put_json.side_effect = lambda key, value: persisted.update({key: json.loads(json.dumps(value))})
 
         def git(*args, **kwargs):
-            return '' if args[0] == 'status' else 'failedsha'
+            if args[0] == 'status':
+                return git_state
+            if args[:2] == ('rev-parse', 'FETCH_HEAD'):
+                return 'failedsha' if pushed else 'remotesha'
+            return 'failedsha'
 
         def failing_ci(run, head):
             (self.home / 'validation.json').write_text(json.dumps(
@@ -233,10 +310,29 @@ class RestartKindTests(unittest.TestCase):
         with mock.patch.object(agentctl, 'load_execution', return_value=messages), \
                 mock.patch.object(agentctl, 'Store', return_value=store), \
                 mock.patch.object(agentctl, 'git', side_effect=git), \
-                mock.patch.object(agentctl, 'verify_pr_ci', side_effect=failing_ci):
-            with self.assertRaisesRegex(RuntimeError, 'PR CI未成功'):
-                agentctl.cmd_validate(None)
+                mock.patch.object(agentctl, 'verify_pr_ci', side_effect=failing_ci) as ci:
+            if git_state or not pushed:
+                with self.assertRaises(SystemExit):
+                    agentctl.cmd_validate(None)
+                ci.assert_not_called()
+            else:
+                with self.assertRaisesRegex(RuntimeError, 'PR CI未成功'):
+                    agentctl.cmd_validate(None)
         return persisted['sessions/4/state.json']
+
+    def test_validate_does_not_record_a_repair_when_claude_failed(self):
+        original = {'issue': 4, 'lastCommentId': 10}
+        persisted = {'sessions/4/state.json': dict(original)}
+        failed = [{'type': 'result', 'subtype': 'error_during_execution', 'num_turns': 3, 'is_error': True}]
+        self.assertEqual(self.validate(persisted, messages=failed), original)
+        self.assertFalse((self.home / agentctl.CI_FAILURE_FILE).exists())
+
+    def test_validate_does_not_record_a_repair_for_unfinished_work(self):
+        original = {'issue': 4, 'lastCommentId': 10}
+        for kwargs in ({'git_state': ' M Sources/App.swift'}, {'pushed': False}):
+            persisted = {'sessions/4/state.json': dict(original)}
+            self.assertEqual(self.validate(persisted, **kwargs), original, kwargs)
+            self.assertFalse((self.home / agentctl.CI_FAILURE_FILE).exists(), kwargs)
 
     def test_validation_failure_is_persisted_before_finalize_and_recovered_as_repair(self):
         persisted = {'sessions/4/state.json': {'issue': 4, 'lastCommentId': 10, 'workerStatus': 'running',
@@ -245,6 +341,7 @@ class RestartKindTests(unittest.TestCase):
         state = self.validate(persisted)
         self.assertEqual(state['pendingRestartKind'], 'validation')
         self.assertEqual(state['repair'], {'includedComments': [20], 'includedIssueBody': False, 'head': 'failedsha'})
+        self.assertEqual(json.loads((self.home / agentctl.CI_FAILURE_FILE).read_text()), {'head': 'failedsha'})
         self.assertIn('PR CI未成功', state['validationFailure']['failures'][0])
         self.assertEqual(state['lastCommentId'], 10)
 

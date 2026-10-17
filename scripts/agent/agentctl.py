@@ -209,6 +209,13 @@ def execution_is_noop(report):
     return (report.get('result') or {}).get('num_turns') == 0 and report.get('requests') == 0
 
 
+def claude_succeeded(report):
+    """Claude Code finished its turn normally (shared by validate and finalize)."""
+    result = report.get('result') or {}
+    return (bool(report.get('result')) and result.get('subtype') == 'success'
+            and not result.get('is_error') and not execution_is_noop(report))
+
+
 def validation_feedback(home):
     """Carry actionable failures to the next runner, without copying command environments."""
     path = home / 'validation.json'
@@ -404,6 +411,11 @@ def cmd_prepare(_args):
     # before. A kind recorded by validate but never finalized counts as well.
     pending_kind = state.pop('pendingRestartKind', None)
     restart_kind = (state.pop('restartKind', None) or pending_kind or 'interrupted') if automatic else None
+    # A validation failure that validate recorded but finalize never processed
+    # (or a repair left behind) is a failed previous run, even though lastRun
+    # still describes the earlier turn that finished normally.
+    last_failed = ((state.get('lastRun') or {}).get('success') is False
+                   or pending_kind == 'validation' or bool(state.get('repair')))
     if not automatic:
         state['autoRestarts'] = 0
         state.pop('restartKind', None)
@@ -411,7 +423,6 @@ def cmd_prepare(_args):
     state.pop('restartFromRun', None)
     state.pop('finalizedRun', None)
     session_id = state.get('sessionId')
-    last_failed = (state.get('lastRun') or {}).get('success') is False
     # Only an interrupted run resumes its session. A validation repair and a
     # human-triggered rerun after a failure start a new session with the Issue
     # thread as context.
@@ -419,9 +430,12 @@ def cmd_prepare(_args):
     restored = resumable and not session_needs_recovery(state) and restore_session(store, number, session_id)
     recovery = not restored and (bool(session_id) or bool(repair))
     if repair:
+        # History is the snapshot the failed run saw: nothing posted after its
+        # last request, and only agent replies and authorized authors.
         carried = set(repair.get('includedComments') or [])
-        newer = {c['id'] for c in pending if c['id'] not in carried}
-        history = [c for c in comments if c['id'] not in newer]
+        newest = max(carried, default=int(state.get('lastCommentId') or 0))
+        history = [c for c in comments if c['id'] <= newest and (
+            is_bot(c.get('user')) or allowed_author(c['user']['login'], c.get('author_association')))]
         pending = []
         included_comments = sorted(carried)
         included_issue_body = bool(repair.get('includedIssueBody'))
@@ -526,6 +540,15 @@ def cmd_prepare(_args):
 
 # --------------------------------------------------------------- finalize ---
 
+class CIVerificationFailed(RuntimeError):
+    """The pushed HEAD is clean and published, but its PR CI is not green."""
+
+
+# Written by validate for finalize on the same runner: the failure was the CI
+# of a clean, pushed HEAD, so the restart is a repair of that HEAD.
+CI_FAILURE_FILE = 'ci-failure.json'
+
+
 def cmd_validate(_args):
     report = analyze(load_execution(os.environ.get('CLAUDE_EXECUTION_FILE')))
     if execution_is_noop(report):
@@ -533,14 +556,19 @@ def cmd_validate(_args):
     run = json.loads((agent_home() / 'run.json').read_text())
     try:
         verify_outcome(run)
-    except (Exception, SystemExit):
-        # Claude finished normally, so any failure from here on is a validation
-        # failure. Record it now: if the runner is lost before finalize, the
-        # watchdog must restart as a repair of this HEAD, not resume the session.
-        try:
-            record_validation_failure(run)
-        except Exception as error:
-            print(f'検証失敗の記録に失敗しました: {type(error).__name__}', file=sys.stderr)
+    except CIVerificationFailed:
+        # Claude finished normally and its HEAD is committed and pushed, so only
+        # that HEAD's CI is wrong. Record it now: if the runner is lost before
+        # finalize, the watchdog must restart as a repair of this HEAD, not
+        # resume the session. Unfinished work (uncommitted or unpushed) or a
+        # failed Claude execution restarts as interrupted with the original
+        # scope instead: a CI-only repair would discard it.
+        if claude_succeeded(report):
+            (agent_home() / CI_FAILURE_FILE).write_text(json.dumps({'head': git('rev-parse', 'HEAD')}))
+            try:
+                record_validation_failure(run)
+            except Exception as error:
+                print(f'検証失敗の記録に失敗しました: {type(error).__name__}', file=sys.stderr)
         raise
 
 
@@ -551,9 +579,12 @@ def verify_outcome(run):
         git('fetch', 'origin', run['branch'])
         if git('rev-parse', 'FETCH_HEAD') != git('rev-parse', 'HEAD'):
             sys.exit('push済みブランチとHEADが一致しません。成果を提示できません。')
+    elif not (agent_home() / 'pr-ci.json').exists():
+        return
+    try:
         verify_pr_ci(run, git('rev-parse', 'HEAD'))
-    elif (agent_home() / 'pr-ci.json').exists():
-        verify_pr_ci(run, git('rev-parse', 'HEAD'))
+    except Exception as error:
+        raise CIVerificationFailed(str(error)) from error
 
 
 def record_validation_failure(run):
@@ -794,7 +825,7 @@ def cmd_finalize(_args):
         report['turnUsage'] = {key: None for key in report['turnUsage']}
     result = report['result'] or {}
     no_op = execution_is_noop(report)
-    claude_success = bool(report['result']) and result.get('subtype') == 'success' and not result.get('is_error') and not no_op
+    claude_success = claude_succeeded(report)
     validation_ok = os.environ.get('VALIDATION_OUTCOME') == 'success'
     success = claude_success and validation_ok
     (home / 'progress-stop').touch()
@@ -859,14 +890,20 @@ def cmd_finalize(_args):
         feedback = validation_feedback(home)
         if feedback:
             state['validationFailure'] = feedback
-    # Claude finished normally but the pushed HEAD did not pass: the next run only
-    # repairs that HEAD, keeping the scope of this run until its CI is green.
-    # validate already recorded the same scope; rewriting it is harmless.
+    # Claude finished normally but the pushed HEAD did not pass its CI: the next
+    # run only repairs that HEAD, keeping the scope of this run until its CI is
+    # green. validate already recorded the same scope; rewriting it is harmless.
+    # Any other failure (Claude failed, or it left uncommitted or unpushed work)
+    # restarts as interrupted with the original scope, so a repair recorded for
+    # this run is dropped; one carried into a repair run that got interrupted
+    # stays, because that run resumes the repair.
     pending_kind = state.pop('pendingRestartKind', None)
     validation_failed = claude_success and not success and (
-        os.environ.get('VALIDATION_OUTCOME') == 'failure' or pending_kind == 'validation')
+        (home / CI_FAILURE_FILE).exists() or pending_kind == 'validation')
     if validation_failed:
         state['repair'] = repair_scope(run)
+    elif not success and not run.get('repair'):
+        state.pop('repair', None)
     store.put_json(session_key(number, 'state.json'), state)
 
     table = usage_table(report, run, usage)
