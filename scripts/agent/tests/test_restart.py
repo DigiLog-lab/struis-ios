@@ -30,7 +30,7 @@ class RestartKindTests(unittest.TestCase):
     # ---------------------------------------------------------- finalize ---
 
     def finalize(self, state, claude_outcome='success', validation_outcome='failure', num_turns=1,
-                 ci_failed=None, is_error=False, repair_run=False):
+                 ci_failed=None, is_error=False, repair_run=False, store=None, head='head'):
         run = {'issue': 4, 'branch': 'agent/issue-4', 'restored': True, 'recovery': False, 'repair': repair_run,
                'startedAt': '2026-10-10T00:00:00Z', 'model': 'opus', 'includedComments': [20], 'includedIssueBody': False}
         (self.home / 'run.json').write_text(json.dumps(run))
@@ -38,13 +38,14 @@ class RestartKindTests(unittest.TestCase):
         marker = self.home / agentctl.CI_FAILURE_FILE
         marker.unlink(missing_ok=True)
         if ci_failed if ci_failed is not None else validation_outcome == 'failure':
-            marker.write_text('{"head": "head"}')
+            marker.write_text(json.dumps({'head': head}))
         messages = ([{'type': 'result', 'subtype': 'success' if not is_error else 'error_during_execution',
                       'num_turns': num_turns, 'is_error': is_error, 'result': 'done', 'session_id': 'sess'}]
                     if claude_outcome == 'success' else [])
         gh = mock.Mock(repository='owner/repo')
-        store = mock.Mock()
-        store.get_json.return_value = json.loads(json.dumps(state))
+        if store is None:
+            store = mock.Mock()
+            store.get_json.return_value = json.loads(json.dumps(state))
         env = {'VALIDATION_OUTCOME': validation_outcome, 'CLAUDE_OUTCOME': claude_outcome}
         with mock.patch.dict(os.environ, env), \
                 mock.patch.object(agentctl, 'GitHub', return_value=gh), \
@@ -56,7 +57,7 @@ class RestartKindTests(unittest.TestCase):
                 mock.patch.object(agentctl, 'upload_attachments', return_value=[]), \
                 mock.patch.object(agentctl, 'record_prototype_events'), \
                 mock.patch.object(agentctl, 'append_summary'), \
-                mock.patch.object(agentctl, 'git', return_value='head'), \
+                mock.patch.object(agentctl, 'git', return_value=head), \
                 mock.patch.object(agentctl, 'CLAUDE_DIR', self.home / 'claude'), \
                 mock.patch.object(progress, 'stop_owned_commands'), \
                 mock.patch.object(progress, 'update'):
@@ -473,6 +474,163 @@ class RestartKindTests(unittest.TestCase):
         self.assertEqual(run['includedComments'], [20])
         self.assertEqual(saved['lastCommentId'], 20)
         self.assertIn('<validation-repair>', prompt)
+
+    # ------------------------------ repair replays the failed run's request text ---
+
+    def persisted_store(self, persisted):
+        store = mock.Mock()
+        store.get_json.side_effect = lambda key: json.loads(json.dumps(persisted.get(key)))
+        store.put_json.side_effect = lambda key, value: persisted.update({key: json.loads(json.dumps(value))})
+        store.list.return_value = []
+        return store
+
+    def prepare_with(self, persisted, issue, comments, automatic):
+        gh = mock.Mock(repository='owner/repo')
+        gh.issue.return_value = json.loads(json.dumps(issue))
+        gh.comments.return_value = json.loads(json.dumps(comments))
+
+        def git(*args, **kwargs):
+            if args[:2] == ('rev-parse', 'origin/main'):
+                return 'mainsha'  # the branch is ahead of main: its HEAD needs PR CI
+            return {'log': 'abc commit', 'status': ''}.get(args[0], 'failedsha')
+
+        with mock.patch.dict(os.environ, {'AUTOMATIC_RETRY': 'true' if automatic else 'false'}), \
+                mock.patch.object(agentctl, 'GitHub', return_value=gh), \
+                mock.patch.object(agentctl, 'Store', return_value=self.persisted_store(persisted)), \
+                mock.patch.object(agentctl, 'checkout_branch', return_value=True), \
+                mock.patch.object(agentctl, 'restore_workspace', return_value=None), \
+                mock.patch.object(agentctl, 'restore_session', return_value=False), \
+                mock.patch.object(agentctl, 'head_descends_from', return_value=True), \
+                mock.patch.object(agentctl, 'git', side_effect=git), \
+                mock.patch.object(agentctl, 'write_output'), \
+                mock.patch.object(progress, 'update'):
+            agentctl.cmd_prepare(None)
+        return json.loads((self.home / 'run.json').read_text()), (self.home / 'prompt.txt').read_text()
+
+    def fail_validation(self, persisted):
+        """validate against the run prepare left in AGENT_HOME, with a failing PR CI."""
+        messages = [{'type': 'result', 'subtype': 'success', 'num_turns': 3, 'is_error': False}]
+
+        def git(*args, **kwargs):
+            return '' if args[0] == 'status' else 'failedsha'
+
+        def failing_ci(run, head):
+            (self.home / 'validation.json').write_text(json.dumps(
+                {'success': False, 'currentCheck': 'pr-ci', 'error': 'PR CI未成功: ios.yml: completed/failure'}))
+            raise RuntimeError('PR CI未成功')
+
+        with mock.patch.object(agentctl, 'load_execution', return_value=messages), \
+                mock.patch.object(agentctl, 'Store', return_value=self.persisted_store(persisted)), \
+                mock.patch.object(agentctl, 'git', side_effect=git), \
+                mock.patch.object(agentctl, 'verify_pr_ci', side_effect=failing_ci):
+            with self.assertRaisesRegex(RuntimeError, 'PR CI未成功'):
+                agentctl.cmd_validate(None)
+
+    def failed_run(self):
+        """A normal run on comment 20 whose PR CI failed: returns the persisted store, issue and comments."""
+        issue = {'number': 4, 'title': 'T', 'html_url': 'https://github.com/owner/repo/issues/4',
+                 'body': '元のIssue本文', 'created_at': '2026-10-01T00:00:00Z',
+                 'user': {'login': 'owner'}, 'author_association': 'OWNER'}
+        comments = [comment(10, body='処理済みの依頼'),
+                    {'id': 15, 'user': {'login': 'agent[bot]', 'type': 'Bot'}, 'author_association': 'NONE',
+                     'body': '一つ目を実装しました', 'created_at': '2026-10-10T00:00:00Z'},
+                    comment(20, body='元の依頼: 二つ目の項目をやって')]
+        persisted = {'sessions/4/state.json': {'issue': 4, 'branch': 'agent/issue-4', 'sessionId': 'sess',
+                                               'lastCommentId': 10, 'issueBodyProcessed': True,
+                                               'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}}}
+        run, _prompt = self.prepare_with(persisted, issue, comments, automatic=False)
+        self.assertEqual(run['includedComments'], [20])
+        snapshot = json.loads((self.home / agentctl.REQUEST_SNAPSHOT_FILE).read_text())
+        self.assertEqual(snapshot['issue']['body'], '元のIssue本文')
+        self.assertEqual([(c['id'], c['body']) for c in snapshot['comments']],
+                         [(10, '処理済みの依頼'), (15, '一つ目を実装しました'), (20, '元の依頼: 二つ目の項目をやって')])
+        self.fail_validation(persisted)
+        state = persisted['sessions/4/state.json']
+        self.assertTrue(state['repair']['requestSnapshot'])
+        self.assertEqual(state['repair']['requestSha256'], agentctl.snapshot_digest(snapshot))
+        self.assertEqual(persisted['sessions/4/repair-request.json'], snapshot)
+        return persisted, issue, comments
+
+    def test_repair_uses_the_comment_text_the_failed_run_saw_even_after_an_edit(self):
+        persisted, issue, comments = self.failed_run()
+        comments[2]['body'] = '編集後の依頼: 三つ目の項目もやって'  # same ID, edited in place
+        comments[1]['body'] = '編集されたagent返信'
+        run, prompt = self.prepare_with(persisted, issue, comments, automatic=True)
+        self.assertTrue(run['repair'])
+        self.assertIn('元の依頼: 二つ目の項目をやって', prompt)
+        self.assertIn('一つ目を実装しました', prompt)
+        self.assertNotIn('編集後の依頼', prompt)
+        self.assertNotIn('編集されたagent返信', prompt)
+        self.assertNotIn('依頼本文の記録がない', prompt)
+        # A repair that fails again keeps the same record instead of re-reading GitHub.
+        self.assertEqual(json.loads((self.home / agentctl.REQUEST_SNAPSHOT_FILE).read_text()),
+                         persisted['sessions/4/repair-request.json'])
+
+    def test_repair_uses_the_issue_body_the_failed_run_saw_even_after_an_edit(self):
+        persisted, issue, comments = self.failed_run()
+        issue['body'] = '編集後のIssue本文: 範囲を広げた'
+        _run, prompt = self.prepare_with(persisted, issue, comments, automatic=True)
+        self.assertIn('元のIssue本文', prompt)
+        self.assertNotIn('編集後のIssue本文', prompt)
+
+    def test_repair_without_a_snapshot_falls_back_to_live_filtered_history_and_says_so(self):
+        persisted, issue, comments = self.failed_run()
+        for drop in ('object', 'pointer'):
+            with self.subTest(drop=drop):
+                missing = json.loads(json.dumps(persisted))
+                if drop == 'object':
+                    del missing['sessions/4/repair-request.json']
+                else:  # state written by an older controller version: IDs only
+                    missing['sessions/4/state.json']['repair'] = {'includedComments': [20], 'includedIssueBody': False,
+                                                                 'head': 'failedsha'}
+                edited = json.loads(json.dumps(comments))
+                edited[2]['body'] = '編集後の依頼'
+                edited.append(comment(25, login='stranger', body='部外者の後出し', association='NONE'))
+                edited.append(comment(30, body='権限者の新しい依頼'))
+                run, prompt = self.prepare_with(missing, dict(issue, body='編集後のIssue本文'), edited, automatic=True)
+                self.assertTrue(run['repair'])
+                self.assertEqual(run['includedComments'], [20])
+                self.assertIn('<validation-repair>', prompt)
+                self.assertIn('依頼本文の記録がない', prompt)
+                self.assertIn('編集後の依頼', prompt)
+                self.assertIn('編集後のIssue本文', prompt)
+                self.assertNotIn('部外者の後出し', prompt)
+                self.assertNotIn('権限者の新しい依頼', prompt)
+
+    def test_stale_snapshot_object_is_not_replayed(self):
+        persisted, issue, comments = self.failed_run()
+        persisted['sessions/4/repair-request.json']['comments'][2]['body'] = '改ざんされた依頼'
+        _run, prompt = self.prepare_with(persisted, issue, comments, automatic=True)
+        self.assertNotIn('改ざんされた依頼', prompt)
+        self.assertIn('依頼本文の記録がない', prompt)
+
+    def test_finalize_keeps_the_snapshot_validate_stored_without_uploading_it_again(self):
+        persisted, _issue, _comments = self.failed_run()
+        before = json.loads(json.dumps(persisted['sessions/4/state.json']['repair']))
+        store = self.persisted_store(persisted)
+        state, _gh = self.finalize(persisted['sessions/4/state.json'], store=store, head='failedsha')
+        self.assertEqual(state['repair'], before)
+        self.assertEqual(state['restartKind'], 'validation')
+        self.assertNotIn('sessions/4/repair-request.json', [call.args[0] for call in store.put_json.call_args_list])
+        self.assertTrue(agentctl.snapshot_is_valid(persisted['sessions/4/repair-request.json']))
+
+    def test_successful_repair_clears_the_snapshot_object(self):
+        persisted, _issue, _comments = self.failed_run()
+        store = self.persisted_store(persisted)
+        state, _gh = self.finalize(persisted['sessions/4/state.json'], validation_outcome='success',
+                                   store=store, head='failedsha')
+        self.assertNotIn('repair', state)
+        self.assertEqual(state['lastCommentId'], 20)
+        self.assertEqual(persisted['sessions/4/repair-request.json']['cleared'], True)
+        self.assertFalse(agentctl.snapshot_is_valid(persisted['sessions/4/repair-request.json']))
+
+    def test_human_run_dropping_the_repair_clears_the_snapshot_object(self):
+        persisted, issue, comments = self.failed_run()
+        run, prompt = self.prepare_with(persisted, issue, comments + [comment(30, body='新しい依頼')], automatic=False)
+        self.assertFalse(run['repair'])
+        self.assertNotIn('repair', persisted['sessions/4/state.json'])
+        self.assertEqual(persisted['sessions/4/repair-request.json']['cleared'], True)
+        self.assertIn('<comment id="30"', prompt)
 
     def test_prepare_skips_without_repair_when_nothing_is_pending(self):
         state = dict(self.repair_state(), lastCommentId=20)

@@ -7,6 +7,7 @@ prototype-build, prototypes.
 """
 import argparse
 import datetime
+import hashlib
 import io
 import json
 import os
@@ -95,6 +96,68 @@ def repair_scope(run):
     """What a validation repair may touch: the failed run's requests and its pushed HEAD."""
     return {'includedComments': run['includedComments'], 'includedIssueBody': run['includedIssueBody'],
             'head': git('rev-parse', 'HEAD')}
+
+
+# Written by prepare: the Issue body and the comments the prompt was built from.
+# A validation repair replays this text instead of the live Issue, so a request
+# edited in place after the failed run cannot change what the repair sees.
+REQUEST_SNAPSHOT_FILE = 'request-snapshot.json'
+REPAIR_REQUEST_OBJECT = 'repair-request.json'
+
+
+def request_snapshot(issue, comments, run_started):
+    """Normalize the request text of a run for the snapshot (spec: repair sees the failed run's text)."""
+    return {
+        'capturedAt': run_started, 'run': run_url(),
+        'issue': {'author': issue['user']['login'], 'created': issue.get('created_at'), 'body': issue.get('body') or ''},
+        'comments': [{'id': c['id'], 'author': c['user']['login'], 'created': c['created_at'],
+                      'bot': is_bot(c.get('user')), 'body': c.get('body') or ''} for c in comments],
+    }
+
+
+def snapshot_digest(snapshot):
+    """Hash of the bytes Store.put_json writes, so a loaded object can be checked against the pointer."""
+    return hashlib.sha256(json.dumps(snapshot, ensure_ascii=False, indent=2).encode()).hexdigest()
+
+
+def snapshot_is_valid(snapshot, digest=None):
+    return (isinstance(snapshot, dict) and isinstance(snapshot.get('issue'), dict)
+            and isinstance(snapshot.get('comments'), list) and not snapshot.get('cleared')
+            and (digest is None or snapshot_digest(snapshot) == digest))
+
+
+def snapshot_comments(snapshot):
+    """Snapshot entries in the shape recovery_context expects from the GitHub API."""
+    return [{'id': c['id'], 'user': {'login': c['author'], 'type': 'Bot' if c.get('bot') else 'User'},
+             'created_at': c['created'], 'body': c['body']} for c in snapshot['comments']]
+
+
+def attach_request_snapshot(store, number, repair, previous=None):
+    """Store prepare's request snapshot next to the repair and point to it from state['repair']."""
+    path = agent_home() / REQUEST_SNAPSHOT_FILE
+    if not path.exists():
+        return repair
+    snapshot = json.loads(path.read_text())
+    digest = snapshot_digest(snapshot)
+    # finalize rewrites the repair validate recorded: the same text is not uploaded twice.
+    if not (previous and previous.get('requestSha256') == digest):
+        store.put_json(session_key(number, REPAIR_REQUEST_OBJECT), snapshot)
+    repair.update({'requestSnapshot': True, 'requestSha256': digest})
+    return repair
+
+
+def load_request_snapshot(store, number, repair):
+    """The failed run's request text, or None when the state predates snapshots or the object is gone."""
+    if not repair.get('requestSnapshot'):
+        return None
+    snapshot = store.get_json(session_key(number, REPAIR_REQUEST_OBJECT))
+    return snapshot if snapshot_is_valid(snapshot, repair.get('requestSha256')) else None
+
+
+def clear_request_snapshot(store, number, repair):
+    """The store has no delete: an object that is no longer a repair's input is overwritten."""
+    if repair and repair.get('requestSnapshot'):
+        store.put_json(session_key(number, REPAIR_REQUEST_OBJECT), {'cleared': True, 'at': iso()})
 
 
 def restore_session(store, number, session_id):
@@ -330,7 +393,7 @@ def recovery_context(gh, number, issue, comments, state, reason='unrestorable'):
     return '\n'.join(parts)
 
 
-def repair_instructions(head, failure):
+def repair_instructions(head, failure, note=None):
     """Prompt for a restart after a validation failure: fix the pushed HEAD's CI, nothing else."""
     detail = (json.dumps(failure, ensure_ascii=False) if failure
               else '終了処理の検証(保存状態の確認、またはPR CI)に失敗しました。`git status` と `gh run list --branch <作業ブランチ>` で現在の状態を確認してください。')
@@ -339,6 +402,7 @@ def repair_instructions(head, failure):
         f'前回の実行は正常に終了しましたが、push済みHEAD ({head}) のPR CIが成功していません。この実行の目的は、現在のHEADのPR CIを成功させることだけです。',
         '失敗の記録:',
         detail,
+        *([note] if note else []),
         '行うこと:',
         '- 記録と `gh run view <run-id> --log-failed` で失敗したテスト・ビルドの原因を確かめ、このブランチの該当箇所を修正してcommit・pushし、request-prを再実行してCIを起動する。CIが成功するまで確認を続ける。',
         '- 失敗が不安定なテスト(flaky)に見える場合も、原因を確かめて安定させる修正を行う。',
@@ -419,7 +483,7 @@ def cmd_prepare(_args):
     if not automatic:
         state['autoRestarts'] = 0
         state.pop('restartKind', None)
-        state.pop('repair', None)
+        clear_request_snapshot(store, number, state.pop('repair', None))
     state.pop('restartFromRun', None)
     state.pop('finalizedRun', None)
     session_id = state.get('sessionId')
@@ -429,13 +493,25 @@ def cmd_prepare(_args):
     resumable = restart_kind == 'interrupted' if automatic else not last_failed
     restored = resumable and not session_needs_recovery(state) and restore_session(store, number, session_id)
     recovery = not restored and (bool(session_id) or bool(repair))
+    snapshot = snapshot_note = None
     if repair:
-        # History is the snapshot the failed run saw: nothing posted after its
-        # last request, and only agent replies and authorized authors.
+        # History is the text the failed run saw: its request snapshot when one
+        # was stored, so an Issue body or comment edited in place since does
+        # not reach the repair. Older state without a snapshot falls back to
+        # the live comments up to the failed run's last request, filtered to
+        # agent replies and authorized authors.
         carried = set(repair.get('includedComments') or [])
-        newest = max(carried, default=int(state.get('lastCommentId') or 0))
-        history = [c for c in comments if c['id'] <= newest and (
-            is_bot(c.get('user')) or allowed_author(c['user']['login'], c.get('author_association')))]
+        snapshot = load_request_snapshot(store, number, repair)
+        if snapshot:
+            issue = dict(issue, body=snapshot['issue']['body'],
+                         user={'login': snapshot['issue']['author']}, created_at=snapshot['issue'].get('created'))
+            history = snapshot_comments(snapshot)
+        else:
+            newest = max(carried, default=int(state.get('lastCommentId') or 0))
+            history = [c for c in comments if c['id'] <= newest and (
+                is_bot(c.get('user')) or allowed_author(c['user']['login'], c.get('author_association')))]
+            snapshot_note = ('失敗したrun時点の依頼本文の記録がないため、Issue本文とコメントは現在のGitHub上の内容です。'
+                             '失敗run以降に編集されている可能性があります。依頼内容の解釈を広げず、CI修正だけを行ってください。')
         pending = []
         included_comments = sorted(carried)
         included_issue_body = bool(repair.get('includedIssueBody'))
@@ -497,13 +573,24 @@ def cmd_prepare(_args):
         blocks.append('<pending-pr-ci>\n前runnerが起動したPR CIの記録を復元しました。まずworkflowごとの要求識別子（requestsに指定がなければrequest）の実行結果を確認してください。実行中なら待ち、同じHEADのCIを重複起動しないでください。\n'
                       + json.dumps(restored_ci, ensure_ascii=False) + '\n</pending-pr-ci>')
     if repair:
-        blocks.append(repair_instructions(head, state.get('validationFailure')))
+        blocks.append(repair_instructions(head, state.get('validationFailure'), snapshot_note))
     elif state.get('validationFailure'):
         blocks.append('<validation-failure>\n前回の検証失敗を修正してから、検証と成果提示へ進んでください。\n'
                       + json.dumps(state['validationFailure'], ensure_ascii=False) + '\n</validation-failure>')
     if session_needs_recovery(state):
         blocks.append('前回の復元セッションは0ターンで終了しました。保存済みの作業と上記履歴を引き継ぎ、新規セッションで未処理の依頼を実行してください。')
     prompt = '\n\n'.join(blocks)
+    # The request text this run was given, for a repair if its CI fails: the
+    # Issue body and, up to the newest request in scope, the agent replies and
+    # authorized comments (the history a repair shows, plus this run's requests).
+    if repair and snapshot:
+        captured = snapshot  # replayed verbatim: a repair that fails again keeps the same record
+    else:
+        newest_request = max(included_comments, default=int(state.get('lastCommentId') or 0))
+        source = [c for c in (history + pending) if c['id'] <= newest_request and (
+            is_bot(c.get('user')) or allowed_author(c['user']['login'], c.get('author_association')))]
+        captured = request_snapshot(issue, sorted(source, key=lambda c: c['id']), iso(now))
+    (home / REQUEST_SNAPSHOT_FILE).write_text(json.dumps(captured, ensure_ascii=False, indent=2))
 
     claude_args = ['--model', model, '--exclude-dynamic-system-prompt-sections',
                    '--permission-mode', 'bypassPermissions', '--allow-dangerously-skip-permissions',
@@ -592,7 +679,7 @@ def record_validation_failure(run):
     store = Store()
     key = session_key(run['issue'], 'state.json')
     state = store.get_json(key) or {}
-    state['repair'] = repair_scope(run)
+    state['repair'] = attach_request_snapshot(store, run['issue'], repair_scope(run), state.get('repair'))
     state['pendingRestartKind'] = 'validation'
     feedback = validation_feedback(agent_home())
     if feedback:
@@ -873,7 +960,7 @@ def cmd_finalize(_args):
         state.pop('validationFailure', None)
         state.pop('restartKind', None)
         state.pop('pendingRestartKind', None)
-        state.pop('repair', None)
+        clear_request_snapshot(store, number, state.pop('repair', None))
         state['validatedHead'] = git('rev-parse', 'HEAD')
         completed_ci = state.pop('prCI', None)
         if (completed_ci and completed_ci.get('head') == state['validatedHead']
@@ -901,9 +988,9 @@ def cmd_finalize(_args):
     validation_failed = claude_success and not success and (
         (home / CI_FAILURE_FILE).exists() or pending_kind == 'validation')
     if validation_failed:
-        state['repair'] = repair_scope(run)
+        state['repair'] = attach_request_snapshot(store, number, repair_scope(run), state.get('repair'))
     elif not success and not run.get('repair'):
-        state.pop('repair', None)
+        clear_request_snapshot(store, number, state.pop('repair', None))
     store.put_json(session_key(number, 'state.json'), state)
 
     table = usage_table(report, run, usage)
