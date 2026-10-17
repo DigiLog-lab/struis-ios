@@ -265,6 +265,11 @@ final class ChatScrollStabilityUITests: XCTestCase {
             let holders = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "-x+8")).allElementsBoundByIndex
                 .prefix(5).map { "\($0.elementType.rawValue):\($0.identifier):\(Int($0.frame.minY)):\(Int($0.frame.width))x\(Int($0.frame.height))" }
             print("PROBE overflow candidates visible=\(webs.count) all=\(all) mathText=\(texts) holders=\(holders)")
+            if webs.isEmpty, tried.isEmpty, texts == 0 {
+                // 数式の要素が 1 つも無い(CI 2026-10-17 の 7 回目まで mathText=0): 画面に何があるかを 1 回だけ記録する。
+                print("PROBE overflow tree=\(app.debugDescription.prefix(6000))")
+                tried.insert("tree")
+            }
             if webs.isEmpty {
                 // 数式の行は 1 行ずつの要素なので(WebView の時は吹き出し全体が 1 つの要素だった)、画面に無ければ会話を上へ読み返して探す。
                 page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
