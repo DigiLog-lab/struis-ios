@@ -106,10 +106,15 @@ REPAIR_REQUEST_OBJECT = 'repair-request.json'
 
 
 def request_snapshot(issue, comments, run_started):
-    """Normalize the request text of a run for the snapshot (spec: repair sees the failed run's text)."""
+    """Normalize the request text of a run for the snapshot (spec: repair sees the failed run's text).
+
+    Every Issue field the prompt shows is captured, the title included: a repair
+    built from the snapshot must not read a title edited after the failed run.
+    """
     return {
         'capturedAt': run_started, 'run': run_url(),
-        'issue': {'author': issue['user']['login'], 'created': issue.get('created_at'), 'body': issue.get('body') or ''},
+        'issue': {'number': issue.get('number'), 'title': issue.get('title') or '',
+                  'author': issue['user']['login'], 'created': issue.get('created_at'), 'body': issue.get('body') or ''},
         'comments': [{'id': c['id'], 'author': c['user']['login'], 'created': c['created_at'],
                       'bot': is_bot(c.get('user')), 'body': c.get('body') or ''} for c in comments],
     }
@@ -155,9 +160,18 @@ def load_request_snapshot(store, number, repair):
 
 
 def clear_request_snapshot(store, number, repair):
-    """The store has no delete: an object that is no longer a repair's input is overwritten."""
-    if repair and repair.get('requestSnapshot'):
+    """The store has no delete: an object that is no longer a repair's input is overwritten.
+
+    Called only after state.json without the `repair` pointer is persisted, so a
+    run that dies in between leaves a repair that still has its text. Clearing
+    is best effort: a lost overwrite keeps a dead object, never breaks state.
+    """
+    if not (repair and repair.get('requestSnapshot')):
+        return
+    try:
         store.put_json(session_key(number, REPAIR_REQUEST_OBJECT), {'cleared': True, 'at': iso()})
+    except Exception as error:
+        print(f'依頼本文の記録の無効化に失敗しました(次回上書きされます): {type(error).__name__}', file=sys.stderr)
 
 
 def restore_session(store, number, session_id):
@@ -480,10 +494,11 @@ def cmd_prepare(_args):
     # still describes the earlier turn that finished normally.
     last_failed = ((state.get('lastRun') or {}).get('success') is False
                    or pending_kind == 'validation' or bool(state.get('repair')))
+    dropped_repair = None
     if not automatic:
         state['autoRestarts'] = 0
         state.pop('restartKind', None)
-        clear_request_snapshot(store, number, state.pop('repair', None))
+        dropped_repair = state.pop('repair', None)  # its snapshot is cleared once this state is saved
     state.pop('restartFromRun', None)
     state.pop('finalizedRun', None)
     session_id = state.get('sessionId')
@@ -505,6 +520,8 @@ def cmd_prepare(_args):
         if snapshot:
             issue = dict(issue, body=snapshot['issue']['body'],
                          user={'login': snapshot['issue']['author']}, created_at=snapshot['issue'].get('created'))
+            if 'title' in snapshot['issue']:  # absent from snapshots written before the title was captured
+                issue['title'] = snapshot['issue']['title']
             history = snapshot_comments(snapshot)
         else:
             newest = max(carried, default=int(state.get('lastCommentId') or 0))
@@ -613,6 +630,7 @@ def cmd_prepare(_args):
                   'workerRun': run_url(), 'workerStartedAt': iso(now),
                   'workerRunAttempt': os.environ.get('GITHUB_RUN_ATTEMPT', '1')})
     store.put_json(session_key(number, 'state.json'), state)
+    clear_request_snapshot(store, number, dropped_repair)
 
     import progress
     progress.update(run, '起動中')
@@ -668,10 +686,9 @@ def verify_outcome(run):
             sys.exit('push済みブランチとHEADが一致しません。成果を提示できません。')
     elif not (agent_home() / 'pr-ci.json').exists():
         return
-    try:
-        verify_pr_ci(run, git('rev-parse', 'HEAD'))
-    except Exception as error:
-        raise CIVerificationFailed(str(error)) from error
+    # Only an explicit CI result raises CIVerificationFailed; an error while
+    # asking GitHub for it propagates as an ordinary failure (interrupted restart).
+    verify_pr_ci(run, git('rev-parse', 'HEAD'))
 
 
 def record_validation_failure(run):
@@ -684,6 +701,11 @@ def record_validation_failure(run):
     feedback = validation_feedback(agent_home())
     if feedback:
         state['validationFailure'] = feedback
+    # verify_outcome found the tree clean and HEAD pushed: there is nothing to
+    # checkpoint. A checkpoint this run restored still describes the pre-run
+    # HEAD and would stop the repair in restore_workspace if the runner is lost
+    # before finalize saves the workspace.
+    store.put_json(session_key(run['issue'], 'workspace.json'), {'empty': True})
     store.put_json(key, state)
 
 
@@ -718,20 +740,26 @@ def find_pr_ci_run(gh, workflow, record):
 
 
 def verify_pr_ci(run, head):
-    """Read GitHub conclusions only; never execute or wait for tests here."""
+    """Read GitHub conclusions only; never execute or wait for tests here.
+
+    CIVerificationFailed means an explicit result: no dispatch record for this
+    HEAD, no run for the expected request, or a run that is not a completed
+    success. An error while querying GitHub propagates as it is, so that an
+    unreachable API never turns the next run into a CI repair.
+    """
     home = agent_home()
     result = {'success': False, 'currentCheck': 'pr-ci', 'checks': []}
     try:
         record_path = home / 'pr-ci.json'
         if not record_path.exists():
-            raise RuntimeError('PR CIの起動記録がありません。request-prを実行してください。')
+            raise CIVerificationFailed('PR CIの起動記録がありません。request-prを実行してください。')
         record = json.loads(record_path.read_text())
         if record['head'] != head or record['branch'] != run['branch']:
-            raise RuntimeError('PR CIの対象HEADと成果が一致しません。request-prを再実行してください。')
+            raise CIVerificationFailed('PR CIの対象HEADと成果が一致しません。request-prを再実行してください。')
         gh = GitHub()
         problems = []
         for workflow in PR_CI_WORKFLOWS:
-            current = find_pr_ci_run(gh, workflow, record)
+            current = find_pr_ci_run(gh, workflow, record)  # a query failure is not a CI result
             if not current:
                 detail = '起動未完了' if workflow not in record.get('dispatched', []) else '起動した実行がまだ見つかりません'
                 problems.append(f'{workflow}: {detail}')
@@ -743,7 +771,7 @@ def verify_pr_ci(run, head):
                     or current['conclusion'] != 'success'):
                 problems.append(f'{workflow}: {current["status"]}/{current["conclusion"]} {current["html_url"]}')
         if problems:
-            raise RuntimeError('PR CI未成功: ' + '; '.join(problems))
+            raise CIVerificationFailed('PR CI未成功: ' + '; '.join(problems))
         result['success'] = True
     except Exception as error:
         result['error'] = str(error)
@@ -955,12 +983,13 @@ def cmd_finalize(_args):
         state['sessionId'] = report['sessionId']
     if report['model'] and success:
         state['model'] = report['model']
+    dropped_repair = None  # its snapshot object is cleared only after the state without it is saved
     if success:
         state['autoRestarts'] = 0
         state.pop('validationFailure', None)
         state.pop('restartKind', None)
         state.pop('pendingRestartKind', None)
-        clear_request_snapshot(store, number, state.pop('repair', None))
+        dropped_repair = state.pop('repair', None)
         state['validatedHead'] = git('rev-parse', 'HEAD')
         completed_ci = state.pop('prCI', None)
         if (completed_ci and completed_ci.get('head') == state['validatedHead']
@@ -990,8 +1019,9 @@ def cmd_finalize(_args):
     if validation_failed:
         state['repair'] = attach_request_snapshot(store, number, repair_scope(run), state.get('repair'))
     elif not success and not run.get('repair'):
-        clear_request_snapshot(store, number, state.pop('repair', None))
+        dropped_repair = state.pop('repair', None)
     store.put_json(session_key(number, 'state.json'), state)
+    clear_request_snapshot(store, number, dropped_repair)
 
     table = usage_table(report, run, usage)
     try:

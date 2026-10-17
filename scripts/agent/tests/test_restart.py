@@ -306,7 +306,7 @@ class RestartKindTests(unittest.TestCase):
         def failing_ci(run, head):
             (self.home / 'validation.json').write_text(json.dumps(
                 {'success': False, 'currentCheck': 'pr-ci', 'error': 'PR CI未成功: ios.yml: completed/failure'}))
-            raise RuntimeError('PR CI未成功')
+            raise agentctl.CIVerificationFailed('PR CI未成功')
 
         with mock.patch.object(agentctl, 'load_execution', return_value=messages), \
                 mock.patch.object(agentctl, 'Store', return_value=store), \
@@ -484,7 +484,7 @@ class RestartKindTests(unittest.TestCase):
         store.list.return_value = []
         return store
 
-    def prepare_with(self, persisted, issue, comments, automatic):
+    def prepare_with(self, persisted, issue, comments, automatic, store=None, real_checkpoint=False):
         gh = mock.Mock(repository='owner/repo')
         gh.issue.return_value = json.loads(json.dumps(issue))
         gh.comments.return_value = json.loads(json.dumps(comments))
@@ -494,11 +494,13 @@ class RestartKindTests(unittest.TestCase):
                 return 'mainsha'  # the branch is ahead of main: its HEAD needs PR CI
             return {'log': 'abc commit', 'status': ''}.get(args[0], 'failedsha')
 
+        restore = (mock.patch.object(agentctl, 'restore_workspace', wraps=agentctl.restore_workspace) if real_checkpoint
+                   else mock.patch.object(agentctl, 'restore_workspace', return_value=None))
         with mock.patch.dict(os.environ, {'AUTOMATIC_RETRY': 'true' if automatic else 'false'}), \
                 mock.patch.object(agentctl, 'GitHub', return_value=gh), \
-                mock.patch.object(agentctl, 'Store', return_value=self.persisted_store(persisted)), \
+                mock.patch.object(agentctl, 'Store', return_value=store or self.persisted_store(persisted)), \
                 mock.patch.object(agentctl, 'checkout_branch', return_value=True), \
-                mock.patch.object(agentctl, 'restore_workspace', return_value=None), \
+                restore, \
                 mock.patch.object(agentctl, 'restore_session', return_value=False), \
                 mock.patch.object(agentctl, 'head_descends_from', return_value=True), \
                 mock.patch.object(agentctl, 'git', side_effect=git), \
@@ -507,7 +509,7 @@ class RestartKindTests(unittest.TestCase):
             agentctl.cmd_prepare(None)
         return json.loads((self.home / 'run.json').read_text()), (self.home / 'prompt.txt').read_text()
 
-    def fail_validation(self, persisted):
+    def fail_validation(self, persisted, store=None, ci=None):
         """validate against the run prepare left in AGENT_HOME, with a failing PR CI."""
         messages = [{'type': 'result', 'subtype': 'success', 'num_turns': 3, 'is_error': False}]
 
@@ -517,12 +519,12 @@ class RestartKindTests(unittest.TestCase):
         def failing_ci(run, head):
             (self.home / 'validation.json').write_text(json.dumps(
                 {'success': False, 'currentCheck': 'pr-ci', 'error': 'PR CI未成功: ios.yml: completed/failure'}))
-            raise RuntimeError('PR CI未成功')
+            raise agentctl.CIVerificationFailed('PR CI未成功')
 
         with mock.patch.object(agentctl, 'load_execution', return_value=messages), \
-                mock.patch.object(agentctl, 'Store', return_value=self.persisted_store(persisted)), \
+                mock.patch.object(agentctl, 'Store', return_value=store or self.persisted_store(persisted)), \
                 mock.patch.object(agentctl, 'git', side_effect=git), \
-                mock.patch.object(agentctl, 'verify_pr_ci', side_effect=failing_ci):
+                mock.patch.object(agentctl, 'verify_pr_ci', side_effect=ci or failing_ci):
             with self.assertRaisesRegex(RuntimeError, 'PR CI未成功'):
                 agentctl.cmd_validate(None)
 
@@ -631,6 +633,154 @@ class RestartKindTests(unittest.TestCase):
         self.assertNotIn('repair', persisted['sessions/4/state.json'])
         self.assertEqual(persisted['sessions/4/repair-request.json']['cleared'], True)
         self.assertIn('<comment id="30"', prompt)
+
+    def test_repair_uses_the_issue_title_the_failed_run_saw_even_after_an_edit(self):
+        persisted, issue, comments = self.failed_run()
+        self.assertEqual(persisted['sessions/4/repair-request.json']['issue']['title'], 'T')
+        issue['title'] = '編集後のタイトル: 範囲を広げた'
+        _run, prompt = self.prepare_with(persisted, issue, comments, automatic=True)
+        self.assertIn('Issue: #4 T\n', prompt)
+        self.assertNotIn('編集後のタイトル', prompt)
+        # A snapshot stored before the title was captured keeps replaying and shows the live title.
+        legacy = json.loads(json.dumps(persisted))
+        del legacy['sessions/4/repair-request.json']['issue']['title']
+        legacy['sessions/4/state.json']['repair']['requestSha256'] = agentctl.snapshot_digest(
+            legacy['sessions/4/repair-request.json'])
+        _run, prompt = self.prepare_with(legacy, issue, comments, automatic=True)
+        self.assertIn('Issue: #4 編集後のタイトル', prompt)
+        self.assertIn('元のIssue本文', prompt)
+        self.assertNotIn('依頼本文の記録がない', prompt)
+
+    # ------------------- the snapshot pointer goes before its object is cleared ---
+
+    def ordered_store(self, persisted, fail_clear=False):
+        """A persisted store whose put_json order is observable; optionally the clear overwrite fails."""
+        store = self.persisted_store(persisted)
+        writes = []
+
+        def put_json(key, value):
+            if fail_clear and key == 'sessions/4/repair-request.json' and value.get('cleared'):
+                raise RuntimeError('store unavailable')
+            writes.append((key, json.loads(json.dumps(value))))
+            persisted[key] = json.loads(json.dumps(value))
+
+        store.put_json.side_effect = put_json
+        return store, writes
+
+    def assert_pointer_removed_before_clear(self, writes):
+        cleared = [i for i, (key, value) in enumerate(writes)
+                   if key == 'sessions/4/repair-request.json' and value.get('cleared')]
+        self.assertEqual(len(cleared), 1)
+        states = [i for i, (key, _value) in enumerate(writes) if key == 'sessions/4/state.json']
+        self.assertTrue(states and states[0] < cleared[0], writes)
+        self.assertTrue(all('repair' not in writes[i][1] for i in states if i < cleared[0]), writes)
+
+    def test_successful_repair_removes_the_pointer_before_clearing_the_object(self):
+        persisted, _issue, _comments = self.failed_run()
+        store, writes = self.ordered_store(persisted)
+        state, _gh = self.finalize(persisted['sessions/4/state.json'], validation_outcome='success',
+                                   store=store, head='failedsha')
+        self.assertNotIn('repair', state)
+        self.assert_pointer_removed_before_clear(writes)
+
+    def test_successful_repair_survives_a_failed_object_clear(self):
+        persisted, _issue, _comments = self.failed_run()
+        store, _writes = self.ordered_store(persisted, fail_clear=True)
+        state, gh = self.finalize(persisted['sessions/4/state.json'], validation_outcome='success',
+                                  store=store, head='failedsha')
+        self.assertNotIn('repair', state)
+        self.assertNotIn('repair', persisted['sessions/4/state.json'])
+        self.assertTrue(agentctl.snapshot_is_valid(persisted['sessions/4/repair-request.json']))  # dead object left behind
+        gh.request.assert_not_called()
+        self.assertNotIn('失敗', gh.comment.call_args.args[1])
+
+    def test_human_run_removes_the_pointer_before_clearing_the_object(self):
+        persisted, issue, comments = self.failed_run()
+        store, writes = self.ordered_store(persisted)
+        run, _prompt = self.prepare_with(persisted, issue, comments + [comment(30)], automatic=False, store=store)
+        self.assertFalse(run['repair'])
+        self.assert_pointer_removed_before_clear(writes)
+
+    def test_human_run_survives_a_failed_object_clear(self):
+        persisted, issue, comments = self.failed_run()
+        store, _writes = self.ordered_store(persisted, fail_clear=True)
+        run, prompt = self.prepare_with(persisted, issue, comments + [comment(30)], automatic=False, store=store)
+        self.assertFalse(run['repair'])
+        self.assertNotIn('repair', persisted['sessions/4/state.json'])
+        self.assertIn('<comment id="30"', prompt)
+
+    # ------------------------- only an explicit CI result is a CI verification failure ---
+
+    def verify(self, find, messages=None):
+        """cmd_validate on a clean, pushed HEAD whose PR CI lookup behaves like `find`."""
+        run = {'issue': 4, 'branch': 'agent/issue-4', 'headBefore': 'old', 'validationRequired': True,
+               'includedComments': [20], 'includedIssueBody': False}
+        (self.home / 'run.json').write_text(json.dumps(run))
+        (self.home / 'pr-ci.json').write_text(json.dumps(
+            {'head': 'failedsha', 'branch': 'agent/issue-4', 'request': 'unique', 'dispatched': list(agentctl.PR_CI_WORKFLOWS)}))
+        (self.home / agentctl.CI_FAILURE_FILE).unlink(missing_ok=True)
+        persisted = {'sessions/4/state.json': {'issue': 4, 'lastCommentId': 10}}
+        if messages is None:
+            messages = [{'type': 'result', 'subtype': 'success', 'num_turns': 3, 'is_error': False}]
+        with mock.patch.object(agentctl, 'load_execution', return_value=messages), \
+                mock.patch.object(agentctl, 'Store', return_value=self.persisted_store(persisted)), \
+                mock.patch.object(agentctl, 'GitHub', return_value=mock.Mock(repository='owner/repo')), \
+                mock.patch.object(agentctl, 'git', side_effect=lambda *args, **kwargs: '' if args[0] == 'status' else 'failedsha'), \
+                mock.patch.object(agentctl, 'find_pr_ci_run', side_effect=find):
+            try:
+                agentctl.cmd_validate(None)
+            except Exception as error:  # noqa: BLE001 - the test inspects the type
+                return error, persisted['sessions/4/state.json']
+        return None, persisted['sessions/4/state.json']
+
+    def test_ci_status_query_errors_are_not_ci_verification_failures(self):
+        for error in (RuntimeError('GitHub API unavailable'), KeyError('workflow_runs'), TypeError('unexpected response')):
+            with self.subTest(error=type(error).__name__):
+                raised, state = self.verify(mock.Mock(side_effect=error))
+                self.assertIsNotNone(raised)
+                self.assertNotIsInstance(raised, agentctl.CIVerificationFailed)
+                self.assertNotIsInstance(raised, SystemExit)
+                self.assertEqual(state, {'issue': 4, 'lastCommentId': 10})  # no repair recorded
+                self.assertFalse((self.home / agentctl.CI_FAILURE_FILE).exists())
+                self.assertFalse(json.loads((self.home / 'validation.json').read_text())['success'])
+
+    def test_explicit_ci_result_is_a_ci_verification_failure(self):
+        failed = {'id': 10, 'run_attempt': 1, 'html_url': 'https://github.com/owner/repo/actions/runs/10',
+                  'head_sha': 'failedsha', 'status': 'completed', 'conclusion': 'failure'}
+        for name, find in (('failed conclusion', mock.Mock(return_value=failed)),
+                           ('run for the request not found', mock.Mock(return_value=None))):
+            with self.subTest(name):
+                raised, state = self.verify(find)
+                self.assertIsInstance(raised, agentctl.CIVerificationFailed)
+                self.assertEqual(state['pendingRestartKind'], 'validation')
+                self.assertEqual(state['repair']['head'], 'failedsha')
+                self.assertTrue((self.home / agentctl.CI_FAILURE_FILE).exists())
+                self.assertIn('PR CI未成功', state['validationFailure']['failures'][0])
+
+    # --------------- a restored checkpoint is cleared when the failure is recorded ---
+
+    def test_validation_failure_clears_the_checkpoint_the_failed_run_restored(self):
+        issue = {'number': 4, 'title': 'T', 'html_url': 'https://github.com/owner/repo/issues/4', 'body': 'body',
+                 'created_at': '2026-10-01T00:00:00Z', 'user': {'login': 'owner'}, 'author_association': 'OWNER'}
+        # The failed run restored this checkpoint: it describes the HEAD before the run's commits.
+        stale = {'head': 'oldsha', 'remoteHead': 'oldsha', 'branch': 'agent/issue-4',
+                 'prefix': 'sessions/4/checkpoints/700-1', 'bundle': False}
+        persisted = {'sessions/4/state.json': {'issue': 4, 'branch': 'agent/issue-4', 'lastCommentId': 10,
+                                               'issueBodyProcessed': True,
+                                               'lastRun': {'success': True, 'noOp': False, 'turnUsage': {'input': 5}}},
+                     'sessions/4/workspace.json': dict(stale)}
+        self.prepare_with(persisted, issue, [comment(20)], automatic=False)
+        persisted['sessions/4/workspace.json'] = dict(stale)  # prepare is mocked out of restoring it
+        with mock.patch.object(agentctl, 'git', return_value='failedsha'):
+            with self.assertRaisesRegex(RuntimeError, 'ブランチが更新されています'):
+                agentctl.restore_workspace(self.persisted_store(persisted), 4, 'agent/issue-4')
+        self.fail_validation(persisted)  # the runner is lost right after this, before finalize
+        self.assertEqual(persisted['sessions/4/workspace.json'], {'empty': True})
+        self.assertEqual(persisted['sessions/4/state.json']['pendingRestartKind'], 'validation')
+        run, prompt = self.prepare_with(persisted, issue, [comment(20)], automatic=True, real_checkpoint=True)
+        self.assertTrue(run['repair'])
+        self.assertIn('<validation-repair>', prompt)
+        self.assertIn('Workspace checkpoint: なし', prompt)
 
     def test_prepare_skips_without_repair_when_nothing_is_pending(self):
         state = dict(self.repair_state(), lastCommentId=20)
