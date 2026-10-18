@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import GRDB
 import OSLog
 import SwiftUI
 
@@ -67,6 +68,10 @@ final class WorkbookStore {
     let turns: TurnCoordinator
     private var observer: UUID?
     private var refreshTask: Task<Void, Never>?
+    /// 読み直しの途中で、もう一度読み直すように頼まれた(読み直しは同時に 1 つだけ)。
+    private var refreshRequested = false
+    /// 問題集のイベントを受け取った回数。読んでいる間に増えたら、読んだ値は古いかもしれない。
+    private var ledgerRevision = 0
 
     init(ledger: Ledger, turns: TurnCoordinator) {
         self.ledger = ledger
@@ -75,7 +80,10 @@ final class WorkbookStore {
             guard let self else { return }
             let id = await ledger.observe { [weak self] events in
                 guard events.contains(where: { $0.entity.rawValue.hasPrefix("workbook_") }) else { return }
-                Task { @MainActor [weak self] in self?.scheduleRefresh() }
+                Task { @MainActor [weak self] in
+                    self?.ledgerRevision += 1
+                    self?.scheduleRefresh()
+                }
             }
             self.observer = id
         }
@@ -86,6 +94,7 @@ final class WorkbookStore {
     func reset() {
         refreshTask?.cancel()
         refreshTask = nil
+        refreshRequested = false
         loadState = .idle
         home = nil
         subunits = [:]
@@ -128,7 +137,7 @@ final class WorkbookStore {
     func refreshHome() async {
         guard deletingUnitID == nil else { return }
         do {
-            let payload = try await ledger.read { db in try WorkbookMachine(loading: db).home() }
+            let payload = try await read { db in try WorkbookMachine(loading: db).home() }
             home = payload
             units = [:]
             subunits = [:]
@@ -145,17 +154,35 @@ final class WorkbookStore {
     }
 
     /// Coalesced re-read after ledger events: the home, plus every cached set / capture / proposal / problem.
+    /// 読み直しは同時に 1 つだけ。読み直しの途中で頼まれたら、終わった後にもう一度読む(先に始めた読み直しの
+    /// 古い値が、後のものを上書きしないように)。
     private func scheduleRefresh() {
-        guard refreshTask == nil, deletingUnitID == nil else { return }
+        guard deletingUnitID == nil else { return }
+        refreshRequested = true
+        guard refreshTask == nil else { return }
         refreshTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(80))
             guard let self else { return }
-            self.refreshTask = nil
-            await self.refreshAll()
+            while self.refreshRequested, !Task.isCancelled {
+                self.refreshRequested = false
+                await self.refreshAll()
+            }
+            if !Task.isCancelled { self.refreshTask = nil }
         }
     }
 
-    private func refreshAll() async {
+    /// 画面用に覚える値を台帳から読む。読んでいる間に問題集のイベントが届いていたら、読んだ値は
+    /// そのイベントの前のものかもしれないので、覚えた後に読み直しを頼む(呼び出し側は、待たずにすぐ覚えること)。
+    /// 読み直しは覚えている全部を読むので、この値もイベントの後の値になる。
+    private func read<T: Sendable>(_ block: @Sendable (Database) throws -> T) async throws -> T {
+        let revision = ledgerRevision
+        let value = try await ledger.read(block)
+        if ledgerRevision != revision { scheduleRefresh() }
+        return value
+    }
+
+    /// 覚えているものを全部読み直す(テストからも呼ぶ)。
+    func refreshAll() async {
         await refreshHome()
         let setIDs = Array(sets.keys)
         let captureIDs = Array(captures.keys)
@@ -171,10 +198,13 @@ final class WorkbookStore {
                     Dictionary(uniqueKeysWithValues: problemIDs.compactMap { id in (try? machine.problemDetail(id: id)).map { (id, $0) } })
                 )
             }
-            self.sets = sets
-            self.captures = captures
-            self.proposals = proposals
-            self.problems = problems
+            // 読んでいる間に開いた画面が覚えたもの(読んだ一覧に無いもの)は残す。消すと、画面から見て覚えている状態が
+            // 「無し → 有り → 無し」と描き直しの間に戻るので画面は見直さず、以後の読み直しにも入らないので、
+            // 単元づくりの待ちが全体像ができても「小単元を並べています」のまま進まなくなる(Issue #22)。
+            self.sets = sets.merging(self.sets.filter { !setIDs.contains($0.key) }) { fresh, _ in fresh }
+            self.captures = captures.merging(self.captures.filter { !captureIDs.contains($0.key) }) { fresh, _ in fresh }
+            self.proposals = proposals.merging(self.proposals.filter { !proposalIDs.contains($0.key) }) { fresh, _ in fresh }
+            self.problems = problems.merging(self.problems.filter { !problemIDs.contains($0.key) }) { fresh, _ in fresh }
         } catch {
             workbookLog.error("refresh failed: \(String(describing: error), privacy: .public)")
         }
@@ -184,7 +214,7 @@ final class WorkbookStore {
 
     func loadUnit(id: String) async -> WorkbookUnitDTO? {
         do {
-            let unit = try await ledger.read { db in try WorkbookMachine(loading: db).unitSummary(id: id) }
+            let unit = try await read { db in try WorkbookMachine(loading: db).unitSummary(id: id) }
             units[id] = unit
             for subunit in unit.subunits { subunits[subunit.id] = subunit }
             return unit
@@ -198,7 +228,7 @@ final class WorkbookStore {
     @discardableResult
     func loadSubunit(id: String) async -> WorkbookSubunitDTO? {
         do {
-            let subunit = try await ledger.read { db in try WorkbookMachine(loading: db).subunitSummary(id: id) }
+            let subunit = try await read { db in try WorkbookMachine(loading: db).subunitSummary(id: id) }
             subunits[id] = subunit
             return subunit
         } catch {
@@ -300,7 +330,7 @@ final class WorkbookStore {
     @discardableResult
     func loadSet(id: String) async -> WorkbookSetDTO? {
         do {
-            let set = try await ledger.read { db in try WorkbookMachine(loading: db).setView(id: id) }
+            let set = try await read { db in try WorkbookMachine(loading: db).setView(id: id) }
             sets[id] = set
             return set
         } catch {
@@ -336,7 +366,7 @@ final class WorkbookStore {
 
     func loadProblem(id: String) async -> WorkbookProblemDetailDTO? {
         do {
-            let detail = try await ledger.read { db in try WorkbookMachine(loading: db).problemDetail(id: id) }
+            let detail = try await read { db in try WorkbookMachine(loading: db).problemDetail(id: id) }
             problems[id] = detail
             return detail
         } catch {
@@ -389,7 +419,7 @@ final class WorkbookStore {
     @discardableResult
     func loadCapture(id: String) async -> WorkbookCaptureDTO? {
         do {
-            let capture = try await ledger.read { db in try WorkbookMachine(loading: db).captureView(id: id) }
+            let capture = try await read { db in try WorkbookMachine(loading: db).captureView(id: id) }
             let previous = captures[id]
             captures[id] = capture
             if previous?.status != capture.status, capture.status != .identifying {
@@ -480,7 +510,7 @@ final class WorkbookStore {
     @discardableResult
     func loadProposal(id: String) async -> WorkbookProposalDTO? {
         do {
-            let proposal = try await ledger.read { db in try WorkbookMachine(loading: db).proposalView(id: id) }
+            let proposal = try await read { db in try WorkbookMachine(loading: db).proposalView(id: id) }
             proposals[id] = proposal
             return proposal
         } catch {

@@ -169,6 +169,38 @@ struct MessageBubble: View {
         }
     }
 
+    /// この吹き出しが描く数式の本文と、その幅(`KaTeXPrefetcher` で画面に出る前に高さを測る)。`rendered` と同じ本文・色・大きさ。
+    /// `timelineWidth` は会話の行の幅(左右の余白を除いたもの)。
+    @MainActor
+    static func katexItems(_ message: ChatMessage, scheme: ColorScheme, timelineWidth: CGFloat) -> [KaTeXPrefetcher.Item] {
+        let padding: CGFloat = 28
+        switch message.role {
+        case .user:
+            let text = message.textualDisplayText
+            guard !text.isEmpty else { return [] }
+            return [KaTeXPrefetcher.Item(raw: text, display: false, color: textOnAccentColor(scheme), fontSize: 15, fontWeight: 500,
+                                         width: timelineWidth - 36 - padding)]
+        case .assistant:
+            guard message.status != .pending else { return [] }
+            let width = timelineWidth - padding
+            let color = textPrimaryColor(scheme)
+            return message.renderableBlocks.compactMap { block in
+                switch block {
+                case .text(let text):
+                    KaTeXPrefetcher.Item(raw: ChatTextReadability.formatAssistantText(text), display: false, color: color, fontSize: 15, fontWeight: 500, width: width)
+                case .math(let latex, let display):
+                    KaTeXPrefetcher.Item(raw: latex, display: display, color: color, fontSize: 15, fontWeight: 500, width: width)
+                case .notice(_, let body):
+                    KaTeXPrefetcher.Item(raw: body, display: false, color: color, fontSize: 15, fontWeight: 500, width: width)
+                default:
+                    nil
+                }
+            }
+        case .system:
+            return []
+        }
+    }
+
     private func readableAssistantText(_ text: String) -> String {
         message.role == .assistant ? ChatTextReadability.formatAssistantText(text) : text
     }

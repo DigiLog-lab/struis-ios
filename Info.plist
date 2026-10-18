@@ -54,6 +54,8 @@
 	<string>$(STRUIS_AUTH_REQUIRED)</string>
 	<key>StruisDeliveryAppKey</key>
 	<string>$(STRUIS_DELIVERY_APP_KEY)</string>
+	<key>StruisClaudeClientID</key>
+	<string>$(STRUIS_CLAUDE_CLIENT_ID)</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>ZenKakuGothicNew-Regular.ttf</string>

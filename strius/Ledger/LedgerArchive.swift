@@ -41,8 +41,9 @@ nonisolated enum LedgerArchive {
         }
     }
 
-    /// Directories under `StruisPaths.root` carried in the archive.
-    static let fileRoots = ["captures", "attachments", "memory"]
+    /// Directories under `StruisPaths.root` carried in the archive. `diagnostics` holds app-side records
+    /// (`math_fallback.jsonl`: formulas SwiftMath could not parse, Issue #28) so an exported ledger shows them.
+    static let fileRoots = ["captures", "attachments", "memory", "diagnostics"]
 
     static func fileName(date: Date = Date()) -> String {
         let formatter = DateFormatter()

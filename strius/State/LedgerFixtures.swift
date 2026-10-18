@@ -91,7 +91,7 @@ nonisolated enum LedgerFixtures {
         var kickoffMessageID: String?
         let lines: [(role: String, status: String, text: String, retryable: Bool)] = [
             ("user", "completed", "[Struis からの起動メッセージ] 段階 1「要点」", false),
-            ("assistant", "completed", "括弧の前の数は、括弧の中の各項に掛けます。\n\n係数が付いていても同じです。\n$$-2(3x-4)=(-2)\\times 3x+(-2)\\times(-4)=-6x+8$$\n\n判別式 $D=b^2-4ac$ の符号で、解の個数が決まります。\n- $D>0$: 異なる実数の解が2つ\n- $D=0$: 実数の解が1つ（重解）\n- $D<0$: 実数の解はない\n\n読み終えたら下の「先に進む」で例題へ進もう。", false),
+            ("assistant", "completed", "括弧の前の数は、括弧の中の各項に掛けます。\n\n係数が付いていても同じです。\n$$-2(3x-4)+5x=(-2)\\times 3x+(-2)\\times(-4)+5x=-6x+8+5x=-x+8$$\n\n判別式 $D=b^2-4ac$ の符号で、解の個数が決まります。\n- $D>0$: 異なる実数の解が2つ\n- $D=0$: 実数の解が1つ（重解）\n- $D<0$: 実数の解はない\n\n読み終えたら下の「先に進む」で例題へ進もう。", false),
             ("user", "completed", "x^2-6x+5 を平方完成して", false),
             ("assistant", "completed", "$x^2-6x+5=(x-3)^2-4$ です。頂点は $(3,-4)$ になります。", false),
             ("user", "completed", "判別式ってなんで b^2-4ac なの？", false),

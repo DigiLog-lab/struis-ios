@@ -15,6 +15,7 @@ unit = project.targets.find { |t| t.name == 'striusTests' }
 ui = project.targets.find { |t| t.name == 'striusUITests' }
 resources = [
   ['striusTests/Fixtures/learning-feed', 'folder', unit, true],
+  ['striusTests/Fixtures/math', 'folder', unit, true],
   ['striusUITests/Fixtures/handwritten_eigenvalue.jpeg', 'image.jpeg', ui, true],
   ['striusTests/Fixtures/DeliveredScripts/struis_tutor_memory.py', 'text.script.python', unit, false],
   ['striusTests/Fixtures/DeliveredScripts/struis_reply_lint.py', 'text.script.python', unit, false],

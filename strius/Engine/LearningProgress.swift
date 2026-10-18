@@ -1014,6 +1014,46 @@ nonisolated enum LearningProgress {
         if let current = state.currentGoalID, !current.isEmpty { _ = try ancestry(state, current) }
     }
 
+    // MARK: goal_changes (partial update of an existing goal)
+
+    /// Fields a `goal_changes` entry may set. Ancestry (`parent_id`, `kind`, `replaces_id`) cannot change on an
+    /// existing goal; policy fields may, with `policy_change_reason`, exactly as in a full goal.
+    static let goalChangeKeys: Set<String> = ["id", "title", "outcome", "learner_action", "model_action", "completion_condition",
+                                              "status", "next_action", "child_order", "branch_condition", "loop", "evaluation",
+                                              "exit_reason", "add_evidence"]
+
+    /// Expands `goal_changes` into full goals. A change names an existing goal and only what changes: evidence
+    /// is appended (`add_evidence`), other fields replace the stored value, and every omitted field keeps its
+    /// stored value. The merged goals then go through the same validation as full goals (policy reasons,
+    /// evidence references and quotes, ancestry, completion), so a partial update cannot do anything a full
+    /// one could not. Without `goal_changes` the update is returned unchanged.
+    static func expandGoalChanges(_ raw: EngineJSON, before: ProgressState) throws -> EngineJSON {
+        guard var object = raw.objectValue, let changes = object["goal_changes"] else { return raw }
+        let path = "ProgressUpdate.goal_changes"
+        object["goal_changes"] = nil
+        var goals = try EngineValidate.array(object["goals"], "ProgressUpdate.goals", max: 40)
+        let entries = try EngineValidate.array(changes, path, max: 40)
+        for (offset, entry) in entries.enumerated() {
+            let itemPath = "\(path)[\(offset)]"
+            let change = try EngineValidate.object(entry, itemPath)
+            try EngineValidate.forbidExtra(change, allowed: goalChangeKeys, itemPath)
+            let id = try EngineValidate.identifier(try EngineValidate.required(change, "id", itemPath), "\(itemPath).id")
+            guard let stored = before.goals[id], var merged = stored.json.objectValue else {
+                throw EngineError("\(itemPath).id: goal_changes must refer to an existing goal")
+            }
+            // Server-owned fields are restored by apply_update from the stored goal.
+            for key in ["started_at", "history_goal_id", "stagnation_since_sequence"] { merged[key] = nil }
+            for (key, value) in change.pairs where key != "id" && key != "add_evidence" { merged[key] = value }
+            if let added = change["add_evidence"] {
+                let extra = try EngineValidate.array(added, "\(itemPath).add_evidence", max: 20)
+                merged["evidence"] = .array((merged["evidence"]?.arrayValue ?? []) + extra)
+            }
+            goals.append(.object(merged))
+        }
+        object["goals"] = .array(goals)
+        return .object(object)
+    }
+
     // MARK: apply_update
 
     static func applyUpdate(before: ProgressState, raw: JSONObject, reply: String, userMessageID: String,
@@ -1024,7 +1064,7 @@ nonisolated enum LearningProgress {
 
     static func applyUpdate(before: ProgressState, raw: EngineJSON, reply: String, userMessageID: String,
                                    assistantMessageID: String, sourceMessages: [String: SourceMessage], now: Date = Date()) throws -> ProgressState {
-        let update = try ProgressUpdate(validating: raw)
+        let update = try ProgressUpdate(validating: try expandGoalChanges(raw, before: before))
         let assistantID = UUID(uuidString: assistantMessageID)?.uuidString.lowercased() ?? assistantMessageID
         let userID = UUID(uuidString: userMessageID)?.uuidString.lowercased() ?? userMessageID
         let goalKeys = update.goals.map(\.id)

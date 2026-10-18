@@ -44,19 +44,19 @@ final class DeviceWorkbookUITests: XCTestCase {
 
         // 段階 3 (自力例題) の小単元を開く。
         let row = app.descendants(matching: .any)["workbook-subunit-sub-1"].firstMatch
-        XCTAssertTrue(row.waitForExistence(timeout: 15), "ホームに小単元の行が無い")
+        XCTAssertTrue(row.appears(timeout: 15), "ホームに小単元の行が無い")
         row.tap()
 
         // 一枚を作る (生成ターン → open)。
         let request = app.descendants(matching: .any)["workbook-request-set"].firstMatch
-        XCTAssertTrue(request.waitForExistence(timeout: 10), "一枚を作るボタンが無い")
+        XCTAssertTrue(request.appears(timeout: 10), "一枚を作るボタンが無い")
         request.tap()
         let problem = app.descendants(matching: .any)["workbook-set-problem-1"].firstMatch
-        XCTAssertTrue(problem.waitForExistence(timeout: generationTimeout), "生成された一枚の問題が出ない")
+        XCTAssertTrue(problem.appears(timeout: generationTimeout), "生成された一枚の問題が出ない")
 
         // 撮る → 使う。
         let camera = app.descendants(matching: .any)["workbook-capture-button"].firstMatch
-        XCTAssertTrue(camera.waitForExistence(timeout: 5))
+        XCTAssertTrue(camera.appears(timeout: 5))
         addUIInterruptionMonitor(withDescription: "カメラの許可") { alert in
             let allow = alert.buttons.matching(NSPredicate(format: "label IN %@", ["許可", "OK", "Allow"])).firstMatch
             guard allow.exists else { return false }
@@ -65,21 +65,22 @@ final class DeviceWorkbookUITests: XCTestCase {
         }
         camera.tap()
         let shutter = app.buttons["chat-camera-shutter"].firstMatch
-        XCTAssertTrue(shutter.waitForExistence(timeout: 15), "カメラが開かない")
+        XCTAssertTrue(shutter.appears(timeout: 15), "カメラが開かない")
         if !shutter.isEnabled { app.tap() }
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: shutter)], timeout: 15), .completed)
         shutter.tap()
         // カメラは閉じずに続けて撮れる(一括採点)。「採点する 1」で確認画面へ。
         let done = app.buttons["chat-camera-done"].firstMatch
-        XCTAssertTrue(done.waitForExistence(timeout: 20), "「採点する」が出ない")
+        XCTAssertTrue(done.appears(timeout: 20), "「採点する」が出ない")
         done.tap()
         let use = app.descendants(matching: .any)["workbook-capture-use"].firstMatch
-        XCTAssertTrue(use.waitForExistence(timeout: 20), "撮影確認が出ない")
+        XCTAssertTrue(use.appears(timeout: 20), "撮影確認が出ない")
         use.tap()
 
         // 一枚から撮ると、そのままリザルト画面が開き、判定中はそこで待つ。
         let verdict = app.descendants(matching: .any)["workbook-verdict"].firstMatch
-        XCTAssertTrue(verdict.waitForExistence(timeout: 20), "リザルト画面が開かない")
+        if !verdict.appears(timeout: 20) { UITestSupport.saveProbe(app, name: "device-workbook-no-verdict") }
+        XCTAssertTrue(verdict.exists, "リザルト画面が開かない")
         // 判定が終わると 正解数 (graded) か「整理する」(triage) が出る。失敗表示は不可。
         let score = app.descendants(matching: .any)["workbook-verdict-score"].firstMatch
         let triage = app.buttons["整理する"].firstMatch

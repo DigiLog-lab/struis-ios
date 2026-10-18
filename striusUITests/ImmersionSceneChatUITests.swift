@@ -41,15 +41,15 @@ final class ImmersionSceneChatUITests: XCTestCase {
         // 質問シートの常設導線からシーンへ入る
         // (実 backend モードは認証+候補取得を挟むため長めに待つ)
         let entry = app.buttons["immersion-scene-entry"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 30))
+        XCTAssertTrue(entry.appears(timeout: 30))
         attachScreenshot(app, name: "01-chat-home")
         entry.tap()
 
         // hook: 候補カードと常設 composer が同時に見えている
         let hookCard = app.staticTexts["タップして予想を置きにいく"]
-        XCTAssertTrue(hookCard.waitForExistence(timeout: 10))
+        XCTAssertTrue(hookCard.appears(timeout: 10))
         let composer = app.textFields["scene-composer-input"]
-        XCTAssertTrue(composer.waitForExistence(timeout: 5))
+        XCTAssertTrue(composer.appears(timeout: 5))
         XCTAssertTrue(app.staticTexts["この画面について"].exists)
         attachScreenshot(app, name: "02-scene-hook")
 
@@ -63,11 +63,11 @@ final class ImmersionSceneChatUITests: XCTestCase {
             // 届いた」ことで判定する (fullScreenCover 下層の ChatView やキーボード、
             // canvas の固定文言への誤マッチを構造的に防ぐ)。
             let pane = app.descendants(matching: .any).matching(identifier: "scene-chat-pane").firstMatch
-            XCTAssertTrue(pane.waitForExistence(timeout: 10))
+            XCTAssertTrue(pane.appears(timeout: 10))
             let reply = pane.staticTexts.containing(
                 NSPredicate(format: "label CONTAINS %@", "。")
             ).firstMatch
-            let replyArrived = reply.waitForExistence(timeout: 240)
+            let replyArrived = reply.appears(timeout: 240)
             if replyArrived {
                 let note = XCTAttachment(string: "reply: \(reply.label)")
                 note.name = "reply-match"
@@ -79,15 +79,15 @@ final class ImmersionSceneChatUITests: XCTestCase {
             let reply = app.staticTexts.containing(
                 NSPredicate(format: "label CONTAINS %@", "どこで予想とずれ始めましたか")
             ).firstMatch
-            XCTAssertTrue(reply.waitForExistence(timeout: 10))
+            XCTAssertTrue(reply.appears(timeout: 10))
         }
         attachScreenshot(app, name: "03-chat-over-canvas")
 
         // 「学習に戻る」で同じ canvas (hook) へ復帰する
         let back = app.buttons["学習に戻る"]
-        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        XCTAssertTrue(back.appears(timeout: 5))
         back.tap()
-        XCTAssertTrue(hookCard.waitForExistence(timeout: 5))
+        XCTAssertTrue(hookCard.appears(timeout: 5))
         // composer は消えていない (常設)
         XCTAssertTrue(composer.exists)
         attachScreenshot(app, name: "04-restored-canvas")
@@ -105,15 +105,15 @@ final class ImmersionSceneChatUITests: XCTestCase {
         app.openQuestionSheet()
 
         let entry = app.buttons["immersion-scene-entry"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 30))
+        XCTAssertTrue(entry.appears(timeout: 30))
         entry.tap()
 
         let change = app.buttons["別のものにする"]
-        XCTAssertTrue(change.waitForExistence(timeout: 10))
+        XCTAssertTrue(change.appears(timeout: 10))
         change.tap()
 
         let candidate = app.buttons["氷を入れた アイスティー、10 分後の甘さは?"]
-        XCTAssertTrue(candidate.waitForExistence(timeout: 10))
+        XCTAssertTrue(candidate.appears(timeout: 10))
         attachScreenshot(app, name: "candidate-picker")
     }
 
@@ -131,12 +131,12 @@ final class ImmersionSceneChatUITests: XCTestCase {
         app.openQuestionSheet()
 
         let entry = app.buttons["immersion-scene-entry"]
-        XCTAssertTrue(entry.waitForExistence(timeout: 30))
+        XCTAssertTrue(entry.appears(timeout: 30))
         Thread.sleep(forTimeInterval: 1.0)
         entry.tap()
 
         let hookCard = app.staticTexts["タップして予想を置きにいく"]
-        XCTAssertTrue(hookCard.waitForExistence(timeout: 10))
+        XCTAssertTrue(hookCard.appears(timeout: 10))
         Thread.sleep(forTimeInterval: 1.5)
 
         let composer = app.textFields["scene-composer-input"]
@@ -146,19 +146,19 @@ final class ImmersionSceneChatUITests: XCTestCase {
         let reply = app.staticTexts.containing(
             NSPredicate(format: "label CONTAINS %@", "どこで予想とずれ始めましたか")
         ).firstMatch
-        XCTAssertTrue(reply.waitForExistence(timeout: 10))
+        XCTAssertTrue(reply.appears(timeout: 10))
         Thread.sleep(forTimeInterval: 2.0)
         app.buttons["学習に戻る"].tap()
-        XCTAssertTrue(hookCard.waitForExistence(timeout: 5))
+        XCTAssertTrue(hookCard.appears(timeout: 5))
         Thread.sleep(forTimeInterval: 1.5)
 
         // 後半: explore からの完走 (ディープリンクで再起動)
         app.launchArguments = ["-immersion-lab", "-immersion-scene", "web.iced-tea-dilution.explore"]
         app.launch()
         let advance = app.buttons["この動きを確かめる"]
-        XCTAssertTrue(advance.waitForExistence(timeout: 10))
+        XCTAssertTrue(advance.appears(timeout: 10))
         let web = app.webViews.firstMatch
-        XCTAssertTrue(web.waitForExistence(timeout: 10))
+        XCTAssertTrue(web.appears(timeout: 10))
         Thread.sleep(forTimeInterval: 1.0)
         var manipulated = false
         for attempt in 0..<3 where !manipulated {
@@ -174,30 +174,30 @@ final class ImmersionSceneChatUITests: XCTestCase {
         XCTAssertTrue(manipulated)
         Thread.sleep(forTimeInterval: 1.0)
         advance.tap()
-        XCTAssertTrue(app.staticTexts["予想と、結果。"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["予想と、結果。"].appears(timeout: 5))
         Thread.sleep(forTimeInterval: 2.5)
         app.buttons["もう一度予想する"].tap()
-        XCTAssertTrue(app.staticTexts["氷が全部溶けて 2 倍の量になったら、甘さは?"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["氷が全部溶けて 2 倍の量になったら、甘さは?"].appears(timeout: 5))
         Thread.sleep(forTimeInterval: 2.0)
         app.buttons["半分"].tap()
         let toTransfer = app.buttons["支援なしで試してみる"]
-        XCTAssertTrue(toTransfer.waitForExistence(timeout: 5))
+        XCTAssertTrue(toTransfer.appears(timeout: 5))
         Thread.sleep(forTimeInterval: 2.0)
         toTransfer.tap()
         let transferField = app.textFields["答えだけここに"]
-        XCTAssertTrue(transferField.waitForExistence(timeout: 5))
+        XCTAssertTrue(transferField.appears(timeout: 5))
         Thread.sleep(forTimeInterval: 1.5)
         transferField.tap()
         transferField.typeText("half")
         app.buttons["答えを置く"].tap()
         let toBoundary = app.buttons["区切りを確認する"]
-        XCTAssertTrue(toBoundary.waitForExistence(timeout: 5))
+        XCTAssertTrue(toBoundary.appears(timeout: 5))
         Thread.sleep(forTimeInterval: 2.0)
         toBoundary.tap()
-        XCTAssertTrue(app.buttons["もう少し続ける"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["もう少し続ける"].appears(timeout: 5))
         Thread.sleep(forTimeInterval: 2.0)
         app.buttons["今日はここまで"].tap()
-        XCTAssertTrue(app.staticTexts["今日はここまで。"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["今日はここまで。"].appears(timeout: 5))
         Thread.sleep(forTimeInterval: 2.0)
     }
 
@@ -212,24 +212,26 @@ final class ImmersionSceneChatUITests: XCTestCase {
         app.launch()
 
         let advance = app.buttons["この動きを確かめる"]
-        XCTAssertTrue(advance.waitForExistence(timeout: 10))
+        XCTAssertTrue(advance.appears(timeout: 10))
         XCTAssertFalse(advance.isEnabled)
 
         let web = app.webViews.firstMatch
-        XCTAssertTrue(web.waitForExistence(timeout: 10))
+        XCTAssertTrue(web.appears(timeout: 10))
 
         // 単なるタップは介入に数えない
         web.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         Thread.sleep(forTimeInterval: 1.5)
         XCTAssertFalse(advance.isEnabled)
 
-        // なぞる動き (ドラッグ) で介入が成立する (ジェスチャ調停のフレークに
-        // 備え、成立するまで数回なぞる)
+        // なぞる動き (ドラッグ) で介入が成立する。explore の時間スライダー(シーンが explore に入って描く
+        // `<input type="range">`)が出てから、その上をなぞる。画面の中ほどを漠然となぞると、場所によっては
+        // 何も受けない要素の上で、3 回とも介入にならなかった(ジェスチャ調停のフレークに備え、成立するまで数回なぞる)。
+        let slider = web.sliders.firstMatch
+        XCTAssertTrue(slider.appears(timeout: 10), "explore のスライダーが出ない")
         var manipulated = false
         for attempt in 0..<3 where !manipulated {
-            let dy = 0.5 + Double(attempt) * 0.1
-            let start = web.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: dy))
-            let end = web.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: dy))
+            let start = slider.coordinate(withNormalizedOffset: CGVector(dx: 0.2 + Double(attempt) * 0.1, dy: 0.5))
+            let end = slider.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
             start.press(forDuration: 0.2, thenDragTo: end)
             let deadline = Date().addingTimeInterval(4)
             while Date() < deadline, !advance.isEnabled {
@@ -237,31 +239,32 @@ final class ImmersionSceneChatUITests: XCTestCase {
             }
             manipulated = advance.isEnabled
         }
+        if !manipulated { UITestSupport.saveProbe(app, name: "immersion-no-manipulation") }
         XCTAssertTrue(manipulated, "なぞる操作で介入が成立しなかった")
         advance.tap()
-        XCTAssertTrue(app.staticTexts["予想と、結果。"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["予想と、結果。"].appears(timeout: 5))
 
         // consequence → insight: 即答の再試行 (選択肢は誤予想由来)
         app.buttons["もう一度予想する"].tap()
-        XCTAssertTrue(app.staticTexts["氷が全部溶けて 2 倍の量になったら、甘さは?"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["氷が全部溶けて 2 倍の量になったら、甘さは?"].appears(timeout: 5))
         app.buttons["半分"].tap()
 
         // 圧縮が使えたら支援なしの転移へ
         let toTransfer = app.buttons["支援なしで試してみる"]
-        XCTAssertTrue(toTransfer.waitForExistence(timeout: 5))
+        XCTAssertTrue(toTransfer.appears(timeout: 5))
         toTransfer.tap()
         let transferField = app.textFields["答えだけここに"]
-        XCTAssertTrue(transferField.waitForExistence(timeout: 5))
+        XCTAssertTrue(transferField.appears(timeout: 5))
         transferField.tap()
         transferField.typeText("half")
         app.buttons["答えを置く"].tap()
 
         // 転移の答えを置いたら境界の二択、そして終了
         let toBoundary = app.buttons["区切りを確認する"]
-        XCTAssertTrue(toBoundary.waitForExistence(timeout: 5))
+        XCTAssertTrue(toBoundary.appears(timeout: 5))
         toBoundary.tap()
-        XCTAssertTrue(app.buttons["もう少し続ける"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["もう少し続ける"].appears(timeout: 5))
         app.buttons["今日はここまで"].tap()
-        XCTAssertTrue(app.staticTexts["今日はここまで。"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["今日はここまで。"].appears(timeout: 5))
     }
 }

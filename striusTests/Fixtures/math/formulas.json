@@ -1,0 +1,1626 @@
+{
+ "description": "SwiftMath で描けるべき数式(Issue #28)。repo: はアプリ・テスト・配信プロンプトから抜いたもの、curated: は中高・大学の数学で出る書き方の一覧。expect=fallback は SwiftMath に無い書き方で、WebView に落ちることを確かめる。",
+ "swiftmath_revision": "1d2c90827e9c3908269d810d055fb03b7da5fd53",
+ "items": [
+  {
+   "latex": "0 \\le x \\le 4",
+   "display": false,
+   "source": "repo:struis-ios/strius/Features/ProblemCatalog/ProblemCatalogSheetComponents.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "R_1 = 2\\,\\Omega",
+   "display": false,
+   "source": "repo:struis-ios/strius/Features/ProblemCatalog/ProblemCatalogSheetComponents.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "R_2 = 3\\,\\Omega",
+   "display": false,
+   "source": "repo:struis-ios/strius/Features/ProblemCatalog/ProblemCatalogSheetComponents.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "y=x^2-6x+11",
+   "display": false,
+   "source": "repo:struis-ios/strius/Features/ProblemCatalog/ProblemCatalogSheetComponents.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "(x - 2)^2 - 4",
+   "display": false,
+   "source": "repo:struis-ios/strius/Runtime/MockTurnRunner.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "\\cos 2x",
+   "display": false,
+   "source": "repo:struis-ios/strius/Runtime/MockTurnRunner.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{1}{2}-\\frac{1}{2}\\cos 2x",
+   "display": false,
+   "source": "repo:struis-ios/strius/Runtime/MockTurnRunner.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{1}{2}x",
+   "display": false,
+   "source": "repo:struis-ios/strius/Runtime/MockTurnRunner.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "\\int\\left(\\frac{1}{2}-\\sin^2 x\\right)dx=\\frac{1}{2}x-\\left(\\frac{1}{2}-\\frac{1}{2}\\cos 2x\\right)",
+   "display": true,
+   "source": "repo:struis-ios/strius/Runtime/MockTurnRunner.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "\\sin^2 x",
+   "display": false,
+   "source": "repo:struis-ios/strius/Runtime/MockTurnRunner.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "x^2 - 4x",
+   "display": false,
+   "source": "repo:struis-ios/strius/Runtime/MockTurnRunner.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "(3,-4)",
+   "display": false,
+   "source": "repo:struis-ios/strius/State/LedgerFixtures.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "-(2x-1)+4(x+3)",
+   "display": false,
+   "source": "repo:struis-ios/strius/State/LedgerFixtures.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "-2(3x-4)+5x",
+   "display": false,
+   "source": "repo:struis-ios/strius/State/LedgerFixtures.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "-2(3x-4)=(-2)\\times 3x+(-2)\\times(-4)=-6x+8",
+   "display": true,
+   "source": "repo:struis-ios/strius/State/LedgerFixtures.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "3(x+2)-(x-5)",
+   "display": false,
+   "source": "repo:struis-ios/strius/State/LedgerFixtures.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "D<0",
+   "display": false,
+   "source": "repo:struis-ios/strius/State/LedgerFixtures.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "D=0",
+   "display": false,
+   "source": "repo:struis-ios/strius/State/LedgerFixtures.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "D=b^2-4ac",
+   "display": false,
+   "source": "repo:struis-ios/strius/State/LedgerFixtures.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "D>0",
+   "display": false,
+   "source": "repo:struis-ios/strius/State/LedgerFixtures.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "x=\\dfrac{-b\\pm\\sqrt{b^2-4ac}}{2a}",
+   "display": false,
+   "source": "repo:struis-ios/strius/State/LedgerFixtures.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "x^2-6x+5=(x-3)^2-4",
+   "display": false,
+   "source": "repo:struis-ios/strius/State/LedgerFixtures.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "\\begin{pmatrix}-5 & 9 \\\\ 4 & -3\\end{pmatrix}",
+   "display": true,
+   "source": "repo:struis-ios/striusTests/DTODecodingTests.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{1}{2}",
+   "display": false,
+   "source": "repo:struis-ios/striusTests/Engine/TurnActivityTests.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "x+1",
+   "display": false,
+   "source": "repo:struis-ios/striusTests/Engine/TurnActivityTests.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "x^2",
+   "display": true,
+   "source": "repo:struis-ios/striusTests/Engine/TurnActivityTests.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "x^2+1",
+   "display": false,
+   "source": "repo:struis-ios/striusTests/Engine/TurnActivityTests.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "x^2+4x+4",
+   "display": false,
+   "source": "repo:struis-ios/striusTests/Engine/TurnActivityTests.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "x^2+2x+1=(x+1)^2",
+   "display": false,
+   "source": "repo:struis-ios/striusTests/Fixtures/engine-vectors/learner_text.json",
+   "expect": "native"
+  },
+  {
+   "latex": "\\varphi(x,y,z)",
+   "display": false,
+   "source": "repo:struis-ios/striusTests/Fixtures/engine-vectors/turn_progress.json",
+   "expect": "native"
+  },
+  {
+   "latex": "v_x=v_0\\cos\\theta",
+   "display": false,
+   "source": "repo:struis-ios/striusTests/Fixtures/engine-vectors/turn_progress.json",
+   "expect": "native"
+  },
+  {
+   "latex": "y=1",
+   "display": false,
+   "source": "repo:struis-ios/striusTests/Fixtures/engine-vectors/turn_progress.json",
+   "expect": "native"
+  },
+  {
+   "latex": "y = a(x-p)^2 + q",
+   "display": false,
+   "source": "repo:struis-ios/striusTests/Ledger/WaitingExperienceTests.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "x^2",
+   "display": false,
+   "source": "repo:struis-ios/striusTests/LoadingPerformanceTests.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{b}{2a}",
+   "display": false,
+   "source": "repo:struis-ios/striusTests/ScreenConsistencyTests.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "b^2-4ac",
+   "display": false,
+   "source": "repo:struis-ios/striusTests/ScreenConsistencyTests.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "x^2 - 6x + 5",
+   "display": false,
+   "source": "repo:struis-ios/striusTests/ScreenConsistencyTests.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "x^2+4x+1",
+   "display": false,
+   "source": "repo:struis-ios/striusTests/ScreenConsistencyTests.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "x^2-6x+5",
+   "display": false,
+   "source": "repo:struis-ios/striusTests/ScreenConsistencyTests.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "x^{2}",
+   "display": true,
+   "source": "repo:struis-ios/striusTests/ScreenConsistencyTests.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "x - y = 4",
+   "display": true,
+   "source": "repo:struis-ios/striusTests/WorkbookSubunitLayoutTests.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "y = x^2 - 4x + 3",
+   "display": false,
+   "source": "repo:struis-ios/striusTests/WorkbookSubunitLayoutTests.swift",
+   "expect": "native"
+  },
+  {
+   "latex": "3x+2=11",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{2}{3}x-\\frac{1}{2}=\\frac{5}{6}",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "y=2x-3",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "y=-\\frac{1}{2}x+4",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "(x+3)(x-5)=x^2-2x-15",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "x^2-5x+6=(x-2)(x-3)",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "a^2-b^2=(a+b)(a-b)",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\sqrt{12}=2\\sqrt{3}",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\sqrt{2}\\times\\sqrt{8}=4",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{\\sqrt{6}}{\\sqrt{2}}=\\sqrt{3}",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "x^2-6x+5=0",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "(x-3)^2=4",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "y=ax^2",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "y=\\frac{1}{2}x^2",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\angle A=60^\\circ",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\triangle ABC",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "AB:BC=3:4",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\pi r^2",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{4}{3}\\pi r^3",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "2\\pi r",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "a:b=c:d",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{1}{6}",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "P(A)=\\frac{3}{8}",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "-3<x\\le 5",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "x\\ge -2",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "|x-3|<2",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "3^2\\times 3^4=3^6",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "(2^3)^2=2^6",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "2^{-3}=\\frac{1}{8}",
+   "display": false,
+   "source": "curated:中学",
+   "expect": "native"
+  },
+  {
+   "latex": "x^2+4x+1=(x+2)^2-3",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "y=a(x-p)^2+q",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "D=b^2-4ac",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "D>0",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "D=0",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "D<0",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "\\sin^2\\theta+\\cos^2\\theta=1",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "\\tan\\theta=\\frac{\\sin\\theta}{\\cos\\theta}",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "1+\\tan^2\\theta=\\frac{1}{\\cos^2\\theta}",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{a}{\\sin A}=\\frac{b}{\\sin B}=\\frac{c}{\\sin C}=2R",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "a^2=b^2+c^2-2bc\\cos A",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "S=\\frac{1}{2}bc\\sin A",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "\\sin 30^\\circ=\\frac{1}{2}",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "\\cos 45^\\circ=\\frac{\\sqrt{2}}{2}",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "{}_5\\mathrm{C}_2=10",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "{}_n\\mathrm{P}_r=\\frac{n!}{(n-r)!}",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "\\binom{n}{r}=\\frac{n!}{r!(n-r)!}",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "n!=n(n-1)(n-2)\\cdots 2\\cdot 1",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "P(A\\cap B)=P(A)P(B)",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "P(A\\cup B)=P(A)+P(B)-P(A\\cap B)",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "P_A(B)=\\frac{P(A\\cap B)}{P(A)}",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "\\bar{x}=\\frac{1}{n}\\sum_{i=1}^{n}x_i",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "s^2=\\frac{1}{n}\\sum_{i=1}^{n}(x_i-\\bar{x})^2",
+   "display": false,
+   "source": "curated:高校 数I・A",
+   "expect": "native"
+  },
+  {
+   "latex": "(a+b)^3=a^3+3a^2b+3ab^2+b^3",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "(a+b)^n=\\sum_{k=0}^{n}\\binom{n}{k}a^{n-k}b^k",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "i^2=-1",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "z=a+bi",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "|z|=\\sqrt{a^2+b^2}",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\bar{z}=a-bi",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\alpha+\\beta=-\\frac{b}{a},\\quad \\alpha\\beta=\\frac{c}{a}",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "(x-a)^2+(y-b)^2=r^2",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{x^2}{a^2}+\\frac{y^2}{b^2}=1",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "y=mx+n",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "d=\\frac{|ax_0+by_0+c|}{\\sqrt{a^2+b^2}}",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\sin(\\alpha+\\beta)=\\sin\\alpha\\cos\\beta+\\cos\\alpha\\sin\\beta",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\cos(\\alpha+\\beta)=\\cos\\alpha\\cos\\beta-\\sin\\alpha\\sin\\beta",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\cos 2\\theta=1-2\\sin^2\\theta",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\sin\\theta\\cos\\varphi=\\frac{1}{2}\\{\\sin(\\theta+\\varphi)+\\sin(\\theta-\\varphi)\\}",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\sin^2 x=\\frac{1-\\cos 2x}{2}",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "a\\sin\\theta+b\\cos\\theta=\\sqrt{a^2+b^2}\\sin(\\theta+\\alpha)",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "2^x=8",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\log_2 8=3",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\log_a xy=\\log_a x+\\log_a y",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\log_a\\frac{x}{y}=\\log_a x-\\log_a y",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\log_a x^n=n\\log_a x",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\log_{10}2\\fallingdotseq 0.3010",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "f'(x)=\\lim_{h\\to 0}\\frac{f(x+h)-f(x)}{h}",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{d}{dx}x^n=nx^{n-1}",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "y'=3x^2-6x",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\int x^2\\,dx=\\frac{x^3}{3}+C",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\int_0^1 x^2\\,dx=\\left[\\frac{x^3}{3}\\right]_0^1=\\frac{1}{3}",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "S=\\int_a^b\\{f(x)-g(x)\\}\\,dx",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "S=\\frac{|a|}{6}(\\beta-\\alpha)^3",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "a_n=a_1+(n-1)d",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "a_n=a_1 r^{n-1}",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "S_n=\\frac{n(a_1+a_n)}{2}",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "S_n=\\frac{a_1(1-r^n)}{1-r}",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\sum_{k=1}^{n}k=\\frac{1}{2}n(n+1)",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\sum_{k=1}^{n}k^2=\\frac{1}{6}n(n+1)(2n+1)",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\sum_{k=1}^{n}k^3=\\left\\{\\frac{1}{2}n(n+1)\\right\\}^2",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "a_{n+1}=3a_n-2",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "a_{n+1}-1=3(a_n-1)",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\vec{a}=(1,2)",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\vec{a}\\cdot\\vec{b}=|\\vec{a}||\\vec{b}|\\cos\\theta",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\vec{a}\\cdot\\vec{b}=a_1b_1+a_2b_2",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "|\\vec{a}|=\\sqrt{a_1^2+a_2^2}",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\overrightarrow{AB}=\\overrightarrow{OB}-\\overrightarrow{OA}",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\vec{p}=s\\vec{a}+t\\vec{b}",
+   "display": false,
+   "source": "curated:高校 数II・B",
+   "expect": "native"
+  },
+  {
+   "latex": "\\lim_{x\\to\\infty}\\frac{1}{x}=0",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\lim_{x\\to 0}\\frac{\\sin x}{x}=1",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\lim_{n\\to\\infty}\\left(1+\\frac{1}{n}\\right)^n=e",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\sum_{n=1}^{\\infty}ar^{n-1}=\\frac{a}{1-r}\\quad(|r|<1)",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{d}{dx}e^x=e^x",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{d}{dx}\\log x=\\frac{1}{x}",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{d}{dx}\\sin x=\\cos x",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "(fg)'=f'g+fg'",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\left(\\frac{f}{g}\\right)'=\\frac{f'g-fg'}{g^2}",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{dy}{dx}=\\frac{dy}{du}\\cdot\\frac{du}{dx}",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\int f(g(x))g'(x)\\,dx=\\int f(u)\\,du",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\int f'(x)g(x)\\,dx=f(x)g(x)-\\int f(x)g'(x)\\,dx",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\int x\\sin x\\,dx=-x\\cos x+\\sin x+C",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\int_0^{\\pi}x\\sin x\\,dx=\\pi",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\int \\frac{1}{x}\\,dx=\\log|x|+C",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\int e^{2x}\\,dx=\\frac{1}{2}e^{2x}+C",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "V=\\pi\\int_a^b\\{f(x)\\}^2\\,dx",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "L=\\int_a^b\\sqrt{1+\\{f'(x)\\}^2}\\,dx",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{x^2}{a^2}-\\frac{y^2}{b^2}=1",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "y^2=4px",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "z=r(\\cos\\theta+i\\sin\\theta)",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "z^n=r^n(\\cos n\\theta+i\\sin n\\theta)",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\dfrac{1}{1+x^2}",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\displaystyle\\int_0^1\\frac{1}{1+x^2}\\,dx=\\frac{\\pi}{4}",
+   "display": false,
+   "source": "curated:高校 数III",
+   "expect": "native"
+  },
+  {
+   "latex": "\\int_{-\\pi}^{\\pi}\\sin mx\\sin nx\\,dx=\\begin{cases}0 & (m\\ne n)\\\\ \\pi & (m=n)\\end{cases}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\int_{-\\pi}^{\\pi}\\sin mx\\cos nx\\,dx=0",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "f(x)=\\frac{a_0}{2}+\\sum_{n=1}^{\\infty}\\left(a_n\\cos nx+b_n\\sin nx\\right)",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "a_n=\\frac{1}{\\pi}\\int_{-\\pi}^{\\pi}f(x)\\cos nx\\,dx",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "b_n=\\frac{1}{\\pi}\\int_{-\\pi}^{\\pi}f(x)\\sin nx\\,dx",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\|f\\|^2=\\langle f,f\\rangle",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\langle f,g\\rangle=\\int_a^b f(x)g(x)\\,dx",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "A=\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\begin{pmatrix}-5 & 9 \\\\ 4 & -3\\end{pmatrix}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\det A=ad-bc",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "A^{-1}=\\frac{1}{ad-bc}\\begin{pmatrix}d&-b\\\\-c&a\\end{pmatrix}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\begin{bmatrix}1&0\\\\0&1\\end{bmatrix}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\begin{vmatrix}a&b\\\\c&d\\end{vmatrix}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "A\\mathbf{x}=\\lambda\\mathbf{x}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\det(A-\\lambda I)=0",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\lambda^2-5\\lambda+6=0",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "P^{-1}AP=\\begin{pmatrix}\\lambda_1&0\\\\0&\\lambda_2\\end{pmatrix}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\mathbb{R}^n",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "x\\in\\mathbb{R},\\ n\\in\\mathbb{N}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\forall\\varepsilon>0\\ \\exists\\delta>0",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "|x-a|<\\delta\\Rightarrow|f(x)-f(a)|<\\varepsilon",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\sum_{n=1}^{\\infty}\\frac{1}{n^2}=\\frac{\\pi^2}{6}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\lim_{n\\to\\infty}a_n=\\alpha",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "e^{i\\theta}=\\cos\\theta+i\\sin\\theta",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{\\partial f}{\\partial x}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{\\partial^2 f}{\\partial x\\partial y}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\nabla f=\\left(\\frac{\\partial f}{\\partial x},\\frac{\\partial f}{\\partial y}\\right)",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\iint_D f(x,y)\\,dx\\,dy",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\int_0^{\\infty}e^{-x^2}\\,dx=\\frac{\\sqrt{\\pi}}{2}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "f(x)=\\sum_{n=0}^{\\infty}\\frac{f^{(n)}(a)}{n!}(x-a)^n",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\hat{x}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\overline{AB}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\underline{x}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\mathrm{d}x",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\operatorname{rank}A",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\begin{aligned}x+y&=4\\\\x-y&=2\\end{aligned}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\begin{cases}x+y=4\\\\x-y=2\\end{cases}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\left\\{\\begin{array}{l}x+y=4\\\\x-y=2\\end{array}\\right.",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "fallback"
+  },
+  {
+   "latex": "\\varphi(x,y,z)",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "v_x=v_0\\cos\\theta",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "R_1=2\\,\\Omega",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\text{面積}=\\frac{1}{2}\\times 6\\times 4",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "x=3\\ \\text{のとき}\\ y=5",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "f(x)=x^2\\quad\\text{(ただし }x>0\\text{)}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\ldots",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "x_1,x_2,\\ldots,x_n",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "1+2+\\cdots+n",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\frac{1}{2}\\,\\frac{3}{4}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "a\\;b\\!c",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\left(\\frac{1}{2}\\right)^2",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\left[\\frac{x^3}{3}\\right]_0^1",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\left|x\\right|",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\left\\langle u,v\\right\\rangle",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\sqrt[3]{8}=2",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "10^{-3}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "x^{2}y^{3}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "e^{x^2}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "a_{n}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "x_{i,j}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "A\\subset B",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "A\\cup B",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "A\\cap B",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\emptyset",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\neg p",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "p\\land q",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "p\\lor q",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "p\\Rightarrow q",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "p\\Leftrightarrow q",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\equiv",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\approx",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\sim",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\propto",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\infty",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\pm",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\mp",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\times",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\div",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\cdot",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\ne",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\le",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\ge",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\leq",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\geq",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\to",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\rightarrow",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\leftarrow",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\Leftarrow",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\Leftrightarrow",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\alpha\\beta\\gamma\\delta\\epsilon\\theta\\lambda\\mu\\pi\\sigma\\omega\\phi\\Delta\\Sigma\\Omega",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\mathbf{v}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\mathit{x}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\textbf{x}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\dot{x}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\ddot{x}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\tilde{x}",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\prime",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "f'(x)",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "f''(x)",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\circ",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "90^\\circ",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\%",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "50\\%",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\#",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "\\&",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "fallback"
+  },
+  {
+   "latex": "\\$",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  },
+  {
+   "latex": "x^\\circ",
+   "display": false,
+   "source": "curated:大学",
+   "expect": "native"
+  }
+ ]
+}

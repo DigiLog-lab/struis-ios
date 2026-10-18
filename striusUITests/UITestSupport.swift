@@ -25,6 +25,23 @@ enum UITestSupport {
         app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = paperImagePath
         return app
     }
+
+    /// 画面の写真(PNG)と要素の木(txt)を `STRUIS_PROBE_DIR` に残す(CI では `$RUNNER_TEMP/ui-probe` を artifact に入れる)。
+    /// 変数が無ければ添付だけにする。
+    @MainActor
+    static func saveProbe(_ app: XCUIApplication, name: String) {
+        let screenshot = app.screenshot()
+        let tree = app.debugDescription
+        guard let directory = ProcessInfo.processInfo.environment["STRUIS_PROBE_DIR"], !directory.isEmpty else {
+            print("PROBE \(name) tree=\(tree.prefix(6000))")
+            return
+        }
+        let base = URL(fileURLWithPath: directory, isDirectory: true)
+        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        try? screenshot.pngRepresentation.write(to: base.appendingPathComponent("\(name).png"))
+        try? tree.write(to: base.appendingPathComponent("\(name).txt"), atomically: true, encoding: .utf8)
+        print("PROBE \(name) saved to \(directory)")
+    }
 }
 
 extension XCUIApplication {
@@ -33,13 +50,13 @@ extension XCUIApplication {
     @discardableResult
     func openQuestionSheet(timeout: TimeInterval = 30, file: StaticString = #filePath, line: UInt = #line) -> Bool {
         let pill = buttons["workbook-question-pill"].firstMatch
-        guard pill.waitForExistence(timeout: timeout) else {
+        guard pill.appears(timeout: timeout) else {
             XCTFail("ホームの「質問」ボタンが無い", file: file, line: line)
             return false
         }
         pill.tap()
         let field = textViews.matching(identifier: "chat-page").firstMatch
-        guard field.waitForExistence(timeout: 10) else {
+        guard field.appears(timeout: 10) else {
             XCTFail("質問シートが開かない", file: file, line: line)
             return false
         }
@@ -65,5 +82,14 @@ extension XCUIApplication {
             }
             Thread.sleep(forTimeInterval: 0.25)
         } while Date() < deadline
+    }
+}
+
+extension XCUIElement {
+    /// 今あればすぐ true を返し、無ければ `timeout` まで待つ。`waitForExistence` は要素がすでにあっても、
+    /// 最初の確認まで約 1 秒待つ。
+    @MainActor
+    func appears(timeout: TimeInterval) -> Bool {
+        exists || waitForExistence(timeout: timeout)
     }
 }

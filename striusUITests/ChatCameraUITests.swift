@@ -13,10 +13,10 @@ final class ChatCameraUITests: XCTestCase {
         app.launch()
         app.openQuestionSheet()
         let plus = app.buttons["添付"]
-        XCTAssertTrue(plus.waitForExistence(timeout: 30), "実機のチャットに到達できません")
+        XCTAssertTrue(plus.appears(timeout: 30), "実機のチャットに到達できません")
         // ＋のパレットは「撮る」「写真を選ぶ」「ファイル」の順(E2E M8)。
         plus.tap()
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == %@", "撮る", "chat-page")).firstMatch.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == %@", "撮る", "chat-page")).firstMatch.appears(timeout: 3))
         plus.tap()
 
         addUIInterruptionMonitor(withDescription: "カメラの許可") { alert in
@@ -38,7 +38,7 @@ final class ChatCameraUITests: XCTestCase {
         }
         func openCamera() {
             plus.press(forDuration: 0.8)
-            XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+            XCTAssertTrue(cancel.appears(timeout: 5))
             if !shutter.isEnabled { app.tap() }
             XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "enabled == true"), object: shutter)], timeout: 15), .completed)
@@ -47,7 +47,23 @@ final class ChatCameraUITests: XCTestCase {
         func verifyPreview(_ name: String) {
             let panel = app.otherElements["chat-camera-panel"]
             let preview = app.otherElements["chat-camera-preview"]
-            XCTAssertTrue(preview.waitForExistence(timeout: 5))
+            XCTAssertTrue(preview.appears(timeout: 5))
+            // 回転は非同期: 向きを変えた直後は、画面もプレビューもまだ前の向きの大きさで測れる(388 vs 611 で落ちた)。
+            // 画面の向きが揃い、プレビューの大きさが 2 回続けて同じになるまで待ってから測る。
+            let landscape = [.landscapeLeft, .landscapeRight].contains(XCUIDevice.shared.orientation)
+            let deadline = Date().addingTimeInterval(8)
+            var last = CGRect.null
+            while Date() < deadline {
+                let frame = preview.frame
+                let oriented = (app.frame.width > app.frame.height) == landscape
+                if oriented, frame == last, frame.width > 0 { break }
+                last = frame
+                Thread.sleep(forTimeInterval: 0.25)
+            }
+            if (app.frame.width > app.frame.height) != landscape || preview.frame.width <= app.frame.width * 0.7 {
+                UITestSupport.saveProbe(app, name: "camera-rotation-\(name)")
+            }
+            XCTAssertEqual(app.frame.width > app.frame.height, landscape, "画面の向きが変わっていない: \(app.frame)")
             XCTAssertGreaterThan(preview.frame.width, app.frame.width * 0.7)
             XCTAssertEqual(preview.frame.minX, panel.frame.minX + 4, accuracy: 1)
             XCTAssertEqual(preview.frame.maxX, panel.frame.maxX - 4, accuracy: 1)
@@ -79,14 +95,14 @@ final class ChatCameraUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         let field = app.textViews.matching(identifier: "chat-page").firstMatch
         field.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.appears(timeout: 5))
         app.dismissKeyboardIntroductionIfShown()
         openCamera()
         XCUIDevice.shared.orientation = .landscapeRight
         verifyPreview("rotation-07-keyboard-landscape")
         cancel.tap()
         XCTAssertTrue(shutter.waitForNonExistence(timeout: 5))
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.appears(timeout: 5))
         // 新しい Simulator では、戻ったキーボードにシステムの初回案内が重なり「添付」を覆う(アプリの表示ではない)。
         app.dismissKeyboardIntroductionIfShown()
         XCUIDevice.shared.orientation = .portrait
@@ -100,7 +116,7 @@ final class ChatCameraUITests: XCTestCase {
         app.launch()
         app.openQuestionSheet()
         let plus = app.buttons["添付"]
-        if !plus.waitForExistence(timeout: 30) {
+        if !plus.appears(timeout: 30) {
             screenshot(app, "00-chat-unavailable")
             XCTFail("実機のチャットに到達できません。サインイン状態を確認してください。")
             return
@@ -112,22 +128,28 @@ final class ChatCameraUITests: XCTestCase {
         }
         XCTAssertNotNil(savedThread, "チャット表示の維持を確認するため、既存の会話が必要です")
         savedThread?.tap()
-        XCTAssertTrue(plus.waitForExistence(timeout: 10))
+        XCTAssertTrue(plus.appears(timeout: 10))
         let field = app.textViews.matching(identifier: "chat-page").firstMatch
         XCTAssertTrue(field.exists)
         XCTAssertGreaterThan(field.frame.width, 0)
         let initialField = field.frame
         let initialPlus = plus.frame
         let chat = app.scrollViews["chat-page"]
-        chat.swipeDown()
+        // 会話の本文は台帳から非同期に入る。「添付」は入力欄の一部なので先に出る。最後の発言が出るまで待つ。
+        // 4 往復の短い会話は 1 画面に収まり、位置は下寄せで止まっている。`swipeDown` はしない:
+        // `.large` のシートの中で、上端にあるスクロールを引き下げるとシートごと動いて本文が隠れる。
+        let lastLine = chat.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "写真で送ります")).firstMatch
+        if !lastLine.waitForExistence(timeout: 10) { UITestSupport.saveProbe(app, name: "camera-preservation-no-thread") }
+        XCTAssertTrue(lastLine.exists, "保存済みの会話の本文が出ない")
         let visibleText = chat.staticTexts.allElementsBoundByIndex.filter { $0.isHittable }
         let positions = visibleText.map { ($0, $0.frame) }
+        if positions.isEmpty { UITestSupport.saveProbe(app, name: "camera-preservation-no-text") }
         XCTAssertFalse(positions.isEmpty)
         screenshot(app, "01-chat-before")
 
         plus.tap()
         let camera = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == %@", "撮る", "chat-page")).firstMatch
-        XCTAssertTrue(camera.waitForExistence(timeout: 3))
+        XCTAssertTrue(camera.appears(timeout: 3))
         XCTAssertTrue(app.buttons["写真を選ぶ"].exists)
         XCTAssertTrue(app.buttons["ファイル"].exists)
         XCTAssertLessThan(camera.frame.minX, app.buttons["写真を選ぶ"].frame.minX, "「撮る」が先頭にない")
@@ -144,11 +166,11 @@ final class ChatCameraUITests: XCTestCase {
         }
         plus.press(forDuration: 0.8)
         let cancel = app.buttons["キャンセル"]
-        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        XCTAssertTrue(cancel.appears(timeout: 5))
         // Trigger the interruption monitor if first-time camera permission is up.
         if !app.buttons["chat-camera-shutter"].isEnabled { app.tap() }
         let shutter = app.buttons["chat-camera-shutter"]
-        XCTAssertTrue(shutter.waitForExistence(timeout: 10))
+        XCTAssertTrue(shutter.appears(timeout: 10))
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "enabled == true"), object: shutter)], timeout: 15), .completed)
         XCTAssertFalse(app.buttons["写真を選ぶ"].exists, "長押し後の指離しで添付メニューを開いてはいけません")
@@ -158,18 +180,18 @@ final class ChatCameraUITests: XCTestCase {
         for (element, frame) in positions { XCTAssertEqual(element.frame, frame) }
         screenshot(app, "03-live-camera-after-release")
         cancel.tap()
-        XCTAssertTrue(plus.waitForExistence(timeout: 5))
+        XCTAssertTrue(plus.appears(timeout: 5))
         XCTAssertEqual(field.frame, initialField)
         XCTAssertEqual(plus.frame, initialPlus)
         for (element, frame) in positions { XCTAssertEqual(element.frame, frame) }
         screenshot(app, "04-chat-after-cancel")
 
         field.tap()
-        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.appears(timeout: 5))
         let keyboardField = field.frame
         let keyboardPlus = plus.frame
         plus.press(forDuration: 0.8)
-        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        XCTAssertTrue(cancel.appears(timeout: 5))
         XCTAssertEqual(field.frame, keyboardField)
         XCTAssertEqual(plus.frame, keyboardPlus)
         screenshot(app, "05-camera-with-keyboard")
@@ -188,7 +210,7 @@ final class ChatCameraUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "exists == false"), object: shutter)], timeout: 15), .completed)
         let attachment = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'photo-' AND label ENDSWITH 'を解除'")).firstMatch
-        XCTAssertTrue(attachment.waitForExistence(timeout: 5), "撮影写真が送信前の添付一覧にあること")
+        XCTAssertTrue(attachment.appears(timeout: 5), "撮影写真が送信前の添付一覧にあること")
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == %@", "送信", "chat-page")).firstMatch.isEnabled)
         XCTAssertEqual(field.frame.width, initialField.width)
         screenshot(app, "08-photo-attached-unsent")

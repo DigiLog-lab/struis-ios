@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-struct KeychainStore: Sendable {
+nonisolated struct KeychainStore: Sendable {
     let service: String
 
     func set(_ value: String, for account: String) {

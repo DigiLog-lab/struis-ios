@@ -12,6 +12,8 @@ nonisolated struct DeliveryManifest: Codable, Hashable, Sendable {
     nonisolated struct Model: Codable, Hashable, Sendable {
         var model: String
         var effort: String
+        /// 実行先。nil は OpenAI(従来の配信と互換)。
+        var provider: ModelProvider? = nil
     }
 
     nonisolated struct Asset: Codable, Hashable, Sendable {
@@ -91,11 +93,24 @@ actor AssetCache {
         return hasAllRequiredAssets(manifest)
     }
 
-    func model(_ role: String) -> DeliveryManifest.Model {
-        if let model = manifest?.models[role] { return model }
-        return role == "luna"
-            ? DeliveryManifest.Model(model: CodexModels.lunaModel, effort: CodexModels.lunaEffort)
-            : DeliveryManifest.Model(model: CodexModels.astraModel, effort: CodexModels.astraEffort)
+    /// 役割(`astra` / `luna`)のモデル。`provider` を省くと設定画面で選んだ実行先を使う。
+    func model(_ role: String, provider: ModelProvider = ModelProviderPreference.current) -> DeliveryManifest.Model {
+        switch provider {
+        case .openai:
+            if var model = manifest?.models[role] {
+                model.provider = nil
+                return model
+            }
+            return role == "luna"
+                ? DeliveryManifest.Model(model: CodexModels.lunaModel, effort: CodexModels.lunaEffort)
+                : DeliveryManifest.Model(model: CodexModels.astraModel, effort: CodexModels.astraEffort)
+        case .anthropic:
+            var model = manifest?.models[provider.manifestKey(role: role)] ?? (role == "luna"
+                ? DeliveryManifest.Model(model: ClaudeModels.lunaModel, effort: ClaudeModels.lunaEffort)
+                : DeliveryManifest.Model(model: ClaudeModels.astraModel, effort: ClaudeModels.astraEffort))
+            model.provider = .anthropic
+            return model
+        }
     }
 
     /// Reference for a plan: the current sha256 of a named asset.
