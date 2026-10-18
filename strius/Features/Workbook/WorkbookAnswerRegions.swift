@@ -116,7 +116,10 @@ nonisolated enum WorkbookAnswerRegions {
         let race = FirstResult<[WorkbookAnswerRegion]?>()
         return await withCheckedContinuation { continuation in
             race.attach(continuation)
-            Task.detached(priority: .userInitiated) { race.resolve(await recognize(image: image)) }
+            // 裏方の処理(領域が無くても写真全体で代える)。`.userInitiated` で動かすと、CPU の少ない環境
+            // (CI の Simulator)で Vision のスレッドが画面の更新や XCUITest の問い合わせを押しのけ、
+            // リザルト画面が 2 分以上応答しなくなった。画面より低い優先度で走らせる。
+            Task.detached(priority: .utility) { race.resolve(await recognize(image: image)) }
             Task.detached {
                 try? await Task.sleep(for: timeout)
                 race.resolve(nil)
@@ -127,7 +130,7 @@ nonisolated enum WorkbookAnswerRegions {
     private static func recognize(image: UIImage) async -> [WorkbookAnswerRegion] {
         guard let cgImage = downscaled(image, maxSide: 1400) else { return [] }
         return await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
+            DispatchQueue.global(qos: .utility).async {
                 let request = VNRecognizeTextRequest()
                 // 高速の認識は手書きの行を拾えないことがある(2026-09-27 確認)。縮小した画像の精密な認識で行と番号を読む。
                 request.recognitionLevel = .accurate

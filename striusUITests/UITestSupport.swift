@@ -25,6 +25,23 @@ enum UITestSupport {
         app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = paperImagePath
         return app
     }
+
+    /// 画面の写真(PNG)と要素の木(txt)を `STRUIS_PROBE_DIR` に残す(CI では `$RUNNER_TEMP/ui-probe` を artifact に入れる)。
+    /// 変数が無ければ添付だけにする。
+    @MainActor
+    static func saveProbe(_ app: XCUIApplication, name: String) {
+        let screenshot = app.screenshot()
+        let tree = app.debugDescription
+        guard let directory = ProcessInfo.processInfo.environment["STRUIS_PROBE_DIR"], !directory.isEmpty else {
+            print("PROBE \(name) tree=\(tree.prefix(6000))")
+            return
+        }
+        let base = URL(fileURLWithPath: directory, isDirectory: true)
+        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        try? screenshot.pngRepresentation.write(to: base.appendingPathComponent("\(name).png"))
+        try? tree.write(to: base.appendingPathComponent("\(name).txt"), atomically: true, encoding: .utf8)
+        print("PROBE \(name) saved to \(directory)")
+    }
 }
 
 extension XCUIApplication {

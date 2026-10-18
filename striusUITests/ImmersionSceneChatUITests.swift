@@ -223,13 +223,15 @@ final class ImmersionSceneChatUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 1.5)
         XCTAssertFalse(advance.isEnabled)
 
-        // なぞる動き (ドラッグ) で介入が成立する (ジェスチャ調停のフレークに
-        // 備え、成立するまで数回なぞる)
+        // なぞる動き (ドラッグ) で介入が成立する。explore の時間スライダー(シーンが explore に入って描く
+        // `<input type="range">`)が出てから、その上をなぞる。画面の中ほどを漠然となぞると、場所によっては
+        // 何も受けない要素の上で、3 回とも介入にならなかった(ジェスチャ調停のフレークに備え、成立するまで数回なぞる)。
+        let slider = web.sliders.firstMatch
+        XCTAssertTrue(slider.appears(timeout: 10), "explore のスライダーが出ない")
         var manipulated = false
         for attempt in 0..<3 where !manipulated {
-            let dy = 0.5 + Double(attempt) * 0.1
-            let start = web.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: dy))
-            let end = web.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: dy))
+            let start = slider.coordinate(withNormalizedOffset: CGVector(dx: 0.2 + Double(attempt) * 0.1, dy: 0.5))
+            let end = slider.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5))
             start.press(forDuration: 0.2, thenDragTo: end)
             let deadline = Date().addingTimeInterval(4)
             while Date() < deadline, !advance.isEnabled {
@@ -237,6 +239,7 @@ final class ImmersionSceneChatUITests: XCTestCase {
             }
             manipulated = advance.isEnabled
         }
+        if !manipulated { UITestSupport.saveProbe(app, name: "immersion-no-manipulation") }
         XCTAssertTrue(manipulated, "なぞる操作で介入が成立しなかった")
         advance.tap()
         XCTAssertTrue(app.staticTexts["予想と、結果。"].appears(timeout: 5))

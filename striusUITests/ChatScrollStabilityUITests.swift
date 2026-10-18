@@ -270,7 +270,7 @@ final class ChatScrollStabilityUITests: XCTestCase {
             if webs.isEmpty, tried.isEmpty, texts == 0 {
                 // 数式の要素が 1 つも無い(CI 2026-10-17 の 7 回目まで mathText=0): 画面の写真と要素の木を 1 回だけ残す。
                 // 写真は xcresult ではなく `STRUIS_PROBE_DIR`(CI が artifact に入れる場所)に書く。
-                Self.saveProbe(app, name: "overflow-no-math")
+                UITestSupport.saveProbe(app, name: "overflow-no-math")
                 tried.insert("tree")
             }
             if webs.isEmpty {
@@ -336,23 +336,6 @@ final class ChatScrollStabilityUITests: XCTestCase {
         }
         print("PROBE overflow scrolled=\(scrolled) tried=\(tried.count)")
         XCTAssertTrue(scrolled, "はみ出す表示用の数式を横に動かせない(または見つからない)")
-    }
-
-    /// 画面の写真(PNG)と要素の木(txt)を `STRUIS_PROBE_DIR` に残す(CI では `$RUNNER_TEMP/ui-probe` を artifact に入れる)。
-    /// 変数が無ければ添付だけにする。
-    @MainActor
-    static func saveProbe(_ app: XCUIApplication, name: String) {
-        let screenshot = app.screenshot()
-        let tree = app.debugDescription
-        guard let directory = ProcessInfo.processInfo.environment["STRUIS_PROBE_DIR"], !directory.isEmpty else {
-            print("PROBE \(name) tree=\(tree.prefix(6000))")
-            return
-        }
-        let base = URL(fileURLWithPath: directory, isDirectory: true)
-        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-        try? screenshot.pngRepresentation.write(to: base.appendingPathComponent("\(name).png"))
-        try? tree.write(to: base.appendingPathComponent("\(name).txt"), atomically: true, encoding: .utf8)
-        print("PROBE \(name) saved to \(directory)")
     }
 
     /// 会話のうち、ほかの部品に覆われずに見えている縦の範囲(小単元のヘッダーの下端から、入力欄と「先に進む」の上まで)。

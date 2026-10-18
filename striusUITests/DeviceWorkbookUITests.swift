@@ -79,7 +79,8 @@ final class DeviceWorkbookUITests: XCTestCase {
 
         // 一枚から撮ると、そのままリザルト画面が開き、判定中はそこで待つ。
         let verdict = app.descendants(matching: .any)["workbook-verdict"].firstMatch
-        XCTAssertTrue(verdict.appears(timeout: 20), "リザルト画面が開かない")
+        if !verdict.appears(timeout: 20) { UITestSupport.saveProbe(app, name: "device-workbook-no-verdict") }
+        XCTAssertTrue(verdict.exists, "リザルト画面が開かない")
         // 判定が終わると 正解数 (graded) か「整理する」(triage) が出る。失敗表示は不可。
         let score = app.descendants(matching: .any)["workbook-verdict-score"].firstMatch
         let triage = app.buttons["整理する"].firstMatch

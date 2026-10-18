@@ -226,7 +226,10 @@ final class WorkbookE2EFixesUITests: XCTestCase {
             }
         }
         let start = element(app, "workbook-proposal-start")
-        XCTAssertTrue(start.appears(timeout: 25), "全体像カードが出ない: \(screenSummary(app))")
+        // 3 つ目の答えから全体像カードまでは、モックの応答でも CI で 11〜19 秒かかる(12 run の実測。
+        // 全体像を組むターンと、その後の台帳の書き込みの分)。遅い runner では 25 秒を超えて落ちたので、余裕を持つ。
+        if !start.appears(timeout: 60) { UITestSupport.saveProbe(app, name: "onboarding-no-proposal") }
+        XCTAssertTrue(start.exists, "全体像カードが出ない: \(screenSummary(app))")
         attach(app, "unit-proposal")
         start.tap()
 

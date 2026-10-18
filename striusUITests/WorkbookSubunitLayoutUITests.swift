@@ -259,20 +259,31 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         let advance = element(app, "workbook-advance")
         XCTAssertTrue(waitEnabled(advance, timeout: 30), "要点の「先に進む」が押せない")
         let input = app.textViews.matching(identifier: "chat-page").firstMatch
-        // 少しだけ戻して、吹き出しが段にかかる位置にする。
-        let page = element(app, "chat-page")
-        page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
-            .press(forDuration: 0.05, thenDragTo: page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.53)))
-        sleep(1)
         // 段(ボタンの上端から入力欄の上端まで)にかかる吹き出しの文字がある(面で隠していないことの目視は添付で)。
         let band = CGRect(x: 0, y: advance.frame.minY, width: app.windows.firstMatch.frame.width, height: input.frame.minY - advance.frame.minY)
         // 吹き出しの描き直しで要素の数が変わっても崩れないよう、画面の状態を一度に読む。
         func texts(_ node: XCUIElementSnapshot) -> [CGRect] {
             (node.elementType == .staticText ? [node.frame] : []) + node.children.flatMap(texts)
         }
-        let frames = (try? app.snapshot()).map(texts) ?? []
-        let crossing = frames.contains { $0.intersects(band) && $0.minY < band.minY }
-        XCTAssertTrue(crossing, "段にかかる吹き出しの位置にできていない")
+        func crossing() -> Bool {
+            let frames = (try? app.snapshot()).map(texts) ?? []
+            return frames.contains { $0.intersects(band) && $0.minY < band.minY }
+        }
+        // 少しずつ戻して、吹き出しの文字が段の上端をまたぐ位置にする。1 回のドラッグ(画面の 8%)では、
+        // 段の上端が吹き出しの間(余白)に落ちて、またぐ文字が無いことがある(3 回落ちた)。
+        // 文字 1 行(約 20pt)より小さい刻みで送れば、どこかで必ずまたぐ。
+        let page = element(app, "chat-page")
+        var placed = false
+        for step in 0..<12 where !placed {
+            let from = step == 0 ? 0.45 : 0.50
+            let to = step == 0 ? 0.53 : 0.52  // 2 回目からは画面の 2%(約 17pt)ずつ
+            page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: from))
+                .press(forDuration: 0.05, thenDragTo: page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: to)))
+            sleep(1)
+            placed = crossing()
+        }
+        if !placed { UITestSupport.saveProbe(app, name: "advance-band-not-crossing") }
+        XCTAssertTrue(placed, "段にかかる吹き出しの位置にできていない: \(screenSummary(app))")
         attach(app, "advance-band")
     }
 

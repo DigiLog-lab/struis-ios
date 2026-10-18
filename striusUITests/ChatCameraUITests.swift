@@ -48,6 +48,22 @@ final class ChatCameraUITests: XCTestCase {
             let panel = app.otherElements["chat-camera-panel"]
             let preview = app.otherElements["chat-camera-preview"]
             XCTAssertTrue(preview.appears(timeout: 5))
+            // 回転は非同期: 向きを変えた直後は、画面もプレビューもまだ前の向きの大きさで測れる(388 vs 611 で落ちた)。
+            // 画面の向きが揃い、プレビューの大きさが 2 回続けて同じになるまで待ってから測る。
+            let landscape = [.landscapeLeft, .landscapeRight].contains(XCUIDevice.shared.orientation)
+            let deadline = Date().addingTimeInterval(8)
+            var last = CGRect.null
+            while Date() < deadline {
+                let frame = preview.frame
+                let oriented = (app.frame.width > app.frame.height) == landscape
+                if oriented, frame == last, frame.width > 0 { break }
+                last = frame
+                Thread.sleep(forTimeInterval: 0.25)
+            }
+            if (app.frame.width > app.frame.height) != landscape || preview.frame.width <= app.frame.width * 0.7 {
+                UITestSupport.saveProbe(app, name: "camera-rotation-\(name)")
+            }
+            XCTAssertEqual(app.frame.width > app.frame.height, landscape, "画面の向きが変わっていない: \(app.frame)")
             XCTAssertGreaterThan(preview.frame.width, app.frame.width * 0.7)
             XCTAssertEqual(preview.frame.minX, panel.frame.minX + 4, accuracy: 1)
             XCTAssertEqual(preview.frame.maxX, panel.frame.maxX - 4, accuracy: 1)
@@ -119,9 +135,15 @@ final class ChatCameraUITests: XCTestCase {
         let initialField = field.frame
         let initialPlus = plus.frame
         let chat = app.scrollViews["chat-page"]
-        chat.swipeDown()
+        // 会話の本文は台帳から非同期に入る。「添付」は入力欄の一部なので先に出る。最後の発言が出るまで待つ。
+        // 4 往復の短い会話は 1 画面に収まり、位置は下寄せで止まっている。`swipeDown` はしない:
+        // `.large` のシートの中で、上端にあるスクロールを引き下げるとシートごと動いて本文が隠れる。
+        let lastLine = chat.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "写真で送ります")).firstMatch
+        if !lastLine.waitForExistence(timeout: 10) { UITestSupport.saveProbe(app, name: "camera-preservation-no-thread") }
+        XCTAssertTrue(lastLine.exists, "保存済みの会話の本文が出ない")
         let visibleText = chat.staticTexts.allElementsBoundByIndex.filter { $0.isHittable }
         let positions = visibleText.map { ($0, $0.frame) }
+        if positions.isEmpty { UITestSupport.saveProbe(app, name: "camera-preservation-no-text") }
         XCTAssertFalse(positions.isEmpty)
         screenshot(app, "01-chat-before")
 
