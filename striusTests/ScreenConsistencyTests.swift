@@ -304,7 +304,9 @@ final class ScreenConsistencyTests: XCTestCase {
         let outcome = try machine.applyGradingResult(captureID: "cap-1", graded: .init(readable: true, items: [item], candidates: [], newSubunit: nil, note: ""), context: context)
         XCTAssertEqual(outcome.status, "graded")
         XCTAssertEqual(machine.sets[setID]?.status, "failed", "組み立てに失敗した一枚を 1 問だけで採点済みにした")
-        XCTAssertEqual(machine.captures["cap-1"]?.summary["outcome"]?.stringValue, "bound")
+        // 一枚ではなく小単元に綴じる(段 4 の答えは、問題の画面から撮った答案と同じく 1 問ずつの答えとして数える)。
+        XCTAssertNil(machine.captures["cap-1"]?.setId, "失敗した一枚の答案として綴じた")
+        XCTAssertNil(machine.attemptsOf(problemID: first).first?.setId, "解いた記録が失敗した一枚に結び付いた")
         XCTAssertEqual(machine.attemptsOf(problemID: first).count, 1, "解いた記録が残っていない")
         XCTAssertEqual(machine.sets[setID]?.problemIds, [first])
         XCTAssertEqual(machine.problemsOf(subunitID: subunitID).map(\.id), [first])
