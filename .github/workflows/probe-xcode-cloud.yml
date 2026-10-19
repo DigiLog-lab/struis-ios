@@ -32,15 +32,17 @@ jobs:
               return datetime.datetime.fromisoformat(s.replace('Z', '+00:00')) if s else None
           def mins(a, b):
               return f"{(t(b) - t(a)).total_seconds() / 60:.1f}m" if a and b else '-'
-          products = api.paginate('/v1/ciProducts?include=primaryRepositories&limit=50')
-          print(f'products: {len(products)}')
+          page = api.request('GET', '/v1/ciProducts?include=primaryRepositories&limit=50')
+          repos = {r['id']: r['attributes'] for r in page.get('included', []) if r['type'] == 'scmRepositories'}
+          products = [p for p in page['data'] if p['attributes'].get('name') == 'strius']
           for p in products:
               a = p['attributes']
-              print(f"\n== product {a.get('name')} type={a.get('productType')} created={a.get('createdDate')}")
+              linked = [repos.get(x['id'], {}) for x in p['relationships']['primaryRepositories'].get('data') or []]
+              print(f"== product {a.get('name')} repos={[ (r.get('ownerName'), r.get('repositoryName')) for r in linked ]}")
               for w in api.paginate(f"/v1/ciProducts/{p['id']}/workflows?limit=50"):
                   wa = w['attributes']
                   print(f"   workflow '{wa.get('name')}' enabled={wa.get('isEnabled')} locked={wa.get('isLockedForEditing')}")
-              runs = api.request('GET', f"/v1/ciProducts/{p['id']}/buildRuns?limit=40")['data']
+              runs = api.request('GET', f"/v1/ciProducts/{p['id']}/buildRuns?limit=30&sort=-number")['data']
               total = 0.0
               for r in runs:
                   ra = r['attributes']
