@@ -277,6 +277,33 @@ final class ScreenConsistencyTests: XCTestCase {
         XCTAssertFalse(machine.events.contains { $0.kind == "problem.removed" && $0.isDeletion })
     }
 
+    func testFailedSetKeepsItsProblemsWhileAFailedPhotoCanStillBeRegraded() throws {
+        // 写真の判定が先に失敗し(「判定し直す」で戻れる)、その後に残りの組み立てが失敗した。判定し直しが問題を見つけられるように消さない。
+        var machine = machine()
+        let unitID = machine.createUnit(title: "u", outcome: "", source: "consult", subunits: [.init(title: "s", n: 2)], firstStage: 3)
+        let subunitID = machine.orderedSubunits(unitID: unitID)[0].id
+        var spec = try machine.nextSetSpec(subunitID: subunitID)
+        spec.count = 2
+        let setID = machine.insertGeneratingSet(subunitID: subunitID, spec: spec)
+        func outcome(_ draft: String) -> TurnOutcome {
+            TurnOutcome(planID: "p", round: 1, status: .completed, codexThreadID: nil, codexTurnID: nil, finalText: draft, executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: 1)
+        }
+        _ = TurnApplier.set(machine: &machine, setID: setID, outcome: outcome(#"{"problems":[{"prompt":"$x^2=9$ を解け","answer_key":"±3"}]}"#))
+        let photographed = try XCTUnwrap(machine.sets[setID]?.problemIds.first)
+        _ = try machine.createCapture(id: "cap-1", imagePath: "x.jpg", contentType: "image/jpeg", sha256: "0", byteCount: 1, subunitID: subunitID, setID: setID)
+        machine.failCapture(id: "cap-1", error: "判定に失敗")
+        XCTAssertEqual(machine.captures["cap-1"]?.status, "failed")
+        XCTAssertTrue(WorkbookMachine.captureStillNeedsProblems("failed"))
+        XCTAssertFalse(WorkbookMachine.captureStillNeedsProblems("graded"))
+        let broken = #"{"problems":[{"prompt":"","answer_key":"1"}]}"#
+        _ = TurnApplier.set(machine: &machine, setID: setID, outcome: outcome(broken))
+        _ = TurnApplier.set(machine: &machine, setID: setID, outcome: outcome(broken))
+        XCTAssertEqual(machine.sets[setID]?.status, "failed")
+        XCTAssertEqual(machine.sets[setID]?.problemIds, [photographed], "判定し直せる写真が指す一枚の問題は消さない")
+        XCTAssertTrue(machine.reopenFailedCapture(id: "cap-1"))
+        XCTAssertNotNil(machine.problems[photographed])
+    }
+
     func testDefectiveProblemThatAlsoReusesAnExpressionFailsAfterOneRetry() throws {
         // 欠けた問題(答えが空)が会話の式も重ねている: 式の組み直し(D14)で欠けの上限をすり抜けず、2 回目で一枚を失敗にする。
         var machine = machine()

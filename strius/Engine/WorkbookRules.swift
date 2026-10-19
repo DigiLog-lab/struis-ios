@@ -1133,13 +1133,19 @@ nonisolated struct WorkbookMachine {
         // 見え、「作り直す」の一枚がその上に重なる。組んでいる途中に写真で解かれた問題だけは消せないので、
         // 失敗した一枚に結び付けたまま残す(出所の無い問題にしない)。判定の途中の写真(`identifying`)がこの一枚を
         // 指している間も消さない: どの問題を撮ったかはまだ分からず、消すと判定が問題を見つけられず答案が失われる。
-        let inFlight = captures.values.contains { $0.status == "identifying" && $0.setId == setID }
+        // 判定に失敗した写真(`failed`)も「判定し直す」で `identifying` に戻るので同じ扱い。
+        let inFlight = captures.values.contains { Self.captureStillNeedsProblems($0.status) && $0.setId == setID }
         let removed = inFlight ? [] : removeProblems(ids: row.problemIds)
         row.problemIds = row.problemIds.filter { !removed.contains($0) }
         row.status = "failed"
         row.error = String(error.prefix(2000))
         row.updatedAt = now()
         put("set.failed", row)
+    }
+
+    /// この状態の写真は、まだ一枚の問題を必要とする(判定の途中か、「判定し直す」で判定の途中に戻れる)。
+    nonisolated static func captureStillNeedsProblems(_ status: String) -> Bool {
+        status == "identifying" || status == "failed"
     }
 
     /// 問題を台帳から消す(組んでいる途中で失敗した一枚の分だけ。解いた記録のある問題は消さない)。消した id を返す。
