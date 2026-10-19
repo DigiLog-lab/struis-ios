@@ -253,6 +253,51 @@ final class ScreenConsistencyTests: XCTestCase {
         XCTAssertFalse(machine.events.contains { $0.kind == "problem.removed" && $0.isDeletion })
     }
 
+    func testFailedSetKeepsItsProblemsWhileAPhotoIsStillBeingGraded() throws {
+        // 1 問目が通った直後に写真を送り(判定はまだ)、残りの組み立てが失敗した。判定が問題を見つけられるように消さない。
+        var machine = machine()
+        let unitID = machine.createUnit(title: "u", outcome: "", source: "consult", subunits: [.init(title: "s", n: 2)], firstStage: 3)
+        let subunitID = machine.orderedSubunits(unitID: unitID)[0].id
+        var spec = try machine.nextSetSpec(subunitID: subunitID)
+        spec.count = 2
+        let setID = machine.insertGeneratingSet(subunitID: subunitID, spec: spec)
+        func outcome(_ draft: String) -> TurnOutcome {
+            TurnOutcome(planID: "p", round: 1, status: .completed, codexThreadID: nil, codexTurnID: nil, finalText: draft, executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: 1)
+        }
+        _ = TurnApplier.set(machine: &machine, setID: setID, outcome: outcome(#"{"problems":[{"prompt":"$x^2=9$ を解け","answer_key":"±3"}]}"#))
+        let photographed = try XCTUnwrap(machine.sets[setID]?.problemIds.first)
+        _ = try machine.createCapture(id: "cap-1", imagePath: "x.jpg", contentType: "image/jpeg", sha256: "0", byteCount: 1, subunitID: subunitID, setID: setID)
+        XCTAssertEqual(machine.captures["cap-1"]?.status, "identifying")
+        let broken = #"{"problems":[{"prompt":"","answer_key":"1"}]}"#
+        _ = TurnApplier.set(machine: &machine, setID: setID, outcome: outcome(broken))
+        _ = TurnApplier.set(machine: &machine, setID: setID, outcome: outcome(broken))
+        XCTAssertEqual(machine.sets[setID]?.status, "failed")
+        XCTAssertEqual(machine.sets[setID]?.problemIds, [photographed], "判定の途中の写真が指す一枚の問題は消さない")
+        XCTAssertNotNil(machine.problems[photographed])
+        XCTAssertFalse(machine.events.contains { $0.kind == "problem.removed" && $0.isDeletion })
+    }
+
+    func testDefectiveProblemThatAlsoReusesAnExpressionFailsAfterOneRetry() throws {
+        // 欠けた問題(答えが空)が会話の式も重ねている: 式の組み直し(D14)で欠けの上限をすり抜けず、2 回目で一枚を失敗にする。
+        var machine = machine()
+        let unitID = machine.createUnit(title: "u", outcome: "", source: "consult", subunits: [.init(title: "s", n: 1)], firstStage: 3)
+        let subunitID = machine.orderedSubunits(unitID: unitID)[0].id
+        let setID = machine.insertGeneratingSet(subunitID: subunitID, spec: try machine.nextSetSpec(subunitID: subunitID))
+        func outcome(_ draft: String) -> TurnOutcome {
+            TurnOutcome(planID: "p", round: 1, status: .completed, codexThreadID: nil, codexTurnID: nil, finalText: draft, executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: 1)
+        }
+        let avoid = ConversationExpressions.expressions(in: "x^2-6x+5 を平方完成して")
+        let defectiveAndReused = #"{"problems":[{"prompt":"$x^2 - 6x + 5$ を平方完成しなさい。","answer_key":""}]}"#
+        XCTAssertFalse(ConversationExpressions.overlaps(prompts: ["$x^2 - 6x + 5$ を平方完成しなさい。"], avoid: avoid).isEmpty, "前提: 式が重なっている")
+        let first = TurnApplier.set(machine: &machine, setID: setID, outcome: outcome(defectiveAndReused), avoidExpressions: avoid)
+        XCTAssertEqual(first.setIDToGenerate, setID, "1 回目は組み直す")
+        XCTAssertEqual(machine.sets[setID]?.gate["defect_retries"]?.intValue, 1)
+        XCTAssertNil(machine.sets[setID]?.gate["expression_retries"], "欠けの組み直しが先で、式の組み直しは使わない")
+        let second = TurnApplier.set(machine: &machine, setID: setID, outcome: outcome(defectiveAndReused), avoidExpressions: avoid)
+        XCTAssertNil(second.setIDToGenerate, "3 回目を組ませない")
+        XCTAssertEqual(machine.sets[setID]?.status, "failed")
+    }
+
     // MARK: D13 プラン名
 
     func testInternalPlanNamesAreNotShown() {
