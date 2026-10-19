@@ -1514,8 +1514,9 @@ nonisolated struct WorkbookMachine {
         let matched = graded.items.filter { $0.matchedProblemId != nil && known[$0.matchedProblemId!] != nil }
         let unmatched = graded.items.filter { !($0.matchedProblemId != nil && known[$0.matchedProblemId!] != nil) }
 
-        // 1) 一枚から撮った: 写っている問題だけを、その一枚のマスに綴じる
-        if scope["mode"]?.stringValue == "set", !matched.isEmpty, let setID = scope["set_id"]?.stringValue {
+        // 1) 一枚から撮った: 写っている問題だけを、その一枚のマスに綴じる。組み立てに失敗した一枚は一枚として集計も
+        //    締めもせず(残りの問題が無い)、小単元から撮った答案と同じに綴じる(2)。
+        if scope["mode"]?.stringValue == "set", !matched.isEmpty, let setID = scope["set_id"]?.stringValue, sets[setID]?.status != "failed" {
             let subunitID = known[matched[0].matchedProblemId!]!
             let recorded = recordAttempts(captureID: captureID, subunitID: subunitID, setID: setID, verdicts: matched.map { Verdict(problemID: $0.matchedProblemId!, verdict: $0.verdict, errorTag: $0.errorTag, note: $0.note) }, capturedAt: capturedAt)
             if let setRow = sets[setID], splitsAcrossCaptures(setRow) {

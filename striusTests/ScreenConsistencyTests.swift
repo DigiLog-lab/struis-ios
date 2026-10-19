@@ -305,8 +305,8 @@ final class ScreenConsistencyTests: XCTestCase {
     }
 
     /// 2 問の一枚の 1 問目だけが通った状態(§3.2 の 1 問ずつ)。戻り値は一枚・小単元・1 問目。
-    private func halfBuiltSet(_ machine: inout WorkbookMachine) throws -> (setID: String, subunitID: String, first: String) {
-        let unitID = machine.createUnit(title: "u", outcome: "", source: "consult", subunits: [.init(title: "s", n: 2)], firstStage: 3)
+    private func halfBuiltSet(_ machine: inout WorkbookMachine, stage: Int = 3) throws -> (setID: String, subunitID: String, first: String) {
+        let unitID = machine.createUnit(title: "u", outcome: "", source: "consult", subunits: [.init(title: "s", n: 2)], firstStage: stage)
         let subunitID = machine.orderedSubunits(unitID: unitID)[0].id
         var spec = try machine.nextSetSpec(subunitID: subunitID)
         spec.count = 2
@@ -377,6 +377,25 @@ final class ScreenConsistencyTests: XCTestCase {
         XCTAssertEqual(machine.sets[setID]?.problemIds, [first])
         XCTAssertNil(machine.sets[setID]?.gate[WorkbookMachine.problemsHeldKey], "待ちの印が残っている")
         XCTAssertFalse(machine.events.contains { $0.kind == "problem.removed" && $0.isDeletion })
+    }
+
+    func testPhotoOfAFailedPracticeSetIsNotAggregatedAsTheWholeSet() throws {
+        // 演習の一枚(2 問)の 1 問目を撮って判定中に、残りの組み立てが失敗した。判定が終わっても、1 問だけで一枚を
+        // 採点済みにせず(合格・不合格の回数も一枚としては動かさない)、小単元から撮った答案と同じに綴じる。
+        var machine = machine()
+        let (setID, subunitID, first) = try halfBuiltSet(&machine, stage: 4)
+        XCTAssertEqual(machine.sets[setID]?.kind, "practice")
+        _ = try machine.createCapture(id: "cap-1", imagePath: "x.jpg", contentType: "image/jpeg", sha256: "0", byteCount: 1, subunitID: nil, setID: setID)
+        failRemaining(&machine, setID: setID)
+        let context = machine.gradingContext(capture: machine.captures["cap-1"]!)
+        let item = WorkbookMachine.GradingResult.Item(label: "", promptText: "", matchedProblemId: first, verdict: "correct", errorTag: "", note: "")
+        let outcome = try machine.applyGradingResult(captureID: "cap-1", graded: .init(readable: true, items: [item], candidates: [], newSubunit: nil, note: ""), context: context)
+        XCTAssertEqual(outcome.status, "graded")
+        XCTAssertEqual(machine.sets[setID]?.status, "failed", "組み立てに失敗した一枚を 1 問だけで採点済みにした")
+        XCTAssertEqual(machine.captures["cap-1"]?.summary["outcome"]?.stringValue, "bound")
+        XCTAssertEqual(machine.attemptsOf(problemID: first).count, 1, "解いた記録が残っていない")
+        XCTAssertEqual(machine.sets[setID]?.problemIds, [first])
+        XCTAssertEqual(machine.problemsOf(subunitID: subunitID).map(\.id), [first])
     }
 
     func testDefectiveProblemThatAlsoReusesAnExpressionFailsAfterOneRetry() throws {
