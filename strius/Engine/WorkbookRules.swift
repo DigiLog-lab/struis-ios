@@ -1080,6 +1080,51 @@ nonisolated struct WorkbookMachine {
     /// 会話に出た式と重なった時に組み直す回数の上限(D14)。
     static let expressionRetryLimit = 1
 
+    /// 組んだ問題の欠け(勉強を止めない仕組み 3.2): 空の問題文・空の答え・同じ問題文の重なり(一枚の中、または
+    /// その小単元に既にある問題と)。空の問題は解けず、判定もできないので、一枚に入れない。
+    /// 戻り値は欠けの説明(人が読む・組み直しの依頼に添える)。空なら受け入れてよい。
+    nonisolated static func problemDefects(prompts: [String], answerKeys: [String], existingPrompts: [String]) -> [String] {
+        func key(_ text: String) -> String {
+            text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        }
+        var defects: [String] = []
+        var seen = Set(existingPrompts.map(key).filter { !$0.isEmpty })
+        for (index, prompt) in prompts.enumerated() {
+            let normalized = key(prompt)
+            let answer = index < answerKeys.count ? key(answerKeys[index]) : ""
+            if normalized.isEmpty {
+                defects.append("問題 \(index + 1): 問題文が空")
+            } else if seen.contains(normalized) {
+                defects.append("問題 \(index + 1): 問題文が重複(\(String(normalized.prefix(60))))")
+            } else {
+                seen.insert(normalized)
+            }
+            if answer.isEmpty {
+                defects.append("問題 \(index + 1): 答えが空")
+            }
+        }
+        return defects
+    }
+
+    /// 欠けのある問題で組み直す回数の上限。
+    static let defectRetryLimit = 1
+
+    /// 組んだ問題に欠けがあった(3.2): 欠けを一枚に残し、組み直させる(1 回だけ)。
+    /// 組み直したかどうかは `gate.defect_retries`、欠けは `gate.rejected_problems`。
+    @discardableResult
+    mutating func noteDefectiveProblems(setID: String, defects: [String]) -> Bool {
+        guard var row = sets[setID], row.status == "generating", !defects.isEmpty else { return false }
+        var gate = row.gate.objectValue ?? [:]
+        let retries = gate["defect_retries"]?.intValue ?? 0
+        guard retries < Self.defectRetryLimit else { return false }
+        gate["defect_retries"] = .number(Double(retries + 1))
+        gate["rejected_problems"] = .array(defects.prefix(20).map(LedgerJSON.string))
+        row.gate = .object(gate)
+        row.updatedAt = now()
+        put("set.problems_rejected", row)
+        return true
+    }
+
     mutating func failSet(setID: String, error: String) {
         guard var row = sets[setID], row.status == "generating" else { return }
         row.status = "failed"

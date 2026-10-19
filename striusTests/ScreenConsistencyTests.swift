@@ -146,6 +146,65 @@ final class ScreenConsistencyTests: XCTestCase {
         XCTAssertEqual(machine.sets[setID]!.problemIds.count, 1)
     }
 
+    // MARK: 3.2 空の問題・重複を受け入れない
+
+    func testProblemDefectsFindEmptyAndDuplicatePrompts() {
+        XCTAssertEqual(WorkbookMachine.problemDefects(prompts: ["a", "b"], answerKeys: ["1", "2"], existingPrompts: []), [])
+        XCTAssertEqual(WorkbookMachine.problemDefects(prompts: ["", "b"], answerKeys: ["1", "2"], existingPrompts: []), ["問題 1: 問題文が空"])
+        XCTAssertEqual(WorkbookMachine.problemDefects(prompts: ["a", "b"], answerKeys: ["1", "  "], existingPrompts: []), ["問題 2: 答えが空"])
+        XCTAssertEqual(WorkbookMachine.problemDefects(prompts: ["a", " a  "], answerKeys: ["1", "2"], existingPrompts: []), ["問題 2: 問題文が重複(a)"])
+        // 小単元に既にある問題と同じ問題文も重複。空白の違いは無視する。
+        XCTAssertEqual(WorkbookMachine.problemDefects(prompts: ["x+1 を解け"], answerKeys: ["1"], existingPrompts: ["x+1  を解け"]), ["問題 1: 問題文が重複(x+1 を解け)"])
+        // 答えが無い問題(答えの欄そのものが無い)は空扱い。
+        XCTAssertEqual(WorkbookMachine.problemDefects(prompts: ["a"], answerKeys: [], existingPrompts: []), ["問題 1: 答えが空"])
+    }
+
+    func testSetWithEmptyOrDuplicateProblemsIsComposedAgainOnceThenFails() throws {
+        func outcome(_ draft: String) -> TurnOutcome {
+            TurnOutcome(planID: "p", round: 1, status: .completed, codexThreadID: nil, codexTurnID: nil, finalText: draft, executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: 1)
+        }
+        for draft in [
+            #"{"problems":[{"prompt":"","answer_key":"3"}]}"#,
+            #"{"problems":[{"prompt":"$x^2=9$ を解け","answer_key":""}]}"#,
+            #"{"problems":[{"prompt":"$x^2=9$ を解け"}]}"#,
+        ] {
+            var machine = machine()
+            let unitID = machine.createUnit(title: "u", outcome: "", source: "consult", subunits: [.init(title: "s", n: 1)], firstStage: 3)
+            let subunitID = machine.orderedSubunits(unitID: unitID)[0].id
+            let setID = machine.insertGeneratingSet(subunitID: subunitID, spec: try machine.nextSetSpec(subunitID: subunitID))
+            let first = TurnApplier.set(machine: &machine, setID: setID, outcome: outcome(draft))
+            XCTAssertEqual(first.setIDToGenerate, setID, "欠けのある問題で組み直していない: \(draft)")
+            XCTAssertEqual(machine.sets[setID]?.status, "generating")
+            XCTAssertTrue(machine.sets[setID]!.problemIds.isEmpty, "欠けのある問題が一枚に入った: \(draft)")
+            XCTAssertEqual(machine.sets[setID]!.gate["rejected_problems"]?.arrayValue?.isEmpty, false)
+            // 組み直しも欠けていれば、空の一枚を開かずに失敗にする(「作り直す」で続けられる)。
+            let second = TurnApplier.set(machine: &machine, setID: setID, outcome: outcome(draft))
+            XCTAssertNil(second.setIDToGenerate)
+            XCTAssertEqual(machine.sets[setID]?.status, "failed", draft)
+            XCTAssertEqual(machine.sets[setID]?.error, TurnApplier.setFailure)
+            XCTAssertTrue(machine.sets[setID]!.problemIds.isEmpty)
+            XCTAssertTrue(machine.problemsOf(subunitID: subunitID).isEmpty, "欠けのある問題が小単元に残った: \(draft)")
+        }
+    }
+
+    func testSetDuplicatingAnExistingProblemIsComposedAgainAndAGoodRetryOpens() throws {
+        var machine = machine()
+        let unitID = machine.createUnit(title: "u", outcome: "", source: "consult", subunits: [.init(title: "s", n: 2)], firstStage: 3)
+        let subunitID = machine.orderedSubunits(unitID: unitID)[0].id
+        _ = machine.addProblems(subunitID: subunitID, problems: [.init(prompt: "$x^2=9$ を解け", answerKey: "±3")], source: "generated")
+        let setID = machine.insertGeneratingSet(subunitID: subunitID, spec: try machine.nextSetSpec(subunitID: subunitID))
+        func outcome(_ draft: String) -> TurnOutcome {
+            TurnOutcome(planID: "p", round: 1, status: .completed, codexThreadID: nil, codexTurnID: nil, finalText: draft, executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: 1)
+        }
+        let duplicate = TurnApplier.set(machine: &machine, setID: setID, outcome: outcome(#"{"problems":[{"prompt":"$x^2=9$  を解け","answer_key":"±3"}]}"#))
+        XCTAssertEqual(duplicate.setIDToGenerate, setID, "小単元にある問題と同じ問題文で組み直していない")
+        XCTAssertEqual(machine.sets[setID]!.gate["rejected_problems"]?.arrayValue?.first?.stringValue, "問題 1: 問題文が重複($x^2=9$ を解け)")
+        let good = TurnApplier.set(machine: &machine, setID: setID, outcome: outcome(#"{"problems":[{"prompt":"$x^2=16$ を解け","answer_key":"±4"}]}"#))
+        XCTAssertNil(good.setIDToGenerate)
+        XCTAssertEqual(machine.sets[setID]?.status, "open")
+        XCTAssertEqual(machine.sets[setID]?.problemIds.count, 1)
+    }
+
     // MARK: D13 プラン名
 
     func testInternalPlanNamesAreNotShown() {
