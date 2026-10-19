@@ -121,6 +121,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Spotlight の索引を止める
+        # The runner VM has 3 CPUs and 7 GB; Xcode, the Simulator and the app already fill the memory, and a
+        # stackshot of a 2-minute stall showed Spotlight (mds_stores) indexing while pages were read back in.
+        run: |
+          sudo mdutil -a -i off >/dev/null 2>&1 || true
+          echo "memory: $(( $(sysctl -n hw.memsize) / 1073741824 )) GB, cpus: $(sysctl -n hw.ncpu)"
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14'
@@ -226,6 +232,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Spotlight の索引を止める
+        # The runner VM has 3 CPUs and 7 GB; Xcode, the Simulator and the app already fill the memory, and a
+        # stackshot of a 2-minute stall showed Spotlight (mds_stores) indexing while pages were read back in.
+        run: |
+          sudo mdutil -a -i off >/dev/null 2>&1 || true
+          echo "memory: $(( $(sysctl -n hw.memsize) / 1073741824 )) GB, cpus: $(sysctl -n hw.ncpu)"
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14'
@@ -301,6 +313,12 @@ jobs:
             -maximum-test-execution-time-allowance 600 \
             -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES \
             TEST_RUNNER_STRUIS_PROBE_DIR="$RUNNER_TEMP/ui-probe"
+      - name: メモリの様子を記録
+        # Intermittent UI-test stalls coincide with memory pressure; keep the numbers next to each run.
+        if: always()
+        run: |
+          sysctl vm.swapusage || true
+          vm_stat | grep -E 'Pages (free|active|wired down|occupied by compressor)|Swapins|Swapouts' || true
       - name: テスト結果を保存
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
