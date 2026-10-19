@@ -1130,22 +1130,27 @@ nonisolated struct WorkbookMachine {
     mutating func failSet(setID: String, error: String) {
         guard var row = sets[setID], row.status == "generating" else { return }
         // 組んでいる途中で足した問題(§3.2 の 1 問ずつ)は、一枚が失敗したら残さない。残すと小単元に出所の無い問題が
-        // 見え、「作り直す」の一枚がその上に重なる。組んでいる一枚の問題は、まだ誰も解いていない。
-        removeProblems(ids: row.problemIds)
-        row.problemIds = []
+        // 見え、「作り直す」の一枚がその上に重なる。組んでいる途中に写真で解かれた問題だけは消せないので、
+        // 失敗した一枚に結び付けたまま残す(出所の無い問題にしない)。
+        let removed = removeProblems(ids: row.problemIds)
+        row.problemIds = row.problemIds.filter { !removed.contains($0) }
         row.status = "failed"
         row.error = String(error.prefix(2000))
         row.updatedAt = now()
         put("set.failed", row)
     }
 
-    /// 問題を台帳から消す(組んでいる途中で失敗した一枚の分だけ。解いた記録のある問題は消さない)。
-    mutating func removeProblems(ids: [String]) {
+    /// 問題を台帳から消す(組んでいる途中で失敗した一枚の分だけ。解いた記録のある問題は消さない)。消した id を返す。
+    @discardableResult
+    mutating func removeProblems(ids: [String]) -> Set<String> {
         let attempted = Set(attempts.values.map(\.problemId))
+        var removed: Set<String> = []
         for id in ids where problems[id] != nil && !attempted.contains(id) {
             problems[id] = nil
+            removed.insert(id)
             events.append(.delete("problem.removed", entity: .workbookProblems, entityID: id))
         }
+        return removed
     }
 
     // MARK: - Context for turns

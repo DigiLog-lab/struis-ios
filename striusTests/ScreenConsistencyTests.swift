@@ -228,6 +228,31 @@ final class ScreenConsistencyTests: XCTestCase {
         XCTAssertTrue(machine.events.contains { $0.kind == "problem.removed" && $0.isDeletion })
     }
 
+    func testFailedSetKeepsTheProblemTheLearnerAlreadyAnswered() throws {
+        // 1 問目が通った直後に学習者が写真で解き、残りの組み立てが失敗した。解いた問題は消せないので、失敗した一枚に残す。
+        var machine = machine()
+        let unitID = machine.createUnit(title: "u", outcome: "", source: "consult", subunits: [.init(title: "s", n: 2)], firstStage: 3)
+        let subunitID = machine.orderedSubunits(unitID: unitID)[0].id
+        var spec = try machine.nextSetSpec(subunitID: subunitID)
+        spec.count = 2
+        let setID = machine.insertGeneratingSet(subunitID: subunitID, spec: spec)
+        func outcome(_ draft: String) -> TurnOutcome {
+            TurnOutcome(planID: "p", round: 1, status: .completed, codexThreadID: nil, codexTurnID: nil, finalText: draft, executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: 1)
+        }
+        _ = TurnApplier.set(machine: &machine, setID: setID, outcome: outcome(#"{"problems":[{"prompt":"$x^2=9$ を解け","answer_key":"±3"}]}"#))
+        let answered = try XCTUnwrap(machine.sets[setID]?.problemIds.first)
+        let recorded = machine.recordAttempts(captureID: "cap-1", subunitID: subunitID, setID: setID,
+                                              verdicts: [.init(problemID: answered, verdict: "correct", errorTag: "", note: "")], capturedAt: machine.now())
+        XCTAssertEqual(recorded.count, 1)
+        let broken = #"{"problems":[{"prompt":"","answer_key":"1"}]}"#
+        _ = TurnApplier.set(machine: &machine, setID: setID, outcome: outcome(broken))
+        _ = TurnApplier.set(machine: &machine, setID: setID, outcome: outcome(broken))
+        XCTAssertEqual(machine.sets[setID]?.status, "failed")
+        XCTAssertEqual(machine.sets[setID]?.problemIds, [answered], "解いた問題は失敗した一枚に結び付けたまま残す")
+        XCTAssertEqual(machine.problemsOf(subunitID: subunitID).map(\.id), [answered])
+        XCTAssertFalse(machine.events.contains { $0.kind == "problem.removed" && $0.isDeletion })
+    }
+
     // MARK: D13 プラン名
 
     func testInternalPlanNamesAreNotShown() {
