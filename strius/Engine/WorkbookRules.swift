@@ -1129,75 +1129,14 @@ nonisolated struct WorkbookMachine {
 
     mutating func failSet(setID: String, error: String) {
         guard var row = sets[setID], row.status == "generating" else { return }
-        // 組んでいる途中で足した問題(§3.2 の 1 問ずつ)は、一枚が失敗したら残さない。残すと小単元に出所の無い問題が
-        // 見え、「作り直す」の一枚がその上に重なる。組んでいる途中に写真で解かれた問題だけは消せないので、
-        // 失敗した一枚に結び付けたまま残す(出所の無い問題にしない)。判定の途中の写真(`identifying`)がこの一枚を
-        // 指している間も消さない: どの問題を撮ったかはまだ分からず、消すと判定が問題を見つけられず答案が失われる。
-        // 判定に失敗した写真(`failed`)も「判定し直す」で `identifying` に戻るので同じ扱い。一枚の写真だけでなく、
-        // 問題の画面(小単元)やホームから撮った写真も、判定の文脈にこの一枚の問題が入るので同じ扱い。
-        // 消さずに待った問題は、最後の写真が判定を抜けた時に `releaseHeldProblems` が消す(解かれた問題は残す)。
-        let held = isHeldByCaptures(row)
-        let removed = held ? [] : removeProblems(ids: row.problemIds)
-        row.problemIds = row.problemIds.filter { !removed.contains($0) }
+        // 組んでいる途中で足した問題(§3.2 の 1 問ずつ)は、一枚が失敗しても消さず、失敗した一枚に結び付けたまま残す。
+        // 学習者はその問題をもう開いたり撮ったりしているかもしれず(カメラを開いている間・判定中・判定に失敗して
+        // 判定し直す前・整理中の候補)、消すとその答案の行き先が無くなる。小単元に見えたまま解ける問題として残り、
+        // 「作り直す」の一枚は重複の検査でこれらと同じ問題を入れない。
         row.status = "failed"
         row.error = String(error.prefix(2000))
-        if held {
-            var gate = row.gate.objectValue ?? [:]
-            gate[Self.problemsHeldKey] = .bool(true)
-            row.gate = .object(gate)
-        }
         row.updatedAt = now()
         put("set.failed", row)
-    }
-
-    /// 写真が判定に使うので消さずに待っている、失敗した一枚の印(`gate`)。
-    static let problemsHeldKey = "problems_held"
-
-    /// この状態の写真は、まだ一枚の問題を必要とする(判定の途中か、「判定し直す」で判定の途中に戻れる)。
-    nonisolated static func captureStillNeedsProblems(_ status: String) -> Bool {
-        status == "identifying" || status == "failed"
-    }
-
-    /// 写真の判定の文脈(`gradingContext`)に、この一枚の問題が入り得るか。撮った時の文脈で決める:
-    /// 一枚から撮った写真はその一枚、問題の画面(小単元)から撮った写真はその小単元、ホームから撮った写真は全部の小単元。
-    static func captureMayReference(_ capture: WorkbookCaptureRecord, set: WorkbookSetRecord) -> Bool {
-        let context = capture.context.objectValue ?? [:]
-        if let setID = context["set_id"]?.stringValue { return setID == set.id }
-        if let subunitID = context["subunit_id"]?.stringValue { return subunitID == set.subunitId }
-        return true
-    }
-
-    /// まだ判定に問題を使う写真が、この一枚の問題を指しているか。
-    func isHeldByCaptures(_ set: WorkbookSetRecord) -> Bool {
-        captures.values.contains { Self.captureStillNeedsProblems($0.status) && Self.captureMayReference($0, set: set) }
-    }
-
-    /// 写真のために消さずに待った問題を、指す写真が無くなった一枚から消す(写真が判定を抜けた時に呼ぶ)。
-    /// 解かれた問題は `removeProblems` が残すので、写真で解いた問題は失敗した一枚に結び付いたまま残る。
-    mutating func releaseHeldProblems() {
-        let waiting = sets.values.filter { $0.status == "failed" && $0.gate[Self.problemsHeldKey]?.boolValue == true }
-        for var row in waiting.sorted(by: { $0.createdAt < $1.createdAt }) where !isHeldByCaptures(row) {
-            let removed = removeProblems(ids: row.problemIds)
-            row.problemIds = row.problemIds.filter { !removed.contains($0) }
-            var gate = row.gate.objectValue ?? [:]
-            gate[Self.problemsHeldKey] = nil
-            row.gate = .object(gate)
-            row.updatedAt = now()
-            put("set.problems_released", row)
-        }
-    }
-
-    /// 問題を台帳から消す(組んでいる途中で失敗した一枚の分だけ。解いた記録のある問題は消さない)。消した id を返す。
-    @discardableResult
-    mutating func removeProblems(ids: [String]) -> Set<String> {
-        let attempted = Set(attempts.values.map(\.problemId))
-        var removed: Set<String> = []
-        for id in ids where problems[id] != nil && !attempted.contains(id) {
-            problems[id] = nil
-            removed.insert(id)
-            events.append(.delete("problem.removed", entity: .workbookProblems, entityID: id))
-        }
-        return removed
     }
 
     // MARK: - Context for turns
@@ -1476,8 +1415,6 @@ nonisolated struct WorkbookMachine {
         if status == "graded" { row.gradedAt = now() }
         row.updatedAt = now()
         put("capture.\(status)", row)
-        // この写真のために消さずに待っていた失敗した一枚の問題を、もう指す写真が無ければ消す(解答の記録は先に書いてある)。
-        releaseHeldProblems()
         return CaptureOutcome(status: status, subunitID: subunitID, summary: summary)
     }
 
