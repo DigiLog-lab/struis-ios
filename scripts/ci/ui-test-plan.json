@@ -31,7 +31,8 @@
       "WorkbookHomeUITests",
       "UnitDeletionUITests",
       "Issue10ScreenshotUITests",
-      "ReplyTailUITests"
+      "ReplyTailUITests",
+      "ChatScrollStabilityUITests"
     ],
     "strius/Features/ImmersionLab/**": [
       "ImmersionSceneChatUITests"
@@ -56,7 +57,8 @@
       "DeviceLedgerSettingsUITests",
       "ConversationExportUITests",
       "UnitDeletionUITests",
-      "ChatImmediateImageSendUITests"
+      "ChatImmediateImageSendUITests",
+      "WorkbookHomeUITests"
     ],
     "strius/State/**": [
       "ChatScrollStabilityUITests",
@@ -70,6 +72,9 @@
       "WorkbookSplitGradingUITests",
       "WorkbookSubunitLayoutUITests",
       "Issue10ScreenshotUITests"
+    ],
+    "strius/Engine/ChatTurns.swift": [
+      "ChatImmediateImageSendUITests"
     ],
     "strius/App/**": [
       "*"

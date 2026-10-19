@@ -252,6 +252,12 @@ class SelectTests(unittest.TestCase):
         self.assertTrue({'WorkbookHomeUITests', 'UnitDeletionUITests'} <= classes('strius/State/LedgerFixtures.swift'))
         # 写真の保存と再起動後の復元(Ledger)。
         self.assertIn('ChatImmediateImageSendUITests', classes('strius/Ledger/LedgerEvents.swift'))
+        # 一枚の画面は会話(ChatView)を埋め込む。
+        self.assertIn('ChatScrollStabilityUITests', classes('strius/Features/Workbook/WorkbookSubunitView.swift'))
+        # ホームの最近の答案は Ledger の行を読む。
+        self.assertIn('WorkbookHomeUITests', classes('strius/Ledger/LedgerRows.swift'))
+        # 添付の保存の形は ChatTurns.Attachment にある。
+        self.assertIn('ChatImmediateImageSendUITests', classes('strius/Engine/ChatTurns.swift'))
         # Info.plist はカメラの許可文と画面の向きを含むアプリ全体の設定。
         self.assertEqual(ui_test_plan.select(tests, plan, 'pr', ['Info.plist']), tests)
         # 同梱の資源(KaTeX・フォント)は数式の表示と画面全体に効く。
