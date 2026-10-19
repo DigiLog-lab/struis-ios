@@ -258,6 +258,10 @@ class SelectTests(unittest.TestCase):
         self.assertIn('WorkbookHomeUITests', classes('strius/Ledger/LedgerRows.swift'))
         # 添付の保存の形は ChatTurns.Attachment にある。
         self.assertIn('ChatImmediateImageSendUITests', classes('strius/Engine/ChatTurns.swift'))
+        # 送信の添付を返事の記録に保存するのは ChatTurnCoordinator。
+        self.assertIn('ChatImmediateImageSendUITests', classes('strius/State/ChatTurnCoordinator.swift'))
+        # 偽の実行役(MockTurnRunner)は UI テスト全体の返事を作る。
+        self.assertEqual(ui_test_plan.select(tests, plan, 'pr', ['strius/Runtime/MockTurnRunner.swift']), tests)
         # Info.plist はカメラの許可文と画面の向きを含むアプリ全体の設定。
         self.assertEqual(ui_test_plan.select(tests, plan, 'pr', ['Info.plist']), tests)
         # 同梱の資源(KaTeX・フォント)は数式の表示と画面全体に効く。

@@ -50,6 +50,9 @@
       "DeviceChatUITests",
       "DeviceWorkbookUITests"
     ],
+    "strius/Runtime/MockTurnRunner.swift": [
+      "*"
+    ],
     "NativeRuntime/**": [
       "DeviceRuntimeUITests"
     ],
@@ -67,6 +70,9 @@
       "LearningProgressUITests",
       "WorkbookHomeUITests",
       "UnitDeletionUITests"
+    ],
+    "strius/State/ChatTurnCoordinator.swift": [
+      "ChatImmediateImageSendUITests"
     ],
     "strius/Engine/**": [
       "WorkbookSplitGradingUITests",
