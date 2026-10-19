@@ -304,6 +304,81 @@ final class ScreenConsistencyTests: XCTestCase {
         XCTAssertNotNil(machine.problems[photographed])
     }
 
+    /// 2 問の一枚の 1 問目だけが通った状態(§3.2 の 1 問ずつ)。戻り値は一枚・小単元・1 問目。
+    private func halfBuiltSet(_ machine: inout WorkbookMachine) throws -> (setID: String, subunitID: String, first: String) {
+        let unitID = machine.createUnit(title: "u", outcome: "", source: "consult", subunits: [.init(title: "s", n: 2)], firstStage: 3)
+        let subunitID = machine.orderedSubunits(unitID: unitID)[0].id
+        var spec = try machine.nextSetSpec(subunitID: subunitID)
+        spec.count = 2
+        let setID = machine.insertGeneratingSet(subunitID: subunitID, spec: spec)
+        _ = TurnApplier.set(machine: &machine, setID: setID, outcome: setOutcome(#"{"problems":[{"prompt":"$x^2=9$ を解け","answer_key":"±3"}]}"#))
+        let first = try XCTUnwrap(machine.sets[setID]?.problemIds.first)
+        return (setID, subunitID, first)
+    }
+
+    private func setOutcome(_ draft: String) -> TurnOutcome {
+        TurnOutcome(planID: "p", round: 1, status: .completed, codexThreadID: nil, codexTurnID: nil, finalText: draft, executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: 1)
+    }
+
+    /// 残りの組み立てを 2 回とも欠けさせて、一枚を失敗にする。
+    private func failRemaining(_ machine: inout WorkbookMachine, setID: String) {
+        let broken = #"{"problems":[{"prompt":"","answer_key":"1"}]}"#
+        _ = TurnApplier.set(machine: &machine, setID: setID, outcome: setOutcome(broken))
+        _ = TurnApplier.set(machine: &machine, setID: setID, outcome: setOutcome(broken))
+    }
+
+    func testFailedSetKeepsItsProblemsForAPhotoTakenFromTheProblemScreen() throws {
+        // 1 問目の画面の「採点」から撮った写真(一枚ではなく小単元の文脈)の判定中に、残りの組み立てが失敗した。
+        // その判定の文脈にも 1 問目が入るので、消さない。
+        var machine = machine()
+        let (setID, subunitID, first) = try halfBuiltSet(&machine)
+        _ = try machine.createCapture(id: "cap-1", imagePath: "x.jpg", contentType: "image/jpeg", sha256: "0", byteCount: 1, subunitID: subunitID, setID: nil)
+        XCTAssertNil(machine.captures["cap-1"]?.setId)
+        failRemaining(&machine, setID: setID)
+        XCTAssertEqual(machine.sets[setID]?.status, "failed")
+        XCTAssertEqual(machine.sets[setID]?.problemIds, [first], "問題の画面から撮った写真が判定に使う問題を消した")
+        XCTAssertEqual(machine.gradingContext(capture: machine.captures["cap-1"]!).known[first], subunitID)
+    }
+
+    func testHeldProblemsAreRemovedOnceThePhotoGoesToTriage() throws {
+        // 判定中の写真のために残した 1 問目は、その写真が読めずに「整理中」へ回ったら消す(誰も解いていない途中の問題)。
+        var machine = machine()
+        let (setID, subunitID, first) = try halfBuiltSet(&machine)
+        _ = try machine.createCapture(id: "cap-1", imagePath: "x.jpg", contentType: "image/jpeg", sha256: "0", byteCount: 1, subunitID: nil, setID: setID)
+        failRemaining(&machine, setID: setID)
+        XCTAssertEqual(machine.sets[setID]?.problemIds, [first])
+        XCTAssertEqual(machine.sets[setID]?.gate[WorkbookMachine.problemsHeldKey]?.boolValue, true)
+        let context = machine.gradingContext(capture: machine.captures["cap-1"]!)
+        let outcome = try machine.applyGradingResult(captureID: "cap-1", graded: .init(readable: false, items: [], candidates: [], newSubunit: nil, note: ""), context: context)
+        XCTAssertEqual(outcome.status, "triage")
+        XCTAssertNil(machine.problems[first], "整理中へ回った後も、解かれていない途中の問題が残っている")
+        XCTAssertEqual(machine.sets[setID]?.problemIds, [])
+        XCTAssertNil(machine.sets[setID]?.gate[WorkbookMachine.problemsHeldKey])
+        XCTAssertTrue(machine.problemsOf(subunitID: subunitID).isEmpty, "出所の無い問題が小単元に残っている")
+        XCTAssertTrue(machine.events.contains { $0.kind == "set.problems_released" })
+    }
+
+    func testHeldProblemStaysWhileAnotherPhotoNeedsItAndKeepsItOnceAnswered() throws {
+        // 一枚から撮った写真と、問題の画面から撮った写真の 2 枚が判定中。1 枚目が整理中へ回っても 2 枚目が残っているので消さず、
+        // 2 枚目が 1 問目を解いたら、解いた問題として失敗した一枚に残す。
+        var machine = machine()
+        let (setID, subunitID, first) = try halfBuiltSet(&machine)
+        _ = try machine.createCapture(id: "cap-1", imagePath: "x.jpg", contentType: "image/jpeg", sha256: "0", byteCount: 1, subunitID: nil, setID: setID)
+        _ = try machine.createCapture(id: "cap-2", imagePath: "y.jpg", contentType: "image/jpeg", sha256: "1", byteCount: 1, subunitID: subunitID, setID: nil)
+        failRemaining(&machine, setID: setID)
+        let unreadable = machine.gradingContext(capture: machine.captures["cap-1"]!)
+        _ = try machine.applyGradingResult(captureID: "cap-1", graded: .init(readable: false, items: [], candidates: [], newSubunit: nil, note: ""), context: unreadable)
+        XCTAssertNotNil(machine.problems[first], "判定中の 2 枚目が使う問題を消した")
+        let context = machine.gradingContext(capture: machine.captures["cap-2"]!)
+        let item = WorkbookMachine.GradingResult.Item(label: "", promptText: "", matchedProblemId: first, verdict: "correct", errorTag: "", note: "")
+        let outcome = try machine.applyGradingResult(captureID: "cap-2", graded: .init(readable: true, items: [item], candidates: [], newSubunit: nil, note: ""), context: context)
+        XCTAssertEqual(outcome.status, "graded")
+        XCTAssertNotNil(machine.problems[first], "解いた問題を消した")
+        XCTAssertEqual(machine.sets[setID]?.problemIds, [first])
+        XCTAssertNil(machine.sets[setID]?.gate[WorkbookMachine.problemsHeldKey], "待ちの印が残っている")
+        XCTAssertFalse(machine.events.contains { $0.kind == "problem.removed" && $0.isDeletion })
+    }
+
     func testDefectiveProblemThatAlsoReusesAnExpressionFailsAfterOneRetry() throws {
         // 欠けた問題(答えが空)が会話の式も重ねている: 式の組み直し(D14)で欠けの上限をすり抜けず、2 回目で一枚を失敗にする。
         var machine = machine()

@@ -104,8 +104,12 @@ nonisolated enum TurnActivityLabels {
         case .workbookSet:
             let problems = PartialJSONScanner.scan(text).arrays["problems"] ?? []
             guard !problems.isEmpty else { return nil }
-            let prompts = problems.compactMap { $0["prompt"] as? String }.filter { !$0.isEmpty }
-            return (problems.count, "\(problems.count) 問できました", prompts)
+            let prompts = problems.map { $0["prompt"] as? String ?? "" }
+            // 3.2: 書き終わった問題に欠け(空の問題文・空の答え・重複)があれば、このターンの問題は一枚に入らず組み直しになる。
+            // 入らない問題を見せると、学習者がそれを撮って解いても判定が見つけられないので、一つも見せない。
+            let defects = WorkbookMachine.problemDefects(
+                prompts: prompts, answerKeys: problems.map { $0["answer_key"] as? String ?? "" }, existingPrompts: [])
+            return (problems.count, "\(problems.count) 問できました", defects.isEmpty ? prompts : [])
         case .workbookUnit:
             let scan = PartialJSONScanner.scan(text)
             let subunits = scan.arrays["subunits"] ?? []
