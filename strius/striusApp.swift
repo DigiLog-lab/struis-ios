@@ -68,14 +68,8 @@ struct striusApp: App {
                 .task {
                     // Prepare native runtime data and start the extension's app-server in the background;
                     // the ledger-backed screens do not wait for it (design §6.5).
-                    guard let deviceRuntime, !SimulatorFixtures.isEnabled || DeviceRuntime.isForcedInFixtures else {
-                        await settings.refresh()
-                        return
-                    }
+                    guard let deviceRuntime, !SimulatorFixtures.isEnabled || DeviceRuntime.isForcedInFixtures else { return }
                     await deviceRuntime.start()
-                    // 起動時に ChatGPT の接続状態も読む: 設定を開くまで `account` が nil のままだと、Claude の失敗に
-                    // 「GPT に切り替える」が出ない(3.5)。
-                    await settings.refresh()
                 }
         }
     }

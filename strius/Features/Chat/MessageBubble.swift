@@ -16,7 +16,6 @@ struct MessageBubble: View {
     @Environment(\.colorScheme) private var scheme
     /// Optional so previews and screens without the chat store still render.
     @Environment(ChatStore.self) private var chat: ChatStore?
-    @Environment(SettingsStore.self) private var settings: SettingsStore?
 
     init(
         message: ChatMessage, threadID: UUID? = nil, onProposalStarted: ((WorkbookProposalDTO) -> Void)? = nil,
@@ -127,41 +126,19 @@ struct MessageBubble: View {
     }
 
     /// 止まった・失敗した返事の理由(勉強を止めない仕組み 3.5)。学習者向けの一文の下に、診断の文
-    /// (`rpc 400: …`・`register HTTP 401` など)を小さく出す。Claude で失敗した時は、その場で GPT に切り替える導線を出す
-    /// (設定を開かなくても勉強を続けられる。切り替えた後は「送り直す」で同じ依頼を GPT に送れる)。
+    /// (`rpc 400: …`・`register HTTP 401` など)を小さく出す。
+    /// 「GPT に切り替える」の導線は保留(ビルドに含めない。実装は hold/gpt-switch ブランチに残してある)。
     @ViewBuilder
     private var failureDetail: some View {
-        if message.status == .failed, !folded {
-            VStack(alignment: .leading, spacing: 6) {
-                if let detail = message.errorDetail {
-                    Text(detail)
-                        .font(Typography.micro)
-                        .foregroundStyle(Theme.textTertiary(scheme))
-                        .lineLimit(4)
-                        .textSelection(.enabled)
-                        .accessibilityIdentifier("assistant-failure-detail-\(message.id.uuidString)")
-                }
-                // 返事を受け取った後の会話は実行先が固定されるので、切り替えが効く時だけ出す(`retryFollowsProviderSetting`)。
-                // ChatGPT を接続していない(導入で Claude だけ選んだ)学習者には出さない: 設定を変えても送り直しは失敗する。
-                if let settings, Self.offersProviderSwitch(provider: settings.modelProvider, gptConnected: settings.account?.isConnected == true,
-                                                           retryFollowsProviderSetting: chat?.retryFollowsProviderSetting ?? false) {
-                    Button {
-                        settings.modelProvider = .openai
-                    } label: {
-                        Label("GPT に切り替える", systemImage: "arrow.left.arrow.right")
-                            .font(Typography.caption)
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityIdentifier("assistant-switch-to-gpt-\(message.id.uuidString)")
-                }
-            }
-            .padding(.horizontal, 4)
+        if message.status == .failed, !folded, let detail = message.errorDetail {
+            Text(detail)
+                .font(Typography.micro)
+                .foregroundStyle(Theme.textTertiary(scheme))
+                .lineLimit(4)
+                .textSelection(.enabled)
+                .accessibilityIdentifier("assistant-failure-detail-\(message.id.uuidString)")
+                .padding(.horizontal, 4)
         }
-    }
-
-    /// 「GPT に切り替える」を出す条件: Claude で動いていて、ChatGPT が接続済みで、この会話の送り直しが設定の実行先で動く。
-    nonisolated static func offersProviderSwitch(provider: ModelProvider, gptConnected: Bool, retryFollowsProviderSetting: Bool) -> Bool {
-        provider == .anthropic && gptConnected && retryFollowsProviderSetting
     }
 
     /// 「送り直す」 under a reply that stopped or failed (E2E H1・H3).
