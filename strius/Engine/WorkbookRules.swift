@@ -1082,10 +1082,11 @@ nonisolated struct WorkbookMachine {
 
     /// 組んだ問題の欠け(勉強を止めない仕組み 3.2): 空の問題文・空の答え・同じ問題文の重なり(一枚の中、または
     /// その小単元に既にある問題と)。空の問題は解けず、判定もできないので、一枚に入れない。
+    /// 重なりの比較は空白を全部取り除いて行う(`x+1` と `x + 1`、改行の違いは同じ問題)。
     /// 戻り値は欠けの説明(人が読む・組み直しの依頼に添える)。空なら受け入れてよい。
     nonisolated static func problemDefects(prompts: [String], answerKeys: [String], existingPrompts: [String]) -> [String] {
         func key(_ text: String) -> String {
-            text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            String(text.unicodeScalars.filter { !$0.properties.isWhitespace })
         }
         var defects: [String] = []
         var seen = Set(existingPrompts.map(key).filter { !$0.isEmpty })
@@ -1095,7 +1096,8 @@ nonisolated struct WorkbookMachine {
             if normalized.isEmpty {
                 defects.append("問題 \(index + 1): 問題文が空")
             } else if seen.contains(normalized) {
-                defects.append("問題 \(index + 1): 問題文が重複(\(String(normalized.prefix(60))))")
+                let shown = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+                defects.append("問題 \(index + 1): 問題文が重複(\(String(shown.prefix(60))))")
             } else {
                 seen.insert(normalized)
             }
@@ -1127,10 +1129,23 @@ nonisolated struct WorkbookMachine {
 
     mutating func failSet(setID: String, error: String) {
         guard var row = sets[setID], row.status == "generating" else { return }
+        // 組んでいる途中で足した問題(§3.2 の 1 問ずつ)は、一枚が失敗したら残さない。残すと小単元に出所の無い問題が
+        // 見え、「作り直す」の一枚がその上に重なる。組んでいる一枚の問題は、まだ誰も解いていない。
+        removeProblems(ids: row.problemIds)
+        row.problemIds = []
         row.status = "failed"
         row.error = String(error.prefix(2000))
         row.updatedAt = now()
         put("set.failed", row)
+    }
+
+    /// 問題を台帳から消す(組んでいる途中で失敗した一枚の分だけ。解いた記録のある問題は消さない)。
+    mutating func removeProblems(ids: [String]) {
+        let attempted = Set(attempts.values.map(\.problemId))
+        for id in ids where problems[id] != nil && !attempted.contains(id) {
+            problems[id] = nil
+            events.append(.delete("problem.removed", entity: .workbookProblems, entityID: id))
+        }
     }
 
     // MARK: - Context for turns
