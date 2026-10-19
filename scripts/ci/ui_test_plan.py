@@ -36,6 +36,10 @@ TOP_LEVEL_CLOSE = re.compile(r'^}')
 # invisible to XCTest. Discovery and the completeness check use the same pattern, so a test is
 # either attributed to a test class or reported, never silently skipped.
 TEST_FUNC = re.compile(r'^(?!\s*//)\s+(?:.*\s)?func\s+(test\w*)\s*\(\s*\)')
+# A type declared inside a test class (a helper struct, an enum of fixtures). Its methods are not
+# XCTest methods even when they are named test…, so they are skipped until its closing brace,
+# which sits at the declaration's own indentation.
+NESTED_TYPE = re.compile(r'^(\s+)(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:final|private|fileprivate|public|internal)\s+)*(?:class|struct|enum|actor|protocol)\s+\w+')
 PRIVATE = re.compile(r'\b(?:private|fileprivate)\b')
 
 
@@ -112,13 +116,26 @@ def discover(directory=TESTS):
     unattributed = []
     for path, lines in sources:
         current = None
+        nested = []  # indentation of each nested type declaration still open
         for line in lines:
             match = CLASS.match(line) or EXTENSION.match(line)
             if match:
                 current = match[1] if match[1] in classes else None
+                nested = []
                 continue
             if OTHER_TYPE.match(line) or TOP_LEVEL_CLOSE.match(line):
                 current = None
+                nested = []
+                continue
+            if nested and line.startswith(nested[-1] + '}'):
+                nested.pop()
+                continue
+            inner = NESTED_TYPE.match(line)
+            if inner and current:
+                if not line.rstrip().endswith('}'):  # a one-line `struct X {}` opens nothing
+                    nested.append(inner[1])
+                continue
+            if nested:
                 continue
             name = test_name(line)
             if name:

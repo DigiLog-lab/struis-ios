@@ -151,6 +151,18 @@ final class ZetaUITests: XCTestCase {
                 'import XCTest\n\nfinal class IotaUITests: XCTestCase {\n    func testA() {}\n}\n')
             self.assertEqual(ui_test_plan.discover(Path(directory)), ['IotaUITests/testA'])
 
+    def test_methods_inside_nested_helper_types_are_not_tests(self):
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, 'OuterUITests.swift').write_text(
+                'import XCTest\n\nfinal class OuterUITests: XCTestCase {\n'
+                '    struct Helper {\n        func testConnection() {}\n        enum Deeper {\n            static func testStatic() {}\n        }\n    }\n'
+                '    private enum Fixture { case a }\n'
+                '    func testReal() {}\n'
+                '    struct Empty {}\n'
+                '    func testAlsoReal() {}\n'
+                '}\n')
+            self.assertEqual(ui_test_plan.discover(Path(directory)), ['OuterUITests/testAlsoReal', 'OuterUITests/testReal'])
+
     def test_repository_plan_covers_every_discovered_test(self):
         plan = json.loads(ui_test_plan.PLAN.read_text())
         tests = ui_test_plan.discover()

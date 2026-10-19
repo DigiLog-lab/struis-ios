@@ -53,7 +53,8 @@
     "strius/Ledger/**": [
       "DeviceLedgerSettingsUITests",
       "ConversationExportUITests",
-      "UnitDeletionUITests"
+      "UnitDeletionUITests",
+      "ChatImmediateImageSendUITests"
     ],
     "strius/State/**": [
       "ChatScrollStabilityUITests",
