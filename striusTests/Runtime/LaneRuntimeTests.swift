@@ -337,6 +337,22 @@ final class LaneRecoveryTests: XCTestCase {
         XCTAssertEqual(reply?.metadata["retryable"]?.boolValue, false, "a kickoff has one recovery action: the subunit's restart")
     }
 
+    /// 3.5: 失敗した返事には学習者向けの一文と別に、理由(診断の文)が `error_detail` に残り、画面で読める。
+    @MainActor func testFailedReplyKeepsTheDiagnosticDetail() async throws {
+        let ledger = try Ledger.inMemory()
+        let seeded = try await Self.seed(ledger, userMetadata: ["hidden": .bool(true), "source": .string("struis_kickoff")])
+        let runner = CountingRunner()
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        await turns.resumeUnfinished()
+        try await Self.waitIdle(turns, threadID: seeded.threadID, runner: runner, runs: 1)
+        let reply = try await ledger.read { db in try MessageRecord.fetchOne(db, key: seeded.assistantID) }
+        XCTAssertEqual(reply?.status, "failed")
+        XCTAssertEqual(reply?.plainText, CodexAppServerError.closed("stub").localizedDescription, "学習者向けの一文はそのまま")
+        XCTAssertEqual(reply?.metadata["error_detail"]?.stringValue, "closed stub", "理由が残っていない")
+        let message = ChatRepository.chatMessage(try XCTUnwrap(reply))
+        XCTAssertEqual(message.errorDetail, "closed stub")
+    }
+
     @MainActor func testResumedStepDoesNotResumeAgain() async throws {
         let ledger = try Ledger.inMemory()
         let seeded = try await Self.seed(ledger, userMetadata: ["model_text": .string("単元づくりの依頼")], replyMetadata: ["auto_resumed": .bool(true)])
@@ -394,7 +410,8 @@ nonisolated final class CountingRunner: TurnRunning, @unchecked Sendable {
         lock.withLock { count += 1 }
         return TurnOutcome(
             planID: plan.id, round: plan.round, status: .failed, codexThreadID: nil, codexTurnID: nil, finalText: "",
-            executions: [], rateLimits: nil, files: [], error: CodexAppServerError.closed("stub").localizedDescription, elapsedMs: 1
+            executions: [], rateLimits: nil, files: [], error: CodexAppServerError.closed("stub").localizedDescription, elapsedMs: 1,
+            errorDetail: CodexAppServerError.closed("stub").detail
         )
     }
 

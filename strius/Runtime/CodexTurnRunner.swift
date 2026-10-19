@@ -274,7 +274,8 @@ actor CodexTurnRunner: TurnRunning {
         // `error` is the learner-facing sentence; the detail stays in os_log and the execution audit.
         TurnOutcome(
             planID: plan.id, round: plan.round, status: .failed, codexThreadID: threadID, codexTurnID: nil, finalText: "",
-            executions: Self.connectionFailureAudit(error), rateLimits: nil, files: [], error: error.localizedDescription, elapsedMs: elapsed(started)
+            executions: Self.connectionFailureAudit(error), rateLimits: nil, files: [], error: error.localizedDescription, elapsedMs: elapsed(started),
+            errorDetail: Self.describe(error)
         )
     }
 
@@ -283,8 +284,12 @@ actor CodexTurnRunner: TurnRunning {
         return [.object(["type": .string("runtime_connection_failure"), "diagnostic": .string(diagnostic)])]
     }
 
+    /// 失敗の理由(診断の文)。Codex の失敗は `detail`(`rpc 400: …` など)、Claude の準備(App Attest)の失敗は
+    /// 学習者向けの一文に理由(`register HTTP 401`)が入っているのでそのまま、それ以外は型の説明。
     nonisolated static func describe(_ error: Error) -> String {
-        (error as? CodexAppServerError)?.detail ?? String(describing: error)
+        if let codex = error as? CodexAppServerError { return codex.detail }
+        if let attest = error as? AppAttestClient.Failure { return attest.errorDescription ?? String(describing: attest) }
+        return String(describing: error)
     }
 
     /// 停止 (design §3.6 / E2E H1): the local wait ends at once so the reply becomes 「停止しました」

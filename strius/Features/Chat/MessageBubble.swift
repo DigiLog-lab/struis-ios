@@ -16,6 +16,7 @@ struct MessageBubble: View {
     @Environment(\.colorScheme) private var scheme
     /// Optional so previews and screens without the chat store still render.
     @Environment(ChatStore.self) private var chat: ChatStore?
+    @Environment(SettingsStore.self) private var settings: SettingsStore?
 
     init(
         message: ChatMessage, threadID: UUID? = nil, onProposalStarted: ((WorkbookProposalDTO) -> Void)? = nil,
@@ -58,6 +59,7 @@ struct MessageBubble: View {
                         ChatThoughtLabel(seconds: seconds)
                     }
                     assistantBubble
+                    failureDetail
                     retryButton
                 }
             }
@@ -122,6 +124,36 @@ struct MessageBubble: View {
         .foregroundStyle(Theme.textTertiary(scheme))
         .padding(.horizontal, 4)
         .accessibilityIdentifier("assistant-folded-\(message.id.uuidString)")
+    }
+
+    /// 止まった・失敗した返事の理由(勉強を止めない仕組み 3.5)。学習者向けの一文の下に、診断の文
+    /// (`rpc 400: …`・`register HTTP 401` など)を小さく出す。Claude で失敗した時は、その場で GPT に切り替える導線を出す
+    /// (設定を開かなくても勉強を続けられる。切り替えた後は「送り直す」で同じ依頼を GPT に送れる)。
+    @ViewBuilder
+    private var failureDetail: some View {
+        if message.status == .failed, !folded {
+            VStack(alignment: .leading, spacing: 6) {
+                if let detail = message.errorDetail {
+                    Text(detail)
+                        .font(Typography.micro)
+                        .foregroundStyle(Theme.textTertiary(scheme))
+                        .lineLimit(4)
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("assistant-failure-detail-\(message.id.uuidString)")
+                }
+                if let settings, settings.modelProvider == .anthropic {
+                    Button {
+                        settings.modelProvider = .openai
+                    } label: {
+                        Label("GPT に切り替える", systemImage: "arrow.left.arrow.right")
+                            .font(Typography.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityIdentifier("assistant-switch-to-gpt-\(message.id.uuidString)")
+                }
+            }
+            .padding(.horizontal, 4)
+        }
     }
 
     /// 「送り直す」 under a reply that stopped or failed (E2E H1・H3).
@@ -763,6 +795,12 @@ private struct WorkbookProposalAttachment: ViewModifier {
 extension ChatMessage {
     var workbookProposalID: String? {
         metadata?.value["workbook_proposal_id"]?.stringValue
+    }
+
+    /// 失敗の理由(診断の文、`ChatTurns.fail` が `metadata.error_detail` に残す)。無ければ nil。
+    var errorDetail: String? {
+        guard let text = metadata?.value["error_detail"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+        return text
     }
 }
 

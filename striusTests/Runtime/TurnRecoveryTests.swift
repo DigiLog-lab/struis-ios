@@ -449,6 +449,10 @@ final class TurnRecoveryTests: XCTestCase {
             XCTAssertTrue(text.hasSuffix("。"), text)
         }
         XCTAssertTrue(CodexAppServerError.unanswered("thread/resume").detail.contains("thread/resume"))
+        // 3.5: 理由(診断の文)は別に取り出せる。Claude の準備の失敗は一文に理由が入っているのでそのまま。
+        XCTAssertEqual(CodexTurnRunner.describe(CodexAppServerError.rpc(code: 400, message: "invalid_request")), "rpc 400: invalid_request")
+        XCTAssertEqual(CodexTurnRunner.describe(AppAttestClient.Failure.requestFailed(endpoint: "register", status: 401)),
+                       "Claude を使う準備に失敗しました(register HTTP 401)。")
     }
 
     // MARK: - (c) 起動時の後始末

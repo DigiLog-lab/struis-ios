@@ -140,7 +140,7 @@ nonisolated enum ChatTurns {
     nonisolated enum RoundResult: Sendable {
         case done
         case again(text: String)
-        case failed(String)
+        case failed(String, detail: String? = nil)
     }
 
     static var desk: URL { StruisPaths.memory.appendingPathComponent("tutor_desk", isDirectory: true) }
@@ -362,7 +362,7 @@ nonisolated enum ChatTurns {
         state.rateLimits = outcome.rateLimits ?? state.rateLimits
         switch outcome.status {
         case .interrupted: return .failed(interruptedText)
-        case .failed: return .failed(outcome.error ?? "Codex の応答を受け取れませんでした")
+        case .failed: return .failed(outcome.error ?? "Codex の応答を受け取れませんでした", detail: outcome.errorDetail)
         case .completed: break
         }
         do {
@@ -645,10 +645,14 @@ nonisolated enum ChatTurns {
         }
     }
 
-    static func fail(ledger: Ledger, state: State, error: String) async {
+    /// `detail` は失敗の理由(診断の文)。学習者向けの `error` とは別に `metadata.error_detail` に残し、吹き出しに小さく出す(3.5)。
+    static func fail(ledger: Ledger, state: State, error: String, detail: String? = nil) async {
         try? await ledger.commit { db in
             guard let assistant = try MessageRecord.fetchOne(db, key: state.assistantMessageID), assistant.status == "pending" else { return ([], ()) }
             var row = assistant
+            if let detail = detail?.trimmingCharacters(in: .whitespacesAndNewlines), !detail.isEmpty, detail != error {
+                row.metadata = WorkbookMachine.merge(row.metadata, ["error_detail": .string(String(detail.prefix(600)))])
+            }
             // A reply to a subunit kickoff is recovered by the subunit's one 「もう一度始める」 (P4-4):
             // no second 「送り直す」 on the bubble.
             let user = try MessageRecord.fetchOne(db, key: state.userMessageID)
