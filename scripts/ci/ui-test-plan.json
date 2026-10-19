@@ -20,7 +20,8 @@
       "ReplyTailUITests",
       "ConversationExportUITests",
       "Issue10ScreenshotUITests",
-      "LearningProgressUITests"
+      "LearningProgressUITests",
+      "WorkbookSplitGradingUITests"
     ],
     "strius/Features/Workbook/**": [
       "WorkbookSubunitLayoutUITests",
@@ -77,6 +78,9 @@
       "*"
     ],
     "strius/striusApp.swift": [
+      "*"
+    ],
+    "Info.plist": [
       "*"
     ],
     "strius.xcodeproj/**": [

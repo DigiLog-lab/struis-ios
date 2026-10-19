@@ -35,7 +35,7 @@ TOP_LEVEL_CLOSE = re.compile(r'^}')
 # Any indented test-shaped function, whatever attributes or modifiers precede it. Private ones are
 # invisible to XCTest. Discovery and the completeness check use the same pattern, so a test is
 # either attributed to a test class or reported, never silently skipped.
-TEST_FUNC = re.compile(r'^(?!\s*//)\s+(?:.*\s)?func\s+(test\w*)\s*\(\s*\)')
+TEST_FUNC = re.compile(r'^(?!\s*//)\s+(?:.*?\s)??func\s+(test\w*)\s*\(\s*\)')
 # A type declared inside a test class (a helper struct, an enum of fixtures). Its methods are not
 # XCTest methods even when they are named test…, so they are skipped until its closing brace,
 # which sits at the declaration's own indentation.
@@ -80,6 +80,15 @@ def code_lines(text, name='source'):
                          'the parse is unreliable, so no test list was produced.')
 
 
+STRING = re.compile(r'(#*)"(?:\\.|[^"\\])*"\1')
+
+
+def brace_change(line):
+    """Net `{` minus `}` on a code line, ignoring braces inside one-line string literals (JSON fixtures)."""
+    code = STRING.sub('""', line)
+    return code.count('{') - code.count('}')
+
+
 def test_name(line):
     match = TEST_FUNC.match(line)
     prefix = line.split('func', 1)[0]
@@ -117,16 +126,21 @@ def discover(directory=TESTS):
     for path, lines in sources:
         current = None
         nested = []  # indentation of each nested type declaration still open
+        depth = 0  # brace depth inside the current test class or extension; its members sit at depth 1
         for line in lines:
             match = CLASS.match(line) or EXTENSION.match(line)
             if match:
                 current = match[1] if match[1] in classes else None
                 nested = []
+                depth = brace_change(line)
                 continue
             if OTHER_TYPE.match(line) or TOP_LEVEL_CLOSE.match(line):
                 current = None
                 nested = []
+                depth = 0
                 continue
+            level = depth  # the depth this line starts at
+            depth += brace_change(line)
             if nested and line.startswith(nested[-1] + '}'):
                 nested.pop()
                 continue
@@ -140,7 +154,9 @@ def discover(directory=TESTS):
             name = test_name(line)
             if name:
                 if current:
-                    methods[current].add(name)
+                    # Deeper than the class body: a local function inside a method or closure, not an XCTest method.
+                    if level == 1:
+                        methods[current].add(name)
                 else:
                     unattributed.append(f'{path.relative_to(directory)}: {line.strip()}')
     if unattributed:

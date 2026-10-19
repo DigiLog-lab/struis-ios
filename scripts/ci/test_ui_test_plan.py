@@ -163,6 +163,33 @@ final class ZetaUITests: XCTestCase {
                 '}\n')
             self.assertEqual(ui_test_plan.discover(Path(directory)), ['OuterUITests/testAlsoReal', 'OuterUITests/testReal'])
 
+    def test_local_functions_inside_methods_and_closures_are_not_tests(self):
+        source = '''import XCTest
+
+final class LocalUITests: XCTestCase {
+    func testReal() {
+        func testConnection() {}
+        let fixture = "{\\"a\\": {\\"b\\": 1}"
+        let run = {
+            func testInClosure() {}
+        }
+        run()
+    }
+    lazy var helper: () -> Void = {
+        func testInProperty() {}
+    }
+    func testAlsoReal() { func testInline() {} }
+}
+
+extension LocalUITests {
+    func testInExtension() {
+        func testNested() {}
+    }
+}
+'''
+        self.assertEqual(self.discover(source), [
+            'LocalUITests/testAlsoReal', 'LocalUITests/testInExtension', 'LocalUITests/testReal'])
+
     def test_repository_plan_covers_every_discovered_test(self):
         plan = json.loads(ui_test_plan.PLAN.read_text())
         tests = ui_test_plan.discover()
@@ -208,6 +235,19 @@ class SelectTests(unittest.TestCase):
         plan = {'pr': ['A'], 'paths': {'strius/Features/Chat/*': ['C'], 'strius/Camera/*': ['B']}}
         selected = ui_test_plan.select(self.tests, plan, 'pr', ['strius/Features/Chat/ChatView.swift'])
         self.assertEqual(selected, ['A/test1', 'A/test2', 'C/test1'])
+
+    def test_repository_plan_runs_the_suites_a_changed_file_can_break(self):
+        plan = json.loads(ui_test_plan.PLAN.read_text())
+        tests = ui_test_plan.discover()
+
+        def classes(path):
+            return {test.split('/')[0] for test in ui_test_plan.select(tests, plan, 'pr', [path])}
+        # 写真を何枚か撮って 1 枚外して送るのは WorkbookSplitGradingUITests だけ(ChatCamera.swift の ChatCameraBatch)。
+        self.assertIn('WorkbookSplitGradingUITests', classes('strius/Features/Chat/ChatCamera.swift'))
+        # 写真の保存と再起動後の復元(Ledger)。
+        self.assertIn('ChatImmediateImageSendUITests', classes('strius/Ledger/LedgerEvents.swift'))
+        # Info.plist はカメラの許可文と画面の向きを含むアプリ全体の設定。
+        self.assertEqual(ui_test_plan.select(tests, plan, 'pr', ['Info.plist']), tests)
 
     def test_a_path_mapped_to_everything_runs_every_test(self):
         plan = {'pr': ['A'], 'paths': {'strius.xcodeproj/*': ['*']}}
