@@ -267,9 +267,13 @@ nonisolated struct TurnOutcome: Codable, Hashable, Sendable {
     var files: [CollectedFile]
     var error: String?
     var elapsedMs: Int
+    /// 失敗の理由(診断の文。`error` は学習者向けの一文で、こちらは `rpc 400: …`・`register HTTP 401` のような中身)。
+    /// 画面では「停止しました」「AI が返事を作れませんでした」の下に小さく出す(勉強を止めない仕組み 3.5)。
+    var errorDetail: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case round, status, executions, files, error
+        case errorDetail = "error_detail"
         case planID = "plan_id"
         case codexThreadID = "codex_thread_id"
         case codexTurnID = "codex_turn_id"

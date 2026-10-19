@@ -337,6 +337,80 @@ final class LaneRecoveryTests: XCTestCase {
         XCTAssertEqual(reply?.metadata["retryable"]?.boolValue, false, "a kickoff has one recovery action: the subunit's restart")
     }
 
+    /// 3.5: 失敗した返事には学習者向けの一文と別に、理由(診断の文)が `error_detail` に残り、画面で読める。
+    @MainActor func testFailedReplyKeepsTheDiagnosticDetail() async throws {
+        let ledger = try Ledger.inMemory()
+        let seeded = try await Self.seed(ledger, userMetadata: ["hidden": .bool(true), "source": .string("struis_kickoff")])
+        let runner = CountingRunner()
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        await turns.resumeUnfinished()
+        try await Self.waitIdle(turns, threadID: seeded.threadID, runner: runner, runs: 1)
+        let reply = try await ledger.read { db in try MessageRecord.fetchOne(db, key: seeded.assistantID) }
+        XCTAssertEqual(reply?.status, "failed")
+        XCTAssertEqual(reply?.plainText, CodexAppServerError.closed("stub").localizedDescription, "学習者向けの一文はそのまま")
+        XCTAssertEqual(reply?.metadata["error_detail"]?.stringValue, "closed stub", "理由が残っていない")
+        let message = ChatRepository.chatMessage(try XCTUnwrap(reply))
+        XCTAssertEqual(message.errorDetail, "closed stub")
+    }
+
+    /// 3.6: 検証の差し戻しは 1 ターンに 1 回まで。2 回目も通らなければ、送り直し続けずに失敗にする(ラウンド ≤ 3)。
+    @MainActor func testValidationRepairIsSentOnceThenTheTurnFails() async throws {
+        let ledger = try Ledger.inMemory()
+        let seeded = try await Self.seed(ledger, userMetadata: [:])
+        var state = ChatTurns.State(
+            turnID: LedgerID.make(), threadID: seeded.threadID, userMessageID: seeded.userID, assistantMessageID: seeded.assistantID,
+            learnerID: "fixture-learner", text: "質問", attachments: [], workbookView: nil,
+            codexThreadID: nil, progressBefore: ProgressState(), progressAfter: ProgressState()
+        )
+        // 読めない進行の記録(検証で必ず差し戻される返事)。
+        let broken = "返事です。\n<struis_progress_update>{not json</struis_progress_update>"
+        func outcome() -> TurnOutcome {
+            TurnOutcome(planID: "p", round: state.round + 1, status: .completed, codexThreadID: nil, codexTurnID: nil, finalText: broken,
+                        executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: 1)
+        }
+        let first = await ChatTurns.applyRound(ledger: ledger, state: &state, outcome: outcome())
+        guard case .again = first else { return XCTFail("1 回目の差し戻しが無い: \(first)") }
+        let second = await ChatTurns.applyRound(ledger: ledger, state: &state, outcome: outcome())
+        guard case .failed(let message, let detail) = second else { return XCTFail("2 回目で失敗にならない: \(second)") }
+        XCTAssertEqual(message, ChatTurns.learnerFacingFailure)
+        XCTAssertEqual(detail?.hasPrefix("validation repair limit (1) reached"), true, detail ?? "-")
+        XCTAssertEqual(state.checks.filter { $0["accepted"]?.boolValue == false }.count, 2)
+        XCTAssertTrue(ChatTurns.repairsExhausted(state.checks))
+        XCTAssertFalse(ChatTurns.repairsExhausted([.object(["accepted": .bool(false)])]), "1 回目の差し戻しは送る")
+    }
+
+    /// 3.6: 続き(`disposition: continue`)もラウンドに数える。3 ラウンド目で続きを求められても、届いている分で返事を終える。
+    @MainActor func testContinuationStopsAtTheRoundLimitAndDeliversWhatWasWritten() async throws {
+        XCTAssertEqual(ChatTurns.roundLimit, 3, "最初 + 差し戻し 1 + 続き 1")
+        let ledger = try Ledger.inMemory()
+        let seeded = try await Self.seed(ledger, userMetadata: [:])
+        var state = ChatTurns.State(
+            turnID: LedgerID.make(), threadID: seeded.threadID, userMessageID: seeded.userID, assistantMessageID: seeded.assistantID,
+            learnerID: "fixture-learner", text: "質問", attachments: [], workbookView: nil,
+            codexThreadID: nil, progressBefore: ProgressState(), progressAfter: ProgressState()
+        )
+        // 1 ラウンド目で目標を作り、以後は同じ目標を指したまま「続き」を求め続ける返事。
+        let goal = #"{"id": "practice", "parent_id": null, "title": "practice", "outcome": "自力で説明できる", "learner_action": "解答する", "model_action": "説明して評価する", "completion_condition": "必要な解答の証拠を確認する", "kind": "learner", "status": "active", "next_action": "解答する", "child_order": [], "loop": {"enabled": true, "unit": "出題から評価まで", "repeat_when": "未達", "exit_when": "達成または上限", "after_exit": "親で見直す", "stagnation_attempts": 3, "max_attempts": 2}, "evaluation": null}"#
+        func outcome(part: String) -> TurnOutcome {
+            let goals = state.round == 0 ? goal : ""
+            let update = #"{"schema_version": 1, "base_revision": \#(state.progressAfter.revision), "goals": [\#(goals)], "problems": [], "attempts": [], "current_goal_id": "practice", "disposition": "continue", "next_action": "説明を続ける", "reply_quotes": ["\#(part)"]}"#
+            return TurnOutcome(planID: "p", round: state.round + 1, status: .completed, codexThreadID: nil, codexTurnID: nil,
+                               finalText: "\(part)\n<struis_progress_update>\(update)</struis_progress_update>",
+                               executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: 1)
+        }
+        let first = await ChatTurns.applyRound(ledger: ledger, state: &state, outcome: outcome(part: "一つ目"))
+        guard case .again(let prompt) = first else { return XCTFail("1 ラウンド目の続きが無い: \(first)") }
+        XCTAssertEqual(prompt, ChatTurns.continuation)
+        let second = await ChatTurns.applyRound(ledger: ledger, state: &state, outcome: outcome(part: "二つ目"))
+        guard case .again = second else { return XCTFail("2 ラウンド目の続きが無い: \(second)") }
+        let third = await ChatTurns.applyRound(ledger: ledger, state: &state, outcome: outcome(part: "三つ目"))
+        guard case .done = third else { return XCTFail("3 ラウンド目で終わらない: \(third)") }
+        XCTAssertEqual(state.round, ChatTurns.roundLimit)
+        XCTAssertEqual(state.visibleText, "一つ目\n\n二つ目\n\n三つ目", "届いている分は全部返す")
+        XCTAssertEqual(state.checks.count, 3)
+        XCTAssertTrue(state.checks.allSatisfy { $0["accepted"]?.boolValue == true }, "続きの打ち切りは失敗ではない")
+    }
+
     @MainActor func testResumedStepDoesNotResumeAgain() async throws {
         let ledger = try Ledger.inMemory()
         let seeded = try await Self.seed(ledger, userMetadata: ["model_text": .string("単元づくりの依頼")], replyMetadata: ["auto_resumed": .bool(true)])
@@ -394,7 +468,8 @@ nonisolated final class CountingRunner: TurnRunning, @unchecked Sendable {
         lock.withLock { count += 1 }
         return TurnOutcome(
             planID: plan.id, round: plan.round, status: .failed, codexThreadID: nil, codexTurnID: nil, finalText: "",
-            executions: [], rateLimits: nil, files: [], error: CodexAppServerError.closed("stub").localizedDescription, elapsedMs: 1
+            executions: [], rateLimits: nil, files: [], error: CodexAppServerError.closed("stub").localizedDescription, elapsedMs: 1,
+            errorDetail: CodexAppServerError.closed("stub").detail
         )
     }
 

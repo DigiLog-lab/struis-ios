@@ -205,11 +205,13 @@ extension TurnCoordinator {
         var roundText: String?
         var plan: TurnPlan?
         var error: String?
+        var errorDetail: String?
         while true {
             do {
                 plan = try await ChatTurns.compose(ledger: ledger, assets: assets, state: &state, roundText: roundText)
             } catch let composeError {
                 error = composeError.localizedDescription
+                errorDetail = CodexTurnRunner.describe(composeError)
                 break
             }
             guard let current = plan else { break }
@@ -232,6 +234,7 @@ extension TurnCoordinator {
                 }
             } catch let runError {
                 error = runError.localizedDescription
+                errorDetail = CodexTurnRunner.describe(runError)
                 break
             }
             chatCoordinatorLog.info("chat round \(state.round, privacy: .public) outcome \(outcome.status.rawValue, privacy: .public) \(outcome.finalText.count, privacy: .public) chars")
@@ -243,8 +246,9 @@ extension TurnCoordinator {
             case .again(let text):
                 roundText = text
                 continue
-            case .failed(let message):
+            case .failed(let message, let detail):
                 error = message
+                errorDetail = detail
             }
             break
         }
@@ -275,11 +279,12 @@ extension TurnCoordinator {
                 }
             } catch let finishError {
                 error = finishError.localizedDescription
+                errorDetail = CodexTurnRunner.describe(finishError)
             }
         }
         if let error {
-            chatCoordinatorLog.error("chat turn \(state.turnID, privacy: .public) failed: \(error, privacy: .public)")
-            await ChatTurns.fail(ledger: ledger, state: state, error: error)
+            chatCoordinatorLog.error("chat turn \(state.turnID, privacy: .public) failed: \(error, privacy: .public) (\(errorDetail ?? "-", privacy: .public))")
+            await ChatTurns.fail(ledger: ledger, state: state, error: error, detail: errorDetail)
             // 返事が失敗・停止した: 先回りの全体像は使わない。
             await discardUnitPrefetch(messageID: state.assistantMessageID)
         }
