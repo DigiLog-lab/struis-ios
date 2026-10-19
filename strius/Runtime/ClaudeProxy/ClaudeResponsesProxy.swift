@@ -18,7 +18,7 @@ actor ClaudeResponsesProxy {
     }
 
     /// Anthropic へ送る要求本文の上限(勉強を止めない仕組み 3.6)。Anthropic 側の上限(32 MB)より手前で止め、
-    /// 超えた要求は送らずに記録(`status: oversized`、ターンの記録として台帳に入る)して Codex に 413 を返す。
+    /// 超えた要求は送らずに記録(`status: oversized`、ターンの記録として台帳に入る)して Codex に 400 を返す。
     /// 272k トークンの文脈でも本文は 1〜2 MB、写真は長辺 2048px の JPEG(base64 で 1 枚 1〜2 MB)なので、
     /// ふつうのターンはこの 1/4 以下。超えるのは履歴や写真が膨らんだ異常な要求。
     nonisolated static let maxRequestBytes = 20 * 1024 * 1024
@@ -26,6 +26,10 @@ actor ClaudeResponsesProxy {
     nonisolated static func requestTooLarge(_ byteCount: Int) -> Bool {
         byteCount > maxRequestBytes
     }
+
+    /// 大きすぎる要求に返す状態。413 ではなく 400: Codex は 413 を一時的な失敗として同じ本文を送り直す
+    /// (`codexStatus` が上流の 413 を 400 に直しているのと同じ理由)。送り直しが無いので失敗はすぐ学習者に届く。
+    nonisolated static let oversizedStatus = 400
 
     enum ProxyError: Error, LocalizedError {
         case listenerFailed(String)
@@ -256,7 +260,7 @@ nonisolated private final class ProxyConnection: @unchecked Sendable {
                 return
             }
             guard buffer.count < 64 * 1024 * 1024 else {
-                respond(status: 413, json: ["error": ["message": "request too large", "type": "invalid_request_error"]])
+                respond(status: ClaudeResponsesProxy.oversizedStatus, json: ["error": ["message": "request too large", "type": "invalid_request_error", "code": "request_too_large"]])
                 return
             }
             receive()
@@ -442,7 +446,9 @@ nonisolated private struct ClaudeRelay {
                 let message = "request body \(data.count) bytes exceeds \(ClaudeResponsesProxy.maxRequestBytes)"
                 proxyLog.error("\(message, privacy: .public); not sent")
                 log.append(attempt.finish(status: "oversized", translator: nil, httpStatus: nil, error: ("request_too_large", message)), key: classified.key)
-                writer.respond(status: 413, json: ["error": [
+                // 400 で返す: Codex は 413 を一時的な失敗として同じ本文を送り直す(`codexStatus` が上流の 413 を 400 に
+                // 直しているのと同じ理由)。送り直されると記録が重なり、学習者には同じ失敗が遅れて届く。
+                writer.respond(status: ClaudeResponsesProxy.oversizedStatus, json: ["error": [
                     "message": "送る内容が大きすぎます(\(data.count / (1024 * 1024)) MB)。写真の枚数を減らすか、新しい会話で送ってください。",
                     "type": "invalid_request_error", "code": "request_too_large",
                 ]])

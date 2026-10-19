@@ -10,9 +10,11 @@ private let chatTurnLog = Logger(subsystem: "com.digiloglab.strius", category: "
 nonisolated enum ChatTurns {
     static let learnerFacingFailure = "学習の進行を保存できませんでした。もう一度送信してください。"
     /// 1 ターンで検証の差し戻し(validation repair)を送り直す回数の上限(勉強を止めない仕組み 3.6)。
-    /// 差し戻し 1 回はモデルの呼び出し 45〜65 秒。2 回目も通らないなら学習者に送り直してもらう方が早く、
-    /// 要求数も 1 ターンあたり最初 + 差し戻し 1 + 続き 1 の 3 までに収まる。
+    /// 差し戻し 1 回はモデルの呼び出し 45〜65 秒。2 回目も通らないなら学習者に送り直してもらう方が早い。
     static let repairLimit = 1
+    /// 1 ターンのモデルの呼び出し(ラウンド)の上限。最初 + 差し戻し 1 + 続き 1 = 3。続き(`disposition: continue`)が
+    /// この数に達したら、届いている分で返事を終える(失敗にはしない)。差し戻しで達したら失敗にする。
+    static let roundLimit = 3
 
     /// 差し戻しの回数が上限に達したか(`checks` の `accepted == false` の数で数える)。
     nonisolated static func repairsExhausted(_ checks: [LedgerJSON]) -> Bool {
@@ -414,17 +416,23 @@ nonisolated enum ChatTurns {
             let disposition = (progressRaw["disposition"] as? String) ?? ""
             if disposition != "continue" { return .done }
             state.deliveredParts.append(candidate)
-            if state.round >= 5 { return .failed(learnerFacingFailure) }
+            // 3.6: 続きの要求もラウンドの上限に数える。上限なら届いている分で終える(本文は通っている)。
+            if state.round >= Self.roundLimit {
+                chatTurnLog.notice("round limit (\(Self.roundLimit, privacy: .public)) reached on a continuation; delivering what was written")
+                return .done
+            }
             return .again(text: continuation)
         } catch {
             let detail = String(describing: error)
             let round = state.round
             state.checks.append(.object(["round": .number(Double(round)), "accepted": .bool(false), "error": .string(String(detail.prefix(2000)))]))
             chatTurnLog.error("round \(round) rejected: \(detail, privacy: .public)")
-            if state.round >= 5 { return .failed(learnerFacingFailure, detail: "validation rejected \(round) rounds: " + String(detail.prefix(300))) }
-            // 3.6: 差し戻しは 1 回まで。2 回目も通らなければ、送り直し続けずに学習者へ返す(理由は吹き出しに出る)。
+            // 3.6: 差し戻しは 1 回まで、ラウンドは 3 まで。超えたら送り直し続けずに学習者へ返す(理由は吹き出しに出る)。
             if Self.repairsExhausted(state.checks) {
                 return .failed(learnerFacingFailure, detail: "validation repair limit (\(repairLimit)) reached: " + String(detail.prefix(300)))
+            }
+            if state.round >= Self.roundLimit {
+                return .failed(learnerFacingFailure, detail: "round limit (\(Self.roundLimit)) reached on validation: " + String(detail.prefix(300)))
             }
             // Keep the learner-facing reply and ask only for the private blocks (B5): rewriting the
             // whole reply cost a full model call of 45–65 s for nearly the same text.
