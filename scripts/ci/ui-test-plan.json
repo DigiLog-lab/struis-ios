@@ -1,0 +1,150 @@
+{
+  "shards": {
+    "pr": 2,
+    "full": 3
+  },
+  "pr": [
+    "WorkbookE2EFixesUITests",
+    "DeviceWorkbookUITests",
+    "DeviceChatUITests",
+    "MinimumLoopE2ETests",
+    "E2EDriverUITests"
+  ],
+  "paths": {
+    "strius/Features/Chat/**": [
+      "ChatScrollStabilityUITests",
+      "ChatCameraUITests",
+      "ChatImmediateImageSendUITests",
+      "ChatPhysicalImageSendUITests",
+      "ChatTypingExperienceUITests",
+      "ReplyTailUITests",
+      "ConversationExportUITests",
+      "Issue10ScreenshotUITests",
+      "LearningProgressUITests"
+    ],
+    "strius/Features/Workbook/**": [
+      "WorkbookSubunitLayoutUITests",
+      "WorkbookSubunitHeaderUITests",
+      "WorkbookSplitGradingUITests",
+      "WorkbookHomeUITests",
+      "UnitDeletionUITests",
+      "Issue10ScreenshotUITests",
+      "ReplyTailUITests"
+    ],
+    "strius/Features/ImmersionLab/**": [
+      "ImmersionSceneChatUITests"
+    ],
+    "strius/Features/Onboarding/**": [
+      "striusUITests",
+      "striusUITestsLaunchTests"
+    ],
+    "strius/Features/Settings/**": [
+      "DeviceLedgerSettingsUITests",
+      "DeviceRuntimeUITests"
+    ],
+    "strius/Runtime/**": [
+      "DeviceRuntimeUITests",
+      "DeviceChatUITests",
+      "DeviceWorkbookUITests"
+    ],
+    "NativeRuntime/**": [
+      "DeviceRuntimeUITests"
+    ],
+    "strius/Ledger/**": [
+      "DeviceLedgerSettingsUITests",
+      "ConversationExportUITests",
+      "UnitDeletionUITests"
+    ],
+    "strius/State/**": [
+      "ChatScrollStabilityUITests",
+      "ReplyTailUITests",
+      "WorkbookSubunitLayoutUITests",
+      "LearningProgressUITests"
+    ],
+    "strius/Engine/**": [
+      "WorkbookSplitGradingUITests",
+      "WorkbookSubunitLayoutUITests",
+      "Issue10ScreenshotUITests"
+    ],
+    "strius/App/**": [
+      "*"
+    ],
+    "strius/Design/**": [
+      "*"
+    ],
+    "strius/Auth/**": [
+      "*"
+    ],
+    "strius/striusApp.swift": [
+      "*"
+    ],
+    "strius.xcodeproj/**": [
+      "*"
+    ],
+    "scripts/ci/**": [
+      "*"
+    ],
+    ".github/workflows/ios.yml": [
+      "*"
+    ]
+  },
+  "durations": {
+    "ChatCameraUITests/testCameraAndChatPreservation": 95,
+    "ChatCameraUITests/testCameraRotationAndReopening": 67,
+    "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing": 23,
+    "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment": 23,
+    "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch": 40,
+    "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend": 0,
+    "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts": 66,
+    "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation": 116,
+    "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger": 30,
+    "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation": 19,
+    "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways": 42,
+    "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives": 133,
+    "ChatTypingExperienceUITests/testJapaneseCandidateSelection": 1,
+    "ChatTypingExperienceUITests/testJapaneseMultilineAndSend": 0,
+    "ConversationExportUITests/testCopyConversation": 36,
+    "DeviceChatUITests/testInterruptWithRealCodex": 0,
+    "DeviceChatUITests/testQuestionTurnWithMockModel": 35,
+    "DeviceChatUITests/testQuestionTurnWithRealCodex": 0,
+    "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex": 0,
+    "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff": 24,
+    "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts": 25,
+    "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice": 32,
+    "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex": 0,
+    "E2EDriverUITests/testDrive": 0,
+    "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas": 22,
+    "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker": 18,
+    "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes": 36,
+    "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording": 84,
+    "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult": 72,
+    "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration": 49,
+    "LearningProgressUITests/testInspectActualReplyProgress": 0,
+    "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply": 0,
+    "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording": 86,
+    "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex": 0,
+    "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording": 72,
+    "UnitDeletionUITests/testLargeTextConfirmationAndCancel": 29,
+    "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState": 31,
+    "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned": 78,
+    "WorkbookE2EFixesUITests/testLongSubunitConversationDoesNotFreeze": 298,
+    "WorkbookE2EFixesUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain": 94,
+    "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately": 84,
+    "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton": 24,
+    "WorkbookSplitGradingUITests/testBatchOfPhotosGradedAsOneAnswer": 82,
+    "WorkbookSplitGradingUITests/testCloseSetWithFoundProblems": 110,
+    "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult": 98,
+    "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap": 40,
+    "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle": 23,
+    "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation": 32,
+    "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply": 41,
+    "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady": 75,
+    "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance": 68,
+    "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar": 32,
+    "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched": 18,
+    "striusUITests/testExample": 10,
+    "striusUITests/testHorizontalSwipesKeepTheSingleChatPage": 23,
+    "striusUITests/testLaunchPerformance": 77,
+    "striusUITestsLaunchTests/testLaunch": 15
+  }
+}

@@ -31,3 +31,24 @@ HTTP bootstrapの同時読込テストは認証有効のビルドを前提にし
 `ClaudeProxyTests` は、Codex の Responses API と Claude の Messages API の変換(tool、thinking の署名の往復、画像、structured outputs の schema)、端末内プロキシの往復、スレッドを始めた実行先で続ける規則を確認します。
 
 実キーなしで Simulator の配線を確かめる場合は、`scripts/e2e/fake_anthropic.py`(現行の Claude が拒む要求の形を 400 で返す模擬サーバー)と `scripts/e2e/standin_assets.py`(配信の代わりの最小の prompt・schema)を使い、DEBUG の Simulator に `STRUIS_ANTHROPIC_BASE_URL=http://127.0.0.1:8787`・`STRUIS_DEVICE_ASSETS_DIR=<出力先>` を渡します。模擬サーバーの返事は決まった文で、Claude の答えの質の確認にはなりません。Simulator は App Attest を使えないため、実キーで確認する場合は 0600 の作業コピーを `STRUIS_DEBUG_ANTHROPIC_KEY_FILE` で渡します(DEBUG の Simulator のみ。端末向けのビルドにはこの経路が入りません)。実機は App Attest で Anthropic から token を受け取ります。token 取得の手順(チャレンジ・登録・交換・401 での取り直し)は `ClaudeAppAttestTests` が模擬の Apple・Anthropic で確かめ、Apple の本物の attestation は実機で確かめます。`STRUIS_CLAUDE_PROXY_DUMP_DIR` を付けると、変換前後の要求(画像は省略)を書き出します。
+
+## CIでのUIテストの範囲と割り当て(Issue #22 の 7、引き継ぎ 2.3)
+
+`iOS` workflowは、UIテストをテストメソッド単位で複数のrunnerへ割り当てて並行に実行します。runnerごとにSimulatorは1台です(`xcode-27`の標準runnerは3コア・メモリ7GBで、1台の中で並列にすると遅くなるため)。
+
+実行する範囲は2段階です。
+
+| 段階 | いつ | 何を | runner |
+|---|---|---|---|
+| `pr` | PR、エージェントのCI要求(`workflow_dispatch` で main 以外)、手動の既定 | 学習の流れを通すE2Eのクラス(`pr`)+ 変更したファイルに対応するクラス(`paths`) | 2 |
+| `full` | mainへのpush、毎日 03:00 JST(`schedule`)、手動で `ui_tier=full` | すべてのUIテスト | 3 |
+
+- 割り当ては`scripts/ci/ui_test_plan.py`が`scripts/ci/ui-test-plan.json`を読んで決めます。所要時間の長いテストから順に、合計時間が最も短いrunnerへ入れます。
+- `shards`: 段階ごとのrunnerの数。macOSのrunnerは同時に5台までで、エージェント本体や他のCIと共有するため、PRは2、全件は3にしています。
+- `durations`: テストメソッドごとの所要秒数(CIの実測値。2026-10-18〜19 の緑の run 2 回の大きい方)。載っていないテストは60秒として扱います。テストが大きく変わったら更新します。
+- `pr`: PRのCIで必ず実行するテストクラス(単元作成 → 一枚 → 撮影 → 判定、質問シートの会話、端末完結の問題集ループ)。
+- `paths`: `{"変更ファイルのglob": ["テストクラス", ...]}`。PRで変更したファイルが一致すれば、そのクラスも実行します。`["*"]` はすべて(どのテストにも影響しうる変更: `strius/App`、`strius/Design`、`strius/Auth`、`strius.xcodeproj`、`scripts/ci`、`ios.yml`)。`striusUITests/<クラス>.swift` を変えればそのクラス、`UITestSupport.swift` を変えればすべてが走ります(対応表に書かなくてもよい)。
+- 見積もり(2026-10-19 の実測から): 全件は 3 runner で各 15 分弱、PRの最小構成(E2E のみ)は 2 runner で各 5 分、`strius/Features/Chat` を変えたPRで各 13 分。単体テストと archive 検証の `build` job(約 15 分)と並行に走るので、PRのCIはおよそ 15〜20 分で終わります。
+- 各runnerは、テストの前にUIテスト用のビルドをしてSimulatorを起動し、アプリを一度起動しておきます。新しいrunnerでは最初の起動に40秒以上(一度は3分以上)かかり、最初のテストの時間上限を使い切ってしまうためです。
+- 各runnerの結果は`ios-ui-test-results-<実行ID>-<再実行番号>-<runner番号>`のartifactに保存します(xcresult と、落ちた時の画面の写真・要素の木 `ui-probe`)。runnerごとに終わるので、他のrunnerの実行中でも終わった分の結果を見られます。
+- 署名付きarchive(配信)は、mainのpushで全件のUIテストが通った後に作ります。
