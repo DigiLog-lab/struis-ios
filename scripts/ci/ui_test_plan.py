@@ -188,11 +188,13 @@ def main(argv=None):
     parser.add_argument('--plan', type=Path, default=PLAN)
     args = parser.parse_args(argv)
     plan = json.loads(args.plan.read_text())
-    count = shard_count(plan, args.tier)
+    changed = [line for line in args.changed_files.read_text().splitlines() if line] if args.changed_files else []
+    discovered = discover()
+    tests = select(discovered, plan, args.tier, changed)
+    # A pull request whose change can affect every test runs the whole suite on the full tier's runners.
+    count = shard_count(plan, 'full' if len(tests) == len(discovered) else args.tier)
     if args.shard is not None and not 0 <= args.shard < count:
         raise SystemExit(f'--shard must be within 0..{count - 1}')
-    changed = [line for line in args.changed_files.read_text().splitlines() if line] if args.changed_files else []
-    tests = select(discover(), plan, args.tier, changed)
     durations = plan.get('durations', {})
     shards = shard(tests, count, durations)
     if args.matrix:

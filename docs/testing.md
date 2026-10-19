@@ -44,7 +44,7 @@ HTTP bootstrapの同時読込テストは認証有効のビルドを前提にし
 | `full` | mainへのpush、毎日 03:00 JST(`schedule`)、手動で `ui_tier=full` | すべてのUIテスト | 3 |
 
 - 割り当ては`scripts/ci/ui_test_plan.py`が`scripts/ci/ui-test-plan.json`を読んで決めます。所要時間の長いテストから順に、合計時間が最も短いrunnerへ入れます。
-- `shards`: 段階ごとのrunnerの数。macOSのrunnerは同時に5台までで、エージェント本体や他のCIと共有するため、PRは2、全件は3にしています。
+- `shards`: 段階ごとのrunnerの数。macOSのrunnerは同時に5台までで、エージェント本体や他のCIと共有するため、PRは2、全件は3にしています。PRでも全件が選ばれた時(全件に影響する変更)は全件のrunner数で分けます。
 - `durations`: テストメソッドごとの所要秒数(CIの実測値。2026-10-18〜19 の緑の run 2 回の大きい方)。載っていないテストは60秒として扱います。テストが大きく変わったら更新します。
 - `pr`: PRのCIで必ず実行するテストクラス(単元作成 → 一枚 → 撮影 → 判定、質問シートの会話、端末完結の問題集ループ)。
 - `paths`: `{"変更ファイルのglob": ["テストクラス", ...]}`。PRで変更したファイルが一致すれば、そのクラスも実行します。`["*"]` はすべて(どのテストにも影響しうる変更: `strius/App`、`strius/Design`、`strius/Auth`、`strius.xcodeproj`、`scripts/ci`、`ios.yml`)。`striusUITests/<クラス>.swift` を変えればそのクラス、`UITestSupport.swift` を変えればすべてが走ります(対応表に書かなくてもよい)。

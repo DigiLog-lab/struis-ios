@@ -224,6 +224,23 @@ class SelectTests(unittest.TestCase):
 
 
 class MainTests(unittest.TestCase):
+    def test_pr_that_selects_everything_uses_the_full_tiers_runners(self):
+        with tempfile.TemporaryDirectory() as directory:
+            plan = Path(directory, 'plan.json')
+            changed = Path(directory, 'changed.txt')
+            plan.write_text(json.dumps({'shards': {'pr': 1, 'full': 3}, 'durations': {}, 'pr': [],
+                                        'paths': {'.github/workflows/ios.yml': ['*']}}))
+            changed.write_text('.github/workflows/ios.yml\n')
+            out = io.StringIO()
+            with redirect_stdout(out), redirect_stderr(io.StringIO()):
+                ui_test_plan.main(['--matrix', '--tier', 'pr', '--plan', str(plan), '--changed-files', str(changed)])
+            self.assertEqual(len(json.loads(out.getvalue())), 3)
+            changed.write_text('scripts/agent/agentctl.py\n')
+            out = io.StringIO()
+            with redirect_stdout(out), redirect_stderr(io.StringIO()):
+                ui_test_plan.main(['--matrix', '--tier', 'pr', '--plan', str(plan), '--changed-files', str(changed)])
+            self.assertEqual(json.loads(out.getvalue()), [])
+
     def test_prints_only_testing_arguments_for_the_shard(self):
         with tempfile.TemporaryDirectory() as directory:
             plan = Path(directory, 'plan.json')
