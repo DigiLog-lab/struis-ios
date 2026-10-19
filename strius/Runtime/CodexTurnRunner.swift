@@ -89,7 +89,7 @@ actor CodexTurnRunner: TurnRunning {
             planID: second.planID, round: second.round, status: second.status, codexThreadID: second.codexThreadID,
             codexTurnID: second.codexTurnID, finalText: second.finalText,
             executions: first.executions + second.executions, rateLimits: second.rateLimits, files: second.files,
-            error: second.error, elapsedMs: first.elapsedMs + second.elapsedMs
+            error: second.error, elapsedMs: first.elapsedMs + second.elapsedMs, errorDetail: second.errorDetail ?? first.errorDetail
         )
     }
 

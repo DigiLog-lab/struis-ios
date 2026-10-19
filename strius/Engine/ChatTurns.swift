@@ -412,7 +412,7 @@ nonisolated enum ChatTurns {
             let round = state.round
             state.checks.append(.object(["round": .number(Double(round)), "accepted": .bool(false), "error": .string(String(detail.prefix(2000)))]))
             chatTurnLog.error("round \(round) rejected: \(detail, privacy: .public)")
-            if state.round >= 5 { return .failed(learnerFacingFailure) }
+            if state.round >= 5 { return .failed(learnerFacingFailure, detail: "validation rejected \(round) rounds: " + String(detail.prefix(300))) }
             // Keep the learner-facing reply and ask only for the private blocks (B5): rewriting the
             // whole reply cost a full model call of 45–65 s for nearly the same text.
             let written = visibleReply(of: outcome.finalText)
