@@ -142,7 +142,9 @@ struct MessageBubble: View {
                         .accessibilityIdentifier("assistant-failure-detail-\(message.id.uuidString)")
                 }
                 // 返事を受け取った後の会話は実行先が固定されるので、切り替えが効く時だけ出す(`retryFollowsProviderSetting`)。
-                if let settings, settings.modelProvider == .anthropic, chat?.retryFollowsProviderSetting ?? false {
+                // ChatGPT を接続していない(導入で Claude だけ選んだ)学習者には出さない: 設定を変えても送り直しは失敗する。
+                if let settings, Self.offersProviderSwitch(provider: settings.modelProvider, gptConnected: settings.account?.isConnected == true,
+                                                           retryFollowsProviderSetting: chat?.retryFollowsProviderSetting ?? false) {
                     Button {
                         settings.modelProvider = .openai
                     } label: {
@@ -155,6 +157,11 @@ struct MessageBubble: View {
             }
             .padding(.horizontal, 4)
         }
+    }
+
+    /// 「GPT に切り替える」を出す条件: Claude で動いていて、ChatGPT が接続済みで、この会話の送り直しが設定の実行先で動く。
+    nonisolated static func offersProviderSwitch(provider: ModelProvider, gptConnected: Bool, retryFollowsProviderSetting: Bool) -> Bool {
+        provider == .anthropic && gptConnected && retryFollowsProviderSetting
     }
 
     /// 「送り直す」 under a reply that stopped or failed (E2E H1・H3).

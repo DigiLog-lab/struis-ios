@@ -223,10 +223,12 @@ final class ChatStore {
             let loaded = all.filter { !hidden.contains($0.id) }
             if allMessages != all { allMessages = all }
             if messages != loaded { messages = loaded }
-            retryFollowsProviderSetting = await Self.retryFollowsProviderSetting(ledger: ledger, threadID: key)
+            // 2 つの await をまたぐので、別の会話の読み込みに追い越された後は書かない(古い会話の値で上書きしない)。
+            let followsSetting = await Self.retryFollowsProviderSetting(ledger: ledger, threadID: key)
             let revision = sendStateRevision
             let running = await turns.isChatRunning(threadID: key)
             guard threadID == id, sessionGeneration == generation else { return }
+            retryFollowsProviderSetting = followsSetting
             // A new send may start or finish preparation while the actor query suspends.
             if sendStateRevision == revision { isSending = running || !sendPreparations.isEmpty }
             loadState = .loaded

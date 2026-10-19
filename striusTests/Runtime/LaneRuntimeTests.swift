@@ -376,6 +376,14 @@ final class LaneRecoveryTests: XCTestCase {
         XCTAssertFalse(applies)
     }
 
+    /// 3.5: 「GPT に切り替える」は Claude で動いていて ChatGPT が接続済みの時だけ。接続が無ければ押しても送り直しが失敗する。
+    func testProviderSwitchRequiresAConnectedGPTAccount() {
+        XCTAssertTrue(MessageBubble.offersProviderSwitch(provider: .anthropic, gptConnected: true, retryFollowsProviderSetting: true))
+        XCTAssertFalse(MessageBubble.offersProviderSwitch(provider: .anthropic, gptConnected: false, retryFollowsProviderSetting: true), "未接続")
+        XCTAssertFalse(MessageBubble.offersProviderSwitch(provider: .anthropic, gptConnected: true, retryFollowsProviderSetting: false), "実行先が固定")
+        XCTAssertFalse(MessageBubble.offersProviderSwitch(provider: .openai, gptConnected: true, retryFollowsProviderSetting: true), "もう GPT")
+    }
+
     @MainActor func testResumedStepDoesNotResumeAgain() async throws {
         let ledger = try Ledger.inMemory()
         let seeded = try await Self.seed(ledger, userMetadata: ["model_text": .string("単元づくりの依頼")], replyMetadata: ["auto_resumed": .bool(true)])
