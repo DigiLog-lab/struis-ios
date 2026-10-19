@@ -53,7 +53,7 @@ final class MainThreadWatchdog {
 /// UI テストで XCUITest の「アプリが落ち着いた」合図(event loop idle)が 60 秒来ず、アプリは暇なまま操作ごとに
 /// 60 秒待たされてテストが時間切れになる件の調査用(Simulator の DEBUG で固定データの時だけ)。
 /// 1 秒ごとにメインの run loop の今のモードと、指で追っている・慣性で動いているスクロールの数を調べ、
-/// default 以外のモードやスクロールの追跡が続いている時だけ標準エラーに `RUNLOOP_PROBE` を書く
+/// default 以外のモードやスクロールの追跡・慣性が 3 秒以上続いている時だけ標準エラーに `RUNLOOP_PROBE` を書く
 /// (XCUITest はアプリの標準エラーを xcresult に残す)。モードが UITracking のまま止まっていれば、
 /// XCUITest の合図の要求がメインで処理されない(アプリ側の原因)ことが分かる。
 enum RunLoopModeProbe {
@@ -73,8 +73,9 @@ enum RunLoopModeProbe {
                 DispatchQueue.main.async {
                     let delay = Int(Date().timeIntervalSince(sent) * 1000)
                     let mode = RunLoop.main.currentMode?.rawValue ?? "none"
-                    let busy = mode == RunLoop.Mode.default.rawValue ? 0 : MainActor.assumeIsolated { RunLoopModeProbe.movingScrollViews() }
-                    if mode != RunLoop.Mode.default.rawValue || delay > 500 {
+                    // 慣性のスクロールは default のモードでも続くので、モードに関係なく数える。
+                    let busy = MainActor.assumeIsolated { RunLoopModeProbe.movingScrollViews() }
+                    if mode != RunLoop.Mode.default.rawValue || busy > 0 || delay > 500 {
                         report = "mode=\(mode) moving_scroll_views=\(busy) main_delay_ms=\(delay)"
                     }
                     semaphore.signal()
@@ -85,7 +86,7 @@ enum RunLoopModeProbe {
                     continue
                 }
                 if report.isEmpty {
-                    if let since = anomalySince {
+                    if let since = anomalySince, !lastReport.isEmpty {
                         let seconds = Int(Date().timeIntervalSince(since))
                         FileHandle.standardError.write(Data("RUNLOOP_PROBE back to default after \(seconds) s\n".utf8))
                     }
@@ -96,8 +97,8 @@ enum RunLoopModeProbe {
                 let since = anomalySince ?? Date()
                 anomalySince = since
                 let seconds = Int(Date().timeIntervalSince(since))
-                // 状態が変わった時と、続いている間は 10 秒ごとに書く。
-                if report != lastReport || seconds % 10 == 0 {
+                // ふつうのスクロール(1〜2 秒の慣性)は書かない。3 秒以上続いたら、状態が変わった時と 10 秒ごとに書く。
+                if seconds >= 3, report != lastReport || seconds % 10 == 0 {
                     FileHandle.standardError.write(Data("RUNLOOP_PROBE \(report) for_s=\(seconds)\n".utf8))
                     lastReport = report
                 }
@@ -107,7 +108,7 @@ enum RunLoopModeProbe {
         thread.start()
     }
 
-    /// 指で追っている・ドラッグ中・慣性で動いているスクロールの数(モードが default でない時だけ数える)。
+    /// 指で追っている・ドラッグ中・慣性で動いているスクロールの数。
     @MainActor private static func movingScrollViews() -> Int {
         var count = 0
         func visit(_ view: UIView) {
