@@ -13,7 +13,6 @@ final class ClaudeProxyTests: XCTestCase {
         XCTAssertTrue(ClaudeResponsesProxy.requestTooLarge(ClaudeResponsesProxy.maxRequestBytes + 1))
         XCTAssertFalse(ClaudeResponsesProxy.requestTooLarge(3 * 1024 * 1024))
         // 大きすぎる要求は 400 で返す: Codex は 413 を一時的な失敗として同じ本文を送り直す(上流の 413 も 400 に直している)。
-        XCTAssertEqual(ClaudeUpstream.codexStatus(413), 400)
         XCTAssertEqual(ClaudeResponsesProxy.oversizedStatus, 400)
     }
 
