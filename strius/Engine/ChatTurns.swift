@@ -405,7 +405,7 @@ nonisolated enum ChatTurns {
             let disposition = (progressRaw["disposition"] as? String) ?? ""
             if disposition != "continue" { return .done }
             state.deliveredParts.append(candidate)
-            if state.round >= 5 { return .failed(learnerFacingFailure) }
+            if state.round >= 5 { return .failed(learnerFacingFailure, detail: "continuation limit reached: \(state.round) rounds asked to continue") }
             return .again(text: continuation)
         } catch {
             let detail = String(describing: error)

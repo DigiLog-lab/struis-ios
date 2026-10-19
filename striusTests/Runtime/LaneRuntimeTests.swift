@@ -353,6 +353,34 @@ final class LaneRecoveryTests: XCTestCase {
         XCTAssertEqual(message.errorDetail, "closed stub")
     }
 
+    /// 3.5: 続き(`disposition: continue`)が上限まで続いて失敗した時も、理由(診断の文)を残す。
+    @MainActor func testContinuationLimitFailureKeepsTheDiagnosticDetail() async throws {
+        let ledger = try Ledger.inMemory()
+        let seeded = try await Self.seed(ledger, userMetadata: [:])
+        var state = ChatTurns.State(
+            turnID: LedgerID.make(), threadID: seeded.threadID, userMessageID: seeded.userID, assistantMessageID: seeded.assistantID,
+            learnerID: "fixture-learner", text: "質問", attachments: [], workbookView: nil,
+            codexThreadID: nil, progressBefore: ProgressState(), progressAfter: ProgressState()
+        )
+        // 1 ラウンド目で目標を作り、以後は同じ目標を指したまま「続き」を求め続ける返事(どのラウンドも検証は通る)。
+        let goal = #"{"id": "practice", "parent_id": null, "title": "practice", "outcome": "自力で説明できる", "learner_action": "解答する", "model_action": "説明して評価する", "completion_condition": "必要な解答の証拠を確認する", "kind": "learner", "status": "active", "next_action": "解答する", "child_order": [], "loop": {"enabled": true, "unit": "出題から評価まで", "repeat_when": "未達", "exit_when": "達成または上限", "after_exit": "親で見直す", "stagnation_attempts": 3, "max_attempts": 2}, "evaluation": null}"#
+        func outcome(part: String) -> TurnOutcome {
+            let goals = state.round == 0 ? goal : ""
+            let update = #"{"schema_version": 1, "base_revision": \#(state.progressAfter.revision), "goals": [\#(goals)], "problems": [], "attempts": [], "current_goal_id": "practice", "disposition": "continue", "next_action": "説明を続ける", "reply_quotes": ["\#(part)"]}"#
+            return TurnOutcome(planID: "p", round: state.round + 1, status: .completed, codexThreadID: nil, codexTurnID: nil,
+                               finalText: "\(part)\n<struis_progress_update>\(update)</struis_progress_update>",
+                               executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: 1)
+        }
+        var last: ChatTurns.RoundResult?
+        for part in ["一つ目", "二つ目", "三つ目", "四つ目", "五つ目"] {
+            last = await ChatTurns.applyRound(ledger: ledger, state: &state, outcome: outcome(part: part))
+        }
+        XCTAssertTrue(state.checks.allSatisfy { $0["accepted"]?.boolValue == true }, "検証で差し戻されたラウンドがある: \(state.checks)")
+        guard case .failed(let message, let detail) = last else { return XCTFail("5 ラウンド目で失敗にならない: \(String(describing: last))") }
+        XCTAssertEqual(message, ChatTurns.learnerFacingFailure)
+        XCTAssertEqual(detail, "continuation limit reached: 5 rounds asked to continue")
+    }
+
     @MainActor func testResumedStepDoesNotResumeAgain() async throws {
         let ledger = try Ledger.inMemory()
         let seeded = try await Self.seed(ledger, userMetadata: ["model_text": .string("単元づくりの依頼")], replyMetadata: ["auto_resumed": .bool(true)])
