@@ -16,7 +16,6 @@ struct MessageBubble: View {
     @Environment(\.colorScheme) private var scheme
     /// Optional so previews and screens without the chat store still render.
     @Environment(ChatStore.self) private var chat: ChatStore?
-    @Environment(SettingsStore.self) private var settings: SettingsStore?
 
     init(
         message: ChatMessage, threadID: UUID? = nil, onProposalStarted: ((WorkbookProposalDTO) -> Void)? = nil,
@@ -127,33 +126,18 @@ struct MessageBubble: View {
     }
 
     /// 止まった・失敗した返事の理由(勉強を止めない仕組み 3.5)。学習者向けの一文の下に、診断の文
-    /// (`rpc 400: …`・`register HTTP 401` など)を小さく出す。Claude で失敗した時は、その場で GPT に切り替える導線を出す
-    /// (設定を開かなくても勉強を続けられる。切り替えた後は「送り直す」で同じ依頼を GPT に送れる)。
+    /// (`rpc 400: …`・`register HTTP 401` など)を小さく出す。
+    /// 「GPT に切り替える」の導線は保留(ビルドに含めない。実装は hold/gpt-switch ブランチに残してある)。
     @ViewBuilder
     private var failureDetail: some View {
-        if message.status == .failed, !folded {
-            VStack(alignment: .leading, spacing: 6) {
-                if let detail = message.errorDetail {
-                    Text(detail)
-                        .font(Typography.micro)
-                        .foregroundStyle(Theme.textTertiary(scheme))
-                        .lineLimit(4)
-                        .textSelection(.enabled)
-                        .accessibilityIdentifier("assistant-failure-detail-\(message.id.uuidString)")
-                }
-                // 返事を受け取った後の会話は実行先が固定されるので、切り替えが効く時だけ出す(`retryFollowsProviderSetting`)。
-                if let settings, settings.modelProvider == .anthropic, chat?.retryFollowsProviderSetting ?? false {
-                    Button {
-                        settings.modelProvider = .openai
-                    } label: {
-                        Label("GPT に切り替える", systemImage: "arrow.left.arrow.right")
-                            .font(Typography.caption)
-                    }
-                    .buttonStyle(.borderless)
-                    .accessibilityIdentifier("assistant-switch-to-gpt-\(message.id.uuidString)")
-                }
-            }
-            .padding(.horizontal, 4)
+        if message.status == .failed, !folded, let detail = message.errorDetail {
+            Text(detail)
+                .font(Typography.micro)
+                .foregroundStyle(Theme.textTertiary(scheme))
+                .lineLimit(4)
+                .textSelection(.enabled)
+                .accessibilityIdentifier("assistant-failure-detail-\(message.id.uuidString)")
+                .padding(.horizontal, 4)
         }
     }
 
@@ -199,38 +183,6 @@ struct MessageBubble: View {
             RemoteMessageImage(assetPath: assetPath, caption: caption)
         case .file(let filename, let contentType, let bytes):
             MessageFileAttachment(filename: filename, contentType: contentType, bytes: bytes)
-        }
-    }
-
-    /// この吹き出しが描く数式の本文と、その幅(`KaTeXPrefetcher` で画面に出る前に高さを測る)。`rendered` と同じ本文・色・大きさ。
-    /// `timelineWidth` は会話の行の幅(左右の余白を除いたもの)。
-    @MainActor
-    static func katexItems(_ message: ChatMessage, scheme: ColorScheme, timelineWidth: CGFloat) -> [KaTeXPrefetcher.Item] {
-        let padding: CGFloat = 28
-        switch message.role {
-        case .user:
-            let text = message.textualDisplayText
-            guard !text.isEmpty else { return [] }
-            return [KaTeXPrefetcher.Item(raw: text, display: false, color: textOnAccentColor(scheme), fontSize: 15, fontWeight: 500,
-                                         width: timelineWidth - 36 - padding)]
-        case .assistant:
-            guard message.status != .pending else { return [] }
-            let width = timelineWidth - padding
-            let color = textPrimaryColor(scheme)
-            return message.renderableBlocks.compactMap { block in
-                switch block {
-                case .text(let text):
-                    KaTeXPrefetcher.Item(raw: ChatTextReadability.formatAssistantText(text), display: false, color: color, fontSize: 15, fontWeight: 500, width: width)
-                case .math(let latex, let display):
-                    KaTeXPrefetcher.Item(raw: latex, display: display, color: color, fontSize: 15, fontWeight: 500, width: width)
-                case .notice(_, let body):
-                    KaTeXPrefetcher.Item(raw: body, display: false, color: color, fontSize: 15, fontWeight: 500, width: width)
-                default:
-                    nil
-                }
-            }
-        case .system:
-            return []
         }
     }
 

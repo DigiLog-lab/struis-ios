@@ -32,11 +32,6 @@ final class ChatStore {
     /// 学習者の送信で始まった返事(いちばん新しいもの)。台帳で出来上がったかを見る。
     private var sentReplyID: UUID?
     private(set) var sendError: String?
-    /// 「GPT に切り替える」が、この会話の送り直しに効くか(勉強を止めない仕組み 3.5)。
-    /// Codex のスレッドは始めた実行先に固定される(`CodexTurnRunner.resolvingProvider`: 別の実行先では履歴の reasoning を
-    /// 読めない)ので、切り替えが効くのは、まだ返事を一度も受け取っていない会話(最初のターンが Claude の準備で失敗した時)だけ。
-    /// 返事を受け取った後の会話で実行先を変えるには新しい会話が要る(3.3 の範囲、保留)。
-    private(set) var retryFollowsProviderSetting = true
     /// 答案の写真を添えた会話と答案(`thread|capture`)。同じ会話で同じ答案を何度も送らない。
     /// 進行中の返信に付く進捗ラベル (`codex.turn.status` の端末版)。
     private(set) var progressLabel: String?
@@ -223,7 +218,6 @@ final class ChatStore {
             let loaded = all.filter { !hidden.contains($0.id) }
             if allMessages != all { allMessages = all }
             if messages != loaded { messages = loaded }
-            retryFollowsProviderSetting = await Self.retryFollowsProviderSetting(ledger: ledger, threadID: key)
             let revision = sendStateRevision
             let running = await turns.isChatRunning(threadID: key)
             guard threadID == id, sessionGeneration == generation else { return }
@@ -235,14 +229,6 @@ final class ChatStore {
             chatLog.error("loadMessages failed: \(String(describing: error), privacy: .public)")
             if loadState != .loaded { loadState = .failed(Self.message(for: error)) } else { sendError = Self.message(for: error) }
         }
-    }
-
-    /// この会話の送り直しが設定の実行先で動くか: Codex のスレッドが無い(まだ始めていない)か、スレッドはあるが
-    /// 返事を一度も受け取っていない(`ThreadContextStore` の `answered == false`)。
-    nonisolated static func retryFollowsProviderSetting(ledger: Ledger, threadID: String, contexts: ThreadContextStore = .shared) async -> Bool {
-        let codexThreadID = try? await ledger.read { db in try CodexThreadRecord.fetchOne(db, key: threadID)?.codexThreadId }
-        guard let codexThreadID else { return true }
-        return contexts.entry(codexThreadID)?.answered == false
     }
 
     func ensureActiveThread() async throws -> UUID {

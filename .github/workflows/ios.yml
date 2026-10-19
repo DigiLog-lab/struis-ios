@@ -5,12 +5,20 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # 全件の UI テストを 1 日 1 回(03:00 JST、runner が空いている時間)main で回す。
+    - cron: '0 18 * * *'
   workflow_dispatch:
     inputs:
       ci_request:
         description: エージェントのCI要求識別子
         type: string
         required: false
+      ui_tier:
+        description: UIテストの範囲(pr = 変更に関係する分、full = 全件)
+        type: choice
+        options: [pr, full]
+        default: pr
       upload:
         description: App Store Connectへアップロードする
         type: boolean
@@ -24,14 +32,17 @@ permissions:
   contents: read
 
 concurrency:
-  # Only main's manual release/upload uses the shared non-cancellable group.
-  group: ios-${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && 'manual-main' || github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main' }}
+  # Only main's manual release/upload uses the shared non-cancellable group. The nightly full run has its own
+  # group and is not cancelled. Pushes to main cancel the older push run (the newest commit is what matters).
+  group: ios-${{ github.event_name == 'schedule' && 'nightly' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && 'manual-main') || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main') }}
 
 jobs:
-  build:
+  # Guarantees the bootstrap output (about 50 minutes to build) is in the cache, so the
+  # build and UI test runners below can start in parallel and only restore it.
+  native:
     runs-on: xcode-27
-    timeout-minutes: 180
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -39,9 +50,7 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14'
-      - name: Xcodeを確認
-        run: xcodebuild -version
-      - name: Native Runtime cacheを復元
+      - name: Native Runtime cacheを確認
         id: native
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -51,6 +60,7 @@ jobs:
             NativeRuntime/PackageCache
             NativeRuntime/.build
           key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          lookup-only: true
       - name: ツールを準備
         if: steps.native.outputs.cache-hit != 'true'
         run: |
@@ -85,6 +95,53 @@ jobs:
             NativeRuntime/PackageCache
             NativeRuntime/.build
           key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+      - name: Native Runtime cacheが使えることを確認
+        if: steps.native.outputs.cache-hit != 'true'
+        id: saved
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          lookup-only: true
+      - name: cacheが無ければ止める
+        if: steps.native.outputs.cache-hit != 'true' && steps.saved.outputs.cache-hit != 'true'
+        run: |
+          echo '::error::Native Runtime cacheを保存できませんでした。agent-native-cache.yml が同じcacheを保存中の可能性があります。その実行が終わってから、このworkflowを再実行してください。'
+          exit 1
+
+  build:
+    needs: native
+    runs-on: xcode-27
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Spotlight の索引を止める
+        # The runner VM has 3 CPUs and 7 GB; Xcode, the Simulator and the app already fill the memory, and a
+        # stackshot of a 2-minute stall showed Spotlight (mds_stores) indexing while pages were read back in.
+        run: |
+          sudo mdutil -a -i off >/dev/null 2>&1 || true
+          echo "memory: $(( $(sysctl -n hw.memsize) / 1073741824 )) GB, cpus: $(sysctl -n hw.ncpu)"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: Xcodeを確認
+        run: xcodebuild -version
+      - name: Native Runtime cacheを復元
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          fail-on-cache-miss: true
       - name: READMEのSimulatorビルド
         timeout-minutes: 30
         run: |
@@ -102,19 +159,6 @@ jobs:
             -only-testing:striusTests -parallel-testing-enabled NO \
             -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
             -maximum-test-execution-time-allowance 300 ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
-      - name: SimulatorでUIテスト
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
-        timeout-minutes: 90
-        run: |
-          set -euo pipefail
-          xcodebuild test -project strius.xcodeproj -scheme strius \
-            -destination 'platform=iOS Simulator,name=iPhone 17' \
-            -resultBundlePath "$RUNNER_TEMP/StruisUITests.xcresult" \
-            -collect-test-diagnostics never -only-testing:striusUITests \
-            -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
-            -maximum-test-execution-time-allowance 600 \
-            -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES \
-            TEST_RUNNER_STRUIS_PROBE_DIR="$RUNNER_TEMP/ui-probe"
       - name: 実機向けRelease archiveを検証
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
         timeout-minutes: 30
@@ -128,12 +172,189 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ios-test-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/*.xcresult
+          if-no-files-found: ignore
+
+  # Decides which UI tests run and splits them across runners (scripts/ci/ui_test_plan.py,
+  # scripts/ci/ui-test-plan.json). Pull requests and the agent's CI requests run the `pr` tier
+  # (the E2E classes plus the classes mapped to the changed files, 2 runners); a push to main,
+  # the nightly run and a manual `full` run every UI test (3 runners).
+  ui-plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: 実行するUIテストを決める
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          PR_BASE: ${{ github.base_ref }}
+          REQUESTED_TIER: ${{ inputs.ui_tier }}
+        run: |
+          set -euo pipefail
+          # main itself (push, nightly, or a manual release run) always gets every UI test.
+          if [[ "$EVENT" == "push" || "$EVENT" == "schedule" || "$REQUESTED_TIER" == "full" || "$REF" == "refs/heads/main" ]]; then
+            tier=full
+            : > "$RUNNER_TEMP/changed.txt"
+          else
+            tier=pr
+            base="${PR_BASE:-main}"
+            git rev-parse --verify --quiet "origin/$base" >/dev/null || base=main
+            git diff --name-only --no-renames "origin/$base...HEAD" > "$RUNNER_TEMP/changed.txt"
+          fi
+          matrix=$(python3 scripts/ci/ui_test_plan.py --matrix --tier "$tier" --changed-files "$RUNNER_TEMP/changed.txt")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          python3 - "$matrix" "$tier" <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json, sys
+          matrix = json.loads(sys.argv[1])
+          print(f'### UIテストの割り当て ({sys.argv[2]})\n')
+          for item in matrix:
+              print(f"- runner {item['shard']}: {item['count']}件、約{item['minutes']}分")
+          PY
+
+  ui-tests:
+    needs: [native, ui-plan]
+    if: needs.ui-plan.outputs.matrix != '[]'
+    name: UIテスト (${{ matrix.shard }})
+    runs-on: xcode-27
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.ui-plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Spotlight の索引を止める
+        # The runner VM has 3 CPUs and 7 GB; Xcode, the Simulator and the app already fill the memory, and a
+        # stackshot of a 2-minute stall showed Spotlight (mds_stores) indexing while pages were read back in.
+        run: |
+          sudo mdutil -a -i off >/dev/null 2>&1 || true
+          echo "memory: $(( $(sysctl -n hw.memsize) / 1073741824 )) GB, cpus: $(sysctl -n hw.ncpu)"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: Native Runtime cacheを復元
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          fail-on-cache-miss: true
+      - name: UIテスト用にビルドし、Simulatorを温める
+        # On a fresh runner the app's first launch takes 40 s or more (once over 3 minutes), which
+        # used to land inside the first test's time allowance. Boot, install and launch once here.
+        timeout-minutes: 40
+        run: |
+          set -euo pipefail
+          xcodebuild build-for-testing -project strius.xcodeproj -scheme strius \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          ios = sorted((key for key in runtimes if ".iOS-" in key),
+                       key=lambda key: [int(part) for part in key.rsplit(".iOS-", 1)[1].split("-")])
+          for key in reversed(ios):
+              for device in runtimes[key]:
+                  if device["name"] == "iPhone 17":
+                      print(device["udid"]); sys.exit()
+          sys.exit("iPhone 17 simulator not found")')
+          echo "SIMULATOR_UDID=$udid" >> "$GITHUB_ENV"
+          xcrun simctl boot "$udid" 2>/dev/null || true
+          xcrun simctl bootstatus "$udid" -b
+          app="$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator/strius.app"
+          bundle=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")
+          xcrun simctl install "$udid" "$app"
+          started=$(date +%s)
+          xcrun simctl launch "$udid" "$bundle"
+          # Wait until the app has actually initialized: LearnerData creates the learner data folder
+          # (Application Support/Struis) while the app starts. Up to 4 minutes (the slowest observed launch
+          # was over 3), then a few seconds more for the first screen.
+          data=$(xcrun simctl get_app_container "$udid" "$bundle" data)
+          ready=""
+          for _ in $(seq 1 240); do
+            if [ -d "$data/Library/Application Support/Struis" ]; then ready=yes; break; fi
+            sleep 1
+          done
+          sleep 5
+          xcrun simctl terminate "$udid" "$bundle" || true
+          if [ -n "$ready" ]; then
+            echo "Warm-up launch of $bundle on $udid was ready after $(( $(date +%s) - started ))s"
+          else
+            echo "::warning::Warm-up launch of $bundle did not create its data folder within 240s"
+          fi
+      - name: SimulatorでUIテスト
+        env:
+          TESTS: ${{ matrix.tests }}
+        run: |
+          set -euo pipefail
+          # One -only-testing argument per selected test; an empty list never reaches here.
+          read -r -a only <<< "$TESTS"
+          if (( ${#only[@]} == 0 )); then
+            echo 'No UI tests assigned to this runner.' >&2
+            exit 1
+          fi
+          xcodebuild test-without-building -project strius.xcodeproj -scheme strius \
+            -destination "id=$SIMULATOR_UDID" -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -resultBundlePath "$RUNNER_TEMP/StruisUITests.xcresult" \
+            -collect-test-diagnostics never "${only[@]}" \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
+            -maximum-test-execution-time-allowance 600 \
+            -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES \
+            TEST_RUNNER_STRUIS_PROBE_DIR="$RUNNER_TEMP/ui-probe"
+      - name: メモリの様子を記録
+        # Intermittent UI-test stalls coincide with memory pressure; keep the numbers next to each run.
+        if: always()
+        run: |
+          sysctl vm.swapusage || true
+          vm_stat | grep -E 'Pages (free|active|wired down|occupied by compressor)|Swapins|Swapouts' || true
+      - name: テスト結果を保存
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-ui-test-results-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
           path: |
             ${{ runner.temp }}/*.xcresult
             ${{ runner.temp }}/ui-probe
           if-no-files-found: ignore
+
+  signed-archive:
+    needs: [build, ui-plan, ui-tests]
+    # main only (push, or a manual release/upload run), after the build job and every UI test runner passed.
+    if: >-
+      !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      needs.build.result == 'success' && needs.ui-plan.result == 'success' && needs.ui-tests.result == 'success'
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: Native Runtime cacheを復元
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          fail-on-cache-miss: true
       - name: 署名付きarchiveを作成
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
           P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
