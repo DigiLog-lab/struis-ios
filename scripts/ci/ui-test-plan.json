@@ -21,7 +21,8 @@
       "ConversationExportUITests",
       "Issue10ScreenshotUITests",
       "LearningProgressUITests",
-      "WorkbookSplitGradingUITests"
+      "WorkbookSplitGradingUITests",
+      "ImmersionSceneChatUITests"
     ],
     "strius/Features/Workbook/**": [
       "WorkbookSubunitLayoutUITests",
@@ -61,7 +62,9 @@
       "ChatScrollStabilityUITests",
       "ReplyTailUITests",
       "WorkbookSubunitLayoutUITests",
-      "LearningProgressUITests"
+      "LearningProgressUITests",
+      "WorkbookHomeUITests",
+      "UnitDeletionUITests"
     ],
     "strius/Engine/**": [
       "WorkbookSplitGradingUITests",

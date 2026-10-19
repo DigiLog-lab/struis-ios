@@ -266,9 +266,22 @@ jobs:
           xcrun simctl install "$udid" "$app"
           started=$(date +%s)
           xcrun simctl launch "$udid" "$bundle"
-          sleep 45
+          # Wait until the app has actually initialized: LearnerData creates the learner data folder
+          # (Application Support/Struis) while the app starts. Up to 4 minutes (the slowest observed launch
+          # was over 3), then a few seconds more for the first screen.
+          data=$(xcrun simctl get_app_container "$udid" "$bundle" data)
+          ready=""
+          for _ in $(seq 1 240); do
+            if [ -d "$data/Library/Application Support/Struis" ]; then ready=yes; break; fi
+            sleep 1
+          done
+          sleep 5
           xcrun simctl terminate "$udid" "$bundle" || true
-          echo "Warm-up launch of $bundle on $udid finished in $(( $(date +%s) - started ))s"
+          if [ -n "$ready" ]; then
+            echo "Warm-up launch of $bundle on $udid was ready after $(( $(date +%s) - started ))s"
+          else
+            echo "::warning::Warm-up launch of $bundle did not create its data folder within 240s"
+          fi
       - name: SimulatorでUIテスト
         env:
           TESTS: ${{ matrix.tests }}

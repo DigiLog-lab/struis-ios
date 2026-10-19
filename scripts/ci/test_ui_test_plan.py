@@ -246,6 +246,10 @@ class SelectTests(unittest.TestCase):
             return {test.split('/')[0] for test in ui_test_plan.select(tests, plan, 'pr', [path])}
         # 写真を何枚か撮って 1 枚外して送るのは WorkbookSplitGradingUITests だけ(ChatCamera.swift の ChatCameraBatch)。
         self.assertIn('WorkbookSplitGradingUITests', classes('strius/Features/Chat/ChatCamera.swift'))
+        # 没入画面の会話は ChatTimeline を埋め込む。
+        self.assertIn('ImmersionSceneChatUITests', classes('strius/Features/Chat/ChatTimeline.swift'))
+        # LedgerFixtures の種まき(-texture-demo と単元削除の UI テスト)。
+        self.assertTrue({'WorkbookHomeUITests', 'UnitDeletionUITests'} <= classes('strius/State/LedgerFixtures.swift'))
         # 写真の保存と再起動後の復元(Ledger)。
         self.assertIn('ChatImmediateImageSendUITests', classes('strius/Ledger/LedgerEvents.swift'))
         # Info.plist はカメラの許可文と画面の向きを含むアプリ全体の設定。
