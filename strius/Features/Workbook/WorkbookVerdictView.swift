@@ -515,15 +515,26 @@ struct WorkbookSetProgressSection: View {
     private static let columns = 5
     private static let size: CGFloat = 34
 
+    /// 途中の答案の見出し。一枚の組み立てが失敗した後は、足りない番号ではなく一枚が作れなかったことを出す。
+    nonisolated static func partialTitle(_ progress: WorkbookSetProgressDTO) -> String {
+        if progress.isFailed { return "この一枚は作り終えられませんでした" }
+        return "\(WorkbookSetProgressDTO.positionsText(progress.missingPositions)) が見つかりませんでした"
+    }
+
+    nonisolated static func partialCaption(_ progress: WorkbookSetProgressDTO) -> String {
+        if progress.isFailed { return "採点した問題は小単元の記録に入っています。この一枚では結果を出しません" }
+        return progress.isOpen ? "見つかった問題は採点できています。足りない分をどうしますか" : "この一枚はもう結果を出しています"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if partial {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(WorkbookSetProgressDTO.positionsText(progress.missingPositions)) が見つかりませんでした")
+                    Text(Self.partialTitle(progress))
                         .font(Typography.heading2)
                         .foregroundStyle(Theme.primaryText)
                         .accessibilityIdentifier("workbook-set-progress-title")
-                    Text(progress.isOpen ? "見つかった問題は採点できています。足りない分をどうしますか" : "この一枚はもう結果を出しています")
+                    Text(Self.partialCaption(progress))
                         .font(Typography.caption)
                         .foregroundStyle(Theme.secondaryText)
                 }

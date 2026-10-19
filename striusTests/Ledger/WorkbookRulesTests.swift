@@ -144,6 +144,36 @@ final class WorkbookRulesTests: XCTestCase {
         XCTAssertEqual(machine.subunits[subunitID]?.status, "passed", "窓が届いたのに合格にならない")
     }
 
+    /// 組んでいる途中の一枚で先に届いた問題を撮って採点し(途中の答案)、その後で一枚の組み立てが失敗した。
+    /// 撮り足す・締めるは出さず(失敗した一枚は締められない)、作れなかった番号を「見つからなかった」と出さない。
+    /// 採点した問題は小単元の窓に残る。
+    func testPartialCaptureOfASetThatFailsAfterwardsOffersOnlyAsk() throws {
+        var machine = machine()
+        let subunitID = unit(&machine, n: 15, stage: 4)
+        var spec = try machine.nextSetSpec(subunitID: subunitID)
+        spec.count = 15
+        let setID = machine.insertGeneratingSet(subunitID: subunitID, spec: spec)
+        let ids = machine.addProblems(subunitID: subunitID, problems: (0..<3).map { .init(prompt: "問題 \(setID)-\($0)") }, source: "generated")
+        XCTAssertTrue(machine.appendSetProblems(setID: setID, problemIDs: ids))
+
+        let partial = try capture(&machine, id: "cap-early", setID: setID, problems: [ids[0]])
+        XCTAssertTrue(partial.isPartial)
+        XCTAssertEqual(partial.result?.actions, [.captureMore, .closeSet, .ask])
+
+        machine.failSet(setID: setID, error: "組み立てに失敗")
+        XCTAssertEqual(machine.sets[setID]?.status, "failed")
+        let after = try machine.captureView(id: "cap-early")
+        XCTAssertEqual(after.result?.actions, [.ask], "失敗した一枚の途中の答案に撮り足す・締めるを出した")
+        XCTAssertThrowsError(try machine.closeSet(captureID: "cap-early"))
+        let progress = try XCTUnwrap(after.setProgress)
+        XCTAssertTrue(progress.isFailed)
+        XCTAssertFalse(progress.isOpen)
+        XCTAssertEqual(progress.states.count, 3, "作れなかった問題までマスにした")
+        XCTAssertEqual(progress.missingPositions, [2, 3], "作れなかった番号を見つからなかったと出した")
+        XCTAssertEqual(WorkbookSetProgressSection.partialTitle(progress), "この一枚は作り終えられませんでした")
+        XCTAssertTrue(machine.windowAttempts(subunitID: subunitID).contains { $0.captureId == "cap-early" }, "採点した問題が窓から消えた")
+    }
+
     func testExampleSetStillClosesWithOnePhoto() throws {
         var machine = machine()
         let subunitID = unit(&machine, n: 5, stage: 3)

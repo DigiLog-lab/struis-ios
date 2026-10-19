@@ -784,6 +784,11 @@ nonisolated struct WorkbookMachine {
         max(set.problemIds.count, set.gate["count"]?.intValue ?? 0)
     }
 
+    /// 答案に見せる一枚の問題数。組み立てに失敗した一枚は作れた問題だけ(作れなかった分は「見つからなかった」問題ではない)。
+    func shownTotal(_ set: WorkbookSetRecord) -> Int {
+        set.status == "failed" ? set.problemIds.count : setTotal(set)
+    }
+
     /// まだ締めていない、今の段の一枚か。今の段のものでない一枚(例題に戻った・段が進んだ)は 1 枚の答案で締める(R5)。
     func isOpenForCapture(_ set: WorkbookSetRecord) -> Bool {
         guard set.status == "open" || set.status == "generating", let subunit = subunits[set.subunitId] else { return false }
@@ -804,7 +809,7 @@ nonisolated struct WorkbookMachine {
     func missingPositions(setID: String) -> [Int] {
         guard let set = sets[setID] else { return [] }
         let first = firstSetAttempts(setID: setID)
-        return (0..<setTotal(set)).filter { index in
+        return (0..<shownTotal(set)).filter { index in
             index >= set.problemIds.count || first[set.problemIds[index]] == nil
         }.map { $0 + 1 }
     }
@@ -824,13 +829,14 @@ nonisolated struct WorkbookMachine {
         let first = firstSetAttempts(setID: setID)
         var states: [WorkbookProblemTileDTO.State] = []
         var here: [Bool] = []
-        for index in 0..<setTotal(set) {
+        for index in 0..<shownTotal(set) {
             let attempt = index < set.problemIds.count ? first[set.problemIds[index]] : nil
             states.append(attempt.flatMap { WorkbookProblemTileDTO.State(rawValue: $0.verdict) } ?? .notStarted)
             here.append(attempt?.captureId == captureID)
         }
         return WorkbookSetProgressDTO(
-            states: states, capturedHere: here, missingPositions: missingPositions(setID: setID), isOpen: isOpenForCapture(set)
+            states: states, capturedHere: here, missingPositions: missingPositions(setID: setID), isOpen: isOpenForCapture(set),
+            isFailed: set.status == "failed"
         )
     }
 

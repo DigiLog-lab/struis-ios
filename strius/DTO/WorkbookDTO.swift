@@ -217,6 +217,8 @@ struct WorkbookSetProgressDTO: Decodable, Hashable, Sendable {
     let missingPositions: [Int]
     /// まだ締めていない、今の段の一枚か。
     let isOpen: Bool
+    /// 組み立てに失敗した一枚か。`states` は作れた問題だけで、作れなかった分は数えない。
+    var isFailed = false
 
     var judgedCount: Int { states.count - missingPositions.count }
 
