@@ -9,6 +9,15 @@ private let chatTurnLog = Logger(subsystem: "com.digiloglab.strius", category: "
 /// `applyRound`、確定は `finish`。
 nonisolated enum ChatTurns {
     static let learnerFacingFailure = "学習の進行を保存できませんでした。もう一度送信してください。"
+    /// 1 ターンで検証の差し戻し(validation repair)を送り直す回数の上限(勉強を止めない仕組み 3.6)。
+    /// 差し戻し 1 回はモデルの呼び出し 45〜65 秒。2 回目も通らないなら学習者に送り直してもらう方が早く、
+    /// 要求数も 1 ターンあたり最初 + 差し戻し 1 + 続き 1 の 3 までに収まる。
+    static let repairLimit = 1
+
+    /// 差し戻しの回数が上限に達したか(`checks` の `accepted == false` の数で数える)。
+    nonisolated static func repairsExhausted(_ checks: [LedgerJSON]) -> Bool {
+        checks.filter { $0["accepted"]?.boolValue == false }.count > repairLimit
+    }
     static let interruptedText = "停止しました。"
     /// 返事を始められなかった(ターンの行を書けなかった等)。学習者には日本語の一言だけ。
     static let startFailedText = "AI の返事を始められませんでした。もう一度送ってください。"
@@ -412,7 +421,11 @@ nonisolated enum ChatTurns {
             let round = state.round
             state.checks.append(.object(["round": .number(Double(round)), "accepted": .bool(false), "error": .string(String(detail.prefix(2000)))]))
             chatTurnLog.error("round \(round) rejected: \(detail, privacy: .public)")
-            if state.round >= 5 { return .failed(learnerFacingFailure) }
+            if state.round >= 5 { return .failed(learnerFacingFailure, detail: "validation rejected \(round) rounds: " + String(detail.prefix(300))) }
+            // 3.6: 差し戻しは 1 回まで。2 回目も通らなければ、送り直し続けずに学習者へ返す(理由は吹き出しに出る)。
+            if Self.repairsExhausted(state.checks) {
+                return .failed(learnerFacingFailure, detail: "validation repair limit (\(repairLimit)) reached: " + String(detail.prefix(300)))
+            }
             // Keep the learner-facing reply and ask only for the private blocks (B5): rewriting the
             // whole reply cost a full model call of 45–65 s for nearly the same text.
             let written = visibleReply(of: outcome.finalText)

@@ -5,6 +5,15 @@ import XCTest
 final class ClaudeProxyTests: XCTestCase {
     // MARK: - Request
 
+    /// 3.6: 要求本文の上限。Anthropic の上限(32 MB)より手前で、ふつうのターン(数 MB)は通す。
+    func testRequestSizeCapSitsBelowAnthropicsLimitAndAboveNormalTurns() {
+        XCTAssertLessThan(ClaudeResponsesProxy.maxRequestBytes, 32 * 1024 * 1024)
+        XCTAssertGreaterThanOrEqual(ClaudeResponsesProxy.maxRequestBytes, 8 * 1024 * 1024, "写真 4 枚の 1 ターンが通らない")
+        XCTAssertFalse(ClaudeResponsesProxy.requestTooLarge(ClaudeResponsesProxy.maxRequestBytes))
+        XCTAssertTrue(ClaudeResponsesProxy.requestTooLarge(ClaudeResponsesProxy.maxRequestBytes + 1))
+        XCTAssertFalse(ClaudeResponsesProxy.requestTooLarge(3 * 1024 * 1024))
+    }
+
     /// system は版 1 で文字列、版 2 で breakpoint 付きの text ブロック。
     static func systemText(_ body: [String: Any]) -> String? {
         if let text = body["system"] as? String { return text }

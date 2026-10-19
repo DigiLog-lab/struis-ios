@@ -17,6 +17,16 @@ actor ClaudeResponsesProxy {
         let token: String
     }
 
+    /// Anthropic へ送る要求本文の上限(勉強を止めない仕組み 3.6)。Anthropic 側の上限(32 MB)より手前で止め、
+    /// 超えた要求は送らずに記録(`status: oversized`、ターンの記録として台帳に入る)して Codex に 413 を返す。
+    /// 272k トークンの文脈でも本文は 1〜2 MB、写真は長辺 2048px の JPEG(base64 で 1 枚 1〜2 MB)なので、
+    /// ふつうのターンはこの 1/4 以下。超えるのは履歴や写真が膨らんだ異常な要求。
+    nonisolated static let maxRequestBytes = 20 * 1024 * 1024
+
+    nonisolated static func requestTooLarge(_ byteCount: Int) -> Bool {
+        byteCount > maxRequestBytes
+    }
+
     enum ProxyError: Error, LocalizedError {
         case listenerFailed(String)
         var errorDescription: String? {
@@ -428,6 +438,16 @@ nonisolated private struct ClaudeRelay {
             }
             ClaudeProxyDiagnostics.dump(request: request, translated: translation.body)
             var attempt = Attempt(reason: reason, model: model, translation: options.translation, tailTTL: options.tailCacheTTL, options: options)
+            if ClaudeResponsesProxy.requestTooLarge(data.count) {
+                let message = "request body \(data.count) bytes exceeds \(ClaudeResponsesProxy.maxRequestBytes)"
+                proxyLog.error("\(message, privacy: .public); not sent")
+                log.append(attempt.finish(status: "oversized", translator: nil, httpStatus: nil, error: ("request_too_large", message)), key: classified.key)
+                writer.respond(status: 413, json: ["error": [
+                    "message": "送る内容が大きすぎます(\(data.count / (1024 * 1024)) MB)。写真の枚数を減らすか、新しい会話で送ってください。",
+                    "type": "invalid_request_error", "code": "request_too_large",
+                ]])
+                return
+            }
             var translator: ClaudeStreamTranslator?
             do {
                 let (urlRequest, bearer) = try await upstream.request(data: data, route: route)

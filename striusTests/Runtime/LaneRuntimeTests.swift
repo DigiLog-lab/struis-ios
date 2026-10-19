@@ -353,6 +353,32 @@ final class LaneRecoveryTests: XCTestCase {
         XCTAssertEqual(message.errorDetail, "closed stub")
     }
 
+    /// 3.6: 検証の差し戻しは 1 ターンに 1 回まで。2 回目も通らなければ、送り直し続けずに失敗にする(要求数 ≤ 3)。
+    @MainActor func testValidationRepairIsSentOnceThenTheTurnFails() async throws {
+        let ledger = try Ledger.inMemory()
+        let seeded = try await Self.seed(ledger, userMetadata: [:])
+        var state = ChatTurns.State(
+            turnID: LedgerID.make(), threadID: seeded.threadID, userMessageID: seeded.userID, assistantMessageID: seeded.assistantID,
+            learnerID: "fixture-learner", text: "質問", attachments: [], workbookView: nil,
+            codexThreadID: nil, progressBefore: ProgressState(), progressAfter: ProgressState()
+        )
+        // 読めない進行の記録(検証で必ず差し戻される返事)。
+        let broken = "返事です。\n<struis_progress_update>{not json</struis_progress_update>"
+        func outcome() -> TurnOutcome {
+            TurnOutcome(planID: "p", round: state.round + 1, status: .completed, codexThreadID: nil, codexTurnID: nil, finalText: broken,
+                        executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: 1)
+        }
+        let first = await ChatTurns.applyRound(ledger: ledger, state: &state, outcome: outcome())
+        guard case .again = first else { return XCTFail("1 回目の差し戻しが無い: \(first)") }
+        let second = await ChatTurns.applyRound(ledger: ledger, state: &state, outcome: outcome())
+        guard case .failed(let message, let detail) = second else { return XCTFail("2 回目で失敗にならない: \(second)") }
+        XCTAssertEqual(message, ChatTurns.learnerFacingFailure)
+        XCTAssertEqual(detail?.hasPrefix("validation repair limit (1) reached"), true, detail ?? "-")
+        XCTAssertEqual(state.checks.filter { $0["accepted"]?.boolValue == false }.count, 2)
+        XCTAssertTrue(ChatTurns.repairsExhausted(state.checks))
+        XCTAssertFalse(ChatTurns.repairsExhausted([.object(["accepted": .bool(false)])]), "1 回目の差し戻しは送る")
+    }
+
     @MainActor func testResumedStepDoesNotResumeAgain() async throws {
         let ledger = try Ledger.inMemory()
         let seeded = try await Self.seed(ledger, userMetadata: ["model_text": .string("単元づくりの依頼")], replyMetadata: ["auto_resumed": .bool(true)])
