@@ -141,7 +141,8 @@ struct MessageBubble: View {
                         .textSelection(.enabled)
                         .accessibilityIdentifier("assistant-failure-detail-\(message.id.uuidString)")
                 }
-                if let settings, settings.modelProvider == .anthropic {
+                // 返事を受け取った後の会話は実行先が固定されるので、切り替えが効く時だけ出す(`retryFollowsProviderSetting`)。
+                if let settings, settings.modelProvider == .anthropic, chat?.retryFollowsProviderSetting ?? false {
                     Button {
                         settings.modelProvider = .openai
                     } label: {

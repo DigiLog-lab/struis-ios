@@ -379,6 +379,29 @@ final class LaneRecoveryTests: XCTestCase {
         XCTAssertFalse(ChatTurns.repairsExhausted([.object(["accepted": .bool(false)])]), "1 回目の差し戻しは送る")
     }
 
+    /// 3.5: 「GPT に切り替える」は、送り直しが設定の実行先で動く会話にだけ出す。
+    @MainActor func testProviderSwitchAppliesOnlyBeforeTheThreadHasAnswered() async throws {
+        let ledger = try Ledger.inMemory()
+        let contexts = ThreadContextStore(url: nil)
+        let threadID = "thread-1"
+        // Codex のスレッドがまだ無い: 設定どおりに動く。
+        var applies = await ChatStore.retryFollowsProviderSetting(ledger: ledger, threadID: threadID, contexts: contexts)
+        XCTAssertTrue(applies)
+        // スレッドはあるが返事を受け取っていない(最初のターンが失敗): 設定どおりに動く。
+        try await ledger.append([ChatRepository.mapCodexThread(threadID: threadID, codexThreadID: "codex-1", lastTurnID: nil, existing: nil)])
+        contexts.update("codex-1") { $0.provider = .anthropic; $0.answered = false }
+        applies = await ChatStore.retryFollowsProviderSetting(ledger: ledger, threadID: threadID, contexts: contexts)
+        XCTAssertTrue(applies)
+        // 返事を受け取った後: 実行先は固定(切り替えは効かない)。
+        contexts.update("codex-1") { $0.answered = true }
+        applies = await ChatStore.retryFollowsProviderSetting(ledger: ledger, threadID: threadID, contexts: contexts)
+        XCTAssertFalse(applies)
+        // この項目より前の記録(answered が無い)も固定。
+        contexts.update("codex-1") { $0.answered = nil }
+        applies = await ChatStore.retryFollowsProviderSetting(ledger: ledger, threadID: threadID, contexts: contexts)
+        XCTAssertFalse(applies)
+    }
+
     @MainActor func testResumedStepDoesNotResumeAgain() async throws {
         let ledger = try Ledger.inMemory()
         let seeded = try await Self.seed(ledger, userMetadata: ["model_text": .string("単元づくりの依頼")], replyMetadata: ["auto_resumed": .bool(true)])
