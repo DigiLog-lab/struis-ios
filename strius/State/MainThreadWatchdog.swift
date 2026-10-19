@@ -71,16 +71,21 @@ enum RunLoopModeProbe {
                 let semaphore = DispatchSemaphore(value: 0)
                 nonisolated(unsafe) var report = ""
                 DispatchQueue.main.async {
-                    let delay = Int(Date().timeIntervalSince(sent) * 1000)
                     let mode = RunLoop.main.currentMode?.rawValue ?? "none"
                     // 慣性のスクロールは default のモードでも続くので、モードに関係なく数える。
                     let busy = MainActor.assumeIsolated { RunLoopModeProbe.movingScrollViews() }
-                    if mode != RunLoop.Mode.default.rawValue || busy > 0 || delay > 500 {
-                        report = "mode=\(mode) moving_scroll_views=\(busy) main_delay_ms=\(delay)"
+                    if mode != RunLoop.Mode.default.rawValue || busy > 0 {
+                        report = "mode=\(mode) moving_scroll_views=\(busy)"
                     }
                     semaphore.signal()
                 }
-                if semaphore.wait(timeout: .now() + 5) == .timedOut {
+                // メインが 1 回だけ 0.5〜5 秒止まった時は、止まっていた長さがそのまま分かるので、すぐ書く。
+                let answered = semaphore.wait(timeout: .now() + 5)
+                let delayMs = Int(Date().timeIntervalSince(sent) * 1000)
+                if answered == .success, delayMs > 500 {
+                    FileHandle.standardError.write(Data("RUNLOOP_PROBE main thread answered after \(delayMs) ms\n".utf8))
+                }
+                if answered == .timedOut {
                     FileHandle.standardError.write(Data("RUNLOOP_PROBE main thread did not answer within 5 s\n".utf8))
                     semaphore.wait()
                     continue
