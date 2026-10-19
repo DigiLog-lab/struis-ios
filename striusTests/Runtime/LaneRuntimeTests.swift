@@ -390,7 +390,7 @@ final class LaneRecoveryTests: XCTestCase {
             codexThreadID: nil, progressBefore: ProgressState(), progressAfter: ProgressState()
         )
         // 1 ラウンド目で目標を作り、以後は同じ目標を指したまま「続き」を求め続ける返事。
-        let goal = #"{"id": "practice", "parent_id": null, "title": "practice", "outcome": "自力で説明できる", "learner_action": "解答する", "model_action": "説明して評価する", "completion_condition": "必要な解答の証拠を確認する", "kind": "learner", "status": "active", "next_action": "解答する", "child_order": [], "loop": {"enabled": true, "unit": "出題から評価まで", "repeat_when": "未達", "exit_when": "達成または上限", "stagnation_attempts": 3, "max_attempts": 2}, "evaluation": null}"#
+        let goal = #"{"id": "practice", "parent_id": null, "title": "practice", "outcome": "自力で説明できる", "learner_action": "解答する", "model_action": "説明して評価する", "completion_condition": "必要な解答の証拠を確認する", "kind": "learner", "status": "active", "next_action": "解答する", "child_order": [], "loop": {"enabled": true, "unit": "出題から評価まで", "repeat_when": "未達", "exit_when": "達成または上限", "after_exit": "親で見直す", "stagnation_attempts": 3, "max_attempts": 2}, "evaluation": null}"#
         func outcome(part: String) -> TurnOutcome {
             let goals = state.round == 0 ? goal : ""
             let update = #"{"schema_version": 1, "base_revision": \#(state.progressAfter.revision), "goals": [\#(goals)], "problems": [], "attempts": [], "current_goal_id": "practice", "disposition": "continue", "next_action": "説明を続ける", "reply_quotes": ["\#(part)"]}"#
