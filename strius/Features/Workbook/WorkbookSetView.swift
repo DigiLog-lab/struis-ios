@@ -171,8 +171,14 @@ struct WorkbookSetView: View {
                 .font(Typography.counter)
                 .foregroundStyle(Theme.secondaryText)
                 .frame(width: 34, alignment: .leading)
-            WorkbookPromptText(text: prompt, lineLimit: nil)
-                .foregroundStyle(Theme.primaryText)
+            VStack(alignment: .leading, spacing: 6) {
+                WorkbookPromptText(text: prompt, lineLimit: nil)
+                    .foregroundStyle(Theme.primaryText)
+                // 一枚に入る前の問題(組み直しで入らないこともある)。撮って採点できるのは一枚に入ってから。
+                Text("準備中・一枚に入ったら撮れます")
+                    .font(Typography.micro)
+                    .foregroundStyle(Theme.secondaryText)
+            }
             Spacer(minLength: 0)
         }
         .padding(16)
