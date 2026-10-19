@@ -32,10 +32,11 @@ CLASS = re.compile(r'^(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:final|open|public|inter
 EXTENSION = re.compile(r'^(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:public|internal|private|fileprivate)\s+)?extension\s+(\w+)\b')
 OTHER_TYPE = re.compile(r'^(?:@[\w.]+(?:\([^)]*\))?\s+)*(?:(?:final|private|fileprivate|public|internal|open)\s+)*(?:class|struct|enum|actor|extension|protocol)\s+(\w+)')
 TOP_LEVEL_CLOSE = re.compile(r'^}')
-# Any indented test-shaped function, whatever attributes or modifiers precede it. Private ones are
+# Any indented test-shaped function, whatever attributes or modifiers precede it, as long as it is the
+# first declaration on the line (`func helper() { func testX() {} }` declares a local function). Private ones are
 # invisible to XCTest. Discovery and the completeness check use the same pattern, so a test is
 # either attributed to a test class or reported, never silently skipped.
-TEST_FUNC = re.compile(r'^(?!\s*//)\s+(?:.*?\s)??func\s+(test\w*)\s*\(\s*\)')
+TEST_FUNC = re.compile(r'^(?!\s*//)\s+(?:(?:(?!\bfunc\b)[^{}])*?\s)??func\s+(test\w*)\s*\(\s*\)')
 # A type declared inside a test class (a helper struct, an enum of fixtures). Its methods are not
 # XCTest methods even when they are named test…, so they are skipped until its closing brace,
 # which sits at the declaration's own indentation.

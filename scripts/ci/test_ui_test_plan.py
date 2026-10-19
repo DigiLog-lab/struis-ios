@@ -179,6 +179,8 @@ final class LocalUITests: XCTestCase {
         func testInProperty() {}
     }
     func testAlsoReal() { func testInline() {} }
+    func helper() { func testSameLine() {} }
+    @MainActor func testWithAttribute() {}
 }
 
 extension LocalUITests {
@@ -188,7 +190,7 @@ extension LocalUITests {
 }
 '''
         self.assertEqual(self.discover(source), [
-            'LocalUITests/testAlsoReal', 'LocalUITests/testInExtension', 'LocalUITests/testReal'])
+            'LocalUITests/testAlsoReal', 'LocalUITests/testInExtension', 'LocalUITests/testReal', 'LocalUITests/testWithAttribute'])
 
     def test_repository_plan_covers_every_discovered_test(self):
         plan = json.loads(ui_test_plan.PLAN.read_text())
@@ -248,6 +250,8 @@ class SelectTests(unittest.TestCase):
         self.assertIn('ChatImmediateImageSendUITests', classes('strius/Ledger/LedgerEvents.swift'))
         # Info.plist はカメラの許可文と画面の向きを含むアプリ全体の設定。
         self.assertEqual(ui_test_plan.select(tests, plan, 'pr', ['Info.plist']), tests)
+        # 同梱の資源(KaTeX・フォント)は数式の表示と画面全体に効く。
+        self.assertEqual(ui_test_plan.select(tests, plan, 'pr', ['strius/Resources/KaTeX/struis-math.js']), tests)
 
     def test_a_path_mapped_to_everything_runs_every_test(self):
         plan = {'pr': ['A'], 'paths': {'strius.xcodeproj/*': ['*']}}

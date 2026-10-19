@@ -74,6 +74,9 @@
     "strius/Design/**": [
       "*"
     ],
+    "strius/Resources/**": [
+      "*"
+    ],
     "strius/Auth/**": [
       "*"
     ],
