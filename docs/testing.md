@@ -41,7 +41,8 @@ HTTP bootstrapの同時読込テストは認証有効のビルドを前提にし
 | 段階 | いつ | 何を | runner |
 |---|---|---|---|
 | `pr` | PR、エージェントのCI要求(`workflow_dispatch` で main 以外)、手動の既定 | 学習の流れを通すE2Eのクラス(`pr`)+ 変更したファイルに対応するクラス(`paths`) | 2 |
-| `full` | mainへのpush、毎日 03:00 JST(`schedule`)、手動で `ui_tier=full` | すべてのUIテスト | 3 |
+| `full` | 毎日 03:00 JST(`schedule`)、手動で `ui_tier=full`、手動の main(配布) | すべてのUIテスト | 3 |
+| なし | mainへのpush | UIテストは回さない(PRで変更に関係するクラスを回し済み。全件は毎晩) | 0 |
 
 - 割り当ては`scripts/ci/ui_test_plan.py`が`scripts/ci/ui-test-plan.json`を読んで決めます。所要時間の長いテストから順に、合計時間が最も短いrunnerへ入れます。
 - `shards`: 段階ごとのrunnerの数。macOSのrunnerは同時に5台までで、エージェント本体や他のCIと共有するため、PRは2、全件は3にしています。PRでも全件が選ばれた時(全件に影響する変更)は全件のrunner数で分けます。
@@ -51,4 +52,5 @@ HTTP bootstrapの同時読込テストは認証有効のビルドを前提にし
 - 見積もり(2026-10-19 の実測から): 全件は 3 runner で各 15 分弱、PRの最小構成(E2E のみ)は 2 runner で各 5 分、`strius/Features/Chat` を変えたPRで各 13 分。単体テストと archive 検証の `build` job(約 15 分)と並行に走るので、PRのCIはおよそ 15〜20 分で終わります。
 - 各runnerは、テストの前にUIテスト用のビルドをしてSimulatorを起動し、アプリを一度起動しておきます。新しいrunnerでは最初の起動に40秒以上(一度は3分以上)かかり、最初のテストの時間上限を使い切ってしまうためです。
 - 各runnerの結果は`ios-ui-test-results-<実行ID>-<再実行番号>-<runner番号>`のartifactに保存します(xcresult と、落ちた時の画面の写真・要素の木 `ui-probe`)。runnerごとに終わるので、他のrunnerの実行中でも終わった分の結果を見られます。
-- 署名付きarchive(配信)は、mainのpushで全件のUIテストが通った後に作ります。
+- 署名付きarchive(配信)は、mainのpushでは`build` job(単体テスト)が通った後に作ります(#32 より前と同じ)。手動の main(配布)では全件のUIテストが通った後に作ります。
+- mainへのpushで全件を回さないのは、macOSのrunnerが同時に5台までのためです。マージのたびに全件(3 runner + build)を約30分回すと、開いているPRのCIがその間待たされました(2026-10-19、#32 のマージ直後に3本のPRのjobが待ちになった)。

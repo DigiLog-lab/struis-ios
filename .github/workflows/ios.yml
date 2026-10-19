@@ -198,8 +198,16 @@ jobs:
           REQUESTED_TIER: ${{ inputs.ui_tier }}
         run: |
           set -euo pipefail
-          # main itself (push, nightly, or a manual release run) always gets every UI test.
-          if [[ "$EVENT" == "push" || "$EVENT" == "schedule" || "$REQUESTED_TIER" == "full" || "$REF" == "refs/heads/main" ]]; then
+          # A push to main runs no UI tests: the PR already ran the classes its changes touch, and the nightly run
+          # covers everything. Running every test on 3 runners for each merge kept 4 of the 5 macOS runners busy for
+          # about 30 minutes and left the open PRs waiting.
+          if [[ "$EVENT" == "push" ]]; then
+            echo "matrix=[]" >> "$GITHUB_OUTPUT"
+            echo '### UIテストの割り当て: mainへのpushでは回さない(毎晩 03:00 JST に全件)' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Nightly and manual main runs (release) get every UI test.
+          if [[ "$EVENT" == "schedule" || "$REQUESTED_TIER" == "full" || "$REF" == "refs/heads/main" ]]; then
             tier=full
             : > "$RUNNER_TEMP/changed.txt"
           else
@@ -331,10 +339,12 @@ jobs:
 
   signed-archive:
     needs: [build, ui-plan, ui-tests]
-    # main only (push, or a manual release/upload run), after the build job and every UI test runner passed.
+    # main only (push, or a manual release/upload run), after the build job passed. A manual run also needs every
+    # UI test runner to pass; a push runs no UI tests (ui-tests is skipped).
     if: >-
       !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      needs.build.result == 'success' && needs.ui-plan.result == 'success' && needs.ui-tests.result == 'success'
+      needs.build.result == 'success' && needs.ui-plan.result == 'success' &&
+      (needs.ui-tests.result == 'success' || (github.event_name == 'push' && needs.ui-tests.result == 'skipped'))
     runs-on: xcode-27
     timeout-minutes: 60
     steps:
