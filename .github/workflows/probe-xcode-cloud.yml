@@ -32,29 +32,51 @@ jobs:
               return datetime.datetime.fromisoformat(s.replace('Z', '+00:00')) if s else None
           def mins(a, b):
               return f"{(t(b) - t(a)).total_seconds() / 60:.1f}m" if a and b else '-'
-          page = api.request('GET', '/v1/ciProducts?include=primaryRepositories&limit=50')
-          repos = {r['id']: r['attributes'] for r in page.get('included', []) if r['type'] == 'scmRepositories'}
-          products = [p for p in page['data'] if p['attributes'].get('name') == 'strius']
-          for p in products:
-              a = p['attributes']
-              linked = [repos.get(x['id'], {}) for x in p['relationships']['primaryRepositories'].get('data') or []]
-              print(f"== product {a.get('name')} repos={[ (r.get('ownerName'), r.get('repositoryName')) for r in linked ]}")
-              for w in api.paginate(f"/v1/ciProducts/{p['id']}/workflows?limit=50"):
-                  wa = w['attributes']
-                  print(f"   workflow '{wa.get('name')}' enabled={wa.get('isEnabled')} locked={wa.get('isLockedForEditing')}")
-              runs = api.request('GET', f"/v1/ciProducts/{p['id']}/buildRuns?limit=30&sort=-number")['data']
-              total = 0.0
-              for r in runs:
-                  ra = r['attributes']
-                  acts = api.paginate(f"/v1/ciBuildRuns/{r['id']}/actions")
-                  parts = []
-                  for x in acts:
-                      xa = x['attributes']
-                      d = mins(xa.get('startedDate'), xa.get('finishedDate'))
-                      if d != '-':
-                          total += float(d[:-1])
-                      parts.append(f"{xa.get('actionType')}:{xa.get('name')}={d}/{xa.get('completionStatus')}")
-                  print(f"   run #{ra.get('number')} {ra.get('createdDate')} {ra.get('completionStatus')} "
-                        f"wall={mins(ra.get('startedDate'), ra.get('finishedDate'))} | " + '; '.join(parts))
-              print(f"   action minutes over these {len(runs)} runs: {total:.0f}")
+          import json, urllib.request, zipfile, io, re
+          page = api.request('GET', '/v1/ciProducts?limit=50')
+          product = [p for p in page['data'] if p['attributes'].get('name') == 'strius'][0]
+          runs = api.request('GET', f"/v1/ciProducts/{product['id']}/buildRuns?limit=40&sort=-number")['data']
+          tests_done = 0
+          logs_done = 0
+          for r in runs:
+              ra = r['attributes']
+              for x in api.paginate(f"/v1/ciBuildRuns/{r['id']}/actions"):
+                  xa = x['attributes']
+                  if xa.get('actionType') != 'TEST' or xa.get('completionStatus') not in ('SUCCEEDED', 'FAILED'):
+                      continue
+                  if tests_done < 2:
+                      tests_done += 1
+                      results = api.paginate(f"/v1/ciBuildActions/{x['id']}/testResults?limit=200")
+                      print(f"== run #{ra['number']} {xa.get('name')} {xa.get('completionStatus')}: {len(results)} test results")
+                      rows = []
+                      for t in results:
+                          ta = t['attributes']
+                          for d in ta.get('destinationTestResults') or []:
+                              rows.append((d.get('duration') or 0, f"{ta.get('className')}/{ta.get('name')}", d.get('status'), d.get('deviceName'), d.get('osVersion')))
+                      rows.sort(reverse=True)
+                      for row in rows[:40]:
+                          print(f"   {row[0]:7.1f}s {row[1]} {row[2]} {row[3]} {row[4]}")
+                      print(f"   total test seconds: {sum(r[0] for r in rows):.0f} over {len(rows)} results")
+                  if logs_done < 1:
+                      for a in api.paginate(f"/v1/ciBuildActions/{x['id']}/artifacts"):
+                          aa = a['attributes']
+                          print(f"   artifact {aa.get('fileType')} {aa.get('fileName')} {aa.get('fileSize')}")
+                          if aa.get('fileType') == 'LOG_BUNDLE' and aa.get('downloadUrl'):
+                              logs_done += 1
+                              data = urllib.request.urlopen(aa['downloadUrl'], timeout=120).read()
+                              z = zipfile.ZipFile(io.BytesIO(data))
+                              hits = 0
+                              for name in z.namelist():
+                                  if not name.endswith(('.log', '.txt')):
+                                      continue
+                                  text = z.read(name).decode(errors='replace')
+                                  for line in text.splitlines():
+                                      if re.search(r'hw\.(ncpu|memsize|model)|Hardware|Machine model|Model Identifier|Chip|Total Number of Cores|Memory:|machdep\.cpu|physical memory|CPU', line) and hits < 25:
+                                          print(f"   [{name}] {line.strip()[:200]}")
+                                          hits += 1
+                              print(f"   log files: {len(z.namelist())}, first: {z.namelist()[:8]}")
+                  if tests_done >= 2 and logs_done >= 1:
+                      break
+              if tests_done >= 2 and logs_done >= 1:
+                  break
           PY
