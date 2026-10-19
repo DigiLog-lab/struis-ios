@@ -6,7 +6,9 @@ project = Xcodeproj::Project.open(File.join(root, 'strius.xcodeproj'))
 app = project.targets.find { |t| t.name == 'strius' }
 # Two extensions from the same worker code: StruisRuntime runs Codex, StruisExec runs Python and shell
 # for Codex's tool calls. Each extension process has its own memory limit on a device.
-WORKERS = { 'StruisRuntime' => ['com.digiloglab.strius.runtime', 'Struis Runtime'], 'StruisExec' => ['com.digiloglab.strius.exec', 'Struis Exec'] }
+# Bundle ID は本体の STRUIS_BUNDLE_ID_BASE から導く(dbd38e3: プロトタイプ配信は preview.sNN の ID に切り替える)。
+# 固定の文字列を書くと、再同期のたびに切り替えが外れて Ad Hoc の profile と合わなくなる(2026-10-18 の Prototype #4 b)。
+WORKERS = { 'StruisRuntime' => ['$(STRUIS_BUNDLE_ID_BASE).runtime', 'Struis Runtime'], 'StruisExec' => ['$(STRUIS_BUNDLE_ID_BASE).exec', 'Struis Exec'] }
 workers = WORKERS.keys.map do |name|
   project.targets.find { |t| t.name == name } || project.new_target(:app_extension, name, :ios, '26.4').tap do |t|
     t.product_type = 'com.apple.product-type.extensionkit-extension'
