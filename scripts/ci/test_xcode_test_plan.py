@@ -91,6 +91,72 @@ class XcodePlanTests(unittest.TestCase):
 
 class CloudShellTests(unittest.TestCase):
     """Exercise the real shell hook with fake host tools; do not simulate Xcode."""
+    def test_cloud_ruby_cold_warm_and_failed_install(self):
+        root = xcode_test_plan.ROOT
+        for mode in ['cold', 'warm', 'failed-install', 'broken-install']:
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                temporary = Path(directory)
+                checkout = temporary / 'repo'
+                (checkout / 'ci_scripts').mkdir(parents=True)
+                for name in ['ci_post_clone.sh', 'timing.sh']:
+                    (checkout / 'ci_scripts' / name).write_text((root / 'ci_scripts' / name).read_text())
+                native = checkout / 'NativeRuntime/Vendor/NativeCodex.xcframework'
+                native.mkdir(parents=True)
+                (native / 'Info.plist').write_text('test')
+                tools = temporary / 'bin'
+                tools.mkdir()
+                fake = '''#!/bin/sh
+printf '%s %s\\n' "$(basename "$0")" "$*" >> "$TEST_CALLS"
+case "$(basename "$0")" in
+  brew) echo "$TEST_BIN_PARENT" ;;
+  ruby)
+    case "$*" in
+      *rbconfig*) echo 3.4.0 ;;
+      *) test -f "$GEM_HOME/ready" || exit 19 ;;
+    esac ;;
+  gem)
+    [ "$TEST_MODE" != failed-install ] || exit 18
+    mkdir -p "$GEM_HOME"
+    [ "$TEST_MODE" = broken-install ] || touch "$GEM_HOME/ready"
+    ;;
+  python3.14)
+    test -f "$GEM_HOME/ready" || exit 20
+    printf '%s\\n' "$GEM_HOME|$GEM_PATH|$(command -v ruby)" >> "$TEST_RUBY_ENV"
+    ;;
+  xcrun) case "$*" in *what-version*) echo 70;; esac ;;
+esac
+'''
+                for name in ['brew', 'ruby', 'gem', 'rustup', 'python3.14', 'xcrun', 'xcodebuild', 'sysctl']:
+                    path = tools / name
+                    path.write_text(fake)
+                    path.chmod(0o755)
+                gem_home = temporary / 'Derived Data/StruisHostTools/ruby-3.4.0'
+                if mode == 'warm':
+                    gem_home.mkdir(parents=True)
+                    (gem_home / 'ready').touch()
+                env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ['PATH'],
+                           CI_XCODE_CLOUD='TRUE', CI_PRIMARY_REPOSITORY_PATH=str(checkout),
+                           CI_DERIVED_DATA_PATH=str(temporary / 'Derived Data'), CI_WORKFLOW='PR Gate',
+                           CI_XCODE_SCHEME='StruisPRGate', CI_BUILD_NUMBER='71', TEST_MODE=mode,
+                           TEST_BIN_PARENT=str(temporary), TEST_CALLS=str(temporary / 'calls'),
+                           TEST_RUBY_ENV=str(temporary / 'ruby-env'))
+                result = subprocess.run(['sh', str(checkout / 'ci_scripts/ci_post_clone.sh')],
+                                        cwd=checkout, env=env, capture_output=True, text=True)
+                calls = (temporary / 'calls').read_text()
+                if mode in ['failed-install', 'broken-install']:
+                    expected = 18 if mode == 'failed-install' else 19
+                    self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+                    self.assertNotIn('NativeRuntime/Scripts/bootstrap.py', calls)
+                    self.assertIn(f'exit_code={expected}', result.stdout)
+                else:
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertIn('scripts/sync_test_resources.py', calls)
+                    self.assertEqual('gem install xcodeproj --version 1.27.0' in calls, mode == 'cold')
+                    self.assertEqual(set((temporary / 'ruby-env').read_text().splitlines()),
+                                     {f'{gem_home}|{gem_home}|{tools / "ruby"}'})
+                    self.assertLess(calls.index('ruby -e gem "xcodeproj"'),
+                                    calls.index('NativeRuntime/Scripts/bootstrap.py'))
+
     def test_stage_reports_failure_and_preserves_its_exit_code(self):
         helper = xcode_test_plan.ROOT / 'ci_scripts/timing.sh'
         result = subprocess.run(['sh', '-c', '. "$1"; run_stage example sh -c "exit 17"', 'sh', str(helper)],
@@ -117,11 +183,12 @@ class CloudShellTests(unittest.TestCase):
                 fake = ('#!/bin/sh\n'
                         'case "$(basename "$0")" in\n'
                         'brew) echo "$TEST_BIN_PARENT" ;;\n'
+                        'ruby) case "$*" in *rbconfig*) echo 3.4.0;; esac ;;\n'
                         'python3.14) printf "%s\\n" "$*" >> "$TEST_CALLS"; '
                         'printf "%s\\n" "$CARGO_TARGET_DIR" >> "$TEST_CARGO" ;;\n'
                         'xcrun) case "$*" in *what-version*) echo 70;; esac ;;\n'
                         'esac\n')
-                for name in ['brew', 'rustup', 'python3.14', 'xcrun', 'xcodebuild', 'sysctl']:
+                for name in ['brew', 'ruby', 'gem', 'rustup', 'python3.14', 'xcrun', 'xcodebuild', 'sysctl']:
                     path = tools / name
                     path.write_text(fake)
                     path.chmod(0o755)

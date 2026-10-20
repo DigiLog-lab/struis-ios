@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+gem 'xcodeproj', '1.27.0' if ENV['CI_XCODE_CLOUD'] == 'TRUE'
 require 'xcodeproj'
 root = File.expand_path('..', __dir__)
 project = Xcodeproj::Project.open(File.join(root, 'strius.xcodeproj'))

@@ -6,7 +6,9 @@
 
 workflow IDは `FD7B155C-3973-4DA5-A0A1-A6886411C5D3`、App Store ConnectのアプリIDは `6771995650`。専用schemeはCloudの選択一覧が旧構成のままでまだ指定できていないため、初回は既存の `strius` schemeによる全体診断として起動した。この実行は専用schemeでの門の実測には数えない。
 
-[診断ビルド142](https://appstoreconnect.apple.com/teams/79d5af08-558e-4066-9d42-ad920cc591d9/xcode-cloud/products/E19683AB-A906-44AE-889E-49023526A39A/builds/055023ce-33f2-4ffe-836f-7862880a2b7f/summary) は、ブランチ `ci/xcode-cloud-foundation`、SHA `b0ff0d6e5278bed8d18cb03e19d54a8595453630` で開始を確認した。結果と所要時間はまだ確定していない。
+[診断ビルド142](https://appstoreconnect.apple.com/teams/79d5af08-558e-4066-9d42-ad920cc591d9/xcode-cloud/products/E19683AB-A906-44AE-889E-49023526A39A/builds/055023ce-33f2-4ffe-836f-7862880a2b7f/summary) は、ブランチ `ci/xcode-cloud-foundation`、SHA `b0ff0d6e5278bed8d18cb03e19d54a8595453630` で7分37.7秒後に失敗した。native-bootstrapは374秒で成功し、Cargo出力は3,941,748 KiBになった。その後の `test-resources` が、Appleのsystem Rubyに `xcodeproj` がないため `LoadError` で停止した。単体・UIテストには到達していない。
+
+この失敗を受け、host依存はHomebrewの `ruby@3.4` と `xcodeproj 1.27.0` をnative生成前に準備・読み込み検査する。gemは `DerivedData/StruisHostTools/ruby-<ABI>` に隔離し、Pythonから呼ぶRubyにも同じPATH/GEM_HOME/GEM_PATHを渡す。準備済みのgemは再利用する。system Rubyへの書き込みは不要。準備失敗とinstall成功後の読み込み失敗は、native生成前に元の終了コードで停止することをshell hookの回帰テストで確認する。
 
 ## scheme とテストプラン
 

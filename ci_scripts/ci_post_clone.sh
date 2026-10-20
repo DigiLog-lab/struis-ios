@@ -28,6 +28,18 @@ cargo_cache_size before
 # Keep host tooling separate from bundled native dependencies.
 if ! command -v python3.14 >/dev/null 2>&1; then run_stage python-toolchain brew install python@3.14; fi
 export PATH="$(brew --prefix python@3.14)/bin:$PATH"
+# Apple's system Ruby does not include xcodeproj. Prepare host-only gems before
+# the expensive native build, and keep them outside the packaged runtime.
+ruby_prefix="$(brew --prefix ruby@3.4)"
+if [ ! -x "$ruby_prefix/bin/ruby" ]; then run_stage ruby-toolchain brew install ruby@3.4; fi
+export PATH="$ruby_prefix/bin:$PATH"
+ruby_abi="$(ruby -e 'require "rbconfig"; print RbConfig::CONFIG.fetch("ruby_version")')"
+export GEM_HOME="${CI_DERIVED_DATA_PATH:-${TMPDIR:-/tmp}}/StruisHostTools/ruby-$ruby_abi"
+export GEM_PATH="$GEM_HOME"
+if ! ruby -e 'gem "xcodeproj", "1.27.0"; require "xcodeproj"' >/dev/null 2>&1; then
+    run_stage ruby-gems gem install xcodeproj --version 1.27.0 --no-document --install-dir "$GEM_HOME"
+fi
+run_stage ruby-check ruby -e 'gem "xcodeproj", "1.27.0"; require "xcodeproj"; puts "STRUIS_RUBY version=#{RUBY_VERSION} xcodeproj=#{Xcodeproj::VERSION}"'
 if ! command -v rustup >/dev/null 2>&1; then
     run_stage rustup-install brew install rustup
     export PATH="$(brew --prefix rustup)/bin:$PATH"
