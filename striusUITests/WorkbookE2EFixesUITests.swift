@@ -165,7 +165,7 @@ final class WorkbookE2EFixesUITests: XCTestCase {
             // A lazy firstMatch query repeatedly faults individual nodes on
             // long conversations (70s for round 11 in CI). Resolve the indexed
             // match from one complete query snapshot instead.
-            let mine = app.staticTexts["確認 \(round)"].element(boundBy: 0)
+            let mine = app.staticTexts.matching(NSPredicate(format: "label == %@", "確認 \(round)")).element(boundBy: 0)
             XCTAssertTrue(mine.appears(timeout: 30), "送ったメッセージが出ない (\(round))")
             XCTAssertTrue(mine.isHittable, "送ったメッセージが見える位置にない (\(round))")
             // 上へ読み返して、下へ戻す。速く動かすが、指を止めてから離す(慣性で流さない)。`swipeDown`/`swipeUp` は
