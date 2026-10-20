@@ -4,7 +4,7 @@
 
 当初は `Default` の旧プロジェクトパスを修正済みとの報告を前提にしたが、2026-10-20にログイン後の編集画面を確認すると `ios/strius/strius.xcodeproj` が残っていた。同日、このworkflowを `PR Gate` に改名し、`strius.xcodeproj`、Clean OFF、手動ブランチ開始、必須TESTだけの構成へ変更して保存した。自動push開始とarchiveは外した。
 
-workflow IDは `FD7B155C-3973-4DA5-A0A1-A6886411C5D3`、App Store ConnectのアプリIDは `6771995650`。専用schemeはCloudの選択一覧が旧構成のままでまだ指定できていないため、初回は既存の `strius` schemeによる全体診断として起動した。この実行は専用schemeでの門の実測には数えない。
+workflow IDは `FD7B155C-3973-4DA5-A0A1-A6886411C5D3`、App Store ConnectのアプリIDは `6771995650`。初回はCloudの選択一覧が旧構成のままだったため、既存の `strius` schemeによる全体診断として起動した。この実行は専用schemeでの門の実測には数えない。その後、PR Gateは `StruisPRGate`、Releaseは `StruisRelease` を選択して保存・再確認した。両方とも固定iPhone 16・最新iOSを使う。
 
 [診断ビルド142](https://appstoreconnect.apple.com/teams/79d5af08-558e-4066-9d42-ad920cc591d9/xcode-cloud/products/E19683AB-A906-44AE-889E-49023526A39A/builds/055023ce-33f2-4ffe-836f-7862880a2b7f/summary) は、ブランチ `ci/xcode-cloud-foundation`、SHA `b0ff0d6e5278bed8d18cb03e19d54a8595453630` で7分37.7秒後に失敗した。native-bootstrapは374秒で成功し、Cargo出力は3,941,748 KiBになった。その後の `test-resources` が、Appleのsystem Rubyに `xcodeproj` がないため `LoadError` で停止した。単体・UIテストには到達していない。
 
@@ -17,6 +17,8 @@ workflow IDは `FD7B155C-3973-4DA5-A0A1-A6886411C5D3`、App Store Connectのア�
 「おすすめのiPhone」は編集画面上で1個でも、実行時はiPhone 16 / 16 Pro / 16 Pro Max / SE (3rd generation) の4機種に展開された。143は経過43分、消費139分だったため、PR Gateを固定のiPhone 16・最新iOSだけに変更した。Release 144はarchiveが成功したが、テストの後処理とカメラ回転テストのシャッターhit判定で失敗し、内部配布は実行されなかった。これらを成功・15分達成・cache有効の実測とは扱わない。
 
 Release 144のiPhone 16ログでは、portraitとlandscape-leftの検査は通り、landscape-rightへの反転の約0.6秒後にシャッターの `isHittable` だけが失敗した。左右の横向きでは寸法が同じなので、寸法が2回同じという条件だけでは回転中に抜けてしまう。8秒の既存の待機内で、寸法の安定に加え両ボタンが操作可能になるまで待つ。6回の検査・全アサーション・時間上限を保持し、期限時にボタンを操作できなければ従来どおり失敗させて診断画像を残す。成功結果は実行後にPRへ記録する。
+
+Release 148はnative生成中、SymPyの固定wheelが5回続けて途中で切れ、`IncompleteRead` で停止した。取得処理は受信済みbytesを保持し、次の試行でRangeを要求する。Content-Rangeの開始位置・全体サイズを照合し、Rangeが無視された場合は部分データを置き換える。再試行上限は5回のまま。取得後の固定SHA-256検証は変更せず、不完全なbytesを成功として返さないことを回帰検証する。
 
 | 用途 | scheme | テストプラン | 単体テスト | UIテスト |
 |---|---|---|---|---|
@@ -79,13 +81,13 @@ python3 scripts/ci/xcode_test_plan.py --tier full --output TestPlans/Release.xct
 
 App Store Connectでは、現在修正済みの設定を起点に次を確認する。
 
-1. PR Gateは `StruisPRGate` scheme のTest action、Releaseは `StruisRelease` scheme のTestとArchive actionにする。プロジェクトは `strius.xcodeproj`、Cleanは無効にする。Releaseの配布先は内部TestFlightとし、まだ自動起動は追加しない。
+1. PR Gateは `StruisPRGate` scheme のTest action、Releaseは `StruisRelease` scheme のTestとArchive actionにする。プロジェクトは `strius.xcodeproj`、Cleanは無効にする。現在のReleaseは配信なしでCIだけを検証する。内部TestFlight配信を伴う実行は自動承認レビューに拒否されたため、配信post-actionを外し、archiveの配信準備も「なし」に戻した。内部配信は明示承認後に設定する。
 2. 同じソース・同じPR Gate workflow・同じXcode版で2回実行する。1回目の初回生成と2回目のcache利用を比べる。各build ID、対象SHA、bootstrapの秒数、前後のcache容量、Test action全体の時間、単体/UIの成功・失敗・既存skip件数を残す。
 3. 録画とカバレッジを使わない設定で、UIテスト前の待ち時間も測る。15分という見積もりが達成できたとは、測るまで扱わない。
 
 GitHubの `Agent tests` はLinuxで `scripts/ci/cache_usage.py` を実行し、その時点のActions cacheの合計bytes・GiB・件数をsummaryに出す。cacheを復元・作成するmacOSジョブは追加しない。
 
-この実行環境にはXcodeがないため、schemeの読み込み、Simulator実行、Cloud cacheの持ち越し、実際のTestFlight配布は未検証。コードは同じPRにまとめ、運用の切り替えは実測と必要設定を確認して進める。夜間全件・mainの署名付きarchive・cold buildは、方針5.1の条件が満たされるまで保つ。
+このローカル実行環境にはXcodeがないため、実行検証はGitHub ActionsとXcode Cloudで行う。GitHubではSimulator・単体・UI・unsigned archive、Cloudでは専用schemeのビルド・テスト実行・archiveへの到達を確認した。最新HEADでの全通過・Cloud cacheの持ち越し・実際のTestFlight配布とは区別し、各runと結果はPRへ記録する。コードは同じPRにまとめ、運用の切り替えは実測と必要設定を確認して進める。夜間全件・mainの署名付きarchive・cold buildは、方針5.1の条件が満たされるまで保つ。
 
 ## 参照
 

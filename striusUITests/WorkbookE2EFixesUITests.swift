@@ -152,9 +152,9 @@ final class WorkbookE2EFixesUITests: XCTestCase {
         let row = element(app, "workbook-subunit-sub-1")
         XCTAssertTrue(row.appears(timeout: 30))
         row.tap()
-        let input = app.textViews.matching(identifier: "chat-page").firstMatch
+        let input = app.textViews.matching(identifier: "chat-page").element(boundBy: 0)
         XCTAssertTrue(input.appears(timeout: 30))
-        let page = element(app, "chat-page")
+        let page = app.scrollViews.matching(identifier: "chat-page").element(boundBy: 0)
         for round in 1...20 {
             input.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).tap()
             input.typeText("確認 \(round)")
@@ -162,7 +162,10 @@ final class WorkbookE2EFixesUITests: XCTestCase {
             XCTAssertTrue(waitEnabled(send, timeout: 30), "送信ボタンが押せない (\(round))")
             Thread.sleep(forTimeInterval: 0.5)
             send.press(forDuration: 0.15)
-            let mine = app.staticTexts["確認 \(round)"].firstMatch
+            // A lazy firstMatch query repeatedly faults individual nodes on
+            // long conversations (70s for round 11 in CI). Resolve the indexed
+            // match from one complete query snapshot instead.
+            let mine = app.staticTexts["確認 \(round)"].element(boundBy: 0)
             XCTAssertTrue(mine.appears(timeout: 30), "送ったメッセージが出ない (\(round))")
             XCTAssertTrue(mine.isHittable, "送ったメッセージが見える位置にない (\(round))")
             // 上へ読み返して、下へ戻す。速く動かすが、指を止めてから離す(慣性で流さない)。`swipeDown`/`swipeUp` は
@@ -249,7 +252,7 @@ final class WorkbookE2EFixesUITests: XCTestCase {
 
     @MainActor
     private func sendButton(_ app: XCUIApplication) -> XCUIElement {
-        app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == %@", "送信", "chat-page")).firstMatch
+        app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == %@", "送信", "chat-page")).element(boundBy: 0)
     }
 
     @MainActor
