@@ -1,0 +1,168 @@
+"""Real git/checkpoint lifecycle across Ready, pruning and control-plane failures."""
+import copy
+import json
+import os
+from pathlib import Path
+import sys
+import unittest
+from unittest import mock
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import checkpoints
+import agentctl
+import delivery
+import gate
+from gate_fakes import MemoryStore
+import test_checkpoint_v2 as checkpoint_fixtures
+from test_delivery import test_tree
+from test_gate import FakeGitHub
+
+
+class PruningStore(MemoryStore):
+    def prune_checkpoints(self, issue, keep, before):
+        super().prune_checkpoints(issue, keep, before)
+        prefix = f'sessions/{issue}/checkpoints/'
+        deleted = [key for key in self.data if key.startswith(prefix)
+                   and key[len(prefix):].split('/')[0] not in keep]
+        for key in deleted:
+            del self.data[key]
+        return {'deleted': len(deleted)}
+
+
+class ReadyGitHub(FakeGitHub):
+    def get(self, path):
+        if '/pulls?' in path:
+            return [copy.deepcopy(self.pr)]
+        return super().get(path)
+
+
+class ReadyHandoffTests(unittest.TestCase):
+    git = checkpoint_fixtures.ImmutableCheckpointTests.git
+
+    def setUp(self):
+        checkpoint_fixtures.ImmutableCheckpointTests.setUp(self)
+        self.store, self.gh = PruningStore(), ReadyGitHub()
+        self.gh.pr['head']['sha'] = self.base
+        self.gh.pr['draft'] = True
+        self.run.update(includedComments=[20], includedIssueBody=True)
+        snapshot = {'issue': {'body': 'the original request'}, 'comments': []}
+        items = {'items': [{'id': 'issue-1', 'complete': True, 'note': 'done'}]}
+        local = {'schema': 1, 'head': self.base, 'success': True,
+                 'startedAt': '2026-10-20T00:00:00Z', 'finishedAt': '2026-10-20T00:10:00Z',
+                 'selection': {'uiTests': ['Class/testWorks']},
+                 'scopeSha256': delivery.scope_digest(snapshot), 'itemsSha256': delivery.item_digest(items),
+                 'checks': [{'name': name, 'exitCode': 0, 'seconds': 1, 'testResults': test_tree()}
+                            for name in ('build-for-testing', 'unit-tests', 'ui-tests')]}
+        for name, value in [('run.json', self.run), ('request-snapshot.json', snapshot),
+                            ('work-items.json', items), ('local-verification.json', local)]:
+            delivery.write(name, value)
+        self.store.put_json('sessions/4/state.json', {'issue': 4, 'workerStatus': 'running'})
+        for patch in (mock.patch.dict(os.environ, {'AGENT_GATE_MAX_ATTEMPTS': '3', 'AGENT_GATE_BACKEND': 'github',
+                                                  'XCODE_CLOUD_REMAINING_MINUTES': '', 'AGENT_GATE_ESTIMATED_MINUTES': ''}),
+                      mock.patch.object(delivery, 'GitHub', return_value=self.gh),
+                      mock.patch.object(delivery, 'Store', return_value=self.store)):
+            patch.start()
+            self.addCleanup(patch.stop)
+        self.controller = gate.Controller(self.gh, self.store)
+
+    def complete_gate(self, request, success):
+        for index, workflow in enumerate(('agent-tests.yml', 'ios.yml'), 1):
+            self.gh.runs[workflow] = [{'id': index, 'head_branch': 'main', 'status': 'completed',
+                                      'path': f'.github/workflows/{workflow}',
+                                      'conclusion': 'success' if success else 'failure', 'html_url': 'https://example.test/run',
+                                      'display_title': ('iOS CI ' if workflow == 'ios.yml' else 'Agent tests CI ')
+                                                       + request['request'] + ' ' + self.base}]
+        return self.controller.poll(self.store.get_json('gates/pr-8.json'))
+
+    def test_ready_proof_and_repair_survive_pruning_before_start_and_result(self):
+        request = delivery.ready()
+        original = request['checkpoint']['prefix']
+        # Periodic save followed by finalize: only these two may be retained.
+        checkpoints.save(self.store, 4, self.run, periodic=True)
+        checkpoints.save(self.store, 4, self.run)
+        self.assertFalse(any(key.startswith(original + '/') for key in self.store.data))
+        self.assertEqual(len({key.split('/')[3] for key in self.store.data if '/checkpoints/' in key}), 2)
+        self.assertEqual(self.controller.start(8, request['request'])['phase'], 'waiting')
+        self.complete_gate(request, False)
+        # Even a later mutable session request cannot replace the accepted scope.
+        changed = copy.deepcopy(request)
+        changed['scope']['includedComments'] = [999]
+        self.store.put_json('sessions/4/gate-request.json', changed)
+        self.assertTrue(gate.consume_result(4, request['request'], self.gh, self.store))
+        self.assertEqual(self.store.get_json('sessions/4/repair-request.json')['issue']['body'], 'the original request')
+        self.assertEqual(self.store.get_json('sessions/4/state.json')['repair']['includedComments'], [20])
+
+    def test_lost_explicit_dispatch_is_recovered_on_linux_without_redrafting_or_duplicate_build(self):
+        original = self.gh.request
+        def request(method, path, body=None):
+            if path.endswith('/agent-gate.yml/dispatches'):
+                raise OSError('connection lost after submission')
+            return original(method, path, body)
+        with mock.patch.object(self.gh, 'request', side_effect=request):
+            pending = delivery.ready()
+        self.assertFalse(self.gh.pr['draft'])
+        self.assertTrue(delivery.waiting(self.run))
+        self.assertEqual(self.store.get_json('sessions/4/state.json')['workerStatus'], 'waiting-gate')
+        self.controller.reconcile()
+        self.controller.reconcile()
+        record = self.store.get_json('gates/pr-8.json')
+        self.assertEqual(record['request'], pending['request'])
+        self.assertEqual(record['attempts'], 1)
+        self.assertEqual(len([call for call in self.gh.calls if '/ios.yml/dispatches' in str(call[1])]), 1)
+
+    def test_denied_ready_mutation_never_persists_waiting_for_a_gate_that_cannot_start(self):
+        original = self.gh.request
+        def request(method, path, body=None):
+            if path == '/graphql':
+                raise OSError('mutation denied')
+            return original(method, path, body)
+        with mock.patch.object(self.gh, 'request', side_effect=request), self.assertRaises(OSError):
+            delivery.ready()
+        state = self.store.get_json('sessions/4/state.json')
+        self.assertNotEqual(state['workerStatus'], 'waiting-gate')
+        self.assertFalse(delivery.waiting(self.run))
+        self.assertFalse(delivery.recover_handoff(self.store, self.gh, 4, state))
+
+    def test_runner_lost_after_ready_is_reconciled_without_a_macos_restart(self):
+        original = self.gh.get
+        def get(path):
+            if path.endswith('/pulls/8') and not self.gh.pr['draft']:
+                raise SystemExit('runner lost immediately after Ready')
+            return original(path)
+        with mock.patch.object(self.gh, 'get', side_effect=get), self.assertRaises(SystemExit):
+            delivery.ready()
+        with mock.patch.dict(os.environ, {'AGENT_VALIDATION_MODE': 'gate', 'RECOVER_TITLE': 'Issue agent #4'}), \
+                mock.patch.object(agentctl, 'GitHub', return_value=self.gh), \
+                mock.patch.object(agentctl, 'Store', return_value=self.store), \
+                mock.patch.object(agentctl, 'restart_interrupted') as restart:
+            agentctl.cmd_recover(None)
+        restart.assert_not_called()
+        self.assertEqual(self.store.get_json('sessions/4/state.json')['workerStatus'], 'waiting-gate')
+
+    def test_result_before_waiting_state_is_saved_remains_completed(self):
+        original = self.store.update_json
+        calls = 0
+        def update(key, change, default=None):
+            nonlocal calls
+            if key == 'sessions/4/state.json':
+                calls += 1
+                if calls == 2:
+                    request = self.store.get_json('sessions/4/gate-request.json')
+                    self.controller.start(8, request['request'])
+                    self.complete_gate(request, True)
+                    gate.consume_result(4, request['request'], self.gh, self.store)
+            return original(key, change, default)
+        with mock.patch.object(self.store, 'update_json', side_effect=update):
+            request = delivery.ready()
+        state = self.store.get_json('sessions/4/state.json')
+        self.assertEqual(state['workerStatus'], 'idle')
+        self.assertEqual(state['processedGate'], request['request'])
+        self.assertEqual(state['validatedHead'], self.base)
+
+    def test_tampered_copied_proof_is_rejected_even_after_checkpoint_pruning(self):
+        request = delivery.ready()
+        request['evidence']['request-snapshot.json'] = json.dumps({'issue': {'body': 'changed'}, 'comments': []})
+        self.store.put_json('sessions/4/gate-request.json', request)
+        with self.assertRaisesRegex(RuntimeError, 'evidence'):
+            self.controller.start(8, request['request'])
+        self.assertTrue(self.gh.pr['draft'])

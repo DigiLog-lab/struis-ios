@@ -87,10 +87,11 @@ def request_data(store, gh, pr, request_id=None, renew=False):
         checkpoint = store.get_json(session_key(issue, 'workspace.json')) or {}
         if not checkpoint.get('prefix') or checkpoint.get('closed'):
             raise RuntimeError('No completed checkpoint for this Ready transition')
-        parts = checkpoints.load_components(store, checkpoint)
+        parts = checkpoints.load_components(store, checkpoint, (*delivery.EVIDENCE_FILES, 'run.json'))
         run = json.loads(parts['run.json'])
         request = {'schema': 1, 'request': secrets.token_hex(12), 'issue': issue, 'pr': pr['number'],
                    'head': pr['head']['sha'], 'branch': pr['head']['ref'], 'at': iso(), 'checkpoint': checkpoint,
+                   'evidence': delivery.frozen_evidence(checkpoint, {name: parts[name] for name in delivery.EVIDENCE_FILES}),
                    'scope': {'includedComments': run['includedComments'], 'includedIssueBody': run['includedIssueBody']}}
         store.put_json(session_key(issue, 'gate-request.json'), request)
     if not request or (request_id and request.get('request') != request_id):
@@ -102,7 +103,7 @@ def request_data(store, gh, pr, request_id=None, renew=False):
     expected_prefix = session_key(issue, f'checkpoints/{checkpoint["saveId"]}')
     if checkpoint.get('prefix') != expected_prefix or checkpoint.get('head') != request['head']:
         raise RuntimeError('Ready checkpoint is outside this Issue/HEAD')
-    components = checkpoints.load_components(store, checkpoint)
+    components = delivery.request_evidence(store, request)
     local = json.loads(components['local-verification.json'])
     snapshot = json.loads(components['request-snapshot.json'])
     items = json.loads(components['work-items.json'])
@@ -116,7 +117,7 @@ def request_data(store, gh, pr, request_id=None, renew=False):
     units = next(check for check in local['checks'] if check['name'] == 'unit-tests')
     required = {normalize_test(*row['test'].rsplit('/', 1)) for row in delivery.test_rows(units['testResults'])}
     required.update(set(local['selection']['uiTests']) - omitted)
-    request = dict(request, expectedTests=sorted(required))
+    request = dict(request, expectedTests=sorted(required), evidence=delivery.frozen_evidence(checkpoint, components))
     if not request_id:
         body = re.sub(re.escape(delivery.SUMMARY_START) + r'.*?' + re.escape(delivery.SUMMARY_END),
                       '', pr.get('body') or '', flags=re.S).strip()
@@ -389,7 +390,7 @@ def consume_result(number, request_id, gh=None, store=None):
                            workerStatus='idle', autoRestarts=0)
             current.pop('repair', None)
             current.pop('validationFailure', None)
-            scope = request['scope']
+            scope = record['scope']
             current['lastCommentId'] = max([int(current.get('lastCommentId') or 0), *scope['includedComments']])
             if scope['includedIssueBody']:
                 current['issueBodyProcessed'] = True
@@ -402,10 +403,10 @@ def consume_result(number, request_id, gh=None, store=None):
         gh.comment(number, f'{REPLY_MARKER}\n\n全項目の実装、手元検証、門が完了しました。\n\n'
                            f'- HEAD: `{record["head"]}`\n- PR: {pr["html_url"]}\n- 門: {record.get("url") or pr["html_url"]}\n\nマージは人が行います。')
         return False
-    components = checkpoints.load_components(store, request['checkpoint'])
+    components = delivery.request_evidence(store, record)
     snapshot = json.loads(components['request-snapshot.json'])
     store.put_json(session_key(number, 'repair-request.json'), snapshot)
-    repair = dict(request['scope'], head=record['head'], requestSnapshot=True,
+    repair = dict(record['scope'], head=record['head'], requestSnapshot=True,
                   requestSha256=hashlib.sha256(json.dumps(snapshot, ensure_ascii=False, indent=2).encode()).hexdigest())
     def failed(current):
         current.update(repair=repair, pendingRestartKind='validation', processedGate=request_id,

@@ -66,6 +66,9 @@ def cmd_route(_args):
         return
     store = Store()
     state = store.get_json(session_key(number, 'state.json')) or {}
+    if delivery.enabled() and automatic_retry() and delivery.recover_handoff(store, gh, number, state):
+        write_output('run', 'false')
+        return
     if delivery.enabled() and state.get('workerStatus') in ('waiting-gate', 'waiting-instructions'):
         # New human instructions may supersede a waiting request. An automatic
         # interruption watchdog must never restart merely to wait for the gate.
@@ -407,6 +410,9 @@ def cmd_recover(_args):
     gh = GitHub()
     store = Store()
     state = store.get_json(session_key(number, 'state.json')) or {}
+    if delivery.enabled() and delivery.recover_handoff(store, gh, number, state):
+        print('Ready handoff recovered on Linux; no macOS restart is needed')
+        return
     if delivery.enabled() and state.get('workerStatus') in ('waiting-gate', 'waiting-instructions'):
         print('External gate is pending; no macOS restart is needed')
         return
@@ -1140,6 +1146,33 @@ def cmd_finalize(_args):
     }
     stamp = f"{os.environ.get('GITHUB_RUN_ID', 'local')}-{os.environ.get('GITHUB_RUN_ATTEMPT', '1')}"
     store.put_json(f'usage/{number}/{stamp}.json', usage)
+
+    if delivery.enabled() and delivery.waiting(run):
+        # The gate may already have completed while this worker was exiting.
+        # CAS only worker bookkeeping; never rewrite the controller's outcome,
+        # consumed scope, repair or next-worker state with this old runner.
+        request_id = delivery.read('gate-request.json', {}).get('request')
+        def handed_off(current):
+            if request_id and current.get('gateRequest') != request_id:
+                return current
+            current.update(workerFinishedAt=iso(), finalizedRun=os.environ.get('GITHUB_RUN_ID'),
+                           runs=int(current.get('runs') or 0) + 1,
+                           lastRun={**{key: usage[key] for key in ('run', 'success', 'restored', 'recovery', 'turnUsage', 'firstRequest')},
+                                    'noOp': no_op})
+            current['decisions'] = (current.get('decisions') or []) + decisions
+            if not request_id or current.get('processedGate') != request_id:
+                current.update(issue=number, branch=run['branch'], workerStatus='waiting-gate', workerRun=run_url())
+                if report['sessionId']:
+                    current['sessionId'] = report['sessionId']
+            return current
+        store.update_json(session_key(number, 'state.json'), handed_off, default={})
+        gh.comment(number, '\n\n'.join([REPLY_MARKER,
+                   'Readyの依頼をLinuxへ引き渡しました。門の結果と完了状態はLinux側で管理し、このmacOS workerは終了します。',
+                   *pull_requests, usage_table(report, run, usage)]))
+        append_summary(f'Issue #{number}: Ready handed off to Linux; macOS worker released.')
+        if not success:
+            sys.exit(1)
+        return
 
     state = store.get_json(session_key(number, 'state.json')) or {}
     waiting = delivery.enabled() and delivery.waiting(run)

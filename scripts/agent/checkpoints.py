@@ -149,13 +149,14 @@ def save(store, number, run, periodic=False):
         return record
 
 
-def load_components(store, record):
+def load_components(store, record, names=None):
     result = {}
-    for name, expected in record['components'].items():
+    for name in record['components'] if names is None else names:
         if name not in (*FILES, 'changes.patch', 'untracked.tar.gz', 'claude-projects.tar.gz', 'commits.bundle'):
             raise RuntimeError('Unknown checkpoint component')
+        expected = record['components'].get(name)
         data = store.get(f'{record["prefix"]}/{name}')
-        if data is None or digest(data) != expected:
+        if not expected or data is None or digest(data) != expected:
             raise RuntimeError(f'Incomplete checkpoint component: {name}')
         result[name] = data
     return result

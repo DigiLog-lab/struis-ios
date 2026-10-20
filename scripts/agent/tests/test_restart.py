@@ -47,6 +47,11 @@ class RestartKindTests(unittest.TestCase):
         if store is None:
             store = mock.Mock()
             store.get_json.return_value = json.loads(json.dumps(state))
+            def update(key, change, default=None):
+                value = change(json.loads(json.dumps(state)))
+                store.put_json(key, value)
+                return value
+            store.update_json.side_effect = update
         env = {'VALIDATION_OUTCOME': validation_outcome, 'CLAUDE_OUTCOME': claude_outcome}
         with mock.patch.dict(os.environ, env), \
                 mock.patch.object(agentctl, 'GitHub', return_value=gh), \

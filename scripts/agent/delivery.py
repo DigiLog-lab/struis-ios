@@ -15,6 +15,7 @@ import checkpoints
 MARKER = '<!-- struis-agent:issue={issue} -->'
 SUMMARY_START = '<!-- struis-agent:local-verification -->'
 SUMMARY_END = '<!-- /struis-agent:local-verification -->'
+EVIDENCE_FILES = ('local-verification.json', 'request-snapshot.json', 'work-items.json')
 
 
 def enabled():
@@ -225,6 +226,48 @@ def waiting(run):
     return request.get('head') == git('rev-parse', 'HEAD') and request.get('branch') == run['branch']
 
 
+def frozen_evidence(checkpoint, components):
+    """Keep small exact-byte proofs independent of the rolling workspace saves."""
+    if set(components) != set(EVIDENCE_FILES):
+        raise RuntimeError('Incomplete Ready evidence')
+    for name, data in components.items():
+        if checkpoints.digest(data) != checkpoint['components'].get(name):
+            raise RuntimeError(f'Ready evidence differs from checkpoint: {name}')
+    return {name: data.decode() for name, data in components.items()}
+
+
+def request_evidence(store, request):
+    evidence = request.get('evidence')
+    if evidence is None:  # a previously saved request, before proof copying
+        components = checkpoints.load_components(store, request['checkpoint'], EVIDENCE_FILES)
+    else:
+        if not isinstance(evidence, dict) or any(not isinstance(value, str) for value in evidence.values()):
+            raise RuntimeError('Invalid Ready evidence')
+        components = {name: value.encode() for name, value in evidence.items()}
+    frozen_evidence(request['checkpoint'], components)
+    return components
+
+
+def recover_handoff(store, gh, number, state):
+    """A lost runner after clearing Draft is reconciled without a macOS restart."""
+    if state.get('workerStatus') != 'ready-pending':
+        return False
+    request = store.get_json(session_key(number, 'gate-request.json')) or {}
+    if (not request.get('request') or request['request'] != state.get('gateRequest')
+            or request.get('head') != state.get('gateHead') or request.get('issue') != number):
+        return False
+    pr = gh.get(f'/repos/{gh.repository}/pulls/{request["pr"]}')
+    if (pr['state'] != 'open' or pr['draft'] or pr['head']['sha'] != request['head']
+            or pr['head']['ref'] != request['branch']):
+        return False
+    def accepted(current):
+        if current.get('gateRequest') == request['request'] and current.get('workerStatus') == 'ready-pending':
+            current['workerStatus'] = 'waiting-gate'
+        return current
+    store.update_json(session_key(number, 'state.json'), accepted, default={})
+    return True
+
+
 def paused(run):
     record = read('delivery-blocked.json', {})
     return record.get('head') == git('rev-parse', 'HEAD') and record.get('branch') == run['branch']
@@ -317,25 +360,38 @@ def ready():
         raise RuntimeError('Workspace or verification changed while publishing the Ready checkpoint')
     request = {'schema': 1, 'request': secrets.token_hex(12), 'issue': run['issue'], 'pr': pr['number'],
                'head': head, 'branch': run['branch'], 'at': iso(), 'checkpoint': checkpoint,
+               'evidence': frozen_evidence(checkpoint, {name: (agent_home() / name).read_bytes() for name in EVIDENCE_FILES}),
                'scope': {'includedComments': run['includedComments'], 'includedIssueBody': run['includedIssueBody']}}
     store.put_json(session_key(run['issue'], 'gate-request.json'), request)
     body = re.sub(re.escape(SUMMARY_START) + r'.*?' + re.escape(SUMMARY_END), '', pr.get('body') or '', flags=re.S).strip()
     gh.request('PATCH', f'/repos/{gh.repository}/pulls/{pr["number"]}', {'body': body + '\n\n' + summary(record)})
-    # Persist the waiting state before dispatch. finalize must not overwrite a
-    # fast controller result with an older worker copy of state.json.
+    # The Ready mutation can fail or the runner can disappear immediately after
+    # it. Only a confirmed Ready PR enters waiting-gate; recovery can reconcile
+    # the durable intent on Linux without another macOS session.
     store.update_json(session_key(run['issue'], 'state.json'),
-                      lambda state: dict(state, gateRequest=request['request'], gateHead=head, workerStatus='waiting-gate'), default={})
+                      lambda state: dict(state, gateRequest=request['request'], gateHead=head, workerStatus='ready-pending'), default={})
+    if pr['draft']:
+        draft(gh, pr, False)
+    fresh = gh.get(f'/repos/{gh.repository}/pulls/{pr["number"]}')
+    if fresh['head']['sha'] != head or fresh['draft']:
+        if not fresh['draft']:
+            draft(gh, fresh)
+        raise RuntimeError('PR changed during Ready transition')
+    write('gate-request.json', request)
+    def accepted(state):
+        if state.get('gateRequest') == request['request'] and state.get('processedGate') != request['request']:
+            state['workerStatus'] = 'waiting-gate'
+        return state
+    store.update_json(session_key(run['issue'], 'state.json'), accepted, default={})
     try:
-        if pr['draft']:
-            draft(gh, pr, False)
-        fresh = gh.get(f'/repos/{gh.repository}/pulls/{pr["number"]}')
-        if fresh['head']['sha'] != head or fresh['draft']:
-            raise RuntimeError('PR changed during Ready transition')
         gh.request('POST', f'/repos/{gh.repository}/actions/workflows/agent-gate.yml/dispatches',
                    {'ref': 'main', 'inputs': {'pr': str(pr['number']), 'request': request['request']}})
-    except Exception:
-        draft(gh, pr)
-        raise
-    write('gate-request.json', request)
-    print('Ready: gate controller dispatched. End this session now; the result wakes this Issue worker.')
+    except Exception as error:
+        # This dispatch only wakes an idempotent Linux controller. A lost
+        # response must not redraft an otherwise valid Ready request: its
+        # periodic reconciliation recovers the same intent, without a new Mac.
+        print(f'Ready: controller dispatch unconfirmed ({type(error).__name__}); Linux reconciliation will recover this request.')
+    else:
+        print('Ready: gate controller dispatched.')
+    print('End this session now; the result wakes this Issue worker.')
     return request

@@ -16,7 +16,7 @@
 Ready後のHEAD変更・Draft化・closeで古い結果を無効にします。Xcode Cloud APIは開始時にcommit SHAを指定できず、ブランチ参照を指定します。そのため開始前後と完了時に `sourceCommit.commitSha` を照合し、異なるSHAを合格にしません。別workflowの結果も採用しません。
 Cloudの完了判定は全体のstatusだけでなく、実際のTEST actionとテスト結果一覧も照合します。手元の全単体・選択UIから除外manifest分だけを引いたメソッドが欠けている場合、0件の場合、期待失敗がある場合は合格にしません。失敗したテストとビルドissueを修正workerへ渡し、Appleのキーは渡しません。
 
-門の開始POSTが途中で失敗した場合は、自動で同じビルドを起動し直しません。Draftへ戻して開始エラーをIssueへ記録します。テストの赤からの修正と、API／設定エラーを区別します。門の結果待ちは中断の連続3回の自動再開を消費しません。
+Xcode Cloud／予備iOSの開始POSTが途中で失敗した場合は、自動で同じビルドを起動し直しません。Draftへ戻して開始エラーをIssueへ記録します。これに対し、Ready後のLinuxコントローラーを呼ぶdispatchの応答だけが失われた場合は、Readyを維持し、5分ごとの照合で同じ要求を回収します。Readyへの変更がまだ確認できない段階は `ready-pending` とし、失敗した変更を門の待機状態と混同しません。変更直後にrunnerが失われても、復旧ジョブが実際のPRを確かめ、ReadyならLinuxで引き継ぎます。門の結果待ちは中断の連続3回の自動再開を消費しません。
 
 ## 保存・復元・削除
 
@@ -25,6 +25,8 @@ Cloudの完了判定は全体のstatusだけでなく、実際のTEST actionと�
 定期保存とfinalizeはロックを共有します。別runnerとの競合ではCASに負けた側がポインタを上書きしません。作業ファイルが保存中に変わった場合、定期保存は前の完全な記録を保持します。Claudeの追記中JSONLは完全な行までを保存します。復元前に全componentのhashとremoteを検証し、remoteが変わっていたら上書きせず停止します。
 
 最新と1つ前を保持し、それより古いcheckpointを削除します。新しい保存の途中のオブジェクトを消さないよう、削除には公開済みポインタと時刻の条件を付けます。完了・closeのときは先にポインタをtombstoneにしてから削除し、遅い保存が復活させるのを防ぎます。
+
+Ready要求には依頼・項目・手元検証の3つのJSONを元のバイト列のまま複写し、checkpointのSHA-256と照合します。門が受け付けた記録も `gates/` に固定します。これにより定期保存と終了時保存で元checkpointが削除されても、門の開始と赤からの修正に必要な記録は失われません。保持するworkspace checkpointは引き続き2世代だけです。門が先に完了した場合、遅れて実行されるworkerの終了処理はCASで実行情報だけを保存し、完了・修正依頼・処理済み範囲を書き戻しません。
 
 Workerの永続オブジェクト削除APIは `DELETE /v1/checkpoints/{Issue}` だけです。`sessions/{Issue}/checkpoints/` 以外のキーは指定できません。`gates/` はmainの `agent-gate.yml` だけが書けます。workerは読めますが結果を書き換えられません。multipart経由の書き込みも同じ制限です。
 
@@ -48,6 +50,7 @@ DerivedData cacheは `agent-derived-v1-{branch SHA256先頭16文字}-...` です
 | `CLOUDFLARE_ACCOUNT_ID` / `AGENT_R2_LIFECYCLE_API_TOKEN` | lifecycleの更新権限を持つアカウント変数／専用Secret。cleanupのLinuxジョブだけに渡す |
 
 Workerは既存のデプロイ手順で更新します。新しいallowed workflowとgate書き込み制限を先に適用してください。
+コントローラーと結果通知先は信頼済みのmainを実行します。したがって、このPRが未マージの間は新しい `agent-gate.yml` をmainから起動できません。Worker更新・Cloudの設定・必要な変数とSecretsの配置を確認してから、人がこの1つのPRをマージする順序です。
 マージ条件に使うcommit statusの名前は `Struis / Ready gate` です。既存のrequired checksが旧iOS workflowを要求している場合は、新しい門の運用を確認したうえでリポジトリ設定を合わせます。
 
 Cloudの設定は、既存の動くworkflowのID・Xcode/macOS版・Simulator destinationを流用できます。
@@ -78,3 +81,10 @@ python3 scripts/agent/lifecycle.py --apply # 正確なIssue prefixだけに14日
 | `XCODE_CLOUD_CLEAN_BUILD_VERIFIED` | 定期cold build（手動の復旧経路は残す） |
 
 Cloudの2回実行によるキャッシュ効果、全UI、内部TestFlight、clean build、実macOSでのlocal-verify、Worker/R2への実保存・削除と自動再開は、別途実環境で確認する必要があります。この開発環境にはXcodeがありません。Python・Workerの回帰テスト、Actionsの式／構文、plan・scheme・projectの整合性をコード側の検証とします。
+
+## 2026-10-20の検証記録
+
+- ローカル検査はエージェント161件、CI選別38件、Worker4件の計203件が成功。Ready後の2回保存による元checkpoint削除、削除後の門開始と赤からの復元、dispatch応答消失、Ready変更失敗、変更直後のrunner消失、終了処理より早い門の完了、複写した証拠の改変を追加で確認。
+- [Agent tests run 39373595715](https://github.com/DigiLog-lab/struis-ios/actions/runs/39373595715) のcache計測は481,675,895 bytes、1件。この数値はその実行時点の合計で、DerivedData導入後やCloudのcache効果を示す数値ではない。
+- [初回コミット0e0a93aの旧iOS検証](https://github.com/DigiLog-lab/struis-ios/actions/runs/39370110684) はSimulator build・単体302件（既存skip 27、失敗0）・unsigned device archiveが成功。UIは `ChatCameraUITests/testCameraRotationAndReopening` の3分上限超過と `ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives` のアプリ終了失敗で赤。原因は未確定で、再実行だけで成功扱いにしていない。最新HEADのiOS検証も未実施。
+- App Store Connect・Cloudflareの設定画面は、この作業用ブラウザーでは未認証。Cloud workflow変更・Workerデプロイ・R2 lifecycleの適用は完了していない。

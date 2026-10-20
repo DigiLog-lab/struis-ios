@@ -34,6 +34,27 @@ class GateFinalizationTests(unittest.TestCase):
         self.assertEqual(state['workerStatus'], 'waiting-gate')
         gh.request.assert_not_called()
 
+    def test_fast_gate_result_is_not_overwritten_by_late_worker_finalization(self):
+        delivery.write('gate-request.json', {'request': 'req1'})
+        for success in (True, False):
+            with self.subTest(success=success):
+                store = MemoryStore()
+                expected = {'issue': 4, 'gateRequest': 'req1', 'processedGate': 'req1',
+                            'workerStatus': 'idle', 'lastCommentId': 20 if success else 10}
+                if success:
+                    expected.update(validatedHead='head', validatedGate='req1')
+                else:
+                    expected.update(repair={'head': 'head', 'requestSnapshot': True},
+                                    pendingRestartKind='validation', validationFailure={'gate': 'req1'})
+                store.put_json('sessions/4/state.json', expected)
+                wrapped = mock.Mock(wraps=store)
+                with mock.patch.dict(os.environ, {'AGENT_VALIDATION_MODE': 'gate'}), \
+                        mock.patch.object(delivery, 'waiting', return_value=True), mock.patch.object(delivery, 'paused', return_value=False):
+                    self.finalize(expected, validation_outcome='success', store=wrapped)
+                actual = store.get_json('sessions/4/state.json')
+                for name, value in expected.items():
+                    self.assertEqual(actual.get(name), value, name)
+
     def test_gate_limit_pause_does_not_mark_done_or_schedule_retry(self):
         delivery.write('delivery-blocked.json', {'reason': 'limit reached'})
         with mock.patch.dict(os.environ, {'AGENT_VALIDATION_MODE': 'gate'}), \
