@@ -8,7 +8,7 @@ import urllib.error
 
 
 SPEC = importlib.util.spec_from_file_location(
-    "native_fetch", Path(__file__).resolve().parents[2] / "NativeRuntime/Scripts/fetch.py")
+    "native_fetch", Path(__file__).with_name("native_fetch.py"))
 fetcher = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(fetcher)
 

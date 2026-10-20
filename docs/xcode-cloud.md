@@ -18,7 +18,9 @@ workflow IDは `FD7B155C-3973-4DA5-A0A1-A6886411C5D3`、App Store Connectのア�
 
 Release 144のiPhone 16ログでは、portraitとlandscape-leftの検査は通り、landscape-rightへの反転の約0.6秒後にシャッターの `isHittable` だけが失敗した。左右の横向きでは寸法が同じなので、寸法が2回同じという条件だけでは回転中に抜けてしまう。8秒の既存の待機内で、寸法の安定に加え両ボタンが操作可能になるまで待つ。6回の検査・全アサーション・時間上限を保持し、期限時にボタンを操作できなければ従来どおり失敗させて診断画像を残す。成功結果は実行後にPRへ記録する。
 
-Release 148はnative生成中、SymPyの固定wheelが5回続けて途中で切れ、`IncompleteRead` で停止した。取得処理は受信済みbytesを保持し、次の試行でRangeを要求する。Content-Rangeの開始位置・全体サイズを照合し、Rangeが無視された場合は部分データを置き換える。再試行上限は5回のまま。取得後の固定SHA-256検証は変更せず、不完全なbytesを成功として返さないことを回帰検証する。
+Release 148はnative生成中、SymPyの固定wheelが5回続けて途中で切れ、`IncompleteRead` で停止した。CIの `native-inputs` 工程は、固定Python frameworkとwheelを先に取得・検証する。受信済みbytesを保持してRangeで再開し、Content-Rangeの開始位置・全体サイズを照合する。Rangeが無視された場合は部分データを置き換える。再試行上限は5回、固定SHA-256検証も維持し、不完全なbytesは成功として返さない。生成物へ影響しない通信処理は `scripts/ci` に置き、NativeRuntimeの入力と既存cacheの同一性を保つ。
+
+GitHubのcold生成では、生成後の `NativeRuntime/**` に対するhashFilesの再計算が失敗し、成果物を保存できない既存不具合を実測した。native jobのkeyはcheckout直後・生成前に一度だけ固定し、検索・保存・保存確認で同じ値を使う。大きな生成物を再走査せず、専用の `agent-native-cache.yml` と同じ入力keyで保存する。
 
 | 用途 | scheme | テストプラン | 単体テスト | UIテスト |
 |---|---|---|---|---|

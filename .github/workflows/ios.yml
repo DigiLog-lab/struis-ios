@@ -67,6 +67,9 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
+      - name: cache keyを生成前に固定
+        id: key
+        run: echo "key=native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14'
@@ -79,7 +82,7 @@ jobs:
             NativeRuntime/PythonPackages
             NativeRuntime/PackageCache
             NativeRuntime/.build
-          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          key: ${{ steps.key.outputs.key }}
           lookup-only: true
       - name: ツールを準備
         if: steps.native.outputs.cache-hit != 'true'
@@ -114,7 +117,7 @@ jobs:
             NativeRuntime/PythonPackages
             NativeRuntime/PackageCache
             NativeRuntime/.build
-          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          key: ${{ steps.key.outputs.key }}
       - name: Native Runtime cacheが使えることを確認
         if: steps.native.outputs.cache-hit != 'true'
         id: saved
@@ -125,7 +128,7 @@ jobs:
             NativeRuntime/PythonPackages
             NativeRuntime/PackageCache
             NativeRuntime/.build
-          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          key: ${{ steps.key.outputs.key }}
           lookup-only: true
       - name: cacheが無ければ止める
         if: steps.native.outputs.cache-hit != 'true' && steps.saved.outputs.cache-hit != 'true'

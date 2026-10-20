@@ -84,6 +84,7 @@ if [ "${CI_WORKFLOW:-}" = "Hyotan Native Runtime Tests" ]; then
     export STRUIS_COMPOUND_DASH_PREPARATION=1
 fi
 echo "Building native runtime for $native_platform"
+run_stage native-inputs python3.14 scripts/ci/prefetch_native.py --platform "$native_platform"
 run_stage native-bootstrap python3.14 NativeRuntime/Scripts/bootstrap.py --platform "$native_platform"
 cargo_cache_size after
 test -f NativeRuntime/Vendor/NativeCodex.xcframework/Info.plist
