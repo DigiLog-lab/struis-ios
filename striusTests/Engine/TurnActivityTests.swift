@@ -49,6 +49,19 @@ struct TurnActivityTests {
         #expect(set?.items == ["a {b}"])
     }
 
+    @Test func partialSetHidesPromptsOnceAFinishedProblemIsDefective() {
+        // 3.2: 書き終わった問題に欠けがあれば、このターンの問題は一枚に入らない。入らない問題は見せない(撮って解かせない)。
+        let emptyAnswer = TurnActivityLabels.structuredPartial(taskType: "workbook_set", text: #"{"problems":[{"prompt":"x+1=2 を解け","answer_key":"1"},{"prompt":"x+2=5 を解け","answer_key":" "}"#)
+        #expect(emptyAnswer?.done == 2)
+        #expect(emptyAnswer?.items == [])
+        let duplicate = TurnActivityLabels.structuredPartial(taskType: "workbook_set", text: #"{"problems":[{"prompt":"x+1=2 を解け","answer_key":"1"},{"prompt":"x + 1 = 2 を解け","answer_key":"1"}"#)
+        #expect(duplicate?.items == [])
+        let emptyPrompt = TurnActivityLabels.structuredPartial(taskType: "workbook_set", text: #"{"problems":[{"prompt":"","answer_key":"1"}"#)
+        #expect(emptyPrompt?.items == [])
+        let good = TurnActivityLabels.structuredPartial(taskType: "workbook_set", text: #"{"problems":[{"prompt":"x+1=2 を解け","answer_key":"1"},{"prompt":"x+2=5 を解け","answer_key":"3"},{"prompt":"x"#)
+        #expect(good?.items == ["x+1=2 を解け", "x+2=5 を解け"])
+    }
+
     @Test func collectorFindsFinishedProposalOnce() {
         let collector = ReplyStreamCollector()
         #expect(collector.append(itemID: "a", delta: "全体像のカードを出すね。\n<struis_workbook_proposal>{\"request\": \"一次関数") == nil)

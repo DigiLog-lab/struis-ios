@@ -784,6 +784,11 @@ nonisolated struct WorkbookMachine {
         max(set.problemIds.count, set.gate["count"]?.intValue ?? 0)
     }
 
+    /// 答案に見せる一枚の問題数。組み立てに失敗した一枚は作れた問題だけ(作れなかった分は「見つからなかった」問題ではない)。
+    func shownTotal(_ set: WorkbookSetRecord) -> Int {
+        set.status == "failed" ? set.problemIds.count : setTotal(set)
+    }
+
     /// まだ締めていない、今の段の一枚か。今の段のものでない一枚(例題に戻った・段が進んだ)は 1 枚の答案で締める(R5)。
     func isOpenForCapture(_ set: WorkbookSetRecord) -> Bool {
         guard set.status == "open" || set.status == "generating", let subunit = subunits[set.subunitId] else { return false }
@@ -804,7 +809,7 @@ nonisolated struct WorkbookMachine {
     func missingPositions(setID: String) -> [Int] {
         guard let set = sets[setID] else { return [] }
         let first = firstSetAttempts(setID: setID)
-        return (0..<setTotal(set)).filter { index in
+        return (0..<shownTotal(set)).filter { index in
             index >= set.problemIds.count || first[set.problemIds[index]] == nil
         }.map { $0 + 1 }
     }
@@ -824,13 +829,14 @@ nonisolated struct WorkbookMachine {
         let first = firstSetAttempts(setID: setID)
         var states: [WorkbookProblemTileDTO.State] = []
         var here: [Bool] = []
-        for index in 0..<setTotal(set) {
+        for index in 0..<shownTotal(set) {
             let attempt = index < set.problemIds.count ? first[set.problemIds[index]] : nil
             states.append(attempt.flatMap { WorkbookProblemTileDTO.State(rawValue: $0.verdict) } ?? .notStarted)
             here.append(attempt?.captureId == captureID)
         }
         return WorkbookSetProgressDTO(
-            states: states, capturedHere: here, missingPositions: missingPositions(setID: setID), isOpen: isOpenForCapture(set)
+            states: states, capturedHere: here, missingPositions: missingPositions(setID: setID), isOpen: isOpenForCapture(set),
+            isFailed: set.status == "failed"
         )
     }
 
@@ -1080,8 +1086,59 @@ nonisolated struct WorkbookMachine {
     /// 会話に出た式と重なった時に組み直す回数の上限(D14)。
     static let expressionRetryLimit = 1
 
+    /// 組んだ問題の欠け(勉強を止めない仕組み 3.2): 空の問題文・空の答え・同じ問題文の重なり(一枚の中、または
+    /// その小単元に既にある問題と)。空の問題は解けず、判定もできないので、一枚に入れない。
+    /// 重なりの比較は空白を全部取り除いて行う(`x+1` と `x + 1`、改行の違いは同じ問題)。
+    /// 戻り値は欠けの説明(人が読む・組み直しの依頼に添える)。空なら受け入れてよい。
+    nonisolated static func problemDefects(prompts: [String], answerKeys: [String], existingPrompts: [String]) -> [String] {
+        func key(_ text: String) -> String {
+            String(text.unicodeScalars.filter { !$0.properties.isWhitespace })
+        }
+        var defects: [String] = []
+        var seen = Set(existingPrompts.map(key).filter { !$0.isEmpty })
+        for (index, prompt) in prompts.enumerated() {
+            let normalized = key(prompt)
+            let answer = index < answerKeys.count ? key(answerKeys[index]) : ""
+            if normalized.isEmpty {
+                defects.append("問題 \(index + 1): 問題文が空")
+            } else if seen.contains(normalized) {
+                let shown = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+                defects.append("問題 \(index + 1): 問題文が重複(\(String(shown.prefix(60))))")
+            } else {
+                seen.insert(normalized)
+            }
+            if answer.isEmpty {
+                defects.append("問題 \(index + 1): 答えが空")
+            }
+        }
+        return defects
+    }
+
+    /// 欠けのある問題で組み直す回数の上限。
+    static let defectRetryLimit = 1
+
+    /// 組んだ問題に欠けがあった(3.2): 欠けを一枚に残し、組み直させる(1 回だけ)。
+    /// 組み直したかどうかは `gate.defect_retries`、欠けは `gate.rejected_problems`。
+    @discardableResult
+    mutating func noteDefectiveProblems(setID: String, defects: [String]) -> Bool {
+        guard var row = sets[setID], row.status == "generating", !defects.isEmpty else { return false }
+        var gate = row.gate.objectValue ?? [:]
+        let retries = gate["defect_retries"]?.intValue ?? 0
+        guard retries < Self.defectRetryLimit else { return false }
+        gate["defect_retries"] = .number(Double(retries + 1))
+        gate["rejected_problems"] = .array(defects.prefix(20).map(LedgerJSON.string))
+        row.gate = .object(gate)
+        row.updatedAt = now()
+        put("set.problems_rejected", row)
+        return true
+    }
+
     mutating func failSet(setID: String, error: String) {
         guard var row = sets[setID], row.status == "generating" else { return }
+        // 組んでいる途中で足した問題(§3.2 の 1 問ずつ)は、一枚が失敗しても消さず、失敗した一枚に結び付けたまま残す。
+        // 学習者はその問題をもう開いたり撮ったりしているかもしれず(カメラを開いている間・判定中・判定に失敗して
+        // 判定し直す前・整理中の候補)、消すとその答案の行き先が無くなる。小単元に見えたまま解ける問題として残り、
+        // 「作り直す」の一枚は重複の検査でこれらと同じ問題を入れない。
         row.status = "failed"
         row.error = String(error.prefix(2000))
         row.updatedAt = now()
@@ -1400,8 +1457,9 @@ nonisolated struct WorkbookMachine {
         let matched = graded.items.filter { $0.matchedProblemId != nil && known[$0.matchedProblemId!] != nil }
         let unmatched = graded.items.filter { !($0.matchedProblemId != nil && known[$0.matchedProblemId!] != nil) }
 
-        // 1) 一枚から撮った: 写っている問題だけを、その一枚のマスに綴じる
-        if scope["mode"]?.stringValue == "set", !matched.isEmpty, let setID = scope["set_id"]?.stringValue {
+        // 1) 一枚から撮った: 写っている問題だけを、その一枚のマスに綴じる。組み立てに失敗した一枚は一枚として集計も
+        //    締めもせず(残りの問題が無い)、小単元から撮った答案と同じに綴じる(2)。
+        if scope["mode"]?.stringValue == "set", !matched.isEmpty, let setID = scope["set_id"]?.stringValue, sets[setID]?.status != "failed" {
             let subunitID = known[matched[0].matchedProblemId!]!
             let recorded = recordAttempts(captureID: captureID, subunitID: subunitID, setID: setID, verdicts: matched.map { Verdict(problemID: $0.matchedProblemId!, verdict: $0.verdict, errorTag: $0.errorTag, note: $0.note) }, capturedAt: capturedAt)
             if let setRow = sets[setID], splitsAcrossCaptures(setRow) {

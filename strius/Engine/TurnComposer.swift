@@ -93,6 +93,8 @@ nonisolated struct TurnComposer {
             "avoid_expressions_from_conversation": .array(avoidExpressions.map(LedgerJSON.string)),
             // 前の組み立てで会話の式と重なったもの(組み直しの時だけ)。
             "rejected_expressions_reused_from_conversation": set.gate["rejected_expressions"] ?? .emptyArray,
+            // 前の組み立てで欠けていたもの(空の問題文・空の答え・重複。組み直しの時だけ)。
+            "rejected_problems": set.gate["rejected_problems"] ?? .emptyArray,
         ])
         var schema = try await assets.json("schema:workbook_set")
         if var root = schema.objectValue, var properties = root["properties"]?.objectValue, var problems = properties["problems"]?.objectValue {
@@ -208,6 +210,19 @@ nonisolated enum TurnApplier {
             let draft = try JSONDecoder().decode(SetDraft.self, from: Data(outcome.finalText.utf8))
             let problems = Array(draft.problems.prefix(count))
             guard problems.count >= count else { throw LedgerError.invalid("expected \(count) problems, got \(problems.count)") }
+            // 3.2: 空の問題文・空の答え・重複は受け入れない。1 回組み直し、それでも欠けていれば一枚を失敗にする
+            // (空の問題を出すより、「作り直す」を押してもらう方が勉強が止まらない)。式の重なり(D14)より先に見る:
+            // 欠けた問題が式も重ねていた時に、式の組み直しで欠けの上限をすり抜けて 3 回目を組ませない。
+            let existing = machine.problemsOf(subunitID: set.subunitId).map(\.prompt)
+            let defects = WorkbookMachine.problemDefects(
+                prompts: problems.map(\.prompt), answerKeys: problems.map { $0.answerKey ?? "" }, existingPrompts: existing)
+            if !defects.isEmpty {
+                if machine.noteDefectiveProblems(setID: setID, defects: defects) {
+                    applierLog.info("set \(setID, privacy: .public) has defective problems (\(defects.count, privacy: .public)); composing again")
+                    return FollowUp(setIDToGenerate: setID)
+                }
+                throw LedgerError.invalid("defective problems after retry: " + defects.joined(separator: "; "))
+            }
             let reused = ConversationExpressions.overlaps(prompts: problems.map(\.prompt), avoid: avoidExpressions)
             if !reused.isEmpty, machine.noteRejectedExpressions(setID: setID, expressions: reused) {
                 applierLog.info("set \(setID, privacy: .public) reused conversation expressions; composing again")
