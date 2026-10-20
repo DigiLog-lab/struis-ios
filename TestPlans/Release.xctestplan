@@ -1,0 +1,89 @@
+{
+  "configurations": [
+    {
+      "id": "9A35B1EC-0C1B-52E1-8C75-C8EB529E52BA",
+      "name": "Release",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "codeCoverage": false
+  },
+  "testTargets": [
+    {
+      "target": {
+        "containerPath": "container:strius.xcodeproj",
+        "identifier": "992C09BB2F927BB9009FF690",
+        "name": "striusTests"
+      }
+    },
+    {
+      "parallelizable": false,
+      "selectedTests": [
+        "ChatCameraUITests/testCameraAndChatPreservation()",
+        "ChatCameraUITests/testCameraRotationAndReopening()",
+        "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing()",
+        "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment()",
+        "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch()",
+        "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend()",
+        "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts()",
+        "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation()",
+        "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger()",
+        "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation()",
+        "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways()",
+        "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives()",
+        "ChatTypingExperienceUITests/testJapaneseCandidateSelection()",
+        "ChatTypingExperienceUITests/testJapaneseMultilineAndSend()",
+        "ConversationExportUITests/testCopyConversation()",
+        "DeviceChatUITests/testInterruptWithRealCodex()",
+        "DeviceChatUITests/testQuestionTurnWithMockModel()",
+        "DeviceChatUITests/testQuestionTurnWithRealCodex()",
+        "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex()",
+        "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff()",
+        "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts()",
+        "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice()",
+        "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex()",
+        "E2EDriverUITests/testDrive()",
+        "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas()",
+        "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker()",
+        "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes()",
+        "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording()",
+        "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult()",
+        "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration()",
+        "LearningProgressUITests/testInspectActualReplyProgress()",
+        "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply()",
+        "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording()",
+        "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex()",
+        "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording()",
+        "UnitDeletionUITests/testLargeTextConfirmationAndCancel()",
+        "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState()",
+        "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned()",
+        "WorkbookE2EFixesUITests/testLongSubunitConversationDoesNotFreeze()",
+        "WorkbookE2EFixesUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain()",
+        "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately()",
+        "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton()",
+        "WorkbookSplitGradingUITests/testBatchOfPhotosGradedAsOneAnswer()",
+        "WorkbookSplitGradingUITests/testCloseSetWithFoundProblems()",
+        "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult()",
+        "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap()",
+        "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle()",
+        "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation()",
+        "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply()",
+        "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady()",
+        "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance()",
+        "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar()",
+        "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched()",
+        "striusUITests/testExample()",
+        "striusUITests/testHorizontalSwipesKeepTheSingleChatPage()",
+        "striusUITests/testLaunchPerformance()",
+        "striusUITestsLaunchTests/testLaunch()"
+      ],
+      "target": {
+        "containerPath": "container:strius.xcodeproj",
+        "identifier": "992C09C52F927BB9009FF690",
+        "name": "striusUITests"
+      }
+    }
+  ],
+  "version": 1
+}

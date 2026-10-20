@@ -14,6 +14,7 @@ group = project.main_group.find_subpath('TestResources', true)
 unit = project.targets.find { |t| t.name == 'striusTests' }
 ui = project.targets.find { |t| t.name == 'striusUITests' }
 resources = [
+  ['striusTests/Fixtures/engine-vectors', 'folder', unit, true],
   ['striusTests/Fixtures/learning-feed', 'folder', unit, true],
   ['striusTests/Fixtures/math', 'folder', unit, true],
   ['striusUITests/Fixtures/handwritten_eigenvalue.jpeg', 'image.jpeg', ui, true],
@@ -61,5 +62,17 @@ config_group = project.main_group.find_subpath('Config', true)
 config_ref = config_group.files.find { |f| f.path == 'Config/Build.xcconfig' } || config_group.new_file('Config/Build.xcconfig')
 config_ref.source_tree = 'SOURCE_ROOT'
 project.targets.find { |t| t.name == 'strius' }.build_configurations.each { |config| config.base_configuration_reference = config_ref }
+# Match the existing GitHub unit-test command, only for Cloud's test build.
+# Release archives keep the application's existing authentication setting.
+cloud_test = ENV['CI_XCODE_CLOUD'] == 'TRUE' && (
+  ['StruisPRGate', 'StruisRelease'].include?(ENV['CI_XCODE_SCHEME']) ||
+  ['PR Gate', 'Release'].include?(ENV['CI_WORKFLOW'])
+)
+if cloud_test
+  debug = project.targets.find { |t| t.name == 'strius' }.build_configurations.find { |c| c.name == 'Debug' }
+  raise 'Missing strius Debug configuration' unless debug
+  debug.build_settings['STRUIS_AUTH_REQUIRED'] = 'YES'
+  debug.build_settings['ARCHS'] = 'arm64'
+end
 project.save
 puts 'Standalone test resources registered'

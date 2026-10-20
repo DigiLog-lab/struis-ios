@@ -7,20 +7,54 @@ if [ "${CI_XCODE_CLOUD:-}" != "TRUE" ]; then
 fi
 
 cd "${CI_PRIMARY_REPOSITORY_PATH}"
+. ./ci_scripts/timing.sh
+clone_started=$(date +%s)
+trap 'clone_result=$?; echo "STRUIS_POST_CLONE elapsed_seconds=$(($(date +%s) - clone_started)) exit_code=$clone_result"' EXIT
+echo "STRUIS_HOST workflow=${CI_WORKFLOW:-unknown} action=${CI_XCODEBUILD_ACTION:-unknown} build=${CI_BUILD_ID:-unknown}"
+uname -m
+sysctl -n hw.ncpu hw.memsize
+xcodebuild -version
+
+# Xcode Cloud retains DerivedData between non-clean builds. The Rust builder
+# already accepts CARGO_TARGET_DIR, so keep its incremental output there too.
+if [ -n "${CI_DERIVED_DATA_PATH:-}" ]; then
+    export CARGO_TARGET_DIR="${CI_DERIVED_DATA_PATH}/StruisNative/cargo"
+else
+    export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${CI_PRIMARY_REPOSITORY_PATH}/NativeRuntime/.build/codex}"
+    echo "STRUIS_CARGO_CACHE persistence=unavailable reason=CI_DERIVED_DATA_PATH-is-unset"
+fi
+cargo_cache_size before
 
 # Keep host tooling separate from bundled native dependencies.
-if ! command -v python3.14 >/dev/null 2>&1; then brew install python@3.14; fi
+if ! command -v python3.14 >/dev/null 2>&1; then run_stage python-toolchain brew install python@3.14; fi
 export PATH="$(brew --prefix python@3.14)/bin:$PATH"
 if ! command -v rustup >/dev/null 2>&1; then
-    brew install rustup
+    run_stage rustup-install brew install rustup
     export PATH="$(brew --prefix rustup)/bin:$PATH"
 fi
-rustup toolchain install 1.95.0 --profile minimal
+run_stage rust-toolchain rustup toolchain install 1.95.0 --profile minimal
+cloud_test_tier=""
+case "${CI_XCODE_SCHEME:-}" in
+    StruisPRGate) cloud_test_tier=pr ;;
+    StruisRelease) cloud_test_tier=full ;;
+    *)
+        case "${CI_WORKFLOW:-}" in
+            "PR Gate") cloud_test_tier=pr ;;
+            "Release") cloud_test_tier=full ;;
+        esac
+        ;;
+esac
 native_platform="${STRUIS_NATIVE_PLATFORM:-}"
 if [ -z "$native_platform" ]; then
-    case "${CI_WORKFLOW:-}" in
-        "Hyotan Native Tests"|"Hyotan Native Runtime Tests"|"Hyotan Native Camera Tests"|"Hyotan Threaded Python Foundation Tests") native_platform=simulator ;;
-        *) native_platform=device ;;
+    case "$cloud_test_tier" in
+        pr) native_platform=simulator ;;
+        full) native_platform=both ;;
+        *)
+            case "${CI_WORKFLOW:-}" in
+                "Hyotan Native Tests"|"Hyotan Native Runtime Tests"|"Hyotan Native Camera Tests"|"Hyotan Threaded Python Foundation Tests") native_platform=simulator ;;
+                *) native_platform=device ;;
+            esac
+            ;;
     esac
 fi
 case "$native_platform" in
@@ -38,7 +72,8 @@ if [ "${CI_WORKFLOW:-}" = "Hyotan Native Runtime Tests" ]; then
     export STRUIS_COMPOUND_DASH_PREPARATION=1
 fi
 echo "Building native runtime for $native_platform"
-python3.14 NativeRuntime/Scripts/bootstrap.py --platform "$native_platform"
+run_stage native-bootstrap python3.14 NativeRuntime/Scripts/bootstrap.py --platform "$native_platform"
+cargo_cache_size after
 test -f NativeRuntime/Vendor/NativeCodex.xcframework/Info.plist
 if [ "${STRUIS_COMPOUND_DASH_PREPARATION:-0}" = 1 ]; then
     python3.14 scripts/configure_compound_dash_preparation.py
@@ -64,7 +99,23 @@ if [ "${CI_WORKFLOW:-}" = "Hyotan Native Runtime Tests" ] || [ "${CI_WORKFLOW:-}
     fi
 fi
 
-python3.14 scripts/sync_test_resources.py
+run_stage test-resources python3.14 scripts/sync_test_resources.py
+
+# The original strius scheme stays independent of these plans. Unknown or
+# unavailable base refs expand PR Gate to every eligible UI test.
+case "$cloud_test_tier" in
+    pr)
+        run_stage pr-test-plan python3.14 scripts/ci/xcode_test_plan.py --tier pr \
+            --base "${CI_PULL_REQUEST_TARGET_BRANCH:-main}" \
+            --output TestPlans/PRGate.xctestplan \
+            --report "${CI_DERIVED_DATA_PATH:-${TMPDIR:-/tmp}}/struis-pr-test-selection.json"
+        ;;
+    full)
+        run_stage release-test-plan python3.14 scripts/ci/xcode_test_plan.py --tier full \
+            --output TestPlans/Release.xctestplan \
+            --report "${CI_DERIVED_DATA_PATH:-${TMPDIR:-/tmp}}/struis-release-test-selection.json"
+        ;;
+esac
 
 current_version="$(xcrun agvtool what-version -terse | tail -n 1)"
 if [ "${CI_BUILD_NUMBER}" -gt "${current_version}" ]; then
@@ -74,4 +125,4 @@ else
 fi
 
 echo "Setting CURRENT_PROJECT_VERSION to ${next_version} (CI_BUILD_NUMBER=${CI_BUILD_NUMBER}, current=${current_version})"
-xcrun agvtool new-version -all "${next_version}"
+run_stage build-number xcrun agvtool new-version -all "${next_version}"

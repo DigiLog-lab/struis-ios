@@ -229,6 +229,7 @@
 		F7D20D5D511C4A5B2ADBF42A /* StruisMarkedSpans.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8D20D5D511C4A5B2ADBF42A /* StruisMarkedSpans.swift */; };
 		F7E9128C22CCD0084818A055 /* UnitCreationDecomposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8E9128C22CCD0084818A055 /* UnitCreationDecomposer.swift */; };
 		FD261933644D618087CF5359 /* text-native.xcframework in Embed Native Frameworks */ = {isa = PBXBuildFile; fileRef = 6501D2306BFF134780428A95 /* text-native.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		F8A1C0E00000000000000002 /* engine-vectors in Resources */ = {isa = PBXBuildFile; fileRef = F8A1C0E00000000000000001 /* engine-vectors */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -500,6 +501,7 @@
 		F8E9128C22CCD0084818A055 /* UnitCreationDecomposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitCreationDecomposer.swift; sourceTree = "<group>"; };
 		FA2917590ADD8BD7064A00B7 /* NativeOperations.xcframework */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = wrapper.xcframework; name = NativeOperations.xcframework; path = Vendor/NativeOperations.xcframework; sourceTree = "<group>"; };
 		FA3411766DF329BEF05F1053 /* StruisExec.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StruisExec.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		F8A1C0E00000000000000001 /* engine-vectors */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = "engine-vectors"; path = "striusTests/Fixtures/engine-vectors"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -1025,6 +1027,7 @@
 			children = (
 				E8DDE18C0534231C468CB2A7 /* threaded-foundation-policy.json */,
 				E89AF7149097D0A60471D315 /* ThreadedPythonCommandTestOverlay */,
+				F8A1C0E00000000000000001 /* engine-vectors */,
 				96ED82BACEF618A3D3793EE1 /* learning-feed */,
 				4E78FB100E0C357B23E4CA01 /* handwritten_eigenvalue.jpeg */,
 				8AF46D7EECDE4B5EB431D081 /* math */,
@@ -1340,6 +1343,7 @@
 			files = (
 				E81EBA438CDADC6E746CDC36 /* threaded-foundation-policy.json in Resources */,
 				E844AD121C357F352A77ACCA /* ThreadedPythonCommandTestOverlay in Resources */,
+				F8A1C0E00000000000000002 /* engine-vectors in Resources */,
 				E4E1A096E92156CE1BC9FF29 /* learning-feed in Resources */,
 				213F481E905465B5962C6FB5 /* math in Resources */,
 			);

@@ -14,6 +14,9 @@ on:
       - '.github/actionlint.yaml'
       - 'scripts/agent/**'
       - 'scripts/ci/**'
+      - 'ci_scripts/**'
+      - 'TestPlans/**'
+      - 'strius.xcodeproj/xcshareddata/xcschemes/**'
       - 'striusUITests/**'
       - '.github/workflows/ios.yml'
       - 'cloudflare/agent/**'
@@ -23,6 +26,9 @@ on:
       - '.github/actionlint.yaml'
       - 'scripts/agent/**'
       - 'scripts/ci/**'
+      - 'ci_scripts/**'
+      - 'TestPlans/**'
+      - 'strius.xcodeproj/xcshareddata/xcschemes/**'
       - 'striusUITests/**'
       - '.github/workflows/ios.yml'
       - 'cloudflare/agent/**'
@@ -30,6 +36,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   test:
@@ -59,3 +66,7 @@ jobs:
           "$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes= .github/workflows/*.yml
       - name: Workerの構文確認
         run: node --check cloudflare/agent/src/index.js
+      - name: Actions cacheの合計サイズを記録
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/cache_usage.py

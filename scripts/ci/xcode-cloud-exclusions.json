@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "methods": [
+    {"test": "ChatCameraUITests/testCameraAndChatPreservation", "reason": "カメラ画面を開く。手元検証で実行する。", "source": "striusUITests/ChatCameraUITests.swift"},
+    {"test": "ChatCameraUITests/testCameraRotationAndReopening", "reason": "カメラ画面を開き、回転と開き直しを調べる。", "source": "striusUITests/ChatCameraUITests.swift"},
+    {"test": "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing", "reason": "カメラ画面で撮影とキャンセルを操作する。", "source": "striusUITests/ChatImmediateImageSendUITests.swift"},
+    {"test": "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment", "reason": "カメラ画面で撮影して送信する。", "source": "striusUITests/ChatImmediateImageSendUITests.swift"},
+    {"test": "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch", "reason": "カメラ画面で2枚撮影する。", "source": "striusUITests/ChatImmediateImageSendUITests.swift"},
+    {"test": "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend", "reason": "明示的な許可と実機カメラが必要な既存テスト。", "source": "striusUITests/ChatPhysicalImageSendUITests.swift"},
+    {"test": "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice", "reason": "問題集からカメラ画面を開いて撮影する。", "source": "striusUITests/DeviceWorkbookUITests.swift"},
+    {"test": "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex", "reason": "問題集からカメラ画面を開いて撮影する実AIテスト。", "source": "striusUITests/DeviceWorkbookUITests.swift"},
+    {"test": "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult", "reason": "カメラ画面で答案を撮影する。", "source": "striusUITests/Issue10ScreenshotUITests.swift"},
+    {"test": "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately", "reason": "カメラ画面で撮影し、採点結果を調べる。", "source": "striusUITests/WorkbookE2EFixesUITests.swift"},
+    {"test": "WorkbookSplitGradingUITests/testBatchOfPhotosGradedAsOneAnswer", "reason": "カメラ画面で複数の答案を撮影する。", "source": "striusUITests/WorkbookSplitGradingUITests.swift"},
+    {"test": "WorkbookSplitGradingUITests/testCloseSetWithFoundProblems", "reason": "カメラ画面で撮影し、見つかった問題を採点する。", "source": "striusUITests/WorkbookSplitGradingUITests.swift"},
+    {"test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult", "reason": "カメラ画面で撮影と撮り足しを操作する。", "source": "striusUITests/WorkbookSplitGradingUITests.swift"}
+  ]
+}

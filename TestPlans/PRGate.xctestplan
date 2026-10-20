@@ -1,0 +1,76 @@
+{
+  "configurations": [
+    {
+      "id": "70ADC5F4-25C2-56F8-8E35-770187A91016",
+      "name": "PR Gate",
+      "options": {}
+    }
+  ],
+  "defaultOptions": {
+    "codeCoverage": false
+  },
+  "testTargets": [
+    {
+      "target": {
+        "containerPath": "container:strius.xcodeproj",
+        "identifier": "992C09BB2F927BB9009FF690",
+        "name": "striusTests"
+      }
+    },
+    {
+      "parallelizable": false,
+      "selectedTests": [
+        "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts()",
+        "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation()",
+        "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger()",
+        "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation()",
+        "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways()",
+        "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives()",
+        "ChatTypingExperienceUITests/testJapaneseCandidateSelection()",
+        "ChatTypingExperienceUITests/testJapaneseMultilineAndSend()",
+        "ConversationExportUITests/testCopyConversation()",
+        "DeviceChatUITests/testInterruptWithRealCodex()",
+        "DeviceChatUITests/testQuestionTurnWithMockModel()",
+        "DeviceChatUITests/testQuestionTurnWithRealCodex()",
+        "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex()",
+        "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff()",
+        "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts()",
+        "E2EDriverUITests/testDrive()",
+        "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas()",
+        "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker()",
+        "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes()",
+        "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording()",
+        "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration()",
+        "LearningProgressUITests/testInspectActualReplyProgress()",
+        "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply()",
+        "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording()",
+        "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex()",
+        "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording()",
+        "UnitDeletionUITests/testLargeTextConfirmationAndCancel()",
+        "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState()",
+        "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned()",
+        "WorkbookE2EFixesUITests/testLongSubunitConversationDoesNotFreeze()",
+        "WorkbookE2EFixesUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain()",
+        "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton()",
+        "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap()",
+        "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle()",
+        "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation()",
+        "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply()",
+        "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady()",
+        "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance()",
+        "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar()",
+        "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched()",
+        "striusUITests/testExample()",
+        "striusUITests/testHorizontalSwipesKeepTheSingleChatPage()",
+        "striusUITests/testLaunchPerformance()",
+        "striusUITestsLaunchTests/testLaunch()"
+      ],
+      "target": {
+        "containerPath": "container:strius.xcodeproj",
+        "identifier": "992C09C52F927BB9009FF690",
+        "name": "striusUITests"
+      }
+    }
+  ],
+  "version": 1
+}
