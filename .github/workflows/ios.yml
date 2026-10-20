@@ -1,7 +1,13 @@
 name: iOS
-run-name: ${{ inputs.ci_request && format('iOS CI {0} {1}', inputs.ci_request, inputs.source_ref) || 'iOS' }}
+run-name: >-
+  ${{ inputs.ci_request && format('iOS CI {0} {1}', inputs.ci_request, inputs.source_ref) ||
+      github.event_name == 'pull_request' && format('iOS verification PR #{0} {1}', github.event.pull_request.number, github.event.pull_request.head.sha) || 'iOS' }}
 
 on:
+  # Explicit manual diagnostic entry point for a connected GitHub client.
+  # A label already present on a PR does not run again on a WIP push.
+  pull_request:
+    types: [labeled]
   push:
     branches: [main]
   schedule:
@@ -50,6 +56,8 @@ jobs:
   native:
     # Keep the old nightly/archive until Cloud acceptance is explicitly recorded.
     if: >-
+      (github.event_name != 'pull_request' ||
+        (github.event.label.name == 'ios-verify' && github.event.pull_request.head.repo.full_name == github.repository)) &&
       (github.event_name != 'push' || vars.XCODE_CLOUD_TESTFLIGHT_VERIFIED != 'true') &&
       (github.event_name != 'schedule' || vars.XCODE_CLOUD_RELEASE_TESTS_VERIFIED != 'true')
     runs-on: xcode-27
@@ -58,7 +66,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          ref: ${{ inputs.source_ref || github.sha }}
+          ref: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14'
@@ -133,7 +141,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          ref: ${{ inputs.source_ref || github.sha }}
+          ref: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
       - name: Spotlight の索引を止める
         # The runner VM has 3 CPUs and 7 GB; Xcode, the Simulator and the app already fill the memory, and a
         # stackshot of a 2-minute stall showed Spotlight (mds_stores) indexing while pages were read back in.
@@ -193,6 +201,9 @@ jobs:
   # (the E2E classes plus the classes mapped to the changed files, 2 runners); a push to main,
   # the nightly run and a manual `full` run every UI test (3 runners).
   ui-plan:
+    if: >-
+      github.event_name != 'pull_request' ||
+        (github.event.label.name == 'ios-verify' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -201,7 +212,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          ref: ${{ inputs.source_ref || github.sha }}
+          ref: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - name: 実行するUIテストを決める
         id: plan
@@ -257,7 +268,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          ref: ${{ inputs.source_ref || github.sha }}
+          ref: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
       - name: Spotlight の索引を止める
         # The runner VM has 3 CPUs and 7 GB; Xcode, the Simulator and the app already fill the memory, and a
         # stackshot of a 2-minute stall showed Spotlight (mds_stores) indexing while pages were read back in.
@@ -370,7 +381,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          ref: ${{ inputs.source_ref || github.sha }}
+          ref: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14'

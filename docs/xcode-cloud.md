@@ -2,7 +2,11 @@
 
 方針は [verification-and-delivery-policy.md](verification-and-delivery-policy.md)。このPRにテストプラン、ビルド準備、時間とcacheの計測、Ready・門の起動・workerの再開、GitHub workflowの整理をまとめる。制御と設定は [agent-gate.md](agent-gate.md) を参照。
 
-`Default` の旧プロジェクトパスはTomochikaが修正済み。この変更はApp Store Connect上のworkflowを作り替えない。
+当初は `Default` の旧プロジェクトパスを修正済みとの報告を前提にしたが、2026-10-20にログイン後の編集画面を確認すると `ios/strius/strius.xcodeproj` が残っていた。同日、このworkflowを `PR Gate` に改名し、`strius.xcodeproj`、Clean OFF、手動ブランチ開始、必須TESTだけの構成へ変更して保存した。自動push開始とarchiveは外した。
+
+workflow IDは `FD7B155C-3973-4DA5-A0A1-A6886411C5D3`、App Store ConnectのアプリIDは `6771995650`。専用schemeはCloudの選択一覧が旧構成のままでまだ指定できていないため、初回は既存の `strius` schemeによる全体診断として起動した。この実行は専用schemeでの門の実測には数えない。
+
+[診断ビルド142](https://appstoreconnect.apple.com/teams/79d5af08-558e-4066-9d42-ad920cc591d9/xcode-cloud/products/E19683AB-A906-44AE-889E-49023526A39A/builds/055023ce-33f2-4ffe-836f-7862880a2b7f/summary) は、ブランチ `ci/xcode-cloud-foundation`、SHA `b0ff0d6e5278bed8d18cb03e19d54a8595453630` で開始を確認した。結果と所要時間はまだ確定していない。
 
 ## scheme とテストプラン
 

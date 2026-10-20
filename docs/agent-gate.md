@@ -13,6 +13,8 @@
 7. Linuxの門コントローラーがXcode Cloudを起動する。残り時間不足時はmainの `ios.yml` へ対象の厳密なSHAを渡す。両方ともLinuxの `agent-tests.yml` を明示的に実行する。PRイベント抑止に依存しない。
 8. `check_run.completed`／`workflow_run.completed` と5分ごとの定期照合で結果を取得する。門が緑なら同じIssueのrouteを起こして完了を記録する（追加のmacOSは使わない）。赤ならDraftへ戻し、失敗したHEAD・元の依頼・結果だけを渡してmacOS workerを起こす。修正後も全体の手元検証をやり直す。
 
+門とは別の明示的な診断として、同じリポジトリのPRに `ios-verify` ラベルを付けた時だけGitHubのiOS検証を実行できる。checkoutはPRのHEAD SHAを明示し、署名・配信は行わない。ラベルを付けたままpushしても再起動しない。新しいHEADを診断する場合は、前の結果を確認したうえでラベルを外して付け直す。通常のPR作成・Draft push・Ready化ではこの診断経路を起動しない。エージェントのReadyは引き続きmainへの明示的dispatchを使う。
+
 Ready後のHEAD変更・Draft化・closeで古い結果を無効にします。Xcode Cloud APIは開始時にcommit SHAを指定できず、ブランチ参照を指定します。そのため開始前後と完了時に `sourceCommit.commitSha` を照合し、異なるSHAを合格にしません。別workflowの結果も採用しません。
 Cloudの完了判定は全体のstatusだけでなく、実際のTEST actionとテスト結果一覧も照合します。手元の全単体・選択UIから除外manifest分だけを引いたメソッドが欠けている場合、0件の場合、期待失敗がある場合は合格にしません。失敗したテストとビルドissueを修正workerへ渡し、Appleのキーは渡しません。
 
@@ -87,4 +89,6 @@ Cloudの2回実行によるキャッシュ効果、全UI、内部TestFlight、cl
 - ローカル検査はエージェント161件、CI選別38件、Worker4件の計203件が成功。Ready後の2回保存による元checkpoint削除、削除後の門開始と赤からの復元、dispatch応答消失、Ready変更失敗、変更直後のrunner消失、終了処理より早い門の完了、複写した証拠の改変を追加で確認。
 - [Agent tests run 39373595715](https://github.com/DigiLog-lab/struis-ios/actions/runs/39373595715) のcache計測は481,675,895 bytes、1件。この数値はその実行時点の合計で、DerivedData導入後やCloudのcache効果を示す数値ではない。
 - [初回コミット0e0a93aの旧iOS検証](https://github.com/DigiLog-lab/struis-ios/actions/runs/39370110684) はSimulator build・単体302件（既存skip 27、失敗0）・unsigned device archiveが成功。UIは `ChatCameraUITests/testCameraRotationAndReopening` の3分上限超過と `ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives` のアプリ終了失敗で赤。原因は未確定で、再実行だけで成功扱いにしていない。最新HEADのiOS検証も未実施。
-- App Store Connect・Cloudflareの設定画面は、この作業用ブラウザーでは未認証。Cloud workflow変更・Workerデプロイ・R2 lifecycleの適用は完了していない。
+- カメラ回転テストは、複数の回転確認が進行している途中で180秒に達していた。同じ画面の `frame` を繰り返し取得する代わりに、1回のaccessibility snapshotから全要素の寸法を取得する修正を `b0ff0d6` に追加した。6回の回転確認とアサーションは保持。修正後のiOSでの成功はまだ確認していない。
+- スクロールテストのxcresult内の診断ログには、04:41:55 UTCに対象プロセスのSIGTERM終了を観測した記録があり、XCTestは04:42:48 UTCにも同じPIDを `Running Foreground` と判定して終了待ちをタイムアウトしていた。検証本体に入る前の失敗であり、アプリが実際に終了していなかったとは扱わない。再実行での成功を確認済みとも扱わない。
+- App Store Connectの認証は完了し、Cloudのプロジェクト参照・Clean OFF・手動開始・必須TESTの設定を保存した。専用schemeへの切り替えに先立ち、最新 `b0ff0d6` の全体診断を [Cloudビルド142](https://appstoreconnect.apple.com/teams/79d5af08-558e-4066-9d42-ad920cc591d9/xcode-cloud/products/E19683AB-A906-44AE-889E-49023526A39A/builds/055023ce-33f2-4ffe-836f-7862880a2b7f/summary) として開始。Cloudflareの認証、Workerデプロイ、R2 lifecycleはまだ未完了。
