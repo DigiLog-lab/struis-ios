@@ -16,6 +16,8 @@ workflow IDは `FD7B155C-3973-4DA5-A0A1-A6886411C5D3`、App Store Connectのア�
 
 「おすすめのiPhone」は編集画面上で1個でも、実行時はiPhone 16 / 16 Pro / 16 Pro Max / SE (3rd generation) の4機種に展開された。143は経過43分、消費139分だったため、PR Gateを固定のiPhone 16・最新iOSだけに変更した。Release 144はarchiveが成功したが、テストの後処理とカメラ回転テストのシャッターhit判定で失敗し、内部配布は実行されなかった。これらを成功・15分達成・cache有効の実測とは扱わない。
 
+Release 144のiPhone 16ログでは、portraitとlandscape-leftの検査は通り、landscape-rightへの反転の約0.6秒後にシャッターの `isHittable` だけが失敗した。左右の横向きでは寸法が同じなので、寸法が2回同じという条件だけでは回転中に抜けてしまう。8秒の既存の待機内で、寸法の安定に加え両ボタンが操作可能になるまで待つ。6回の検査・全アサーション・時間上限を保持し、期限時にボタンを操作できなければ従来どおり失敗させて診断画像を残す。成功結果は実行後にPRへ記録する。
+
 | 用途 | scheme | テストプラン | 単体テスト | UIテスト |
 |---|---|---|---|---|
 | 門 | `StruisPRGate` | `TestPlans/PRGate.xctestplan` | 全部 | E2E + 変更に関係するメソッドから、門の対象外だけを除く |

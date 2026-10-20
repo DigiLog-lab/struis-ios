@@ -73,12 +73,17 @@ final class ChatCameraUITests: XCTestCase {
             while Date() < deadline {
                 let frame = frames.preview
                 let oriented = (frames.app.width > frames.app.height) == landscape
-                if oriented, frame == last, frame.width > 0 { break }
+                // Left -> right keeps the same dimensions while UIKit still
+                // animates the half-turn. Stable frames alone do not mean the
+                // controls accept touches yet (Cloud's faster runner exposed it).
+                if oriented, frame == last, frame.width > 0, shutter.isHittable, cancel.isHittable { break }
                 last = frame
                 Thread.sleep(forTimeInterval: 0.25)
                 frames = try cameraFrames()
             }
-            if (frames.app.width > frames.app.height) != landscape || frames.preview.width <= frames.app.width * 0.7 {
+            let shutterHittable = shutter.isHittable
+            let cancelHittable = cancel.isHittable
+            if (frames.app.width > frames.app.height) != landscape || frames.preview.width <= frames.app.width * 0.7 || !shutterHittable || !cancelHittable {
                 UITestSupport.saveProbe(app, name: "camera-rotation-\(name)")
             }
             XCTAssertEqual(frames.app.width > frames.app.height, landscape, "画面の向きが変わっていない: \(frames.app)")
@@ -88,8 +93,8 @@ final class ChatCameraUITests: XCTestCase {
             XCTAssertEqual(frames.preview.minY, frames.panel.minY + 16, accuracy: 1)
             XCTAssertEqual(frames.preview.maxY, frames.shutter.minY - 8, accuracy: 1)
             XCTAssertEqual(frames.shutter.width, frames.shutter.height, accuracy: 1)
-            XCTAssertTrue(shutter.isHittable)
-            XCTAssertTrue(cancel.isHittable)
+            XCTAssertTrue(shutterHittable, "回転完了後にシャッターを操作できること")
+            XCTAssertTrue(cancelHittable, "回転完了後にキャンセルを操作できること")
             print("\(name): app=\(frames.app) preview=\(frames.preview) shutter=\(frames.shutter)")
             screenScreenshot(name)
         }
