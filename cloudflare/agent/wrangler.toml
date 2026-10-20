@@ -14,7 +14,7 @@ OIDC_AUDIENCE = "https://agent-struis.digiloglab.com"
 GITHUB_REPOSITORY = "DigiLog-lab/struis-ios"
 GITHUB_REPOSITORY_ID = "1412177773"
 DEFAULT_BRANCH = "main"
-ALLOWED_WORKFLOWS = ".github/workflows/agent.yml,.github/workflows/agent-prototype.yml"
+ALLOWED_WORKFLOWS = ".github/workflows/agent.yml,.github/workflows/agent-prototype.yml,.github/workflows/agent-gate.yml,.github/workflows/agent-cleanup.yml"
 DEFAULT_LINK_TTL_SECONDS = "604800"
 
 # LINK_SECRET (HMAC key for install links) is a Worker secret:

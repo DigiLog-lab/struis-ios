@@ -1,0 +1,85 @@
+name: Agent Ready gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: ReadyのPR番号（空なら全件を照合）
+        type: string
+        required: false
+      request:
+        description: agentctlのReady要求識別子
+        type: string
+        required: false
+  pull_request_target:
+    types: [ready_for_review, synchronize, converted_to_draft, closed]
+  check_run:
+    types: [completed]
+  workflow_run:
+    workflows: [iOS, Agent tests]
+    types: [completed]
+  schedule:
+    - cron: '*/5 * * * *'
+
+# All execution is trusted main code on Linux. A PR checkout is never executed
+# in the job which has the App Store Connect key or store-write authority.
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  statuses: write
+  actions: write
+  id-token: write
+
+concurrency:
+  group: agent-ready-gate-controller
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    if: github.event_name != 'check_run' || github.event.check_run.app.slug == 'xcode-cloud'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      AGENT_STORE_URL: ${{ vars.AGENT_STORE_URL || 'https://agent-struis.digiloglab.com' }}
+      AGENT_GATE_MAX_ATTEMPTS: ${{ vars.AGENT_GATE_MAX_ATTEMPTS }}
+      AGENT_GATE_BACKEND: ${{ vars.AGENT_GATE_BACKEND || 'xcode-cloud' }}
+      XCODE_CLOUD_REMAINING_MINUTES: ${{ vars.XCODE_CLOUD_REMAINING_MINUTES }}
+      AGENT_GATE_ESTIMATED_MINUTES: ${{ vars.AGENT_GATE_ESTIMATED_MINUTES }}
+      XCODE_CLOUD_PR_GATE_WORKFLOW_ID: ${{ vars.XCODE_CLOUD_PR_GATE_WORKFLOW_ID }}
+      APP_STORE_CONNECT_APP_ID: ${{ vars.APP_STORE_CONNECT_APP_ID }}
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_KEY_PATH: ${{ github.workspace }}/../gate-api-key.p8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          persist-credentials: false
+          sparse-checkout: scripts/agent
+      - name: Linuxコントローラー用のAppleキーを一時配置
+        env:
+          PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          key = Path(os.environ['APP_STORE_CONNECT_KEY_PATH'])
+          key.touch(mode=0o600)
+          key.write_text(os.environ['PRIVATE_KEY'].replace('\r', '').strip() + '\n')
+          PY
+      - name: Ready・HEAD変更・門の完了を照合
+        env:
+          REQUESTED_PR: ${{ inputs.pr || github.event.pull_request.number }}
+          READY_REQUEST: ${{ inputs.request }}
+          EVENT_ACTION: ${{ github.event.action }}
+        run: |
+          if [[ -n "$REQUESTED_PR" && "$EVENT_ACTION" != "synchronize" && "$EVENT_ACTION" != "closed" && "$EVENT_ACTION" != "converted_to_draft" ]]; then
+            python3 scripts/agent/gate.py --pr "$REQUESTED_PR" --request "$READY_REQUEST"
+          else
+            python3 scripts/agent/gate.py
+          fi
+      - name: Appleキーを削除
+        if: always()
+        run: rm -f "$APP_STORE_CONNECT_KEY_PATH"

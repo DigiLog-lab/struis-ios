@@ -219,12 +219,21 @@ def main(argv=None):
     mode.add_argument('--matrix', action='store_true', help='print the non-empty shards as JSON')
     parser.add_argument('--tier', choices=['pr', 'full'], default='full')
     parser.add_argument('--changed-files', type=Path, help='newline-separated changed paths (pr tier)')
+    parser.add_argument('--cloud-compatible', action='store_true', help='apply the PR Gate method exclusions (fallback gate only)')
     parser.add_argument('--plan', type=Path, default=PLAN)
     args = parser.parse_args(argv)
     plan = json.loads(args.plan.read_text())
     changed = [line for line in args.changed_files.read_text().splitlines() if line] if args.changed_files else []
     discovered = discover()
     tests = select(discovered, plan, args.tier, changed)
+    if args.cloud_compatible:
+        if args.tier != 'pr':
+            raise SystemExit('--cloud-compatible requires --tier pr')
+        from xcode_test_plan import EXCLUSIONS, exclusions_for
+        excluded = exclusions_for(discovered, json.loads(EXCLUSIONS.read_text()))
+        tests = [test for test in tests if test not in excluded]
+        if not tests:
+            raise SystemExit('PR Gate UI selection is empty')
     # A pull request whose change can affect every test runs the whole suite on the full tier's runners.
     count = shard_count(plan, 'full' if len(tests) == len(discovered) else args.tier)
     if args.shard is not None and not 0 <= args.shard < count:

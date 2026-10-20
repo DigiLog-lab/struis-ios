@@ -1,15 +1,22 @@
 name: iOS
-run-name: ${{ inputs.ci_request && format('iOS CI {0}', inputs.ci_request) || 'iOS' }}
+run-name: ${{ inputs.ci_request && format('iOS CI {0} {1}', inputs.ci_request, inputs.source_ref) || 'iOS' }}
 
 on:
   push:
     branches: [main]
-  pull_request:
   schedule:
     # 全件の UI テストを 1 日 1 回(03:00 JST、runner が空いている時間)main で回す。
     - cron: '0 18 * * *'
   workflow_dispatch:
     inputs:
+      source_ref:
+        description: 門の対象の厳密なcommit SHA（定義はmainから実行）
+        type: string
+        required: false
+      gate_pr:
+        description: 門のPR番号（署名と配信を禁止）
+        type: string
+        required: false
       ci_request:
         description: エージェントのCI要求識別子
         type: string
@@ -34,19 +41,24 @@ permissions:
 concurrency:
   # Only main's manual release/upload uses the shared non-cancellable group. The nightly full run has its own
   # group and is not cancelled. Pushes to main cancel the older push run (the newest commit is what matters).
-  group: ios-${{ github.event_name == 'schedule' && 'nightly' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && 'manual-main') || github.ref }}
+  group: ios-${{ inputs.ci_request || github.event_name == 'schedule' && 'nightly' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && 'manual-main') || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main') }}
 
 jobs:
   # Guarantees the bootstrap output (about 50 minutes to build) is in the cache, so the
   # build and UI test runners below can start in parallel and only restore it.
   native:
+    # Keep the old nightly/archive until Cloud acceptance is explicitly recorded.
+    if: >-
+      (github.event_name != 'push' || vars.XCODE_CLOUD_TESTFLIGHT_VERIFIED != 'true') &&
+      (github.event_name != 'schedule' || vars.XCODE_CLOUD_RELEASE_TESTS_VERIFIED != 'true')
     runs-on: xcode-27
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          ref: ${{ inputs.source_ref || github.sha }}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14'
@@ -121,6 +133,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          ref: ${{ inputs.source_ref || github.sha }}
       - name: Spotlight の索引を止める
         # The runner VM has 3 CPUs and 7 GB; Xcode, the Simulator and the app already fill the memory, and a
         # stackshot of a 2-minute stall showed Spotlight (mds_stores) indexing while pages were read back in.
@@ -188,6 +201,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          ref: ${{ inputs.source_ref || github.sha }}
           fetch-depth: 0
       - name: 実行するUIテストを決める
         id: plan
@@ -196,6 +210,7 @@ jobs:
           REF: ${{ github.ref }}
           PR_BASE: ${{ github.base_ref }}
           REQUESTED_TIER: ${{ inputs.ui_tier }}
+          SOURCE_REF: ${{ inputs.source_ref }}
         run: |
           set -euo pipefail
           # A push to main runs no UI tests: the PR already ran the classes its changes touch, and the nightly run
@@ -207,7 +222,7 @@ jobs:
             exit 0
           fi
           # Nightly and manual main runs (release) get every UI test.
-          if [[ "$EVENT" == "schedule" || "$REQUESTED_TIER" == "full" || "$REF" == "refs/heads/main" ]]; then
+          if [[ -z "$SOURCE_REF" && ( "$EVENT" == "schedule" || "$REQUESTED_TIER" == "full" || "$REF" == "refs/heads/main" ) ]]; then
             tier=full
             : > "$RUNNER_TEMP/changed.txt"
           else
@@ -216,7 +231,9 @@ jobs:
             git rev-parse --verify --quiet "origin/$base" >/dev/null || base=main
             git diff --name-only --no-renames "origin/$base...HEAD" > "$RUNNER_TEMP/changed.txt"
           fi
-          matrix=$(python3 scripts/ci/ui_test_plan.py --matrix --tier "$tier" --changed-files "$RUNNER_TEMP/changed.txt")
+          extra=()
+          if [[ -n "$SOURCE_REF" ]]; then extra+=(--cloud-compatible); fi
+          matrix=$(python3 scripts/ci/ui_test_plan.py --matrix --tier "$tier" --changed-files "$RUNNER_TEMP/changed.txt" "${extra[@]}")
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           python3 - "$matrix" "$tier" <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json, sys
@@ -240,6 +257,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          ref: ${{ inputs.source_ref || github.sha }}
       - name: Spotlight の索引を止める
         # The runner VM has 3 CPUs and 7 GB; Xcode, the Simulator and the app already fill the memory, and a
         # stackshot of a 2-minute stall showed Spotlight (mds_stores) indexing while pages were read back in.
@@ -342,7 +360,8 @@ jobs:
     # main only (push, or a manual release/upload run), after the build job passed. A manual run also needs every
     # UI test runner to pass; a push runs no UI tests (ui-tests is skipped).
     if: >-
-      !cancelled() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      !cancelled() && !inputs.source_ref && !inputs.gate_pr && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (github.event_name != 'push' || vars.XCODE_CLOUD_TESTFLIGHT_VERIFIED != 'true') &&
       needs.build.result == 'success' && needs.ui-plan.result == 'success' &&
       (needs.ui-tests.result == 'success' || (github.event_name == 'push' && needs.ui-tests.result == 'skipped'))
     runs-on: xcode-27
@@ -351,6 +370,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          ref: ${{ inputs.source_ref || github.sha }}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14'

@@ -1,6 +1,6 @@
 # Xcode Cloud のテストプランと実測
 
-方針は [verification-and-delivery-policy.md](verification-and-delivery-policy.md)。この変更は10節の1本目に当たり、テストプラン、ビルド準備、時間とcacheの計測を用意する。Ready・門の起動・workerの再開と、既存のGitHub macOSジョブの停止は後続の変更で行う。
+方針は [verification-and-delivery-policy.md](verification-and-delivery-policy.md)。このPRにテストプラン、ビルド準備、時間とcacheの計測、Ready・門の起動・workerの再開、GitHub workflowの整理をまとめる。制御と設定は [agent-gate.md](agent-gate.md) を参照。
 
 `Default` の旧プロジェクトパスはTomochikaが修正済み。この変更はApp Store Connect上のworkflowを作り替えない。
 
@@ -73,7 +73,7 @@ App Store Connectでは、現在修正済みの設定を起点に次を確認す
 
 GitHubの `Agent tests` はLinuxで `scripts/ci/cache_usage.py` を実行し、その時点のActions cacheの合計bytes・GiB・件数をsummaryに出す。cacheを復元・作成するmacOSジョブは追加しない。
 
-この実行環境にはXcodeがないため、schemeの読み込み、Simulator実行、Cloud cacheの持ち越し、実際のTestFlight配布は未検証。後続のエージェントとworkflowの切り替えは、この実測を確認してから行う。夜間全件・mainの署名付きarchive・cold buildは、方針5.1の条件が満たされるまで保つ。
+この実行環境にはXcodeがないため、schemeの読み込み、Simulator実行、Cloud cacheの持ち越し、実際のTestFlight配布は未検証。コードは同じPRにまとめ、運用の切り替えは実測と必要設定を確認して進める。夜間全件・mainの署名付きarchive・cold buildは、方針5.1の条件が満たされるまで保つ。
 
 ## 参照
 

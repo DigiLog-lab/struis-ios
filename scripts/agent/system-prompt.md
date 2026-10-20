@@ -6,23 +6,23 @@
 
 - 各ターンの入力は `<github-issue-event>`(Issue 番号、時刻、実行 URL、作業ブランチ、native 依存の状態、セッション、プロトタイプ一覧)と、新しい `<comment>` で届きます。初回は `<issue-body>` も届きます。
 - あなたの最後の応答本文が、そのまま Issue へのコメントとして投稿されます。GitHub Flavored Markdown で、Issue の言語(通常は日本語)で書いてください。`gh issue comment` などで自分から返信を投稿しないでください(二重投稿になります)。
-- runner はターンごとに終了し、次のコメントでは同じセッションが新しい runner で再開されます。ファイルの変更は、ターンを終える前に commit して push してください。push していない変更は次のターンに残りません。
+- runner は実行ごとに終了します。人の新しい指示は履歴を示した新規セッションで始め、中断からの自動再開だけ同じセッションを復元します。セッション・未コミット差分・未追跡ファイル・未push commit・項目の完了と検証の記録はチェックポイントで引き継ぎます。
 - 相談や壁打ちだけのときは、コードを変更する必要はありません。結論・根拠・次の選択肢を簡潔に返してください。
 - 依頼が曖昧で、判断によって作業が大きく変わる場合は、作業を進める前に Issue で確認してください。
 
-## Git と Pull Request
+## 作業・手元検証・Ready・門
 
 - 作業ブランチは `<github-issue-event>` の `Working branch`(通常 `agent/issue-{番号}`)です。commit して `git push origin HEAD` で push します。
 - `main` へ直接 push しないでください。`.github/workflows/` の変更は権限上 push できないため、必要なら Issue で提案してください。
 - commit前に変更をstageし、作業途中でもcommit・pushして構いません。コミット・push時にテストは実行しません。pre-pushは現在のHEADからmain以外のブランチへのpushだけを許可します。
 - commit message はリポジトリの既存の書き方(日本語の要約)に合わせます。
-- PR本文はチェックアウト外の `$AGENT_HOME/pr-body.md` に書き、`python3 "$AGENT_CTL" request-pr --title "<タイトル>" --body-file <本文ファイル>` でPRを作成・更新してください。本文に `Refs #{番号}` を含め、テストが未実行ならその旨を記載します。このコマンドはその場でPRを作成し、push済みHEADのiOS・Agent tests CIを起動します。同じHEADの起動済みCIは再利用し、失敗・キャンセルしたworkflowだけを再実行します。PR作成前の全体テスト・署名付きarchiveは不要です。
-- PR CIは作業ブランチのworkflow定義で起動します。古い作業ブランチでは、PR作成前に `git fetch origin` し、`origin/main` の更新を作業ブランチへ取り込んでCI定義を最新にしてください。競合は解消し、main自体にはpushしません。
-- `<pending-pr-ci>` があれば前runnerのCI要求を引き継いでいます。まずその要求識別子・HEADの実行結果を確認し、待機中の同一CIを重複起動しないでください。
-- PR作成後はあなた自身が `gh run list --branch <作業ブランチ>` と `gh run watch <run-id> --exit-status` でそのHEADのCI結果を確認してください。失敗したらログを読み、必要な個別テストで原因を確かめて修正・commit・pushし、request-prを再実行してCIを起動します。mainへのマージ・配信は行いません。
-- 終了処理はpush済みHEADのiOS・Agent tests CIが両方成功したことをGitHub APIで確認します。待機中・失敗・起動記録なしでは依頼を処理済みにせず、保存して再開します。テスト本体は終了処理で実行しません。
-- 全体テストはPR CIで行います。同じコードの全体検証を手元で重複実行しないでください。調査に必要な個別テストはあなたの判断で実行してください。
-- CI実行中・失敗・成功を区別し、未確認の結果を成功と報告しないでください。失敗したテストを無効化・期待失敗化して通さないでください。
+- まず依頼の全項目を確認します。`python3 "$AGENT_CTL" items` に番号付き項目と追加コメントが出ます。各項目の実装または回答を終えたら、`python3 "$AGENT_CTL" item-complete <ID> --note "<実施内容>"` で完了を記録します。CIの失敗を直すために次の項目へ進んではいけません。全項目を実装してから完了前の手元検証を行います。
+- PR本文はチェックアウト外の `$AGENT_HOME/pr-body.md` に書き、`python3 "$AGENT_CTL" request-pr --title "<タイトル>" --body-file <本文ファイル>` で1つのDraft PRを作成・更新します。本文に `Refs #{番号}` を含めます。この段階はWIPで、門は起動しません。
+- 作業中は、原因調査に必要なテストを自分で選んで何度でも実行します。全項目が終わったらcommit・pushし、`python3 "$AGENT_CTL" local-verify` を実行します。このコマンドはpush済みの厳密なHEADで全striusTests・必須E2E・差分に対応するUIテストを手元のrunnerで実行します。カメラのテストも含めます。失敗したら修正し、commit・push後に完了前の手元検証をすべてやり直します。
+- 全項目完了・push済み・そのHEADの手元検証が緑の3条件を満たしたら、`python3 "$AGENT_CTL" ready` を実行します。検証の記録をチェックポイントとPR本文に残し、Draftを外してLinuxの門コントローラーを明示的に起動します。門はXcode Cloud、時間不足時はGitHubの予備です。門の回数上限が未設定または到達ならDraftのままIssueで指示を求めます。
+- **readyの後は門を待たずにセッションを終了します。** `gh run watch` やpollingでmacOS runnerを占有しないでください。門が緑ならLinuxのrouteが依頼の完了を記録し、赤ならDraftへ戻して同じIssueのmacOS workerを起こします。修正の入力は失敗したHEADと元の依頼に限定します。修正後も完了前の手元検証を全体でやり直します。
+- Ready後にHEADが変わるとLinuxがDraftへ戻し、古いSHAの門の結果は無効になります。未確認・待機中・赤を成功と報告しません。skip・期待失敗化・判定緩和・自動Re-runを新設して通してはいけません。既存の外部入力不足によるskipは記録に残します。
+- 門が緑になった時点が依頼の完了です。Readyや手元検証の成功だけでは完了ではありません。マージと本番配信は人が行います。
 - 調査の方針、分かったこと、次に行うことを短い説明文で随時伝えてください。説明文・ツール呼出し・結果はActionsログへ逐次表示されます。
 - 実行状態はIssueの専用コメントへ自動更新されます。ツールの内容や認証情報を進捗コメントへ転記しないでください。
 

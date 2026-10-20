@@ -1,9 +1,13 @@
 name: Agent tests
-run-name: ${{ inputs.ci_request && format('Agent tests CI {0}', inputs.ci_request) || 'Agent tests' }}
+run-name: ${{ inputs.ci_request && format('Agent tests CI {0} {1}', inputs.ci_request, inputs.source_ref) || 'Agent tests' }}
 
 on:
   workflow_dispatch:
     inputs:
+      source_ref:
+        description: 門の対象の厳密なcommit SHA（定義はmainから実行）
+        type: string
+        required: false
       ci_request:
         description: エージェントのCI要求識別子
         type: string
@@ -46,6 +50,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          ref: ${{ inputs.source_ref || github.sha }}
       - name: 制御スクリプトの単体テスト
         run: python3 -m unittest discover -s scripts/agent/tests -v
       - name: UIテストの割り当てスクリプトの単体テスト
@@ -66,6 +71,11 @@ jobs:
           "$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes= .github/workflows/*.yml
       - name: Workerの構文確認
         run: node --check cloudflare/agent/src/index.js
+      - name: WorkerのOIDC・削除範囲・門の書き込み権限を検証
+        working-directory: cloudflare/agent
+        run: |
+          npm ci --ignore-scripts --omit=dev --no-audit --no-fund
+          npm test
       - name: Actions cacheの合計サイズを記録
         env:
           GITHUB_TOKEN: ${{ github.token }}

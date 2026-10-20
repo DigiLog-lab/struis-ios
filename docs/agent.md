@@ -10,7 +10,7 @@ GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Cla
 |---|---|---|
 | Event Router | `.github/workflows/agent.yml` の `route` job(ubuntu) | `agent` ラベル付き Issue の作成・ラベル付与・コメントを受け、投稿者の権限と未処理の指示を確認してから macOS runner を起動 |
 | macOS Worker | 同 `worker` job(`xcode-27`) | セッションと作業ブランチの復元、Claude Code の実行、返信・使用量・セッションの保存 |
-| Claude Code | `anthropics/claude-code-action`(commit 固定) | 自動化モード(`prompt` 指定)で実行。`--resume` で Issue ごとのセッションを継続 |
+| Claude Code | `anthropics/claude-code-action`(commit 固定) | 自動化モード(`prompt` 指定)で実行。人の指示は新規セッション、中断の自動再開だけ `--resume` |
 | 制御スクリプト | `scripts/agent/agentctl.py`、`agentlib.py` | 経路判定、prompt 生成、実行結果の解析、Issue への返信、Claude から使う補助コマンド |
 | 固定システムプロンプト | `scripts/agent/system-prompt.md` | エージェントの作業規則。会話ごとに変わる情報は含めない |
 | 保存先 | `cloudflare/agent`(Worker)+ R2 バケット `struis-agent` | セッション、状態、使用量、プロトタイプの記録と IPA。CI は GitHub OIDC で認証 |
@@ -21,47 +21,23 @@ GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Cla
 
 1. `agent` ラベルの付いた Issue を作成するか、Issue にコメントします。
 2. `route` が、投稿者がリポジトリの OWNER / MEMBER / COLLABORATOR であること(Repository variable `AGENT_ALLOWED_USERS` を設定した場合はその一覧)と、未処理のコメントがあることを確認します。Bot の投稿とエージェント自身の返信は対象外です。
-3. `worker` が R2 から `state.json` と Claude のセッション記録(`~/.claude/projects` の tar)を復元し、作業ブランチ `agent/issue-{番号}` を origin から取得します。
-4. 新しいコメント(初回は Issue 本文)と実行環境の状態だけを prompt にして、`claude_args` の `--resume <session>` で同じセッションを再開します。
-5. Claude の最終応答を Issue へ投稿し、セッション記録・状態・使用量を R2 へ保存します。処理に成功したコメントだけを処理済みにするので、失敗時は次のコメントや Re-run で同じ入力を再処理します。
+3. `worker` が作業ブランチを取得し、最新の完全なチェックポイントがあれば復元します。人の指示では新規セッション、中断の自動再開では保存したセッションを使います。権限のある人の指示とエージェントの返信を履歴として渡します。
+4. 全項目を実装し、完了を記録します。途中のテストはエージェントの判断で流し、WIPは1つのDraft PRへpushします。
+5. 全項目完了後、push済みHEADで `local-verify` を流します。全単体テスト・必須E2E・差分UIをカメラ込みで検証します。
+6. `ready` が全項目完了・push済み・同じSHAの手元検証成功を確認し、記録をPR本文とチェックポイントへ保存します。Draftを外し、`GITHUB_TOKEN`でも動く明示的dispatchで門を起動します。
+7. macOS workerは門を待たずに終了します。LinuxがXcode Cloud／予備のGitHub実行を確認し、緑なら完了を記録し、赤ならDraftへ戻して同じIssueのworkerを起こします。HEADが変わった結果は採用しません。マージは人が行います。
 
-### 進捗と成果の検証
+### 保存と中断
 
-Claudeのstepは240分で終了させ、340分のjob上限に対して保存・検証・再開予約の時間を確保します。中断時にはセッション、未コミットの差分・未追跡ファイル、未pushのcommitをR2のチェックポイントへ保存し、`workflow_dispatch`で同じIssueを新しいrunnerへ自動で引き継ぎます。入力コメントは未処理のまま保持し、同一Issueのconcurrencyで直列化します。連続自動再開は3回までです。成功または新しいユーザー指示で回数をリセットします。remoteが保存後に変わった場合は、上書きせずチェックポイントを保持して停止します。runnerの強制終了などで終了処理自体が走らない場合は、`agent-recovery.yml`が終了イベントを受け取り、未終了状態の同じ実行だけを再開します。この場合は最後に保存できた作業から復元します。通常の終了処理で再開予約済みの実行、後続runnerが始まった実行、別attemptの終了通知は重複起動しません。
+Claudeのstepは240分、jobは340分です。実行中は `progress.py` が900秒ごと（仮の設定）に、終了時はfinalizeがチェックポイントを作ります。セッション・dirty diff・未追跡ファイル・未push commit・依頼のスナップショット・項目の完了・手元検証の記録を1つの保存IDへ書き、全アップロード後に `workspace.json` をCASで更新します。常に最新と1つ前を残します。強制終了でfinalizeが走らなかった場合も `agent-recovery.yml` が最新の完全な保存から再開します。連続自動再開は3回までです。
 
-コミット・push時にはテストを実行しません。pre-commitフックは設定せず、固定した`guard.py`の軽いpre-pushフックで、現在のHEADからmain以外のブランチへのpushだけを許可します。調査中に必要な個別テストはClaude自身が選んで実行します。
+PRの結果待ちは自動再開の理由にしません。門の赤では、失敗したHEADと元の依頼だけを対象に新規セッションで修正し、完了前の手元検証を全体でやり直します。中断時は修正セッション自身を引き継ぎます。後から届いた指示は自動再開の入力へ混ぜません。
 
-PR本文はチェックアウト外の`$AGENT_HOME/pr-body.md`に書き、`agentctl.py request-pr --title … --body-file …`を実行します。チェックアウト内に新規作成した未追跡の本文ファイルを指定した場合は、内容を`$AGENT_HOME/pr-bodies/`へ移して保存します。追跡済みファイルや本文以外の変更はこの対象にしません。
+### DerivedData・削除・運用設定
 
-`request-pr`は、その場でPRを作成・更新し、push済みの作業ブランチで`iOS`と`Agent tests`のCIを明示的に起動します。`GITHUB_TOKEN`が作成したPRやpushからは通常の`pull_request`イベントが起動されないため、`workflow_dispatch`を使います。CI要求には一意の識別子を付け、ブランチ・対象HEAD・起動済みworkflowを記録します。要求の作成時と各workflowの起動直後にR2の`state.json`へ保存するため、終了処理前の中断でも記録を引き継ぎます。再開時は作業ブランチとHEADが一致する記録を復元します。`request-pr`を再実行しても、同じHEADで実行中・待機中・成功済みのCIは再利用します。完了したCI要求も`validatedCI`に保存し、次の会話からPRの説明だけを更新する場合も再利用できます。失敗・キャンセルしたworkflowだけに新しい要求識別子を発行して再起動します。起動成功の応答を保存する前に中断した場合も、GitHub上の同じ要求識別子の実行を検索して確認します。古い作業ブランチは事前に`origin/main`のCI定義を取り込みます。
+DerivedDataはブランチ名・OS/architecture・Xcode版・native依存のhashごとのActions cacheで持ち越します。PRのclose/merge時にLinuxがそのブランチのDerivedData cacheを削除します。native cacheは削除しません。チェックポイントは保存ごとに最新と1つ前以外を削除し、完了・Issue close・PR close/mergeで全件を削除します。定期照合も行います。R2の14日lifecycle（仮）はIssueごとのチェックポイントprefixだけが対象です。
 
-PR CIは制御スクリプトのテスト、Worker構文、Actions定義、Simulatorビルド、iOS単体/UIテスト、署名なし実機Release archiveを検証します。Claudeは実行結果を確認し、失敗時は個別テストで調査・修正・commit・pushして`request-pr`を再実行します。単体テストには1件あたり最大300秒・step全体30分、UIテストには1件あたり最大600秒・step全体90分の上限があります。CIのxcresultは実行IDと再実行番号を含むartifact名で保存します。iOSのエージェントCIはブランチごとに実行を制御し、mainの手動リリース・アップロードの待ち行列と分離します。
-
-Claude終了後のPython処理はテストや署名処理を実行しません。作業の保存・push状態とGitHub API上のCI結果を確認し、要求識別子・ブランチ・HEADが一致する両CIの最新attemptが成功した場合だけ、完成応答を投稿して入力を処理済みにします。未完了・失敗・記録不足では作業と依頼を保持し、上記の上限内で自動再開します。成功したHEADは`state.json`の`validatedHead`に保存します。同じHEADでコード変更のない次の相談は再検証せず、コードが変われば新しいCI結果が必要です。署名付きarchive・bundle監査はmainの既存CIで実行し、アップロードは明示的な配信操作で行います。任意の実AIテストは既存の条件に従ってskipされるため、全実AI経路の成功は保証しません。
-
-実行開始時に専用のIssueコメントを作り、60秒ごとに更新します。Issueコメントにはツール名・開始/完了/失敗・最後の動作時刻だけを表示します。監視の更新時刻とClaudeの最後の動作時刻は別に表示します。
-
-Actionsの`Claude Code`ログでは、説明文・実行コマンドなどのツール入力・ツール結果を`[Claude]`付きで逐次表示します。既知の秘密環境変数の値と代表的な認証情報形式を除去し、長い出力は先頭と末尾を表示します。元のプロンプトとthinkingブロックは表示しません。公式Actionの固定SHAに対応する出力整形部分だけを変更し、元のSDKメッセージや実行結果ファイルは変更しません。Actionを更新するときは`configure_logging.py`のSHA・ソースハッシュ・差し込み位置を確認します。これは任意の認証情報を確実に除去する仕組みではないため、秘密値をツール出力へ意図的に表示しないでください。
-
-これらのフックと完了確認は、任意のシェルを実行できるClaudeに対するセキュリティ境界ではなく、誤pushと誤った成果提示を防ぐ実行制御です。
-
-同じ Issue の実行は `concurrency` で直列になります。実行中に届いたコメントは次の実行で処理し、すでに処理済みなら macOS runner は起動しません。
-
-### 保存される状態(R2 `sessions/{Issue番号}/`)
-
-| キー | 内容 |
-|---|---|
-| `state.json` | Claude セッション ID、モデル、作業ブランチ、最終処理済みコメント ID、検証済みHEAD(`validatedHead`)、未完了のCI要求(`prCI`)、完了したCI要求(`validatedCI`)、Worker の稼働状態と実行 URL、記録された設計判断 |
-| `claude-projects.tar.gz` | Claude Code の会話記録 |
-
-使用量は `usage/{Issue番号}/{run}-{attempt}.json`、プロトタイプは `prototypes/{Issue番号}/{ID}/` に保存します。セッション記録を復元できない場合は、Issue の履歴・記録済みの設計判断・作業ブランチの log を prompt に入れた新しいセッションで再開します。
-
-## プロンプトキャッシュ
-
-- システムプロンプトは Claude Code の既定(`claude_code` preset)と固定の `system-prompt.md` だけです。`--exclude-dynamic-system-prompt-sections` を付け、時刻・Issue 番号・コメントなどは会話側に渡します。
-- `CLAUDE_CODE_PROMPT_CACHE_TTL=1h` を指定しています。キャッシュは Anthropic 側にあり、ヒットするたびに期限が延びるので、runner が毎回入れ替わっても1時間以内の間隔なら再利用されます。
-- モデルは Issue ごとに最初に解決されたモデル ID を `state.json` に保存して使い続けます。Claude Code の版は action の commit 固定で固定され、自動更新は無効です。自動化モードの action は MCP サーバーを追加しないため、ツール定義も毎回同じです。
-- 各返信の「セッション情報」と Actions の summary に、入力・キャッシュ読取・キャッシュ作成(1h / 5m の内訳)・出力トークン、キャッシュヒット率、復元直後の最初の要求のヒット率を記録します。
+設定と移行条件、実環境で未確認の項目は [agent-gate.md](agent-gate.md) を参照してください。単体テストは `python3 -m unittest discover -s scripts/agent/tests -v` です。PR定義を変更するLinuxの検査と、Xcode/macOSでの実測は別に記録します。
 
 ## Ad Hoc プロトタイプ
 

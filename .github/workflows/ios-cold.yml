@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   verify:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name != 'schedule' || vars.XCODE_CLOUD_CLEAN_BUILD_VERIFIED != 'true')
     runs-on: xcode-27
     timeout-minutes: 150
     steps:

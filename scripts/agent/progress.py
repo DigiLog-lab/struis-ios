@@ -8,7 +8,7 @@ import signal
 import subprocess
 import re
 
-from agentlib import GitHub, REPLY_MARKER, agent_home, iso, run_url
+from agentlib import GitHub, REPLY_MARKER, Store, agent_home, iso, run_url
 
 
 def process_name(pid):
@@ -63,6 +63,8 @@ def stop_owned_commands():
 
 def hook():
     event = json.load(sys.stdin)
+    if event.get('session_id'):
+        (agent_home() / 'session-id.json').write_text(json.dumps({'id': event['session_id']}))
     register_claude()
     name = event.get('tool_name', '')
     # Only names from a fixed list may appear in the public comment.
@@ -96,12 +98,24 @@ def update(run, phase, finished=False):
 def watch():
     home = agent_home()
     run = json.loads((home / 'run.json').read_text())
+    next_checkpoint = time.monotonic() + int(os.environ.get('AGENT_CHECKPOINT_SECONDS', '900'))
     while not (home / 'progress-stop').exists():
         try:
             update(run, '実行中')
         except Exception as error:
             print(f'Progress update failed: {type(error).__name__}', flush=True)
-        time.sleep(60)
+        if os.environ.get('AGENT_VALIDATION_MODE') == 'gate' and time.monotonic() >= next_checkpoint:
+            try:
+                import checkpoints
+                checkpoints.save(Store(), run['issue'], run, periodic=True)
+            except Exception as error:
+                print(f'Periodic checkpoint deferred: {type(error).__name__}', flush=True)
+            next_checkpoint = time.monotonic() + int(os.environ.get('AGENT_CHECKPOINT_SECONDS', '900'))
+        # Notice finalize's stop promptly, including while waiting for the next tick.
+        for _ in range(60):
+            if (home / 'progress-stop').exists():
+                return
+            time.sleep(1)
 
 
 if __name__ == '__main__':

@@ -3,7 +3,7 @@ run-name: >-
   ${{ github.event.workflow_run && format('Recovery {0}', github.event.workflow_run.id) || format('Issue agent #{0}', github.event.issue.number || inputs.issue) }}
 
 # Issues labeled `agent` are conversations with Claude Code. Each comment from
-# an allowed person resumes the Issue's Claude session on a macOS runner.
+# an allowed person starts a new session; automatic interruption recovery resumes it.
 on:
   workflow_call:
   workflow_dispatch:
@@ -11,6 +11,10 @@ on:
       issue:
         description: 再開するIssue番号
         required: true
+        type: string
+      gate_result:
+        description: Linuxの門から返された要求識別子
+        required: false
         type: string
       automatic_retry:
         description: 中断後の自動再開
@@ -30,6 +34,11 @@ concurrency:
 
 env:
   AGENT_STORE_URL: ${{ vars.AGENT_STORE_URL || 'https://agent-struis.digiloglab.com' }}
+  AGENT_VALIDATION_MODE: gate
+  GATE_RESULT: ${{ inputs.gate_result }}
+  AGENT_GATE_MAX_ATTEMPTS: ${{ vars.AGENT_GATE_MAX_ATTEMPTS }}
+  AGENT_CHECKPOINT_SECONDS: ${{ vars.AGENT_CHECKPOINT_SECONDS || '900' }}
+  AGENT_DERIVED_DATA: ${{ github.workspace }}/../agent-derived-data
   AGENT_LABEL: ${{ vars.AGENT_LABEL || 'agent' }}
   AGENT_ALLOWED_USERS: ${{ vars.AGENT_ALLOWED_USERS }}
   ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue }}
@@ -68,7 +77,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      issues: read
+      issues: write
+      pull-requests: read
       id-token: write
     outputs:
       run: ${{ steps.route.outputs.run }}
@@ -124,6 +134,14 @@ jobs:
           NATIVE_CACHE_HIT: ${{ steps.native.outputs.cache-hit }}
           NATIVE_CACHE_KEY: ${{ steps.native.outputs.cache-matched-key }}
         run: python3 "$RUNNER_TEMP/agent-tools/agentctl.py" prepare
+      - name: ブランチのDerivedDataを復元
+        if: steps.prepare.outputs.skip == 'false'
+        id: derived
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.AGENT_DERIVED_DATA }}
+          key: ${{ steps.prepare.outputs.derived_cache_prefix }}${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.xcode_cache_id }}-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ steps.prepare.outputs.derived_cache_prefix }}${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.xcode_cache_id }}-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}-
       - name: 実行状態の監視を開始
         if: steps.prepare.outputs.skip == 'false'
         env:
@@ -158,7 +176,7 @@ jobs:
           github_token: ${{ github.token }}
           prompt: ${{ steps.prepare.outputs.prompt }}
           claude_args: ${{ steps.prepare.outputs.claude_args }}
-      - name: 保存状態とPRのCI結果を確認
+      - name: 保存状態とReadyの検証記録を確認
         id: validate
         if: always() && steps.prepare.outputs.skip == 'false' && steps.claude.outcome == 'success'
         continue-on-error: true
@@ -176,6 +194,13 @@ jobs:
           CLAUDE_OUTCOME: ${{ steps.claude.outcome }}
           VALIDATION_OUTCOME: ${{ steps.validate.outcome }}
         run: python3 "$RUNNER_TEMP/agent-tools/agentctl.py" finalize
+      - name: ブランチのDerivedDataを保存
+        if: always() && steps.prepare.outputs.skip == 'false'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.AGENT_DERIVED_DATA }}
+          key: ${{ steps.derived.outputs.cache-primary-key }}
       - name: 成果物を保存
         if: always() && steps.prepare.outputs.skip == 'false'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

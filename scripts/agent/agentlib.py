@@ -205,8 +205,19 @@ class Store:
             raise
 
     def list(self, prefix):
-        query = urllib.parse.urlencode({'prefix': prefix})
-        return json.loads(self.request('GET', f'/v1/list?{query}'))['objects']
+        result, cursor = [], None
+        while True:
+            query = urllib.parse.urlencode(dict(prefix=prefix, **({'cursor': cursor} if cursor else {})))
+            page = json.loads(self.request('GET', f'/v1/list?{query}'))
+            result.extend(page['objects'])
+            cursor = page.get('nextCursor')
+            if not cursor:
+                return result
+
+    def prune_checkpoints(self, issue, keep, before):
+        return json.loads(self.request('DELETE', f'/v1/checkpoints/{int(issue)}',
+                                       data=json.dumps({'keep': keep, 'before': before}).encode(),
+                                       headers={'Content-Type': 'application/json'}))
 
     def sign_install(self, issue, variant, build, ttl_seconds=None):
         body = {'issue': issue, 'variant': variant, 'build': build}

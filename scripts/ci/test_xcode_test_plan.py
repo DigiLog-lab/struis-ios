@@ -39,6 +39,16 @@ class XcodePlanTests(unittest.TestCase):
         # No unit-test filter can accidentally omit newly added unit tests.
         self.assertEqual(set(plan['testTargets'][0]), {'target'})
 
+    def test_github_fallback_has_the_same_method_selection_as_cloud(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            paths = Path(temporary) / 'changed.txt'
+            paths.write_text('strius/Features/Chat/ChatView.swift\n')
+            result = subprocess.check_output([sys.executable, str(ui_test_plan.PLAN.with_name('ui_test_plan.py')),
+                                              '--matrix', '--tier', 'pr', '--changed-files', str(paths), '--cloud-compatible'], text=True)
+        actual = {argument.removeprefix('-only-testing:striusUITests/') for part in json.loads(result) for argument in part['tests'].split()}
+        _, expected = xcode_test_plan.generate('pr', ['strius/Features/Chat/ChatView.swift'])
+        self.assertEqual(actual, set(expected['uiTests']))
+
     def test_unavailable_diff_expands_the_gate_instead_of_using_only_e2e(self):
         _, report = xcode_test_plan.generate('pr', None)
         excluded = {entry['test'] for entry in self.manifest['methods']}
