@@ -44,8 +44,24 @@ final class ChatCameraUITests: XCTestCase {
                 predicate: NSPredicate(format: "enabled == true"), object: shutter)], timeout: 15), .completed)
             XCTAssertFalse(app.buttons["写真を選ぶ"].exists, "長押し後の指離しで添付メニューを開かないこと")
         }
-        func verifyPreview(_ name: String) {
-            let panel = app.otherElements["chat-camera-panel"]
+        func cameraFrames() throws -> (app: CGRect, preview: CGRect, panel: CGRect, shutter: CGRect) {
+            // Each element.frame crosses the automation connection and asks
+            // the application for another accessibility snapshot. Read all
+            // geometry from one tree so the assertions describe one layout.
+            let root = try app.snapshot()
+            let identifiers: Set<String> = ["chat-camera-preview", "chat-camera-panel", "chat-camera-shutter"]
+            var frames: [String: CGRect] = [:]
+            var remaining = root.children
+            while let node = remaining.popLast() {
+                if identifiers.contains(node.identifier) { frames[node.identifier] = node.frame }
+                remaining.append(contentsOf: node.children)
+            }
+            return (root.frame,
+                    try XCTUnwrap(frames["chat-camera-preview"], "プレビューが要素の木に無い"),
+                    try XCTUnwrap(frames["chat-camera-panel"], "カメラの枠が要素の木に無い"),
+                    try XCTUnwrap(frames["chat-camera-shutter"], "シャッターが要素の木に無い"))
+        }
+        func verifyPreview(_ name: String) throws {
             let preview = app.otherElements["chat-camera-preview"]
             XCTAssertTrue(preview.appears(timeout: 5))
             // 回転は非同期: 向きを変えた直後は、画面もプレビューもまだ前の向きの大きさで測れる(388 vs 611 で落ちた)。
@@ -53,42 +69,44 @@ final class ChatCameraUITests: XCTestCase {
             let landscape = [.landscapeLeft, .landscapeRight].contains(XCUIDevice.shared.orientation)
             let deadline = Date().addingTimeInterval(8)
             var last = CGRect.null
+            var frames = try cameraFrames()
             while Date() < deadline {
-                let frame = preview.frame
-                let oriented = (app.frame.width > app.frame.height) == landscape
+                let frame = frames.preview
+                let oriented = (frames.app.width > frames.app.height) == landscape
                 if oriented, frame == last, frame.width > 0 { break }
                 last = frame
                 Thread.sleep(forTimeInterval: 0.25)
+                frames = try cameraFrames()
             }
-            if (app.frame.width > app.frame.height) != landscape || preview.frame.width <= app.frame.width * 0.7 {
+            if (frames.app.width > frames.app.height) != landscape || frames.preview.width <= frames.app.width * 0.7 {
                 UITestSupport.saveProbe(app, name: "camera-rotation-\(name)")
             }
-            XCTAssertEqual(app.frame.width > app.frame.height, landscape, "画面の向きが変わっていない: \(app.frame)")
-            XCTAssertGreaterThan(preview.frame.width, app.frame.width * 0.7)
-            XCTAssertEqual(preview.frame.minX, panel.frame.minX + 4, accuracy: 1)
-            XCTAssertEqual(preview.frame.maxX, panel.frame.maxX - 4, accuracy: 1)
-            XCTAssertEqual(preview.frame.minY, panel.frame.minY + 16, accuracy: 1)
-            XCTAssertEqual(preview.frame.maxY, shutter.frame.minY - 8, accuracy: 1)
-            XCTAssertEqual(shutter.frame.width, shutter.frame.height, accuracy: 1)
+            XCTAssertEqual(frames.app.width > frames.app.height, landscape, "画面の向きが変わっていない: \(frames.app)")
+            XCTAssertGreaterThan(frames.preview.width, frames.app.width * 0.7)
+            XCTAssertEqual(frames.preview.minX, frames.panel.minX + 4, accuracy: 1)
+            XCTAssertEqual(frames.preview.maxX, frames.panel.maxX - 4, accuracy: 1)
+            XCTAssertEqual(frames.preview.minY, frames.panel.minY + 16, accuracy: 1)
+            XCTAssertEqual(frames.preview.maxY, frames.shutter.minY - 8, accuracy: 1)
+            XCTAssertEqual(frames.shutter.width, frames.shutter.height, accuracy: 1)
             XCTAssertTrue(shutter.isHittable)
             XCTAssertTrue(cancel.isHittable)
-            print("\(name): app=\(app.frame) preview=\(preview.frame) shutter=\(shutter.frame)")
+            print("\(name): app=\(frames.app) preview=\(frames.preview) shutter=\(frames.shutter)")
             screenScreenshot(name)
         }
         openCamera()
-        verifyPreview("rotation-01-portrait")
+        try verifyPreview("rotation-01-portrait")
         XCUIDevice.shared.orientation = .landscapeLeft
-        verifyPreview("rotation-02-landscape-left")
+        try verifyPreview("rotation-02-landscape-left")
         XCUIDevice.shared.orientation = .landscapeRight
-        verifyPreview("rotation-03-landscape-right")
+        try verifyPreview("rotation-03-landscape-right")
         XCUIDevice.shared.orientation = .portrait
-        verifyPreview("rotation-04-portrait-restored")
+        try verifyPreview("rotation-04-portrait-restored")
         cancel.tap()
         XCTAssertTrue(shutter.waitForNonExistence(timeout: 5))
 
         XCUIDevice.shared.orientation = .landscapeLeft
         openCamera()
-        verifyPreview("rotation-05-open-in-landscape")
+        try verifyPreview("rotation-05-open-in-landscape")
         cancel.tap()
         XCTAssertTrue(shutter.waitForNonExistence(timeout: 5))
 
@@ -99,7 +117,7 @@ final class ChatCameraUITests: XCTestCase {
         app.dismissKeyboardIntroductionIfShown()
         openCamera()
         XCUIDevice.shared.orientation = .landscapeRight
-        verifyPreview("rotation-07-keyboard-landscape")
+        try verifyPreview("rotation-07-keyboard-landscape")
         cancel.tap()
         XCTAssertTrue(shutter.waitForNonExistence(timeout: 5))
         XCTAssertTrue(app.keyboards.firstMatch.appears(timeout: 5))
