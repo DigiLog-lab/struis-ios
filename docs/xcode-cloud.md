@@ -12,6 +12,10 @@ workflow IDは `FD7B155C-3973-4DA5-A0A1-A6886411C5D3`、App Store Connectのア�
 
 ## scheme とテストプラン
 
+2026-10-20の専用scheme実測では、ビルド143はテスト本体が終了コード0で終わった後、ソースを持たないテストマシンでpost-build hookが `CI_PRIMARY_REPOSITORY_PATH: unbound variable` により失敗した。hookは通常の計測ログだけならソースもrepository-path変数も必要としない形へ修正し、明示的なarchive監査だけでsourceを参照する。ソース・変数がないテスト環境と監査の失敗伝播を回帰検証する。
+
+「おすすめのiPhone」は編集画面上で1個でも、実行時はiPhone 16 / 16 Pro / 16 Pro Max / SE (3rd generation) の4機種に展開された。143は経過43分、消費139分だったため、PR Gateを固定のiPhone 16・最新iOSだけに変更した。Release 144はarchiveが成功したが、テストの後処理とカメラ回転テストのシャッターhit判定で失敗し、内部配布は実行されなかった。これらを成功・15分達成・cache有効の実測とは扱わない。
+
 | 用途 | scheme | テストプラン | 単体テスト | UIテスト |
 |---|---|---|---|---|
 | 門 | `StruisPRGate` | `TestPlans/PRGate.xctestplan` | 全部 | E2E + 変更に関係するメソッドから、門の対象外だけを除く |

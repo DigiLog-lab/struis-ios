@@ -91,6 +91,40 @@ class XcodePlanTests(unittest.TestCase):
 
 class CloudShellTests(unittest.TestCase):
     """Exercise the real shell hook with fake host tools; do not simulate Xcode."""
+    def test_post_build_on_source_free_test_runners(self):
+        hook = xcode_test_plan.ROOT / 'ci_scripts/ci_post_xcodebuild.sh'
+        for workflow in ['PR Gate', 'Release', 'Hyotan Native TestFlight']:
+            for action in ['test-without-building', 'build-for-testing', '']:
+                with self.subTest(workflow=workflow, action=action), tempfile.TemporaryDirectory() as directory:
+                    standalone = Path(directory) / 'ci_post_xcodebuild.sh'
+                    standalone.write_text(hook.read_text())
+                    env = dict(os.environ, CI_XCODE_CLOUD='TRUE', CI_WORKFLOW=workflow,
+                               CI_XCODEBUILD_ACTION=action, STRUIS_ARCHIVE_AUDIT='1')
+                    env.pop('CI_PRIMARY_REPOSITORY_PATH', None)
+                    result = subprocess.run(['sh', str(standalone)], env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertIn('STRUIS_XCODEBUILD_FINISHED', result.stdout)
+                    self.assertNotIn('archive-audit', result.stdout)
+
+    def test_explicit_archive_audit_still_propagates_failure(self):
+        root = xcode_test_plan.ROOT
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = Path(directory)
+            (checkout / 'ci_scripts').mkdir()
+            for name in ['ci_post_xcodebuild.sh', 'timing.sh']:
+                (checkout / 'ci_scripts' / name).write_text((root / 'ci_scripts' / name).read_text())
+            audit = checkout / 'NativeRuntime/Scripts/audit-cloud-archive.py'
+            audit.parent.mkdir(parents=True)
+            audit.write_text('raise SystemExit(17)\n')
+            env = dict(os.environ, CI_XCODE_CLOUD='TRUE', CI_WORKFLOW='Release',
+                       CI_XCODEBUILD_ACTION='archive', CI_PRIMARY_REPOSITORY_PATH=str(checkout),
+                       STRUIS_ARCHIVE_AUDIT='1')
+            result = subprocess.run(['sh', str(checkout / 'ci_scripts/ci_post_xcodebuild.sh')],
+                                    env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 17, result.stdout + result.stderr)
+            self.assertIn('name=archive-audit', result.stdout)
+            self.assertIn('exit_code=17', result.stdout)
+
     def test_cloud_ruby_cold_warm_and_failed_install(self):
         root = xcode_test_plan.ROOT
         for mode in ['cold', 'warm', 'failed-install', 'broken-install']:
