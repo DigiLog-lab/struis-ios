@@ -1,0 +1,160 @@
+name: Overnight CI ten-minute experiment
+run-name: Overnight CI ten-minute experiment
+
+on:
+  push:
+    branches: [experiment/ci-overnight-20261022]
+    paths:
+      - .github/workflows/ci-overnight-experiment.yml
+      - scripts/ci/benchmark_overnight.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-overnight-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Validate benchmark and exact eligible test inventory
+        run: |
+          python3 -m py_compile scripts/ci/benchmark_overnight.py
+          python3 - <<'PYCODE'
+          import sys, json
+          sys.path.insert(0, 'scripts/ci')
+          import ui_test_plan as p
+          import xcode_test_plan as c
+          tests = [t for t in p.discover() if not t.startswith('CIBenchmarkModeUITests/')]
+          exclusions = c.exclusions_for(tests, json.loads(c.EXCLUSIONS.read_text()))
+          eligible = sorted(set(tests) - set(exclusions))
+          assert eligible
+          assert len([t for t in p.discover() if t.startswith('CIBenchmarkModeUITests/')]) == 2
+          print(json.dumps({'discovered': len(tests), 'eligible': len(eligible), 'excluded': list(exclusions)}, indent=2))
+          PYCODE
+  compare:
+    needs: preflight
+    name: ${{ matrix.config }} / repeat ${{ matrix.repetition }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        config: [baseline, optimized, optimized-mock-warm, optimized-two-workers]
+        repetition: [1, 2]
+        include:
+          - config: baseline
+            variant: baseline
+            workers: 1
+            warm: standard
+          - config: optimized
+            variant: optimized
+            workers: 1
+            warm: standard
+          - config: optimized-mock-warm
+            variant: optimized
+            workers: 1
+            warm: mock
+          - config: optimized-two-workers
+            variant: optimized
+            workers: 2
+            warm: standard
+    env:
+      BENCH_CONFIG: ${{ matrix.config }}
+      BENCH_VARIANT: ${{ matrix.variant }}
+      BENCH_WORKERS: ${{ matrix.workers }}
+      BENCH_WARM: ${{ matrix.warm }}
+      BENCH_REPETITION: ${{ matrix.repetition }}
+    runs-on: xcode-27
+    timeout-minutes: 85
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Record environment
+        run: |
+          sudo mdutil -a -i off >/dev/null 2>&1 || true
+          xcodebuild -version
+          sw_vers
+          sysctl hw.ncpu hw.memsize
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.14'
+      - name: Restore identical native inputs
+        id: native
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+      - name: Use published native outputs on cache miss
+        if: steps.native.outputs.cache-hit != 'true'
+        run: python3 scripts/ci/native_prebuilt.py apply
+      - name: Build once and warm Simulator
+        timeout-minutes: 25
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ci-overnight"
+          started=$(date +%s)
+          xcodebuild build-for-testing -project strius.xcodeproj -scheme strius \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES \
+            > "$RUNNER_TEMP/ci-overnight/build.log" 2>&1 || { tail -100 "$RUNNER_TEMP/ci-overnight/build.log"; exit 1; }
+          echo "BUILD_SECONDS=$(( $(date +%s) - started ))" | tee "$RUNNER_TEMP/ci-overnight/build-time.txt"
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          ios = sorted((key for key in runtimes if ".iOS-" in key),
+                       key=lambda key: [int(part) for part in key.rsplit(".iOS-", 1)[1].split("-")])
+          for key in reversed(ios):
+              for device in runtimes[key]:
+                  if device["name"] == "iPhone 17":
+                      print(device["udid"]); sys.exit()
+          sys.exit("iPhone 17 not found")')
+          echo "SIMULATOR_UDID=$udid" >> "$GITHUB_ENV"
+          xcrun simctl boot "$udid" 2>/dev/null || true
+          xcrun simctl bootstatus "$udid" -b
+          app="$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator/strius.app"
+          bundle=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")
+          xcrun simctl install "$udid" "$app"
+          if [[ "$BENCH_WARM" == mock ]]; then
+            SIMCTL_CHILD_STRUIS_DEVICE_RUNTIME=0 SIMCTL_CHILD_STRUIS_DEVICE_TURNS=mock \
+              xcrun simctl launch "$udid" "$bundle" -skip-onboarding
+          else
+            xcrun simctl launch "$udid" "$bundle"
+          fi
+          data=$(xcrun simctl get_app_container "$udid" "$bundle" data)
+          ready=false
+          for _ in $(seq 1 240); do
+            if [ -d "$data/Library/Application Support/Struis" ]; then ready=true; break; fi
+            sleep 1
+          done
+          $ready || { echo 'Warm-up did not initialize learner data'; exit 1; }
+          sleep 5
+          xcrun simctl terminate "$udid" "$bundle" || true
+      - name: Unit and all gate-eligible UI measurements
+        timeout-minutes: 60
+        run: python3 scripts/ci/benchmark_overnight.py
+      - name: Memory after experiment
+        if: always()
+        run: |
+          sysctl vm.swapusage || true
+          vm_stat || true
+      - name: Save raw measurements and results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-overnight-${{ github.run_id }}-${{ matrix.config }}-${{ matrix.repetition }}
+          path: ${{ runner.temp }}/ci-overnight
+          if-no-files-found: warn
+          retention-days: 7
