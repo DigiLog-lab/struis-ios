@@ -1,0 +1,93 @@
+{
+  "recordedAt": "2026-10-21T18:34:00.914Z",
+  "initialRun": {
+    "id": 39630297628,
+    "status": "failure",
+    "jobs": [
+      {
+        "id": 119326439846,
+        "name": "preflight",
+        "conclusion": "success",
+        "seconds": 6
+      },
+      {
+        "id": 119326515465,
+        "name": "optimized-mock-warm / repeat 1",
+        "conclusion": "success",
+        "seconds": 1877
+      },
+      {
+        "id": 119326515494,
+        "name": "optimized-mock-warm / repeat 2",
+        "conclusion": "success",
+        "seconds": 2544
+      },
+      {
+        "id": 119326515536,
+        "name": "baseline / repeat 1",
+        "conclusion": "success",
+        "seconds": 2950
+      },
+      {
+        "id": 119326515538,
+        "name": "optimized-two-workers / repeat 1",
+        "conclusion": "failure",
+        "seconds": 783
+      },
+      {
+        "id": 119326515669,
+        "name": "optimized / repeat 1",
+        "conclusion": "success",
+        "seconds": 2659
+      },
+      {
+        "id": 119326515673,
+        "name": "optimized / repeat 2",
+        "conclusion": "success",
+        "seconds": 2145
+      },
+      {
+        "id": 119326515734,
+        "name": "baseline / repeat 2",
+        "conclusion": "success",
+        "seconds": 2346
+      },
+      {
+        "id": 119326515753,
+        "name": "optimized-two-workers / repeat 2",
+        "conclusion": "failure",
+        "seconds": 994
+      }
+    ]
+  },
+  "repairRun": {
+    "id": 39650567488,
+    "status": "failure",
+    "cause": "Harness used unrecognized simctl subcommand unpair_all; both matrix jobs stopped before build and before UI tests.",
+    "jobs": [
+      {
+        "id": 119402178370,
+        "name": "preflight",
+        "conclusion": "success",
+        "seconds": 5
+      },
+      {
+        "id": 119402242071,
+        "name": "optimized-two-workers / repeat 1",
+        "conclusion": "failure",
+        "seconds": 53
+      },
+      {
+        "id": 119402242345,
+        "name": "optimized-two-workers / repeat 2",
+        "conclusion": "failure",
+        "seconds": 49
+      }
+    ]
+  },
+  "nextAttempt": {
+    "scope": "Only optimized-two-workers / repetition 1 and 2",
+    "change": "Enumerate actual pair UUIDs, call supported simctl unpair for each, delete unavailable devices, and directly clone/delete the iPhone Simulator before starting expensive build.",
+    "limits": "No rerun of six successful serial jobs; no changes to production CI."
+  }
+}

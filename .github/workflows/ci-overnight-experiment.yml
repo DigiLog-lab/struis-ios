@@ -1,5 +1,5 @@
 name: Overnight CI ten-minute experiment
-run-name: Overnight CI parallel clone repair
+run-name: Overnight CI verified Simulator clone repair
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/ci-overnight-experiment.yml
       - scripts/ci/benchmark_overnight.py
+      - scripts/ci/prepare_parallel_simulator.py
   workflow_dispatch:
 
 permissions:
@@ -26,7 +27,7 @@ jobs:
           persist-credentials: false
       - name: Validate benchmark and exact eligible test inventory
         run: |
-          python3 -m py_compile scripts/ci/benchmark_overnight.py
+          python3 -m py_compile scripts/ci/benchmark_overnight.py scripts/ci/prepare_parallel_simulator.py
           python3 - <<'PYCODE'
           import sys, json
           sys.path.insert(0, 'scripts/ci')
@@ -88,14 +89,9 @@ jobs:
       - name: Use published native outputs on cache miss
         if: steps.native.outputs.cache-hit != 'true'
         run: python3 scripts/ci/native_prebuilt.py apply
-      - name: Remove invalid Watch pairs before parallel cloning
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/ci-overnight"
-          xcrun simctl list pairs -j | tee "$RUNNER_TEMP/ci-overnight/pairs-before.json"
-          xcrun simctl unpair_all
-          xcrun simctl delete unavailable
-          xcrun simctl list pairs -j | tee "$RUNNER_TEMP/ci-overnight/pairs-after.json"
+      - name: Verify unpaired Simulator cloning before build
+        timeout-minutes: 5
+        run: python3 scripts/ci/prepare_parallel_simulator.py
       - name: Build once and warm Simulator
         timeout-minutes: 25
         run: |
