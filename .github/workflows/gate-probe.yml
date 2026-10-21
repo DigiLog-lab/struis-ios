@@ -16,7 +16,7 @@ jobs:
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
       APP_STORE_CONNECT_KEY_PATH: ${{ github.workspace }}/../gate-probe.p8
       GATE_BRANCH: ci/xcode-cloud-foundation
-      GATE_SHA: b7d95e7eed8d685804a60d6e522fe3120dbb1fd3
+      GATE_SHA: 31f077159d39977cbfbae5237a4760546d9af044
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
