@@ -13,10 +13,11 @@ class WorkbookE2EUITestCase: XCTestCase {
     }
 
     @MainActor
-    fileprivate func launch(_ arguments: [String]) -> XCUIApplication {
+    fileprivate func launch(_ arguments: [String], environment: [String: String] = [:]) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += arguments
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
+        app.launchEnvironment.merge(environment) { $1 }
         app.launch()
         return app
     }
@@ -119,10 +120,12 @@ final class WorkbookE2EFixesUITests: WorkbookE2EUITestCase {
 
     @MainActor
     func testSetCaptureOpensResultAndPassShowsImmediately() throws {
-        let app = launch(["-skip-onboarding"])
-        app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = UITestSupport.paperImagePath
-        app.terminate()
-        app.launch()
+        // カメラの画像を渡して 1 回だけ起動する(前は起動してから画像を足し、終了して起動し直していた。台帳は起動ごとに空なので、
+        // 1 回目の起動は何も残さない)。撮影の途中には何もしないので、偽カメラの完了までの間は短くする。
+        let app = launch(["-skip-onboarding"], environment: [
+            "STRUIS_TEST_CAMERA_IMAGE": UITestSupport.paperImagePath,
+            "STRUIS_TEST_CAPTURE_FINISH_SECONDS": UITestSupport.captureFinishSecondsWithoutRace,
+        ])
         let row = element(app, "workbook-subunit-sub-1")
         XCTAssertTrue(row.appears(timeout: 15))
         row.tap()

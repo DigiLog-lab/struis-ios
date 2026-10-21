@@ -17,6 +17,8 @@ final class DeviceWorkbookUITests: XCTestCase {
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
         app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = UITestSupport.paperImagePath
+        // 撮影の途中には何もしない(完了を待ってから次へ進む)ので、偽カメラの完了までの間は短くする。
+        app.launchEnvironment["STRUIS_TEST_CAPTURE_FINISH_SECONDS"] = UITestSupport.captureFinishSecondsWithoutRace
         app.launch()
         try runLoop(app, generationTimeout: 30, gradingTimeout: 30, name: "verdict")
     }

@@ -73,8 +73,52 @@ UI_DIAGNOSTICS_STALL test=<Class/method> t=<テスト開始からの秒>s ms=…
 | PR Gate 158(`f5278ae`) | UI テスト56本をクラスごとに並列、native は公開物 | 赤、35分17秒。下の「PR Gate 158」 |
 | PR Gate 159(`b7d95e7`) | 158 の没頭シーンの入口を直した後 | 赤、33分5秒。`ImmersionSceneChatUITests` は4本とも成功。`ChatCameraUITests/testCameraRotationAndReopening` が落ちた(下の「PR Gate 159」) |
 | PR Gate 160(`31f0771`) | 159 の回転の確認を直した後 | 赤、37分30秒。`ChatCameraUITests` は成功。`ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes` が落ちた(下の「PR Gate 160」) |
+| PR Gate 161(`11449c1`) | 160 の押し方を直した後 | 成功、44分12秒。native の取得が途中で切れてソースから作り(ビルド9.2分)、成功でも診断情報を600秒待った(下の「PR Gate 161〜163」) |
+| PR Gate 162(`05b91b4`) | 診断情報の待ちをやめ、アプリの標準エラーへ流れる XCTest のログを捨てた後 | 赤、22分36秒。標準エラーの付け替えの誤りでアプリが落ちた |
+| PR Gate 163(`d27d197`) | 162 の誤りと native の取得を直した後 | 赤、22分26秒。落ちたのは `WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation` の1本(テストの準備の動かし方。下の「PR Gate 161〜163」) |
 
 Xcode Cloud での画面録画の開始・終了は1回0.03〜0.05秒で、時間の原因ではなかった(PR Gate 156 の結果の束)。
+
+### 門の時間の内訳(PR Gate 158〜163)
+
+各段階の境目は、ビルド用のマシンの `ci_post_xcodebuild.sh` の時刻、テスト用のマシンの xcodebuild の開始と `Testing started completed`、テスト用のマシンの `ci_post_xcodebuild.sh` の時刻、App Store Connect の終了時刻。単位は分。
+
+| 実行 | 合計 | ビルド | 受け渡し | xcodebuild | 後処理の開始まで | 後処理 | 結果の束 |
+|---|---|---|---|---|---|---|---|
+| 158 | 35.3 | 3.4 | 2.6 | 19.9 | 1.4 | 8.0 | 261MB |
+| 159 | 33.1 | 3.5 | 2.5 | 19.8 | 1.6 | 5.7 | 272MB |
+| 160 | 37.5 | 9.5 | 2.7 | 20.4 | 1.3 | 3.6 | 268MB |
+| 161 | 44.2 | 9.2 | 2.6 | 19.7 | 1.4 | 11.3 | 254MB |
+| 162 | 22.6 | 3.5 | 2.7 | 9.9 | 1.5 | 5.1 | 99MB |
+| 163 | 22.4 | 3.4 | 2.6 | 9.9 | 1.4 | 5.1 | 59MB |
+
+- 158〜161 の xcodebuild には、診断情報の取得の600秒の待ちが入っている(成功した 161 にも)。162 から `diagnosticCollectionPolicy: Never` で無くなった。
+- テスト以外の段階(ビルド・受け渡し・後処理の開始まで・後処理)だけで、毎回11〜19分かかる。Xcode Cloud の後処理は3.6〜11.3分で、結果の束の大きさとは関係なくばらつく。TEST action のままでは、テストを0本にしても門は10分を切れない。
+- ビルド用のマシンは12コア・メモリ64GB(`ci_post_clone.sh` の `sysctl`)。テスト用のビルドは、ビルド用のマシンにある iPhone 16 のシミュレーターの ID に向けて行われている。
+- 163 の 9.9分の内訳は、単体テストと複製の準備が約1.4分、UI テストが約8.5分(最初の起動から最後のテストの終わりまで)。
+
+### PR Gate 161〜163
+
+- 161 は native の公開物(約504MB)の取得が途中で切れ(`IncompleteRead`)、ソースから6分かけて作り直した。切れたら `Range` で続きから取り直すようにした(4回まで)。
+- アプリの標準エラーには、Xcode が設定する `OS_ACTIVITY_DT_MODE=YES` によって XCTest のアクセシビリティのログが流れ、アプリ1回の起動で25〜127MBになっていた。UI テストの時だけ、アプリの標準エラーを `/dev/null` へ付け替える(`UITestDiagnostics.start`)。デバッガーが付いている時と `STRUIS_KEEP_STDERR=1` の時は付け替えない。結果の束は 254MB → 59MB になったが、UI テストの時間(合計約1,800秒)は変わらず、Xcode Cloud の後処理の時間も結果の束の大きさとは関係がなかった(上の表)。
+- 162 は付け替えに `freopen` を使い、新しい先を開けなかった時に番号2を閉じたままにして、`FileHandle.standardError` への書き込みでアプリが落ちた。番号2は閉じず、`/dev/null` を `dup2` で付け替え、開けない時は読んで捨てるパイプにつなぐ。163 ではアプリは落ちていない。
+- 163 で落ちた `testAdvanceBandDoesNotCoverConversation` は、吹き出しの文字が「先に進む」の段の上端をまたぐ位置まで、画面の2%ずつ12回ドラッグして会話を戻す準備で、一度もまたがなかった。指を離す時の速さで1回ごとの動きが揃わず、文字の間の余白を飛び越えた。段の上端にいちばん近い文字までの距離を測り、その分だけ指を止めてから離すドラッグで動かして、測り直すようにした。判定は変えていない。
+
+### テストの中身の時間(PR Gate 161)
+
+UI テスト56本・合計1,828秒(緑)を、XCUITest の操作の記録で分けた。
+
+| 内容 | 秒 | 扱い |
+|---|---|---|
+| アプリの起動(50回) | 431 | 必要(テストごとに状態を作り直す)。うち前のアプリの終了が145秒で、並列の時だけ最大18秒かかる(直列の 156 では1回1.2秒) |
+| テストの中の固定の待ち | 177 | 大半は観察の時間(`ChatScrollStabilityUITests` の「指を離した後に動かないか」34秒、回転、録画) |
+| `WorkbookLongConversationUITests` | 210 | 必要(20往復の送信とスクロール。1往復の6回の操作に約10秒) |
+| 2つの条件を順に待ち、出ない方を毎回使い切る | 36 | 直した(同時に待つ。`XCUIApplication.anyAppears`) |
+| 偽カメラの撮影の完了までの3秒(問題集の撮影14回) | 約43 | 直した(撮影の途中で何もしないテストは0.5秒。途中で操作する `ChatImmediateImageSendUITests` は今のまま) |
+| 起動してから環境を足し、終了して起動し直す | 約10 | 直した(`testSetCaptureOpensResultAndPassShowsImmediately` を1回の起動に) |
+| 偽の記録(40秒)の残りを待つ | 約33 | 未対応(`ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording` は22秒で確かめ終わる) |
+| 判定の無いテスト | 62 | 未決定(`striusUITestsLaunchTests/testLaunch` を構成ごとに4回、雛形の `testExample`) |
+| 中身が重なるテスト | 55 | 未決定(録画用の `testJourneyWalkthroughForRecording`) |
 
 ### PR Gate 158
 

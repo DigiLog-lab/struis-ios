@@ -18,6 +18,8 @@ class WorkbookSplitGradingUITestCase: XCTestCase {
         app.launchArguments += ["-skip-onboarding"]
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = UITestSupport.paperImagePath
+        // 撮影の途中には何もしない(完了を待ってから次へ進む)ので、偽カメラの完了までの間は短くする。
+        app.launchEnvironment["STRUIS_TEST_CAPTURE_FINISH_SECONDS"] = UITestSupport.captureFinishSecondsWithoutRace
         app.launchEnvironment["STRUIS_MOCK_GRADING_PER_PHOTO"] = "2"
         app.launch()
         return app

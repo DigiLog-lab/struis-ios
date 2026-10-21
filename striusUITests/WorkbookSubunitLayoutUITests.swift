@@ -222,7 +222,9 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
         XCTAssertTrue(waitEnabled(advance, timeout: 15), "準備OKの後に「先に進む」が出ない: \(screenSummary(app))")
         attach(app, "example-ready")
         advance.press(forDuration: 0.15)
-        XCTAssertTrue(element(app, "workbook-request-set").appears(timeout: 15) || element(app, "workbook-open-set").exists,
+        // 2 つの条件を同時に待つ(どちらかで合格は前と同じ)。順に待つと、この場面では一枚がもう作られていて
+        // `workbook-request-set` が出ず(Xcode Cloud の PR Gate 161)、その 15 秒を毎回使い切ってから `workbook-open-set` を見ていた。
+        XCTAssertTrue(app.anyAppears([element(app, "workbook-request-set"), element(app, "workbook-open-set")], timeout: 15),
                       "「先に進む」で類題へ進まない: \(screenSummary(app))")
         attach(app, "advanced-to-similar")
     }
@@ -269,17 +271,26 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
             let frames = (try? app.snapshot()).map(texts) ?? []
             return frames.contains { $0.intersects(band) && $0.minY < band.minY }
         }
-        // 少しずつ戻して、吹き出しの文字が段の上端をまたぐ位置にする。1 回のドラッグ(画面の 8%)では、
-        // 段の上端が吹き出しの間(余白)に落ちて、またぐ文字が無いことがある(3 回落ちた)。
-        // 文字 1 行(約 20pt)より小さい刻みで送れば、どこかで必ずまたぐ。
+        // 吹き出しの文字が段の上端をまたぐ位置まで、会話を戻す。段の上端より上でいちばん近い文字の中ほどが上端に来る分だけ、
+        // 指を止めてから離すドラッグで動かし(慣性で流さない)、測り直す。前は画面の 2%(約 17pt)ずつ 12 回送っていたが、
+        // 指を離す時の速さで 1 回ごとの動きが揃わず、文字の間の余白を飛び越えて一度もまたがないことがあった
+        // (Xcode Cloud の PR Gate 163、5 台の並列の時)。確かめる位置と判定は変えない。
         let page = element(app, "chat-page")
+        let pageFrame = page.frame
+        let headerBottom = element(app, "workbook-subunit-header").frame.maxY
+        let origin = app.coordinate(withNormalizedOffset: .zero)
         var placed = false
-        for step in 0..<12 where !placed {
-            let from = step == 0 ? 0.45 : 0.50
-            let to = step == 0 ? 0.53 : 0.52  // 2 回目からは画面の 2%(約 17pt)ずつ
-            page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: from))
-                .press(forDuration: 0.05, thenDragTo: page.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: to)))
-            sleep(1)
+        for _ in 0..<6 where !placed {
+            // 吹き出しの本文(高さ30pt以上)を目印にする。短すぎるドラッグはスクロールにならないので、30pt以上は動かす
+            // (行き過ぎても、本文の高さの半分より小さければ、まだ上端をまたいでいる)。
+            let above = ((try? app.snapshot()).map(texts) ?? [])
+                .filter { $0.height >= 30 && $0.minY > max(pageFrame.minY, headerBottom) && $0.midY < band.minY }
+            guard let nearest = above.max(by: { $0.midY < $1.midY }) else { break }
+            let shift = min(max(band.minY - nearest.midY, 30), pageFrame.height * 0.4)
+            let start = CGPoint(x: pageFrame.midX, y: pageFrame.midY - shift / 2)
+            origin.withOffset(CGVector(dx: start.x, dy: start.y))
+                .press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: start.x, dy: start.y + shift)),
+                       withVelocity: .slow, thenHoldForDuration: 0.3)
             placed = crossing()
         }
         if !placed { UITestSupport.saveProbe(app, name: "advance-band-not-crossing") }

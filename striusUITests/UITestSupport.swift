@@ -14,6 +14,11 @@ enum UITestSupport {
         return image.path
     }
 
+    /// テスト用の偽カメラが、撮ってから撮影の完了までに置く秒数(`STRUIS_TEST_CAPTURE_FINISH_SECONDS`)。
+    /// アプリの既定の 3 秒は、撮影の途中に送る・取り消す競合を確かめるテスト(`ChatImmediateImageSendUITests`)のためのもの。
+    /// 撮影の途中に何もせず、完了を待つだけのテスト(問題集の撮影)はこれを使う。完了が後から非同期に届く流れは変えない。
+    static let captureFinishSecondsWithoutRace = "0.5"
+
     @MainActor
     static func deviceApp(arguments: [String] = ["-skip-onboarding"]) -> XCUIApplication {
         // A previous rotation test can leave the simulator in landscape.
@@ -61,6 +66,17 @@ extension XCUIApplication {
             return false
         }
         return true
+    }
+}
+
+extension XCUIApplication {
+    /// いくつかの要素のどれかが出るまで、全部を同時に見て待つ。`a.appears(timeout:) || b.appears(timeout:)` のように
+    /// 順に待つと、その場面で出ない方の待ちを毎回使い切ってから次を見る(Xcode Cloud の PR Gate 161 で 1 回 15〜20 秒)。
+    @MainActor
+    func anyAppears(_ elements: [XCUIElement], timeout: TimeInterval) -> Bool {
+        if elements.contains(where: { $0.exists }) { return true }
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in elements.contains { $0.exists } }, object: nil)
+        return XCTWaiter().wait(for: [shown], timeout: timeout) == .completed
     }
 }
 

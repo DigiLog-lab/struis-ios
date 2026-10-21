@@ -130,7 +130,9 @@ final class ReplyTailUITests: XCTestCase {
         XCTAssertTrue(text(app, containing: Self.recordingText).exists, "まだ記録を書いている最中であること")
         attach(app, "5-advance-while-ready-reply-recording")
         advance.press(forDuration: 0.15)
-        XCTAssertTrue(element(app, "workbook-request-set").appears(timeout: 20) || text(app, containing: "類題").appears(timeout: 5),
+        // 2 つの条件を同時に待つ(どちらかで合格は前と同じ)。順に待つと、この場面では `workbook-request-set` が出ず
+        // (Xcode Cloud の PR Gate 161)、その 20 秒を毎回使い切ってから「類題」を見ていた。
+        XCTAssertTrue(app.anyAppears([element(app, "workbook-request-set"), text(app, containing: "類題")], timeout: 25),
                       "類題の段に進まない: \(screenSummary(app))")
         attach(app, "6-advanced-to-similar-problem")
     }
