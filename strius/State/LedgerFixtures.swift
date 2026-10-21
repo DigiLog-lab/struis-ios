@@ -24,6 +24,9 @@ nonisolated enum LedgerFixtures {
                 overview: .object(["unit_title": .string("二次関数"), "outcome": .string("二次関数の基本問題が自力で解ける")]),
                 firstStage: introduction ? 1 : 3
             )
+            if ProcessInfo.processInfo.arguments.contains("-ci-practice-ready") {
+                try seedBenchmarkPractice(&machine, subunitID: "sub-1")
+            }
             if ProcessInfo.processInfo.arguments.contains("-texture-demo") {
                 seedDemoCaptures(&machine)
             }
@@ -36,6 +39,29 @@ nonisolated enum LedgerFixtures {
             }
             return (machine.events + chatEvents, ())
         }
+    }
+
+    /// Same domain operations as the UI setup: pass the example, then open five practice problems.
+    /// Keeps setup independent from the split-grading assertions; no projections are patched directly.
+    static func seedBenchmarkPractice(_ machine: inout WorkbookMachine, subunitID: String) throws {
+        let firstSpec = try machine.nextSetSpec(subunitID: subunitID)
+        let firstSet = machine.insertGeneratingSet(subunitID: subunitID, spec: firstSpec)
+        let firstIDs = machine.addProblems(subunitID: subunitID,
+            problems: [.init(prompt: "類題: y = x^2 - 2x の頂点の座標を求めよ")], source: "generated")
+        machine.fillSet(setID: firstSet, problemIDs: firstIDs)
+        let captureID = LedgerID.make()
+        _ = try machine.createCapture(id: captureID, imagePath: "ci-setup.jpg", contentType: "image/jpeg",
+            sha256: "0", byteCount: 1, subunitID: nil, setID: firstSet)
+        let context = machine.gradingContext(capture: machine.captures[captureID]!)
+        _ = try machine.applyGradingResult(captureID: captureID,
+            graded: .init(readable: true, items: firstIDs.map {
+                .init(label: "問1", promptText: "", matchedProblemId: $0, verdict: "correct", errorTag: "", note: "")
+            }, candidates: [], newSubunit: nil, note: ""), context: context)
+        let spec = try machine.nextSetSpec(subunitID: subunitID)
+        let setID = machine.insertGeneratingSet(subunitID: subunitID, spec: spec)
+        let ids = machine.addProblems(subunitID: subunitID,
+            problems: (0..<spec.count).map { .init(prompt: "演習 \($0 + 1): 頂点の座標を求めよ") }, source: "generated")
+        machine.fillSet(setID: setID, problemIDs: ids)
     }
 
     /// 固まらないことの確認用(E2E H2): 小単元 1 の会話に、数式入りの返事と全体像カードを含む 40 往復を入れる。
@@ -227,3 +253,4 @@ nonisolated enum LedgerFixtures {
     }
 }
 #endif
+

@@ -5,6 +5,16 @@ import XCTest
 /// 入力欄は停止ボタンにならず、送った質問は記録を止めずに後から答える。例題の段の「先に進む」は記録を待たずに出る。
 final class ReplyTailUITests: XCTestCase {
     private static let recordingText = "学習の進み具合を記録しています"
+    private let benchmarkToken = UUID().uuidString
+    private var benchmarkOptimized: Bool {
+        ProcessInfo.processInfo.environment["STRUIS_CI_BENCH_VARIANT"] == "optimized"
+    }
+
+    private func releaseBenchmarkTail(_ index: Int) {
+        guard benchmarkOptimized else { return }
+        CFNotificationCenterPostNotification(CFNotificationCenterGetDarwinNotifyCenter(),
+            CFNotificationName(rawValue: "com.digiloglab.strius.ci-tail.\(benchmarkToken).\(index)" as CFString), nil, nil, true)
+    }
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -12,9 +22,13 @@ final class ReplyTailUITests: XCTestCase {
     }
 
     @MainActor
-    private func launch(_ arguments: [String], tailMs: String) -> XCUIApplication {
+    private func launch(_ arguments: [String], tailMs: String, gates: String) -> XCUIApplication {
         let app = UITestSupport.deviceApp(arguments: arguments)
         app.launchEnvironment["STRUIS_MOCK_TAIL_DELAY_MS"] = tailMs
+        if benchmarkOptimized {
+            app.launchEnvironment["STRUIS_CI_TAIL_TOKEN"] = benchmarkToken
+            app.launchEnvironment["STRUIS_CI_TAIL_GATES"] = gates
+        }
         app.launch()
         return app
     }
@@ -65,7 +79,7 @@ final class ReplyTailUITests: XCTestCase {
     func testQuestionSheetSendsWhileReplyIsRecording() throws {
         // 1 つ目の返事の記録は、本文が出てから 2 つ目の質問を打って送るまで(Simulator で 12〜17 秒)より十分長くする。
         // 12 秒では送る前に記録が終わり、並べる場面にならなかった。並べた質問の返事の記録は短くし、後の待ちは延ばさない。
-        let app = launch(["-skip-onboarding"], tailMs: "40000,3000")
+        let app = launch(["-skip-onboarding"], tailMs: benchmarkOptimized ? "40000,1" : "40000,3000", gates: "0")
         XCTAssertTrue(app.openQuestionSheet())
         type(app, "最初の質問です")
         let send = sendButton(app)
@@ -86,6 +100,7 @@ final class ReplyTailUITests: XCTestCase {
                       "並べた質問の待ちの言葉が出ない: \(screenSummary(app))")
         XCTAssertTrue(text(app, containing: Self.recordingText).exists, "送った後も前の返事の記録は続いている")
         attach(app, "2-queued-question-while-recording")
+        releaseBenchmarkTail(0)
 
         // 前の返事の記録が終わってから、並べた質問に答える。どちらも止まらない。
         let replies = app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "自信がある行"))
@@ -100,7 +115,7 @@ final class ReplyTailUITests: XCTestCase {
     /// 例題の段: 準備OKの返事が記録を書いている間に「先に進む」が出て押せる。押すと類題の段に進み、記録は裏で終わる。
     @MainActor
     func testAdvanceAppearsWhileReadyReplyIsRecording() throws {
-        let app = launch(["-skip-onboarding", "-workbook-model-stage"], tailMs: "15000")
+        let app = launch(["-skip-onboarding", "-workbook-model-stage"], tailMs: "15000", gates: "0,1,2")
         let row = element(app, "workbook-subunit-sub-1")
         XCTAssertTrue(row.appears(timeout: 30), "ホームに小単元の行が無い")
         row.tap()
@@ -110,6 +125,11 @@ final class ReplyTailUITests: XCTestCase {
         XCTAssertTrue(wait(advance, "exists == true AND enabled == true", timeout: 30), "要点の後に「先に進む」が押せない: \(screenSummary(app))")
         attach(app, "4-intro-advance-while-recording")
         advance.press(forDuration: 0.15)
+        releaseBenchmarkTail(0)
+        if benchmarkOptimized {
+            XCTAssertTrue(text(app, containing: "例題を一緒に解こう").appears(timeout: 30))
+            releaseBenchmarkTail(1)
+        }
         XCTAssertTrue(text(app, containing: "頂点の座標を求めよ").appears(timeout: 60), "例題が出ない: \(screenSummary(app))")
         // 例題の起動の返事の記録が終わるまで待つ(例題は返事の終わりに保存される)。
         XCTAssertTrue(wait(text(app, containing: Self.recordingText), "exists == false", timeout: 40))
@@ -130,6 +150,7 @@ final class ReplyTailUITests: XCTestCase {
         XCTAssertTrue(text(app, containing: Self.recordingText).exists, "まだ記録を書いている最中であること")
         attach(app, "5-advance-while-ready-reply-recording")
         advance.press(forDuration: 0.15)
+        releaseBenchmarkTail(2)
         // 2 つの条件を同時に待つ(どちらかで合格は前と同じ)。順に待つと、この場面では `workbook-request-set` が出ず
         // (Xcode Cloud の PR Gate 161)、その 20 秒を毎回使い切ってから「類題」を見ていた。
         XCTAssertTrue(app.anyAppears([element(app, "workbook-request-set"), text(app, containing: "類題")], timeout: 25),
@@ -194,3 +215,4 @@ final class ReplyTailUITests: XCTestCase {
         add(shot)
     }
 }
+

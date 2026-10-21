@@ -7,6 +7,9 @@ import XCTest
 /// 共通の起動と導線だけを持つ入れ物。Xcode の並列テストはクラスを単位に配るので、テストは 1 つずつ
 /// 別のクラスに置く。テストの中身と判定は分ける前と同じ。
 class WorkbookSplitGradingUITestCase: XCTestCase {
+    private var benchmarkOptimized: Bool {
+        ProcessInfo.processInfo.environment["STRUIS_CI_BENCH_VARIANT"] == "optimized"
+    }
     override func setUpWithError() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
@@ -16,6 +19,7 @@ class WorkbookSplitGradingUITestCase: XCTestCase {
     fileprivate func launch() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["-skip-onboarding"]
+        if benchmarkOptimized { app.launchArguments += ["-ci-practice-ready"] }
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = UITestSupport.paperImagePath
         // 撮影の途中には何もしない(完了を待ってから次へ進む)ので、偽カメラの完了までの間は短くする。
@@ -49,6 +53,13 @@ class WorkbookSplitGradingUITestCase: XCTestCase {
         let row = element(app, "workbook-subunit-sub-1")
         XCTAssertTrue(row.appears(timeout: 15))
         row.tap()
+        if benchmarkOptimized {
+            let open = element(app, "workbook-open-set")
+            XCTAssertTrue(open.appears(timeout: 15), "準備した演習の一枚が無い")
+            open.tap()
+            XCTAssertTrue(element(app, "workbook-set-problem-5").appears(timeout: 20), "演習の一枚が開かない")
+            return
+        }
         let request = element(app, "workbook-request-set")
         XCTAssertTrue(request.appears(timeout: 10))
         request.tap()
@@ -205,3 +216,4 @@ final class WorkbookSplitGradingBatchUITests: WorkbookSplitGradingUITestCase {
         attach(app, "batch-3-result")
     }
 }
+
