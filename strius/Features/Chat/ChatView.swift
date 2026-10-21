@@ -577,6 +577,14 @@ struct ChatView: View {
     /// (immersion lab 無効環境で 404 になる送信経路へ誘導しない)。
     /// シミュレータ fixtures ではバンドル同梱サンプルで代替する。
     private func loadSceneCandidates() async {
+        #if DEBUG && targetEnvironment(simulator)
+        // 固定データ(UI テストの既定)は同梱のシーンだけを使い、本番のサーバーに問い合わせない。
+        // 問い合わせの応答を待つ間は入口が出ないため、通信の遅い環境で UI テストの結果が変わっていた。
+        if SimulatorFixtures.isEnabled {
+            sceneCandidates = BundledScenes.samples
+            return
+        }
+        #endif
         let endpoint = APIEndpoint(method: .get, path: "/v1/immersion-lab/scenes")
         if let (data, _) = try? await apiClient.fetchData(endpoint),
            let response = try? JSONDecoder().decode(SceneListResponse.self, from: data),
