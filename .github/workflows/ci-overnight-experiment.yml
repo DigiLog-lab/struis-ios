@@ -2,12 +2,6 @@ name: Overnight CI ten-minute experiment
 run-name: Overnight CI verified Simulator clone repair
 
 on:
-  push:
-    branches: [experiment/ci-overnight-20261022]
-    paths:
-      - .github/workflows/ci-overnight-experiment.yml
-      - scripts/ci/benchmark_overnight.py
-      - scripts/ci/prepare_parallel_simulator.py
   workflow_dispatch:
 
 permissions:
