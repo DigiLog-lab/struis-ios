@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-test-cost-experiment
+  group: ci-test-cost-experiment-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:

@@ -115,7 +115,10 @@ final class ReplyTailUITests: XCTestCase {
     /// 例題の段: 準備OKの返事が記録を書いている間に「先に進む」が出て押せる。押すと類題の段に進み、記録は裏で終わる。
     @MainActor
     func testAdvanceAppearsWhileReadyReplyIsRecording() throws {
-        let app = launch(["-skip-onboarding", "-workbook-model-stage"], tailMs: "15000", gates: "0,1,2")
+        // Only the ready reply is the subject of this test. The introduction and
+        // initial example must finish before their existing UI preconditions hold.
+        let app = launch(["-skip-onboarding", "-workbook-model-stage"],
+                         tailMs: benchmarkOptimized ? "1,1,15000" : "15000", gates: "2")
         let row = element(app, "workbook-subunit-sub-1")
         XCTAssertTrue(row.appears(timeout: 30), "ホームに小単元の行が無い")
         row.tap()
