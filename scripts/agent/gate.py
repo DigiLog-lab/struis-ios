@@ -109,10 +109,12 @@ def resolve_branch(client, workflow, branch):
 
 def post_build(client, workflow_id, reference):
     try:
+        # Never retried: after a 5xx or a lost response the build may exist.
         return client.request('POST', '/v1/ciBuildRuns', {'data': {'type': 'ciBuildRuns',
             'attributes': {'clean': False}, 'relationships': {
                 'workflow': {'data': {'type': 'ciWorkflows', 'id': workflow_id}},
-                'sourceBranchOrTag': {'data': {'type': 'scmGitReferences', 'id': reference}}}}})['data']
+                'sourceBranchOrTag': {'data': {'type': 'scmGitReferences', 'id': reference}}}}},
+            retry_server_errors=False)['data']
     except RuntimeError as error:
         if re.search(r': HTTP 4\d\d ', str(error)):
             raise CloudStartRejected(str(error)) from None
