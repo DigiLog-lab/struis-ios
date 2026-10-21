@@ -1,4 +1,5 @@
 import hashlib
+import http.client
 import io
 from pathlib import Path
 import subprocess
@@ -6,6 +7,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from unittest import mock
 import urllib.error
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -114,3 +116,69 @@ class TestFileSelectionTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class DownloadTests(unittest.TestCase):
+    """A dropped connection resumes with a Range request instead of building from source."""
+
+    class Response:
+        def __init__(self, body, status, headers, cut=None):
+            self.body, self.status, self.headers, self.cut = body, status, headers, cut
+            self.offset = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self, size):
+            if self.cut is not None and self.offset >= self.cut:
+                raise http.client.IncompleteRead(b'', len(self.body) - self.offset)
+            end = len(self.body) if self.cut is None else min(self.cut, len(self.body))
+            chunk = self.body[self.offset:min(self.offset + size, end)]
+            self.offset += len(chunk)
+            return chunk
+
+    def test_resumes_after_the_connection_drops(self):
+        asset = bytes(range(256)) * 4000
+        requests = []
+        def opener(request, timeout):
+            requests.append(request.get_header('Range'))
+            if len(requests) == 1:
+                return self.Response(asset, 200, {'Content-Length': str(len(asset))}, cut=300_000)
+            start = int(request.get_header('Range').split('=')[1].rstrip('-'))
+            return self.Response(asset[start:], 206, {'Content-Range': f'bytes {start}-{len(asset) - 1}/{len(asset)}'})
+        with mock.patch('builtins.print'):
+            self.assertEqual(native_prebuilt.download('https://example.test/a', opener=opener), asset)
+        self.assertEqual(requests, [None, 'bytes=300000-'])
+
+    def test_a_short_body_without_an_error_is_not_accepted(self):
+        asset = b'x' * 1000
+        calls = []
+        def opener(request, timeout):
+            calls.append(request.get_header('Range'))
+            body = asset[:400] if len(calls) == 1 else asset[400:]
+            status = 200 if len(calls) == 1 else 206
+            headers = ({'Content-Length': '1000'} if status == 200 else {'Content-Range': 'bytes 400-999/1000'})
+            return self.Response(body, status, headers)
+        with mock.patch('builtins.print'):
+            self.assertEqual(native_prebuilt.download('https://example.test/a', opener=opener), asset)
+        self.assertEqual(calls, [None, 'bytes=400-'])
+
+    def test_a_server_that_ignores_the_range_starts_over(self):
+        asset = b'y' * 1000
+        calls = []
+        def opener(request, timeout):
+            calls.append(request.get_header('Range'))
+            if len(calls) == 1:
+                return self.Response(asset, 200, {'Content-Length': '1000'}, cut=500)
+            return self.Response(asset, 200, {'Content-Length': '1000'})
+        with mock.patch('builtins.print'):
+            self.assertEqual(native_prebuilt.download('https://example.test/a', opener=opener), asset)
+
+    def test_gives_up_after_the_attempts(self):
+        def opener(request, timeout):
+            raise ConnectionResetError('reset')
+        with mock.patch('builtins.print'), self.assertRaises(ConnectionResetError):
+            native_prebuilt.download('https://example.test/a', opener=opener, attempts=2)

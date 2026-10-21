@@ -188,11 +188,35 @@ enum UITestDiagnostics {
     /// 標準エラーが 1 プロセスあたり 25〜127MB あり(PR Gate 156・159)、要素の確認のたびに、アプリはこの書き込みを
     /// してから返事をしていた。標準エラーだけを捨てる。アプリの動作と判定は変わらない(このファイルの計測は
     /// 別のファイルに書く)。デバッガーで動かしている時と、`STRUIS_STDIO_LOG`・`STRUIS_KEEP_STDERR=1` の時は残す。
+    ///
+    /// 標準エラーの番号(2)は閉じずに、捨て先へ付け替える(dup2)。freopen は新しい先を開けないと元の番号を
+    /// 閉じたままにし、標準エラーへの書き込み(RunLoopModeProbe)が例外で落ちた(PR Gate 162)。/dev/null を
+    /// 開けない時は、読んで捨てるだけのパイプにつなぐ。どちらもできなければ何も変えない。
     private static func discardMirroredSystemLog() {
         let environment = ProcessInfo.processInfo.environment
         guard environment["STRUIS_STDIO_LOG"] == nil, environment["STRUIS_KEEP_STDERR"] != "1", !debuggerAttached else { return }
-        freopen("/dev/null", "w", stderr)
-        launch("stderr-discarded-dt-\(environment["OS_ACTIVITY_DT_MODE"] ?? "unset")")
+        fflush(stderr)
+        let sink: String
+        let null = open("/dev/null", O_WRONLY)
+        if null >= 0 {
+            guard dup2(null, STDERR_FILENO) == STDERR_FILENO else { close(null); return }
+            close(null)
+            sink = "null"
+        } else {
+            var ends: [Int32] = [-1, -1]
+            guard pipe(&ends) == 0 else { return }
+            guard dup2(ends[1], STDERR_FILENO) == STDERR_FILENO else { close(ends[0]); close(ends[1]); return }
+            close(ends[1])
+            let reader = ends[0]
+            let drain = Thread {
+                var buffer = [UInt8](repeating: 0, count: 1 << 16)
+                while read(reader, &buffer, buffer.count) > 0 {}
+            }
+            drain.qualityOfService = .utility
+            drain.start()
+            sink = "pipe"
+        }
+        launch("stderr-discarded-\(sink)-dt-\(environment["OS_ACTIVITY_DT_MODE"] ?? "unset")")
     }
 
     nonisolated private static var debuggerAttached: Bool {

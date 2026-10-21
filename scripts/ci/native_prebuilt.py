@@ -14,6 +14,7 @@ rebuilding Rust and the BSD tools on every build.
 """
 import argparse
 import hashlib
+import http.client
 import io
 import os
 from pathlib import Path
@@ -53,10 +54,45 @@ def asset_name(value):
     return f'native-runtime-{value}.tar.gz'
 
 
-def download(url, timeout=900):
-    request = urllib.request.Request(url, headers={'User-Agent': 'struis-native-prebuilt'})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return response.read()
+def download(url, timeout=900, attempts=4, opener=None):
+    """Read the whole asset, resuming with a Range request when the connection drops.
+
+    PR Gate 161 lost its ~500 MB download midway (IncompleteRead) and fell back
+    to building native from source for six minutes. A 404 is returned at once.
+    """
+    opener = opener or urllib.request.urlopen
+    data = bytearray()
+    for attempt in range(attempts):
+        headers = {'User-Agent': 'struis-native-prebuilt'}
+        if data:
+            headers['Range'] = f'bytes={len(data)}-'
+        try:
+            with opener(urllib.request.Request(url, headers=headers), timeout=timeout) as response:
+                if data and response.status != 206:
+                    data.clear()  # the server ignored the range: start over
+                total = expected_total(response, len(data))
+                while chunk := response.read(1 << 20):
+                    data.extend(chunk)
+            if total is not None and len(data) < total:
+                raise http.client.IncompleteRead(bytes(), total - len(data))
+            return bytes(data)
+        except urllib.error.HTTPError:
+            raise
+        except (OSError, http.client.HTTPException) as error:
+            if attempt == attempts - 1:
+                raise
+            print(f'STRUIS_NATIVE_PREBUILT retry={attempt + 1} received_bytes={len(data)} error={type(error).__name__}', flush=True)
+    raise RuntimeError('unreachable')
+
+
+def expected_total(response, offset):
+    """The full size of the asset from Content-Range (206) or Content-Length (200), if given."""
+    headers = response.headers
+    if response.status == 206 and '/' in (headers.get('Content-Range') or ''):
+        total = headers['Content-Range'].rsplit('/', 1)[1]
+        return int(total) if total.isdigit() else None
+    length = headers.get('Content-Length')
+    return offset + int(length) if length and length.isdigit() else None
 
 
 def apply(root=ROOT, fetch=download):
