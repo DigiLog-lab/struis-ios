@@ -52,7 +52,9 @@ final class UITestDiagnosticsObserver: NSObject, XCTestObservation {
         let total = stalls.map { $0.ms }.reduce(0, +)
         print("UI_DIAGNOSTICS test=\(name) max_stall_ms=\(longest) stalls_over_1s=\(stalls.filter { $0.ms >= 1000 }.count) "
               + "stall_total_ms=\(total) launch=\(launches.joined(separator: ","))")
-        for stall in stalls where stall.ms >= 1000 {
+        // 失敗したテストは、短い止まりも時刻付きで出す(失敗した操作の前後と突き合わせるため)。
+        let failed = !(testCase.testRun?.hasSucceeded ?? true)
+        for stall in stalls where stall.ms >= (failed ? 250 : 1000) {
             print("UI_DIAGNOSTICS_STALL test=\(name) t=\(String(format: "%.2f", Double(stall.start - start) / 1000))s ms=\(stall.ms)")
         }
     }

@@ -92,4 +92,21 @@ extension XCUIElement {
     func appears(timeout: TimeInterval) -> Bool {
         exists || waitForExistence(timeout: timeout)
     }
+
+    /// 画面の切り替えで動いている要素を、止まってから押す。押す位置は要素の木を取った時の枠の中央なので、
+    /// 切り替えの途中の枠で押すと、押す前に要素が動いて外れることがある(Xcode Cloud の PR Gate 160 で、
+    /// 出た直後の「今日はここまで」を押しても画面が変わらなかった)。枠が 0.25 秒あけて 2 回同じになり、
+    /// 押せる状態になるまで(最長 `timeout` 秒)待ってから押す。押す操作と、その後の判定は変えない。
+    @MainActor
+    func tapWhenSettled(timeout: TimeInterval = 3) {
+        let deadline = Date().addingTimeInterval(timeout)
+        var last = frame
+        while Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.25)
+            let current = frame
+            if current == last, isHittable { break }
+            last = current
+        }
+        tap()
+    }
 }
