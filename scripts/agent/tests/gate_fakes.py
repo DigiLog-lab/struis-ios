@@ -1,6 +1,7 @@
 import copy
 import json
 from pathlib import Path
+import re
 
 from agentlib import PreconditionFailed
 import artifacts as artifact_store
@@ -96,3 +97,42 @@ class FakeStatuses:
 
     def list(self, sha):
         return copy.deepcopy(self.by_sha.get(sha, []))
+
+
+WORKFLOWS = Path(__file__).resolve().parents[3] / '.github' / 'workflows'
+
+
+def job_permissions(workflow, job):
+    """The `permissions:` of one job in a workflow file (no YAML dependency)."""
+    result, inside, block = {}, False, False
+    for line in (WORKFLOWS / workflow).read_text().splitlines():
+        if re.match(r'^  [A-Za-z0-9_-]+:\s*$', line):
+            inside, block = line.strip() == f'{job}:', False
+            continue
+        if inside and re.match(r'^    permissions:\s*$', line):
+            block = True
+            continue
+        if inside and block:
+            match = re.match(r'^      ([a-z-]+): (read|write|none)\s*(#.*)?$', line)
+            if match:
+                result[match[1]] = match[2]
+            elif not line.strip().startswith('#'):
+                block = False
+    return result
+
+
+def required_permission(method, path):
+    """The GITHUB_TOKEN permission a GitHub REST call made by the controller needs."""
+    if method == 'comment':
+        return 'issues'
+    if path == '/graphql' or (method == 'PATCH' and '/pulls/' in path):
+        return 'pull-requests'
+    if method == 'POST' and '/statuses/' in path:
+        return 'statuses'
+    if method == 'POST' and re.search(r'/actions/workflows/[^/]+/dispatches$', path):
+        return 'actions'
+    if method == 'POST' and re.fullmatch(r'/repos/[^/]+/[^/]+/dispatches', path):
+        return 'contents'
+    if method in ('POST', 'PATCH', 'PUT', 'DELETE'):
+        raise AssertionError(f'Unknown write {method} {path}')
+    return None

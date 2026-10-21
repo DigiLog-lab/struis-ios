@@ -46,10 +46,10 @@ Xcode の並列テストはクラスを単位にシミュレーターの複製�
 
 ## native の生成物
 
-Xcode Cloud は、Clean にしなくても、カスタムの Rust の出力を次のビルドに持ち越さなかった(PR Gate 153 の終了時 3,941,748 KiB → 156 の開始時 0 KiB)。そこで、GitHub の `agent-native-cache.yml` が作る生成物(`NativeRuntime/Vendor`・`PythonPackages`・`PackageCache`・`.build`、両 SDK)を、GitHub の Release `native-runtime` の asset として公開し、Xcode Cloud はダウンロードして使う(`scripts/ci/native_prebuilt.py`)。
+Xcode Cloud は、Clean にしなくても、カスタムの Rust の出力を次のビルドに持ち越さなかった(PR Gate 153 の終了時 3,941,748 KiB → 156 の開始時 0 KiB)。そこで、GitHub の `agent-native-cache.yml` が作る生成物(`NativeRuntime/Vendor`・`PythonPackages`・`PackageCache`・`.build`、両 SDK)を、GitHub の Release `native-runtime` の asset として公開し、PR Gate はダウンロードして使う(`scripts/ci/native_prebuilt.py`)。Release(TestFlight)は使わずに必ずソースから作る。asset と `.sha256` は `contents: write` を持つジョブ(エージェントの worker を含む)が置き換えられるので、配信するビルドには入れない。
 
 - asset の名前は、追跡している `NativeRuntime/` の入力(Actions cache のキーと同じ除外)の SHA-256 から作るキー。
-- `ci_post_clone.sh` は、PR Gate と Release で asset と `.sha256` を取得し、SHA-256 を確かめ、一時フォルダに全部を展開できた時だけ置き換える。ビルドホストの automake を指す絶対パスのリンク(`dash-source/missing`)は作らない。公開されていない入力なら、今までどおり Rust から作る。
+- `ci_post_clone.sh` は、PR Gate で asset と `.sha256` を取得し、SHA-256 を確かめ、一時フォルダに全部を展開できた時だけ置き換える。ビルドホストの automake を指す絶対パスのリンク(`dash-source/missing`)は作らない。公開されていない入力なら、今までどおり Rust から作る。
 - 公開は main の `agent-native-cache.yml` が行う(`contents: write`)。`repository_dispatch` の `native-runtime` でも起動できる。新しい3つのキーだけを残す。
 - 2026-10-21 に、main の cache から現在のキー(`v1-b0e2b14c4beb4ccaf3249749ba4a5adc9026d606`、約504MB)を公開し、展開と内容を確かめた。
 

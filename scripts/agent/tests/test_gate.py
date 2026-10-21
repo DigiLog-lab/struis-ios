@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import checkpoints
 import delivery
 import gate
-from gate_fakes import FakeStatuses, MemoryStore
+from gate_fakes import FakeStatuses, MemoryStore, job_permissions, required_permission
 from test_delivery import test_tree
 
 
@@ -22,6 +22,9 @@ class FakeGitHub:
     def __init__(self):
         self.calls = []
         self.runs = {}
+        self.gate_lists = []  # ios.yml gate-mode test lists: artifact listings
+        # The token of the `control` job: a write it is not granted fails as on GitHub (HTTP 403).
+        self.permissions = job_permissions('agent.yml', 'control')
         self.statuses = FakeStatuses()
         self.pr = {'number': 8, 'node_id': 'PR_8', 'state': 'open', 'draft': False,
                    'html_url': 'https://github.com/owner/repo/pull/8', 'body': '<!-- struis-agent:issue=4 -->',
@@ -35,12 +38,21 @@ class FakeGitHub:
         if '/actions/workflows/' in path:
             workflow = path.split('/workflows/')[1].split('/')[0]
             return {'workflow_runs': copy.deepcopy(self.runs.get(workflow, []))}
+        if '/artifacts?' in path:
+            identifier = int(path.split('/actions/runs/')[1].split('/')[0])
+            return {'artifacts': [item for item in self.gate_lists if item['workflow_run']['id'] == identifier]}
         if '/actions/runs/' in path:
             identifier = int(path.rsplit('/', 1)[1])
             return copy.deepcopy(next(run for runs in self.runs.values() for run in runs if run['id'] == identifier))
         raise AssertionError(path)
 
+    def check(self, method, path):
+        needed = required_permission(method, path)
+        if needed and self.permissions.get(needed) != 'write':
+            raise RuntimeError(f'GitHub {method} {path}: HTTP 403 Resource not accessible by integration ({needed}: write)')
+
     def request(self, method, path, body=None):
+        self.check(method, path)
         self.calls.append((method, path, copy.deepcopy(body)))
         if method == 'POST' and '/statuses/' in path:
             self.statuses.post(path.rsplit('/', 1)[1], body)
@@ -53,6 +65,7 @@ class FakeGitHub:
         return {}, ''
 
     def comment(self, number, body):
+        self.check('comment', '')
         self.calls.append(('comment', number, body))
 
     def paginate(self, path):
@@ -70,7 +83,7 @@ class GateTests(unittest.TestCase):
         patch.start()
         self.addCleanup(patch.stop)
         self.gh, self.store = FakeGitHub(), MemoryStore()
-        self.controller = gate.Controller(self.gh, self.store)
+        self.controller = gate.Controller(self.gh, self.store, key=b"test-key", artifacts=self.store.artifacts)
         snapshot = {'issue': {'body': 'the original request'}, 'comments': []}
         items = {'items': [{'id': 'issue-1', 'complete': True, 'note': 'done'}]}
         local = {'schema': 1, 'head': 'a' * 40, 'success': True,
@@ -90,7 +103,13 @@ class GateTests(unittest.TestCase):
         self.store.put_json('sessions/4/gate-request.json', self.request)
         self.store.put_json('sessions/4/workspace.json', checkpoint)
 
-    def results(self, failed=None):
+    def results(self, failed=None, ui_tests=(('Class/testWorks()', 'Passed'),)):
+        # What ios.yml uploads in gate mode for run 2, attempt 1.
+        self.gh.gate_lists = []
+        for part, tests in [('unit', [('Class/testWorks()', 'Passed')]), ('ui-0', ui_tests)]:
+            tree = {'testNodes': [{'nodeType': 'Test Case', 'nodeIdentifier': name, 'result': result} for name, result in tests]}
+            artifact = self.store.artifacts.upload(f'ios-gate-tests-2-1-{part}', {f'{part}.json': json.dumps(tree).encode()}, 1)
+            self.gh.gate_lists.append({'id': artifact['id'], 'name': artifact['name'], 'workflow_run': {'id': 2}})
         for index, workflow in enumerate(['agent-tests.yml', 'ios.yml'], 1):
             self.gh.runs[workflow] = [{'id': index, 'run_attempt': 1, 'head_branch': 'main',
                                       'path': f'.github/workflows/{workflow}', 'status': 'completed',

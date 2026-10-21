@@ -22,6 +22,7 @@ import time
 from agentlib import PreconditionFailed, agent_home, gate_config, iso, session_key
 import artifacts as artifact_store
 
+SCHEMA = 3
 FILES = ('work-items.json', 'local-verification.json', 'request-snapshot.json', 'run.json', 'session-id.json')
 COMPONENTS = (*FILES, 'changes.patch', 'untracked.tar.gz', 'claude-projects.tar.gz', 'commits.bundle')
 
@@ -133,7 +134,7 @@ def save(store, number, run, periodic=False, artifacts=None):
                 print('Checkpoint deferred: workspace changed during capture', flush=True)
                 return None
             raise RuntimeError('Workspace changed while saving its final checkpoint')
-        record = {'schema': 3, 'saveId': save_id, 'prefix': prefix, 'createdAt': iso(),
+        record = {'schema': SCHEMA, 'saveId': save_id, 'prefix': prefix, 'createdAt': iso(),
                   'head': head, 'remoteHead': remote, 'branch': run['branch'], 'bundle': unpublished,
                   'components': {name: digest(data) for name, data in components.items()}}
         if 'session-id.json' in components:
@@ -141,7 +142,7 @@ def save(store, number, run, periodic=False, artifacts=None):
         manifest = json.dumps(record, ensure_ascii=False, indent=2).encode()
         record['artifact'] = blobs.upload(artifact_prefix(number) + save_id, dict(components, **{'manifest.json': manifest}),
                                           gate_config()['checkpointRetentionDays'])
-        if old and old.get('schema') in (2, 3) and old.get('saveId') and not old.get('closed'):
+        if old and old.get('schema') == SCHEMA and old.get('saveId') and not old.get('closed'):
             record['previous'] = {k: v for k, v in old.items() if k != 'previous'}
         try:
             store.put_json(key, record, if_match=etag, if_none_match=not etag)
@@ -154,7 +155,7 @@ def save(store, number, run, periodic=False, artifacts=None):
 
 
 def load_components(store, record, names=None, artifacts=None):
-    if record.get('schema') != 3 or not record.get('artifact'):
+    if record.get('schema') != SCHEMA or not record.get('artifact'):
         raise RuntimeError('Checkpoint predates artifact storage; it cannot be restored')
     number = int(record['prefix'].split('/')[1])
     wanted = list(record['components'] if names is None else names)
@@ -180,7 +181,7 @@ class CheckpointExpired(RuntimeError):
 
 def restore(store, number, branch, restore_session=False, artifacts=None):
     record = store.get_json(session_key(number, 'workspace.json')) or {}
-    if record.get('schema') != 3 or record.get('closed') or not record.get('prefix'):
+    if record.get('schema') != SCHEMA or record.get('closed') or not record.get('prefix'):
         return False
     if record['branch'] != branch:
         raise RuntimeError('Checkpoint branch differs; preserving it without changes')
@@ -220,7 +221,7 @@ def clear(store, number, reason):
     The artifacts themselves are deleted by prune in a job with actions: write.
     """
     store.update_json(session_key(number, 'workspace.json'),
-                      lambda old: {'schema': 3, 'closed': True, 'reason': reason, 'at': iso()}, default={})
+                      lambda old: {'schema': SCHEMA, 'closed': True, 'reason': reason, 'at': iso()}, default={})
 
 
 def prune(store, number, artifacts=None, settle_seconds=600):

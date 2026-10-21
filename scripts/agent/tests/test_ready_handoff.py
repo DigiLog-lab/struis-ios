@@ -52,9 +52,12 @@ class ReadyHandoffTests(unittest.TestCase):
                       mock.patch.object(delivery, 'Store', return_value=self.store)):
             patch.start()
             self.addCleanup(patch.stop)
-        self.controller = gate.Controller(self.gh, self.store)
+        self.controller = gate.Controller(self.gh, self.store, key=b"test-key", artifacts=self.store.artifacts)
 
     def complete_gate(self, request, success):
+        tree = {'testNodes': [{'nodeType': 'Test Case', 'nodeIdentifier': 'Class/testWorks()', 'result': 'Passed'}]}
+        listed = self.store.artifacts.upload('ios-gate-tests-2-1-unit', {'unit.json': json.dumps(tree).encode()}, 1)
+        self.gh.gate_lists = [{'id': listed['id'], 'name': listed['name'], 'workflow_run': {'id': 2}}]
         for index, workflow in enumerate(('agent-tests.yml', 'ios.yml'), 1):
             self.gh.runs[workflow] = [{'id': index, 'head_branch': 'main', 'status': 'completed',
                                       'path': f'.github/workflows/{workflow}',

@@ -1,7 +1,9 @@
 """Start an Xcode Cloud build on request (repository_dispatch event `xcode-cloud`).
 
 client_payload: {"workflow": "release" | "pr-gate", "branch": "main", "issue": "N"}
-Release (TestFlight internal distribution) runs only from main. The job waits
+Both run only from main: Release distributes to TestFlight, and a PR branch is
+gated only by the Ready controller (an extra PR Gate build on request could
+spend the month's hours or stand in for a red gate). The job waits
 for the build and writes its actions and failed tests to the run summary, and
 to the Issue when one is given. This is how a person or an agent without the
 App Store Connect key asks for a build: the key stays in this Linux job.
@@ -27,8 +29,8 @@ def payload():
         raise SystemExit(f'Unknown workflow {workflow!r}; use release or pr-gate')
     if not BRANCH.match(branch) or '..' in branch:
         raise SystemExit('Invalid branch')
-    if workflow == 'release' and branch != 'main':
-        raise SystemExit('Release distributes to TestFlight and runs only from main')
+    if branch != 'main':
+        raise SystemExit('On-request Xcode Cloud builds run only from main; PR branches use the Ready gate')
     if issue and not issue.isdecimal():
         raise SystemExit('issue must be a number')
     return workflow, branch, int(issue) if issue else None

@@ -69,6 +69,39 @@ class ImmutableCheckpointTests(unittest.TestCase):
         self.assertEqual((self.repo / 'scratch').read_text(), 'untracked')
         self.assertEqual(json.loads((self.home / 'local-verification.json').read_text())['example'], 'local-verification.json')
 
+    def test_prepare_restores_the_pointer_that_save_writes(self):
+        # The path the worker actually uses on an automatic restart (agentctl.restore_workspace),
+        # not checkpoints.restore directly: a schema mismatch between them would restore nothing.
+        import agentctl
+        (self.repo / 'committed').write_text('not pushed')
+        self.git('add', '.')
+        self.git('commit', '-m', 'unpublished')
+        head = self.git('rev-parse', 'HEAD')
+        (self.repo / 'tracked').write_text('edited')
+        (self.repo / 'scratch').write_text('untracked')
+        self.home.mkdir()
+        (self.home / 'local-verification.json').write_text('{"head": "%s"}' % head)
+        checkpoints.save(self.store, 4, self.run)
+        self.git('reset', '--hard', self.base)
+        self.git('clean', '-fd')
+        (self.home / 'local-verification.json').unlink()
+        with mock.patch.dict(os.environ, {'AGENT_VALIDATION_MODE': 'gate', 'AUTOMATIC_RETRY': 'false'}):
+            self.assertTrue(agentctl.restore_workspace(self.store, 4, 'work'))
+        self.assertEqual(self.git('rev-parse', 'HEAD'), head)
+        self.assertEqual((self.repo / 'tracked').read_text(), 'edited')
+        self.assertEqual((self.repo / 'scratch').read_text(), 'untracked')
+        self.assertEqual(json.loads((self.home / 'local-verification.json').read_text())['head'], head)
+
+    def test_prepare_stops_on_a_pointer_it_cannot_restore_instead_of_continuing_empty(self):
+        import agentctl
+        self.store.put_json('sessions/4/workspace.json', {'schema': 2, 'prefix': 'sessions/4/checkpoints/old', 'branch': 'work'})
+        with mock.patch.dict(os.environ, {'AGENT_VALIDATION_MODE': 'gate', 'AUTOMATIC_RETRY': 'false'}), \
+                self.assertRaisesRegex(RuntimeError, '未対応'):
+            agentctl.restore_workspace(self.store, 4, 'work')
+        self.store.put_json('sessions/4/workspace.json', {'schema': checkpoints.SCHEMA, 'empty': True})
+        with mock.patch.dict(os.environ, {'AGENT_VALIDATION_MODE': 'gate', 'AUTOMATIC_RETRY': 'false'}):
+            self.assertFalse(agentctl.restore_workspace(self.store, 4, 'work'))
+
     def test_unique_saves_keep_previous_and_prune_only_unreferenced_artifacts(self):
         first = checkpoints.save(self.store, 4, self.run)
         second = checkpoints.save(self.store, 4, self.run)

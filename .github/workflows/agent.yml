@@ -1,6 +1,8 @@
 name: Issue agent
 run-name: >-
   ${{ github.event.workflow_run.name == 'Issue agent' && format('Recovery {0}', github.event.workflow_run.id) ||
+      github.event_name == 'repository_dispatch' && contains(fromJSON('["agent-gate", "xcode-cloud"]'), github.event.action) &&
+        format('Agent control {0} {1}', github.event.action, github.event.client_payload.pr || github.event.client_payload.workflow || '') ||
       (github.event.issue.number || inputs.issue || github.event.client_payload.issue) && github.event.action != 'closed' &&
         format('Issue agent #{0}', github.event.issue.number || inputs.issue || github.event.client_payload.issue) ||
       format('Agent control {0} {1}', github.event_name, github.event.action || github.event.context || github.event.workflow_run.name || '') }}
@@ -55,12 +57,14 @@ permissions:
 concurrency:
   # One group per Issue for workers; one serialized group for the control plane
   # (a newer pending control run replaces an older one, and every control run
-  # reconciles everything). A requested Cloud build is never replaced.
+  # reconciles everything). A requested Cloud build is never replaced. The
+  # control events are tested first: their payloads may name an Issue.
   group: >-
     ${{ github.event.workflow_run.name == 'Issue agent' && format('agent-recovery-{0}', github.event.workflow_run.id) ||
+        github.event_name == 'repository_dispatch' && github.event.action == 'xcode-cloud' && format('agent-cloud-{0}', github.run_id) ||
+        github.event_name == 'repository_dispatch' && github.event.action == 'agent-gate' && 'agent-control' ||
         (github.event.issue.number || inputs.issue || github.event.client_payload.issue) && github.event.action != 'closed' &&
-          format('agent-issue-{0}', github.event.issue.number || inputs.issue || github.event.client_payload.issue) ||
-        github.event.action == 'xcode-cloud' && format('agent-cloud-{0}', github.run_id) || 'agent-control' }}
+          format('agent-issue-{0}', github.event.issue.number || inputs.issue || github.event.client_payload.issue) || 'agent-control' }}
   cancel-in-progress: false
 
 env:
@@ -288,7 +292,8 @@ jobs:
     if: >-
       github.event_name == 'schedule' ||
       (github.event_name == 'repository_dispatch' && contains(fromJSON('["agent-gate", "xcode-cloud"]'), github.event.action)) ||
-      (github.event_name == 'pull_request_target' && contains(github.event.pull_request.body, 'struis-agent:issue=')) ||
+      (github.event_name == 'pull_request_target' && contains(github.event.pull_request.body, 'struis-agent:issue=') &&
+      github.event.pull_request.head.repo.full_name == github.repository) ||
       (github.event_name == 'check_run' && github.event.check_run.app.slug == 'xcode-cloud') ||
       (github.event_name == 'status' && startsWith(github.event.context, 'strius | ')) ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'workflow_dispatch' &&
@@ -296,7 +301,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 110
     permissions:
-      contents: read
+      # contents: write sends the repository_dispatch that wakes the Issue.
+      contents: write
       pull-requests: write
       issues: write
       statuses: write

@@ -74,11 +74,14 @@ if [ "${CI_WORKFLOW:-}" = "Hyotan Native Runtime Tests" ]; then
     [ "$native_platform" = simulator ] || { echo "Compound Dash preparation requires Simulator" >&2; exit 1; }
     export STRUIS_COMPOUND_DASH_PREPARATION=1
 fi
-# PR Gate and Release reuse the outputs that agent-native-cache.yml built on
-# GitHub for the same NativeRuntime inputs (both SDKs), verified by SHA-256.
+# The PR Gate reuses the outputs that agent-native-cache.yml built on GitHub
+# for the same NativeRuntime inputs (both SDKs), verified by SHA-256. Release
+# (TestFlight) always builds from source: the asset and its checksum live in a
+# GitHub Release, which a job with contents: write (the agent worker) can
+# replace, and nothing the agent can write goes into a distributed build.
 # Anything else, or an input set not published yet, builds from source.
 native_source=build
-if [ -n "$cloud_test_tier" ] && [ "${STRUIS_NATIVE_PREBUILT:-1}" = 1 ]; then
+if [ "$cloud_test_tier" = pr ] && [ "${STRUIS_NATIVE_PREBUILT:-1}" = 1 ]; then
     rm -f NativeRuntime/.prebuilt.json
     run_stage native-prebuilt python3.14 scripts/ci/native_prebuilt.py apply || true
     if [ -f NativeRuntime/.prebuilt.json ]; then native_source=prebuilt; fi

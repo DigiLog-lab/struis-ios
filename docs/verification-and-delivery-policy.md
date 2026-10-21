@@ -260,7 +260,9 @@ worker の実行中は、どの段階でも定期バックアップを取りま�
 - `progress.py` に定期バックアップを加えました。
 - worker の権限から `actions: write` を外し、起動(自動再開、門、prototype、Release)を `repository_dispatch` にしました。エージェントは門を決める実行の Re-run・取消・Artifact の削除ができません。
 - 門の制御ジョブと削除のジョブを `agent.yml` に置きました。デプロイ済みの Worker が受け付ける workflow ファイルだからです。制御ジョブの実行名は「Agent control …」で、`agent-recovery.yml` は中断した worker と区別します。
-- 門の結果は、制御ジョブだけが書ける commit status で判定します。保存先の記録は、どの `agent.yml` のジョブからも書けるので、それだけでは依頼を完了にしません。門の起動回数も commit status から数えます。
+- 門の結果は、制御ジョブだけが書ける commit status で判定します。保存先の記録は、どの `agent.yml` のジョブからも書けるので、それだけでは依頼を完了にしません。門の起動回数も commit status から数えます。制御ジョブは門の記録に Apple のキーから作った鍵で署名し、署名の合わない記録では動きません。
+- GitHub の予備でも、実行したテストの一覧を門の対象と照合します。除外表は main のものを使います。
+- 依頼に応じた Xcode Cloud のビルド(Release・PR Gate)は main からだけ起動できます。
 - 門の実行中は、制御ジョブが1分ごとに結果を確かめて待ちます(最長95分。それを超えたら次のイベントか1時間ごとの照合で続けます)。
 - 設定は `scripts/agent/gate-config.json` に置きました(門の上限3回、定期バックアップ15分、保存期間14日、Xcode Cloud の workflow の ID など)。
 
@@ -273,7 +275,7 @@ worker の実行中は、どの段階でも定期バックアップを取りま�
 - `Default` workflow を「PR Gate」に作り替え、「Release」を作りました。どちらも手動起動、Clean OFF です。
 - テストプランを、PR Gate 用と Release 用の2つ作りました。PR Gate は UI テストを並列に流し、Release は直列に流します。
 - 長い UI テストのクラスを、1クラス1本か数本に分けました(`WorkbookE2EFixesUITests` を3つ、`WorkbookSplitGradingUITests` を3つ)。テストの中身と判定は変えていません。
-- `ci_post_clone.sh` は、`agent-native-cache.yml` が GitHub の Release `native-runtime` に公開した native の生成物を、同じ入力のキーで取得し、SHA-256 を確かめて使います。公開されていない入力なら、今までどおり作ります。
+- PR Gate の `ci_post_clone.sh` は、`agent-native-cache.yml` が GitHub の Release `native-runtime` に公開した native の生成物を、同じ入力のキーで取得し、SHA-256 を確かめて使います。公開されていない入力なら、今までどおり作ります。Release(TestFlight)は、エージェントが置き換えられる asset を配信物に入れないよう、必ずソースから作ります。
 - UI テストで、アプリ側から見た起動の各段階とメインスレッドの止まりを記録し、テストごとに xcodebuild のログへ要約を書きます(`UITestDiagnostics`、`UITestDiagnosticsObserver`)。
 - ビルド番号は `CI_BUILD_NUMBER` のままです。TestFlight の旧経路の番号と重ならないよう、`MARKETING_VERSION` を 1.0.1 にしました。
 
@@ -282,6 +284,7 @@ worker の実行中は、どの段階でも定期バックアップを取りま�
 - `ios.yml`:`pull_request` での実行は `ios-verify` ラベルの時だけにしました。`schedule` と `push` をやめ、門の予備と手動のリリースの経路(`workflow_dispatch`)を残しました。
 - `agent.yml` に、門の起動・照合(`control`)、使わなかったチェックポイントの削除(`checkpoint-gc`)、閉じた Issue・PR の削除(`cleanup`)を加えました。
 - `agent-native-cache.yml` は、cache の作成に加えて、Xcode Cloud 用の native の生成物を公開します。
+- `agent-tests.yml` は、門の対象のコードを読み取りだけの権限で流し、実際の Artifact の往復(`actions: write`)は門の依頼では流しません。
 
 ---
 

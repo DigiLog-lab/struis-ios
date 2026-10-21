@@ -193,6 +193,22 @@ jobs:
           name: ios-test-results-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/*.xcresult
           if-no-files-found: ignore
+      # The gate controller compares these names with the tests the gate requires
+      # (a missing test is never green), as it does for Xcode Cloud.
+      - name: 門の照合用に実行したテストの一覧を書き出す
+        if: always() && inputs.gate_pr
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/gate-tests"
+          xcrun xcresulttool get test-results tests --path "$RUNNER_TEMP/StruisTests.xcresult" --format json \
+            > "$RUNNER_TEMP/gate-tests/unit.json"
+      - name: 門の照合用の一覧を保存
+        if: always() && inputs.gate_pr
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-gate-tests-${{ github.run_id }}-${{ github.run_attempt }}-unit
+          path: ${{ runner.temp }}/gate-tests
+          if-no-files-found: error
 
   # Decides which UI tests run and splits them across runners (scripts/ci/ui_test_plan.py,
   # scripts/ci/ui-test-plan.json). Pull requests and the agent's CI requests run the `pr` tier
@@ -355,6 +371,20 @@ jobs:
             ${{ runner.temp }}/*.xcresult
             ${{ runner.temp }}/ui-probe
           if-no-files-found: ignore
+      - name: 門の照合用に実行したテストの一覧を書き出す
+        if: always() && inputs.gate_pr
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/gate-tests"
+          xcrun xcresulttool get test-results tests --path "$RUNNER_TEMP/StruisUITests.xcresult" --format json \
+            > "$RUNNER_TEMP/gate-tests/ui-${{ matrix.shard }}.json"
+      - name: 門の照合用の一覧を保存
+        if: always() && inputs.gate_pr
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-gate-tests-${{ github.run_id }}-${{ github.run_attempt }}-ui-${{ matrix.shard }}
+          path: ${{ runner.temp }}/gate-tests
+          if-no-files-found: error
 
   signed-archive:
     needs: [build, ui-plan, ui-tests]

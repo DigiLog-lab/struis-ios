@@ -1,16 +1,19 @@
 """Trusted Linux controller for Ready -> external gate -> Issue worker.
 
 The controller runs code from main in the `control` job of agent.yml (the
-store accepts only agent.yml and agent-prototype.yml). The gate records in
-the store are bookkeeping: the outcome that completes or repairs an Issue is
-the commit status CONTEXT, which only this job can write (the macOS worker
-has no statuses: write). GitHub's concurrency serializes controllers; CAS
-also protects records against stale administrative writes.
+store accepts only agent.yml and agent-prototype.yml). The outcome that
+completes or repairs an Issue is the commit status CONTEXT, which only this
+job can write (the macOS worker has no statuses: write). Every agent.yml job
+can write the store, so the controller signs its gate records with a key
+derived from the App Store Connect key, which only this job holds, and never
+acts on a record it did not sign. GitHub's concurrency serializes controllers;
+CAS also protects records against stale administrative writes.
 """
 import argparse
 import base64
 import datetime
 import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -21,6 +24,7 @@ import time
 import urllib.parse
 
 from agentlib import GitHub, REPLY_MARKER, Store, append_summary, dispatch, gate_config, iso, session_key
+import artifacts as artifact_store
 import checkpoints
 import delivery
 from appstoreconnect import from_environment
@@ -33,6 +37,24 @@ CONTROLLER_LOGIN = 'github-actions[bot]'
 
 class CloudStartRejected(RuntimeError):
     """App Store Connect answered the start with an HTTP 4xx: no build exists."""
+
+
+class TamperedRecord(RuntimeError):
+    """A gate record without the controller's signature (written by another job)."""
+
+
+def record_key():
+    """Signing key for gate records, derived from the key only the control job has."""
+    path = os.environ.get('APP_STORE_CONNECT_KEY_PATH')
+    if not path or not Path(path).is_file():
+        return None
+    return hashlib.sha256(b'struis-gate-record-v1\0' + Path(path).read_bytes()).digest()
+
+
+def signature(record, key):
+    body = {name: value for name, value in record.items() if name != 'signature'}
+    data = json.dumps(body, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode()
+    return hmac.new(key, data, hashlib.sha256).hexdigest()
 
 
 def gate_key(pr):
@@ -160,12 +182,16 @@ def cloud_workflow(client):
     return workflow
 
 
-def request_data(store, gh, pr, request_id=None, renew=False):
+def request_data(store, gh, pr, request_id=None, used_request=None):
+    """The Ready request to gate. Without an explicit id (a human cleared
+    Draft, or a reconcile), a new request is made from the latest checkpoint
+    when none fits this HEAD or the stored one was already used by a gate."""
     issue = issue_for(pr)
     if not issue or (pr['head'].get('repo') or {}).get('full_name') != gh.repository:
         raise RuntimeError('Only marked same-repository agent PRs may start a gate')
     request = store.get_json(session_key(issue, 'gate-request.json'))
-    if not request_id and (renew or not request or request.get('head') != pr['head']['sha'] or request.get('pr') != pr['number']):
+    if not request_id and (not request or request.get('head') != pr['head']['sha'] or request.get('pr') != pr['number']
+                           or (used_request and request.get('request') == used_request)):
         # A human may clear Draft in GitHub after local-verify saved its proof,
         # without running agentctl ready. Both paths use the same validation.
         checkpoint = store.get_json(session_key(issue, 'workspace.json')) or {}
@@ -193,7 +219,8 @@ def request_data(store, gh, pr, request_id=None, renew=False):
     items = json.loads(components['work-items.json'])
     if not delivery.verified(local, request['head'], snapshot, items):
         raise RuntimeError('Ready checkpoint has no complete exact-HEAD local verification')
-    content = gh.get(f'/repos/{gh.repository}/contents/scripts/ci/xcode-cloud-exclusions.json?ref={request["head"]}')
+    # main's list, not the PR's: a PR cannot exempt a test from its own gate.
+    content = gh.get(f'/repos/{gh.repository}/contents/scripts/ci/xcode-cloud-exclusions.json?ref=main')
     manifest = json.loads(base64.b64decode(content['content']))
     if manifest.get('version') != 1:
         raise RuntimeError('Unknown gate exclusion manifest')
@@ -216,89 +243,141 @@ def normalize_test(class_name, name):
 
 
 class Controller:
-    def __init__(self, gh=None, store=None):
+    def __init__(self, gh=None, store=None, key=None, artifacts=None):
         self.gh, self.store = gh or GitHub(), store or Store()
+        self.artifacts = artifacts or artifact_store.ArtifactClient(self.gh)
+        self.key = key if key is not None else record_key()
+        if not self.key:
+            raise RuntimeError('The gate controller needs the App Store Connect key to sign gate records')
 
     def save(self, record):
+        record['signature'] = signature(record, self.key)
         self.store.update_json(gate_key(record['pr']), lambda old: record, default={})
+
+    def load(self, number):
+        """The controller's own record for a PR, or {}; anything else is refused."""
+        record = self.store.get_json(gate_key(number)) or {}
+        if record and not hmac.compare_digest(str(record.get('signature', '')), signature(record, self.key)):
+            raise TamperedRecord(f'Gate record for PR #{number} is not signed by the controller')
+        return record
+
+    def waiting(self):
+        records = []
+        for item in self.store.list('gates/'):
+            match = re.fullmatch(r'gates/pr-(\d+)\.json', item['key'])
+            if match:
+                try:
+                    record = self.load(int(match[1]))
+                except TamperedRecord:
+                    continue
+                if record.get('phase') not in TERMINAL:
+                    records.append(record)
+        return records
 
     def start(self, number, request_id=None):
         gh, store = self.gh, self.store
         pr = gh.get(f'/repos/{gh.repository}/pulls/{number}')
         if pr['state'] != 'open' or pr['draft']:
             return
-        old = store.get_json(gate_key(number)) or {}
-        if (request_id and old.get('request') == request_id and old.get('head') == pr['head']['sha']
-                and old.get('phase') in TERMINAL):
-            if not (old.get('phase') == 'complete' and old.get('success')):
-                delivery.draft(gh, pr)
-            return old
+        attempted = None
         try:
-            request, _ = request_data(store, gh, pr, request_id,
-                                      renew=not request_id and old.get('phase') in ('blocked', 'invalidated'))
-            old = store.get_json(gate_key(number)) or {}
-            if old.get('request') == request['request']:
-                # Accepted dispatches are never repeated because a listing or
-                # callback has not yet become visible.
-                if old.get('phase') not in TERMINAL:
-                    return self.poll(old)
-                if not old.get('success'):
+            old = self.load(number)
+            if (request_id and old.get('request') == request_id and old.get('head') == pr['head']['sha']
+                    and old.get('phase') in TERMINAL):
+                if not (old.get('phase') == 'complete' and old.get('success')):
                     delivery.draft(gh, pr)
                 return old
-            if old and old.get('phase') not in TERMINAL:
-                self.invalidate(old, pr, 'A newer Ready request replaced this gate', redraft=False)
-            limit = max_attempts()
-            counter = store.get_json(f'gates/issue-{request["issue"]}.json') or {}
-            attempts = max(int(counter.get('attempts', 0)), int(old.get('attempts', 0)),
-                           status_attempts(gh, request['issue'], request['branch']))
-            if attempts >= limit:
-                raise RuntimeError('Gate attempt limit reached; leave Draft for Issue instructions')
-            selected = backend()
-            workflow = cloud_workflow(cloud_client()) if selected == 'xcode-cloud' else None
-            record = dict(request, backend=selected, attempts=attempts + 1,
-                          phase='starting', startedAt=iso(), dispatched=[])
-            store.update_json(f'gates/issue-{request["issue"]}.json',
-                              lambda current: {'attempts': attempts + 1, 'lastRequest': request['request'], 'at': iso()}, default={})
-            if workflow:
-                record['workflow'] = workflow['id']
-            self.save(record)
-            status(gh, record, 'pending', f'{ATTEMPT_PREFIX}{attempts + 1}/{limit}: starting {selected}')
-            # The Linux control-plane tests are mandatory for either backend.
-            self.dispatch(record, 'agent-tests.yml', {'source_ref': record['head']})
-            current = gh.get(f'/repos/{gh.repository}/pulls/{number}')
-            if current['head']['sha'] != record['head'] or current['draft']:
-                return self.invalidate(record, current, 'HEAD changed before external gate start')
-            if selected == 'xcode-cloud':
-                try:
-                    start_cloud_build(record, workflow, self.save)
-                except CloudStartRejected as error:
-                    # Apple answered without creating a build (for example the
-                    # month's compute hours are used up): use the GitHub fallback.
-                    record.update(backend='github', cloudStartError=str(error))
-                    self.save(record)
-                    if record.get('issue'):
-                        gh.comment(record['issue'], f'{REPLY_MARKER}\n\nXcode Cloudが門の開始を受け付けなかったため、'
-                                                    f'GitHubの予備（ios.yml）で門を流します。\n\n{error}')
-            if record['backend'] == 'github':
-                self.dispatch(record, 'ios.yml', {'source_ref': record['head'], 'ui_tier': 'pr', 'gate_pr': str(number)})
-            record['phase'] = 'waiting'
-            self.save(record)
-            status(gh, record, 'pending', f'Ready HEAD: waiting for {record["backend"]}')
-            return record
+            stored = store.get_json(session_key(issue_for(pr), 'gate-request.json')) if issue_for(pr) else None
+            if request_id and stored and stored.get('request') != request_id:
+                # A newer Ready request (or a reconcile that already started it)
+                # superseded this dispatch; the newer one owns the gate.
+                print(f'Ready request {request_id} was superseded by {stored.get("request")}; nothing to start')
+                return old
+            # Renew the stored request only when the gate already used it: a
+            # fresh request that the worker just wrote is started as it is.
+            used = old.get('request') if old.get('phase') in TERMINAL else None
+            request, _ = request_data(store, gh, pr, request_id, used_request=used)
+            attempted = request['request']
+            old = self.load(number)
+            existing = old if old.get('request') == attempted else None
+            if not existing:
+                return self.begin(number, pr, request, old)
         except Exception as error:
-            # Configuration/API-start errors need instructions, not a repair
-            # loop that repeatedly consumes machines without a test failure.
-            record = store.get_json(gate_key(number)) or {}
-            if record.get('head') != pr['head']['sha']:
-                record = {'pr': number, 'issue': issue_for(pr), 'head': pr['head']['sha'],
-                          'attempts': record.get('attempts', 0)}
-            record.update(phase='blocked', error=str(error), finishedAt=iso())
-            self.save(record)
-            delivery.draft(gh, pr)
-            status(gh, record, 'error', 'Gate start blocked; see Issue instructions')
-            if record.get('issue'):
-                gh.comment(record['issue'], f'{REPLY_MARKER}\n\n門の起動を停止してDraftに戻しました。\n\n{error}')
+            self.block(number, pr, attempted, error)
             raise
+        # Accepted dispatches are never repeated because a listing or callback
+        # has not yet become visible. Polling errors are retried, never blocked.
+        if existing.get('phase') not in TERMINAL:
+            return self.poll(existing)
+        if not existing.get('success'):
+            delivery.draft(gh, pr)
+        return existing
+
+    def begin(self, number, pr, request, old):
+        gh, store = self.gh, self.store
+        if old and old.get('phase') not in TERMINAL:
+            self.invalidate(old, pr, 'A newer Ready request replaced this gate', redraft=False)
+        limit = max_attempts()
+        counter = store.get_json(f'gates/issue-{request["issue"]}.json') or {}
+        attempts = max(int(counter.get('attempts', 0)), int(old.get('attempts', 0)),
+                       status_attempts(gh, request['issue'], request['branch']))
+        if attempts >= limit:
+            raise RuntimeError('Gate attempt limit reached; leave Draft for Issue instructions')
+        selected = backend()
+        workflow = cloud_workflow(cloud_client()) if selected == 'xcode-cloud' else None
+        record = dict(request, backend=selected, attempts=attempts + 1,
+                      phase='starting', startedAt=iso(), dispatched=[])
+        store.update_json(f'gates/issue-{request["issue"]}.json',
+                          lambda current: {'attempts': attempts + 1, 'lastRequest': request['request'], 'at': iso()}, default={})
+        if workflow:
+            record['workflow'] = workflow['id']
+        self.save(record)
+        status(gh, record, 'pending', f'{ATTEMPT_PREFIX}{attempts + 1}/{limit}: starting {selected}')
+        # The Linux control-plane tests are mandatory for either backend.
+        self.dispatch(record, 'agent-tests.yml', {'source_ref': record['head']})
+        current = gh.get(f'/repos/{gh.repository}/pulls/{number}')
+        if current['head']['sha'] != record['head'] or current['draft']:
+            return self.invalidate(record, current, 'HEAD changed before external gate start')
+        if selected == 'xcode-cloud':
+            try:
+                start_cloud_build(record, workflow, self.save)
+            except CloudStartRejected as error:
+                # Apple answered without creating a build (for example the
+                # month's compute hours are used up): use the GitHub fallback.
+                record.update(backend='github', cloudStartError=str(error))
+                self.save(record)
+                if record.get('issue'):
+                    gh.comment(record['issue'], f'{REPLY_MARKER}\n\nXcode Cloudが門の開始を受け付けなかったため、'
+                                                f'GitHubの予備（ios.yml）で門を流します。\n\n{error}')
+        if record['backend'] == 'github':
+            self.dispatch(record, 'ios.yml', {'source_ref': record['head'], 'ui_tier': 'pr', 'gate_pr': str(number)})
+        record['phase'] = 'waiting'
+        self.save(record)
+        status(gh, record, 'pending', f'Ready HEAD: waiting for {record["backend"]}')
+        return record
+
+    def block(self, number, pr, attempted, error):
+        """A start that failed needs instructions, not a repair loop that
+        repeatedly consumes machines without a test failure."""
+        try:
+            record = self.load(number)
+        except TamperedRecord:
+            record = {}
+        if (record.get('phase') not in TERMINAL and record.get('head') == pr['head']['sha']
+                and record.get('request') and record.get('request') != attempted):
+            # Another request's gate is running on this HEAD: a failure to start
+            # a different request must not stop it.
+            print(f'Start failed without affecting the running gate {record["request"]}: {error}')
+            return
+        if record.get('head') != pr['head']['sha'] or (record.get('phase') in TERMINAL and record.get('request') != attempted):
+            record = {'pr': number, 'issue': issue_for(pr), 'head': pr['head']['sha'],
+                      'attempts': record.get('attempts', 0)}
+        record.update(phase='blocked', error=str(error), finishedAt=iso())
+        self.save(record)
+        delivery.draft(self.gh, pr)
+        status(self.gh, record, 'error', 'Gate start blocked; see Issue instructions')
+        if record.get('issue'):
+            self.gh.comment(record['issue'], f'{REPLY_MARKER}\n\n門の起動を停止してDraftに戻しました。\n\n{error}')
 
     def dispatch(self, record, workflow, inputs):
         # Intent is durable before the non-idempotent POST. In an ambiguous
@@ -329,6 +408,20 @@ class Controller:
         if not inputs.get('path', '').split('@')[0].endswith(f'/.github/workflows/{workflow}') and inputs.get('path') != f'.github/workflows/{workflow}':
             raise RuntimeError('Gate workflow path differs')
         return latest
+
+    def github_tests(self, result):
+        """Rows of the test lists that this exact ios.yml run and attempt uploaded in gate mode."""
+        gh = self.gh
+        prefix = f'ios-gate-tests-{result["id"]}-{result["attempt"]}-'
+        listing = gh.get(f'/repos/{gh.repository}/actions/runs/{result["id"]}/artifacts?per_page=100')
+        lists = [item for item in listing.get('artifacts', []) if item.get('name', '').startswith(prefix)]
+        rows = []
+        for item in lists:
+            if (item.get('workflow_run') or {}).get('id') != result['id']:
+                raise RuntimeError('A gate test list belongs to another run')
+            for data in self.artifacts.download(item['id'], prefix, verify=False).values():
+                rows.extend(delivery.test_rows(json.loads(data)))
+        return lists, rows
 
     def poll(self, record):
         gh = self.gh
@@ -382,6 +475,15 @@ class Controller:
                 if (not tests or result['missingTests'] or not test_actions or any(action.get('completionStatus') != 'SUCCEEDED' for action in test_actions)
                         or any(test.get('status') not in ('SUCCESS', 'SKIPPED') for test in tests)):
                     result['conclusion'] = 'failure'
+        ios = results.get('ios.yml')
+        if record['backend'] == 'github' and ios and ios['status'] == 'completed' and ios['conclusion'] == 'success':
+            # Like Xcode Cloud: green only with every required test actually run and passed.
+            lists, rows = self.github_tests(ios)
+            actual = {normalize_test(*row['test'].rsplit('/', 1)) for row in rows if '/' in (row.get('test') or '')}
+            ios['missingTests'] = sorted(set(record['expectedTests']) - actual)
+            ios['failedTests'] = sorted(row.get('test') or '?' for row in rows if row.get('result') not in ('Passed', 'Skipped'))[:50]
+            if not lists or not rows or ios['missingTests'] or ios['failedTests']:
+                ios['conclusion'] = 'failure'
         record['results'] = results
         required = ['agent-tests.yml', 'ios.yml' if record['backend'] == 'github' else 'xcode-cloud']
         failed = any(results.get(name, {}).get('status') == 'completed' and results[name]['conclusion'] != 'success' for name in required)
@@ -395,13 +497,27 @@ class Controller:
             return self.invalidate(record, fresh, 'HEAD changed while collecting gate results')
         record.update(phase='complete', success=not failed, finishedAt=iso())
         self.save(record)
-        status(gh, record, 'failure' if failed else 'success', 'External gate failed' if failed else 'Exact Ready HEAD passed local verification and external gate')
-        if failed:
-            delivery.draft(gh, fresh)
+        self.publish(record, fresh)
         self.wake(record)
         return record
 
+    def publish(self, record, pr=None):
+        """Write the outcome status and Draft a red PR. Repeated until it has
+        succeeded, because the woken Issue acts only on this status."""
+        gh = self.gh
+        failed = not record['success']
+        status(gh, record, 'failure' if failed else 'success',
+               'External gate failed' if failed else 'Exact Ready HEAD passed local verification and external gate')
+        if failed:
+            pr = pr or gh.get(f'/repos/{gh.repository}/pulls/{record["pr"]}')
+            if pr['state'] == 'open' and not pr['draft']:
+                delivery.draft(gh, pr)
+        record['statusPosted'] = True
+        self.save(record)
+
     def wake(self, record):
+        if not record.get('statusPosted'):
+            self.publish(record)
         dispatch(self.gh, 'agent-issue', {'issue': record['issue'], 'automatic_retry': 'true',
                                           'gate_result': record['request']})
         record['wakeDispatched'] = True
@@ -417,7 +533,10 @@ class Controller:
                 errors.append(str(error))
                 print(f'Gate reconciliation deferred for one PR: {error}')
         def reconcile_pr(pr):
-            old = self.store.get_json(gate_key(pr['number'])) or {}
+            try:
+                old = self.load(pr['number'])
+            except TamperedRecord:
+                return self.start(pr['number'])  # blocks and replaces the record
             if old.get('phase') == 'complete' and old.get('head') == pr['head']['sha']:
                 # Completion deletes checkpoints; the protected result remains.
                 if not old.get('wakeDispatched'):
@@ -430,8 +549,13 @@ class Controller:
             if issue_for(pr) and not pr['draft']:
                 attempt(lambda: reconcile_pr(pr))
         for item in self.store.list('gates/'):
-            if re.fullmatch(r'gates/pr-\d+\.json', item['key']):
-                record = self.store.get_json(item['key'])
+            match = re.fullmatch(r'gates/pr-(\d+)\.json', item['key'])
+            if match:
+                try:
+                    record = self.load(int(match[1]))
+                except TamperedRecord as error:
+                    print(f'Ignoring an unsigned gate record: {error}')
+                    continue
                 if record and (record.get('phase') not in TERMINAL or (record.get('phase') == 'complete' and not record.get('wakeDispatched'))):
                     attempt(lambda: self.poll(record))
         if errors:
@@ -497,16 +621,6 @@ def consume_result(number, request_id, gh=None, store=None):
     return True
 
 
-def waiting_records(store):
-    records = []
-    for item in store.list('gates/'):
-        if re.fullmatch(r'gates/pr-\d+\.json', item['key']):
-            record = store.get_json(item['key']) or {}
-            if record.get('phase') not in TERMINAL:
-                records.append(record)
-    return records
-
-
 def watch(controller, minutes, interval=60, clock=time.monotonic, sleep=time.sleep):
     """Keep polling while a gate is running, so a result does not wait for an event.
 
@@ -517,7 +631,7 @@ def watch(controller, minutes, interval=60, clock=time.monotonic, sleep=time.sle
     """
     deadline = clock() + minutes * 60
     last_error = None
-    while waiting_records(controller.store) and clock() < deadline:
+    while controller.waiting() and clock() < deadline:
         sleep(interval)
         try:
             controller.reconcile()

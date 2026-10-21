@@ -74,7 +74,7 @@ class GateRecoveryScopeTests(unittest.TestCase):
         state = {'issue': 4, 'branch': 'work', 'sessionId': 'old-session', 'sessionStale': True,
                  'lastCommentId': 10, 'issueBodyProcessed': True, 'restartKind': 'interrupted'}
         store.put_json('sessions/4/state.json', state)
-        store.put_json('sessions/4/workspace.json', {'schema': 2, 'prefix': 'sessions/4/checkpoints/saved', 'sessionId': 'new-session'})
+        store.put_json('sessions/4/workspace.json', {'schema': 3, 'prefix': 'sessions/4/checkpoints/saved', 'sessionId': 'new-session'})
         old_issue = {'number': 4, 'title': 'original title', 'body': 'original request', 'user': {'login': 'owner'},
                      'created_at': '2026-10-01T00:00:00Z', 'html_url': 'https://github.com/owner/repo/issues/4', 'author_association': 'OWNER'}
         snapshot = agentctl.request_snapshot(old_issue, [fixtures.comment(20, body='original work')], '2026-10-01T00:00:00Z')

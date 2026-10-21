@@ -199,7 +199,8 @@ esac
                     self.assertLess(calls.index('ruby -e gem "xcodeproj"'),
                                     calls.index('NativeRuntime/Scripts/bootstrap.py'))
 
-    def test_published_native_prebuilt_skips_the_rust_build(self):
+    def test_published_native_prebuilt_skips_the_rust_build_only_for_the_gate(self):
+        # Release (TestFlight) never uses the asset: a job with contents: write could replace it.
         root = xcode_test_plan.ROOT
         for scheme, published in [('StruisPRGate', True), ('StruisRelease', True), ('StruisPRGate', False)]:
             with self.subTest(scheme=scheme, published=published), tempfile.TemporaryDirectory() as directory:
@@ -237,10 +238,11 @@ esac
                                         capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 calls = (temporary / 'calls').read_text()
-                self.assertIn('scripts/ci/native_prebuilt.py apply', calls)
-                self.assertEqual('NativeRuntime/Scripts/bootstrap.py' in calls, not published)
-                self.assertEqual('rustup toolchain install' in calls, not published)
-                self.assertIn(f'STRUIS_NATIVE_SOURCE source={"prebuilt" if published else "build"}', result.stdout)
+                used = published and scheme == 'StruisPRGate'
+                self.assertEqual('scripts/ci/native_prebuilt.py apply' in calls, scheme == 'StruisPRGate')
+                self.assertEqual('NativeRuntime/Scripts/bootstrap.py' in calls, not used)
+                self.assertEqual('rustup toolchain install' in calls, not used)
+                self.assertIn(f'STRUIS_NATIVE_SOURCE source={"prebuilt" if used else "build"}', result.stdout)
                 # Test plans and build numbers are still prepared either way.
                 self.assertIn('scripts/ci/xcode_test_plan.py', calls)
                 self.assertIn('agvtool new-version', calls)

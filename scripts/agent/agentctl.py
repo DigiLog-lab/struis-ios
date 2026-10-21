@@ -293,8 +293,15 @@ def save_workspace(store, number, run):
 
 def restore_workspace(store, number, branch):
     record = store.get_json(session_key(number, 'workspace.json')) or {}
-    if delivery.enabled() and record.get('schema') == 2:
+    if record.get('schema') == checkpoints.SCHEMA:
+        if not delivery.enabled():
+            raise RuntimeError('Artifactのチェックポイントは門の方式でだけ復元できます。チェックポイントを保持して停止します。')
         return checkpoints.restore(store, number, branch, restore_session=automatic_retry())
+    if record.get('schema') is not None:
+        if record.get('empty') or not record.get('prefix'):
+            return
+        raise RuntimeError(f'未対応のチェックポイントの形式です(schema {record["schema"]})。チェックポイントを保持して停止します。')
+    # Pointers written before the artifact checkpoints (no schema) keep the R2 restore.
     if record.get('empty') or not record.get('prefix'):
         return
     if record['branch'] != branch:
@@ -785,7 +792,7 @@ def cmd_prepare(_args):
         # A new human instruction deliberately starts a new session/save series.
         pointer, etag = store.get_json_with_etag(session_key(number, 'workspace.json'))
         if pointer and pointer.get('closed'):
-            store.put_json(session_key(number, 'workspace.json'), {'schema': 2, 'empty': True}, if_match=etag)
+            store.put_json(session_key(number, 'workspace.json'), {'schema': checkpoints.SCHEMA, 'empty': True}, if_match=etag)
         write_output('derived_cache_prefix', 'agent-derived-v1-' + hashlib.sha256(branch.encode()).hexdigest()[:16] + '-')
         xcode_version = subprocess.check_output(['xcodebuild', '-version'], text=True)
         write_output('xcode_cache_id', hashlib.sha256(xcode_version.encode()).hexdigest()[:12])
@@ -1387,8 +1394,8 @@ def cmd_request_pr(args):
 def cmd_cloud_build(args):
     """Ask the Linux control job to start an Xcode Cloud build; the App Store Connect key stays there."""
     gh = GitHub()
-    dispatch(gh, 'xcode-cloud', {'workflow': args.workflow, 'branch': args.branch, 'issue': issue_number()})
-    print(f'Xcode Cloudの{args.workflow}({args.branch})の起動を依頼しました。開始と結果はLinuxのjobがIssueへ投稿します。')
+    dispatch(gh, 'xcode-cloud', {'workflow': args.workflow, 'branch': 'main', 'issue': issue_number()})
+    print(f'Xcode Cloudの{args.workflow}(main)の起動を依頼しました。開始と結果はLinuxのjobがIssueへ投稿します。')
 
 
 def cmd_attach(args):
@@ -1478,9 +1485,8 @@ def main():
     decision = commands.add_parser('decision', help='重要な設計判断を記録する')
     decision.add_argument('text')
     decision.set_defaults(func=cmd_decision)
-    cloud = commands.add_parser('cloud-build', help='Xcode CloudのRelease/PR Gateを頼まれた時だけ起動する')
+    cloud = commands.add_parser('cloud-build', help='mainのXcode CloudのRelease/PR Gateを頼まれた時だけ起動する')
     cloud.add_argument('workflow', choices=['release', 'pr-gate'])
-    cloud.add_argument('--branch', default='main')
     cloud.set_defaults(func=cmd_cloud_build)
     attach = commands.add_parser('attach', help='スクリーンショット等を返信へ添付する')
     attach.add_argument('path')
