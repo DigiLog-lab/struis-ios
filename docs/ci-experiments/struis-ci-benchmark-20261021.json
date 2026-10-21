@@ -1,0 +1,639 @@
+{
+  "schema_version": 1,
+  "source_repository": "DigiLog-lab/struis-ios",
+  "source_commit": "d3fe8a59acffe7fe21f87941e6f9863047813e8e",
+  "candidate_commit": "3442b0b8a6976d9fa4711e746df6ed5b44812008",
+  "environment": {
+    "runner": "xcode-27",
+    "cpus": 3,
+    "memory_bytes": 7516192768,
+    "xcode": "27.0 (27A266a)",
+    "simulator": "iPhone 17 / iOS 27.0"
+  },
+  "scope": "Five existing mock-model UI test methods; controlled reply tails and practice-ready fixture. No module extraction, dependency selection, archive, or full UI suite.",
+  "ui_comparison": {
+    "run_id": 39608652516,
+    "status": "success",
+    "order": [
+      "baseline",
+      "optimized",
+      "optimized",
+      "baseline"
+    ],
+    "comparison": "Same built binaries and Simulator within one job",
+    "run_url": "https://github.com/DigiLog-lab/struis-ios/actions/runs/39608652516",
+    "runs": [
+      {
+        "label": "injection-baseline",
+        "variant": "baseline",
+        "exitCode": 0,
+        "wallSeconds": 90.87319791599998
+      },
+      {
+        "label": "injection-optimized",
+        "variant": "optimized",
+        "exitCode": 0,
+        "wallSeconds": 25.779802708000034
+      },
+      {
+        "label": "unit",
+        "variant": "baseline",
+        "exitCode": 0,
+        "wallSeconds": 86.64495858300006
+      },
+      {
+        "label": "1-baseline",
+        "variant": "baseline",
+        "exitCode": 0,
+        "wallSeconds": 387.4957802079998
+      },
+      {
+        "label": "2-optimized",
+        "variant": "optimized",
+        "exitCode": 0,
+        "wallSeconds": 243.177123167
+      },
+      {
+        "label": "3-optimized",
+        "variant": "optimized",
+        "exitCode": 0,
+        "wallSeconds": 248.22776883300025
+      },
+      {
+        "label": "4-baseline",
+        "variant": "baseline",
+        "exitCode": 0,
+        "wallSeconds": 344.89741925
+      }
+    ],
+    "test_runs": [
+      {
+        "pass": "1-baseline",
+        "test": "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+        "status": "passed",
+        "seconds": 78.484
+      },
+      {
+        "pass": "1-baseline",
+        "test": "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+        "status": "passed",
+        "seconds": 71.587
+      },
+      {
+        "pass": "1-baseline",
+        "test": "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+        "status": "passed",
+        "seconds": 71.392
+      },
+      {
+        "pass": "1-baseline",
+        "test": "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+        "status": "passed",
+        "seconds": 78.944
+      },
+      {
+        "pass": "1-baseline",
+        "test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+        "status": "passed",
+        "seconds": 64.392
+      },
+      {
+        "pass": "2-optimized",
+        "test": "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+        "status": "passed",
+        "seconds": 36.172
+      },
+      {
+        "pass": "2-optimized",
+        "test": "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+        "status": "passed",
+        "seconds": 33.004
+      },
+      {
+        "pass": "2-optimized",
+        "test": "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+        "status": "passed",
+        "seconds": 43.058
+      },
+      {
+        "pass": "2-optimized",
+        "test": "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+        "status": "passed",
+        "seconds": 61.3
+      },
+      {
+        "pass": "2-optimized",
+        "test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+        "status": "passed",
+        "seconds": 51.126
+      },
+      {
+        "pass": "3-optimized",
+        "test": "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+        "status": "passed",
+        "seconds": 38.692
+      },
+      {
+        "pass": "3-optimized",
+        "test": "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+        "status": "passed",
+        "seconds": 30.315
+      },
+      {
+        "pass": "3-optimized",
+        "test": "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+        "status": "passed",
+        "seconds": 48.161
+      },
+      {
+        "pass": "3-optimized",
+        "test": "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+        "status": "passed",
+        "seconds": 60.427
+      },
+      {
+        "pass": "3-optimized",
+        "test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+        "status": "passed",
+        "seconds": 52.929
+      },
+      {
+        "pass": "4-baseline",
+        "test": "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+        "status": "passed",
+        "seconds": 65.325
+      },
+      {
+        "pass": "4-baseline",
+        "test": "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+        "status": "passed",
+        "seconds": 61.531
+      },
+      {
+        "pass": "4-baseline",
+        "test": "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+        "status": "passed",
+        "seconds": 58.81
+      },
+      {
+        "pass": "4-baseline",
+        "test": "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+        "status": "passed",
+        "seconds": 72.756
+      },
+      {
+        "pass": "4-baseline",
+        "test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+        "status": "passed",
+        "seconds": 69.066
+      }
+    ],
+    "per_test": [
+      {
+        "test": "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+        "baselineSeconds": [
+          78.484,
+          65.325
+        ],
+        "optimizedSeconds": [
+          36.172,
+          38.692
+        ],
+        "baselineMeanSeconds": 71.9045,
+        "optimizedMeanSeconds": 37.432,
+        "savedSeconds": 34.4725,
+        "reductionPercent": 47.94206204062333
+      },
+      {
+        "test": "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+        "baselineSeconds": [
+          71.587,
+          61.531
+        ],
+        "optimizedSeconds": [
+          33.004,
+          30.315
+        ],
+        "baselineMeanSeconds": 66.559,
+        "optimizedMeanSeconds": 31.6595,
+        "savedSeconds": 34.899499999999996,
+        "reductionPercent": 52.433930798239146
+      },
+      {
+        "test": "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+        "baselineSeconds": [
+          71.392,
+          58.81
+        ],
+        "optimizedSeconds": [
+          43.058,
+          48.161
+        ],
+        "baselineMeanSeconds": 65.101,
+        "optimizedMeanSeconds": 45.6095,
+        "savedSeconds": 19.491500000000002,
+        "reductionPercent": 29.940400301070646
+      },
+      {
+        "test": "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+        "baselineSeconds": [
+          78.944,
+          72.756
+        ],
+        "optimizedSeconds": [
+          61.3,
+          60.427
+        ],
+        "baselineMeanSeconds": 75.85,
+        "optimizedMeanSeconds": 60.8635,
+        "savedSeconds": 14.986499999999992,
+        "reductionPercent": 19.758075148319044
+      },
+      {
+        "test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+        "baselineSeconds": [
+          64.392,
+          69.066
+        ],
+        "optimizedSeconds": [
+          51.126,
+          52.929
+        ],
+        "baselineMeanSeconds": 66.729,
+        "optimizedMeanSeconds": 52.0275,
+        "savedSeconds": 14.701499999999996,
+        "reductionPercent": 22.031650406869574
+      }
+    ],
+    "aggregates": {
+      "baseline": {
+        "wallSeconds": [
+          387.4957802079998,
+          344.89741925
+        ],
+        "meanWallSeconds": 366.1965997289999,
+        "meanTestBodySeconds": 346.14349999999996
+      },
+      "optimized": {
+        "wallSeconds": [
+          243.177123167,
+          248.22776883300025
+        ],
+        "meanWallSeconds": 245.70244600000012,
+        "meanTestBodySeconds": 227.592
+      }
+    },
+    "wallSavedSeconds": 120.49415372899978,
+    "wallReductionPercent": 32.904225167074266,
+    "validation": {
+      "1-baseline-summary.json": {
+        "total": 5,
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0,
+        "result": "Passed"
+      },
+      "2-optimized-summary.json": {
+        "total": 5,
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0,
+        "result": "Passed"
+      },
+      "3-optimized-summary.json": {
+        "total": 5,
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0,
+        "result": "Passed"
+      },
+      "4-baseline-summary.json": {
+        "total": 5,
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0,
+        "result": "Passed"
+      },
+      "injection-baseline-summary.json": {
+        "total": 1,
+        "passed": 1,
+        "skipped": 0,
+        "failed": 0,
+        "result": "Passed"
+      },
+      "injection-optimized-summary.json": {
+        "total": 1,
+        "passed": 1,
+        "skipped": 0,
+        "failed": 0,
+        "result": "Passed"
+      },
+      "unit-summary.json": {
+        "total": 398,
+        "passed": 369,
+        "skipped": 29,
+        "failed": 0,
+        "result": "Passed"
+      }
+    }
+  },
+  "startup_comparison": {
+    "run_id": 39605645127,
+    "trials_per_mode": 1,
+    "sequential": {
+      "mode": "sequential",
+      "commit": "10add3a89ee2a2371baa7eb1d6b2f882661c00ae",
+      "completedAt": "2026-10-21T13:22:52.244843+00:00",
+      "wallSeconds": 702.0894215,
+      "error": null,
+      "stages": [
+        {
+          "label": "build",
+          "startedOffset": 0.00003204099994036369,
+          "wallSeconds": 301.56069079200006,
+          "exitCode": 0
+        },
+        {
+          "label": "list-devices",
+          "startedOffset": 301.57090804099994,
+          "wallSeconds": 1.8159764170000017,
+          "exitCode": 0
+        },
+        {
+          "label": "boot-request",
+          "startedOffset": 303.388665833,
+          "wallSeconds": 4.309198624999908,
+          "exitCode": 0
+        },
+        {
+          "label": "boot-status",
+          "startedOffset": 307.69961083299995,
+          "wallSeconds": 80.91864791700004,
+          "exitCode": 0
+        },
+        {
+          "label": "bundle-id",
+          "startedOffset": 388.8777138749999,
+          "wallSeconds": 0.8361926249999669,
+          "exitCode": 0
+        },
+        {
+          "label": "install",
+          "startedOffset": 389.71434216599994,
+          "wallSeconds": 181.78052716699995,
+          "exitCode": 0
+        },
+        {
+          "label": "launch",
+          "startedOffset": 571.742593458,
+          "wallSeconds": 76.59425566699997,
+          "exitCode": 0
+        },
+        {
+          "label": "container",
+          "startedOffset": 651.0629317079998,
+          "wallSeconds": 35.63743408300002,
+          "exitCode": 0
+        },
+        {
+          "label": "wait-ready",
+          "wallSeconds": 5.273126250000132,
+          "exitCode": 0
+        },
+        {
+          "label": "terminate",
+          "startedOffset": 692.1344137909999,
+          "wallSeconds": 9.945275834000086,
+          "exitCode": 0
+        }
+      ]
+    },
+    "overlap": {
+      "mode": "overlap",
+      "commit": "10add3a89ee2a2371baa7eb1d6b2f882661c00ae",
+      "completedAt": "2026-10-21T13:26:31.375697+00:00",
+      "wallSeconds": 941.121330333,
+      "error": null,
+      "stages": [
+        {
+          "label": "list-devices",
+          "startedOffset": 0.00013383300000668896,
+          "wallSeconds": 3.625121792000016,
+          "exitCode": 0
+        },
+        {
+          "label": "boot-request",
+          "startedOffset": 3.6261987500000146,
+          "wallSeconds": 18.71187925000001,
+          "exitCode": 0
+        },
+        {
+          "label": "boot-status",
+          "startedOffset": 22.867730916000028,
+          "wallSeconds": 123.03080474999996,
+          "exitCode": 0
+        },
+        {
+          "label": "build",
+          "startedOffset": 0.0002446660000146039,
+          "wallSeconds": 895.557515209,
+          "exitCode": 0
+        },
+        {
+          "label": "bundle-id",
+          "startedOffset": 895.58746775,
+          "wallSeconds": 0.031179208000139624,
+          "exitCode": 0
+        },
+        {
+          "label": "install",
+          "startedOffset": 895.6195826249999,
+          "wallSeconds": 26.685562833000176,
+          "exitCode": 0
+        },
+        {
+          "label": "launch",
+          "startedOffset": 922.4679434579999,
+          "wallSeconds": 7.004048667000006,
+          "exitCode": 0
+        },
+        {
+          "label": "container",
+          "startedOffset": 929.472638583,
+          "wallSeconds": 3.981866249999939,
+          "exitCode": 0
+        },
+        {
+          "label": "wait-ready",
+          "wallSeconds": 6.307193165999934,
+          "exitCode": 0
+        },
+        {
+          "label": "terminate",
+          "startedOffset": 939.8136261660001,
+          "wallSeconds": 1.0973955419999584,
+          "exitCode": 0
+        }
+      ]
+    }
+  },
+  "excluded_attempts": [
+    {
+      "run_id": 39601749381,
+      "status": "cancelled",
+      "reason": "Variant was passed as a build setting instead of a TEST_RUNNER environment variable; no valid A/B mode comparison. Cancellation was also based on stale live-page output."
+    },
+    {
+      "run_id": 39605197208,
+      "status": "failure",
+      "reason": "Experimental gate incorrectly paused setup replies, preventing the introduction's advance button from enabling. The four other UI methods passed twice in each mode; these are exploratory observations, not the primary final result.",
+      "ui_runs": [
+        {
+          "pass": "1-baseline",
+          "test": "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "status": "passed",
+          "seconds": 68.398
+        },
+        {
+          "pass": "1-baseline",
+          "test": "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "status": "passed",
+          "seconds": 63.318
+        },
+        {
+          "pass": "1-baseline",
+          "test": "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+          "status": "passed",
+          "seconds": 49.436
+        },
+        {
+          "pass": "1-baseline",
+          "test": "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+          "status": "passed",
+          "seconds": 64.639
+        },
+        {
+          "pass": "1-baseline",
+          "test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+          "status": "passed",
+          "seconds": 57.77
+        },
+        {
+          "pass": "2-optimized",
+          "test": "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "status": "failed",
+          "seconds": 51.541
+        },
+        {
+          "pass": "2-optimized",
+          "test": "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "status": "passed",
+          "seconds": 24.757
+        },
+        {
+          "pass": "2-optimized",
+          "test": "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+          "status": "passed",
+          "seconds": 35.449
+        },
+        {
+          "pass": "2-optimized",
+          "test": "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+          "status": "passed",
+          "seconds": 50.263
+        },
+        {
+          "pass": "2-optimized",
+          "test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+          "status": "passed",
+          "seconds": 43.439
+        },
+        {
+          "pass": "3-optimized",
+          "test": "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "status": "failed",
+          "seconds": 48.568
+        },
+        {
+          "pass": "3-optimized",
+          "test": "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "status": "passed",
+          "seconds": 24.016
+        },
+        {
+          "pass": "3-optimized",
+          "test": "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+          "status": "passed",
+          "seconds": 37.308
+        },
+        {
+          "pass": "3-optimized",
+          "test": "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+          "status": "passed",
+          "seconds": 53.817
+        },
+        {
+          "pass": "3-optimized",
+          "test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+          "status": "passed",
+          "seconds": 47.023
+        },
+        {
+          "pass": "4-baseline",
+          "test": "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "status": "passed",
+          "seconds": 56.104
+        },
+        {
+          "pass": "4-baseline",
+          "test": "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "status": "passed",
+          "seconds": 58.429
+        },
+        {
+          "pass": "4-baseline",
+          "test": "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+          "status": "passed",
+          "seconds": 51.551
+        },
+        {
+          "pass": "4-baseline",
+          "test": "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+          "status": "passed",
+          "seconds": 69.382
+        },
+        {
+          "pass": "4-baseline",
+          "test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+          "status": "passed",
+          "seconds": 61.563
+        }
+      ]
+    }
+  ],
+  "changes": [
+    "Control reply-tail completion explicitly instead of wall-clock delays",
+    "Create practice-ready state through real WorkbookMachine operations",
+    "Keep original assertions after setup",
+    "Verify baseline/optimized environment injection before comparing"
+  ],
+  "common_setup": {
+    "buildSeconds": 199,
+    "buildAndSimulatorWarmStepSeconds": 515,
+    "unitCommandSeconds": 86.64495858300006
+  },
+  "artifact": {
+    "id": 12351806834,
+    "expires_at": "2026-10-28T14:03:51Z",
+    "sha256": "35f0d69f032f7eb4ecd2f951b40e4cb0ec0022f797a283f0ed9f30acf39f337f"
+  },
+  "limitations": [
+    "Two repetitions per UI mode in one job; not a statistical reliability study.",
+    "All five mock UI methods passed; full UI suite and real model/device integration were not measured.",
+    "Dependency graph, module extraction and success-result reuse were not implemented.",
+    "Startup matrix has one trial per mode on different VMs; slowdown cause is not established.",
+    "Unit suite includes 29 skips; no claim that skipped integrations passed.",
+    "Experimental injection probes require a configured variant and are not ready for a normal full-suite merge."
+  ],
+  "recorded_at": "2026-10-21T14:07:11.511Z"
+}
