@@ -31,14 +31,14 @@ jobs:
           key.write_text(os.environ['PRIVATE_KEY'].replace('\r', '').strip() + '\n')
           PY
       - name: Xcode CloudとTestFlightの状態を読む(ビルドは起動しない)
-        run: python3 scripts/ci/asc_read.py "$RUNNER_TEMP/asc"
+        run: python3 scripts/ci/asc_fetch.py "$RUNNER_TEMP/asc"
       - name: Appleキーを削除
         if: always()
         run: rm -f "$APP_STORE_CONNECT_KEY_PATH"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: asc-read
+          name: asc-fetch
           path: ${{ runner.temp }}/asc
           retention-days: 3
           if-no-files-found: ignore
