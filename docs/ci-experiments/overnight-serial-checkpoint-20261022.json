@@ -1,0 +1,3988 @@
+{
+  "recordedAt": "2026-10-21T18:11:41.084Z",
+  "status": "partial: six successful serial jobs; one parallel clone failure; last parallel trial still active",
+  "runId": 39630297628,
+  "sourceCommit": "d3fe8a59acffe7fe21f87941e6f9863047813e8e",
+  "benchmarkCommit": "4f0f0c7944ce040ab2ddaae4d917d3ab9e839b45",
+  "aggregates": [
+    {
+      "config": "baseline",
+      "jobMean": 2648,
+      "uiMean": 1804.5629933330001,
+      "warmMean": 635.5,
+      "buildMean": 264
+    },
+    {
+      "config": "optimized",
+      "jobMean": 2402,
+      "uiMean": 1675.4134040415001,
+      "warmMean": 528.5,
+      "buildMean": 205
+    },
+    {
+      "config": "optimized-mock-warm",
+      "jobMean": 2210.5,
+      "uiMean": 1532.0240420835003,
+      "warmMean": 505,
+      "buildMean": 190
+    }
+  ],
+  "trials": [
+    {
+      "measurement": {
+        "sourceCommit": "d3fe8a59acffe7fe21f87941e6f9863047813e8e",
+        "commit": "4f0f0c7944ce040ab2ddaae4d917d3ab9e839b45",
+        "configuration": "baseline",
+        "repetition": "1",
+        "variant": "baseline",
+        "workers": 1,
+        "runs": [
+          {
+            "label": "injection",
+            "wallSeconds": 67.69591925000009,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 1,
+              "passedTests": 1,
+              "skippedTests": 0,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          },
+          {
+            "label": "unit",
+            "wallSeconds": 84.4718604589998,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 398,
+              "passedTests": 369,
+              "skippedTests": 29,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          },
+          {
+            "label": "ui",
+            "wallSeconds": 2000.634941708,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 56,
+              "passedTests": 45,
+              "skippedTests": 11,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          }
+        ],
+        "scope": "All existing gate-eligible UI methods, plus all unit tests. No changed-file skipping in executions."
+      },
+      "cases": [
+        {
+          "test": "ChatCameraUITests/testCameraAndChatPreservation",
+          "seconds": 101.22745299339294,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatCameraUITests/testCameraRotationAndReopening",
+          "seconds": 69.60373997688293,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing",
+          "seconds": 31.764739990234375,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment",
+          "seconds": 27.773630023002625,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch",
+          "seconds": 45.474475026130676,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend",
+          "seconds": 0.5808899402618408,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - 実機の撮影・本番送信を明示的に許可した検証でのみ実行"
+          ]
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts",
+          "seconds": 72.39181196689606,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation",
+          "seconds": 49.995002031326294,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger",
+          "seconds": 25.743877053260803,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation",
+          "seconds": 19.363214015960693,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways",
+          "seconds": 37.19444489479065,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives",
+          "seconds": 39.14116597175598,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatTypingExperienceUITests/testJapaneseCandidateSelection",
+          "seconds": 0.37311291694641113,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped"
+          ]
+        },
+        {
+          "test": "ChatTypingExperienceUITests/testJapaneseMultilineAndSend",
+          "seconds": 0.12277400493621826,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - ローカル検証サーバーを使う入力UIテスト"
+          ]
+        },
+        {
+          "test": "ConversationExportUITests/testCopyConversation",
+          "seconds": 27.572674036026,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "DeviceChatUITests/testInterruptWithRealCodex",
+          "seconds": 0.18034601211547852,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceChatUITests/testQuestionTurnWithMockModel",
+          "seconds": 26.475257992744446,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "DeviceChatUITests/testQuestionTurnWithRealCodex",
+          "seconds": 0.18484508991241455,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex",
+          "seconds": 0.1733030080795288,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff",
+          "seconds": 18.245944023132324,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts",
+          "seconds": 24.41526198387146,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice",
+          "seconds": 34.63438904285431,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex",
+          "seconds": 0.15303397178649902,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "E2EDriverUITests/testDrive",
+          "seconds": 0.1360759735107422,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - 検証専用の操作代行ランナー(STRUIS_E2E_DRIVER_DIR が無いときは動かさない)"
+          ]
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
+          "seconds": 27.195995926856995,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
+          "seconds": 19.04413104057312,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes",
+          "seconds": 32.881587982177734,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording",
+          "seconds": 67.89217805862427,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult",
+          "seconds": 54.361234068870544,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration",
+          "seconds": 41.0426299571991,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "LearningProgressUITests/testInspectActualReplyProgress",
+          "seconds": 0.13464796543121338,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - 実バックエンドURL・検証用認証・対象返信IDが必要です"
+          ]
+        },
+        {
+          "test": "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply",
+          "seconds": 0.13621604442596436,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - STRUIS_E2E_ACCESS_TOKEN is required for the deployed-backend E2E"
+          ]
+        },
+        {
+          "test": "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "seconds": 55.36630403995514,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex",
+          "seconds": 0.1902529001235962,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "seconds": 65.90998303890228,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "UnitDeletionUITests/testLargeTextConfirmationAndCancel",
+          "seconds": 24.05119800567627,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState",
+          "seconds": 28.635193943977356,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned",
+          "seconds": 22.349637985229492,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately",
+          "seconds": 46.15496206283569,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton",
+          "seconds": 15.472591996192932,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze",
+          "seconds": 221.7645080089569,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain",
+          "seconds": 67.06663393974304,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+          "seconds": 57.88155198097229,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+          "seconds": 81.93378806114197,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+          "seconds": 72.90116202831268,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap",
+          "seconds": 30.426656007766724,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle",
+          "seconds": 17.53008198738098,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation",
+          "seconds": 13.977710008621216,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply",
+          "seconds": 31.15594792366028,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady",
+          "seconds": 29.098497986793518,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance",
+          "seconds": 43.44623303413391,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar",
+          "seconds": 22.830065965652466,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched",
+          "seconds": 13.771432995796204,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "striusUITests/testExample",
+          "seconds": 10.707754015922546,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "striusUITests/testHorizontalSwipesKeepTheSingleChatPage",
+          "seconds": 17.4478520154953,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "striusUITestsLaunchTests/testLaunch",
+          "seconds": 11.02070528268814,
+          "result": "Passed",
+          "skipReasons": []
+        }
+      ],
+      "buildSeconds": 291,
+      "missingUI": [],
+      "selection": {
+        "allDiscovered": [
+          "ChatCameraUITests/testCameraAndChatPreservation",
+          "ChatCameraUITests/testCameraRotationAndReopening",
+          "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing",
+          "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment",
+          "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch",
+          "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend",
+          "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts",
+          "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation",
+          "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger",
+          "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation",
+          "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways",
+          "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives",
+          "ChatTypingExperienceUITests/testJapaneseCandidateSelection",
+          "ChatTypingExperienceUITests/testJapaneseMultilineAndSend",
+          "ConversationExportUITests/testCopyConversation",
+          "DeviceChatUITests/testInterruptWithRealCodex",
+          "DeviceChatUITests/testQuestionTurnWithMockModel",
+          "DeviceChatUITests/testQuestionTurnWithRealCodex",
+          "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex",
+          "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff",
+          "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts",
+          "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice",
+          "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex",
+          "E2EDriverUITests/testDrive",
+          "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
+          "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
+          "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes",
+          "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording",
+          "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult",
+          "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration",
+          "LearningProgressUITests/testInspectActualReplyProgress",
+          "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply",
+          "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex",
+          "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "UnitDeletionUITests/testLargeTextConfirmationAndCancel",
+          "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState",
+          "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned",
+          "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately",
+          "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton",
+          "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze",
+          "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain",
+          "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+          "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+          "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+          "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap",
+          "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle",
+          "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation",
+          "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply",
+          "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady",
+          "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance",
+          "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar",
+          "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched",
+          "striusUITests/testExample",
+          "striusUITests/testHorizontalSwipesKeepTheSingleChatPage",
+          "striusUITests/testLaunchPerformance",
+          "striusUITestsLaunchTests/testLaunch"
+        ],
+        "selected": [
+          "ChatCameraUITests/testCameraAndChatPreservation",
+          "ChatCameraUITests/testCameraRotationAndReopening",
+          "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing",
+          "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment",
+          "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch",
+          "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend",
+          "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts",
+          "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation",
+          "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger",
+          "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation",
+          "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways",
+          "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives",
+          "ChatTypingExperienceUITests/testJapaneseCandidateSelection",
+          "ChatTypingExperienceUITests/testJapaneseMultilineAndSend",
+          "ConversationExportUITests/testCopyConversation",
+          "DeviceChatUITests/testInterruptWithRealCodex",
+          "DeviceChatUITests/testQuestionTurnWithMockModel",
+          "DeviceChatUITests/testQuestionTurnWithRealCodex",
+          "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex",
+          "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff",
+          "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts",
+          "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice",
+          "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex",
+          "E2EDriverUITests/testDrive",
+          "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
+          "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
+          "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes",
+          "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording",
+          "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult",
+          "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration",
+          "LearningProgressUITests/testInspectActualReplyProgress",
+          "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply",
+          "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex",
+          "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "UnitDeletionUITests/testLargeTextConfirmationAndCancel",
+          "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState",
+          "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned",
+          "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately",
+          "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton",
+          "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze",
+          "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain",
+          "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+          "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+          "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+          "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap",
+          "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle",
+          "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation",
+          "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply",
+          "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady",
+          "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance",
+          "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar",
+          "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched",
+          "striusUITests/testExample",
+          "striusUITests/testHorizontalSwipesKeepTheSingleChatPage",
+          "striusUITestsLaunchTests/testLaunch"
+        ],
+        "excluded": [
+          {
+            "test": "striusUITests/testLaunchPerformance",
+            "reason": "起動時間を測る性能テスト。門ではUIテストを並列に流すので値が意味を持たない。直列で流すReleaseと手元検証で実行する。",
+            "source": "striusUITests/striusUITests.swift"
+          }
+        ],
+        "experimentalProbes": "Run separately; only the probe matching the configured mode."
+      },
+      "job": {
+        "id": 119326515536,
+        "name": "baseline / repeat 1",
+        "conclusion": "success",
+        "wallSeconds": 2950,
+        "buildWarmSeconds": 719,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 3
+          },
+          {
+            "name": "Record environment",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 4
+          },
+          {
+            "name": "Run actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Restore identical native inputs",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 23
+          },
+          {
+            "name": "Use published native outputs on cache miss",
+            "status": "completed",
+            "conclusion": "skipped",
+            "seconds": 0
+          },
+          {
+            "name": "Build once and warm Simulator",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 719
+          },
+          {
+            "name": "Unit and all gate-eligible UI measurements",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 2165
+          },
+          {
+            "name": "Memory after experiment",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Save raw measurements and results",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 5
+          },
+          {
+            "name": "Post Run actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 16
+          }
+        ]
+      }
+    },
+    {
+      "measurement": {
+        "sourceCommit": "d3fe8a59acffe7fe21f87941e6f9863047813e8e",
+        "commit": "4f0f0c7944ce040ab2ddaae4d917d3ab9e839b45",
+        "configuration": "baseline",
+        "repetition": "2",
+        "variant": "baseline",
+        "workers": 1,
+        "runs": [
+          {
+            "label": "injection",
+            "wallSeconds": 44.20075991700014,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 1,
+              "passedTests": 1,
+              "skippedTests": 0,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          },
+          {
+            "label": "unit",
+            "wallSeconds": 82.17843870799993,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 398,
+              "passedTests": 369,
+              "skippedTests": 29,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          },
+          {
+            "label": "ui",
+            "wallSeconds": 1608.491044958,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 56,
+              "passedTests": 45,
+              "skippedTests": 11,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          }
+        ],
+        "scope": "All existing gate-eligible UI methods, plus all unit tests. No changed-file skipping in executions."
+      },
+      "cases": [
+        {
+          "test": "ChatCameraUITests/testCameraAndChatPreservation",
+          "seconds": 135.33532297611237,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatCameraUITests/testCameraRotationAndReopening",
+          "seconds": 71.64236795902252,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing",
+          "seconds": 23.83768606185913,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment",
+          "seconds": 22.018792033195496,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch",
+          "seconds": 38.597419023513794,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend",
+          "seconds": 0.1504729986190796,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - 実機の撮影・本番送信を明示的に許可した検証でのみ実行"
+          ]
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts",
+          "seconds": 63.03363800048828,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation",
+          "seconds": 33.80535101890564,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger",
+          "seconds": 21.65537989139557,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation",
+          "seconds": 13.958369016647339,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways",
+          "seconds": 26.579216957092285,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives",
+          "seconds": 33.145461082458496,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ChatTypingExperienceUITests/testJapaneseCandidateSelection",
+          "seconds": 0.10378098487854004,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped"
+          ]
+        },
+        {
+          "test": "ChatTypingExperienceUITests/testJapaneseMultilineAndSend",
+          "seconds": 0.09286201000213623,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - ローカル検証サーバーを使う入力UIテスト"
+          ]
+        },
+        {
+          "test": "ConversationExportUITests/testCopyConversation",
+          "seconds": 19.626535058021545,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "DeviceChatUITests/testInterruptWithRealCodex",
+          "seconds": 0.09438800811767578,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceChatUITests/testQuestionTurnWithMockModel",
+          "seconds": 19.024686098098755,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "DeviceChatUITests/testQuestionTurnWithRealCodex",
+          "seconds": 0.10736298561096191,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex",
+          "seconds": 0.09171009063720703,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff",
+          "seconds": 10.615560054779053,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts",
+          "seconds": 14.655825018882751,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice",
+          "seconds": 27.085458040237427,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex",
+          "seconds": 0.09279894828796387,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "E2EDriverUITests/testDrive",
+          "seconds": 0.09147906303405762,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - 検証専用の操作代行ランナー(STRUIS_E2E_DRIVER_DIR が無いときは動かさない)"
+          ]
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
+          "seconds": 17.1875159740448,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
+          "seconds": 11.903522968292236,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes",
+          "seconds": 20.491590976715088,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording",
+          "seconds": 55.24088001251221,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult",
+          "seconds": 42.29795002937317,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration",
+          "seconds": 31.217422008514404,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "LearningProgressUITests/testInspectActualReplyProgress",
+          "seconds": 0.09664702415466309,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - 実バックエンドURL・検証用認証・対象返信IDが必要です"
+          ]
+        },
+        {
+          "test": "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply",
+          "seconds": 0.08429098129272461,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - STRUIS_E2E_ACCESS_TOKEN is required for the deployed-backend E2E"
+          ]
+        },
+        {
+          "test": "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "seconds": 48.33184802532196,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex",
+          "seconds": 0.11222100257873535,
+          "result": "Skipped",
+          "skipReasons": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "seconds": 58.657737016677856,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "UnitDeletionUITests/testLargeTextConfirmationAndCancel",
+          "seconds": 14.809405088424683,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState",
+          "seconds": 20.016191959381104,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned",
+          "seconds": 15.416459083557129,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately",
+          "seconds": 36.61791706085205,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton",
+          "seconds": 9.927267909049988,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze",
+          "seconds": 189.81808400154114,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain",
+          "seconds": 60.3575119972229,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+          "seconds": 46.865005016326904,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+          "seconds": 62.300045013427734,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+          "seconds": 55.92850303649902,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap",
+          "seconds": 22.362411975860596,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle",
+          "seconds": 11.795025944709778,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation",
+          "seconds": 10.348989009857178,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply",
+          "seconds": 28.543656945228577,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady",
+          "seconds": 23.848339080810547,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance",
+          "seconds": 39.174694895744324,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar",
+          "seconds": 18.22589898109436,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched",
+          "seconds": 8.46726906299591,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "striusUITests/testExample",
+          "seconds": 6.795240998268127,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "striusUITests/testHorizontalSwipesKeepTheSingleChatPage",
+          "seconds": 13.427567958831787,
+          "result": "Passed",
+          "skipReasons": []
+        },
+        {
+          "test": "striusUITestsLaunchTests/testLaunch",
+          "seconds": 9.22671627998352,
+          "result": "Passed",
+          "skipReasons": []
+        }
+      ],
+      "buildSeconds": 237,
+      "missingUI": [],
+      "selection": {
+        "allDiscovered": [
+          "ChatCameraUITests/testCameraAndChatPreservation",
+          "ChatCameraUITests/testCameraRotationAndReopening",
+          "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing",
+          "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment",
+          "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch",
+          "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend",
+          "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts",
+          "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation",
+          "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger",
+          "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation",
+          "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways",
+          "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives",
+          "ChatTypingExperienceUITests/testJapaneseCandidateSelection",
+          "ChatTypingExperienceUITests/testJapaneseMultilineAndSend",
+          "ConversationExportUITests/testCopyConversation",
+          "DeviceChatUITests/testInterruptWithRealCodex",
+          "DeviceChatUITests/testQuestionTurnWithMockModel",
+          "DeviceChatUITests/testQuestionTurnWithRealCodex",
+          "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex",
+          "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff",
+          "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts",
+          "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice",
+          "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex",
+          "E2EDriverUITests/testDrive",
+          "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
+          "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
+          "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes",
+          "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording",
+          "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult",
+          "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration",
+          "LearningProgressUITests/testInspectActualReplyProgress",
+          "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply",
+          "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex",
+          "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "UnitDeletionUITests/testLargeTextConfirmationAndCancel",
+          "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState",
+          "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned",
+          "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately",
+          "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton",
+          "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze",
+          "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain",
+          "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+          "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+          "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+          "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap",
+          "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle",
+          "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation",
+          "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply",
+          "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady",
+          "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance",
+          "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar",
+          "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched",
+          "striusUITests/testExample",
+          "striusUITests/testHorizontalSwipesKeepTheSingleChatPage",
+          "striusUITests/testLaunchPerformance",
+          "striusUITestsLaunchTests/testLaunch"
+        ],
+        "selected": [
+          "ChatCameraUITests/testCameraAndChatPreservation",
+          "ChatCameraUITests/testCameraRotationAndReopening",
+          "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing",
+          "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment",
+          "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch",
+          "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend",
+          "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts",
+          "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation",
+          "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger",
+          "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation",
+          "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways",
+          "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives",
+          "ChatTypingExperienceUITests/testJapaneseCandidateSelection",
+          "ChatTypingExperienceUITests/testJapaneseMultilineAndSend",
+          "ConversationExportUITests/testCopyConversation",
+          "DeviceChatUITests/testInterruptWithRealCodex",
+          "DeviceChatUITests/testQuestionTurnWithMockModel",
+          "DeviceChatUITests/testQuestionTurnWithRealCodex",
+          "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex",
+          "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff",
+          "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts",
+          "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice",
+          "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex",
+          "E2EDriverUITests/testDrive",
+          "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
+          "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
+          "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes",
+          "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording",
+          "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult",
+          "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration",
+          "LearningProgressUITests/testInspectActualReplyProgress",
+          "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply",
+          "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex",
+          "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "UnitDeletionUITests/testLargeTextConfirmationAndCancel",
+          "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState",
+          "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned",
+          "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately",
+          "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton",
+          "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze",
+          "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain",
+          "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+          "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+          "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+          "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap",
+          "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle",
+          "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation",
+          "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply",
+          "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady",
+          "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance",
+          "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar",
+          "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched",
+          "striusUITests/testExample",
+          "striusUITests/testHorizontalSwipesKeepTheSingleChatPage",
+          "striusUITestsLaunchTests/testLaunch"
+        ],
+        "excluded": [
+          {
+            "test": "striusUITests/testLaunchPerformance",
+            "reason": "起動時間を測る性能テスト。門ではUIテストを並列に流すので値が意味を持たない。直列で流すReleaseと手元検証で実行する。",
+            "source": "striusUITests/striusUITests.swift"
+          }
+        ],
+        "experimentalProbes": "Run separately; only the probe matching the configured mode."
+      },
+      "job": {
+        "id": 119326515734,
+        "name": "baseline / repeat 2",
+        "conclusion": "success",
+        "wallSeconds": 2346,
+        "buildWarmSeconds": 552,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 4
+          },
+          {
+            "name": "Record environment",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 2
+          },
+          {
+            "name": "Run actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Restore identical native inputs",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 19
+          },
+          {
+            "name": "Use published native outputs on cache miss",
+            "status": "completed",
+            "conclusion": "skipped",
+            "seconds": 0
+          },
+          {
+            "name": "Build once and warm Simulator",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 552
+          },
+          {
+            "name": "Unit and all gate-eligible UI measurements",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1751
+          },
+          {
+            "name": "Memory after experiment",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Save raw measurements and results",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 4
+          },
+          {
+            "name": "Post Run actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 7
+          }
+        ]
+      }
+    },
+    {
+      "measurement": {
+        "sourceCommit": "d3fe8a59acffe7fe21f87941e6f9863047813e8e",
+        "commit": "4f0f0c7944ce040ab2ddaae4d917d3ab9e839b45",
+        "configuration": "optimized",
+        "repetition": "1",
+        "variant": "optimized",
+        "workers": 1,
+        "runs": [
+          {
+            "label": "injection",
+            "wallSeconds": 47.82527325000001,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 1,
+              "passedTests": 1,
+              "skippedTests": 0,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          },
+          {
+            "label": "unit",
+            "wallSeconds": 86.77756766699997,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 398,
+              "passedTests": 369,
+              "skippedTests": 29,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          },
+          {
+            "label": "ui",
+            "wallSeconds": 1805.1738123330001,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 56,
+              "passedTests": 45,
+              "skippedTests": 11,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          }
+        ],
+        "scope": "All existing gate-eligible UI methods, plus all unit tests. No changed-file skipping in executions."
+      },
+      "uiSummary": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "600763F8-8897-4A4F-A868-CCF58B170346",
+              "deviceName": "iPhone 17",
+              "modelName": "iPhone 17",
+              "osBuildNumber": "24A434",
+              "osVersion": "27.0",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 48,
+            "skippedTests": 11,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "strius · Built with macOS 27.0.1",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792603201.149,
+        "passedTests": 45,
+        "result": "Passed",
+        "runtimeWarnings": [],
+        "skippedTests": 11,
+        "startTime": 1792601438.981,
+        "statistics": [
+          {
+            "subtitle": "4 test runs",
+            "title": "1 test ran with dynamic parameters"
+          }
+        ],
+        "testFailures": [],
+        "title": "Test - strius",
+        "topInsights": [
+          {
+            "category": "Longest Test Runs",
+            "impact": "12% of duration",
+            "text": "1 longest test run with outlier durations exceeding 123.14s (three standard deviations)"
+          }
+        ],
+        "totalTestCount": 56
+      },
+      "unitSummary": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "600763F8-8897-4A4F-A868-CCF58B170346",
+              "deviceName": "iPhone 17",
+              "modelName": "iPhone 17",
+              "osBuildNumber": "24A434",
+              "osVersion": "27.0",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 369,
+            "skippedTests": 29,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "strius · Built with macOS 27.0.1",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792601395.052,
+        "passedTests": 369,
+        "result": "Passed",
+        "runtimeWarnings": [
+          {
+            "issueType": "Runtime Warning",
+            "message": "Thread running at User-interactive quality-of-service class waiting on a lower QoS thread running at Default quality-of-service class. Investigate ways to avoid priority inversions",
+            "sourceURL": "file:///Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/NativeRuntimeLiveTests.swift"
+          }
+        ],
+        "skippedTests": 29,
+        "startTime": 1792601313.987,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - strius",
+        "topInsights": [
+          {
+            "category": "Longest Test Runs",
+            "impact": "40% of duration",
+            "text": "11 longest test runs with outlier durations exceeding 0.72s (three standard deviations)"
+          }
+        ],
+        "totalTestCount": 398
+      },
+      "cases": [
+        {
+          "test": "ChatCameraUITests/testCameraAndChatPreservation",
+          "seconds": 87.03716099262238,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatCameraUITests/testCameraRotationAndReopening",
+          "seconds": 69.9435830116272,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing",
+          "seconds": 31.289348006248474,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment",
+          "seconds": 30.365803956985474,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch",
+          "seconds": 54.700610995292664,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend",
+          "seconds": 6.963397979736328,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - 実機の撮影・本番送信を明示的に許可した検証でのみ実行"
+          ]
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts",
+          "seconds": 78.27284300327301,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation",
+          "seconds": 41.16959893703461,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger",
+          "seconds": 26.274453997612,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation",
+          "seconds": 19.14971899986267,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways",
+          "seconds": 33.727566957473755,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives",
+          "seconds": 37.56261396408081,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatTypingExperienceUITests/testJapaneseCandidateSelection",
+          "seconds": 0.10629701614379883,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped"
+          ]
+        },
+        {
+          "test": "ChatTypingExperienceUITests/testJapaneseMultilineAndSend",
+          "seconds": 0.1086200475692749,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - ローカル検証サーバーを使う入力UIテスト"
+          ]
+        },
+        {
+          "test": "ConversationExportUITests/testCopyConversation",
+          "seconds": 32.60130298137665,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceChatUITests/testInterruptWithRealCodex",
+          "seconds": 0.23052799701690674,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceChatUITests/testQuestionTurnWithMockModel",
+          "seconds": 25.618140935897827,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceChatUITests/testQuestionTurnWithRealCodex",
+          "seconds": 0.2114189863204956,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex",
+          "seconds": 0.24887096881866455,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff",
+          "seconds": 14.910507917404175,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts",
+          "seconds": 18.605062007904053,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice",
+          "seconds": 31.75463604927063,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex",
+          "seconds": 0.0968480110168457,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "E2EDriverUITests/testDrive",
+          "seconds": 0.10680592060089111,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - 検証専用の操作代行ランナー(STRUIS_E2E_DRIVER_DIR が無いときは動かさない)"
+          ]
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
+          "seconds": 20.137399077415466,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
+          "seconds": 14.437989950180054,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes",
+          "seconds": 24.756667017936707,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording",
+          "seconds": 59.03822100162506,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult",
+          "seconds": 51.638228058815,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration",
+          "seconds": 36.40264308452606,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "LearningProgressUITests/testInspectActualReplyProgress",
+          "seconds": 0.20562994480133057,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - 実バックエンドURL・検証用認証・対象返信IDが必要です"
+          ]
+        },
+        {
+          "test": "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply",
+          "seconds": 0.13767600059509277,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - STRUIS_E2E_ACCESS_TOKEN is required for the deployed-backend E2E"
+          ]
+        },
+        {
+          "test": "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "seconds": 26.72996699810028,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex",
+          "seconds": 0.16906499862670898,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "seconds": 31.44515597820282,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "UnitDeletionUITests/testLargeTextConfirmationAndCancel",
+          "seconds": 19.719612956047058,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState",
+          "seconds": 26.738908052444458,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned",
+          "seconds": 21.412385940551758,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately",
+          "seconds": 46.4588360786438,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton",
+          "seconds": 13.485944986343384,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze",
+          "seconds": 208.3134310245514,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain",
+          "seconds": 68.80457699298859,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+          "seconds": 39.69786298274994,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+          "seconds": 53.878885984420776,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+          "seconds": 50.063897013664246,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap",
+          "seconds": 27.648533940315247,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle",
+          "seconds": 14.913756012916565,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation",
+          "seconds": 14.307514071464539,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply",
+          "seconds": 33.40370798110962,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady",
+          "seconds": 29.93811798095703,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance",
+          "seconds": 44.91495895385742,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar",
+          "seconds": 22.14648699760437,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched",
+          "seconds": 13.39595901966095,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "striusUITests/testExample",
+          "seconds": 8.87865698337555,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "striusUITests/testHorizontalSwipesKeepTheSingleChatPage",
+          "seconds": 18.383023977279663,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "striusUITestsLaunchTests/testLaunch",
+          "seconds": 11.70796126127243,
+          "result": "Passed",
+          "messages": []
+        }
+      ],
+      "missingUI": [],
+      "buildSeconds": 259,
+      "job": {
+        "id": 119326515669,
+        "name": "optimized / repeat 1",
+        "conclusion": "success",
+        "wallSeconds": 2659,
+        "buildWarmSeconds": 630,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 6
+          },
+          {
+            "name": "Record environment",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 3
+          },
+          {
+            "name": "Run actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Restore identical native inputs",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 38
+          },
+          {
+            "name": "Use published native outputs on cache miss",
+            "status": "completed",
+            "conclusion": "skipped",
+            "seconds": 0
+          },
+          {
+            "name": "Build once and warm Simulator",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 630
+          },
+          {
+            "name": "Unit and all gate-eligible UI measurements",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1953
+          },
+          {
+            "name": "Memory after experiment",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Save raw measurements and results",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 9
+          },
+          {
+            "name": "Post Run actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 11
+          }
+        ]
+      }
+    },
+    {
+      "measurement": {
+        "sourceCommit": "d3fe8a59acffe7fe21f87941e6f9863047813e8e",
+        "commit": "4f0f0c7944ce040ab2ddaae4d917d3ab9e839b45",
+        "configuration": "optimized",
+        "repetition": "2",
+        "variant": "optimized",
+        "workers": 1,
+        "runs": [
+          {
+            "label": "injection",
+            "wallSeconds": 39.625826624999945,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 1,
+              "passedTests": 1,
+              "skippedTests": 0,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          },
+          {
+            "label": "unit",
+            "wallSeconds": 66.705780667,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 398,
+              "passedTests": 369,
+              "skippedTests": 29,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          },
+          {
+            "label": "ui",
+            "wallSeconds": 1545.6529957500002,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 56,
+              "passedTests": 45,
+              "skippedTests": 11,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          }
+        ],
+        "scope": "All existing gate-eligible UI methods, plus all unit tests. No changed-file skipping in executions."
+      },
+      "uiSummary": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "B8D3DB6B-98FB-4E92-9ACE-9BC307F7FDE7",
+              "deviceName": "iPhone 17",
+              "modelName": "iPhone 17",
+              "osBuildNumber": "24A434",
+              "osVersion": "27.0",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 48,
+            "skippedTests": 11,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "strius · Built with macOS 27.0.1",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792603299.337,
+        "passedTests": 45,
+        "result": "Passed",
+        "runtimeWarnings": [],
+        "skippedTests": 11,
+        "startTime": 1792601766.422,
+        "statistics": [
+          {
+            "subtitle": "4 test runs",
+            "title": "1 test ran with dynamic parameters"
+          }
+        ],
+        "testFailures": [],
+        "title": "Test - strius",
+        "topInsights": [
+          {
+            "category": "Longest Test Runs",
+            "impact": "14% of duration",
+            "text": "1 longest test run with outlier durations exceeding 120.47s (three standard deviations)"
+          }
+        ],
+        "totalTestCount": 56
+      },
+      "unitSummary": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "B8D3DB6B-98FB-4E92-9ACE-9BC307F7FDE7",
+              "deviceName": "iPhone 17",
+              "modelName": "iPhone 17",
+              "osBuildNumber": "24A434",
+              "osVersion": "27.0",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 369,
+            "skippedTests": 29,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "strius · Built with macOS 27.0.1",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792601749.796,
+        "passedTests": 369,
+        "result": "Passed",
+        "runtimeWarnings": [
+          {
+            "issueType": "Runtime Warning",
+            "message": "Thread running at User-interactive quality-of-service class waiting on a lower QoS thread running at Default quality-of-service class. Investigate ways to avoid priority inversions",
+            "sourceURL": "file:///Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/NativeRuntimeLiveTests.swift"
+          }
+        ],
+        "skippedTests": 29,
+        "startTime": 1792601687.29,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - strius",
+        "topInsights": [
+          {
+            "category": "Longest Test Runs",
+            "impact": "38% of duration",
+            "text": "10 longest test runs with outlier durations exceeding 0.67s (three standard deviations)"
+          }
+        ],
+        "totalTestCount": 398
+      },
+      "cases": [
+        {
+          "test": "ChatCameraUITests/testCameraAndChatPreservation",
+          "seconds": 65.34924399852753,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatCameraUITests/testCameraRotationAndReopening",
+          "seconds": 50.61837911605835,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing",
+          "seconds": 22.17362904548645,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment",
+          "seconds": 21.497212052345276,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch",
+          "seconds": 37.30785000324249,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend",
+          "seconds": 0.1582399606704712,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - 実機の撮影・本番送信を明示的に許可した検証でのみ実行"
+          ]
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts",
+          "seconds": 62.58331298828125,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation",
+          "seconds": 33.74848997592926,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger",
+          "seconds": 19.425703048706055,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation",
+          "seconds": 14.075990080833435,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways",
+          "seconds": 27.078621983528137,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives",
+          "seconds": 31.912800073623657,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatTypingExperienceUITests/testJapaneseCandidateSelection",
+          "seconds": 0.11048197746276855,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped"
+          ]
+        },
+        {
+          "test": "ChatTypingExperienceUITests/testJapaneseMultilineAndSend",
+          "seconds": 0.07334089279174805,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - ローカル検証サーバーを使う入力UIテスト"
+          ]
+        },
+        {
+          "test": "ConversationExportUITests/testCopyConversation",
+          "seconds": 19.710456013679504,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceChatUITests/testInterruptWithRealCodex",
+          "seconds": 0.13755393028259277,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceChatUITests/testQuestionTurnWithMockModel",
+          "seconds": 19.861479997634888,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceChatUITests/testQuestionTurnWithRealCodex",
+          "seconds": 0.12242496013641357,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex",
+          "seconds": 0.09317505359649658,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff",
+          "seconds": 10.976104021072388,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts",
+          "seconds": 14.15727698802948,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice",
+          "seconds": 24.15018594264984,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex",
+          "seconds": 0.08801507949829102,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "E2EDriverUITests/testDrive",
+          "seconds": 0.07551896572113037,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - 検証専用の操作代行ランナー(STRUIS_E2E_DRIVER_DIR が無いときは動かさない)"
+          ]
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
+          "seconds": 16.50012195110321,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
+          "seconds": 11.918822050094604,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes",
+          "seconds": 20.05065405368805,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording",
+          "seconds": 53.7873899936676,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult",
+          "seconds": 42.52197504043579,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration",
+          "seconds": 31.294036984443665,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "LearningProgressUITests/testInspectActualReplyProgress",
+          "seconds": 0.08917701244354248,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - 実バックエンドURL・検証用認証・対象返信IDが必要です"
+          ]
+        },
+        {
+          "test": "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply",
+          "seconds": 0.10054707527160645,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - STRUIS_E2E_ACCESS_TOKEN is required for the deployed-backend E2E"
+          ]
+        },
+        {
+          "test": "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "seconds": 22.715134024620056,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex",
+          "seconds": 0.18088603019714355,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "seconds": 29.484269976615906,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "UnitDeletionUITests/testLargeTextConfirmationAndCancel",
+          "seconds": 19.59406292438507,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState",
+          "seconds": 24.544319987297058,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned",
+          "seconds": 19.788269996643066,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately",
+          "seconds": 41.79698395729065,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton",
+          "seconds": 12.80146598815918,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze",
+          "seconds": 222.9346660375595,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain",
+          "seconds": 75.82315397262573,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+          "seconds": 39.844260931015015,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+          "seconds": 53.52263295650482,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+          "seconds": 45.809213042259216,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap",
+          "seconds": 27.627715945243835,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle",
+          "seconds": 13.642348051071167,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation",
+          "seconds": 15.598829984664917,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply",
+          "seconds": 39.239856004714966,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady",
+          "seconds": 30.734015941619873,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance",
+          "seconds": 41.51680099964142,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar",
+          "seconds": 21.3386549949646,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched",
+          "seconds": 10.373944997787476,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "striusUITests/testExample",
+          "seconds": 8.286425948143005,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "striusUITests/testHorizontalSwipesKeepTheSingleChatPage",
+          "seconds": 15.465579986572266,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "striusUITestsLaunchTests/testLaunch",
+          "seconds": 9.896496266126633,
+          "result": "Passed",
+          "messages": []
+        }
+      ],
+      "missingUI": [],
+      "buildSeconds": 151,
+      "job": {
+        "id": 119326515673,
+        "name": "optimized / repeat 2",
+        "conclusion": "success",
+        "wallSeconds": 2145,
+        "buildWarmSeconds": 427,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 4
+          },
+          {
+            "name": "Record environment",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Run actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Restore identical native inputs",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 11
+          },
+          {
+            "name": "Use published native outputs on cache miss",
+            "status": "completed",
+            "conclusion": "skipped",
+            "seconds": 0
+          },
+          {
+            "name": "Build once and warm Simulator",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 427
+          },
+          {
+            "name": "Unit and all gate-eligible UI measurements",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1681
+          },
+          {
+            "name": "Memory after experiment",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Save raw measurements and results",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 5
+          },
+          {
+            "name": "Post Run actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 11
+          }
+        ]
+      }
+    },
+    {
+      "measurement": {
+        "sourceCommit": "d3fe8a59acffe7fe21f87941e6f9863047813e8e",
+        "commit": "4f0f0c7944ce040ab2ddaae4d917d3ab9e839b45",
+        "configuration": "optimized-mock-warm",
+        "repetition": "1",
+        "variant": "optimized",
+        "workers": 1,
+        "runs": [
+          {
+            "label": "injection",
+            "wallSeconds": 25.790865374999953,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 1,
+              "passedTests": 1,
+              "skippedTests": 0,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          },
+          {
+            "label": "unit",
+            "wallSeconds": 54.755909291999956,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 398,
+              "passedTests": 369,
+              "skippedTests": 29,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          },
+          {
+            "label": "ui",
+            "wallSeconds": 1383.969675542,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 56,
+              "passedTests": 45,
+              "skippedTests": 11,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          }
+        ],
+        "scope": "All existing gate-eligible UI methods, plus all unit tests. No changed-file skipping in executions."
+      },
+      "uiSummary": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "B8D3DB6B-98FB-4E92-9ACE-9BC307F7FDE7",
+              "deviceName": "iPhone 17",
+              "modelName": "iPhone 17",
+              "osBuildNumber": "24A434",
+              "osVersion": "27.0",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 48,
+            "skippedTests": 11,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "strius · Built with macOS 27.0.1",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792605091.971,
+        "passedTests": 45,
+        "result": "Passed",
+        "runtimeWarnings": [],
+        "skippedTests": 11,
+        "startTime": 1792603718.722,
+        "statistics": [
+          {
+            "subtitle": "4 test runs",
+            "title": "1 test ran with dynamic parameters"
+          }
+        ],
+        "testFailures": [],
+        "title": "Test - strius",
+        "topInsights": [
+          {
+            "category": "Longest Test Runs",
+            "impact": "13% of duration",
+            "text": "1 longest test run with outlier durations exceeding 105.18s (three standard deviations)"
+          }
+        ],
+        "totalTestCount": 56
+      },
+      "unitSummary": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "B8D3DB6B-98FB-4E92-9ACE-9BC307F7FDE7",
+              "deviceName": "iPhone 17",
+              "modelName": "iPhone 17",
+              "osBuildNumber": "24A434",
+              "osVersion": "27.0",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 369,
+            "skippedTests": 29,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "strius · Built with macOS 27.0.1",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792603708.028,
+        "passedTests": 369,
+        "result": "Passed",
+        "runtimeWarnings": [
+          {
+            "issueType": "Runtime Warning",
+            "message": "Thread running at User-interactive quality-of-service class waiting on a lower QoS thread running at Default quality-of-service class. Investigate ways to avoid priority inversions",
+            "sourceURL": "file:///Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/NativeRuntimeLiveTests.swift"
+          }
+        ],
+        "skippedTests": 29,
+        "startTime": 1792603656.412,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - strius",
+        "topInsights": [
+          {
+            "category": "Longest Test Runs",
+            "impact": "34% of duration",
+            "text": "7 longest test runs with outlier durations exceeding 0.71s (three standard deviations)"
+          }
+        ],
+        "totalTestCount": 398
+      },
+      "cases": [
+        {
+          "test": "ChatCameraUITests/testCameraAndChatPreservation",
+          "seconds": 53.45287203788757,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatCameraUITests/testCameraRotationAndReopening",
+          "seconds": 52.36010992527008,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing",
+          "seconds": 22.06052601337433,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment",
+          "seconds": 20.989784002304077,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch",
+          "seconds": 35.448630928993225,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend",
+          "seconds": 0.11711204051971436,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - 実機の撮影・本番送信を明示的に許可した検証でのみ実行"
+          ]
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts",
+          "seconds": 63.26088905334473,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation",
+          "seconds": 33.69156801700592,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger",
+          "seconds": 19.224596977233887,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation",
+          "seconds": 13.085378050804138,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways",
+          "seconds": 25.931522965431213,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives",
+          "seconds": 32.43395709991455,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatTypingExperienceUITests/testJapaneseCandidateSelection",
+          "seconds": 0.20077800750732422,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped"
+          ]
+        },
+        {
+          "test": "ChatTypingExperienceUITests/testJapaneseMultilineAndSend",
+          "seconds": 0.21755409240722656,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - ローカル検証サーバーを使う入力UIテスト"
+          ]
+        },
+        {
+          "test": "ConversationExportUITests/testCopyConversation",
+          "seconds": 20.695331931114197,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceChatUITests/testInterruptWithRealCodex",
+          "seconds": 0.09902393817901611,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceChatUITests/testQuestionTurnWithMockModel",
+          "seconds": 18.39567995071411,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceChatUITests/testQuestionTurnWithRealCodex",
+          "seconds": 0.12350797653198242,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex",
+          "seconds": 0.08425796031951904,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff",
+          "seconds": 10.350080966949463,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts",
+          "seconds": 14.157689929008484,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice",
+          "seconds": 24.146139979362488,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex",
+          "seconds": 0.08796501159667969,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "E2EDriverUITests/testDrive",
+          "seconds": 0.07402598857879639,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - 検証専用の操作代行ランナー(STRUIS_E2E_DRIVER_DIR が無いときは動かさない)"
+          ]
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
+          "seconds": 16.873158931732178,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
+          "seconds": 11.667632102966309,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes",
+          "seconds": 19.441772937774658,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording",
+          "seconds": 53.73923099040985,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult",
+          "seconds": 42.62726604938507,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration",
+          "seconds": 31.237193942070007,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "LearningProgressUITests/testInspectActualReplyProgress",
+          "seconds": 0.09886300563812256,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - 実バックエンドURL・検証用認証・対象返信IDが必要です"
+          ]
+        },
+        {
+          "test": "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply",
+          "seconds": 0.07713603973388672,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - STRUIS_E2E_ACCESS_TOKEN is required for the deployed-backend E2E"
+          ]
+        },
+        {
+          "test": "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "seconds": 19.241582989692688,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex",
+          "seconds": 0.14184701442718506,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "seconds": 23.92950999736786,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "UnitDeletionUITests/testLargeTextConfirmationAndCancel",
+          "seconds": 14.406118035316467,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState",
+          "seconds": 19.985358953475952,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned",
+          "seconds": 15.111649990081787,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately",
+          "seconds": 34.648085951805115,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton",
+          "seconds": 9.610689043998718,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze",
+          "seconds": 189.17839300632477,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain",
+          "seconds": 60.364375948905945,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+          "seconds": 33.94522404670715,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+          "seconds": 48.42590594291687,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+          "seconds": 42.85330510139465,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap",
+          "seconds": 22.353024005889893,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle",
+          "seconds": 11.465840935707092,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation",
+          "seconds": 10.426423907279968,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply",
+          "seconds": 28.621928930282593,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady",
+          "seconds": 24.184132933616638,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance",
+          "seconds": 38.13477003574371,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar",
+          "seconds": 17.97407901287079,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched",
+          "seconds": 8.200909972190857,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "striusUITests/testExample",
+          "seconds": 6.665588974952698,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "striusUITests/testHorizontalSwipesKeepTheSingleChatPage",
+          "seconds": 13.61931598186493,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "striusUITestsLaunchTests/testLaunch",
+          "seconds": 8.269178986549377,
+          "result": "Passed",
+          "messages": []
+        }
+      ],
+      "missingUI": [],
+      "buildSeconds": 154,
+      "job": {
+        "id": 119326515465,
+        "name": "optimized-mock-warm / repeat 1",
+        "conclusion": "success",
+        "wallSeconds": 1877,
+        "buildWarmSeconds": 365,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 5
+          },
+          {
+            "name": "Record environment",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Run actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Restore identical native inputs",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 13
+          },
+          {
+            "name": "Use published native outputs on cache miss",
+            "status": "completed",
+            "conclusion": "skipped",
+            "seconds": 0
+          },
+          {
+            "name": "Build once and warm Simulator",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 365
+          },
+          {
+            "name": "Unit and all gate-eligible UI measurements",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1475
+          },
+          {
+            "name": "Memory after experiment",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Save raw measurements and results",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 4
+          },
+          {
+            "name": "Post Run actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 9
+          }
+        ]
+      }
+    },
+    {
+      "measurement": {
+        "sourceCommit": "d3fe8a59acffe7fe21f87941e6f9863047813e8e",
+        "commit": "4f0f0c7944ce040ab2ddaae4d917d3ab9e839b45",
+        "configuration": "optimized-mock-warm",
+        "repetition": "2",
+        "variant": "optimized",
+        "workers": 1,
+        "runs": [
+          {
+            "label": "injection",
+            "wallSeconds": 71.44154166699991,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 1,
+              "passedTests": 1,
+              "skippedTests": 0,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          },
+          {
+            "label": "unit",
+            "wallSeconds": 88.70213516700005,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 398,
+              "passedTests": 369,
+              "skippedTests": 29,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          },
+          {
+            "label": "ui",
+            "wallSeconds": 1680.0784086250003,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 56,
+              "passedTests": 45,
+              "skippedTests": 11,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          }
+        ],
+        "scope": "All existing gate-eligible UI methods, plus all unit tests. No changed-file skipping in executions."
+      },
+      "uiSummary": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "600763F8-8897-4A4F-A868-CCF58B170346",
+              "deviceName": "iPhone 17",
+              "modelName": "iPhone 17",
+              "osBuildNumber": "24A434",
+              "osVersion": "27.0",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 48,
+            "skippedTests": 11,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "strius · Built with macOS 27.0.1",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792605848.58,
+        "passedTests": 45,
+        "result": "Passed",
+        "runtimeWarnings": [],
+        "skippedTests": 11,
+        "startTime": 1792604178.996,
+        "statistics": [
+          {
+            "subtitle": "4 test runs",
+            "title": "1 test ran with dynamic parameters"
+          }
+        ],
+        "testFailures": [],
+        "title": "Test - strius",
+        "topInsights": [
+          {
+            "category": "Longest Test Runs",
+            "impact": "11% of duration",
+            "text": "1 longest test run with outlier durations exceeding 120.11s (three standard deviations)"
+          }
+        ],
+        "totalTestCount": 56
+      },
+      "unitSummary": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "600763F8-8897-4A4F-A868-CCF58B170346",
+              "deviceName": "iPhone 17",
+              "modelName": "iPhone 17",
+              "osBuildNumber": "24A434",
+              "osVersion": "27.0",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 369,
+            "skippedTests": 29,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "strius · Built with macOS 27.0.1",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792604165.247,
+        "passedTests": 369,
+        "result": "Passed",
+        "runtimeWarnings": [
+          {
+            "issueType": "Runtime Warning",
+            "message": "Thread running at User-interactive quality-of-service class waiting on a lower QoS thread running at Default quality-of-service class. Investigate ways to avoid priority inversions",
+            "sourceURL": "file:///Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/NativeRuntimeLiveTests.swift"
+          }
+        ],
+        "skippedTests": 29,
+        "startTime": 1792604087.516,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - strius",
+        "topInsights": [
+          {
+            "category": "Longest Test Runs",
+            "impact": "31% of duration",
+            "text": "8 longest test runs with outlier durations exceeding 0.78s (three standard deviations)"
+          }
+        ],
+        "totalTestCount": 398
+      },
+      "cases": [
+        {
+          "test": "ChatCameraUITests/testCameraAndChatPreservation",
+          "seconds": 102.33152604103088,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatCameraUITests/testCameraRotationAndReopening",
+          "seconds": 71.7550460100174,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing",
+          "seconds": 29.792490005493164,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment",
+          "seconds": 36.36919903755188,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch",
+          "seconds": 56.79977190494537,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend",
+          "seconds": 0.13223493099212646,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - 実機の撮影・本番送信を明示的に許可した検証でのみ実行"
+          ]
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts",
+          "seconds": 75.79058003425598,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation",
+          "seconds": 43.75015890598297,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger",
+          "seconds": 26.047896027565002,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation",
+          "seconds": 18.781868934631348,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways",
+          "seconds": 38.58603596687317,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives",
+          "seconds": 41.81081199645996,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ChatTypingExperienceUITests/testJapaneseCandidateSelection",
+          "seconds": 0.18496298789978027,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped"
+          ]
+        },
+        {
+          "test": "ChatTypingExperienceUITests/testJapaneseMultilineAndSend",
+          "seconds": 0.1322460174560547,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - ローカル検証サーバーを使う入力UIテスト"
+          ]
+        },
+        {
+          "test": "ConversationExportUITests/testCopyConversation",
+          "seconds": 25.312039971351624,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceChatUITests/testInterruptWithRealCodex",
+          "seconds": 0.16770505905151367,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceChatUITests/testQuestionTurnWithMockModel",
+          "seconds": 24.760542035102844,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceChatUITests/testQuestionTurnWithRealCodex",
+          "seconds": 0.17557108402252197,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex",
+          "seconds": 0.13621306419372559,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff",
+          "seconds": 16.543223977088928,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts",
+          "seconds": 21.32250702381134,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice",
+          "seconds": 30.466372966766357,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex",
+          "seconds": 0.09876298904418945,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "E2EDriverUITests/testDrive",
+          "seconds": 0.08720099925994873,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - 検証専用の操作代行ランナー(STRUIS_E2E_DRIVER_DIR が無いときは動かさない)"
+          ]
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
+          "seconds": 20.334169030189514,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
+          "seconds": 14.00515103340149,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes",
+          "seconds": 25.208523988723755,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording",
+          "seconds": 58.554044008255005,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult",
+          "seconds": 49.20236098766327,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration",
+          "seconds": 32.462671995162964,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "LearningProgressUITests/testInspectActualReplyProgress",
+          "seconds": 0.11021196842193604,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - 実バックエンドURL・検証用認証・対象返信IDが必要です"
+          ]
+        },
+        {
+          "test": "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply",
+          "seconds": 0.10069799423217773,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - STRUIS_E2E_ACCESS_TOKEN is required for the deployed-backend E2E"
+          ]
+        },
+        {
+          "test": "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "seconds": 21.46041703224182,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex",
+          "seconds": 0.47475600242614746,
+          "result": "Skipped",
+          "messages": [
+            "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+          ]
+        },
+        {
+          "test": "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "seconds": 26.973659992218018,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "UnitDeletionUITests/testLargeTextConfirmationAndCancel",
+          "seconds": 15.086519002914429,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState",
+          "seconds": 21.32120704650879,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned",
+          "seconds": 16.46230399608612,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately",
+          "seconds": 44.73949909210205,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton",
+          "seconds": 10.630572080612183,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze",
+          "seconds": 194.18861293792725,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain",
+          "seconds": 62.593483090400696,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+          "seconds": 42.01856005191803,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+          "seconds": 54.476917028427124,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+          "seconds": 45.5619330406189,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap",
+          "seconds": 24.073881030082703,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle",
+          "seconds": 13.19387400150299,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation",
+          "seconds": 11.379750967025757,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply",
+          "seconds": 29.963649034500122,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady",
+          "seconds": 25.510671019554138,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance",
+          "seconds": 39.163769006729126,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar",
+          "seconds": 20.468199014663696,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched",
+          "seconds": 9.530702948570251,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "striusUITests/testExample",
+          "seconds": 7.86237096786499,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "striusUITests/testHorizontalSwipesKeepTheSingleChatPage",
+          "seconds": 16.619898915290833,
+          "result": "Passed",
+          "messages": []
+        },
+        {
+          "test": "striusUITestsLaunchTests/testLaunch",
+          "seconds": 9.545226484537125,
+          "result": "Passed",
+          "messages": []
+        }
+      ],
+      "missingUI": [],
+      "buildSeconds": 226,
+      "job": {
+        "id": 119326515494,
+        "name": "optimized-mock-warm / repeat 2",
+        "conclusion": "success",
+        "wallSeconds": 2544,
+        "buildWarmSeconds": 645,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 2
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 3
+          },
+          {
+            "name": "Record environment",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1
+          },
+          {
+            "name": "Run actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Restore identical native inputs",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 18
+          },
+          {
+            "name": "Use published native outputs on cache miss",
+            "status": "completed",
+            "conclusion": "skipped",
+            "seconds": 0
+          },
+          {
+            "name": "Build once and warm Simulator",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 645
+          },
+          {
+            "name": "Unit and all gate-eligible UI measurements",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1857
+          },
+          {
+            "name": "Memory after experiment",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Save raw measurements and results",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 4
+          },
+          {
+            "name": "Post Run actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 7
+          }
+        ]
+      }
+    },
+    {
+      "measurement": {
+        "sourceCommit": "d3fe8a59acffe7fe21f87941e6f9863047813e8e",
+        "commit": "4f0f0c7944ce040ab2ddaae4d917d3ab9e839b45",
+        "configuration": "optimized-two-workers",
+        "repetition": "1",
+        "variant": "optimized",
+        "workers": 2,
+        "runs": [
+          {
+            "label": "injection",
+            "wallSeconds": 41.84915504199989,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 1,
+              "passedTests": 1,
+              "skippedTests": 0,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          },
+          {
+            "label": "unit",
+            "wallSeconds": 85.996745208,
+            "exitCode": 0,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 398,
+              "passedTests": 369,
+              "skippedTests": 29,
+              "failedTests": 0,
+              "result": "Passed"
+            }
+          },
+          {
+            "label": "ui",
+            "wallSeconds": 62.96977958299999,
+            "exitCode": 65,
+            "budgetExceeded": false,
+            "counts": {
+              "totalTestCount": 1,
+              "passedTests": 0,
+              "skippedTests": 0,
+              "failedTests": 1,
+              "result": "Failed"
+            },
+            "validationError": "Missing or unexpected test count"
+          }
+        ],
+        "scope": "All existing gate-eligible UI methods, plus all unit tests. No changed-file skipping in executions."
+      },
+      "uiSummary": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "B8D3DB6B-98FB-4E92-9ACE-9BC307F7FDE7",
+              "deviceName": "iPhone 17",
+              "modelName": "iPhone 17",
+              "osBuildNumber": "24A434",
+              "osVersion": "27.0",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 1,
+            "passedTests": 0,
+            "skippedTests": 0,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "strius · Built with macOS 27.0.1",
+        "expectedFailures": 0,
+        "failedTests": 1,
+        "finishTime": 1792605886.406,
+        "passedTests": 0,
+        "result": "Failed",
+        "runtimeWarnings": [],
+        "skippedTests": 0,
+        "startTime": 1792605840.479,
+        "statistics": [],
+        "testFailures": [
+          {
+            "failureText": "Failed to clone device named 'iPhone 17'. (Underlying Error: The watchOS 27.0 simulator runtime is not available. runtime path not found. Download the watchOS 27.0 simulator runtime from the Xcode Settings.)",
+            "targetName": "striusUITests",
+            "testIdentifier": 1,
+            "testIdentifierString": "The test runner encountered an error",
+            "testName": "The test runner encountered an error"
+          }
+        ],
+        "title": "Test - strius",
+        "topInsights": [],
+        "totalTestCount": 1
+      },
+      "unitSummary": {
+        "devicesAndConfigurations": [
+          {
+            "device": {
+              "architecture": "arm64",
+              "deviceId": "B8D3DB6B-98FB-4E92-9ACE-9BC307F7FDE7",
+              "deviceName": "iPhone 17",
+              "modelName": "iPhone 17",
+              "osBuildNumber": "24A434",
+              "osVersion": "27.0",
+              "platform": "iOS Simulator"
+            },
+            "expectedFailures": 0,
+            "failedTests": 0,
+            "passedTests": 369,
+            "skippedTests": 29,
+            "testPlanConfiguration": {
+              "configurationId": "1",
+              "configurationName": "Test Scheme Action"
+            }
+          }
+        ],
+        "environmentDescription": "strius · Built with macOS 27.0.1",
+        "expectedFailures": 0,
+        "failedTests": 0,
+        "finishTime": 1792605821.555,
+        "passedTests": 369,
+        "result": "Passed",
+        "runtimeWarnings": [
+          {
+            "issueType": "Runtime Warning",
+            "message": "Thread running at User-interactive quality-of-service class waiting on a lower QoS thread running at Default quality-of-service class. Investigate ways to avoid priority inversions",
+            "sourceURL": "file:///Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/NativeRuntimeLiveTests.swift"
+          }
+        ],
+        "skippedTests": 29,
+        "startTime": 1792605744.877,
+        "statistics": [],
+        "testFailures": [],
+        "title": "Test - strius",
+        "topInsights": [
+          {
+            "category": "Longest Test Runs",
+            "impact": "40% of duration",
+            "text": "11 longest test runs with outlier durations exceeding 0.73s (three standard deviations)"
+          }
+        ],
+        "totalTestCount": 398
+      },
+      "cases": [
+        {
+          "test": "The test runner encountered an error",
+          "seconds": 0,
+          "result": "Failed",
+          "messages": [
+            "Failed to clone device named 'iPhone 17'. (Underlying Error: The watchOS 27.0 simulator runtime is not available. runtime path not found. Download the watchOS 27.0 simulator runtime from the Xcode Settings.)"
+          ]
+        }
+      ],
+      "missingUI": [
+        "ChatCameraUITests/testCameraAndChatPreservation",
+        "ChatCameraUITests/testCameraRotationAndReopening",
+        "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing",
+        "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment",
+        "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch",
+        "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend",
+        "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts",
+        "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation",
+        "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger",
+        "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation",
+        "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways",
+        "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives",
+        "ChatTypingExperienceUITests/testJapaneseCandidateSelection",
+        "ChatTypingExperienceUITests/testJapaneseMultilineAndSend",
+        "ConversationExportUITests/testCopyConversation",
+        "DeviceChatUITests/testInterruptWithRealCodex",
+        "DeviceChatUITests/testQuestionTurnWithMockModel",
+        "DeviceChatUITests/testQuestionTurnWithRealCodex",
+        "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex",
+        "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff",
+        "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts",
+        "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice",
+        "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex",
+        "E2EDriverUITests/testDrive",
+        "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
+        "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
+        "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes",
+        "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording",
+        "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult",
+        "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration",
+        "LearningProgressUITests/testInspectActualReplyProgress",
+        "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply",
+        "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+        "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex",
+        "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+        "UnitDeletionUITests/testLargeTextConfirmationAndCancel",
+        "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState",
+        "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned",
+        "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately",
+        "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton",
+        "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze",
+        "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain",
+        "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+        "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+        "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+        "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap",
+        "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle",
+        "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation",
+        "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply",
+        "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady",
+        "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance",
+        "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar",
+        "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched",
+        "striusUITests/testExample",
+        "striusUITests/testHorizontalSwipesKeepTheSingleChatPage",
+        "striusUITestsLaunchTests/testLaunch"
+      ],
+      "buildSeconds": 224,
+      "job": {
+        "id": 119326515538,
+        "name": "optimized-two-workers / repeat 1",
+        "conclusion": "failure",
+        "wallSeconds": 783,
+        "buildWarmSeconds": 521,
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 2
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 5
+          },
+          {
+            "name": "Record environment",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 7
+          },
+          {
+            "name": "Run actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Restore identical native inputs",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 21
+          },
+          {
+            "name": "Use published native outputs on cache miss",
+            "status": "completed",
+            "conclusion": "skipped",
+            "seconds": 0
+          },
+          {
+            "name": "Build once and warm Simulator",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 521
+          },
+          {
+            "name": "Unit and all gate-eligible UI measurements",
+            "status": "completed",
+            "conclusion": "failure",
+            "seconds": 216
+          },
+          {
+            "name": "Memory after experiment",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Save raw measurements and results",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 4
+          },
+          {
+            "name": "Post Run actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+            "status": "completed",
+            "conclusion": "skipped",
+            "seconds": 0
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 0
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "seconds": 1
+          }
+        ]
+      }
+    }
+  ],
+  "parallelRepair": {
+    "change": "Unpair all Watch/iPhone device pairs and remove unavailable Simulator devices on disposable Runner, then remeasure only 2-worker x2",
+    "status": "prepared",
+    "causeHypothesis": "Preconfigured Watch pairing is implicated by missing watchOS runtime during iPhone cloning; confirmation requires rerun."
+  }
+}

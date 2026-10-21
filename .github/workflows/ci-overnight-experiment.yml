@@ -1,5 +1,5 @@
 name: Overnight CI ten-minute experiment
-run-name: Overnight CI ten-minute experiment
+run-name: Overnight CI parallel clone repair
 
 on:
   push:
@@ -46,21 +46,9 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        config: [baseline, optimized, optimized-mock-warm, optimized-two-workers]
+        config: [optimized-two-workers]
         repetition: [1, 2]
         include:
-          - config: baseline
-            variant: baseline
-            workers: 1
-            warm: standard
-          - config: optimized
-            variant: optimized
-            workers: 1
-            warm: standard
-          - config: optimized-mock-warm
-            variant: optimized
-            workers: 1
-            warm: mock
           - config: optimized-two-workers
             variant: optimized
             workers: 2
@@ -100,6 +88,14 @@ jobs:
       - name: Use published native outputs on cache miss
         if: steps.native.outputs.cache-hit != 'true'
         run: python3 scripts/ci/native_prebuilt.py apply
+      - name: Remove invalid Watch pairs before parallel cloning
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ci-overnight"
+          xcrun simctl list pairs -j | tee "$RUNNER_TEMP/ci-overnight/pairs-before.json"
+          xcrun simctl unpair_all
+          xcrun simctl delete unavailable
+          xcrun simctl list pairs -j | tee "$RUNNER_TEMP/ci-overnight/pairs-after.json"
       - name: Build once and warm Simulator
         timeout-minutes: 25
         run: |
