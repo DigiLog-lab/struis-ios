@@ -179,7 +179,28 @@ enum UITestDiagnostics {
         enabled = SimulatorFixtures.isEnabled
         guard enabled else { return }
         launch("init-start")
+        discardMirroredSystemLog()
         startStallMonitor()
+    }
+
+    /// UI テストの時、XCTest がアプリの中で出すログ(要素の木を作るたびの属性の取得、1 プロセスで数十万行)が
+    /// メインスレッドから標準エラーへそのまま書かれていた。Xcode Cloud の結果の束では、アプリの標準出力・
+    /// 標準エラーが 1 プロセスあたり 25〜127MB あり(PR Gate 156・159)、要素の確認のたびに、アプリはこの書き込みを
+    /// してから返事をしていた。標準エラーだけを捨てる。アプリの動作と判定は変わらない(このファイルの計測は
+    /// 別のファイルに書く)。デバッガーで動かしている時と、`STRUIS_STDIO_LOG`・`STRUIS_KEEP_STDERR=1` の時は残す。
+    private static func discardMirroredSystemLog() {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["STRUIS_STDIO_LOG"] == nil, environment["STRUIS_KEEP_STDERR"] != "1", !debuggerAttached else { return }
+        freopen("/dev/null", "w", stderr)
+        launch("stderr-discarded-dt-\(environment["OS_ACTIVITY_DT_MODE"] ?? "unset")")
+    }
+
+    nonisolated private static var debuggerAttached: Bool {
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
+        guard sysctl(&mib, u_int(mib.count), &info, &size, nil, 0) == 0 else { return false }
+        return (info.kp_proc.p_flag & P_TRACED) != 0
     }
 
     nonisolated static var logPath: String {

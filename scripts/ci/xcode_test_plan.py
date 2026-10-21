@@ -75,7 +75,10 @@ def generate(tier, changed, discovered=None, selection=None, manifest=None):
     plan = {
         'configurations': [{'id': str(uuid.uuid5(uuid.NAMESPACE_URL, f'https://github.com/DigiLog-lab/struis-ios/{plan_name}')).upper(),
                             'name': plan_name, 'options': {}}],
-        'defaultOptions': {'codeCoverage': False},
+        # Never: after a failure, xcodebuild otherwise waits for a simulator sysdiagnose and gives
+        # up after 600 s (every red PR Gate 158-160). The result bundle still keeps the failure,
+        # its screenshots and logs. Xcode Cloud has no -collect-test-diagnostics field; the plan does.
+        'defaultOptions': {'codeCoverage': False, 'diagnosticCollectionPolicy': 'Never'},
         'testTargets': targets,
         'version': 1,
     }

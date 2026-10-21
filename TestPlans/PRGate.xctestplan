@@ -7,7 +7,8 @@
     }
   ],
   "defaultOptions": {
-    "codeCoverage": false
+    "codeCoverage": false,
+    "diagnosticCollectionPolicy": "Never"
   },
   "testTargets": [
     {
