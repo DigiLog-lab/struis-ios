@@ -1,0 +1,40 @@
+name: Native publish (temporary)
+
+on:
+  push:
+    branches: [probe/asc-read]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: cache keyを計算
+        id: key
+        run: echo "key=native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}" >> "$GITHUB_OUTPUT"
+      - name: mainのnative cacheを展開
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: ${{ steps.key.outputs.key }}
+          fail-on-cache-miss: true
+      - name: Xcode Cloud用にnative生成物を公開
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          key="$(python3 scripts/ci/native_prebuilt.py key)"
+          du -sh NativeRuntime/Vendor NativeRuntime/PythonPackages NativeRuntime/PackageCache NativeRuntime/.build || true
+          archive="$RUNNER_TEMP/native-runtime-$key.tar.gz"
+          python3 scripts/ci/native_prebuilt.py pack "$archive"
+          python3 scripts/ci/publish_native.py "$archive"
