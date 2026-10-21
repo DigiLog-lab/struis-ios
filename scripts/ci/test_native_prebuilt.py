@@ -67,15 +67,37 @@ class NativePrebuiltTests(unittest.TestCase):
         self.assertEqual((self.root / 'NativeRuntime/Vendor/X.xcframework/Info.plist').read_bytes(), b'plist')
         self.assertTrue((self.root / native_prebuilt.MARKER).exists())
 
+    def test_absolute_links_are_skipped_and_failures_leave_no_partial_tree(self):
+        buffer = io.BytesIO()
+        with tarfile.open(fileobj=buffer, mode='w:gz') as package:
+            for name, data in [('NativeRuntime/Vendor/X.xcframework/Info.plist', b'plist'),
+                               ('NativeRuntime/Vendor/X.xcframework/lib/real', b'lib')]:
+                info = tarfile.TarInfo(name)
+                info.size = len(data)
+                package.addfile(info, io.BytesIO(data))
+            for name, target in [('NativeRuntime/Vendor/dash-source/missing', '/usr/local/share/automake-1.15/missing'),
+                                 ('NativeRuntime/Vendor/X.xcframework/lib/alias', 'real')]:
+                info = tarfile.TarInfo(name)
+                info.type, info.linkname = tarfile.SYMTYPE, target
+                package.addfile(info)
+        data = buffer.getvalue()
+        name = native_prebuilt.asset_name(native_prebuilt.key(self.root))
+        fetch = self.fetcher({name: data, name + '.sha256': hashlib.sha256(data).hexdigest().encode()})
+        self.assertEqual(native_prebuilt.apply(self.root, fetch), 0)
+        self.assertFalse((self.root / 'NativeRuntime/Vendor/dash-source/missing').is_symlink())
+        self.assertEqual((self.root / 'NativeRuntime/Vendor/X.xcframework/lib/alias').read_bytes(), b'lib')
+        self.assertFalse((self.root / 'NativeRuntime/.prebuilt-staging').exists())
+
     def test_mismatched_hash_or_foreign_entry_is_rejected(self):
         name = native_prebuilt.asset_name(native_prebuilt.key(self.root))
         good = archive({'NativeRuntime/Vendor/A': b'a'})
         with self.assertRaises(SystemExit):
             native_prebuilt.apply(self.root, self.fetcher({name: good, name + '.sha256': b'0' * 64}))
-        foreign = archive({'strius/Injected.swift': b'x'})
+        foreign = archive({'NativeRuntime/Vendor/B': b'b', 'strius/Injected.swift': b'x'})
         with self.assertRaises(SystemExit):
             native_prebuilt.apply(self.root, self.fetcher({name: foreign, name + '.sha256': hashlib.sha256(foreign).hexdigest().encode()}))
         self.assertFalse((self.root / 'strius').exists())
+        self.assertFalse((self.root / 'NativeRuntime/Vendor').exists())
         self.assertFalse((self.root / native_prebuilt.MARKER).exists())
 
 

@@ -17,6 +17,7 @@ import hashlib
 import io
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -72,13 +73,38 @@ def apply(root=ROOT, fetch=download):
     actual = hashlib.sha256(data).hexdigest()
     if actual != expected:
         raise SystemExit(f'Native prebuilt SHA-256 mismatch: expected {expected}, got {actual}')
-    with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as archive:
-        for member in archive.getmembers():
-            if not any(member.name == output or member.name.startswith(output + '/') for output in OUTPUTS):
-                raise SystemExit(f'Unexpected entry in the native prebuilt: {member.name}')
-        archive.extractall(root, filter='data')
+    staging = root / 'NativeRuntime' / '.prebuilt-staging'
+    shutil.rmtree(staging, ignore_errors=True)
+    skipped = []
+
+    def safe(member, path):
+        # Build-tool leftovers such as dash-source/missing point at the build
+        # host's automake (/usr/local/share/...). They are not build outputs
+        # the app uses, and an absolute link must not be created here.
+        if member.issym() and member.linkname.startswith('/'):
+            skipped.append(member.name)
+            return None
+        return tarfile.data_filter(member, path)
+
+    try:
+        with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as archive:
+            for member in archive.getmembers():
+                if not any(member.name == output or member.name.startswith(output + '/') for output in OUTPUTS):
+                    raise SystemExit(f'Unexpected entry in the native prebuilt: {member.name}')
+            archive.extractall(staging, filter=safe)
+        # Replace the outputs only after the whole archive unpacked, so a
+        # failure leaves no partial tree for the fallback build to trust.
+        for output in OUTPUTS:
+            source, destination = staging / output, root / output
+            if source.exists():
+                shutil.rmtree(destination, ignore_errors=True)
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                source.rename(destination)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
     (root / MARKER).write_text(f'{{"key": "{value}", "sha256": "{actual}"}}\n')
-    print(f'STRUIS_NATIVE_PREBUILT key={value} status=applied bytes={len(data)} sha256={actual}', flush=True)
+    print(f'STRUIS_NATIVE_PREBUILT key={value} status=applied bytes={len(data)} sha256={actual} '
+          f'skipped_absolute_links={",".join(skipped) or "-"}', flush=True)
     return 0
 
 

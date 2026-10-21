@@ -34,23 +34,24 @@ HTTP bootstrapの同時読込テストは認証有効のビルドを前提にし
 
 ## CIでのUIテストの範囲と割り当て(Issue #22 の 7、引き継ぎ 2.3)
 
-`iOS` workflowは、UIテストをテストメソッド単位で複数のrunnerへ割り当てて並行に実行します。runnerごとにSimulatorは1台です(`xcode-27`の標準runnerは3コア・メモリ7GBで、1台の中で並列にすると遅くなるため)。
+マージしてよいかを決める門はXcode CloudのPR Gate、全件と配信はXcode CloudのReleaseです([verification-and-delivery-policy.md](verification-and-delivery-policy.md))。GitHubの`iOS` workflowは、門の予備、`ios-verify`ラベルでの診断、手動の配布の経路として残しています。mainへのpushと毎晩の実行はしません。
+
+`iOS` workflowは、UIテストをテストメソッド単位で複数のrunnerへ割り当てて並行に実行します。runnerごとにSimulatorは1台です(`xcode-27`の標準runnerは3コア・メモリ7GBで、1台の中で並列にすると遅くなるため)。Xcode Cloudの門は、1台のマシンの中でクラス単位に並列で流します(`docs/xcode-cloud.md`)。
 
 実行する範囲は2段階です。
 
 | 段階 | いつ | 何を | runner |
 |---|---|---|---|
-| `pr` | PR、エージェントのCI要求(`workflow_dispatch` で main 以外)、手動の既定 | 学習の流れを通すE2Eのクラス(`pr`)+ 変更したファイルに対応するクラス(`paths`) | 2 |
-| `full` | 毎日 03:00 JST(`schedule`)、手動で `ui_tier=full`、手動の main(配布) | すべてのUIテスト | 3 |
-| なし | mainへのpush | UIテストは回さない(PRで変更に関係するクラスを回し済み。全件は毎晩) | 0 |
+| `pr` | `ios-verify`ラベルのPR、門の予備(`workflow_dispatch` で `source_ref` を指定)、手動の既定 | 学習の流れを通すE2Eのクラス(`pr`)+ 変更したファイルに対応するクラス(`paths`) | 2 |
+| `full` | 手動で `ui_tier=full`、手動の main(配布) | すべてのUIテスト | 3 |
 
 - 割り当ては`scripts/ci/ui_test_plan.py`が`scripts/ci/ui-test-plan.json`を読んで決めます。所要時間の長いテストから順に、合計時間が最も短いrunnerへ入れます。
 - `shards`: 段階ごとのrunnerの数。macOSのrunnerは同時に5台までで、エージェント本体や他のCIと共有するため、PRは2、全件は3にしています。PRでも全件が選ばれた時(全件に影響する変更)は全件のrunner数で分けます。
 - `durations`: テストメソッドごとの所要秒数(CIの実測値。2026-10-18〜19 の緑の run 2 回の大きい方)。載っていないテストは60秒として扱います。テストが大きく変わったら更新します。
 - `pr`: PRのCIで必ず実行するテストクラス(単元作成 → 一枚 → 撮影 → 判定、質問シートの会話、端末完結の問題集ループ)。
-- `paths`: `{"変更ファイルのglob": ["テストクラス", ...]}`。PRで変更したファイルが一致すれば、そのクラスも実行します。`["*"]` はすべて(どのテストにも影響しうる変更: `strius/App`、`strius/Design`、`strius/Auth`、`strius.xcodeproj`、`scripts/ci`、`ios.yml`)。`striusUITests/<クラス>.swift` を変えればそのクラス、`UITestSupport.swift` を変えればすべてが走ります(対応表に書かなくてもよい)。
+- `paths`: `{"変更ファイルのglob": ["テストクラス", ...]}`。PRで変更したファイルが一致すれば、そのクラスも実行します。`["*"]` はすべて(どのテストにも影響しうる変更: `strius/App`、`strius/Design`、`strius/Auth`、`strius.xcodeproj`、`scripts/ci`、`ios.yml`)。`striusUITests/` のファイルを変えればそのファイルに書かれたテストクラス(とその子クラス)すべて、テストクラスの無い `UITestSupport.swift` などを変えればすべてが走ります(対応表に書かなくてもよい)。
 - 見積もり(2026-10-19 の実測から): 全件は 3 runner で各 15 分弱、PRの最小構成(E2E のみ)は 2 runner で各 5 分、`strius/Features/Chat` を変えたPRで各 13 分。単体テストと archive 検証の `build` job(約 15 分)と並行に走るので、PRのCIはおよそ 15〜20 分で終わります。
 - 各runnerは、テストの前にUIテスト用のビルドをしてSimulatorを起動し、アプリを一度起動しておきます。新しいrunnerでは最初の起動に40秒以上(一度は3分以上)かかり、最初のテストの時間上限を使い切ってしまうためです。
 - 各runnerの結果は`ios-ui-test-results-<実行ID>-<再実行番号>-<runner番号>`のartifactに保存します(xcresult と、落ちた時の画面の写真・要素の木 `ui-probe`)。runnerごとに終わるので、他のrunnerの実行中でも終わった分の結果を見られます。
-- 署名付きarchive(配信)は、mainのpushでは`build` job(単体テスト)が通った後に作ります(#32 より前と同じ)。手動の main(配布)では全件のUIテストが通った後に作ります。
-- mainへのpushで全件を回さないのは、macOSのrunnerが同時に5台までのためです。マージのたびに全件(3 runner + build)を約30分回すと、開いているPRのCIがその間待たされました(2026-10-19、#32 のマージ直後に3本のPRのjobが待ちになった)。
+- 署名付きarchive(配信)は、手動の main(配布)で全件のUIテストが通った後に作ります。通常の配信はXcode CloudのReleaseです。
+- mainへのpushで検証を回さないのは、macOSのrunnerが同時に5台までのためです。マージのたびに全件(3 runner + build)を約30分回すと、開いているPRのCIがその間待たされました(2026-10-19、#32 のマージ直後に3本のPRのjobが待ちになった)。

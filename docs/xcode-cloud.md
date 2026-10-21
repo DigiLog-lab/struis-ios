@@ -1,99 +1,81 @@
 # Xcode Cloud のテストプランと実測
 
-方針は [verification-and-delivery-policy.md](verification-and-delivery-policy.md)。このPRにテストプラン、ビルド準備、時間とcacheの計測、Ready・門の起動・workerの再開、GitHub workflowの整理をまとめる。制御と設定は [agent-gate.md](agent-gate.md) を参照。
+方針は [verification-and-delivery-policy.md](verification-and-delivery-policy.md)、制御と権限は [agent-gate.md](agent-gate.md)。
 
-当初は `Default` の旧プロジェクトパスを修正済みとの報告を前提にしたが、2026-10-20にログイン後の編集画面を確認すると `ios/strius/strius.xcodeproj` が残っていた。同日、このworkflowを `PR Gate` に改名し、`strius.xcodeproj`、Clean OFF、手動ブランチ開始、必須TESTだけの構成へ変更して保存した。自動push開始とarchiveは外した。
+## workflow
 
-workflow IDは `FD7B155C-3973-4DA5-A0A1-A6886411C5D3`、App Store ConnectのアプリIDは `6771995650`。初回はCloudの選択一覧が旧構成のままだったため、既存の `strius` schemeによる全体診断として起動した。この実行は専用schemeでの門の実測には数えない。その後、PR Gateは `StruisPRGate`、Releaseは `StruisRelease` を選択して保存・再確認した。両方とも固定iPhone 16・最新iOSを使う。
+| 名前 | ID | scheme | 内容 |
+|---|---|---|---|
+| PR Gate | `FD7B155C-3973-4DA5-A0A1-A6886411C5D3` | `StruisPRGate` | TEST(必須)。手動開始、Clean OFF、固定の iPhone 16・最新 iOS |
+| Release | `32273285-7cf2-44cf-8e31-cc0385650439` | `StruisRelease` | TEST と ARCHIVE(必須)、post-action で内部 TestFlight の staging グループへ配る。手動開始、Clean OFF |
 
-[診断ビルド142](https://appstoreconnect.apple.com/teams/79d5af08-558e-4066-9d42-ad920cc591d9/xcode-cloud/products/E19683AB-A906-44AE-889E-49023526A39A/builds/055023ce-33f2-4ffe-836f-7862880a2b7f/summary) は、ブランチ `ci/xcode-cloud-foundation`、SHA `b0ff0d6e5278bed8d18cb03e19d54a8595453630` で7分37.7秒後に失敗した。native-bootstrapは374秒で成功し、Cargo出力は3,941,748 KiBになった。その後の `test-resources` が、Appleのsystem Rubyに `xcodeproj` がないため `LoadError` で停止した。単体・UIテストには到達していない。
+旧リポジトリのパス(`ios/strius/strius.xcodeproj`)を指す `Hyotan Native …` の4つは、手動起動だけで勝手には動かない。App Store Connect のアプリ ID は `6771995650`。
 
-この失敗を受け、host依存はHomebrewの `ruby@3.4` と `xcodeproj 1.27.0` をnative生成前に準備・読み込み検査する。gemは `DerivedData/StruisHostTools/ruby-<ABI>` に隔離し、Pythonから呼ぶRubyにも同じPATH/GEM_HOME/GEM_PATHを渡す。準備済みのgemは再利用する。system Rubyへの書き込みは不要。準備失敗とinstall成功後の読み込み失敗は、native生成前に元の終了コードで停止することをshell hookの回帰テストで確認する。
+起動するのは、Ready の門の制御ジョブと、`repository_dispatch` の `xcode-cloud`(依頼に応じた Release / PR Gate)だけ(`scripts/agent/gate.py`、`cloud_dispatch.py`)。
 
 ## scheme とテストプラン
 
-2026-10-20の専用scheme実測では、ビルド143はテスト本体が終了コード0で終わった後、ソースを持たないテストマシンでpost-build hookが `CI_PRIMARY_REPOSITORY_PATH: unbound variable` により失敗した。hookは通常の計測ログだけならソースもrepository-path変数も必要としない形へ修正し、明示的なarchive監査だけでsourceを参照する。ソース・変数がないテスト環境と監査の失敗伝播を回帰検証する。
+| 用途 | テストプラン | 単体テスト | UI テスト |
+|---|---|---|---|
+| 門 | `TestPlans/PRGate.xctestplan` | 全部 | E2E + 変更に関係するクラスから、除外表の分だけを除く。クラスを単位に並列 |
+| リリース | `TestPlans/Release.xctestplan` | 全部 | 全部。直列 |
 
-「おすすめのiPhone」は編集画面上で1個でも、実行時はiPhone 16 / 16 Pro / 16 Pro Max / SE (3rd generation) の4機種に展開された。143は経過43分、消費139分だったため、PR Gateを固定のiPhone 16・最新iOSだけに変更した。Release 144はarchiveが成功したが、テストの後処理とカメラ回転テストのシャッターhit判定で失敗し、内部配布は実行されなかった。これらを成功・15分達成・cache有効の実測とは扱わない。
-
-Release 144のiPhone 16ログでは、portraitとlandscape-leftの検査は通り、landscape-rightへの反転の約0.6秒後にシャッターの `isHittable` だけが失敗した。左右の横向きでは寸法が同じなので、寸法が2回同じという条件だけでは回転中に抜けてしまう。8秒の既存の待機内で、寸法の安定に加え両ボタンが操作可能になるまで待つ。6回の検査・全アサーション・時間上限を保持し、期限時にボタンを操作できなければ従来どおり失敗させて診断画像を残す。成功結果は実行後にPRへ記録する。
-
-Release 148はnative生成中、SymPyの固定wheelが5回続けて途中で切れ、`IncompleteRead` で停止した。CIの `native-inputs` 工程は、固定Python frameworkとwheelを先に取得・検証する。受信済みbytesを保持してRangeで再開し、Content-Rangeの開始位置・全体サイズを照合する。Rangeが無視された場合は部分データを置き換える。再試行上限は5回、固定SHA-256検証も維持し、不完全なbytesは成功として返さない。生成物へ影響しない通信処理は `scripts/ci` に置き、NativeRuntimeの入力と既存cacheの同一性を保つ。
-
-GitHubのcold生成では、生成後の `NativeRuntime/**` に対するhashFilesの再計算が失敗し、成果物を保存できない既存不具合を実測した。native jobのkeyはcheckout直後・生成前に一度だけ固定し、検索・保存・保存確認で同じ値を使う。大きな生成物を再走査せず、専用の `agent-native-cache.yml` と同じ入力keyで保存する。
-
-| 用途 | scheme | テストプラン | 単体テスト | UIテスト |
-|---|---|---|---|---|
-| 門 | `StruisPRGate` | `TestPlans/PRGate.xctestplan` | 全部 | E2E + 変更に関係するメソッドから、門の対象外だけを除く |
-| リリース | `StruisRelease` | `TestPlans/Release.xctestplan` | 全部 | 全部 |
-
-両方ともプロジェクトはリポジトリ直下の `strius.xcodeproj`。既存の `strius` scheme はそのままなので、GitHubの現行検証は既存の対象を実行する。
-
-`ci_post_clone.sh` はscheme名で用途を判断する。workflow名を変えても、上のschemeなら同じ準備をする。互換のためworkflow名 `PR Gate`・`Release` でも判定する。PR Gateはnative依存をSimulator向け、ReleaseはSimulatorとdeviceの両方で生成する。`STRUIS_NATIVE_PLATFORM` を明示した場合はその指定を使う。
-
-Cloudのテスト用Debugビルドだけに `STRUIS_AUTH_REQUIRED=YES` と `ARCHS=arm64` を設定する。これは既存のGitHub単体テストと同じ設定。Releaseのarchive設定は変更しない。ビルド番号は既存の `CI_BUILD_NUMBER` を使う処理を保つ。
-
-録画はschemeの `preferredScreenCaptureFormat=screenshots` で使わず、コードカバレッジも無効にする。テスト自身のスクリーンショットと失敗時の添付は残す。テストの判定・時間上限・再実行設定は変更しない。
-
-## PR Gate の対象の生成
-
-`scripts/ci/xcode_test_plan.py` は既存の `ui_test_plan.py` と `ui-test-plan.json` を使う。別の対応表は作らない。Cloudでcloneした後、main(実際のPRビルドでは `CI_PULL_REQUEST_TARGET_BRANCH`)を取得してmerge baseからの差分を調べ、PR Gateのプランを更新する。
-
-```sh
-python3 scripts/ci/xcode_test_plan.py --tier pr --base main \
-  --output TestPlans/PRGate.xctestplan --report /tmp/struis-pr-test-selection.json
-```
-
-mainの取得や差分の特定に失敗した場合は、門で実行可能なUIテスト全部に広げる。E2Eだけには縮めない。対象が空になった場合や、除外表に削除済み・重複したテストがある場合は生成を止める。
-
-選別結果には、元のHEAD、実際のcheckoutのSHA、変更ファイル、実行する全UIメソッド、除外したメソッドと理由、Cloudのbuild IDを記録する。CloudではDerivedData直下の `struis-pr-test-selection.json` に保存し、ログにも出す。PRのsource commitとCloudがcheckoutしたcommitは別々に記録する。
-
-チェックイン済みのPR Gateプランは、差分が取得できない時と同じ広い対象。UIテストの追加・改名時は、次の2つを実行して更新する。選別スクリプトのテストが更新漏れを検出する。
+`ci_post_clone.sh` は scheme 名で用途を判断し、clone の後に main との差分からテストプランを作り直す(`scripts/ci/xcode_test_plan.py`)。差分が取れない時は、門で実行できる UI テスト全部に広げる。対象が空の時や、除外表に削除済み・重複したテストがある時は止める。チェックイン済みのプランは差分が取れない時と同じ広い対象で、UI テストを追加・改名した時は次で更新する(テストが更新漏れを検出する)。
 
 ```sh
 python3 scripts/ci/xcode_test_plan.py --tier pr --output TestPlans/PRGate.xctestplan
 python3 scripts/ci/xcode_test_plan.py --tier full --output TestPlans/Release.xctestplan
 ```
 
-## メソッド単位で確認した門の対象外
+### 門の除外表
 
-カメラ画面を開く13メソッドを `scripts/ci/xcode-cloud-exclusions.json` に列挙した。各行は元ファイルと理由を持つ。既存のテスト本体にskipは追加しない。手元検証とReleaseでは従来どおり実行する。
+`scripts/ci/xcode-cloud-exclusions.json` は `striusUITests/testLaunchPerformance` だけ。起動時間を測る性能テストで、門では UI テストを並列に流すので値が意味を持たないため。Release と手元検証では直列で流す。
 
-| クラス | 門から除くメソッド |
+2026-10-20 の版ではカメラ画面を開く13本を「Xcode Cloud の simulator ではカメラが使えない」(旧リポジトリの記録)として除いていた。2026-10-21 に Release 154 のテスト結果を App Store Connect の API で読むと、13本のうち11本が Xcode Cloud で成功し、2本は既存の skip(実機の撮影、実 Codex)だった。simulator ではテスト用の紙の画像を使うので、カメラのテストも門に入れる。
+
+### 並列とクラスの分け方
+
+Xcode の並列テストはクラスを単位にシミュレーターの複製へ配る(Xcode Cloud は `-maximum-parallel-testing-workers 8` で起動する)。1つのクラスに長いテストを詰めると、そのクラスの合計が門全体の下限になる。テストの中身と判定は変えずに、入れ物のクラスだけを分けた。
+
+| 元のクラス(Release 154 の合計) | 分けた後 |
 |---|---|
-| `ChatCameraUITests` | `testCameraAndChatPreservation`、`testCameraRotationAndReopening` |
-| `ChatImmediateImageSendUITests` | `testCancelWhileCaptureIsFinishing`、`testSendImmediatelyAfterCameraAttachment`、`testTwoImagesPersistAfterRelaunch` |
-| `ChatPhysicalImageSendUITests` | `testPhysicalCameraImmediateSend` |
-| `DeviceWorkbookUITests` | `testSetGenerationCaptureAndGradingOnDevice`、`testSetGenerationCaptureAndGradingWithRealCodex` |
-| `Issue10ScreenshotUITests` | `testProblemCaptureAndAllCorrectResult` |
-| `WorkbookE2EFixesUITests` | `testSetCaptureOpensResultAndPassShowsImmediately` |
-| `WorkbookSplitGradingUITests` | `testBatchOfPhotosGradedAsOneAnswer`、`testCloseSetWithFoundProblems`、`testPhotosAddUpToOneSetResult` |
+| `WorkbookE2EFixesUITests`(303秒) | `WorkbookE2EFixesUITests`(導入14秒+リザルト43秒)、`WorkbookLongConversationUITests`(20往復187秒)、`WorkbookOnboardingUITests`(59秒) |
+| `WorkbookSplitGradingUITests`(188秒) | `WorkbookSplitGradingUITests`(64秒)、`WorkbookSplitGradingCloseSetUITests`(70秒)、`WorkbookSplitGradingBatchUITests`(54秒) |
 
-`WorkbookHomeUITests` はカメラボタンの存在を調べるだけで、カメラを開かないため残す。`DeviceChatUITests` の `#filePath` はアサーションの失敗位置を示す用途で、ソースを読む用途ではないため残す。画像フィクスチャを指定したカメラテストは、`ChatCameraController.authorize()` が画像を表示して戻り、実カメラのsessionを起動しない。上表にはそれらも含め、方針に従ってカメラ画面を開くテストを手元検証へ置く。
+共通の起動と導線は、テストを持たない入れ物のクラス(`WorkbookE2EUITestCase`、`WorkbookSplitGradingUITestCase`)に置いた。`ui_test_plan.py` は、変更した UI テストのファイルに書かれたクラスとその子クラスをすべて選ぶ。
 
-単体テストで `#filePath` からファイルを開く可能性があるのは `EngineVectors.loadData` の代替経路。先にテストbundleの `engine-vectors` を探すため、そのフォルダを必須resourceとして明示登録した。同期グループでの自動同梱に依存せず、Cloudのテスト側マシンでもbundleから読む。単体テストを門から除く設定は加えていない。
+## native の生成物
 
-現時点の広い対象はPR Gateが44 UIメソッド、Releaseが57 UIメソッド。外部入力がない時の既存skip条件は [testing.md](testing.md) のまま。
+Xcode Cloud は、Clean にしなくても、カスタムの Rust の出力を次のビルドに持ち越さなかった(PR Gate 153 の終了時 3,941,748 KiB → 156 の開始時 0 KiB)。そこで、GitHub の `agent-native-cache.yml` が作る生成物(`NativeRuntime/Vendor`・`PythonPackages`・`PackageCache`・`.build`、両 SDK)を、GitHub の Release `native-runtime` の asset として公開し、Xcode Cloud はダウンロードして使う(`scripts/ci/native_prebuilt.py`)。
 
-## 時間とcacheを比べる
+- asset の名前は、追跡している `NativeRuntime/` の入力(Actions cache のキーと同じ除外)の SHA-256 から作るキー。
+- `ci_post_clone.sh` は、PR Gate と Release で asset と `.sha256` を取得し、SHA-256 を確かめ、一時フォルダに全部を展開できた時だけ置き換える。ビルドホストの automake を指す絶対パスのリンク(`dash-source/missing`)は作らない。公開されていない入力なら、今までどおり Rust から作る。
+- 公開は main の `agent-native-cache.yml` が行う(`contents: write`)。`repository_dispatch` の `native-runtime` でも起動できる。新しい3つのキーだけを残す。
+- 2026-10-21 に、main の cache から現在のキー(`v1-b0e2b14c4beb4ccaf3249749ba4a5adc9026d606`、約504MB)を公開し、展開と内容を確かめた。
 
-`ci_post_clone.sh` はworkflow・action・build ID、CPU数・メモリ・アーキテクチャ・Xcode版を出す。各工程は `STRUIS_STAGE_START` と `STRUIS_STAGE_END` で時刻・所要秒数・終了コードを出し、途中の工程が失敗した場合も失敗コードを保持する。全体は `STRUIS_POST_CLONE` に出す。
+## UI テストの計測
 
-`CARGO_TARGET_DIR` は `CI_DERIVED_DATA_PATH/StruisNative/cargo`。bootstrapの前後に `STRUIS_CARGO_CACHE` で容量を出す。DerivedDataの変数がない場合は既存のbuild領域を使い、cacheの持ち越しができるとは報告しない。
+アプリは DEBUG・simulator・固定データの時だけ、起動の各段階(`init-start`、`init-end`、`root-appear`、`root-idle`、プロセスの起動からの経過)と、メインスレッドの250ms以上の止まりを、シミュレーターごとのファイルに時刻付きで書く(`UITestDiagnostics`)。UI テストのバンドルの主クラス `UITestDiagnosticsObserver` がテストごとに読み、xcodebuild のログへ次の形で書く。テストの操作・判定・待ちには触れない。
 
-App Store Connectでは、現在修正済みの設定を起点に次を確認する。
+```
+UI_DIAGNOSTICS test=<Class/method> max_stall_ms=… stalls_over_1s=… stall_total_ms=… launch=root-appear@t=…s(exec+…ms),…
+UI_DIAGNOSTICS_STALL test=<Class/method> t=<テスト開始からの秒>s ms=…
+```
 
-1. PR Gateは `StruisPRGate` scheme のTest action、Releaseは `StruisRelease` scheme のTestとArchive actionにする。プロジェクトは `strius.xcodeproj`、Cleanは無効にする。現在のReleaseは配信なしでCIだけを検証する。内部TestFlight配信を伴う実行は自動承認レビューに拒否されたため、配信post-actionを外し、archiveの配信準備も「なし」に戻した。内部配信は明示承認後に設定する。
-2. 同じソース・同じPR Gate workflow・同じXcode版で2回実行する。1回目の初回生成と2回目のcache利用を比べる。各build ID、対象SHA、bootstrapの秒数、前後のcache容量、Test action全体の時間、単体/UIの成功・失敗・既存skip件数を残す。
-3. 録画とカバレッジを使わない設定で、UIテスト前の待ち時間も測る。15分という見積もりが達成できたとは、測るまで扱わない。
+`t=` は XCUITest の操作の記録(`t = 12.34s Checking …`)と同じ物差しなので、要素の確認が十数秒返らない場面に、アプリのメインスレッドの止まりが重なっているかを突き合わせられる。
 
-GitHubの `Agent tests` はLinuxで `scripts/ci/cache_usage.py` を実行し、その時点のActions cacheの合計bytes・GiB・件数をsummaryに出す。cacheを復元・作成するmacOSジョブは追加しない。
+## 実測
 
-このローカル実行環境にはXcodeがないため、実行検証はGitHub ActionsとXcode Cloudで行う。GitHubではSimulator・単体・UI・unsigned archive、Cloudでは専用schemeのビルド・テスト実行・archiveへの到達を確認した。最新HEADでの全通過・Cloud cacheの持ち越し・実際のTestFlight配布とは区別し、各runと結果はPRへ記録する。コードは同じPRにまとめ、運用の切り替えは実測と必要設定を確認して進める。夜間全件・mainの署名付きarchive・cold buildは、方針5.1の条件が満たされるまで保つ。
+| 実行 | 内容 | 結果 |
+|---|---|---|
+| PR Gate 153・156(`534d41f`) | UI テスト44本を直列、native を毎回作る | 成功、44分16秒・44分23秒。テストの実行29分36秒、post-clone 7分04秒(native 6分01秒)、テスト用のビルド1分28秒 |
+| Release 154・155(`534d41f`) | 全57本を直列、archive | 成功。155 は TEST 57分45秒、ARCHIVE 36分2秒、内部 TestFlight 配信 `1.0 (155)` |
+
+Xcode Cloud での画面録画の開始・終了は1回0.03〜0.05秒で、時間の原因ではなかった(PR Gate 156 の結果の束)。
 
 ## 参照
 
 - [Apple: Environment variable reference](https://developer.apple.com/documentation/xcode/environment-variable-reference)
 - [Apple: Xcode Cloud workflow reference](https://developer.apple.com/documentation/xcode/xcode-cloud-workflow-reference)
-- [Apple: Configuring your Xcode Cloud workflow’s actions](https://developer.apple.com/documentation/xcode/configuring-your-xcode-cloud-workflow-s-actions)
-- [XcodeGen: Test Action / preferredScreenCaptureFormat](https://github.com/yonaskolb/XcodeGen/blob/master/Docs/ProjectSpec.md#test-action)
+- [Apple: Configuring your Xcode Cloud workflow's actions](https://developer.apple.com/documentation/xcode/configuring-your-xcode-cloud-workflow-s-actions)
+- [WWDC18: What's New in Testing](https://wwdcnotes.com/notes/wwdc18/403)

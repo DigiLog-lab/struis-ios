@@ -13,7 +13,9 @@ GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Cla
 | Claude Code | `anthropics/claude-code-action`(commit 固定) | 自動化モード(`prompt` 指定)で実行。人の指示は新規セッション、中断の自動再開だけ `--resume` |
 | 制御スクリプト | `scripts/agent/agentctl.py`、`agentlib.py` | 経路判定、prompt 生成、実行結果の解析、Issue への返信、Claude から使う補助コマンド |
 | 固定システムプロンプト | `scripts/agent/system-prompt.md` | エージェントの作業規則。会話ごとに変わる情報は含めない |
-| 保存先 | `cloudflare/agent`(Worker)+ R2 バケット `struis-agent` | セッション、状態、使用量、プロトタイプの記録と IPA。CI は GitHub OIDC で認証 |
+| 保存先 | `cloudflare/agent`(Worker)+ R2 バケット `struis-agent` | 状態、チェックポイントの指し先、使用量、プロトタイプの記録と IPA。CI は GitHub OIDC で認証(受け付けるのは `agent.yml` と `agent-prototype.yml`) |
+| チェックポイント | worker の実行の GitHub Artifact(`scripts/agent/checkpoints.py`、`artifacts.py`) | セッション・作業中の差分など。保存期間14日 |
+| 門の制御 | `agent.yml` の `control`・`checkpoint-gc`・`cleanup` job(ubuntu) | Ready の門の起動と照合、使わなかったチェックポイントと DerivedData cache の削除 |
 | native 依存の cache | `.github/workflows/agent-native-cache.yml` | 約50分かかる bootstrap の生成物を Actions cache に保存 |
 | プロトタイプ | `.github/workflows/agent-prototype.yml`、`scripts/agent/prototype.py` | 識別子の割当、App Store Connect API、Ad Hoc 署名、IPA、配布ページ、Issue への投稿 |
 
@@ -23,25 +25,25 @@ GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Cla
 2. `route` が、投稿者がリポジトリの OWNER / MEMBER / COLLABORATOR であること(Repository variable `AGENT_ALLOWED_USERS` を設定した場合はその一覧)と、未処理のコメントがあることを確認します。Bot の投稿とエージェント自身の返信は対象外です。
 3. `worker` が作業ブランチを取得し、最新の完全なチェックポイントがあれば復元します。人の指示では新規セッション、中断の自動再開では保存したセッションを使います。権限のある人の指示とエージェントの返信を履歴として渡します。
 4. 全項目を実装し、完了を記録します。途中のテストはエージェントの判断で流し、WIPは1つのDraft PRへpushします。
-5. 全項目完了後、push済みHEADで `local-verify` を流します。全単体テスト・必須E2E・差分UIをカメラ込みで検証します。
-6. `ready` が全項目完了・push済み・同じSHAの手元検証成功を確認し、記録をPR本文とチェックポイントへ保存します。Draftを外し、`GITHUB_TOKEN`でも動く明示的dispatchで門を起動します。
+5. 全項目完了後、push済みHEADで `local-verify` を流します。全単体テスト・必須E2E・差分UI(カメラのテストを含む)を検証します。
+6. `ready` が全項目完了・push済み・同じSHAの手元検証成功を確認し、記録をPR本文とチェックポイントへ保存します。Draftを外し、`repository_dispatch`(`GITHUB_TOKEN` の `contents: write` で送れる)で門を起動します。
 7. macOS workerは門を待たずに終了します。LinuxがXcode Cloud／予備のGitHub実行を確認し、緑なら完了を記録し、赤ならDraftへ戻して同じIssueのworkerを起こします。HEADが変わった結果は採用しません。マージは人が行います。
 
 ### 保存と中断
 
-Claudeのstepは240分、jobは340分です。実行中は `progress.py` が900秒ごと（仮の設定）に、終了時はfinalizeがチェックポイントを作ります。セッション・dirty diff・未追跡ファイル・未push commit・依頼のスナップショット・項目の完了・手元検証の記録を1つの保存IDへ書き、全アップロード後に `workspace.json` をCASで更新します。常に最新と1つ前を残します。強制終了でfinalizeが走らなかった場合も `agent-recovery.yml` が最新の完全な保存から再開します。連続自動再開は3回までです。
+Claudeのstepは240分、jobは340分です。実行中は `progress.py` が900秒ごとに、終了時はfinalizeがチェックポイントを作ります。セッション・dirty diff・未追跡ファイル・未push commit・依頼のスナップショット・項目の完了・手元検証の記録を1つのArtifactへ書き、アップロード後に `workspace.json` をCASで更新します。常に最新と1つ前を残します。強制終了でfinalizeが走らなかった場合も `agent-recovery.yml` が最新の完全な保存から再開します。連続自動再開は3回までです。
 
 PRの結果待ちは自動再開の理由にしません。門の赤では、失敗したHEADと元の依頼だけを対象に新規セッションで修正し、完了前の手元検証を全体でやり直します。中断時は修正セッション自身を引き継ぎます。後から届いた指示は自動再開の入力へ混ぜません。
 
 ### DerivedData・削除・運用設定
 
-DerivedDataはブランチ名・OS/architecture・Xcode版・native依存のhashごとのActions cacheで持ち越します。PRのclose/merge時にLinuxがそのブランチのDerivedData cacheを削除します。native cacheは削除しません。チェックポイントは保存ごとに最新と1つ前以外を削除し、完了・Issue close・PR close/mergeで全件を削除します。定期照合も行います。R2の14日lifecycle（仮）はIssueごとのチェックポイントprefixだけが対象です。
+DerivedDataはブランチ名・OS/architecture・Xcode版・native依存のhashごとのActions cacheで持ち越します。PRのclose/merge時にLinuxがそのブランチのDerivedData cacheを削除します。native cacheは削除しません。チェックポイントはworkerの後のLinux jobが最新と1つ前以外を削除し、完了・Issue close・PR close/mergeで全件を削除します。1時間ごとの照合も行い、最後はArtifactの保存期間14日で消えます。
 
-設定と移行条件、実環境で未確認の項目は [agent-gate.md](agent-gate.md) を参照してください。単体テストは `python3 -m unittest discover -s scripts/agent/tests -v` です。PR定義を変更するLinuxの検査と、Xcode/macOSでの実測は別に記録します。
+仕組み・権限・設定は [agent-gate.md](agent-gate.md) を参照してください。リポジトリの変数やWorkerの設定変更は要りません。単体テストは `python3 -m unittest discover -s scripts/agent/tests -v` です。PR定義を変更するLinuxの検査と、Xcode/macOSでの実測は別に記録します。
 
 ## Ad Hoc プロトタイプ
 
-Claude は Issue の依頼に応じて、案ごとのブランチ `prototype/{Issue番号}/{ID}` を作り、`python3 "$AGENT_CTL" prototype-build <ID> --title … --summary … --wait` で `agent-prototype.yml` を起動します。workflow は次を行います。
+Claude は Issue の依頼に応じて、案ごとのブランチ `prototype/{Issue番号}/{ID}` を作り、`python3 "$AGENT_CTL" prototype-build <ID> --title … --summary … --wait` で `agent-prototype.yml` を起動します(`repository_dispatch` の `agent-prototype`)。workflow は次を行います。
 
 1. 識別子の割当: 新しい案には未使用の識別子枠を割り当て、`prototypes/{Issue}/{ID}/meta.json` に記録します。同じ案の再ビルドでは同じ枠(Bundle ID・App Group)を使い、Build Number を増やします。枠は再利用しません。
 2. App Store Connect API: 3つの App ID の存在確認、登録済み端末と配布証明書の取得、端末一覧が変わったときの Ad Hoc profile の作成。profile に App Group が含まれていることを検査します。
