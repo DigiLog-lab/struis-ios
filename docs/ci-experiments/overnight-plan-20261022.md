@@ -29,3 +29,8 @@ For ten-minute proposals, distinguish measured end-to-end configurations, projec
 
 ## Durable output
 Commit observations, run IDs, raw summary data and the final recommendation to docs/ci-experiments/ on experiment/ci-overnight-20261022. Docs-only commits do not trigger the experiment. Keep original and failed measurements. Morning report should recommend a concrete everyday gate configuration, state whether ten minutes was achieved, and identify measured remaining bottlenecks and any coverage tradeoffs.
+
+## Launch status
+Initial run: https://github.com/DigiLog-lab/struis-ios/actions/runs/39630297628
+Preflight passed. Both baseline repetitions have started; remaining configurations queue behind the maximum-two-Runner limit.
+Night continuation checks are configured hourly from 02:00 through 06:00 JST on 2026-10-22 (five checks only). A one-time morning aggregation is configured around 08:00 JST. No new overnight experiments should be launched after 06:00 JST.
