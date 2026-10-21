@@ -33,16 +33,21 @@ COMMAND = [
 def run(label, variant, tests):
     result = ROOT / (label + '.xcresult')
     command = COMMAND + ['-resultBundlePath', str(result)] + tests
-    command += ['TEST_RUNNER_STRUIS_CI_BENCH_VARIANT=' + variant]
+    environment = dict(os.environ, TEST_RUNNER_STRUIS_CI_BENCH_VARIANT=variant)
     started = time.monotonic()
     print(f'::group::{label} variant={variant}', flush=True)
     with (ROOT / (label + '.log')).open('w') as log:
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                   text=True, bufsize=1)
-        for line in process.stdout:
-            log.write(line)
-            if any(word in line for word in ('Test Case', 'Test Suite', 'error:', 'failed', 'TEST ', 'Testing ')):
-                print(line.rstrip(), flush=True)
+        # Simulator descendants can inherit stdout after xcodebuild exits. Waiting
+        # for a pipe EOF then blocks the next pass despite TEST EXECUTE SUCCEEDED.
+        process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, env=environment)
+        with (ROOT / (label + '.log')).open() as live:
+            while True:
+                for line in live:
+                    if any(word in line for word in ('Test Case', 'Test Suite', 'error:', 'failed', 'TEST ', 'Testing ')):
+                        print(line.rstrip(), flush=True)
+                if process.poll() is not None:
+                    break
+                time.sleep(1)
         code = process.wait()
     seconds = time.monotonic() - started
     print(f'::endgroup::\nBENCHMARK {label} exit={code} wall_seconds={seconds:.3f}', flush=True)
@@ -57,6 +62,13 @@ def run(label, variant, tests):
 
 
 records = []
+for variant in ('baseline', 'optimized'):
+    method = 'testBaselineVariantInjection' if variant == 'baseline' else 'testOptimizedVariantInjection'
+    record = run('injection-' + variant, variant,
+                 ['-only-testing:striusUITests/CIBenchmarkModeUITests/' + method])
+    records.append(record)
+    if record['exitCode']:
+        sys.exit('Benchmark variant injection failed; refusing to compare identical modes')
 records.append(run('unit', 'baseline', ['-only-testing:striusTests']))
 for index, variant in enumerate(('baseline', 'optimized', 'optimized', 'baseline'), 1):
     records.append(run(f'{index}-{variant}', variant,
