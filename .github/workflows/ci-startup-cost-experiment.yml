@@ -1,0 +1,61 @@
+name: CI startup cost experiment
+on:
+  push:
+    branches: [experiment/ci-startup-cost-20261021]
+    paths:
+      - .github/workflows/ci-startup-cost-experiment.yml
+      - scripts/ci/benchmark_startup_cost.py
+permissions:
+  contents: read
+jobs:
+  startup:
+    name: Startup (${{ matrix.mode }})
+    runs-on: xcode-27
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [sequential, overlap]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Record environment
+        run: |
+          sudo mdutil -a -i off >/dev/null 2>&1 || true
+          xcodebuild -version
+          sw_vers
+          sysctl hw.ncpu hw.memsize
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.14'
+      - name: Restore identical native inputs
+        id: native
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+      - name: Use published native outputs on cache miss
+        if: steps.native.outputs.cache-hit != 'true'
+        run: python3 scripts/ci/native_prebuilt.py apply
+      - name: Measure build and Simulator startup
+        env:
+          MODE: ${{ matrix.mode }}
+        run: python3 scripts/ci/benchmark_startup_cost.py "$MODE"
+      - name: Memory after experiment
+        if: always()
+        run: |
+          sysctl vm.swapusage || true
+          vm_stat || true
+      - name: Save raw measurements
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: startup-cost-${{ matrix.mode }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/startup-cost-benchmark
+          if-no-files-found: warn
+          retention-days: 7
