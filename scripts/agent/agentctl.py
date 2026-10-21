@@ -28,7 +28,7 @@ import delivery
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from agentlib import (  # noqa: E402
     GitHub, JST, PROTOTYPE_MARKER, PROTOTYPE_STATES, REPLY_MARKER, STORE_URL, Store, agent_home,
-    allowed_author, append_summary, has_label, iso, is_bot, issue_is_pending, pending_comments,
+    allowed_author, append_summary, dispatch, has_label, iso, is_bot, issue_is_pending, pending_comments,
     run_url, session_key, utc_now, write_output)
 
 MAX_COMMENT = 60000
@@ -331,9 +331,7 @@ def restart_interrupted(gh, state, outcome, kind='interrupted'):
     count = int(state.get('autoRestarts') or 0)
     if count >= 3:
         return '連続3回の自動再開後も失敗したため、自動再開を停止しました。作業とセッションは保存しています。'
-    gh.request('POST', f'/repos/{gh.repository}/actions/workflows/agent.yml/dispatches', {
-        'ref': 'main', 'inputs': {'issue': str(state['issue']), 'automatic_retry': 'true'},
-    })
+    dispatch(gh, 'agent-issue', {'issue': state['issue'], 'automatic_retry': 'true'})
     state['autoRestarts'] = count + 1
     state['restartKind'] = kind
     state.pop('pendingRestartKind', None)  # carried by restartKind from here on
@@ -1386,6 +1384,13 @@ def cmd_request_pr(args):
     print('PRのHEADでiOS・Agent tests CIを起動・再利用しました。gh run list / gh run watchで結果を確認し、失敗時は修正・push後にrequest-prを再実行してください。')
 
 
+def cmd_cloud_build(args):
+    """Ask the Linux control job to start an Xcode Cloud build; the App Store Connect key stays there."""
+    gh = GitHub()
+    dispatch(gh, 'xcode-cloud', {'workflow': args.workflow, 'branch': args.branch, 'issue': issue_number()})
+    print(f'Xcode Cloudの{args.workflow}({args.branch})の起動を依頼しました。開始と結果はLinuxのjobがIssueへ投稿します。')
+
+
 def cmd_attach(args):
     source = Path(args.path).resolve()
     if not source.is_file():
@@ -1415,14 +1420,11 @@ def cmd_prototype_build(args):
     if not git('ls-remote', '--heads', 'origin', branch):
         sys.exit(f'origin に {branch} がありません。先に commit して push してください。')
     started = utc_now() - datetime.timedelta(seconds=5)
-    gh.request('POST', f'/repos/{repository}/actions/workflows/agent-prototype.yml/dispatches', {
-        'ref': 'main',
-        'inputs': {'issue': str(number), 'variant': args.variant, 'ref': branch,
-                   'title': args.title, 'summary': args.summary or ''},
-    })
+    dispatch(gh, 'agent-prototype', {'operation': 'build', 'issue': number, 'variant': args.variant, 'ref': branch,
+                                     'title': args.title, 'summary': args.summary or ''})
     run = None
     for _ in range(30):
-        runs = gh.get(f'/repos/{repository}/actions/workflows/agent-prototype.yml/runs?event=workflow_dispatch&per_page=20')
+        runs = gh.get(f'/repos/{repository}/actions/workflows/agent-prototype.yml/runs?event=repository_dispatch&per_page=20')
         for candidate in runs.get('workflow_runs', []):
             created = datetime.datetime.fromisoformat(candidate['created_at'].replace('Z', '+00:00'))
             if created >= started and candidate.get('display_title') == f'Prototype #{number} {args.variant}':
@@ -1476,6 +1478,10 @@ def main():
     decision = commands.add_parser('decision', help='重要な設計判断を記録する')
     decision.add_argument('text')
     decision.set_defaults(func=cmd_decision)
+    cloud = commands.add_parser('cloud-build', help='Xcode CloudのRelease/PR Gateを頼まれた時だけ起動する')
+    cloud.add_argument('workflow', choices=['release', 'pr-gate'])
+    cloud.add_argument('--branch', default='main')
+    cloud.set_defaults(func=cmd_cloud_build)
     attach = commands.add_parser('attach', help='スクリーンショット等を返信へ添付する')
     attach.add_argument('path')
     attach.add_argument('--caption')

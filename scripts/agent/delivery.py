@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 
-from agentlib import GitHub, Store, agent_home, iso, session_key
+from agentlib import GitHub, Store, agent_home, dispatch, gate_config, iso, session_key
 import checkpoints
 
 MARKER = '<!-- struis-agent:issue={issue} -->'
@@ -306,7 +306,7 @@ def summary(record):
     lines = [SUMMARY_START, '### 完了前の手元検証', '', f'- HEAD: `{record["head"]}`',
              f'- 実行: {record["startedAt"]} → {record["finishedAt"]}',
              '- 単体テスト: striusTests 全件',
-             f'- UIテスト: 必須E2E＋差分対応、{len(record["selection"]["uiTests"])}メソッド（カメラを含む）',
+             f'- UIテスト: 必須E2E＋差分対応、{len(record["selection"]["uiTests"])}メソッド',
              '- 結果: 成功。実行名・skip・所要時間はチェックポイントとActions artifactのxcresultに記録。', '']
     lines += [f'- {check["name"]}: exit {check["exitCode"]}, {check["seconds"]}秒' for check in record['checks']]
     for check in record['checks']:
@@ -341,11 +341,7 @@ def ready():
         write('gate-request.json', pending)
         print('This HEAD already has a pending gate; end this session without waiting')
         return pending
-    limit = os.environ.get('AGENT_GATE_MAX_ATTEMPTS', '')
-    if not limit.isdecimal() or int(limit) < 1:
-        if not pr['draft']:
-            draft(gh, pr)
-        return pause(run, head, '門の回数上限AGENT_GATE_MAX_ATTEMPTSを実測後に決めて設定する必要があります')
+    limit = gate_config()['gateMaxAttempts']
     if max(int(previous.get('attempts', 0)), int(counter.get('attempts', 0))) >= int(limit):
         if not pr['draft']:
             draft(gh, pr)
@@ -384,8 +380,7 @@ def ready():
         return state
     store.update_json(session_key(run['issue'], 'state.json'), accepted, default={})
     try:
-        gh.request('POST', f'/repos/{gh.repository}/actions/workflows/agent-gate.yml/dispatches',
-                   {'ref': 'main', 'inputs': {'pr': str(pr['number']), 'request': request['request']}})
+        dispatch(gh, 'agent-gate', {'pr': pr['number'], 'request': request['request']})
     except Exception as error:
         # This dispatch only wakes an idempotent Linux controller. A lost
         # response must not redraft an otherwise valid Ready request: its

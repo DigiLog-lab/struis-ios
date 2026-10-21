@@ -8,7 +8,7 @@ import signal
 import subprocess
 import re
 
-from agentlib import GitHub, REPLY_MARKER, Store, agent_home, iso, run_url
+from agentlib import GitHub, REPLY_MARKER, Store, agent_home, gate_config, iso, run_url
 
 
 def process_name(pid):
@@ -98,7 +98,7 @@ def update(run, phase, finished=False):
 def watch():
     home = agent_home()
     run = json.loads((home / 'run.json').read_text())
-    next_checkpoint = time.monotonic() + int(os.environ.get('AGENT_CHECKPOINT_SECONDS', '900'))
+    next_checkpoint = time.monotonic() + int(gate_config()['checkpointSeconds'])
     while not (home / 'progress-stop').exists():
         try:
             update(run, '実行中')
@@ -110,7 +110,7 @@ def watch():
                 checkpoints.save(Store(), run['issue'], run, periodic=True)
             except Exception as error:
                 print(f'Periodic checkpoint deferred: {type(error).__name__}', flush=True)
-            next_checkpoint = time.monotonic() + int(os.environ.get('AGENT_CHECKPOINT_SECONDS', '900'))
+            next_checkpoint = time.monotonic() + int(gate_config()['checkpointSeconds'])
         # Notice finalize's stop promptly, including while waiting for the next tick.
         for _ in range(60):
             if (home / 'progress-stop').exists():

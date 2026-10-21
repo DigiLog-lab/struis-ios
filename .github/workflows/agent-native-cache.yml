@@ -1,10 +1,15 @@
 name: Native runtime cache
 
 # Keeps the bootstrap output (about 50 minutes to build) in the Actions cache
-# so iOS, Issue agent and prototype runs can restore it.
+# so iOS, Issue agent and prototype runs can restore it, and publishes the same
+# outputs as an asset of the GitHub Release `native-runtime` so Xcode Cloud
+# downloads them instead of rebuilding (scripts/ci/native_prebuilt.py).
 # ios-cold.yml verifies the uncached README path separately.
 on:
   workflow_dispatch:
+  # Lets a token with only contents: write (re)publish the asset.
+  repository_dispatch:
+    types: [native-runtime]
   push:
     branches: [main]
     paths:
@@ -12,7 +17,8 @@ on:
       - '.github/workflows/agent-native-cache.yml'
 
 permissions:
-  contents: read
+  # write: create the `native-runtime` release and upload its asset.
+  contents: write
 
 concurrency:
   group: native-runtime-cache
@@ -72,3 +78,32 @@ jobs:
             NativeRuntime/PackageCache
             NativeRuntime/.build
           key: ${{ steps.key.outputs.key }}
+      - name: 公開済みのXcode Cloud用assetを確認
+        id: published
+        run: |
+          set -euo pipefail
+          key="$(python3 scripts/ci/native_prebuilt.py key)"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/native-runtime/native-runtime-${key}.tar.gz.sha256"
+          if curl -fsSIL -o /dev/null "$url"; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+      - name: 既存cacheを展開
+        if: steps.lookup.outputs.cache-hit == 'true' && steps.published.outputs.exists != 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: ${{ steps.key.outputs.key }}
+          fail-on-cache-miss: true
+      - name: Xcode Cloud用にnative生成物を公開
+        if: steps.published.outputs.exists != 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          KEY: ${{ steps.published.outputs.key }}
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/native-runtime-$KEY.tar.gz"
+          python3 scripts/ci/native_prebuilt.py pack "$archive"
+          python3 scripts/ci/publish_native.py "$archive"

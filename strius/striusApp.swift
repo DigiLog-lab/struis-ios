@@ -15,6 +15,8 @@ struct striusApp: App {
 
     init() {
         #if DEBUG
+        // UI tests: launch phases and main-thread stalls, read per test by the UI test bundle.
+        UITestDiagnostics.start()
         // Verification aid: capture hyotan kernel messages (printk goes to stdio).
         if let path = ProcessInfo.processInfo.environment["STRUIS_STDIO_LOG"], !path.isEmpty {
             freopen(path, "w", stderr)
@@ -49,6 +51,9 @@ struct striusApp: App {
         _workbook = State(initialValue: workbook)
         _deviceRuntime = State(initialValue: deviceRuntime)
         _learnerData = State(initialValue: learnerData)
+        #if DEBUG
+        UITestDiagnostics.launch("init-end")
+        #endif
     }
 
     var body: some Scene {

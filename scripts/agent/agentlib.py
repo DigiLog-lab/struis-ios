@@ -214,11 +214,6 @@ class Store:
             if not cursor:
                 return result
 
-    def prune_checkpoints(self, issue, keep, before):
-        return json.loads(self.request('DELETE', f'/v1/checkpoints/{int(issue)}',
-                                       data=json.dumps({'keep': keep, 'before': before}).encode(),
-                                       headers={'Content-Type': 'application/json'}))
-
     def sign_install(self, issue, variant, build, ttl_seconds=None):
         body = {'issue': issue, 'variant': variant, 'build': build}
         if ttl_seconds:
@@ -318,3 +313,33 @@ def issue_is_pending(issue, state):
 
 def session_key(issue, name):
     return f'sessions/{issue}/{name}'
+
+
+CONFIG_FILE = Path(__file__).resolve().with_name('gate-config.json')
+CONFIG_ENV = {'gateMaxAttempts': 'AGENT_GATE_MAX_ATTEMPTS', 'backend': 'AGENT_GATE_BACKEND',
+              'checkpointSeconds': 'AGENT_CHECKPOINT_SECONDS'}
+
+
+def gate_config():
+    """Settings committed with the controller (scripts/agent/gate-config.json).
+
+    No repository variable is needed. The environment overrides a value only
+    when it is set and non-empty (local tests and one-off diagnostics).
+    """
+    config = json.loads(CONFIG_FILE.read_text())
+    for key, variable in CONFIG_ENV.items():
+        value = os.environ.get(variable)
+        if value not in (None, ''):
+            config[key] = int(value) if isinstance(config.get(key), int) else value
+    return config
+
+
+def dispatch(gh, event_type, payload):
+    """Start a workflow on main with a repository_dispatch event.
+
+    Unlike workflow_dispatch this needs only contents: write, so the macOS
+    worker does not hold actions: write (it could otherwise re-run or delete
+    the runs and artifacts that decide the gate).
+    """
+    gh.request('POST', f'/repos/{gh.repository}/dispatches',
+               {'event_type': event_type, 'client_payload': {key: str(value) for key, value in payload.items()}})

@@ -1,9 +1,13 @@
 """Immutable, complete workspace/session checkpoints with a conditional pointer.
 
-Only workspace.json is mutable. A failed upload or a concurrent writer never
-publishes a partial save. The Worker deletion API cannot address other objects.
+The components of one save are one GitHub Actions artifact of the worker run
+(see artifacts.py); only the small pointer sessions/{Issue}/workspace.json is
+kept in the store and updated with CAS. A failed upload or a concurrent writer
+never publishes a partial save. Artifacts that the pointer no longer names are
+deleted by Linux jobs (prune); the retention period removes anything missed.
 """
 import contextlib
+import datetime
 import fcntl
 import hashlib
 import io
@@ -15,9 +19,20 @@ import subprocess
 import tarfile
 import time
 
-from agentlib import PreconditionFailed, agent_home, iso, session_key
+from agentlib import PreconditionFailed, agent_home, gate_config, iso, session_key
+import artifacts as artifact_store
 
 FILES = ('work-items.json', 'local-verification.json', 'request-snapshot.json', 'run.json', 'session-id.json')
+COMPONENTS = (*FILES, 'changes.patch', 'untracked.tar.gz', 'claude-projects.tar.gz', 'commits.bundle')
+
+
+def artifact_prefix(number):
+    return f'agent-ckpt-{int(number)}-'
+
+
+def client(store, given=None):
+    """Tests attach an in-memory artifact client to their store."""
+    return given or getattr(store, 'artifacts', None) or artifact_store.ArtifactClient()
 
 
 def workspace():
@@ -86,9 +101,10 @@ def session_archive():
     return tar_bytes(entries)
 
 
-def save(store, number, run, periodic=False):
+def save(store, number, run, periodic=False, artifacts=None):
     home = agent_home()
     key = session_key(number, 'workspace.json')
+    blobs = client(store, artifacts)
     with lock():
         old, etag = store.get_json_with_etag(key)
         if old and old.get('closed'):
@@ -117,59 +133,59 @@ def save(store, number, run, periodic=False):
                 print('Checkpoint deferred: workspace changed during capture', flush=True)
                 return None
             raise RuntimeError('Workspace changed while saving its final checkpoint')
-        record = {'schema': 2, 'saveId': save_id, 'prefix': prefix, 'createdAt': iso(),
+        record = {'schema': 3, 'saveId': save_id, 'prefix': prefix, 'createdAt': iso(),
                   'head': head, 'remoteHead': remote, 'branch': run['branch'], 'bundle': unpublished,
                   'components': {name: digest(data) for name, data in components.items()}}
         if 'session-id.json' in components:
             record['sessionId'] = json.loads(components['session-id.json'])['id']
-        # Large session archives/bundles use the existing multipart implementation.
-        for name, data in components.items():
-            temporary = home / f'checkpoint-{save_id}-{name}'
-            temporary.write_bytes(data)
-            try:
-                store.upload_file(f'{prefix}/{name}', temporary)
-            finally:
-                temporary.unlink(missing_ok=True)
-        store.put_json(f'{prefix}/manifest.json', record)
-        if old and old.get('schema') == 2 and old.get('saveId') and not old.get('closed'):
+        manifest = json.dumps(record, ensure_ascii=False, indent=2).encode()
+        record['artifact'] = blobs.upload(artifact_prefix(number) + save_id, dict(components, **{'manifest.json': manifest}),
+                                          gate_config()['checkpointRetentionDays'])
+        if old and old.get('schema') in (2, 3) and old.get('saveId') and not old.get('closed'):
             record['previous'] = {k: v for k, v in old.items() if k != 'previous'}
         try:
             store.put_json(key, record, if_match=etag, if_none_match=not etag)
         except PreconditionFailed:
             print('Checkpoint pointer changed concurrently; retaining the newer pointer', flush=True)
             return None
-        # Never delete an in-flight save from a different runner: only objects
-        # older than the previous committed save can be garbage collected.
-        previous = record.get('previous')
-        if previous:
-            try:
-                store.prune_checkpoints(number, [save_id, previous['saveId']], previous['createdAt'])
-            except Exception as error:
-                print(f'Checkpoint pruning deferred: {type(error).__name__}', flush=True)
+        # Older artifacts are deleted by the Linux job after this worker (prune):
+        # the worker has no actions: write.
         return record
 
 
-def load_components(store, record, names=None):
+def load_components(store, record, names=None, artifacts=None):
+    if record.get('schema') != 3 or not record.get('artifact'):
+        raise RuntimeError('Checkpoint predates artifact storage; it cannot be restored')
+    number = int(record['prefix'].split('/')[1])
+    wanted = list(record['components'] if names is None else names)
+    if any(name not in COMPONENTS for name in wanted):
+        raise RuntimeError('Unknown checkpoint component')
+    try:
+        files = client(store, artifacts).download(record['artifact']['id'], artifact_prefix(number))
+    except artifact_store.ArtifactExpired:
+        raise CheckpointExpired('The checkpoint artifact has expired') from None
     result = {}
-    for name in record['components'] if names is None else names:
-        if name not in (*FILES, 'changes.patch', 'untracked.tar.gz', 'claude-projects.tar.gz', 'commits.bundle'):
-            raise RuntimeError('Unknown checkpoint component')
+    for name in wanted:
         expected = record['components'].get(name)
-        data = store.get(f'{record["prefix"]}/{name}')
+        data = files.get(name)
         if not expected or data is None or digest(data) != expected:
             raise RuntimeError(f'Incomplete checkpoint component: {name}')
         result[name] = data
     return result
 
 
-def restore(store, number, branch, restore_session=False):
+class CheckpointExpired(RuntimeError):
+    pass
+
+
+def restore(store, number, branch, restore_session=False, artifacts=None):
     record = store.get_json(session_key(number, 'workspace.json')) or {}
-    if record.get('schema') != 2 or record.get('closed') or not record.get('prefix'):
+    if record.get('schema') != 3 or record.get('closed') or not record.get('prefix'):
         return False
     if record['branch'] != branch:
         raise RuntimeError('Checkpoint branch differs; preserving it without changes')
     # Verify every byte before modifying the checkout.
-    components = load_components(store, record)
+    components = load_components(store, record, artifacts=artifacts)
     remote = git('ls-remote', '--heads', 'origin', branch).decode().split('\t')[0].strip()
     if remote != record['remoteHead']:
         raise RuntimeError('Remote changed after checkpoint; preserving the saved workspace')
@@ -199,7 +215,38 @@ def restore(store, number, branch, restore_session=False):
 
 
 def clear(store, number, reason):
-    """Tombstone first so a concurrent final save cannot resurrect a pointer."""
+    """Tombstone first so a concurrent final save cannot resurrect a pointer.
+
+    The artifacts themselves are deleted by prune in a job with actions: write.
+    """
     store.update_json(session_key(number, 'workspace.json'),
-                      lambda old: {'schema': 2, 'closed': True, 'reason': reason, 'at': iso()}, default={})
-    store.prune_checkpoints(number, [], iso())
+                      lambda old: {'schema': 3, 'closed': True, 'reason': reason, 'at': iso()}, default={})
+
+
+def prune(store, number, artifacts=None, settle_seconds=600):
+    """Delete this Issue's checkpoint artifacts that the pointer does not name.
+
+    Keeps the latest and the previous save; a closed pointer keeps nothing.
+    Artifacts younger than settle_seconds are kept unless the pointer is closed,
+    so a save uploaded just before its pointer update is never removed.
+    """
+    blobs = client(store, artifacts)
+    pointer = store.get_json(session_key(number, 'workspace.json')) or {}
+    keep = set()
+    if not pointer.get('closed'):
+        for record in (pointer, pointer.get('previous') or {}):
+            if (record.get('artifact') or {}).get('id'):
+                keep.add(int(record['artifact']['id']))
+    now = time.time()
+    removed = 0
+    for item in blobs.list(artifact_prefix(number)):
+        if int(item['id']) in keep:
+            continue
+        created = item.get('created_at')
+        if created and not pointer.get('closed'):
+            age = now - datetime.datetime.fromisoformat(created.replace('Z', '+00:00')).timestamp()
+            if age < settle_seconds:
+                continue
+        blobs.delete(item['id'])
+        removed += 1
+    return removed

@@ -1,4 +1,5 @@
 #if DEBUG
+import Darwin
 import Foundation
 import SwiftUI
 import UIKit
@@ -135,7 +136,10 @@ struct MainThreadWatchdogProbe: View {
             .frame(width: 0, height: 0)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
-            .onAppear { RunLoopModeProbe.start() }
+            .onAppear {
+                RunLoopModeProbe.start()
+                UITestDiagnostics.rootDidAppear()
+            }
         if MainThreadWatchdog.isEnabled {
             Button("reset") { watchdog.reset() }
                 .font(.system(size: 8))
@@ -150,6 +154,99 @@ struct MainThreadWatchdogProbe: View {
                 .onAppear { watchdog.start() }
                 .allowsHitTesting(false)
         }
+    }
+}
+
+/// UI テストの時だけ(シミュレータの DEBUG で固定データの時)、アプリ側から見た起動の各段階と
+/// メインスレッドの止まりを時刻付きでファイルに書く。
+///
+/// 目的: XCUITest の操作 1 回が十数秒返ってこない場面が、アプリが本当に固まっている(操作する人にも
+/// 起きる)のか、XCUITest に要素の木を作らされて止まっているだけなのかを、XCUITest の操作の時刻と
+/// 突き合わせて切り分けること。UI テストの `UITestDiagnosticsObserver` がテストごとに読み、
+/// xcodebuild のログへ要約を書く。アプリの動作は変えない(別スレッドから 100ms ごとに空の合図を
+/// メインへ送り、返るまでの時間を測るだけ)。
+///
+/// 同じシミュレータで動く UI テストのプロセスも読めるよう、ホストの /tmp にシミュレータごとの
+/// ファイルを置く(並列テストの複製ごとに SIMULATOR_UDID が違う)。
+enum UITestDiagnostics {
+    nonisolated(unsafe) private static var enabled = false
+    nonisolated(unsafe) private static var stallMonitorStarted = false
+    nonisolated(unsafe) private static var rootAppeared = false
+    nonisolated private static let queue = DispatchQueue(label: "com.digiloglab.strius.ui-diagnostics")
+
+    /// 起動時に一度だけ呼ぶ(striusApp.init)。
+    static func start() {
+        enabled = SimulatorFixtures.isEnabled
+        guard enabled else { return }
+        launch("init-start")
+        startStallMonitor()
+    }
+
+    nonisolated static var logPath: String {
+        let device = ProcessInfo.processInfo.environment["SIMULATOR_UDID"] ?? "default"
+        return "/tmp/struis-ui-diagnostics-\(device).log"
+    }
+
+    nonisolated static var nowMs: Int64 { Int64((Date().timeIntervalSince1970 * 1000).rounded()) }
+
+    nonisolated static func record(_ line: String) {
+        guard enabled else { return }
+        let data = Data((line + "\n").utf8)
+        let path = logPath
+        queue.async {
+            if let handle = FileHandle(forWritingAtPath: path) {
+                defer { try? handle.close() }
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
+            } else {
+                FileManager.default.createFile(atPath: path, contents: data)
+            }
+        }
+    }
+
+    /// プロセスが起動した時刻(ミリ秒)。
+    nonisolated private static var processStartMs: Int64? {
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
+        guard sysctl(&mib, u_int(mib.count), &info, &size, nil, 0) == 0 else { return nil }
+        let start = info.kp_proc.p_un.__p_starttime
+        return Int64(start.tv_sec) * 1000 + Int64(start.tv_usec) / 1000
+    }
+
+    nonisolated static func launch(_ phase: String) {
+        guard enabled else { return }
+        let now = nowMs
+        let since = processStartMs.map { String(now - $0) } ?? "-"
+        record("LAUNCH pid=\(getpid()) phase=\(phase) at=\(now) since_exec_ms=\(since)")
+    }
+
+    /// ルートの画面が初めて出た時刻と、その後メインの run loop が最初に空いた時刻。
+    static func rootDidAppear() {
+        guard enabled, !rootAppeared else { return }
+        rootAppeared = true
+        launch("root-appear")
+        DispatchQueue.main.async { UITestDiagnostics.launch("root-idle") }
+    }
+
+    nonisolated private static func startStallMonitor() {
+        guard !stallMonitorStarted else { return }
+        stallMonitorStarted = true
+        let thread = Thread {
+            while true {
+                let sent = UITestDiagnostics.nowMs
+                let semaphore = DispatchSemaphore(value: 0)
+                DispatchQueue.main.async { semaphore.signal() }
+                semaphore.wait()
+                let answered = UITestDiagnostics.nowMs
+                if answered - sent >= 250 {
+                    UITestDiagnostics.record("STALL pid=\(getpid()) ms=\(answered - sent) start=\(sent) end=\(answered)")
+                }
+                Thread.sleep(forTimeInterval: 0.1)
+            }
+        }
+        thread.qualityOfService = .userInteractive
+        thread.start()
     }
 }
 #endif

@@ -18,17 +18,6 @@ from test_delivery import test_tree
 from test_gate import FakeGitHub
 
 
-class PruningStore(MemoryStore):
-    def prune_checkpoints(self, issue, keep, before):
-        super().prune_checkpoints(issue, keep, before)
-        prefix = f'sessions/{issue}/checkpoints/'
-        deleted = [key for key in self.data if key.startswith(prefix)
-                   and key[len(prefix):].split('/')[0] not in keep]
-        for key in deleted:
-            del self.data[key]
-        return {'deleted': len(deleted)}
-
-
 class ReadyGitHub(FakeGitHub):
     def get(self, path):
         if '/pulls?' in path:
@@ -41,7 +30,7 @@ class ReadyHandoffTests(unittest.TestCase):
 
     def setUp(self):
         checkpoint_fixtures.ImmutableCheckpointTests.setUp(self)
-        self.store, self.gh = PruningStore(), ReadyGitHub()
+        self.store, self.gh = MemoryStore(), ReadyGitHub()
         self.gh.pr['head']['sha'] = self.base
         self.gh.pr['draft'] = True
         self.run.update(includedComments=[20], includedIssueBody=True)
@@ -76,12 +65,14 @@ class ReadyHandoffTests(unittest.TestCase):
 
     def test_ready_proof_and_repair_survive_pruning_before_start_and_result(self):
         request = delivery.ready()
-        original = request['checkpoint']['prefix']
-        # Periodic save followed by finalize: only these two may be retained.
+        original = request['checkpoint']['artifact']['id']
+        # Periodic save followed by finalize, then the Linux job after the worker:
+        # only these two may be retained.
         checkpoints.save(self.store, 4, self.run, periodic=True)
         checkpoints.save(self.store, 4, self.run)
-        self.assertFalse(any(key.startswith(original + '/') for key in self.store.data))
-        self.assertEqual(len({key.split('/')[3] for key in self.store.data if '/checkpoints/' in key}), 2)
+        checkpoints.prune(self.store, 4)
+        self.assertNotIn(original, self.store.artifacts.items)
+        self.assertEqual(len(self.store.artifacts.list('agent-ckpt-4-')), 2)
         self.assertEqual(self.controller.start(8, request['request'])['phase'], 'waiting')
         self.complete_gate(request, False)
         # Even a later mutable session request cannot replace the accepted scope.
@@ -95,7 +86,7 @@ class ReadyHandoffTests(unittest.TestCase):
     def test_lost_explicit_dispatch_is_recovered_on_linux_without_redrafting_or_duplicate_build(self):
         original = self.gh.request
         def request(method, path, body=None):
-            if path.endswith('/agent-gate.yml/dispatches'):
+            if path.endswith('/dispatches') and (body or {}).get('event_type') == 'agent-gate':
                 raise OSError('connection lost after submission')
             return original(method, path, body)
         with mock.patch.object(self.gh, 'request', side_effect=request):

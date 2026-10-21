@@ -1,8 +1,11 @@
 """Trusted Linux controller for Ready -> external gate -> Issue worker.
 
-The controller runs code from main. Workers may read gates/*, but the store
-allows only this workflow to write it. GitHub's job concurrency serializes
-controllers; CAS also protects records against stale administrative writes.
+The controller runs code from main in the `control` job of agent.yml (the
+store accepts only agent.yml and agent-prototype.yml). The gate records in
+the store are bookkeeping: the outcome that completes or repairs an Issue is
+the commit status CONTEXT, which only this job can write (the macOS worker
+has no statuses: write). GitHub's concurrency serializes controllers; CAS
+also protects records against stale administrative writes.
 """
 import argparse
 import base64
@@ -14,15 +17,22 @@ from pathlib import Path
 import re
 import secrets
 import tempfile
+import time
 import urllib.parse
 
-from agentlib import GitHub, REPLY_MARKER, Store, append_summary, iso, session_key
+from agentlib import GitHub, REPLY_MARKER, Store, append_summary, dispatch, gate_config, iso, session_key
 import checkpoints
 import delivery
 from appstoreconnect import from_environment
 
 CONTEXT = 'Struis / Ready gate'
 TERMINAL = {'complete', 'invalidated', 'blocked'}
+ATTEMPT_PREFIX = 'Gate attempt '
+CONTROLLER_LOGIN = 'github-actions[bot]'
+
+
+class CloudStartRejected(RuntimeError):
+    """App Store Connect answered the start with an HTTP 4xx: no build exists."""
 
 
 def gate_key(pr):
@@ -41,16 +51,88 @@ def status(gh, record, state, description):
 
 
 def backend():
-    selected = os.environ.get('AGENT_GATE_BACKEND', 'xcode-cloud')
+    selected = gate_config()['backend']
     if selected not in ('xcode-cloud', 'github'):
-        raise RuntimeError('AGENT_GATE_BACKEND must be xcode-cloud or github')
-    remaining, estimate = os.environ.get('XCODE_CLOUD_REMAINING_MINUTES'), os.environ.get('AGENT_GATE_ESTIMATED_MINUTES')
-    if remaining is not None and remaining != '' and estimate is not None and estimate != '':
-        if float(remaining) < 0 or float(estimate) <= 0:
-            raise RuntimeError('Cloud remaining/estimated minutes are invalid')
-        if float(remaining) < float(estimate):
-            selected = 'github'
+        raise RuntimeError('gate-config.json backend must be xcode-cloud or github')
     return selected
+
+
+def max_attempts():
+    limit = gate_config()['gateMaxAttempts']
+    if not isinstance(limit, int) or limit < 1:
+        raise RuntimeError('gate-config.json gateMaxAttempts must be a positive integer')
+    return limit
+
+
+def cloud_url(build_id):
+    return f'https://appstoreconnect.apple.com/teams/apps/{gate_config()["appStoreConnectAppId"]}/ci/builds/{build_id}'
+
+
+def gate_status(gh, head):
+    """The newest CONTEXT state written by the controller for this exact SHA."""
+    for item in gh.paginate(f'/repos/{gh.repository}/commits/{head}/statuses'):
+        if item.get('context') == CONTEXT and (item.get('creator') or {}).get('login') == CONTROLLER_LOGIN:
+            return item.get('state')
+    return None
+
+
+def status_attempts(gh, issue, branch):
+    """Gate starts recorded as statuses on this Issue's PR commits.
+
+    Statuses cannot be deleted and the worker cannot write them, so the limit
+    holds even if the store's counter were reset or a PR recreated.
+    """
+    owner = gh.repository.split('/')[0]
+    query = urllib.parse.urlencode({'head': f'{owner}:{branch}', 'state': 'all'})
+    shas = set()
+    for pr in gh.paginate(f'/repos/{gh.repository}/pulls?{query}'):
+        if issue_for(pr) == issue:
+            shas.update(commit['sha'] for commit in gh.paginate(f'/repos/{gh.repository}/pulls/{pr["number"]}/commits'))
+    count = 0
+    for sha in sorted(shas):
+        for item in gh.paginate(f'/repos/{gh.repository}/commits/{sha}/statuses'):
+            if (item.get('context') == CONTEXT and (item.get('creator') or {}).get('login') == CONTROLLER_LOGIN
+                    and item.get('state') == 'pending' and (item.get('description') or '').startswith(ATTEMPT_PREFIX)):
+                count += 1
+    return count
+
+
+def resolve_branch(client, workflow, branch):
+    repository = workflow['relationships']['repository']['data']['id']
+    refs = client.paginate(f'/v1/scmRepositories/{repository}/gitReferences?limit=200')
+    matches = [ref for ref in refs if ref['attributes'].get('canonicalName') == f'refs/heads/{branch}'
+               and not ref['attributes'].get('isDeleted')]
+    if len(matches) != 1:
+        raise RuntimeError(f'Could not uniquely resolve {branch} in Xcode Cloud')
+    return matches[0]['id']
+
+
+def post_build(client, workflow_id, reference):
+    try:
+        return client.request('POST', '/v1/ciBuildRuns', {'data': {'type': 'ciBuildRuns',
+            'attributes': {'clean': False}, 'relationships': {
+                'workflow': {'data': {'type': 'ciWorkflows', 'id': workflow_id}},
+                'sourceBranchOrTag': {'data': {'type': 'scmGitReferences', 'id': reference}}}}})['data']
+    except RuntimeError as error:
+        if re.search(r': HTTP 4\d\d ', str(error)):
+            raise CloudStartRejected(str(error)) from None
+        raise
+
+
+def start_cloud_build(record, workflow, save):
+    client = cloud_client()
+    reference = resolve_branch(client, workflow, record['branch'])
+    # ASC accepts a branch reference, not a commit SHA. Verify the
+    # sourceCommit SHA in the returned build and again at completion.
+    record['cloudSubmittedAt'] = iso()
+    save(record)
+    created = post_build(client, workflow['id'], reference)
+    record['cloudRun'] = created['id']
+    record['cloudSourceRef'] = reference
+    record['url'] = cloud_url(created['id'])
+    reported_sha = created.get('attributes', {}).get('sourceCommit', {}).get('commitSha')
+    if reported_sha and reported_sha != record['head']:
+        raise RuntimeError('Xcode Cloud started a different sourceCommit SHA')
 
 
 def cloud_client():
@@ -58,7 +140,7 @@ def cloud_client():
 
 
 def cloud_workflow(client):
-    identifier = os.environ['XCODE_CLOUD_PR_GATE_WORKFLOW_ID']
+    identifier = gate_config()['xcodeCloudPrGateWorkflowId']
     workflow = client.request('GET', f'/v1/ciWorkflows/{identifier}?include=repository')['data']
     attributes = workflow['attributes']
     if not attributes.get('isEnabled') or attributes.get('clean'):
@@ -163,12 +245,11 @@ class Controller:
                 return old
             if old and old.get('phase') not in TERMINAL:
                 self.invalidate(old, pr, 'A newer Ready request replaced this gate', redraft=False)
-            limit = os.environ.get('AGENT_GATE_MAX_ATTEMPTS', '')
-            if not limit.isdecimal() or int(limit) < 1:
-                raise RuntimeError('Configure the decided AGENT_GATE_MAX_ATTEMPTS before enabling Ready')
+            limit = max_attempts()
             counter = store.get_json(f'gates/issue-{request["issue"]}.json') or {}
-            attempts = max(int(counter.get('attempts', 0)), int(old.get('attempts', 0)))
-            if attempts >= int(limit):
+            attempts = max(int(counter.get('attempts', 0)), int(old.get('attempts', 0)),
+                           status_attempts(gh, request['issue'], request['branch']))
+            if attempts >= limit:
                 raise RuntimeError('Gate attempt limit reached; leave Draft for Issue instructions')
             selected = backend()
             workflow = cloud_workflow(cloud_client()) if selected == 'xcode-cloud' else None
@@ -179,39 +260,28 @@ class Controller:
             if workflow:
                 record['workflow'] = workflow['id']
             self.save(record)
-            status(gh, record, 'pending', 'Ready HEAD: external gate starting')
+            status(gh, record, 'pending', f'{ATTEMPT_PREFIX}{attempts + 1}/{limit}: starting {selected}')
             # The Linux control-plane tests are mandatory for either backend.
             self.dispatch(record, 'agent-tests.yml', {'source_ref': record['head']})
             current = gh.get(f'/repos/{gh.repository}/pulls/{number}')
             if current['head']['sha'] != record['head'] or current['draft']:
                 return self.invalidate(record, current, 'HEAD changed before external gate start')
-            if selected == 'github':
+            if selected == 'xcode-cloud':
+                try:
+                    start_cloud_build(record, workflow, self.save)
+                except CloudStartRejected as error:
+                    # Apple answered without creating a build (for example the
+                    # month's compute hours are used up): use the GitHub fallback.
+                    record.update(backend='github', cloudStartError=str(error))
+                    self.save(record)
+                    if record.get('issue'):
+                        gh.comment(record['issue'], f'{REPLY_MARKER}\n\nXcode Cloudが門の開始を受け付けなかったため、'
+                                                    f'GitHubの予備（ios.yml）で門を流します。\n\n{error}')
+            if record['backend'] == 'github':
                 self.dispatch(record, 'ios.yml', {'source_ref': record['head'], 'ui_tier': 'pr', 'gate_pr': str(number)})
-            else:
-                client = cloud_client()
-                repository = workflow['relationships']['repository']['data']['id']
-                refs = client.paginate(f'/v1/scmRepositories/{repository}/gitReferences?limit=200')
-                matches = [ref for ref in refs if ref['attributes'].get('canonicalName') == f'refs/heads/{record["branch"]}'
-                           and not ref['attributes'].get('isDeleted')]
-                if len(matches) != 1:
-                    raise RuntimeError('Could not uniquely resolve the PR branch in Xcode Cloud')
-                # ASC accepts a branch reference, not a commit SHA. Verify the
-                # sourceCommit SHA in the returned build and again at completion.
-                record['cloudSubmittedAt'] = iso()
-                self.save(record)
-                created = client.request('POST', '/v1/ciBuildRuns', {'data': {'type': 'ciBuildRuns',
-                    'attributes': {'clean': False}, 'relationships': {
-                        'workflow': {'data': {'type': 'ciWorkflows', 'id': workflow['id']}},
-                        'sourceBranchOrTag': {'data': {'type': 'scmGitReferences', 'id': matches[0]['id']}}}}})['data']
-                record['cloudRun'] = created['id']
-                record['cloudSourceRef'] = matches[0]['id']
-                record['url'] = f'https://appstoreconnect.apple.com/teams/apps/{os.environ["APP_STORE_CONNECT_APP_ID"]}/ci/builds/{created["id"]}'
-                reported_sha = created.get('attributes', {}).get('sourceCommit', {}).get('commitSha')
-                if reported_sha and reported_sha != record['head']:
-                    raise RuntimeError('Xcode Cloud started a different sourceCommit SHA')
             record['phase'] = 'waiting'
             self.save(record)
-            status(gh, record, 'pending', f'Ready HEAD: waiting for {selected}')
+            status(gh, record, 'pending', f'Ready HEAD: waiting for {record["backend"]}')
             return record
         except Exception as error:
             # Configuration/API-start errors need instructions, not a repair
@@ -330,9 +400,8 @@ class Controller:
         return record
 
     def wake(self, record):
-        self.gh.request('POST', f'/repos/{self.gh.repository}/actions/workflows/agent.yml/dispatches',
-                        {'ref': 'main', 'inputs': {'issue': str(record['issue']), 'automatic_retry': 'true',
-                                                 'gate_result': record['request']}})
+        dispatch(self.gh, 'agent-issue', {'issue': record['issue'], 'automatic_retry': 'true',
+                                          'gate_result': record['request']})
         record['wakeDispatched'] = True
         self.save(record)
 
@@ -379,6 +448,11 @@ def consume_result(number, request_id, gh=None, store=None):
     pr = gh.get(f'/repos/{gh.repository}/pulls/{request["pr"]}')
     if pr['state'] != 'open' or pr['head']['sha'] != record['head']:
         return False
+    # The store record is writable by every agent.yml job; the outcome must
+    # also be the controller's commit status on this exact SHA.
+    if gate_status(gh, record['head']) != ('success' if record.get('success') else 'failure'):
+        print(f'Gate record {request_id} does not match the controller status; ignoring it')
+        return False
     state = store.get_json(session_key(number, 'state.json')) or {}
     if state.get('processedGate') == request_id:
         return not record['success'] and bool(state.get('repair')) and state.get('workerStatus') not in ('running', 'waiting-instructions')
@@ -414,24 +488,60 @@ def consume_result(number, request_id, gh=None, store=None):
                        validationFailure={'gate': record['request'], 'head': record['head'], 'results': record['results']})
         return current
     updated = store.update_json(session_key(number, 'state.json'), failed, default={})
-    limit = os.environ.get('AGENT_GATE_MAX_ATTEMPTS', '')
-    if not limit.isdecimal() or int(limit) < 1 or record['attempts'] >= int(limit):
+    if record['attempts'] >= max_attempts():
         store.update_json(session_key(number, 'state.json'), lambda current: dict(current, workerStatus='waiting-instructions'), default={})
         gh.comment(number, f'{REPLY_MARKER}\n\n門が赤になりDraftへ戻しました。門の起動回数が上限に達したため自動修正は開始せず、元の依頼・HEAD・失敗結果を保持しています。次の進め方をIssueで指示してください。\n\nHEAD: `{record["head"]}`')
         return False
     return True
 
 
+def waiting_records(store):
+    records = []
+    for item in store.list('gates/'):
+        if re.fullmatch(r'gates/pr-\d+\.json', item['key']):
+            record = store.get_json(item['key']) or {}
+            if record.get('phase') not in TERMINAL:
+                records.append(record)
+    return records
+
+
+def watch(controller, minutes, interval=60, clock=time.monotonic, sleep=time.sleep):
+    """Keep polling while a gate is running, so a result does not wait for an event.
+
+    Only this Linux job waits (free on a public repository); no macOS runner is
+    held. Each pass is a full reconcile, so a Ready that arrives meanwhile also
+    starts promptly. A run that reaches the limit leaves the rest to the next
+    event or the hourly reconcile.
+    """
+    deadline = clock() + minutes * 60
+    last_error = None
+    while waiting_records(controller.store) and clock() < deadline:
+        sleep(interval)
+        try:
+            controller.reconcile()
+            last_error = None
+        except Exception as error:
+            last_error = error
+            print(f'Gate reconcile deferred: {error}', flush=True)
+    if last_error:
+        raise last_error
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--pr', type=int)
     parser.add_argument('--request')
+    parser.add_argument('--watch-minutes', type=float)
     args = parser.parse_args()
     controller = Controller()
-    if args.pr:
-        controller.start(args.pr, args.request)
-    else:
-        controller.reconcile()
+    try:
+        if args.pr:
+            controller.start(args.pr, args.request)
+        else:
+            controller.reconcile()
+    finally:
+        minutes = gate_config()['gateWatchMinutes'] if args.watch_minutes is None else args.watch_minutes
+        watch(controller, minutes)
     append_summary('Ready gate controller reconciled on Linux; no macOS runner was held while waiting.')
 
 

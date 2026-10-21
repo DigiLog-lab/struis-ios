@@ -28,14 +28,22 @@ class XcodePlanTests(unittest.TestCase):
                 excluded = {entry['test'] for entry in self.manifest['methods']}
                 self.assertEqual(set(report['uiTests']), local - excluded)
                 self.assertEqual(plan['testTargets'][1]['selectedTests'], [test + '()' for test in sorted(local - excluded)])
-                # Excluding one camera method never removes its non-camera siblings.
+                # The camera tests run on Xcode Cloud (Release 154 ran them); only the performance test is excluded.
                 self.assertIn('WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned', report['uiTests'])
+                self.assertIn('WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately', report['uiTests'])
                 self.assertIn('DeviceChatUITests/testQuestionTurnWithMockModel', report['uiTests'])
+                self.assertNotIn('striusUITests/testLaunchPerformance', report['uiTests'])
+                # The gate runs UI classes in parallel; unit tests keep their default.
+                self.assertIs(plan['testTargets'][1]['parallelizable'], True)
+                self.assertNotIn('parallelizable', plan['testTargets'][0])
 
     def test_release_keeps_every_discovered_test_including_camera_methods(self):
         plan, report = xcode_test_plan.generate('full', [])
         self.assertEqual(report['uiTests'], self.tests)
         self.assertEqual(report['excludedUI'], [])
+        # Release is serial: the launch performance test measures an otherwise idle simulator.
+        self.assertIs(plan['testTargets'][1]['parallelizable'], False)
+        self.assertIn('striusUITests/testLaunchPerformance()', plan['testTargets'][1]['selectedTests'])
         # No unit-test filter can accidentally omit newly added unit tests.
         self.assertEqual(set(plan['testTargets'][0]), {'target'})
 
@@ -190,6 +198,52 @@ esac
                                      {f'{gem_home}|{gem_home}|{tools / "ruby"}'})
                     self.assertLess(calls.index('ruby -e gem "xcodeproj"'),
                                     calls.index('NativeRuntime/Scripts/bootstrap.py'))
+
+    def test_published_native_prebuilt_skips_the_rust_build(self):
+        root = xcode_test_plan.ROOT
+        for scheme, published in [('StruisPRGate', True), ('StruisRelease', True), ('StruisPRGate', False)]:
+            with self.subTest(scheme=scheme, published=published), tempfile.TemporaryDirectory() as directory:
+                temporary = Path(directory)
+                checkout = temporary / 'repo'
+                (checkout / 'ci_scripts').mkdir(parents=True)
+                for name in ['ci_post_clone.sh', 'timing.sh']:
+                    (checkout / 'ci_scripts' / name).write_text((root / 'ci_scripts' / name).read_text())
+                native = checkout / 'NativeRuntime/Vendor/NativeCodex.xcframework'
+                native.mkdir(parents=True)
+                (native / 'Info.plist').write_text('test')
+                tools = temporary / 'bin'
+                tools.mkdir()
+                fake = ('#!/bin/sh\n'
+                        'printf "%s %s\\n" "$(basename "$0")" "$*" >> "$TEST_CALLS"\n'
+                        'case "$(basename "$0")" in\n'
+                        'brew) echo "$TEST_BIN_PARENT" ;;\n'
+                        'ruby) case "$*" in *rbconfig*) echo 3.4.0;; esac ;;\n'
+                        'python3.14) case "$*" in *"native_prebuilt.py apply"*) '
+                        '[ "$TEST_PUBLISHED" = 1 ] || exit 3; echo "{}" > NativeRuntime/.prebuilt.json ;; esac ;;\n'
+                        'xcrun) case "$*" in *what-version*) echo 70;; esac ;;\n'
+                        'esac\n')
+                for name in ['brew', 'ruby', 'gem', 'rustup', 'python3.14', 'xcrun', 'xcodebuild', 'sysctl']:
+                    path = tools / name
+                    path.write_text(fake)
+                    path.chmod(0o755)
+                env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ['PATH'],
+                           CI_XCODE_CLOUD='TRUE', CI_PRIMARY_REPOSITORY_PATH=str(checkout),
+                           CI_DERIVED_DATA_PATH=str(temporary / 'Derived Data'), CI_WORKFLOW='PR Gate',
+                           CI_XCODE_SCHEME=scheme, CI_BUILD_NUMBER='71', TEST_PUBLISHED='1' if published else '0',
+                           TEST_BIN_PARENT=str(temporary), TEST_CALLS=str(temporary / 'calls'))
+                for key in ['STRUIS_NATIVE_PLATFORM', 'STRUIS_NATIVE_PREBUILT', 'STRUIS_COMPOUND_DASH_PREPARATION']:
+                    env.pop(key, None)
+                result = subprocess.run(['sh', str(checkout / 'ci_scripts/ci_post_clone.sh')], cwd=checkout, env=env,
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                calls = (temporary / 'calls').read_text()
+                self.assertIn('scripts/ci/native_prebuilt.py apply', calls)
+                self.assertEqual('NativeRuntime/Scripts/bootstrap.py' in calls, not published)
+                self.assertEqual('rustup toolchain install' in calls, not published)
+                self.assertIn(f'STRUIS_NATIVE_SOURCE source={"prebuilt" if published else "build"}', result.stdout)
+                # Test plans and build numbers are still prepared either way.
+                self.assertIn('scripts/ci/xcode_test_plan.py', calls)
+                self.assertIn('agvtool new-version', calls)
 
     def test_stage_reports_failure_and_preserves_its_exit_code(self):
         helper = xcode_test_plan.ROOT / 'ci_scripts/timing.sh'

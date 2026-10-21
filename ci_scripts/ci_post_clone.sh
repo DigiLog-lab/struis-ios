@@ -40,11 +40,6 @@ if ! ruby -e 'gem "xcodeproj", "1.27.0"; require "xcodeproj"' >/dev/null 2>&1; t
     run_stage ruby-gems gem install xcodeproj --version 1.27.0 --no-document --install-dir "$GEM_HOME"
 fi
 run_stage ruby-check ruby -e 'gem "xcodeproj", "1.27.0"; require "xcodeproj"; puts "STRUIS_RUBY version=#{RUBY_VERSION} xcodeproj=#{Xcodeproj::VERSION}"'
-if ! command -v rustup >/dev/null 2>&1; then
-    run_stage rustup-install brew install rustup
-    export PATH="$(brew --prefix rustup)/bin:$PATH"
-fi
-run_stage rust-toolchain rustup toolchain install 1.95.0 --profile minimal
 cloud_test_tier=""
 case "${CI_XCODE_SCHEME:-}" in
     StruisPRGate) cloud_test_tier=pr ;;
@@ -70,22 +65,42 @@ if [ -z "$native_platform" ]; then
     esac
 fi
 case "$native_platform" in
-    device) rustup target add --toolchain 1.95.0 aarch64-apple-ios ;;
-    simulator) rustup target add --toolchain 1.95.0 aarch64-apple-ios-sim ;;
-    both) rustup target add --toolchain 1.95.0 aarch64-apple-ios aarch64-apple-ios-sim ;;
+    device|simulator|both) ;;
     *) echo "Unsupported STRUIS_NATIVE_PLATFORM: $native_platform" >&2; exit 1 ;;
 esac
-export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
-export PATH="$CARGO_HOME/bin:$PATH"
 # The signed Dash stage pool is a dedicated Simulator preparation, never an
 # archive/device default or a model-selected execution option.
 if [ "${CI_WORKFLOW:-}" = "Hyotan Native Runtime Tests" ]; then
     [ "$native_platform" = simulator ] || { echo "Compound Dash preparation requires Simulator" >&2; exit 1; }
     export STRUIS_COMPOUND_DASH_PREPARATION=1
 fi
-echo "Building native runtime for $native_platform"
-run_stage native-inputs python3.14 scripts/ci/prefetch_native.py --platform "$native_platform"
-run_stage native-bootstrap python3.14 NativeRuntime/Scripts/bootstrap.py --platform "$native_platform"
+# PR Gate and Release reuse the outputs that agent-native-cache.yml built on
+# GitHub for the same NativeRuntime inputs (both SDKs), verified by SHA-256.
+# Anything else, or an input set not published yet, builds from source.
+native_source=build
+if [ -n "$cloud_test_tier" ] && [ "${STRUIS_NATIVE_PREBUILT:-1}" = 1 ]; then
+    rm -f NativeRuntime/.prebuilt.json
+    run_stage native-prebuilt python3.14 scripts/ci/native_prebuilt.py apply || true
+    if [ -f NativeRuntime/.prebuilt.json ]; then native_source=prebuilt; fi
+fi
+echo "STRUIS_NATIVE_SOURCE source=$native_source platform=$native_platform"
+if [ "$native_source" = build ]; then
+    if ! command -v rustup >/dev/null 2>&1; then
+        run_stage rustup-install brew install rustup
+        export PATH="$(brew --prefix rustup)/bin:$PATH"
+    fi
+    run_stage rust-toolchain rustup toolchain install 1.95.0 --profile minimal
+    case "$native_platform" in
+        device) rustup target add --toolchain 1.95.0 aarch64-apple-ios ;;
+        simulator) rustup target add --toolchain 1.95.0 aarch64-apple-ios-sim ;;
+        both) rustup target add --toolchain 1.95.0 aarch64-apple-ios aarch64-apple-ios-sim ;;
+    esac
+    export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+    export PATH="$CARGO_HOME/bin:$PATH"
+    echo "Building native runtime for $native_platform"
+    run_stage native-inputs python3.14 scripts/ci/prefetch_native.py --platform "$native_platform"
+    run_stage native-bootstrap python3.14 NativeRuntime/Scripts/bootstrap.py --platform "$native_platform"
+fi
 cargo_cache_size after
 test -f NativeRuntime/Vendor/NativeCodex.xcframework/Info.plist
 if [ "${STRUIS_COMPOUND_DASH_PREPARATION:-0}" = 1 ]; then

@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Generate Xcode Cloud test plans from the same UI selection used locally.
 
-The gate omits only the methods in xcode-cloud-exclusions.json. Release keeps
-every test. Missing diff information expands the gate to every eligible UI
-test; it must never quietly reduce coverage to the minimum E2E classes.
+The gate omits only the methods in xcode-cloud-exclusions.json and runs the UI
+test classes in parallel on simulator clones (Xcode distributes whole classes,
+so long tests sit in classes of their own). Release keeps every test and runs
+them serially, so its performance test measures a quiet simulator. Missing diff
+information expands the gate to every eligible UI test; it must never quietly
+reduce coverage to the minimum E2E classes.
 """
 import argparse
 import json
@@ -65,7 +68,7 @@ def generate(tier, changed, discovered=None, selection=None, manifest=None):
     plan_name = 'PR Gate' if tier == 'pr' else 'Release'
     targets = [
         {'target': {'containerPath': 'container:strius.xcodeproj', 'identifier': TARGETS['striusTests'], 'name': 'striusTests'}},
-        {'parallelizable': False,
+        {'parallelizable': tier == 'pr',
          'selectedTests': [test + '()' for test in selected],
          'target': {'containerPath': 'container:strius.xcodeproj', 'identifier': TARGETS['striusUITests'], 'name': 'striusUITests'}},
     ]

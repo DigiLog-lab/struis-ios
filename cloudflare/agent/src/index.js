@@ -10,7 +10,7 @@ import qrcode from 'qrcode-generator';
 
 const GITHUB_ISSUER = 'https://token.actions.githubusercontent.com';
 const JWKS_URL = `${GITHUB_ISSUER}/.well-known/jwks`;
-const KEY_PREFIXES = ['sessions/', 'prototypes/', 'media/', 'usage/', 'gates/'];
+const KEY_PREFIXES = ['sessions/', 'prototypes/', 'media/', 'usage/'];
 const MAX_TTL_SECONDS = 30 * 24 * 3600;
 const CLOCK_SKEW_SECONDS = 60;
 
@@ -73,10 +73,6 @@ async function route(request, env) {
 
 async function handleApi(request, env, url, claims) {
   const path = url.pathname;
-  const checkpointMatch = path.match(/^\/v1\/checkpoints\/([1-9]\d*)$/);
-  if (checkpointMatch && request.method === 'DELETE') {
-    return pruneCheckpoints(request, env, checkpointMatch[1]);
-  }
   if (path.startsWith('/v1/objects/')) {
     const key = objectKey(path.slice('/v1/objects/'.length));
     if (request.method === 'GET') {
@@ -90,7 +86,6 @@ async function handleApi(request, env, url, claims) {
       });
     }
     if (request.method === 'PUT') {
-      requireGateWriter(key, claims, env);
       const contentType = request.headers.get('content-type') || 'application/octet-stream';
       // If-Match / If-None-Match make read-modify-write updates (slot registry,
       // build numbers) safe when several workflow runs race.
@@ -107,14 +102,19 @@ async function handleApi(request, env, url, claims) {
   }
   if (path === '/v1/list' && request.method === 'GET') {
     const prefix = objectKey(url.searchParams.get('prefix') || '');
-    const page = await env.STORE.list({ prefix, cursor: url.searchParams.get('cursor') || undefined, limit: 1000 });
-    return json({ objects: page.objects.map((object) => ({
-      key: object.key, size: object.size, uploaded: object.uploaded.toISOString(),
-    })), nextCursor: page.truncated ? page.cursor : null });
+    const listed = [];
+    let cursor;
+    do {
+      const page = await env.STORE.list({ prefix, cursor, limit: 1000 });
+      for (const object of page.objects) {
+        listed.push({ key: object.key, size: object.size, uploaded: object.uploaded.toISOString() });
+      }
+      cursor = page.truncated ? page.cursor : undefined;
+    } while (cursor && listed.length < 10000);
+    return json({ objects: listed });
   }
   if (path.startsWith('/v1/multipart/')) {
     const key = objectKey(path.slice('/v1/multipart/'.length));
-    requireGateWriter(key, claims, env);
     const uploadId = url.searchParams.get('uploadId');
     if (request.method === 'POST' && !uploadId) {
       const contentType = url.searchParams.get('contentType') || 'application/octet-stream';
@@ -160,45 +160,6 @@ async function handleApi(request, env, url, claims) {
     });
   }
   throw new HttpError(404, 'Not found');
-}
-
-function requireGateWriter(key, claims, env) {
-  const controller = `${env.GITHUB_REPOSITORY}/.github/workflows/agent-gate.yml@refs/heads/${env.DEFAULT_BRANCH}`;
-  if (key.startsWith('gates/') && claims.job_workflow_ref !== controller) {
-    throw new HttpError(403, 'Only the gate controller may write gate results');
-  }
-}
-
-export async function pruneCheckpoints(request, env, issue) {
-  if (!/^[1-9]\d*$/.test(issue)) throw new HttpError(400, 'Invalid issue');
-  const body = await request.json();
-  if (!Array.isArray(body.keep) || body.keep.length > 2 ||
-      body.keep.some((id) => typeof id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(id))) {
-    throw new HttpError(400, 'keep must contain at most two checkpoint IDs');
-  }
-  const before = Date.parse(body.before);
-  if (!Number.isFinite(before) || before > Date.now() + 60000) throw new HttpError(400, 'Invalid cutoff');
-  const pointer = await env.STORE.get(`sessions/${issue}/workspace.json`);
-  const current = pointer ? await pointer.json() : {};
-  if (!body.keep.length && !current.closed) throw new HttpError(409, 'Tombstone the pointer first');
-  if (body.keep.length && (!body.keep.includes(current.saveId) ||
-      (current.previous && !body.keep.includes(current.previous.saveId)))) {
-    throw new HttpError(409, 'Checkpoint pointer changed');
-  }
-  const prefix = `sessions/${issue}/checkpoints/`;
-  let cursor;
-  let deleted = 0;
-  do {
-    const page = await env.STORE.list({ prefix, cursor, limit: 1000 });
-    const keys = page.objects.filter((object) => {
-      const id = object.key.slice(prefix.length).split('/')[0];
-      return !body.keep.includes(id) && (!body.keep.length || object.uploaded.getTime() < before);
-    }).map((object) => object.key);
-    if (keys.length) await env.STORE.delete(keys);
-    deleted += keys.length;
-    cursor = page.truncated ? page.cursor : undefined;
-  } while (cursor);
-  return json({ deleted });
 }
 
 function objectKey(raw) {

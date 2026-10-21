@@ -9,7 +9,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import cleanup
 import configure_cloud
 import gate
-import lifecycle
 import test_gate as fixtures
 
 
@@ -35,15 +34,16 @@ class CloudAndCleanupTests(unittest.TestCase):
         self.assertEqual(release['actions'][-1]['buildDistributionAudience'], 'INTERNAL_ONLY')
         self.assertEqual(release['actions'][0]['scheme'], 'StruisRelease')
 
-    def test_lifecycle_covers_only_checkpoint_prefixes_and_preserves_unrelated_rules(self):
-        unrelated = {'id': 'media-expiry', 'conditions': {'prefix': 'media/'}, 'enabled': True}
-        old = {'id': 'struis-checkpoints-4', 'conditions': {'prefix': 'sessions/4/checkpoints/'}}
-        rules = lifecycle.rules_for([unrelated, old], {8, 12})
-        self.assertEqual(rules[0], unrelated)
-        self.assertEqual([rule['conditions']['prefix'] for rule in rules[1:]], ['sessions/8/checkpoints/', 'sessions/12/checkpoints/'])
-        self.assertTrue(all(rule['deleteObjectsTransition']['condition']['maxAge'] == 14 * 86400 for rule in rules[1:]))
-        with self.assertRaises(ValueError):
-            lifecycle.rules_for([], {'../state'})
+    def test_closing_an_issue_tombstones_and_deletes_all_its_checkpoints_only(self):
+        store = fixtures.MemoryStore()
+        mine = store.artifacts.upload('agent-ckpt-4-save-1', {'manifest.json': b'{}'}, 14)
+        other = store.artifacts.upload('agent-ckpt-44-save-1', {'manifest.json': b'{}'}, 14)
+        store.put_json('sessions/4/workspace.json', {'schema': 3, 'saveId': 'save-1', 'artifact': mine})
+        gh = mock.Mock(repository='owner/repo')
+        gh.get.return_value = {'actions_caches': []}
+        cleanup.cleanup(4, None, gh, store)
+        self.assertTrue(store.get_json('sessions/4/workspace.json')['closed'])
+        self.assertEqual(set(store.artifacts.items), {other['id']})
 
     def test_cache_cleanup_cannot_delete_bootstrap_or_another_branch(self):
         gh = mock.Mock(repository='owner/repo')
@@ -67,6 +67,7 @@ class GateBoundaryTests(unittest.TestCase):
     setUp = fixtures.GateTests.setUp
     results = fixtures.GateTests.results
     dispatches = fixtures.GateTests.dispatches
+    wakes = fixtures.GateTests.wakes
     def test_cloud_source_commit_mismatch_never_becomes_green(self):
         record = self.controller.start(8)
         record.update(backend='xcode-cloud', cloudRun='cloud1', workflow='workflow1', url='https://cloud.example/run')
@@ -79,7 +80,7 @@ class GateBoundaryTests(unittest.TestCase):
             result = self.controller.poll(record)
         self.assertEqual(result['phase'], 'invalidated')
         self.assertTrue(self.gh.pr['draft'])
-        self.assertEqual(self.dispatches('agent.yml'), [])
+        self.assertEqual(self.wakes(), [])
 
     def test_cloud_requires_real_test_results_and_carries_failure_details(self):
         record = self.controller.start(8)
@@ -100,9 +101,8 @@ class GateBoundaryTests(unittest.TestCase):
         self.controller.start(8)
         self.results()
         self.controller.poll(self.store.get_json('gates/pr-8.json'))
-        for key in list(self.store.data):
-            if '/checkpoints/' in key:
-                del self.store.data[key]
+        for identifier in list(self.store.artifacts.items):
+            self.store.artifacts.delete(identifier)
         self.controller.reconcile()
         self.assertFalse(self.gh.pr['draft'])
         self.assertTrue(self.store.get_json('gates/pr-8.json')['success'])

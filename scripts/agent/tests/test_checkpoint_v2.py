@@ -60,7 +60,7 @@ class ImmutableCheckpointTests(unittest.TestCase):
         self.assertEqual(saved['head'], head)
         self.assertTrue(saved['bundle'])
         self.assertEqual(saved['sessionId'], 'session')
-        self.assertNotIn(b'must not upload', b''.join(self.store.data.values()))
+        self.assertNotIn(b'must not upload', b''.join(self.store.data.values()) + self.store.artifacts.all_bytes())
         self.git('reset', '--hard', self.base)
         self.git('clean', '-fd')
         self.assertTrue(checkpoints.restore(self.store, 4, 'work'))
@@ -69,14 +69,25 @@ class ImmutableCheckpointTests(unittest.TestCase):
         self.assertEqual((self.repo / 'scratch').read_text(), 'untracked')
         self.assertEqual(json.loads((self.home / 'local-verification.json').read_text())['example'], 'local-verification.json')
 
-    def test_unique_saves_keep_previous_and_prune_only_after_pointer_commit(self):
+    def test_unique_saves_keep_previous_and_prune_only_unreferenced_artifacts(self):
         first = checkpoints.save(self.store, 4, self.run)
         second = checkpoints.save(self.store, 4, self.run)
         third = checkpoints.save(self.store, 4, self.run)
         self.assertEqual(len({first['saveId'], second['saveId'], third['saveId']}), 3)
         self.assertEqual(third['previous']['saveId'], second['saveId'])
         self.assertNotIn('previous', third['previous'])
-        self.assertEqual(self.store.pruned[-1][1], [third['saveId'], second['saveId']])
+        # The worker never deletes (no actions: write); the Linux job after it does.
+        self.assertEqual(self.store.artifacts.deleted, [])
+        self.assertEqual(third['artifact']['name'], 'agent-ckpt-4-' + third['saveId'])
+        self.assertEqual(checkpoints.prune(self.store, 4), 1)
+        self.assertEqual(set(self.store.artifacts.items), {second['artifact']['id'], third['artifact']['id']})
+        # A save uploaded moments ago but not yet named by the pointer is never removed.
+        self.store.artifacts.upload('agent-ckpt-4-in-flight', {'manifest.json': b'{}'}, 14)
+        self.store.artifacts.items[max(self.store.artifacts.items)]['created_at'] = checkpoints.iso()
+        self.assertEqual(checkpoints.prune(self.store, 4), 0)
+        # Other Issues' checkpoints are never touched.
+        self.store.artifacts.upload('agent-ckpt-40-other', {'manifest.json': b'{}'}, 14)
+        self.assertEqual(checkpoints.prune(self.store, 4), 0)
 
     def test_upload_failure_and_lost_cas_preserve_complete_pointer(self):
         first = checkpoints.save(self.store, 4, self.run)
@@ -85,18 +96,19 @@ class ImmutableCheckpointTests(unittest.TestCase):
             checkpoints.save(self.store, 4, self.run)
         self.assertEqual(self.store.get_json('sessions/4/workspace.json'), first)
         self.store.fail_upload = False
-        original = self.store.upload_file
-        def race(key, path):
-            original(key, path)
+        original = self.store.artifacts.upload
+        def race(name, files, retention_days):
+            result = original(name, files, retention_days)
             self.store.put_json('sessions/4/workspace.json', {'closed': True, 'winner': True})
-        with mock.patch.object(self.store, 'upload_file', side_effect=race):
+            return result
+        with mock.patch.object(self.store.artifacts, 'upload', side_effect=race):
             self.assertIsNone(checkpoints.save(self.store, 4, self.run))
         self.assertTrue(self.store.get_json('sessions/4/workspace.json')['winner'])
-        self.assertEqual(self.store.pruned, [])
+        self.assertEqual(self.store.artifacts.deleted, [])
 
     def test_integrity_failure_is_detected_before_checkout_modification(self):
         saved = checkpoints.save(self.store, 4, self.run)
-        self.store.data[saved['prefix'] + '/untracked.tar.gz'] = b'corrupt'
+        self.store.artifacts.items[saved['artifact']['id']]['files']['untracked.tar.gz'] = b'corrupt'
         with self.assertRaisesRegex(RuntimeError, 'Incomplete checkpoint'):
             checkpoints.restore(self.store, 4, 'work')
         self.assertEqual(self.git('status', '--porcelain'), '')
@@ -112,7 +124,16 @@ class ImmutableCheckpointTests(unittest.TestCase):
         checkpoints.clear(self.store, 4, 'complete')
         self.assertIsNone(checkpoints.save(self.store, 4, self.run))
         self.assertFalse(checkpoints.restore(self.store, 4, 'work'))
-        self.assertEqual(self.store.pruned[-1][1], [])
+        # A closed pointer keeps nothing.
+        self.assertEqual(checkpoints.prune(self.store, 4), 1)
+        self.assertEqual(self.store.artifacts.list('agent-ckpt-4-'), [])
+
+    def test_expired_artifact_is_reported_without_touching_the_checkout(self):
+        saved = checkpoints.save(self.store, 4, self.run)
+        del self.store.artifacts.items[saved['artifact']['id']]
+        with self.assertRaises(checkpoints.CheckpointExpired):
+            checkpoints.restore(self.store, 4, 'work')
+        self.assertEqual(self.git('status', '--porcelain'), '')
 
     def test_changed_workspace_during_periodic_capture_is_not_published(self):
         first = checkpoints.save(self.store, 4, self.run)

@@ -1,9 +1,17 @@
 name: Issue agent
 run-name: >-
-  ${{ github.event.workflow_run && format('Recovery {0}', github.event.workflow_run.id) || format('Issue agent #{0}', github.event.issue.number || inputs.issue) }}
+  ${{ github.event.workflow_run.name == 'Issue agent' && format('Recovery {0}', github.event.workflow_run.id) ||
+      (github.event.issue.number || inputs.issue || github.event.client_payload.issue) && github.event.action != 'closed' &&
+        format('Issue agent #{0}', github.event.issue.number || inputs.issue || github.event.client_payload.issue) ||
+      format('Agent control {0} {1}', github.event_name, github.event.action || github.event.context || github.event.workflow_run.name || '') }}
 
 # Issues labeled `agent` are conversations with Claude Code. Each comment from
 # an allowed person starts a new session; automatic interruption recovery resumes it.
+#
+# The same workflow also holds the Linux control plane (Ready gate controller and
+# checkpoint cleanup): the agent store authenticates jobs by workflow file, and
+# the deployed store accepts agent.yml. Control runs are named "Agent control …"
+# so that agent-recovery.yml never treats them as interrupted Issue workers.
 on:
   workflow_call:
   workflow_dispatch:
@@ -20,29 +28,50 @@ on:
         description: 中断後の自動再開
         default: false
         type: boolean
+  # Sent with only contents: write (agentlib.dispatch): agent-issue wakes or
+  # restarts an Issue, agent-gate hands a Ready PR to the controller and
+  # xcode-cloud starts a PR Gate/Release build on request.
+  repository_dispatch:
+    types: [agent-issue, agent-gate, xcode-cloud]
   issues:
-    types: [opened, labeled]
+    types: [opened, labeled, closed]
   issue_comment:
     types: [created]
+  pull_request_target:
+    types: [ready_for_review, synchronize, converted_to_draft, closed]
+  check_run:
+    types: [completed]
+  status:
+  workflow_run:
+    workflows: [iOS, Agent tests]
+    types: [completed]
+  schedule:
+    # Safety net for lost events. A running gate is polled by its own control run.
+    - cron: '17 * * * *'
 
 permissions:
   contents: read
 
 concurrency:
-  group: agent-issue-${{ github.event.issue.number || inputs.issue || github.event.workflow_run.id }}
+  # One group per Issue for workers; one serialized group for the control plane
+  # (a newer pending control run replaces an older one, and every control run
+  # reconciles everything). A requested Cloud build is never replaced.
+  group: >-
+    ${{ github.event.workflow_run.name == 'Issue agent' && format('agent-recovery-{0}', github.event.workflow_run.id) ||
+        (github.event.issue.number || inputs.issue || github.event.client_payload.issue) && github.event.action != 'closed' &&
+          format('agent-issue-{0}', github.event.issue.number || inputs.issue || github.event.client_payload.issue) ||
+        github.event.action == 'xcode-cloud' && format('agent-cloud-{0}', github.run_id) || 'agent-control' }}
   cancel-in-progress: false
 
 env:
   AGENT_STORE_URL: ${{ vars.AGENT_STORE_URL || 'https://agent-struis.digiloglab.com' }}
   AGENT_VALIDATION_MODE: gate
-  GATE_RESULT: ${{ inputs.gate_result }}
-  AGENT_GATE_MAX_ATTEMPTS: ${{ vars.AGENT_GATE_MAX_ATTEMPTS }}
-  AGENT_CHECKPOINT_SECONDS: ${{ vars.AGENT_CHECKPOINT_SECONDS || '900' }}
+  GATE_RESULT: ${{ inputs.gate_result || github.event.client_payload.gate_result }}
   AGENT_DERIVED_DATA: ${{ github.workspace }}/../agent-derived-data
   AGENT_LABEL: ${{ vars.AGENT_LABEL || 'agent' }}
   AGENT_ALLOWED_USERS: ${{ vars.AGENT_ALLOWED_USERS }}
-  ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue }}
-  AUTOMATIC_RETRY: ${{ inputs.automatic_retry && 'true' || 'false' }}
+  ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue || github.event.client_payload.issue }}
+  AUTOMATIC_RETRY: ${{ (inputs.automatic_retry || github.event.client_payload.automatic_retry == 'true') && 'true' || 'false' }}
 
 jobs:
   recover:
@@ -53,9 +82,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      contents: read
+      # contents: write sends the repository_dispatch that restarts the worker.
+      contents: write
       pull-requests: read
-      actions: write
+      actions: read
       id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -71,8 +101,10 @@ jobs:
         run: python3 scripts/agent/agentctl.py recover
   route:
     if: >-
-      github.event_name == 'workflow_dispatch' || (!github.event.issue.pull_request &&
-      contains(github.event.issue.labels.*.name, vars.AGENT_LABEL || 'agent') &&
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'repository_dispatch' && github.event.action == 'agent-issue') ||
+      (contains(fromJSON('["issues", "issue_comment"]'), github.event_name) && github.event.action != 'closed' &&
+      !github.event.issue.pull_request && contains(github.event.issue.labels.*.name, vars.AGENT_LABEL || 'agent') &&
       (github.event_name != 'issue_comment' || github.event.comment.user.type != 'Bot'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -99,11 +131,14 @@ jobs:
     if: needs.route.outputs.run == 'true'
     runs-on: xcode-27
     timeout-minutes: 340
+    # No actions: write: the agent cannot re-run, cancel or delete the runs and
+    # artifacts that decide its gate. It dispatches with contents: write
+    # (repository_dispatch) and reads its checkpoint artifacts with actions: read.
     permissions:
       contents: write
       issues: write
       pull-requests: write
-      actions: write
+      actions: read
       id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -143,6 +178,21 @@ jobs:
           path: ${{ env.AGENT_DERIVED_DATA }}
           key: ${{ steps.prepare.outputs.derived_cache_prefix }}${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.xcode_cache_id }}-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: ${{ steps.prepare.outputs.derived_cache_prefix }}${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.xcode_cache_id }}-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}-
+      - name: チェックポイントの保存に成果物サービスを使えるようにする
+        if: steps.prepare.outputs.skip == 'false'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          AGENT_HOME: ${{ runner.temp }}/agent
+        with:
+          script: |
+            // The artifact service credentials reach JavaScript actions only.
+            // progress.py (every 15 minutes) and finalize read them from this file.
+            const fs = require('fs');
+            const path = require('path');
+            fs.mkdirSync(process.env.AGENT_HOME, { recursive: true });
+            fs.writeFileSync(path.join(process.env.AGENT_HOME, 'actions-runtime.json'),
+              JSON.stringify({ token: process.env.ACTIONS_RUNTIME_TOKEN, resultsUrl: process.env.ACTIONS_RESULTS_URL }),
+              { mode: 0o600 });
       - name: 実行状態の監視を開始
         if: steps.prepare.outputs.skip == 'false'
         env:
@@ -210,3 +260,110 @@ jobs:
           path: ${{ runner.temp }}/agent/artifacts
           if-no-files-found: ignore
           retention-days: 30
+
+  # Keeps only the latest and the previous checkpoint of this Issue; runs after
+  # the worker so a save in flight is never removed.
+  checkpoint-gc:
+    needs: [route, worker]
+    if: always() && needs.route.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/agent
+      - name: 使わなかったチェックポイントを削除
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/agent/cleanup.py --prune-issue "$ISSUE_NUMBER"
+
+  # Ready -> external gate -> wake the Issue. Executes only main's code; a PR
+  # checkout is never run in this job, which holds the App Store Connect key.
+  control:
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'repository_dispatch' && contains(fromJSON('["agent-gate", "xcode-cloud"]'), github.event.action)) ||
+      (github.event_name == 'pull_request_target' && contains(github.event.pull_request.body, 'struis-agent:issue=')) ||
+      (github.event_name == 'check_run' && github.event.check_run.app.slug == 'xcode-cloud') ||
+      (github.event_name == 'status' && startsWith(github.event.context, 'strius | ')) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'workflow_dispatch' &&
+      contains(fromJSON('["iOS", "Agent tests"]'), github.event.workflow_run.name))
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      statuses: write
+      actions: write
+      id-token: write
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_KEY_PATH: ${{ github.workspace }}/../gate-api-key.p8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          persist-credentials: false
+          sparse-checkout: scripts/agent
+      - name: Linuxコントローラー用のAppleキーを一時配置
+        env:
+          PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          key = Path(os.environ['APP_STORE_CONNECT_KEY_PATH'])
+          key.touch(mode=0o600)
+          key.write_text(os.environ['PRIVATE_KEY'].replace('\r', '').strip() + '\n')
+          PY
+      - name: Ready・HEAD変更・門の結果を照合し、門の実行中は結果を待つ
+        env:
+          EVENT_ACTION: ${{ github.event.action }}
+          REQUESTED_PR: >-
+            ${{ github.event.client_payload.pr ||
+                github.event_name == 'pull_request_target' && github.event.action == 'ready_for_review' && github.event.pull_request.number || '' }}
+          READY_REQUEST: ${{ github.event.client_payload.request }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == repository_dispatch && "$EVENT_ACTION" == xcode-cloud ]]; then
+            python3 scripts/agent/cloud_dispatch.py
+          elif [[ -n "$REQUESTED_PR" ]]; then
+            python3 scripts/agent/gate.py --pr "$REQUESTED_PR" --request "$READY_REQUEST"
+          else
+            python3 scripts/agent/gate.py
+          fi
+      - name: Appleキーを削除
+        if: always()
+        run: rm -f "$APP_STORE_CONNECT_KEY_PATH"
+
+  cleanup:
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'issues' && github.event.action == 'closed') ||
+      (github.event_name == 'pull_request_target' && github.event.action == 'closed')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      actions: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          persist-credentials: false
+          sparse-checkout: scripts/agent
+      - name: 閉じたIssue・PRのチェックポイントとDerivedData cacheを削除
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/agent/cleanup.py

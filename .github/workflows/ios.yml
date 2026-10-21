@@ -8,11 +8,10 @@ on:
   # A label already present on a PR does not run again on a WIP push.
   pull_request:
     types: [labeled]
-  push:
-    branches: [main]
-  schedule:
-    # 全件の UI テストを 1 日 1 回(03:00 JST、runner が空いている時間)main で回す。
-    - cron: '0 18 * * *'
+  # No push or nightly trigger: the merge decision is the Xcode Cloud gate, and
+  # the full UI suite and TestFlight run in the Xcode Cloud Release workflow on
+  # request (docs/verification-and-delivery-policy.md). workflow_dispatch is the
+  # gate's GitHub fallback and the manual release/upload route.
   workflow_dispatch:
     inputs:
       source_ref:
@@ -45,21 +44,17 @@ permissions:
   contents: read
 
 concurrency:
-  # Only main's manual release/upload uses the shared non-cancellable group. The nightly full run has its own
-  # group and is not cancelled. Pushes to main cancel the older push run (the newest commit is what matters).
-  group: ios-${{ inputs.ci_request || github.event_name == 'schedule' && 'nightly' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && 'manual-main') || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main') }}
+  # Only main's manual release/upload uses the shared non-cancellable group.
+  group: ios-${{ inputs.ci_request || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && 'manual-main') || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main') }}
 
 jobs:
   # Guarantees the bootstrap output (about 50 minutes to build) is in the cache, so the
   # build and UI test runners below can start in parallel and only restore it.
   native:
-    # Keep the old nightly/archive until Cloud acceptance is explicitly recorded.
     if: >-
-      (github.event_name != 'pull_request' ||
-        (github.event.label.name == 'ios-verify' && github.event.pull_request.head.repo.full_name == github.repository)) &&
-      (github.event_name != 'push' || vars.XCODE_CLOUD_TESTFLIGHT_VERIFIED != 'true') &&
-      (github.event_name != 'schedule' || vars.XCODE_CLOUD_RELEASE_TESTS_VERIFIED != 'true')
+      github.event_name != 'pull_request' ||
+        (github.event.label.name == 'ios-verify' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: xcode-27
     timeout-minutes: 150
     steps:
@@ -201,8 +196,8 @@ jobs:
 
   # Decides which UI tests run and splits them across runners (scripts/ci/ui_test_plan.py,
   # scripts/ci/ui-test-plan.json). Pull requests and the agent's CI requests run the `pr` tier
-  # (the E2E classes plus the classes mapped to the changed files, 2 runners); a push to main,
-  # the nightly run and a manual `full` run every UI test (3 runners).
+  # (the E2E classes plus the classes mapped to the changed files, 2 runners); a manual run on main
+  # and a manual `full` run every UI test (3 runners).
   ui-plan:
     if: >-
       github.event_name != 'pull_request' ||
@@ -227,16 +222,8 @@ jobs:
           SOURCE_REF: ${{ inputs.source_ref }}
         run: |
           set -euo pipefail
-          # A push to main runs no UI tests: the PR already ran the classes its changes touch, and the nightly run
-          # covers everything. Running every test on 3 runners for each merge kept 4 of the 5 macOS runners busy for
-          # about 30 minutes and left the open PRs waiting.
-          if [[ "$EVENT" == "push" ]]; then
-            echo "matrix=[]" >> "$GITHUB_OUTPUT"
-            echo '### UIテストの割り当て: mainへのpushでは回さない(毎晩 03:00 JST に全件)' >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          # Nightly and manual main runs (release) get every UI test.
-          if [[ -z "$SOURCE_REF" && ( "$EVENT" == "schedule" || "$REQUESTED_TIER" == "full" || "$REF" == "refs/heads/main" ) ]]; then
+          # Manual main runs (release) get every UI test.
+          if [[ -z "$SOURCE_REF" && ( "$REQUESTED_TIER" == "full" || "$REF" == "refs/heads/main" ) ]]; then
             tier=full
             : > "$RUNNER_TEMP/changed.txt"
           else
@@ -371,13 +358,11 @@ jobs:
 
   signed-archive:
     needs: [build, ui-plan, ui-tests]
-    # main only (push, or a manual release/upload run), after the build job passed. A manual run also needs every
-    # UI test runner to pass; a push runs no UI tests (ui-tests is skipped).
+    # main only (a manual release/upload run), after the build job and every UI test runner passed.
     if: >-
-      !cancelled() && !inputs.source_ref && !inputs.gate_pr && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      (github.event_name != 'push' || vars.XCODE_CLOUD_TESTFLIGHT_VERIFIED != 'true') &&
+      !cancelled() && !inputs.source_ref && !inputs.gate_pr && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' &&
       needs.build.result == 'success' && needs.ui-plan.result == 'success' &&
-      (needs.ui-tests.result == 'success' || (github.event_name == 'push' && needs.ui-tests.result == 'skipped'))
+      needs.ui-tests.result == 'success'
     runs-on: xcode-27
     timeout-minutes: 60
     steps:

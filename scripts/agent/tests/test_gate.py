@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import checkpoints
 import delivery
 import gate
-from gate_fakes import MemoryStore
+from gate_fakes import FakeStatuses, MemoryStore
 from test_delivery import test_tree
 
 
@@ -22,6 +22,7 @@ class FakeGitHub:
     def __init__(self):
         self.calls = []
         self.runs = {}
+        self.statuses = FakeStatuses()
         self.pr = {'number': 8, 'node_id': 'PR_8', 'state': 'open', 'draft': False,
                    'html_url': 'https://github.com/owner/repo/pull/8', 'body': '<!-- struis-agent:issue=4 -->',
                    'head': {'sha': 'a' * 40, 'ref': 'work', 'repo': {'full_name': self.repository}}}
@@ -41,6 +42,9 @@ class FakeGitHub:
 
     def request(self, method, path, body=None):
         self.calls.append((method, path, copy.deepcopy(body)))
+        if method == 'POST' and '/statuses/' in path:
+            self.statuses.post(path.rsplit('/', 1)[1], body)
+            return {}, ''
         if path == '/graphql':
             value = 'convertPullRequestToDraft' in body['query']
             self.pr['draft'] = value
@@ -52,6 +56,10 @@ class FakeGitHub:
         self.calls.append(('comment', number, body))
 
     def paginate(self, path):
+        if '/statuses' in path:
+            return self.statuses.list(path.split('/commits/')[1].split('/')[0])
+        if path.endswith('/commits'):
+            return [{'sha': self.pr['head']['sha']}]
         return [copy.deepcopy(self.pr)]
 
 
@@ -73,10 +81,10 @@ class GateTests(unittest.TestCase):
         components = {'request-snapshot.json': snapshot, 'work-items.json': items, 'local-verification.json': local,
                       'run.json': {'includedComments': [20], 'includedIssueBody': True}}
         prefix = 'sessions/4/checkpoints/save-1'
-        for name, value in components.items():
-            self.store.put_json(prefix + '/' + name, value)
-        checkpoint = {'schema': 2, 'saveId': 'save-1', 'prefix': prefix, 'head': 'a' * 40,
-                      'components': {name: checkpoints.digest(self.store.data[prefix + '/' + name]) for name in components}}
+        files = {name: json.dumps(value, ensure_ascii=False, indent=2).encode() for name, value in components.items()}
+        artifact = self.store.artifacts.upload('agent-ckpt-4-save-1', files, 14)
+        checkpoint = {'schema': 3, 'saveId': 'save-1', 'prefix': prefix, 'head': 'a' * 40, 'artifact': artifact,
+                      'components': {name: checkpoints.digest(data) for name, data in files.items()}}
         self.request = {'request': 'req1', 'issue': 4, 'pr': 8, 'head': 'a' * 40, 'branch': 'work', 'checkpoint': checkpoint,
                         'scope': {'includedComments': [20], 'includedIssueBody': True}}
         self.store.put_json('sessions/4/gate-request.json', self.request)
@@ -91,8 +99,12 @@ class GateTests(unittest.TestCase):
                                       'display_title': ('iOS CI ' if workflow == 'ios.yml' else 'Agent tests CI ') + 'req1 ' + 'a' * 40}]
 
     def dispatches(self, workflow=None):
-        return [call for call in self.gh.calls if isinstance(call[1], str) and '/dispatches' in call[1]
-                and (not workflow or f'/{workflow}/' in call[1])]
+        return [call for call in self.gh.calls if isinstance(call[1], str) and '/actions/workflows/' in call[1]
+                and '/dispatches' in call[1] and (not workflow or f'/{workflow}/' in call[1])]
+
+    def wakes(self):
+        return [call for call in self.gh.calls if call[1] == '/repos/owner/repo/dispatches'
+                and call[2]['event_type'] == 'agent-issue']
 
     def test_ready_dispatch_is_main_defined_exact_sha_and_idempotent(self):
         record = self.controller.start(8, 'req1')
@@ -112,14 +124,15 @@ class GateTests(unittest.TestCase):
         self.controller.poll(record)
         self.assertTrue(self.gh.pr['draft'])
         self.assertEqual(self.store.get_json('gates/pr-8.json')['phase'], 'invalidated')
-        self.assertEqual(self.dispatches('agent.yml'), [])
+        self.assertEqual(self.wakes(), [])
 
     def test_green_gate_wakes_once_and_linux_route_completes_original_scope(self):
         record = self.controller.start(8)
         self.results()
         self.controller.poll(record)
         self.controller.poll(self.store.get_json('gates/pr-8.json'))
-        self.assertEqual(len(self.dispatches('agent.yml')), 1)
+        self.assertEqual(len(self.wakes()), 1)
+        self.assertEqual(self.wakes()[0][2]['client_payload'], {'issue': '4', 'automatic_retry': 'true', 'gate_result': 'req1'})
         self.assertFalse(gate.consume_result(4, 'req1', self.gh, self.store))
         state = self.store.get_json('sessions/4/state.json')
         self.assertEqual(state['validatedHead'], 'a' * 40)
@@ -157,7 +170,7 @@ class GateTests(unittest.TestCase):
             self.controller.start(8)
         self.assertEqual(self.dispatches(), [])
         self.gh.pr['draft'] = False
-        del self.store.data['sessions/4/checkpoints/save-1/local-verification.json']
+        del self.store.artifacts.items[1]['files']['local-verification.json']
         with self.assertRaisesRegex(RuntimeError, 'Incomplete'):
             self.controller.start(8)
         self.assertTrue(self.gh.pr['draft'])
@@ -170,8 +183,77 @@ class GateTests(unittest.TestCase):
         self.assertFalse(gate.consume_result(4, 'req1', self.gh, self.store))
         self.assertIsNone(self.store.get_json('sessions/4/state.json'))
 
-    def test_quota_fallback_uses_configured_values_without_invented_threshold(self):
-        with mock.patch.dict(os.environ, {'AGENT_GATE_BACKEND': 'xcode-cloud', 'XCODE_CLOUD_REMAINING_MINUTES': '10', 'AGENT_GATE_ESTIMATED_MINUTES': '15'}):
-            self.assertEqual(gate.backend(), 'github')
-        with mock.patch.dict(os.environ, {'AGENT_GATE_BACKEND': 'xcode-cloud', 'XCODE_CLOUD_REMAINING_MINUTES': '16', 'AGENT_GATE_ESTIMATED_MINUTES': '15'}):
+    def test_committed_config_needs_no_repository_variable(self):
+        with mock.patch.dict(os.environ, {'AGENT_GATE_BACKEND': '', 'AGENT_GATE_MAX_ATTEMPTS': ''}):
             self.assertEqual(gate.backend(), 'xcode-cloud')
+            self.assertEqual(gate.max_attempts(), 3)
+
+    def test_cloud_refusal_falls_back_to_github_but_a_lost_response_does_not(self):
+        workflow = {'id': 'wf', 'relationships': {'repository': {'data': {'id': 'repo'}}}}
+        with mock.patch.dict(os.environ, {'AGENT_GATE_BACKEND': 'xcode-cloud'}), \
+                mock.patch.object(gate, 'cloud_workflow', return_value=workflow), \
+                mock.patch.object(gate, 'cloud_client'), \
+                mock.patch.object(gate, 'start_cloud_build', side_effect=gate.CloudStartRejected(
+                    'App Store Connect POST /v1/ciBuildRuns: HTTP 409 compute hours exhausted')):
+            record = self.controller.start(8)
+        self.assertEqual(record['backend'], 'github')
+        self.assertIn('HTTP 409', record['cloudStartError'])
+        self.assertEqual(len(self.dispatches('ios.yml')), 1)
+        self.store.put_json('gates/pr-8.json', {})
+        self.gh.pr['draft'] = False
+        with mock.patch.dict(os.environ, {'AGENT_GATE_BACKEND': 'xcode-cloud'}), \
+                mock.patch.object(gate, 'cloud_workflow', return_value=workflow), \
+                mock.patch.object(gate, 'cloud_client'), \
+                mock.patch.object(gate, 'start_cloud_build', side_effect=OSError('connection reset')), \
+                self.assertRaises(OSError):
+            self.controller.start(8, 'req1')
+        self.assertEqual(len(self.dispatches('ios.yml')), 1)
+        self.assertTrue(self.gh.pr['draft'])
+
+    def test_only_an_http_4xx_counts_as_a_refused_start(self):
+        client = mock.Mock()
+        client.request.side_effect = RuntimeError('App Store Connect POST /v1/ciBuildRuns: HTTP 409 {"errors": []}')
+        with self.assertRaises(gate.CloudStartRejected):
+            gate.post_build(client, 'wf', 'ref')
+        client.request.side_effect = RuntimeError('App Store Connect POST /v1/ciBuildRuns: HTTP 503 unavailable')
+        with self.assertRaises(RuntimeError) as raised:
+            gate.post_build(client, 'wf', 'ref')
+        self.assertNotIsInstance(raised.exception, gate.CloudStartRejected)
+
+    def test_gate_outcome_requires_the_controller_status_not_only_the_store_record(self):
+        record = self.controller.start(8)
+        self.results()
+        self.controller.poll(record)
+        # A forged store record cannot complete the Issue without the controller's status...
+        forged = dict(self.store.get_json('gates/pr-8.json'), success=False)
+        self.store.put_json('gates/pr-8.json', forged)
+        self.assertFalse(gate.consume_result(4, 'req1', self.gh, self.store))
+        self.assertIsNone(self.store.get_json('sessions/4/state.json'))
+        # ...and a status written by anyone else does not count.
+        self.gh.statuses.post('a' * 40, {'state': 'failure', 'context': gate.CONTEXT}, login='someone')
+        self.assertFalse(gate.consume_result(4, 'req1', self.gh, self.store))
+
+    def test_attempts_are_counted_from_statuses_when_the_store_counter_is_reset(self):
+        for attempt in range(3):
+            self.gh.statuses.post('a' * 40, {'state': 'pending', 'context': gate.CONTEXT,
+                                             'description': f'{gate.ATTEMPT_PREFIX}{attempt + 1}/3: starting github'})
+        with self.assertRaisesRegex(RuntimeError, 'limit'):
+            self.controller.start(8)
+        self.assertEqual(self.dispatches(), [])
+
+    def test_watch_polls_until_the_gate_completes_and_respects_the_deadline(self):
+        record = self.controller.start(8)
+        now = [0.0]
+        calls = []
+        def sleep(seconds):
+            now[0] += seconds
+            calls.append(seconds)
+            if len(calls) == 2:
+                self.results()
+        gate.watch(self.controller, 30, interval=60, clock=lambda: now[0], sleep=sleep)
+        self.assertEqual(self.store.get_json('gates/pr-8.json')['phase'], 'complete')
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(self.wakes()), 1)
+        # With nothing running the watch returns at once.
+        gate.watch(self.controller, 30, interval=60, clock=lambda: now[0], sleep=sleep)
+        self.assertEqual(len(calls), 2)

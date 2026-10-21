@@ -1,0 +1,11 @@
+{
+  "backend": "xcode-cloud",
+  "appStoreConnectAppId": "6771995650",
+  "xcodeCloudPrGateWorkflowId": "FD7B155C-3973-4DA5-A0A1-A6886411C5D3",
+  "xcodeCloudReleaseWorkflowId": "32273285-7cf2-44cf-8e31-cc0385650439",
+  "gateEstimatedMinutes": 45,
+  "gateMaxAttempts": 3,
+  "gateWatchMinutes": 95,
+  "checkpointSeconds": 900,
+  "checkpointRetentionDays": 14
+}

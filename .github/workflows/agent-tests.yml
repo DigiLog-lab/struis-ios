@@ -40,7 +40,8 @@ on:
 
 permissions:
   contents: read
-  actions: read
+  # write: the artifact round trip deletes what it uploaded.
+  actions: write
 
 jobs:
   test:
@@ -71,11 +72,22 @@ jobs:
           "$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes= .github/workflows/*.yml
       - name: Workerの構文確認
         run: node --check cloudflare/agent/src/index.js
-      - name: WorkerのOIDC・削除範囲・門の書き込み権限を検証
-        working-directory: cloudflare/agent
-        run: |
-          npm ci --ignore-scripts --omit=dev --no-audit --no-fund
-          npm test
+      - name: チェックポイント用の成果物サービスの資格情報を渡す
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const home = `${process.env.RUNNER_TEMP}/agent`;
+            fs.mkdirSync(home, { recursive: true });
+            fs.writeFileSync(`${home}/actions-runtime.json`,
+              JSON.stringify({ token: process.env.ACTIONS_RUNTIME_TOKEN, resultsUrl: process.env.ACTIONS_RESULTS_URL }),
+              { mode: 0o600 });
+      - name: 成果物サービスとの往復（アップロード・取得・出どころの確認・削除）
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_HOME: ${{ runner.temp }}/agent
+          ARTIFACT_DELETE: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        run: python3 scripts/agent/tests/artifact_roundtrip.py
       - name: Actions cacheの合計サイズを記録
         env:
           GITHUB_TOKEN: ${{ github.token }}

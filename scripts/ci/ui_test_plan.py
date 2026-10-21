@@ -173,6 +173,26 @@ def discover(directory=TESTS):
     return sorted(found)
 
 
+def file_classes(directory=TESTS):
+    """{'striusUITests/<file>.swift': test classes declared there, with their subclasses}."""
+    parents, declared = {}, {}
+    for path in sorted(directory.rglob('*.swift')):
+        relative = f'{directory.name}/{path.relative_to(directory)}'
+        for line in code_lines(path.read_text(), relative):
+            match = CLASS.match(line)
+            if match:
+                parents[match[1]] = match[2]
+                declared.setdefault(relative, set()).add(match[1])
+    def descendants(name):
+        found = {name}
+        while True:
+            more = {child for child, parent in parents.items() if parent in found} - found
+            if not more:
+                return found
+            found |= more
+    return {path: set().union(*(descendants(name) for name in names)) for path, names in declared.items()}
+
+
 def select(tests, plan, tier, changed):
     if tier != 'pr' or plan.get('pr') is None:
         return list(tests)
@@ -183,11 +203,16 @@ def select(tests, plan, tier, changed):
             if '*' in classes:
                 return list(tests)
             wanted.update(classes)
+    declared = None
     for path in changed:
         if path.startswith('striusUITests/') and path.endswith('.swift'):
-            name = Path(path).stem
-            if name in known:
-                wanted.add(name)
+            if declared is None:
+                declared = file_classes()
+            # Every test class declared in the file (and its subclasses), so a file that holds
+            # several classes (one long test per class for parallel testing) selects all of them.
+            classes = declared.get(path, {Path(path).stem}) & known
+            if classes:
+                wanted.update(classes)
             else:  # shared support code: any test may be affected
                 return list(tests)
     unknown = wanted - known
