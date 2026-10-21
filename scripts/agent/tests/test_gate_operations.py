@@ -299,3 +299,139 @@ class GitHubFallbackTests(unittest.TestCase):
             return listing
         with mock.patch.object(self.gh, 'get', side_effect=get), self.assertRaisesRegex(RuntimeError, 'another run'):
             self.controller.poll(record)
+
+
+class GateSecondReviewTests(unittest.TestCase):
+    setUp = fixtures.GateTests.setUp
+    results = fixtures.GateTests.results
+    dispatches = fixtures.GateTests.dispatches
+    wakes = fixtures.GateTests.wakes
+
+    def complete(self):
+        record = self.controller.start(8, 'req1')
+        self.results()
+        return self.controller.poll(record)
+
+    def age_wake(self, minutes):
+        import datetime
+        record = self.controller.load(8)
+        woken = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=minutes)
+        record['wokenAt'] = woken.isoformat().replace('+00:00', 'Z')
+        self.controller.save(record)
+
+    def test_an_issue_whose_route_run_failed_is_woken_again_but_not_forever(self):
+        self.complete()
+        self.assertEqual(len(self.wakes()), 1)
+        self.controller.reconcile()
+        self.assertEqual(len(self.wakes()), 1)  # too early to tell a failure from a slow route
+        for expected in (2, 3, 3):
+            self.age_wake(30)
+            self.controller.reconcile()
+            self.assertEqual(len(self.wakes()), expected)
+
+    def test_a_processed_result_is_never_woken_again(self):
+        self.complete()
+        self.assertFalse(gate.consume_result(4, 'req1', self.gh, self.store))
+        self.age_wake(30)
+        self.controller.reconcile()
+        self.assertEqual(len(self.wakes()), 1)
+
+    def test_a_build_without_a_source_commit_yet_does_not_block_the_start(self):
+        record = dict(self.request, head='a' * 40, branch='work')
+        client = mock.Mock()
+        client.paginate.return_value = [{'id': 'ref1', 'attributes': {'canonicalName': 'refs/heads/work'}}]
+        client.request.return_value = {'data': {'id': 'build1', 'attributes': {'sourceCommit': None}}}
+        workflow = {'id': 'workflow1', 'relationships': {'repository': {'data': {'id': 'repo1'}}}}
+        with mock.patch.object(gate, 'cloud_client', return_value=client):
+            gate.start_cloud_build(record, workflow, lambda saved: None)
+        self.assertEqual(record['cloudRun'], 'build1')
+
+    def test_a_pending_cloud_build_without_a_source_commit_keeps_waiting(self):
+        record = self.controller.start(8, 'req1')
+        record.update(backend='xcode-cloud', cloudRun='cloud1', workflow='workflow1', url='https://cloud.example/run')
+        self.results()
+        client = mock.Mock()
+        client.request.return_value = {'data': {'id': 'cloud1', 'attributes': {'sourceCommit': None, 'executionProgress': 'PENDING'},
+                                                'relationships': {'workflow': {'data': {'id': 'workflow1'}}}}}
+        with mock.patch.object(gate, 'cloud_client', return_value=client):
+            self.assertEqual(self.controller.poll(record)['phase'], 'waiting')
+
+    def test_malformed_records_are_refused_without_stopping_other_prs(self):
+        self.controller.start(8, 'req1')
+        self.store.put_json('gates/pr-998.json', ['x'])
+        self.store.put_json('gates/pr-999.json', {'pr': 999, 'phase': 'waiting', 'signature': 'é'})
+        for number in (998, 999):
+            with self.assertRaises(gate.TamperedRecord):
+                self.controller.load(number)
+        self.assertEqual([record['pr'] for record in self.controller.waiting()], [8])
+        self.results()
+        self.controller.reconcile()
+        self.assertTrue(self.controller.load(8)['success'])
+
+    def test_a_store_error_while_reading_the_running_gate_does_not_block_it(self):
+        self.controller.start(8, 'req1')
+        original = self.controller.load
+        calls = []
+        def flaky(number):
+            calls.append(number)
+            if len(calls) == 2:
+                raise OSError('store unavailable')
+            return original(number)
+        with mock.patch.object(self.controller, 'load', side_effect=flaky), self.assertRaises(OSError):
+            self.controller.start(8)
+        record = self.controller.load(8)
+        self.assertEqual((record['request'], record['phase']), ('req1', 'waiting'))
+        self.assertFalse(self.gh.pr['draft'])
+
+    def test_a_fork_pr_never_starts_or_blocks_a_gate(self):
+        self.gh.pr['head']['repo']['full_name'] = 'outsider/repo'
+        self.controller.reconcile()
+        self.assertIsNone(self.controller.start(8))
+        self.assertEqual(self.store.get_json('gates/pr-8.json'), None)
+        self.assertFalse(self.gh.pr['draft'])
+        self.assertEqual([call for call in self.gh.calls if call[0] == 'comment'], [])
+
+    def test_gate_workflow_dispatches_are_sent_once(self):
+        with mock.patch.object(self.gh, 'request_once', wraps=self.gh.request_once) as once:
+            self.controller.start(8, 'req1')
+        self.assertEqual(sorted(call.args[1].split('/workflows/')[1].split('/')[0] for call in once.call_args_list),
+                         ['agent-tests.yml', 'ios.yml'])
+
+    def test_a_fresh_ready_on_a_new_head_is_started_not_redrafted(self):
+        self.controller.start(8, 'req1')
+        # The agent pushes a repair and makes a new Ready request; its dispatch is still queued.
+        self.gh.pr['head']['sha'] = 'b' * 40
+        checkpoint = dict(self.request['checkpoint'], head='b' * 40)
+        self.store.put_json('sessions/4/gate-request.json', dict(self.request, request='req2', head='b' * 40, checkpoint=checkpoint))
+        with mock.patch.object(gate.delivery, 'request_evidence', side_effect=lambda store, request: fixtures_evidence(self)), \
+                mock.patch.object(gate.delivery, 'verified', return_value=True):
+            self.controller.reconcile()
+        record = self.controller.load(8)
+        self.assertEqual((record['request'], record['head'], record['phase']), ('req2', 'b' * 40, 'waiting'))
+        self.assertFalse(self.gh.pr['draft'])
+
+
+def fixtures_evidence(test):
+    files = test.store.artifacts.items[test.request['checkpoint']['artifact']['id']]['files']
+    return {name: files[name] for name in ('local-verification.json', 'request-snapshot.json', 'work-items.json')}
+
+
+class GitHubClientTests(unittest.TestCase):
+    def test_a_call_sent_once_is_not_repeated_after_a_server_error(self):
+        import io
+        import urllib.error
+        import agentlib
+        client = agentlib.GitHub(token='t', repository='owner/repo')
+        calls = []
+        def urlopen(request, timeout):
+            calls.append(request.get_method())
+            raise urllib.error.HTTPError(request.full_url, 502, 'bad gateway', {}, io.BytesIO(b''))
+        with mock.patch.object(agentlib.urllib.request, 'urlopen', side_effect=urlopen), \
+                mock.patch.object(agentlib.time, 'sleep'), self.assertRaisesRegex(RuntimeError, 'HTTP 502'):
+            client.request_once('POST', '/repos/owner/repo/actions/workflows/ios.yml/dispatches', {})
+        self.assertEqual(calls, ['POST'])
+        calls.clear()
+        with mock.patch.object(agentlib.urllib.request, 'urlopen', side_effect=urlopen), \
+                mock.patch.object(agentlib.time, 'sleep'), self.assertRaises(RuntimeError):
+            client.get('/repos/owner/repo')
+        self.assertEqual(len(calls), 4)  # reads are retried

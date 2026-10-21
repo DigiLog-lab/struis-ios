@@ -31,6 +31,9 @@ from appstoreconnect import from_environment
 
 CONTEXT = 'Struis / Ready gate'
 TERMINAL = {'complete', 'invalidated', 'blocked'}
+# A woken route run that failed is woken again, at most this many wakes in all.
+REWAKE_LIMIT = 3
+REWAKE_AFTER_SECONDS = 20 * 60
 ATTEMPT_PREFIX = 'Gate attempt '
 CONTROLLER_LOGIN = 'github-actions[bot]'
 
@@ -64,6 +67,10 @@ def gate_key(pr):
 def issue_for(pr):
     match = re.search(r'<!-- struis-agent:issue=([1-9]\d*) -->', pr.get('body') or '')
     return int(match[1]) if match else None
+
+
+def same_repository(gh, pr):
+    return ((pr.get('head') or {}).get('repo') or {}).get('full_name') == gh.repository
 
 
 def status(gh, record, state, description):
@@ -154,7 +161,7 @@ def start_cloud_build(record, workflow, save):
     record['cloudRun'] = created['id']
     record['cloudSourceRef'] = reference
     record['url'] = cloud_url(created['id'])
-    reported_sha = created.get('attributes', {}).get('sourceCommit', {}).get('commitSha')
+    reported_sha = ((created.get('attributes') or {}).get('sourceCommit') or {}).get('commitSha')
     if reported_sha and reported_sha != record['head']:
         raise RuntimeError('Xcode Cloud started a different sourceCommit SHA')
 
@@ -257,7 +264,12 @@ class Controller:
     def load(self, number):
         """The controller's own record for a PR, or {}; anything else is refused."""
         record = self.store.get_json(gate_key(number)) or {}
-        if record and not hmac.compare_digest(str(record.get('signature', '')), signature(record, self.key)):
+        try:
+            valid = not record or (isinstance(record, dict) and isinstance(record.get('signature'), str)
+                                   and hmac.compare_digest(record['signature'].encode(), signature(record, self.key).encode()))
+        except Exception:
+            valid = False
+        if not valid:
             raise TamperedRecord(f'Gate record for PR #{number} is not signed by the controller')
         return record
 
@@ -279,6 +291,9 @@ class Controller:
         pr = gh.get(f'/repos/{gh.repository}/pulls/{number}')
         if pr['state'] != 'open' or pr['draft']:
             return
+        if not same_repository(gh, pr):
+            print(f'PR #{number} comes from a fork; it never starts a gate')
+            return
         attempted = None
         try:
             old = self.load(number)
@@ -297,10 +312,10 @@ class Controller:
             # fresh request that the worker just wrote is started as it is.
             used = old.get('request') if old.get('phase') in TERMINAL else None
             request, _ = request_data(store, gh, pr, request_id, used_request=used)
-            attempted = request['request']
             old = self.load(number)
-            existing = old if old.get('request') == attempted else None
+            existing = old if old.get('request') == request['request'] else None
             if not existing:
+                attempted = request['request']  # from here a failure is this request's
                 return self.begin(number, pr, request, old)
         except Exception as error:
             self.block(number, pr, attempted, error)
@@ -384,8 +399,9 @@ class Controller:
         # network failure we stop Draft rather than automatically start twice.
         record['dispatched'].append(workflow)
         self.save(record)
-        self.gh.request('POST', f'/repos/{self.gh.repository}/actions/workflows/{workflow}/dispatches',
-                        {'ref': 'main', 'inputs': dict(inputs, ci_request=record['request'])})
+        # Sent once: after a 5xx or a lost response the run may exist (ios.yml holds a macOS runner).
+        self.gh.request_once('POST', f'/repos/{self.gh.repository}/actions/workflows/{workflow}/dispatches',
+                             {'ref': 'main', 'inputs': dict(inputs, ci_request=record['request'])})
 
     def invalidate(self, record, pr, reason, redraft=True):
         record.update(phase='invalidated', error=reason, finishedAt=iso())
@@ -431,7 +447,18 @@ class Controller:
             return record
         pr = gh.get(f'/repos/{gh.repository}/pulls/{record["pr"]}')
         if pr['state'] != 'open' or pr['draft'] or pr['head']['sha'] != record['head']:
-            return self.invalidate(record, pr, 'Ready HEAD changed or Draft/closed; previous result is invalid')
+            moved = pr['head']['sha'] != record['head'] and pr['state'] == 'open' and not pr['draft']
+            # A Ready PR with a new HEAD is not redrafted here: that HEAD may be a
+            # fresh Ready whose dispatch is still queued. start() gates it, or puts
+            # it to Draft when it has no Ready request of its own.
+            invalidated = self.invalidate(record, pr, 'Ready HEAD changed or Draft/closed; previous result is invalid',
+                                          redraft=False)
+            if moved:
+                try:
+                    self.start(record['pr'])
+                except Exception as error:
+                    print(f'The new HEAD of PR #{record["pr"]} was not gated: {error}')
+            return invalidated
         if record['phase'] == 'starting':
             # A crash in a non-idempotent start cannot safely be retried.
             return self.invalidate(record, pr, 'Interrupted gate start; no duplicate build was started')
@@ -445,10 +472,10 @@ class Controller:
             client = cloud_client()
             cloud = client.request('GET', f'/v1/ciBuildRuns/{record["cloudRun"]}?include=workflow')['data']
             attributes = cloud['attributes']
-            actual = attributes.get('sourceCommit', {}).get('commitSha')
+            actual = (attributes.get('sourceCommit') or {}).get('commitSha')
             if actual and actual != record['head']:
                 return self.invalidate(record, pr, 'Xcode Cloud sourceCommit differs from the Ready HEAD')
-            workflow = cloud.get('relationships', {}).get('workflow', {}).get('data', {}).get('id')
+            workflow = (((cloud.get('relationships') or {}).get('workflow') or {}).get('data') or {}).get('id')
             if workflow != record['workflow']:
                 raise RuntimeError('Xcode Cloud workflow differs')
             done = attributes.get('executionProgress') == 'COMPLETE'
@@ -520,8 +547,21 @@ class Controller:
             self.publish(record)
         dispatch(self.gh, 'agent-issue', {'issue': record['issue'], 'automatic_retry': 'true',
                                           'gate_result': record['request']})
-        record['wakeDispatched'] = True
+        record.update(wakeDispatched=True, wakes=int(record.get('wakes', 0)) + 1, wokenAt=iso())
         self.save(record)
+
+    def unconsumed(self, record, now=None):
+        """A woken Issue that has not processed this result (its route run failed)."""
+        if record.get('phase') != 'complete' or not record.get('wakeDispatched') or not record.get('issue'):
+            return False
+        if int(record.get('wakes', 1)) >= REWAKE_LIMIT:
+            return False
+        state = self.store.get_json(session_key(record['issue'], 'state.json')) or {}
+        if state.get('processedGate') == record['request']:
+            return False
+        woken = datetime.datetime.fromisoformat((record.get('wokenAt') or record.get('finishedAt')).replace('Z', '+00:00'))
+        now = now or datetime.datetime.now(datetime.timezone.utc)
+        return (now - woken).total_seconds() >= REWAKE_AFTER_SECONDS
 
     def reconcile(self):
         # Also recovers a Ready transition whose explicit dispatch was lost.
@@ -542,22 +582,30 @@ class Controller:
                 if not old.get('wakeDispatched'):
                     self.wake(old)
             elif old.get('head') != pr['head']['sha'] and old.get('phase') not in TERMINAL and old:
-                self.invalidate(old, pr, 'Ready HEAD changed; previous result is invalid')
+                # Not redrafted here: the new HEAD may be a fresh Ready whose own
+                # dispatch is still queued. start() gates it or puts it to Draft.
+                self.invalidate(old, pr, 'Ready HEAD changed; previous result is invalid', redraft=False)
+                self.start(pr['number'])
             else:
                 self.start(pr['number'])
         for pr in self.gh.paginate(f'/repos/{self.gh.repository}/pulls?state=open&per_page=100'):
-            if issue_for(pr) and not pr['draft']:
+            if issue_for(pr) and not pr['draft'] and same_repository(self.gh, pr):
                 attempt(lambda: reconcile_pr(pr))
+        def reconcile_record(number):
+            try:
+                record = self.load(number)
+            except TamperedRecord as error:
+                print(f'Ignoring an unsigned gate record: {error}')
+                return
+            if record.get('phase') not in TERMINAL or (record.get('phase') == 'complete' and not record.get('wakeDispatched')):
+                self.poll(record)
+            elif self.unconsumed(record):
+                print(f'Issue #{record["issue"]} has not processed gate {record["request"]}; waking it again')
+                self.wake(record)
         for item in self.store.list('gates/'):
             match = re.fullmatch(r'gates/pr-(\d+)\.json', item['key'])
             if match:
-                try:
-                    record = self.load(int(match[1]))
-                except TamperedRecord as error:
-                    print(f'Ignoring an unsigned gate record: {error}')
-                    continue
-                if record and (record.get('phase') not in TERMINAL or (record.get('phase') == 'complete' and not record.get('wakeDispatched'))):
-                    attempt(lambda: self.poll(record))
+                attempt(lambda: reconcile_record(int(match[1])))
         if errors:
             raise RuntimeError('Gate reconciliation errors: ' + '; '.join(errors))
 

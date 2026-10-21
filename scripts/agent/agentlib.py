@@ -229,10 +229,10 @@ class GitHub:
         self.token = token or os.environ.get('GH_TOKEN') or os.environ['GITHUB_TOKEN']
         self.repository = repository or os.environ['GITHUB_REPOSITORY']
 
-    def request(self, method, path, body=None, accept='application/vnd.github+json'):
+    def request(self, method, path, body=None, accept='application/vnd.github+json', retry=True):
         url = path if path.startswith('https://') else f'{API_URL}{path}'
         data = None if body is None else json.dumps(body).encode()
-        for attempt in range(4):
+        for attempt in range(4 if retry else 1):
             request = urllib.request.Request(url, data=data, method=method, headers={
                 'Authorization': f'Bearer {self.token}', 'Accept': accept,
                 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'struis-agent-ci',
@@ -243,15 +243,19 @@ class GitHub:
                     link = response.headers.get('Link', '')
                     return (json.loads(payload) if payload else None), link
             except urllib.error.HTTPError as error:
-                if error.code >= 500 and attempt < 3:
+                if retry and error.code >= 500 and attempt < 3:
                     time.sleep(2 ** attempt)
                     continue
                 raise RuntimeError(f'GitHub {method} {path}: HTTP {error.code} {error.read()[:300]!r}') from None
             except urllib.error.URLError:
-                if attempt < 3:
+                if retry and attempt < 3:
                     time.sleep(2 ** attempt)
                     continue
                 raise
+
+    def request_once(self, method, path, body=None):
+        """A call that must not be repeated after a 5xx or a lost response (it may have taken effect)."""
+        return self.request(method, path, body, retry=False)
 
     def get(self, path):
         return self.request('GET', path)[0]

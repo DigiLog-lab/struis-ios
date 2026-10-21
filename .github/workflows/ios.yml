@@ -394,7 +394,7 @@ jobs:
       needs.build.result == 'success' && needs.ui-plan.result == 'success' &&
       needs.ui-tests.result == 'success'
     runs-on: xcode-27
-    timeout-minutes: 60
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -403,16 +403,25 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14'
-      - name: Native Runtime cacheを復元
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            NativeRuntime/Vendor
-            NativeRuntime/PythonPackages
-            NativeRuntime/PackageCache
-            NativeRuntime/.build
-          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
-          fail-on-cache-miss: true
+      # A distributed build never uses the Actions cache: the agent worker runs on
+      # main's cache scope and can obtain the runner's cache credentials, so the
+      # native runtime is built here from the checked-out source (as Xcode Cloud
+      # Release does).
+      - name: ツールを準備
+        run: |
+          set -euo pipefail
+          brew install autoconf automake libtool
+          if ! command -v rustup >/dev/null; then
+            brew install rustup
+          fi
+          rustup toolchain install 1.95.0 --profile minimal
+          rustup target add --toolchain 1.95.0 aarch64-apple-ios
+      - name: 固定依存をソースから生成
+        env:
+          CARGO_BUILD_JOBS: '2'
+        run: |
+          set -euo pipefail
+          python3.14 NativeRuntime/Scripts/bootstrap.py --platform device
       - name: 署名付きarchiveを作成
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}

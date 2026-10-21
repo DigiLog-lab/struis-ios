@@ -64,6 +64,9 @@ class FakeGitHub:
             return {'data': {field: {'pullRequest': {'isDraft': value}}}}, ''
         return {}, ''
 
+    def request_once(self, method, path, body=None):
+        return self.request(method, path, body)
+
     def comment(self, number, body):
         self.check('comment', '')
         self.calls.append(('comment', number, body))
@@ -140,9 +143,11 @@ class GateTests(unittest.TestCase):
         record = self.controller.start(8)
         self.results()
         self.gh.pr['head']['sha'] = 'b' * 40
-        self.controller.poll(record)
+        self.assertEqual(self.controller.poll(record)['phase'], 'invalidated')
+        # The new HEAD has no Ready request of its own: Draft, and nothing is woken.
         self.assertTrue(self.gh.pr['draft'])
-        self.assertEqual(self.store.get_json('gates/pr-8.json')['phase'], 'invalidated')
+        self.assertEqual((self.store.get_json('gates/pr-8.json')['head'], self.store.get_json('gates/pr-8.json')['phase']),
+                         ('b' * 40, 'blocked'))
         self.assertEqual(self.wakes(), [])
 
     def test_green_gate_wakes_once_and_linux_route_completes_original_scope(self):
