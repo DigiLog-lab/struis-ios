@@ -1,0 +1,46 @@
+name: PR Gate probe (temporary)
+
+on:
+  push:
+    branches: [probe/asc-read]
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 105
+    env:
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_KEY_PATH: ${{ github.workspace }}/../gate-probe.p8
+      GATE_BRANCH: ci/xcode-cloud-foundation
+      GATE_SHA: f5278aec0580e61328affb6d5203a5ce7745dfe2
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Appleキーを一時配置
+        env:
+          PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          key = Path(os.environ['APP_STORE_CONNECT_KEY_PATH'])
+          key.touch(mode=0o600)
+          key.write_text(os.environ['PRIVATE_KEY'].replace('\r', '').strip() + '\n')
+          PY
+      - name: PR Gateを1回だけ起動して結果を集める
+        run: python3 scripts/ci/gate_probe.py "$RUNNER_TEMP/gate"
+      - name: Appleキーを削除
+        if: always()
+        run: rm -f "$APP_STORE_CONNECT_KEY_PATH"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: gate-probe
+          path: ${{ runner.temp }}/gate
+          retention-days: 3
+          if-no-files-found: ignore

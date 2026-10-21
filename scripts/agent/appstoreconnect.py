@@ -66,7 +66,13 @@ class AppStoreConnect:
         self._token_time = time.time()
         return self._token
 
-    def request(self, method, path, body=None):
+    def request(self, method, path, body=None, retry_server_errors=True):
+        """Send one API call. HTTP 429 is retried (Apple did not process it).
+
+        A 5xx is retried only when ``retry_server_errors``: callers that create
+        something that must not exist twice (a build) pass False, because the
+        server may have created it before failing.
+        """
         url = path if path.startswith('https://') else f'{API}{path}'
         data = None if body is None else json.dumps(body).encode()
         for attempt in range(5):
@@ -78,7 +84,7 @@ class AppStoreConnect:
                     return json.loads(payload) if payload else None
             except urllib.error.HTTPError as error:
                 detail = error.read().decode(errors='replace')
-                if error.code == 429 or (error.code >= 500 and attempt < 4):
+                if (error.code == 429 and attempt < 4) or (error.code >= 500 and retry_server_errors and attempt < 4):
                     time.sleep(min(60, 2 ** (attempt + 2)))
                     continue
                 raise RuntimeError(f'App Store Connect {method} {path}: HTTP {error.code} {detail[:600]}') from None
