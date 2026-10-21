@@ -27,7 +27,11 @@ def main():
     matches = [r for r in refs if r['attributes'].get('canonicalName') == f'refs/heads/{BRANCH}' and not r['attributes'].get('isDeleted')]
     if len(matches) != 1:
         raise SystemExit(f'branch not resolved: {len(matches)}')
-    created = client.request('POST', '/v1/ciBuildRuns', {'data': {'type': 'ciBuildRuns', 'attributes': {'clean': False},
+    if os.environ.get('READ_BUILD'):
+        # Read-only: analyze an existing build, never start one.
+        created = client.request('GET', f'/v1/ciBuildRuns/{os.environ["READ_BUILD"]}')['data']
+    else:
+      created = client.request('POST', '/v1/ciBuildRuns', {'data': {'type': 'ciBuildRuns', 'attributes': {'clean': False},
         'relationships': {'workflow': {'data': {'type': 'ciWorkflows', 'id': PR_GATE}},
                           'sourceBranchOrTag': {'data': {'type': 'scmGitReferences', 'id': matches[0]['id']}}}}},
         retry_server_errors=False)['data']
@@ -67,6 +71,18 @@ def main():
             print('artifact', a.get('actionType'), f.get('fileType'), name, f.get('fileSize'), flush=True)
             wanted = f.get('fileType') == 'LOG_BUNDLE' or (f.get('fileType') == 'RESULT_BUNDLE' and (
                 'test-without-building' in name or 'crash_log' in name))
+            if f.get('fileType') == 'TEST_PRODUCTS' and os.environ.get('LIST_TEST_PRODUCTS'):
+                import zipfile
+                local = out / 'test-products.zip'
+                with urllib.request.urlopen(f['downloadUrl'], timeout=900) as response, local.open('wb') as file:
+                    while chunk := response.read(1 << 20):
+                        file.write(chunk)
+                with zipfile.ZipFile(local) as archive:
+                    infos = sorted(archive.infolist(), key=lambda i: -i.file_size)
+                    (out / 'test-products-largest.txt').write_text('\n'.join(
+                        f'{i.file_size:>12} {i.compress_size:>12} {i.filename}' for i in infos[:400]))
+                    print('TEST_PRODUCTS total', sum(i.file_size for i in infos), 'compressed', sum(i.compress_size for i in infos), flush=True)
+                local.unlink()
             if wanted and (f.get('fileSize') or 0) > 100:
                 safe = ''.join(c if c.isalnum() or c in '.-' else '-' for c in name)
                 with urllib.request.urlopen(f['downloadUrl'], timeout=600) as response, (out / safe).open('wb') as file:
