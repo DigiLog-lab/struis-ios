@@ -129,7 +129,16 @@ final class ChatCameraUITests: XCTestCase {
         // 新しい Simulator では、戻ったキーボードにシステムの初回案内が重なり「添付」を覆う(アプリの表示ではない)。
         app.dismissKeyboardIntroductionIfShown()
         XCUIDevice.shared.orientation = .portrait
-        XCTAssertTrue(plus.isHittable)
+        // 回転は非同期: 縦に戻した直後は回転の途中で、「添付」をまだ押せない(Xcode Cloud の PR Gate 159 では、
+        // 画面の向きが変わってから 0.5 秒後の確認で落ちた)。上の verifyPreview と同じく 8 秒まで回転の終わりを待つ。
+        // 戻ったキーボードに出るシステムの初回案内(アプリの表示ではない)は閉じる。
+        let restored = Date().addingTimeInterval(8)
+        while !plus.isHittable, Date() < restored {
+            app.dismissKeyboardIntroductionIfShown(timeout: 0.5)
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+        if !plus.isHittable { UITestSupport.saveProbe(app, name: "camera-rotation-08-chat-restored") }
+        XCTAssertTrue(plus.isHittable, "縦に戻した後に「添付」を操作できること")
         screenScreenshot("rotation-08-chat-restored")
     }
 
