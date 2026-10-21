@@ -14,6 +14,7 @@ import base64
 import datetime
 import hashlib
 import hmac
+import io
 import json
 import os
 from pathlib import Path
@@ -22,6 +23,8 @@ import secrets
 import tempfile
 import time
 import urllib.parse
+import urllib.request
+import zipfile
 
 from agentlib import GitHub, REPLY_MARKER, Store, append_summary, dispatch, gate_config, iso, session_key
 import artifacts as artifact_store
@@ -170,6 +173,53 @@ def cloud_client():
     return from_environment(os.environ['APP_STORE_CONNECT_KEY_PATH'])
 
 
+def gate_mode():
+    """How the PR Gate workflow runs the tests: Xcode Cloud's TEST action, or one BUILD action whose
+    build machine runs them itself (`ci_pre_xcodebuild.sh` → `scripts/ci/cloud_gate_tests.py`)."""
+    mode = gate_config().get('xcodeCloudPrGateMode', 'test-action')
+    if mode not in ('test-action', 'build-machine'):
+        raise RuntimeError('gate-config.json xcodeCloudPrGateMode must be test-action or build-machine')
+    return mode
+
+
+MACHINE_TEST_MARK = 'STRUIS_GATE_TEST\t'
+MACHINE_RESULT_MARK = 'STRUIS_GATE_RESULT '
+MACHINE_LOG = 'ci_pre_xcodebuild.log'
+
+
+def download(url, timeout=300):
+    with urllib.request.urlopen(url, timeout=timeout) as response:
+        return response.read()
+
+
+def machine_results(bundle):
+    """The test rows and the overall flag that cloud_gate_tests.py printed in one BUILD action's log bundle.
+    Exactly one pre-xcodebuild log, at least one row and a printed result are required."""
+    with zipfile.ZipFile(io.BytesIO(bundle)) as archive:
+        logs = [name for name in archive.namelist() if name.rsplit('/', 1)[-1] == MACHINE_LOG]
+        if len(logs) != 1:
+            raise RuntimeError(f'The gate log bundle has {len(logs)} {MACHINE_LOG} files')
+        text = archive.read(logs[0]).decode('utf-8', 'replace')
+    rows, ok = [], None
+    for line in text.splitlines():
+        # Xcode Cloud prefixes each line with a timestamp and a tab. Only lines the script itself starts
+        # with a mark count: it indents everything it copies from xcodebuild, so test output never does.
+        message = line.split('\t', 1)[1] if re.match(r'\d{4}-\d\d-\d\dT[^\t]*\t', line) else line
+        if message.startswith(MACHINE_TEST_MARK):
+            result, _, test = message[len(MACHINE_TEST_MARK):].partition('\t')
+            rows.append({'test': test.strip(), 'result': result.strip()})
+        elif message.startswith(MACHINE_RESULT_MARK):
+            ok = 'ok=true' in message[len(MACHINE_RESULT_MARK):].split()
+    return rows, ok
+
+
+def machine_test(row):
+    """A row in the shape of App Store Connect's test results, so both modes share one check."""
+    class_name, _, name = row['test'].rpartition('/')
+    status = {'Passed': 'SUCCESS', 'Skipped': 'SKIPPED'}.get(row['result'], row['result'] or 'UNKNOWN')
+    return {'className': class_name, 'name': name, 'status': status}
+
+
 def cloud_workflow(client):
     identifier = gate_config()['xcodeCloudPrGateWorkflowId']
     workflow = client.request('GET', f'/v1/ciWorkflows/{identifier}?include=repository')['data']
@@ -179,9 +229,18 @@ def cloud_workflow(client):
     if attributes.get('containerFilePath') != 'strius.xcodeproj':
         raise RuntimeError('PR Gate must use strius.xcodeproj')
     actions = attributes.get('actions', [])
-    if not any(action.get('actionType') == 'TEST' and action.get('scheme') == 'StruisPRGate'
-               and action.get('isRequiredToPass') is True for action in actions):
-        raise RuntimeError('PR Gate needs a TEST action using StruisPRGate')
+    if gate_mode() == 'test-action':
+        if not any(action.get('actionType') == 'TEST' and action.get('scheme') == 'StruisPRGate'
+                   and action.get('isRequiredToPass') is True for action in actions):
+            raise RuntimeError('PR Gate needs a TEST action using StruisPRGate')
+    else:
+        # One machine: exactly one required BUILD action for the Simulator, which runs the tests itself.
+        builds = [action for action in actions if action.get('actionType') == 'BUILD']
+        if (len(builds) != 1 or builds[0].get('scheme') != 'StruisPRGate' or builds[0].get('isRequiredToPass') is not True
+                or builds[0].get('destination') != 'ANY_IOS_SIMULATOR'):
+            raise RuntimeError('PR Gate needs one required Simulator BUILD action using StruisPRGate')
+        if any(action.get('actionType') == 'TEST' for action in actions):
+            raise RuntimeError('The one-machine PR Gate must not also hand off to a TEST action')
     if any(attributes.get(name) for name in ('branchStartCondition', 'pullRequestStartCondition', 'tagStartCondition', 'scheduledStartCondition')):
         raise RuntimeError('PR Gate must be started manually by the Ready controller')
     if any(action.get('actionType') == 'ARCHIVE' for action in actions):
@@ -250,9 +309,10 @@ def normalize_test(class_name, name):
 
 
 class Controller:
-    def __init__(self, gh=None, store=None, key=None, artifacts=None):
+    def __init__(self, gh=None, store=None, key=None, artifacts=None, cloud_download=None):
         self.gh, self.store = gh or GitHub(), store or Store()
         self.artifacts = artifacts or artifact_store.ArtifactClient(self.gh)
+        self.cloud_download = cloud_download or download
         self.key = key if key is not None else record_key()
         if not self.key:
             raise RuntimeError('The gate controller needs the App Store Connect key to sign gate records')
@@ -487,20 +547,41 @@ class Controller:
                                       'finishedAt': attributes.get('finishedDate'), 'url': record['url']}
             if done:
                 actions = client.paginate(f'/v1/ciBuildRuns/{cloud["id"]}/actions?limit=200')
-                tests, issues, action_records = [], [], []
+                mode = gate_mode()
+                # The action whose tests decide the gate: Xcode Cloud's TEST action, or the one BUILD action
+                # that ran the tests on its own machine and printed every result in its log.
+                kind = 'TEST' if mode == 'test-action' else 'BUILD'
+                tests, issues, action_records, machine_ok, machine_errors = [], [], [], [], []
                 for action in actions:
                     action_records.append(dict(action['attributes'], id=action['id']))
-                    if action['attributes'].get('actionType') == 'TEST':
+                    action_type = action['attributes'].get('actionType')
+                    if kind == 'TEST' and action_type == 'TEST':
                         tests.extend(item['attributes'] for item in client.paginate(f'/v1/ciBuildActions/{action["id"]}/testResults?limit=200'))
+                    if kind == 'BUILD' and action_type == 'BUILD':
+                        bundles = [item['attributes'] for item in client.paginate(f'/v1/ciBuildActions/{action["id"]}/artifacts?limit=200')
+                                   if item['attributes'].get('fileType') == 'LOG_BUNDLE']
+                        try:
+                            if len(bundles) != 1:
+                                raise RuntimeError(f'The gate BUILD action has {len(bundles)} log bundles')
+                            # A failed download raises and the next poll reads again; unreadable content is red.
+                            rows, ok = machine_results(self.cloud_download(bundles[0]['downloadUrl']))
+                        except (RuntimeError, zipfile.BadZipFile) as error:
+                            machine_errors.append(str(error))
+                            rows, ok = [], False
+                        tests.extend(machine_test(row) for row in rows)
+                        machine_ok.append(ok is True)
                     if action['attributes'].get('completionStatus') not in ('SUCCEEDED', 'SKIPPED'):
                         issues.extend(item['attributes'] for item in client.paginate(f'/v1/ciBuildActions/{action["id"]}/issues?limit=200'))
                 result = results['xcode-cloud']
-                result.update(actions=action_records, tests=tests, issues=issues)
+                result.update(actions=action_records, tests=tests, issues=issues, mode=mode)
+                if machine_errors:
+                    result['machineErrors'] = machine_errors
                 actual_tests = {normalize_test(test.get('className', ''), test.get('name', '')) for test in tests}
                 result['missingTests'] = sorted(set(record['expectedTests']) - actual_tests)
-                test_actions = [action for action in action_records if action.get('actionType') == 'TEST']
+                test_actions = [action for action in action_records if action.get('actionType') == kind]
                 if (not tests or result['missingTests'] or not test_actions or any(action.get('completionStatus') != 'SUCCEEDED' for action in test_actions)
-                        or any(test.get('status') not in ('SUCCESS', 'SKIPPED') for test in tests)):
+                        or any(test.get('status') not in ('SUCCESS', 'SKIPPED') for test in tests)
+                        or (kind == 'BUILD' and not (machine_ok and all(machine_ok)))):
                     result['conclusion'] = 'failure'
         ios = results.get('ios.yml')
         if record['backend'] == 'github' and ios and ios['status'] == 'completed' and ios['conclusion'] == 'success':

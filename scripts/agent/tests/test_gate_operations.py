@@ -1,9 +1,11 @@
 import copy
+import io
 import os
 from pathlib import Path
 import sys
 import unittest
 from unittest import mock
+import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import cleanup
@@ -23,10 +25,19 @@ class CloudAndCleanupTests(unittest.TestCase):
         client.request.return_value = {'data': source}
         client.paginate.return_value = [source]
         operations = configure_cloud.configure(client, 'working')
-        self.assertEqual([entry['method'] for entry in operations], ['PATCH', 'POST'])
+        self.assertEqual([entry['method'] for entry in operations], ['PATCH', 'POST', 'POST'])
         self.assertEqual(client.request.call_count, 1)  # preview does not mutate
         pr = operations[0]['body']['data']['attributes']
-        release = operations[1]['body']['data']['attributes']
+        single = operations[1]['body']['data']['attributes']
+        release = operations[2]['body']['data']['attributes']
+        # The one-machine gate: a single Simulator BUILD action, no TEST hand-off, manual starts only.
+        self.assertEqual(single['name'], 'PR Gate Single Machine')
+        self.assertEqual([(a['actionType'], a['scheme'], a['destination'], a['isRequiredToPass']) for a in single['actions']],
+                         [('BUILD', 'StruisPRGate', 'ANY_IOS_SIMULATOR', True)])
+        self.assertIsNone(single['branchStartCondition'])
+        self.assertFalse(single['clean'])
+        only = configure_cloud.configure(client, 'working', only=('single',))
+        self.assertEqual([entry['body']['data']['attributes']['name'] for entry in only], ['PR Gate Single Machine'])
         self.assertIsNone(pr['branchStartCondition'])
         self.assertFalse(pr['clean'])
         self.assertEqual(pr['actions'][0]['scheme'], 'StruisPRGate')
@@ -131,6 +142,107 @@ class GateBoundaryTests(unittest.TestCase):
         self.assertEqual(record['request'], 'req2')
         self.assertEqual(record['phase'], 'waiting')
         self.assertFalse(self.gh.pr['draft'])
+
+
+def log_bundle(lines, name='strius Build 1 Logs for StruisPRGate build/ci_pre_xcodebuild.log'):
+    """An Xcode Cloud LOG_BUNDLE zip whose script log carries what cloud_gate_tests.py prints."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w') as archive:
+        archive.writestr(name, ''.join(f'2026-10-21T07:00:00.000000000Z\t{line}\n' for line in lines))
+        archive.writestr('strius Build 1 Logs for StruisPRGate build/xcodebuild-build.log', 'STRUIS_GATE_TEST\tPassed\tOther/notCounted()\n')
+    return buffer.getvalue()
+
+
+class SingleMachineGateTests(unittest.TestCase):
+    """The one-machine PR Gate: one BUILD action ran the tests and printed every result in its log."""
+    setUp = fixtures.GateTests.setUp
+    results = fixtures.GateTests.results
+    PASSED = ['STRUIS_GATE_TEST\tPassed\tClass/testWorks()', 'STRUIS_GATE_RESULT ok=true tests=1 exits=0,0']
+
+    def poll(self, bundle, status='SUCCEEDED', bundles=1):
+        record = self.controller.start(8)
+        record.update(backend='xcode-cloud', cloudRun='cloud1', workflow='workflow1', url='https://cloud.example/run',
+                      dispatched=['agent-tests.yml'])
+        self.results()
+        client = mock.Mock()
+        client.request.return_value = {'data': {'id': 'cloud1', 'attributes': {
+            'sourceCommit': {'commitSha': 'a' * 40}, 'executionProgress': 'COMPLETE', 'completionStatus': status},
+            'relationships': {'workflow': {'data': {'id': 'workflow1'}}}}}
+        artifacts = [{'id': 'log1', 'attributes': {'fileType': 'LOG_BUNDLE', 'downloadUrl': 'https://cloud.example/log1.zip'}}] * bundles
+        pages = [[{'id': 'build1', 'attributes': {'actionType': 'BUILD', 'completionStatus': status}}], artifacts]
+        if status != 'SUCCEEDED':
+            pages.append([])
+        client.paginate.side_effect = pages
+        downloads = []
+        self.controller.cloud_download = lambda url: downloads.append(url) or bundle
+        with mock.patch.object(gate, 'cloud_client', return_value=client), \
+                mock.patch.object(gate, 'gate_mode', return_value='build-machine'):
+            result = self.controller.poll(record)
+        self.assertEqual(downloads, ['https://cloud.example/log1.zip'] if bundles == 1 else [])
+        return result
+
+    def test_every_required_test_passed_on_the_build_machine_is_green(self):
+        result = self.poll(log_bundle(self.PASSED))
+        self.assertTrue(result['success'])
+        self.assertEqual(result['results']['xcode-cloud']['mode'], 'build-machine')
+        self.assertFalse(self.gh.pr['draft'])
+
+    def test_a_failed_missing_or_unreported_test_is_red(self):
+        cases = {
+            'failed': ['STRUIS_GATE_TEST\tFailed\tClass/testWorks()', 'STRUIS_GATE_RESULT ok=false tests=1 exits=0,1'],
+            'missing': ['STRUIS_GATE_TEST\tPassed\tClass/testOther()', 'STRUIS_GATE_RESULT ok=true tests=1 exits=0'],
+            'no result line': self.PASSED[:1],
+            'not ok': [self.PASSED[0], 'STRUIS_GATE_RESULT ok=false tests=1 exits=0,0'],
+            'no tests': ['STRUIS_GATE_RESULT ok=true tests=0 exits=0'],
+            # A test's own output, copied (indented) or embedded in a longer line, never adds a result.
+            'printed by a test': ['  UI_DIAGNOSTICS STRUIS_GATE_TEST\tPassed\tClass/testWorks()', 'x STRUIS_GATE_TEST\tPassed\tClass/testWorks()',
+                                  'STRUIS_GATE_RESULT ok=true tests=1 exits=0'],
+        }
+        for name, lines in cases.items():
+            with self.subTest(name):
+                self.setUp()
+                result = self.poll(log_bundle(lines))
+                self.assertFalse(result['success'])
+                self.assertTrue(self.gh.pr['draft'])
+
+    def test_an_unreadable_or_absent_log_is_red_without_stopping_the_controller(self):
+        for name, kwargs in {'no script log': {'bundle': log_bundle(self.PASSED, name='logs/ci_post_clone.log')},
+                             'not a zip': {'bundle': b'not a zip'},
+                             'no bundle': {'bundle': b'', 'bundles': 0}}.items():
+            with self.subTest(name):
+                self.setUp()
+                result = self.poll(**kwargs)
+                self.assertEqual(result['phase'], 'complete')
+                self.assertFalse(result['success'])
+                self.assertTrue(result['results']['xcode-cloud']['machineErrors'])
+
+    def test_a_failed_build_action_is_red_even_when_its_log_says_ok(self):
+        result = self.poll(log_bundle(self.PASSED), status='FAILED')
+        self.assertFalse(result['success'])
+
+    def test_workflow_shape_is_checked_for_the_selected_mode(self):
+        def workflow(actions):
+            client = mock.Mock()
+            client.request.return_value = {'data': {'id': 'wf', 'attributes': {
+                'isEnabled': True, 'clean': False, 'containerFilePath': 'strius.xcodeproj', 'actions': actions}}}
+            return client
+        build = {'actionType': 'BUILD', 'scheme': 'StruisPRGate', 'destination': 'ANY_IOS_SIMULATOR', 'isRequiredToPass': True}
+        test = {'actionType': 'TEST', 'scheme': 'StruisPRGate', 'isRequiredToPass': True}
+        with mock.patch.object(gate, 'gate_mode', return_value='build-machine'):
+            self.assertEqual(gate.cloud_workflow(workflow([build]))['id'], 'wf')
+            for actions in ([test], [build, test], [dict(build, destination='ANY_IOS_DEVICE')], [dict(build, isRequiredToPass=False)],
+                            [build, build]):
+                with self.assertRaises(RuntimeError):
+                    gate.cloud_workflow(workflow(actions))
+        with mock.patch.object(gate, 'gate_mode', return_value='test-action'):
+            self.assertEqual(gate.cloud_workflow(workflow([test]))['id'], 'wf')
+            with self.assertRaises(RuntimeError):
+                gate.cloud_workflow(workflow([build]))
+
+    def test_mode_comes_from_the_committed_config(self):
+        self.assertEqual(gate.gate_mode(), 'test-action')
+        with mock.patch.object(gate, 'gate_config', return_value={'xcodeCloudPrGateMode': 'other'}), self.assertRaises(RuntimeError):
+            gate.gate_mode()
 
 
 class GateRaceTests(unittest.TestCase):

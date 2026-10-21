@@ -1,7 +1,12 @@
-"""Preview/apply PR Gate and Release using the working Cloud workflow's IDs.
+"""Preview/apply PR Gate, PR Gate Single Machine and Release using the working Cloud workflow's IDs.
 
 Destination, Xcode, macOS, repository and product come from the existing
 workflow. Preview is the default. No build is started by this command.
+
+PR Gate Single Machine has one BUILD action for the Simulator: its build
+machine runs the gate's tests itself (ci_scripts/ci_pre_xcodebuild.sh), so
+nothing is handed to a test machine. gate-config.json selects it with
+xcodeCloudPrGateMode = build-machine.
 """
 import argparse
 import copy
@@ -9,6 +14,19 @@ import json
 import os
 
 from appstoreconnect import from_environment
+
+
+SINGLE_MACHINE = 'PR Gate Single Machine'
+
+
+def single_machine_attributes():
+    return {'name': SINGLE_MACHINE, 'description': 'Struis verification and delivery policy (tests on the build machine)',
+            'containerFilePath': 'strius.xcodeproj', 'isEnabled': True, 'clean': False,
+            'branchStartCondition': None, 'tagStartCondition': None, 'pullRequestStartCondition': None,
+            'scheduledStartCondition': None, 'manualPullRequestStartCondition': None, 'manualTagStartCondition': None,
+            'manualBranchStartCondition': {'source': {'isAllMatch': True}},
+            'actions': [{'name': 'Ready HEAD tests on the build machine', 'actionType': 'BUILD', 'scheme': 'StruisPRGate',
+                         'destination': 'ANY_IOS_SIMULATOR', 'platform': 'IOS', 'isRequiredToPass': True}]}
 
 
 def attributes(source, release=False):
@@ -34,17 +52,20 @@ def attributes(source, release=False):
     return result
 
 
-def configure(client, source_id, apply=False):
+KINDS = ('pr', 'single', 'release')
+
+
+def configure(client, source_id, apply=False, only=KINDS):
     source = client.request('GET', f'/v1/ciWorkflows/{source_id}?include=product,repository,xcodeVersion,macOsVersion')['data']
     product = source['relationships']['product']['data']['id']
     workflows = client.paginate(f'/v1/ciProducts/{product}/workflows?limit=200')
     result = []
-    for release in (False, True):
-        attrs = attributes(source, release)
+    for kind in (kind for kind in KINDS if kind in only):
+        attrs = single_machine_attributes() if kind == 'single' else attributes(source, kind == 'release')
         matching = [workflow for workflow in workflows if workflow['attributes']['name'] == attrs['name']]
         if len(matching) > 1:
             raise RuntimeError(f'Duplicate workflow name: {attrs["name"]}')
-        target = matching[0] if matching else None if release else source
+        target = matching[0] if matching else source if kind == 'pr' else None
         if target:
             path, method = f'/v1/ciWorkflows/{target["id"]}', 'PATCH'
             body = {'data': {'type': 'ciWorkflows', 'id': target['id'], 'attributes': attrs}}
@@ -64,8 +85,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source-workflow', required=True)
     parser.add_argument('--apply', action='store_true')
+    # Apply only what changes: re-applying Release would replace its actions and the post-action set in the UI.
+    parser.add_argument('--only', choices=KINDS, action='append')
     args = parser.parse_args()
-    result = configure(from_environment(os.environ['APP_STORE_CONNECT_KEY_PATH']), args.source_workflow, args.apply)
+    result = configure(from_environment(os.environ['APP_STORE_CONNECT_KEY_PATH']), args.source_workflow, args.apply,
+                       tuple(args.only or KINDS))
     print(json.dumps(result, ensure_ascii=False, indent=2))
     print('Release: set the internal TestFlight group in the Xcode Cloud post-action UI. No build was started.')
 
