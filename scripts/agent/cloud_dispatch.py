@@ -62,7 +62,8 @@ def main():
     gh = GitHub()
     if issue:
         gh.comment(issue, f'{REPLY_MARKER}\n\nXcode Cloudの{workflow_key}（ビルド{number}、{branch}）を開始しました: {url}')
-    deadline = time.monotonic() + 100 * 60
+    # Release (full UI tests in series, archive, native built from source twice) takes about 2 hours.
+    deadline = time.monotonic() + 160 * 60
     while time.monotonic() < deadline:
         attributes = client.request('GET', f'/v1/ciBuildRuns/{created["id"]}')['data']['attributes']
         if attributes.get('executionProgress') == 'COMPLETE':

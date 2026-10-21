@@ -299,7 +299,8 @@ jobs:
       (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'workflow_dispatch' &&
       contains(fromJSON('["iOS", "Agent tests"]'), github.event.workflow_run.name))
     runs-on: ubuntu-latest
-    timeout-minutes: 110
+    # A requested Release build is awaited for up to 160 minutes (cloud_dispatch.py).
+    timeout-minutes: 170
     permissions:
       # contents: write sends the repository_dispatch that wakes the Issue.
       contents: write

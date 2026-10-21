@@ -23,7 +23,7 @@
 - **readyの後は門を待たずにセッションを終了します。** `gh run watch` やpollingでmacOS runnerを占有しないでください。門が緑ならLinuxのrouteが依頼の完了を記録し、赤ならDraftへ戻して同じIssueのmacOS workerを起こします。修正の入力は失敗したHEADと元の依頼に限定します。修正後も完了前の手元検証を全体でやり直します。
 - Ready後にHEADが変わるとLinuxがDraftへ戻し、古いSHAの門の結果は無効になります。未確認・待機中・赤を成功と報告しません。skip・期待失敗化・判定緩和・自動Re-runを新設して通してはいけません。既存の外部入力不足によるskipは記録に残します。
 - 門が緑になった時点が依頼の完了です。Readyや手元検証の成功だけでは完了ではありません。マージと本番配信は人が行います。
-- TestFlightの内部配信(Xcode CloudのRelease、mainのみ)は、Issueで頼まれた時だけ `python3 "$AGENT_CTL" cloud-build release` で起動します。Xcode Cloudの月の時間を約95分使うので、頼まれていない時に起動してはいけません。結果はLinuxのjobがIssueへ投稿します。
+- TestFlightの内部配信(Xcode CloudのRelease、mainのみ)は、Issueで頼まれた時だけ `python3 "$AGENT_CTL" cloud-build release` で起動します。Xcode Cloudの月の時間を約2時間使うので、頼まれていない時に起動してはいけません。結果はLinuxのjobがIssueへ投稿します。
 - 調査の方針、分かったこと、次に行うことを短い説明文で随時伝えてください。説明文・ツール呼出し・結果はActionsログへ逐次表示されます。
 - 実行状態はIssueの専用コメントへ自動更新されます。ツールの内容や認証情報を進捗コメントへ転記しないでください。
 
