@@ -174,14 +174,6 @@ jobs:
           NATIVE_CACHE_HIT: ${{ steps.native.outputs.cache-hit }}
           NATIVE_CACHE_KEY: ${{ steps.native.outputs.cache-matched-key }}
         run: python3 "$RUNNER_TEMP/agent-tools/agentctl.py" prepare
-      - name: ブランチのDerivedDataを復元
-        if: steps.prepare.outputs.skip == 'false'
-        id: derived
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ env.AGENT_DERIVED_DATA }}
-          key: ${{ steps.prepare.outputs.derived_cache_prefix }}${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.xcode_cache_id }}-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: ${{ steps.prepare.outputs.derived_cache_prefix }}${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.xcode_cache_id }}-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}-
       - name: チェックポイントの保存に成果物サービスを使えるようにする
         if: steps.prepare.outputs.skip == 'false'
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
@@ -190,13 +182,25 @@ jobs:
         with:
           script: |
             // The artifact service credentials reach JavaScript actions only.
-            // progress.py (every 15 minutes) and finalize read them from this file.
+            // progress.py (every 15 minutes) and finalize read them from this file. Written right after
+            // prepare, so finalize can still save and report when a later step fails.
             const fs = require('fs');
             const path = require('path');
             fs.mkdirSync(process.env.AGENT_HOME, { recursive: true });
             fs.writeFileSync(path.join(process.env.AGENT_HOME, 'actions-runtime.json'),
               JSON.stringify({ token: process.env.ACTIONS_RUNTIME_TOKEN, resultsUrl: process.env.ACTIONS_RESULTS_URL }),
               { mode: 0o600 });
+      # The native part of the key is the native cache's own key, computed before that cache was restored.
+      # hashFiles('NativeRuntime/**') here would also read the restored Vendor/.build trees and fails
+      # ("Fail to hash files under directory", Issue #44's first run).
+      - name: ブランチのDerivedDataを復元
+        if: steps.prepare.outputs.skip == 'false'
+        id: derived
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.AGENT_DERIVED_DATA }}
+          key: ${{ steps.prepare.outputs.derived_cache_prefix }}${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.xcode_cache_id }}-${{ steps.native.outputs.cache-primary-key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ steps.prepare.outputs.derived_cache_prefix }}${{ runner.os }}-${{ runner.arch }}-${{ steps.prepare.outputs.xcode_cache_id }}-${{ steps.native.outputs.cache-primary-key }}-
       - name: 実行状態の監視を開始
         if: steps.prepare.outputs.skip == 'false'
         env:
