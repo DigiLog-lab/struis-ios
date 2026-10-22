@@ -1,0 +1,76 @@
+name: Selected CI ten-minute experiment
+run-name: Selected CI first comparison - warm separate vs direct combined
+
+on:
+  push:
+    branches: [experiment/ci-overnight-20261022]
+    paths: [.github/workflows/ci-selected-experiment.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-selected-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    name: ${{ matrix.config }}
+    runs-on: xcode-27
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - config: selected-warm-separate
+            warm: mock
+            commands: separate
+          - config: selected-direct-combined
+            warm: none
+            commands: combined
+    env:
+      TEST_RUNNER_STRUIS_CI_BENCH_VARIANT: optimized
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Record environment
+        run: |
+          sudo mdutil -a -i off >/dev/null 2>&1 || true
+          xcodebuild -version
+          sw_vers
+          sysctl hw.ncpu hw.memsize
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.14'
+      - name: Restore native inputs
+        id: native
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+      - name: Published outputs on cache miss
+        if: steps.native.outputs.cache-hit != 'true'
+        run: python3 scripts/ci/native_prebuilt.py apply
+      - name: Validate result-completeness checks
+        run: python3 -m unittest discover -s scripts/ci -p test_benchmark_selected.py
+      - name: Build and selected merge decision
+        run: >-
+          python3 scripts/ci/benchmark_selected.py
+          --configuration '${{ matrix.config }}'
+          --warm '${{ matrix.warm }}'
+          --commands '${{ matrix.commands }}'
+      - name: Save evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ci-selected-${{ github.run_id }}-${{ matrix.config }}
+          path: ${{ runner.temp }}/ci-selected
+          if-no-files-found: error
+          retention-days: 7
