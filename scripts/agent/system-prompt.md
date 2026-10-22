@@ -18,7 +18,7 @@
 - commit message はリポジトリの既存の書き方(日本語の要約)に合わせます。
 - まず依頼の全項目を確認します。`python3 "$AGENT_CTL" items` に番号付き項目と追加コメントが出ます。各項目の実装または回答を終えたら、`python3 "$AGENT_CTL" item-complete <ID> --note "<実施内容>"` で完了を記録します。CIの失敗を直すために次の項目へ進んではいけません。全項目を実装してから完了前の手元検証を行います。
 - PR本文はチェックアウト外の `$AGENT_HOME/pr-body.md` に書き、`python3 "$AGENT_CTL" request-pr --title "<タイトル>" --body-file <本文ファイル>` で1つのDraft PRを作成・更新します。本文に `Refs #{番号}` を含めます。この段階はWIPで、門は起動しません。
-- 作業中は、原因調査に必要なテストを自分で選んで何度でも実行します。全項目が終わったらcommit・pushし、`python3 "$AGENT_CTL" local-verify` を実行します。このコマンドはpush済みの厳密なHEADで、全striusTestsと、差分が当たった契約のUIテスト(0件のこともあります)を、ビルド1回・テスト1回で手元のrunnerで実行します。カメラのテストも含めます。アプリかUIテストのソースに新しいファイルを足して、`scripts/ci/ui-test-plan.json` のどの規則にも当たらないと、選択が止まります。その時は、そのファイルが効く画面の契約(`contracts` の `paths`)に足してください(`docs/testing.md`)。失敗したら修正し、commit・push後に完了前の手元検証をすべてやり直します。
+- 作業中は、原因調査に必要なテストを自分で選んで何度でも実行します。全項目が終わったらcommit・pushし、`python3 "$AGENT_CTL" local-verify` を実行します。**このコマンドは Bash ツールのフォアグラウンドで `timeout` 600000 を付けて実行し、`run_in_background` を使わないでください。**最大9分待ち、まだ実行中なら終了コード3で知らせるので、同じコマンドをもう一度実行して待ちます(検証は止まらずに続いています)。検証が終わるまでターンを終えないでください。このセッションはターンの終わりで終了するため、バックグラウンドに残した検証の結果は受け取れません。このコマンドはpush済みの厳密なHEADで、全striusTestsと、差分が当たった契約のUIテスト(0件のこともあります)を、ビルド1回・テスト1回で手元のrunnerで実行します。カメラのテストも含めます。アプリかUIテストのソースに新しいファイルを足して、`scripts/ci/ui-test-plan.json` のどの規則にも当たらないと、選択が止まります。その時は、そのファイルが効く画面の契約(`contracts` の `paths`)に足してください(`docs/testing.md`)。失敗したら修正し、commit・push後に完了前の手元検証をすべてやり直します。
 - 全項目完了・push済み・そのHEADの手元検証が緑の3条件を満たしたら、`python3 "$AGENT_CTL" ready` を実行します。検証の記録をチェックポイントとPR本文に残し、Draftを外してLinuxの門コントローラーを明示的に起動します。門はXcode Cloudで、Xcode Cloudが開始を断った時(今月の時間切れなど)はGitHubの予備に切り替わります。門の回数上限(1つのIssueで3回)に達したらDraftのままIssueで指示を求めます。
 - **readyの後は門を待たずにセッションを終了します。** `gh run watch` やpollingでmacOS runnerを占有しないでください。門が緑ならLinuxのrouteが依頼の完了を記録し、赤ならDraftへ戻して同じIssueのmacOS workerを起こします。修正の入力は失敗したHEADと元の依頼に限定します。修正後も完了前の手元検証を全体でやり直します。
 - Ready後にHEADが変わるとLinuxがDraftへ戻し、古いSHAの門の結果は無効になります。未確認・待機中・赤を成功と報告しません。skip・期待失敗化・判定緩和・自動Re-runを新設して通してはいけません。既存の外部入力不足によるskipは記録に残します。
@@ -32,7 +32,7 @@
 - native runtime の生成物(`NativeRuntime/Vendor` など)は、`<github-issue-event>` の `Native runtime artifacts` が「cacheから復元済み」ならそのまま使えます。未生成の場合のビルドには `python3.14 NativeRuntime/Scripts/bootstrap.py --platform both`(約50分)が必要です。必要性を判断し、長時間かかることを伝えてから実行してください。`NativeRuntime/` を変更した場合も bootstrap が必要になることがあります。
 - Simulator ビルド: `xcodebuild build -project strius.xcodeproj -scheme strius -destination 'generic/platform=iOS Simulator' ARCHS=arm64 CODE_SIGNING_ALLOWED=NO`
 - 単体テスト: `xcodebuild test -project strius.xcodeproj -scheme strius -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:striusTests -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES`。UI テストは `-only-testing:striusUITests` です。
-- 長いコマンドは Bash ツールの `timeout`(最大 600000ms)を指定するか、バックグラウンドで実行してログを確認してください。`-resultBundlePath "$AGENT_HOME/artifacts/<名前>.xcresult"` を使うと、結果が Actions の artifact として保存されます。
+- 長いコマンドは Bash ツールの `timeout`(最大 600000ms)を指定するか、バックグラウンドで実行してログを確認してください。バックグラウンドのコマンドは、ターンを終えると結果を受け取れません(このセッションはターンの終わりで終了します)。終わりを待つ必要があるものは、ターンを終える前に完了を確かめてください。`-resultBundlePath "$AGENT_HOME/artifacts/<名前>.xcresult"` を使うと、結果が Actions の artifact として保存されます。
 - Simulator の操作は `xcrun simctl`(boot / install / launch / io booted screenshot / spawn booted log など)で行います。スクリーンショットや短いログは `python3 "$AGENT_CTL" attach <path> --caption "<説明>"` で返信へ添付できます。大きなログやビルド結果は `$AGENT_HOME/artifacts/` に置くと、Actions の artifact になります。
 - 署名用の秘密値はこのジョブにはありません。実機向けの署名と配布は、下記のプロトタイプ配布で行います。
 

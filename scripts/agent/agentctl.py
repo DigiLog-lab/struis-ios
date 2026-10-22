@@ -514,7 +514,7 @@ def repair_instructions(head, failure, note=None):
             f'ReadyのHEAD ({head}) の門が赤でした。元の全項目の実装は済んでいます。この実行では記録された失敗の原因だけを調べ、必要な箇所を修正してください。',
             json.dumps(failure, ensure_ascii=False), *([note] if note else []),
             '追加コメントや未着手の項目には進みません。テストのskip・期待失敗化・判定緩和・修正なしの再実行はしません。',
-            '修正をcommit・pushしたら、local-verifyで全単体＋必須E2E＋差分UIを手元でやり直し、readyで門を起動して待たずに終了してください。',
+            '修正をcommit・pushしたら、local-verifyで全単体＋契約に当たったUIを手元でやり直し、readyで門を起動して待たずに終了してください。',
             '</gate-repair>'])
     detail = (json.dumps(failure, ensure_ascii=False) if failure
               else '終了処理の検証(保存状態の確認、またはPR CI)に失敗しました。`git status` と `gh run list --branch <作業ブランチ>` で現在の状態を確認してください。')
@@ -1414,6 +1414,79 @@ def cmd_prototype_status(args):
     print(f'Prototype {args.variant} を {args.status} にします(ターン終了時に保存)。')
 
 
+def process_alive(pid):
+    if not pid:
+        return False
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def cmd_local_verify(args):
+    """Start (or rejoin) the final local verification of the pushed HEAD and wait for it.
+
+    Claude Code ends this worker's session when its turn ends, so a verification left in a
+    background Bash task is lost together with its result (Issue #44). The verification runs as
+    its own process group; this command waits in the foreground for at most --wait-minutes, below
+    the Bash tool's 10-minute limit, and is called again while it reports that it is still running.
+    """
+    if args.run:  # the detached verification process itself
+        delivery.local_verify()
+        return
+    home = agent_home()
+    state_path = home / 'local-verify-process.json'
+    head = git('rev-parse', 'HEAD')
+    state = json.loads(state_path.read_text()) if state_path.exists() else {}
+    own = None
+    if state.get('head') != head and process_alive(state.get('pid')):
+        # A verification of an older HEAD would only end red ("HEAD changed"); stop it first so two
+        # runs never share the Simulator and DerivedData.
+        try:
+            os.killpg(int(state['pid']), 15)
+        except (ProcessLookupError, PermissionError):
+            pass
+        for _ in range(30):
+            if not process_alive(state['pid']):
+                break
+            time.sleep(1)
+    if state.get('head') == head and process_alive(state.get('pid')):
+        print(f'実行中の手元検証(HEAD {head[:12]})の終わりを待ちます。ログ: {state["log"]}', flush=True)
+    else:
+        log = home / 'artifacts' / f'local-verify-{head[:12]}-{time.time_ns()}.log'
+        log.parent.mkdir(parents=True, exist_ok=True)
+        with log.open('w') as stream:
+            own = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), 'local-verify', '--run'],
+                                   stdout=stream, stderr=subprocess.STDOUT, start_new_session=True)
+        state = {'pid': own.pid, 'head': head, 'log': str(log), 'startedAt': iso()}
+        state_path.write_text(json.dumps(state))
+        print(f'手元検証を開始しました(HEAD {head[:12]})。ログ: {log}', flush=True)
+    def running():
+        # Our own child stays a zombie until reaped, which kill(pid, 0) would still report as alive.
+        return own.poll() is None if own else process_alive(state['pid'])
+    deadline = time.monotonic() + args.wait_minutes * 60
+    while running():
+        if time.monotonic() >= deadline:
+            print('まだ実行中です。ターンを終えずに、同じコマンド `python3 "$AGENT_CTL" local-verify` を'
+                  'もう一度実行して待ってください(検証は止まらずに続いています)。', flush=True)
+            sys.exit(3)
+        time.sleep(10)
+    tail = Path(state['log']).read_text(errors='replace').splitlines()[-25:]
+    print('\n'.join(tail))
+    record = delivery.read('local-verification.json') or {}
+    if record.get('head') == head and record.get('success') is True:
+        print(f'手元検証: 成功(HEAD {head[:12]})。続けて `python3 "$AGENT_CTL" ready` を実行してください。')
+        return
+    failures = [line for check in record.get('checks', []) for line in check.get('failures', [])]
+    print(f'手元検証: 失敗(HEAD {head[:12]})。{record.get("error") or ""}')
+    if failures:
+        print('\n'.join(failures[-20:]))
+    sys.exit(1)
+
+
 def cmd_prototypes(_args):
     path = agent_home() / 'prototypes.json'
     print(path.read_text() if path.exists() else '[]')
@@ -1476,7 +1549,10 @@ def main():
     item.add_argument('id')
     item.add_argument('--note', required=True)
     item.set_defaults(func=lambda args: delivery.complete_item(args.id, args.note))
-    commands.add_parser('local-verify', help='push済みHEADで全単体＋必須E2E＋差分UIを検証').set_defaults(func=lambda args: delivery.local_verify())
+    verify = commands.add_parser('local-verify', help='push済みHEADで全単体＋契約に当たったUIを検証し、最大9分待つ')
+    verify.add_argument('--run', action='store_true', help=argparse.SUPPRESS)
+    verify.add_argument('--wait-minutes', type=float, default=9, help='待つ時間(分)。Bashツールの上限10分より短くする')
+    verify.set_defaults(func=cmd_local_verify)
     commands.add_parser('ready', help='手元検証済みHEADをReadyにして門を起動').set_defaults(func=lambda args: delivery.ready())
     request_pr = commands.add_parser('request-pr', help='1つのDraft PRを作成・更新する')
     request_pr.add_argument('--title', required=True)
