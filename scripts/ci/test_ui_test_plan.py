@@ -226,122 +226,169 @@ class ShardTests(unittest.TestCase):
         self.assertEqual(sum(1 for _, part in parts if part), 1)
 
 
+def toy_plan(**extra):
+    plan = {
+        'schema': 2,
+        'contracts': {
+            'chat': {'property': 'chat', 'tests': ['A/test1', 'A/test2'], 'paths': ['strius/Features/Chat/ChatView.swift']},
+            'camera': {'property': 'camera', 'tests': ['B/test1'], 'paths': ['strius/Features/Chat/ChatCamera.swift']},
+        },
+        'everything': ['strius/Design/**'],
+        'folders': {'strius/Features/Chat/Prototype.swift': [], 'strius/Features/Chat/**': ['chat']},
+        'guarded': ['strius/**', 'striusUITests/**', 'strius.xcodeproj/**'],
+        'manual': {'C/test1': 'real device'},
+        'excluded': {},
+    }
+    plan.update(extra)
+    return plan
+
+
+ADD_FILE_DIFF = (
+    'diff --git a/strius.xcodeproj/project.pbxproj b/strius.xcodeproj/project.pbxproj\n'
+    '--- a/strius.xcodeproj/project.pbxproj\n+++ b/strius.xcodeproj/project.pbxproj\n'
+    '@@ -230,0 +231 @@\n'
+    '+\t\tF7E9128C22CCD0084818A056 /* NewThing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8E9128C22CCD0084818A056 /* NewThing.swift */; };\n'
+    '@@ -501,0 +503 @@\n'
+    '+\t\tF8E9128C22CCD0084818A056 /* NewThing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewThing.swift; sourceTree = "<group>"; };\n'
+    '@@ -917,0 +920 @@\n+\t\t\t\tF8E9128C22CCD0084818A056 /* NewThing.swift */,\n'
+    '@@ -1437,0 +1441 @@\n+\t\t\t\tF7E9128C22CCD0084818A056 /* NewThing.swift in Sources */,\n')
+SETTINGS_DIFF = ('--- a/strius.xcodeproj/project.pbxproj\n+++ b/strius.xcodeproj/project.pbxproj\n@@ -1676 +1676 @@\n'
+                 '-\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.digiloglab.strius.runtime;\n'
+                 '+\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = "$(STRUIS_BUNDLE_ID_BASE).runtime";\n')
+
+
 class SelectTests(unittest.TestCase):
     tests = ['A/test1', 'A/test2', 'B/test1', 'C/test1']
 
-    def test_full_tier_and_plan_without_pr_list_run_everything(self):
-        self.assertEqual(ui_test_plan.select(self.tests, {'pr': ['A']}, 'full', []), self.tests)
-        self.assertEqual(ui_test_plan.select(self.tests, {}, 'pr', ['x.swift']), self.tests)
+    def select(self, changed, plan=None, diff=None):
+        return ui_test_plan.select(self.tests, plan or toy_plan(), 'pr', changed, diff)
 
-    def test_pr_tier_runs_core_classes_and_classes_for_changed_paths(self):
-        plan = {'pr': ['A'], 'paths': {'strius/Features/Chat/*': ['C'], 'strius/Camera/*': ['B']}}
-        selected = ui_test_plan.select(self.tests, plan, 'pr', ['strius/Features/Chat/ChatView.swift'])
-        self.assertEqual(selected, ['A/test1', 'A/test2', 'C/test1'])
+    def test_full_tier_runs_every_discovered_test(self):
+        self.assertEqual(ui_test_plan.select(self.tests, toy_plan(), 'full', []), self.tests)
 
-    def test_repository_plan_runs_the_suites_a_changed_file_can_break(self):
-        plan = json.loads(ui_test_plan.PLAN.read_text())
-        tests = ui_test_plan.discover()
+    def test_a_changed_file_runs_only_its_contracts(self):
+        self.assertEqual(self.select(['strius/Features/Chat/ChatCamera.swift']), ['B/test1'])
+        self.assertEqual(self.select(['strius/Features/Chat/ChatView.swift', 'strius/Features/Chat/ChatCamera.swift']),
+                         ['A/test1', 'A/test2', 'B/test1'])
 
-        def classes(path):
-            return {test.split('/')[0] for test in ui_test_plan.select(tests, plan, 'pr', [path])}
-        # 写真を何枚か撮って 1 枚外して送るのは WorkbookSplitGradingUITests だけ(ChatCamera.swift の ChatCameraBatch)。
-        self.assertIn('WorkbookSplitGradingUITests', classes('strius/Features/Chat/ChatCamera.swift'))
-        # 没入画面の会話は ChatTimeline を埋め込む。
-        self.assertIn('ImmersionSceneChatUITests', classes('strius/Features/Chat/ChatTimeline.swift'))
-        # LedgerFixtures の種まき(-texture-demo と単元削除の UI テスト)。
-        self.assertTrue({'WorkbookHomeUITests', 'UnitDeletionUITests'} <= classes('strius/State/LedgerFixtures.swift'))
-        # 写真の保存と再起動後の復元(Ledger)。
-        self.assertIn('ChatImmediateImageSendUITests', classes('strius/Ledger/LedgerEvents.swift'))
-        # 一枚の画面は会話(ChatView)を埋め込む。
-        self.assertIn('ChatScrollStabilityUITests', classes('strius/Features/Workbook/WorkbookSubunitView.swift'))
-        # ホームの最近の答案は Ledger の行を読む。
-        self.assertIn('WorkbookHomeUITests', classes('strius/Ledger/LedgerRows.swift'))
-        # 添付の保存の形は ChatTurns.Attachment にある。
-        self.assertIn('ChatImmediateImageSendUITests', classes('strius/Engine/ChatTurns.swift'))
-        # 送信の添付を返事の記録に保存するのは ChatTurnCoordinator。
-        self.assertIn('ChatImmediateImageSendUITests', classes('strius/State/ChatTurnCoordinator.swift'))
-        # 偽の実行役(MockTurnRunner)は UI テスト全体の返事を作る。
-        self.assertEqual(ui_test_plan.select(tests, plan, 'pr', ['strius/Runtime/MockTurnRunner.swift']), tests)
-        # Info.plist はカメラの許可文と画面の向きを含むアプリ全体の設定。
-        self.assertEqual(ui_test_plan.select(tests, plan, 'pr', ['Info.plist']), tests)
-        # 同梱の資源(KaTeX・フォント)は数式の表示と画面全体に効く。
-        self.assertEqual(ui_test_plan.select(tests, plan, 'pr', ['strius/Resources/KaTeX/struis-math.js']), tests)
+    def test_a_change_no_contract_covers_runs_no_ui_test(self):
+        self.assertEqual(self.select(['docs/testing.md', 'striusTests/RulesTests.swift', 'scripts/agent/gate.py']), [])
+        self.assertEqual(self.select([]), [])
 
-    def test_a_path_mapped_to_everything_runs_every_test(self):
-        plan = {'pr': ['A'], 'paths': {'strius.xcodeproj/*': ['*']}}
-        self.assertEqual(ui_test_plan.select(self.tests, plan, 'pr', ['strius.xcodeproj/project.pbxproj']), self.tests)
+    def test_unknown_diff_runs_every_contract_but_never_manual_tests(self):
+        self.assertEqual(self.select(None), ['A/test1', 'A/test2', 'B/test1'])
 
-    def test_a_changed_test_file_adds_its_class_and_shared_support_runs_everything(self):
-        plan = {'pr': ['A']}
-        self.assertEqual(ui_test_plan.select(self.tests, plan, 'pr', ['striusUITests/C.swift']), ['A/test1', 'A/test2', 'C/test1'])
-        self.assertEqual(ui_test_plan.select(self.tests, plan, 'pr', ['striusUITests/UITestSupport.swift']), self.tests)
+    def test_everything_runs_every_contract_test(self):
+        self.assertEqual(self.select(['strius/Design/Theme.swift']), ['A/test1', 'A/test2', 'B/test1'])
 
-    def test_shard_count_per_tier(self):
-        self.assertEqual(ui_test_plan.shard_count({'shards': 3}, 'pr'), 3)
-        self.assertEqual(ui_test_plan.shard_count({'shards': {'pr': 2, 'full': 3}}, 'pr'), 2)
-        self.assertEqual(ui_test_plan.shard_count({'shards': {'pr': 2, 'full': 3}}, 'full'), 3)
-        self.assertEqual(ui_test_plan.shard_count({}, 'full'), 1)
+    def test_folder_default_covers_a_file_no_contract_names_first_match_wins(self):
+        self.assertEqual(self.select(['strius/Features/Chat/NewBubble.swift']), ['A/test1', 'A/test2'])
+        self.assertEqual(self.select(['strius/Features/Chat/Prototype.swift']), [])
 
-    def test_repository_plan_names_only_known_classes(self):
-        plan = json.loads(ui_test_plan.PLAN.read_text())
-        known = {test.split('/')[0] for test in ui_test_plan.discover()}
-        named = set(plan['pr']) | {c for classes in plan['paths'].values() for c in classes if c != '*'}
-        self.assertEqual(named - known, set())
+    def test_unmapped_app_source_stops_the_plan(self):
+        with self.assertRaises(ui_test_plan.PlanError) as raised:
+            self.select(['strius/Engine/NewRules.swift'])
+        self.assertIn('strius/Engine/NewRules.swift', str(raised.exception))
 
-    def test_unknown_class_in_plan_fails_loudly(self):
-        with self.assertRaises(SystemExit):
-            ui_test_plan.select(self.tests, {'pr': ['Missing']}, 'pr', [])
+    def test_project_file_adding_a_file_selects_nothing_settings_select_everything(self):
+        self.assertEqual(self.select(['strius.xcodeproj/project.pbxproj'], diff=ADD_FILE_DIFF), [])
+        self.assertEqual(self.select(['strius.xcodeproj/project.pbxproj', 'strius/Features/Chat/ChatCamera.swift'],
+                                     diff=ADD_FILE_DIFF), ['B/test1'])
+        everything = ['A/test1', 'A/test2', 'B/test1']
+        self.assertEqual(self.select(['strius.xcodeproj/project.pbxproj'], diff=SETTINGS_DIFF), everything)
+        self.assertEqual(self.select(['strius.xcodeproj/project.pbxproj'], diff=None), everything)
+        self.assertEqual(self.select(['strius.xcodeproj/project.pbxproj'], diff=ADD_FILE_DIFF + SETTINGS_DIFF), everything)
+
+    def test_validation_rejects_unclassified_unknown_and_double_classified_tests(self):
+        with self.assertRaisesRegex(ui_test_plan.PlanError, 'in no contract'):
+            ui_test_plan.select(self.tests + ['D/test1'], toy_plan(), 'pr', [])
+        with self.assertRaisesRegex(ui_test_plan.PlanError, 'do not exist'):
+            self.select([], toy_plan(manual={'C/test1': 'x', 'Z/test9': 'x'}))
+        with self.assertRaisesRegex(ui_test_plan.PlanError, 'classified twice'):
+            self.select([], toy_plan(manual={'C/test1': 'x', 'B/test1': 'x'}))
+        with self.assertRaisesRegex(ui_test_plan.PlanError, 'unknown contracts'):
+            self.select([], toy_plan(folders={'strius/**': ['nope']}))
+        with self.assertRaisesRegex(ui_test_plan.PlanError, 'schema 2'):
+            self.select([], {'pr': ['A']})
+
+
+class RepositoryPlanTests(unittest.TestCase):
+    plan = json.loads(ui_test_plan.PLAN.read_text())
+    tests = ui_test_plan.discover()
+
+    def select(self, *changed, diff=None):
+        return ui_test_plan.select(self.tests, self.plan, 'pr', list(changed), diff)
+
+    def contract(self, name):
+        return sorted(self.plan['contracts'][name]['tests'])
+
+    def test_every_discovered_test_is_classified(self):
+        ui_test_plan.validate(self.plan, self.tests)
+
+    def test_every_app_source_file_is_covered(self):
+        sources = [str(path.relative_to(ui_test_plan.ROOT)) for root in ('strius', 'NativeRuntime')
+                   for path in (ui_test_plan.ROOT / root).rglob('*') if path.is_file()]
+        for path in sources:
+            ui_test_plan.contracts_for(path, self.plan)  # raises PlanError for an uncovered file
+
+    def test_typical_changes_select_their_contracts(self):
+        self.assertEqual(self.select('strius/Features/Workbook/WorkbookSubunitHeader.swift'), self.contract('subunit-header'))
+        self.assertEqual(self.select('strius/Features/ImmersionLab/ScenePlayerView.swift'), self.contract('immersion'))
+        self.assertEqual(self.select('strius/Engine/WorkbookRules.swift'), self.contract('workbook-grading'))
+        self.assertEqual(self.select('strius/State/ChatTurnCoordinator.swift'), self.contract('reply-tail'))
+        self.assertEqual(self.select('strius/State/MainThreadWatchdog.swift'), [])
+        self.assertEqual(self.select('docs/testing.md', 'striusTests/Ledger/ReplyTailQueueTests.swift'), [])
+
+    def test_shared_files_select_every_contract(self):
+        every = sorted({test for contract in self.plan['contracts'].values() for test in contract['tests']})
+        for path in ('strius/Runtime/MockTurnRunner.swift', 'strius/Design/Theme.swift', 'Info.plist',
+                     'striusUITests/UITestSupport.swift', '.github/workflows/ios.yml',
+                     'strius.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'):
+            self.assertEqual(self.select(path), every, path)
+
+    def test_a_changed_ui_test_file_runs_its_own_contract_tests_only(self):
+        self.assertEqual(self.select('striusUITests/WorkbookSubunitHeaderUITests.swift'), self.contract('subunit-header'))
+        self.assertEqual(self.select('striusUITests/ChatTypingExperienceUITests.swift'), [])
+
+    def test_manual_and_excluded_tests_have_reasons(self):
+        for name, reason in {**self.plan['manual'], **self.plan['excluded']}.items():
+            self.assertTrue(reason.strip(), name)
 
 
 class MainTests(unittest.TestCase):
-    def test_pr_that_selects_everything_uses_the_full_tiers_runners(self):
-        with tempfile.TemporaryDirectory() as directory:
-            plan = Path(directory, 'plan.json')
-            changed = Path(directory, 'changed.txt')
-            plan.write_text(json.dumps({'shards': {'pr': 1, 'full': 3}, 'durations': {}, 'pr': [],
-                                        'paths': {'.github/workflows/ios.yml': ['*']}}))
-            changed.write_text('.github/workflows/ios.yml\n')
-            out = io.StringIO()
-            with redirect_stdout(out), redirect_stderr(io.StringIO()):
-                ui_test_plan.main(['--matrix', '--tier', 'pr', '--plan', str(plan), '--changed-files', str(changed)])
-            self.assertEqual(len(json.loads(out.getvalue())), 3)
-            changed.write_text('scripts/agent/agentctl.py\n')
-            out = io.StringIO()
-            with redirect_stdout(out), redirect_stderr(io.StringIO()):
-                ui_test_plan.main(['--matrix', '--tier', 'pr', '--plan', str(plan), '--changed-files', str(changed)])
-            self.assertEqual(json.loads(out.getvalue()), [])
+    def run_main(self, *args):
+        out = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            ui_test_plan.main(list(args))
+        return out.getvalue()
 
-    def test_prints_only_testing_arguments_for_the_shard(self):
+    def test_list_prints_the_selection_and_reasons(self):
         with tempfile.TemporaryDirectory() as directory:
-            plan = Path(directory, 'plan.json')
-            plan.write_text(json.dumps({'shards': 1, 'durations': {}}))
-            out = io.StringIO()
-            with redirect_stdout(out), redirect_stderr(io.StringIO()):
-                ui_test_plan.main(['--shard', '0', '--plan', str(plan)])
-            lines = out.getvalue().split()
+            changed = Path(directory, 'changed.txt')
+            changed.write_text('strius/Features/Workbook/WorkbookSubunitHeader.swift\ndocs/testing.md\n')
+            result = json.loads(self.run_main('--list', '--changed-files', str(changed)))
+            self.assertEqual(result['reasons'], {'subunit-header': ['strius/Features/Workbook/WorkbookSubunitHeader.swift']})
+            self.assertEqual(len(result['uiTests']), 2)
+            changed.write_text('scripts/agent/agentctl.py\n')
+            self.assertEqual(json.loads(self.run_main('--list', '--changed-files', str(changed)))['uiTests'], [])
+            self.assertTrue(json.loads(self.run_main('--list', '--no-diff'))['uiTests'])
+
+    def test_prints_only_testing_arguments_for_the_full_shard(self):
+        with tempfile.TemporaryDirectory() as directory:
+            plan = json.loads(ui_test_plan.PLAN.read_text())
+            plan['shards'] = {'full': 1}
+            path = Path(directory, 'plan.json')
+            path.write_text(json.dumps(plan))
+            lines = self.run_main('--shard', '0', '--plan', str(path)).split()
             self.assertEqual(len(lines), len(ui_test_plan.discover()))
             self.assertTrue(all(line.startswith('-only-testing:striusUITests/') for line in lines))
 
-    def test_matrix_lists_only_non_empty_shards_and_covers_everything(self):
-        with tempfile.TemporaryDirectory() as directory:
-            plan = Path(directory, 'plan.json')
-            plan.write_text(json.dumps({'shards': 3, 'pr': ['WorkbookHomeUITests']}))
-            out = io.StringIO()
-            with redirect_stdout(out), redirect_stderr(io.StringIO()):
-                ui_test_plan.main(['--matrix', '--tier', 'pr', '--plan', str(plan)])
-            matrix = json.loads(out.getvalue())
-            expected = [test for test in ui_test_plan.discover() if test.startswith('WorkbookHomeUITests/')]
-            self.assertEqual(len(matrix), min(3, len(expected)))
-            listed = sorted(arg.split('striusUITests/', 1)[1] for item in matrix for arg in item['tests'].split())
-            self.assertEqual(listed, expected)
-            self.assertTrue(all(item['count'] > 0 for item in matrix))
-
-    def test_rejects_out_of_range_shard(self):
-        with tempfile.TemporaryDirectory() as directory:
-            plan = Path(directory, 'plan.json')
-            plan.write_text(json.dumps({'shards': 2}))
-            with self.assertRaises(SystemExit):
-                ui_test_plan.main(['--shard', '2', '--plan', str(plan)])
+    def test_matrix_covers_every_test_and_rejects_out_of_range_shard(self):
+        matrix = json.loads(self.run_main('--matrix'))
+        listed = sorted(arg.split('striusUITests/', 1)[1] for item in matrix for arg in item['tests'].split())
+        self.assertEqual(listed, ui_test_plan.discover())
+        with self.assertRaises(SystemExit):
+            self.run_main('--shard', '99')
 
 
 if __name__ == '__main__':

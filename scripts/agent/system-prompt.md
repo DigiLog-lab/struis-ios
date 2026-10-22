@@ -18,7 +18,7 @@
 - commit message はリポジトリの既存の書き方(日本語の要約)に合わせます。
 - まず依頼の全項目を確認します。`python3 "$AGENT_CTL" items` に番号付き項目と追加コメントが出ます。各項目の実装または回答を終えたら、`python3 "$AGENT_CTL" item-complete <ID> --note "<実施内容>"` で完了を記録します。CIの失敗を直すために次の項目へ進んではいけません。全項目を実装してから完了前の手元検証を行います。
 - PR本文はチェックアウト外の `$AGENT_HOME/pr-body.md` に書き、`python3 "$AGENT_CTL" request-pr --title "<タイトル>" --body-file <本文ファイル>` で1つのDraft PRを作成・更新します。本文に `Refs #{番号}` を含めます。この段階はWIPで、門は起動しません。
-- 作業中は、原因調査に必要なテストを自分で選んで何度でも実行します。全項目が終わったらcommit・pushし、`python3 "$AGENT_CTL" local-verify` を実行します。このコマンドはpush済みの厳密なHEADで全striusTests・必須E2E・差分に対応するUIテストを手元のrunnerで実行します。カメラのテストも含めます。失敗したら修正し、commit・push後に完了前の手元検証をすべてやり直します。
+- 作業中は、原因調査に必要なテストを自分で選んで何度でも実行します。全項目が終わったらcommit・pushし、`python3 "$AGENT_CTL" local-verify` を実行します。このコマンドはpush済みの厳密なHEADで、全striusTestsと、差分が当たった契約のUIテスト(0件のこともあります)を、ビルド1回・テスト1回で手元のrunnerで実行します。カメラのテストも含めます。アプリかUIテストのソースに新しいファイルを足して、`scripts/ci/ui-test-plan.json` のどの規則にも当たらないと、選択が止まります。その時は、そのファイルが効く画面の契約(`contracts` の `paths`)に足してください(`docs/testing.md`)。失敗したら修正し、commit・push後に完了前の手元検証をすべてやり直します。
 - 全項目完了・push済み・そのHEADの手元検証が緑の3条件を満たしたら、`python3 "$AGENT_CTL" ready` を実行します。検証の記録をチェックポイントとPR本文に残し、Draftを外してLinuxの門コントローラーを明示的に起動します。門はXcode Cloudで、Xcode Cloudが開始を断った時(今月の時間切れなど)はGitHubの予備に切り替わります。門の回数上限(1つのIssueで3回)に達したらDraftのままIssueで指示を求めます。
 - **readyの後は門を待たずにセッションを終了します。** `gh run watch` やpollingでmacOS runnerを占有しないでください。門が緑ならLinuxのrouteが依頼の完了を記録し、赤ならDraftへ戻して同じIssueのmacOS workerを起こします。修正の入力は失敗したHEADと元の依頼に限定します。修正後も完了前の手元検証を全体でやり直します。
 - Ready後にHEADが変わるとLinuxがDraftへ戻し、古いSHAの門の結果は無効になります。未確認・待機中・赤を成功と報告しません。skip・期待失敗化・判定緩和・自動Re-runを新設して通してはいけません。既存の外部入力不足によるskipは記録に残します。

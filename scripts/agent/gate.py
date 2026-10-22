@@ -291,9 +291,11 @@ def request_data(store, gh, pr, request_id=None, used_request=None):
     if manifest.get('version') != 1:
         raise RuntimeError('Unknown gate exclusion manifest')
     omitted = {item['test'] for item in manifest['methods']}
-    units = next(check for check in local['checks'] if check['name'] == 'unit-tests')
-    required = {normalize_test(*row['test'].rsplit('/', 1)) for row in delivery.test_rows(units['testResults'])}
+    # Every test the local run executed (all unit tests and the selected UI tests) must run again in the gate.
+    ran = next(check for check in local['checks'] if check['name'] == 'tests')
+    required = {normalize_test(*row['test'].rsplit('/', 1)) for row in delivery.test_rows(ran['testResults'])}
     required.update(set(local['selection']['uiTests']) - omitted)
+    required -= omitted
     request = dict(request, expectedTests=sorted(required), evidence=delivery.frozen_evidence(checkpoint, components))
     if not request_id:
         body = re.sub(re.escape(delivery.SUMMARY_START) + r'.*?' + re.escape(delivery.SUMMARY_END),

@@ -1,8 +1,9 @@
 import XCTest
 
-/// 端末完結の問題集ループ (design §6.4 / §9 M4): 一枚を作る → 撮る → 判定 → マスに綴じる。
-/// シミュレータ既定フィクスチャ (台帳に単元を投入) と DEBUG のモック応答 (判定・生成の
-/// モデル出力だけ固定) で、Engine・台帳・画面は本番の経路を通す。
+/// 端末完結の問題集ループ (design §6.4 / §9 M4) を hyotan 上の実 Codex で回す:
+/// 一枚を作る → 撮る → 判定 → マスに綴じる。固定応答で同じ道筋を通す確認は
+/// `WorkbookE2EFixesUITests.testSetCaptureOpensResultAndPassShowsImmediately` が持つ
+/// (結果の文言・演習・合格まで確かめるので、固定応答版はここに置かない)。
 final class DeviceWorkbookUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -10,20 +11,7 @@ final class DeviceWorkbookUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
     }
 
-    @MainActor
-    func testSetGenerationCaptureAndGradingOnDevice() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-skip-onboarding"]
-        app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
-        app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
-        app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = UITestSupport.paperImagePath
-        // 撮影の途中には何もしない(完了を待ってから次へ進む)ので、偽カメラの完了までの間は短くする。
-        app.launchEnvironment["STRUIS_TEST_CAPTURE_FINISH_SECONDS"] = UITestSupport.captureFinishSecondsWithoutRace
-        app.launch()
-        try runLoop(app, generationTimeout: 30, gradingTimeout: 30, name: "verdict")
-    }
-
-    /// 同じループを hyotan 上の実 Codex で回す。`TEST_RUNNER_STRUIS_REAL_CODEX_AUTH` が必要。
+    /// `TEST_RUNNER_STRUIS_REAL_CODEX_AUTH` が必要。
     @MainActor
     func testSetGenerationCaptureAndGradingWithRealCodex() throws {
         let auth = ProcessInfo.processInfo.environment["STRUIS_REAL_CODEX_AUTH"] ?? ""

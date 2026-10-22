@@ -21,21 +21,21 @@ class XcodePlanTests(unittest.TestCase):
         self.manifest = json.loads(xcode_test_plan.EXCLUSIONS.read_text())
 
     def test_gate_uses_the_local_selection_minus_only_the_reviewed_methods(self):
-        for changed in ([], ['strius/Features/Chat/ChatView.swift'], ['strius/Design/Theme.swift']):
+        for changed in (['strius/Features/Chat/ChatView.swift'], ['strius/Design/Theme.swift']):
             with self.subTest(changed=changed):
                 plan, report = xcode_test_plan.generate('pr', changed)
                 local = set(ui_test_plan.select(self.tests, self.selection, 'pr', changed))
                 excluded = {entry['test'] for entry in self.manifest['methods']}
                 self.assertEqual(set(report['uiTests']), local - excluded)
                 self.assertEqual(plan['testTargets'][1]['selectedTests'], [test + '()' for test in sorted(local - excluded)])
-                # The camera tests run on Xcode Cloud (Release 154 ran them); only the performance test is excluded.
-                self.assertIn('WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned', report['uiTests'])
-                self.assertIn('WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately', report['uiTests'])
-                self.assertIn('DeviceChatUITests/testQuestionTurnWithMockModel', report['uiTests'])
+                self.assertIn('ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording', report['uiTests'])
                 self.assertNotIn('striusUITests/testLaunchPerformance', report['uiTests'])
                 # The gate runs UI classes in parallel; unit tests keep their default.
                 self.assertIs(plan['testTargets'][1]['parallelizable'], True)
                 self.assertNotIn('parallelizable', plan['testTargets'][0])
+        # A change no contract covers selects no UI test; a test plan cannot express "none", so it stops.
+        with self.assertRaises(ValueError):
+            xcode_test_plan.generate('pr', ['docs/testing.md'])
 
     def test_release_keeps_every_discovered_test_including_camera_methods(self):
         plan, report = xcode_test_plan.generate('full', [])
@@ -47,16 +47,6 @@ class XcodePlanTests(unittest.TestCase):
         # No unit-test filter can accidentally omit newly added unit tests.
         self.assertEqual(set(plan['testTargets'][0]), {'target'})
 
-    def test_github_fallback_has_the_same_method_selection_as_cloud(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            paths = Path(temporary) / 'changed.txt'
-            paths.write_text('strius/Features/Chat/ChatView.swift\n')
-            result = subprocess.check_output([sys.executable, str(ui_test_plan.PLAN.with_name('ui_test_plan.py')),
-                                              '--matrix', '--tier', 'pr', '--changed-files', str(paths), '--cloud-compatible'], text=True)
-        actual = {argument.removeprefix('-only-testing:striusUITests/') for part in json.loads(result) for argument in part['tests'].split()}
-        _, expected = xcode_test_plan.generate('pr', ['strius/Features/Chat/ChatView.swift'])
-        self.assertEqual(actual, set(expected['uiTests']))
-
     def test_unavailable_diff_expands_the_gate_instead_of_using_only_e2e(self):
         _, report = xcode_test_plan.generate('pr', None)
         excluded = {entry['test'] for entry in self.manifest['methods']}
@@ -67,14 +57,14 @@ class XcodePlanTests(unittest.TestCase):
         invalid = copy.deepcopy(self.manifest['methods'][0])
         for entry in (dict(invalid, test='DeletedTests/testOld'), dict(invalid, reason=''), dict(invalid, source='')):
             with self.subTest(entry=entry), self.assertRaises(ValueError):
-                xcode_test_plan.generate('pr', [], manifest={'version': 1, 'methods': [entry]})
+                xcode_test_plan.generate('pr', None, manifest={'version': 1, 'methods': [entry]})
         with self.assertRaises(ValueError):
-            xcode_test_plan.generate('pr', [], manifest={'version': 1, 'methods': [invalid, invalid]})
+            xcode_test_plan.generate('pr', None, manifest={'version': 1, 'methods': [invalid, invalid]})
 
     def test_a_fully_excluded_selection_does_not_become_an_unfiltered_test_run(self):
         name = self.manifest['methods'][0]['test']
         with self.assertRaises(ValueError):
-            xcode_test_plan.generate('pr', [], discovered=[name], selection={'pr': [name.split('/')[0]]},
+            xcode_test_plan.generate('pr', None, discovered=[name],
                                      manifest={'version': 1, 'methods': [self.manifest['methods'][0]]})
 
     def test_bad_base_or_failed_fetch_expands_coverage(self):

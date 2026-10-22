@@ -93,7 +93,7 @@ class GateTests(unittest.TestCase):
                  'startedAt': '2026-10-20T00:00:00Z', 'finishedAt': '2026-10-20T00:10:00Z',
                  'selection': {'uiTests': ['Class/testWorks']},
                  'scopeSha256': delivery.scope_digest(snapshot), 'itemsSha256': delivery.item_digest(items),
-                 'checks': [{'name': name, 'exitCode': 0, 'seconds': 1, 'testResults': test_tree()} for name in ('build-for-testing', 'unit-tests', 'ui-tests')]}
+                 'checks': [{'name': name, 'exitCode': 0, 'seconds': 1, 'testResults': test_tree()} for name in ('build-for-testing', 'tests')]}
         components = {'request-snapshot.json': snapshot, 'work-items.json': items, 'local-verification.json': local,
                       'run.json': {'includedComments': [20], 'includedIssueBody': True}}
         prefix = 'sessions/4/checkpoints/save-1'
@@ -209,7 +209,8 @@ class GateTests(unittest.TestCase):
 
     def test_committed_config_needs_no_repository_variable(self):
         with mock.patch.dict(os.environ, {'AGENT_GATE_BACKEND': '', 'AGENT_GATE_MAX_ATTEMPTS': ''}):
-            self.assertEqual(gate.backend(), 'xcode-cloud')
+            # The gate runs ios.yml on GitHub (one build and one test run, docs/testing.md).
+            self.assertEqual(gate.backend(), 'github')
             self.assertEqual(gate.max_attempts(), 3)
 
     def test_cloud_refusal_falls_back_to_github_but_a_lost_response_does_not(self):

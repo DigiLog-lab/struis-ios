@@ -157,11 +157,9 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
 
     @MainActor
     func testSendingCollapsesExampleBar() throws {
-        let app = launch(["-skip-onboarding", "-workbook-model-stage"])
+        // 例題の段から始める(要点から「先に進む」までは testExampleStageBarsComposerAndFloatingAdvance が確かめる)。
+        let app = launch(["-skip-onboarding", "-workbook-example-stage"])
         openFirstSubunit(app)
-        let advance = element(app, "workbook-advance")
-        XCTAssertTrue(waitEnabled(advance, timeout: 20))
-        advance.press(forDuration: 0.15)
         let card = element(app, "workbook-example-card")
         XCTAssertTrue(card.appears(timeout: 15))
         XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS %@", "頂点の座標を求めよ")).firstMatch.appears(timeout: 20), "例題の問題文が出ない: \(screenSummary(app))")
@@ -185,11 +183,10 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
 
     @MainActor
     func testExampleAdvanceAppearsOnlyAfterModelMarksReady() throws {
-        let app = launch(["-skip-onboarding", "-workbook-model-stage"])
+        // 例題の段から始める(要点から「先に進む」までは testExampleStageBarsComposerAndFloatingAdvance が確かめる)。
+        let app = launch(["-skip-onboarding", "-workbook-example-stage"])
         openFirstSubunit(app)
         let advance = element(app, "workbook-advance")
-        XCTAssertTrue(waitEnabled(advance, timeout: 20), "要点の「先に進む」が押せない")
-        advance.press(forDuration: 0.15)
         XCTAssertTrue(text(app, containing: "例題を一緒に解こう").appears(timeout: 20), "例題の返事が出ない: \(screenSummary(app))")
         XCTAssertTrue(element(app, "workbook-subunit-header").appears(timeout: 5))
 

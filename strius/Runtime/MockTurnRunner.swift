@@ -14,6 +14,8 @@ actor MockTurnRunner: TurnRunning {
     private var interrupted: Set<String> = []
     /// 記録を書いた返事の数(返事ごとの記録の時間を選ぶ)。
     private var tails = 0
+    /// UI テストが記録を終わらせる合図を待つ返事(`STRUIS_CI_TAIL_TOKEN`・`STRUIS_CI_TAIL_GATES` を渡した時だけ作る)。
+    private var benchmarkGates: [CIBenchmarkTailGate] = []
 
     /// 返事の本文を流した後、後ろの記録(進み具合)を書いている時間(`STRUIS_MOCK_TAIL_DELAY_MS`)。0 なら本文も流さない。
     /// 本物のモデルが長い記録を書いている間の画面(送信・「先に進む」)を確かめる時に延ばす。
@@ -49,7 +51,7 @@ actor MockTurnRunner: TurnRunning {
             let tailDelay = Self.tailDelay(forReply: tails, setting: Self.tailDelaySetting)
             if tailDelay > 0 {
                 tails += 1
-                if await streamWithSlowTail(plan, text: text, tailDelay: tailDelay, progress: progress) {
+                if try await streamWithSlowTail(plan, text: text, tailDelay: tailDelay, replyIndex: tails - 1, progress: progress) {
                     return TurnOutcome(
                         planID: plan.id, round: plan.round, status: .interrupted, codexThreadID: plan.thread.codexThreadID, codexTurnID: nil,
                         finalText: "", executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: tailDelay
@@ -72,8 +74,14 @@ actor MockTurnRunner: TurnRunning {
 
     /// 本文を流し、準備OK(あれば本文のすぐ後)と記録の書き出しを流してから、記録を書いている時間だけ待つ。止められたら true。
     private func streamWithSlowTail(
-        _ plan: TurnPlan, text: String, tailDelay: Int, progress: @escaping @Sendable (TurnProgressEvent) -> Void
-    ) async -> Bool {
+        _ plan: TurnPlan, text: String, tailDelay: Int, replyIndex: Int, progress: @escaping @Sendable (TurnProgressEvent) -> Void
+    ) async throws -> Bool {
+        let environment = ProcessInfo.processInfo.environment
+        let indices = Set((environment["STRUIS_CI_TAIL_GATES"] ?? "").split(separator: ",").compactMap { Int($0) })
+        let gate = environment["STRUIS_CI_TAIL_TOKEN"].flatMap { token in
+            indices.contains(replyIndex) ? CIBenchmarkTailGate(name: "com.digiloglab.strius.ci-tail.\(token).\(replyIndex)") : nil
+        }
+        if let gate { benchmarkGates.append(gate) }
         func delta(_ value: String) {
             progress(TurnProgressEvent(kind: .replyDelta(itemID: "msg_mock_\(plan.id)", text: value), label: "返事を書いています", progressID: nil, allowDuplicate: true))
         }
@@ -82,10 +90,14 @@ actor MockTurnRunner: TurnRunning {
         let ready = "\n<struis_workbook_example_ready/>"
         if text.contains(ready) { delta(ready) }
         delta("\n<struis_progress_update>\n{\"goals\": [{\"title\": \"頂点の座標を求める\", \"status\": ")
-        let deadline = Date().addingTimeInterval(Double(tailDelay) / 1000)
-        while Date() < deadline {
+        let deadline = Date().addingTimeInterval(gate == nil ? Double(tailDelay) / 1000 : 180)
+        while gate.map({ !$0.isReleased }) ?? (Date() < deadline) {
             if interrupted.remove(plan.id) != nil { return true }
-            try? await Task.sleep(for: .milliseconds(100))
+            if gate != nil, Date() >= deadline {
+                throw NSError(domain: "StruisCIBenchmark", code: 1,
+                              userInfo: [NSLocalizedDescriptionKey: "UI test did not release reply \(replyIndex)"])
+            }
+            try await Task.sleep(for: .milliseconds(gate == nil ? 100 : 10))
         }
         return interrupted.remove(plan.id) != nil
     }
@@ -243,6 +255,31 @@ actor MockTurnRunner: TurnRunning {
         var body = String(rest[..<end])
         if let viewEnd = body.range(of: "</struis_current_view>\n") { body = String(body[viewEnd.upperBound...]) }
         return body.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+/// XCTest からアプリへ、画面を変えずに届く合図(Darwin 通知)。最初の本文を流す前に登録し、
+/// MockTurnRunner がアプリの終了まで持つ。
+nonisolated private final class CIBenchmarkTailGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var released = false
+    private let name: String
+
+    init(name: String) {
+        self.name = name
+        CFNotificationCenterAddObserver(CFNotificationCenterGetDarwinNotifyCenter(),
+            Unmanaged.passUnretained(self).toOpaque(), { _, observer, _, _, _ in
+                guard let observer else { return }
+                let gate = Unmanaged<CIBenchmarkTailGate>.fromOpaque(observer).takeUnretainedValue()
+                gate.lock.withLock { gate.released = true }
+            }, name as CFString, nil, .deliverImmediately)
+    }
+
+    var isReleased: Bool { lock.withLock { released } }
+
+    deinit {
+        CFNotificationCenterRemoveObserver(CFNotificationCenterGetDarwinNotifyCenter(),
+            Unmanaged.passUnretained(self).toOpaque(), CFNotificationName(rawValue: name as CFString), nil)
     }
 }
 #endif

@@ -41,7 +41,7 @@ class ReadyHandoffTests(unittest.TestCase):
                  'selection': {'uiTests': ['Class/testWorks']},
                  'scopeSha256': delivery.scope_digest(snapshot), 'itemsSha256': delivery.item_digest(items),
                  'checks': [{'name': name, 'exitCode': 0, 'seconds': 1, 'testResults': test_tree()}
-                            for name in ('build-for-testing', 'unit-tests', 'ui-tests')]}
+                            for name in ('build-for-testing', 'tests')]}
         for name, value in [('run.json', self.run), ('request-snapshot.json', snapshot),
                             ('work-items.json', items), ('local-verification.json', local)]:
             delivery.write(name, value)

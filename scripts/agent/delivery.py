@@ -97,20 +97,18 @@ def item_digest(record):
 
 
 def select_ui():
-    # Load selection from the checked-out HEAD, the same source used by Cloud.
+    # Load the selection from the checked-out HEAD, the same rules the gate's ios.yml run uses.
+    # No UI test is a valid selection: the local run then executes only the unit tests.
     root = checkpoints.workspace()
     script = '''import json, sys
 sys.path.insert(0, "scripts/ci")
-import ui_test_plan, xcode_test_plan
-changed = xcode_test_plan.changed_files("main")
-discovered = ui_test_plan.discover()
-selected = discovered if changed is None else ui_test_plan.select(discovered, json.loads(ui_test_plan.PLAN.read_text()), "pr", changed)
-print(json.dumps({"changedFiles": changed, "unitTests": "all", "uiTests": sorted(selected)}))
+import ui_test_plan
+changed = ui_test_plan.changed_files("main")
+diff = ui_test_plan.project_diff("main") if changed is not None else None
+tests, reasons = ui_test_plan.explain(ui_test_plan.discover(), json.loads(ui_test_plan.PLAN.read_text()), changed, diff)
+print(json.dumps({"changedFiles": changed, "unitTests": "all", "uiTests": tests, "reasons": reasons}))
 '''
-    selected = json.loads(subprocess.check_output([sys.executable, '-c', script], cwd=root, text=True))
-    if not selected['uiTests']:
-        raise RuntimeError('Local UI selection is empty')
-    return selected
+    return json.loads(subprocess.check_output([sys.executable, '-c', script], cwd=root, text=True))
 
 
 def test_rows(tree):
@@ -140,20 +138,20 @@ def local_verify():
     logs = home / 'artifacts' / f'local-{head[:12]}-{time.time_ns()}'
     logs.mkdir(parents=True)
     derived = os.environ.get('AGENT_DERIVED_DATA', str(home / 'DerivedData'))
+    # Signed like the gate (no CODE_SIGNING_ALLOWED=NO): an unsigned run failed ClaudeAppAttestTests
+    # (2026-10-22). One build, then one test run for the unit tests and the selected UI tests together;
+    # with no UI test selected only -only-testing:striusTests is passed (an empty filter runs everything).
     common = ['-project', 'strius.xcodeproj', '-scheme', 'strius',
               '-destination', os.environ.get('AGENT_TEST_DESTINATION', 'platform=iOS Simulator,name=iPhone 17'),
               '-derivedDataPath', derived, '-parallel-testing-enabled', 'NO',
-              'ARCHS=arm64', 'CODE_SIGNING_ALLOWED=NO', 'STRUIS_AUTH_REQUIRED=YES']
-    timeout = ['-test-timeouts-enabled', 'YES', '-default-test-execution-time-allowance', '180']
+              'ARCHS=arm64', 'STRUIS_AUTH_REQUIRED=YES']
+    timeout = ['-test-timeouts-enabled', 'YES', '-default-test-execution-time-allowance', '180',
+               '-maximum-test-execution-time-allowance', '600']
     commands = [
         ('build-for-testing', ['xcodebuild', 'build-for-testing', *common], 1800),
-        ('unit-tests', ['xcodebuild', 'test-without-building', *common, *timeout,
-                        '-maximum-test-execution-time-allowance', '300', '-only-testing:striusTests',
-                        '-resultBundlePath', str(logs / 'unit-tests.xcresult')], 1800),
-        ('ui-tests', ['xcodebuild', 'test-without-building', *common, *timeout,
-                      '-maximum-test-execution-time-allowance', '600',
-                      *[f'-only-testing:striusUITests/{test}' for test in selection['uiTests']],
-                      '-resultBundlePath', str(logs / 'ui-tests.xcresult')], 7200),
+        ('tests', ['xcodebuild', 'test-without-building', *common, *timeout, '-only-testing:striusTests',
+                   *[f'-only-testing:striusUITests/{test}' for test in selection['uiTests']],
+                   '-resultBundlePath', str(logs / 'tests.xcresult')], 7200),
     ]
     record = {'schema': 1, 'head': head, 'branch': run['branch'], 'success': False,
               'startedAt': iso(), 'selection': selection, 'checks': [],
@@ -213,9 +211,9 @@ def verified(record, head, snapshot, items):
             and record.get('success') is True and items_complete(items)
             and record.get('scopeSha256') == scope_digest(snapshot)
             and record.get('itemsSha256') == item_digest(items)
-            and len(record.get('checks', [])) == 3 and all(check.get('exitCode') == 0 for check in record['checks'])
+            and len(record.get('checks', [])) == 2 and all(check.get('exitCode') == 0 for check in record['checks'])
             and {check['name'] for check in record.get('checks', []) if check.get('exitCode') == 0}
-            == {'build-for-testing', 'unit-tests', 'ui-tests'}
+            == {'build-for-testing', 'tests'}
             and all(test_rows(check.get('testResults')) and all(test['result'] in ('Passed', 'Skipped')
                     for test in test_rows(check['testResults']))
                     for check in record['checks'] if check['name'] != 'build-for-testing'))
@@ -306,7 +304,7 @@ def summary(record):
     lines = [SUMMARY_START, '### 完了前の手元検証', '', f'- HEAD: `{record["head"]}`',
              f'- 実行: {record["startedAt"]} → {record["finishedAt"]}',
              '- 単体テスト: striusTests 全件',
-             f'- UIテスト: 必須E2E＋差分対応、{len(record["selection"]["uiTests"])}メソッド',
+             f'- UIテスト: 変更が当たった契約の分、{len(record["selection"]["uiTests"])}メソッド（0件もある）',
              '- 結果: 成功。実行名・skip・所要時間はチェックポイントとActions artifactのxcresultに記録。', '']
     lines += [f'- {check["name"]}: exit {check["exitCode"]}, {check["seconds"]}秒' for check in record['checks']]
     for check in record['checks']:

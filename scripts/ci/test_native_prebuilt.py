@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import json
 import unittest
 from unittest import mock
 import urllib.error
@@ -106,12 +107,12 @@ class NativePrebuiltTests(unittest.TestCase):
 class TestFileSelectionTests(unittest.TestCase):
     def test_a_changed_file_selects_every_test_class_it_declares(self):
         tests = ui_test_plan.discover()
-        plan = {'pr': [], 'paths': {}}
+        plan = json.loads(ui_test_plan.PLAN.read_text())
         selected = ui_test_plan.select(tests, plan, 'pr', ['striusUITests/WorkbookE2EFixesUITests.swift'])
         self.assertEqual({test.split('/')[0] for test in selected},
                          {'WorkbookE2EFixesUITests', 'WorkbookLongConversationUITests', 'WorkbookOnboardingUITests'})
         support = ui_test_plan.select(tests, plan, 'pr', ['striusUITests/UITestDiagnosticsObserver.swift'])
-        self.assertEqual(support, tests)
+        self.assertEqual(support, ui_test_plan.select(tests, plan, 'pr', None))
 
 
 if __name__ == '__main__':

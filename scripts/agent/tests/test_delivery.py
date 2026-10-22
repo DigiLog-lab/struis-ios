@@ -69,12 +69,14 @@ class DeliveryTests(unittest.TestCase):
 
     def test_local_verification_builds_once_runs_all_units_and_selected_camera_e2e(self):
         report, calls = self.local_verify()
-        self.assertEqual(len(calls), 3)
+        self.assertEqual(len(calls), 2)
         self.assertEqual(calls[0][1], 'build-for-testing')
         self.assertEqual(calls[1][1], 'test-without-building')
         self.assertIn('-only-testing:striusTests', calls[1])
-        self.assertIn('-only-testing:striusUITests/Camera/testCamera', calls[2])
-        self.assertIn('-only-testing:striusUITests/E2E/testLoop', calls[2])
+        self.assertIn('-only-testing:striusUITests/Camera/testCamera', calls[1])
+        self.assertIn('-only-testing:striusUITests/E2E/testLoop', calls[1])
+        # Signed like the gate: an unsigned run failed ClaudeAppAttestTests.
+        self.assertFalse(any('CODE_SIGNING_ALLOWED=NO' in command for command in calls))
         self.assertTrue(delivery.verified(report, 'a' * 40, self.snapshot, delivery.read('work-items.json')))
         self.assertFalse(delivery.verified(report, 'b' * 40, self.snapshot, delivery.read('work-items.json')))
         edited = copy.deepcopy(self.snapshot)
@@ -82,6 +84,24 @@ class DeliveryTests(unittest.TestCase):
         self.assertFalse(delivery.verified(report, 'a' * 40, edited, delivery.read('work-items.json')))
         self.assertIn('Class/testWorks()', delivery.summary(report))
         self.assertIn('0.1s', delivery.summary(report))
+
+    def test_no_selected_ui_test_runs_only_the_unit_tests(self):
+        self.complete()
+        calls = []
+        def run(command, stream, timeout, environment):
+            calls.append(command)
+            if '-resultBundlePath' in command:
+                Path(command[command.index('-resultBundlePath') + 1]).mkdir()
+            return subprocess.CompletedProcess(command, 0)
+        clean = iter(['a' * 40, 'a' * 40])
+        with mock.patch.object(delivery, 'clean_pushed', side_effect=lambda run: next(clean)), \
+                mock.patch.object(delivery, 'select_ui', return_value={'unitTests': 'all', 'uiTests': []}), \
+                mock.patch.object(delivery, 'Store'), mock.patch.object(delivery.checkpoints, 'save', return_value={'saveId': 'saved'}), \
+                mock.patch.object(guard, 'run_check', side_effect=run), \
+                mock.patch.object(delivery.subprocess, 'check_output', return_value=json.dumps(test_tree())):
+            report = delivery.local_verify()
+        self.assertEqual([arg for arg in calls[1] if arg.startswith('-only-testing')], ['-only-testing:striusTests'])
+        self.assertTrue(delivery.verified(report, 'a' * 40, self.snapshot, delivery.read('work-items.json')))
 
     def test_empty_results_expected_failure_and_changed_head_cannot_be_green(self):
         for result in ({'testNodes': []}, test_tree(result='Expected Failure')):

@@ -1,6 +1,6 @@
 # struis-ios 検証と配信の方針
 
-- 作成: 2026-10-20、改訂: 2026-10-21
+- 作成: 2026-10-20、改訂: 2026-10-22(門を GitHub に移し、UIテストを契約で選ぶ。`docs/testing.md`)
 - 状態: PR #39 で実装。マージは Tomochika が行う
 - 対象: DigiLog-lab/struis-ios の Issue エージェント、GitHub Actions、Xcode Cloud
 
@@ -50,8 +50,8 @@
 | 語 | 定義 |
 |---|---|
 | 単体テスト全部 | `striusTests` ターゲットのすべてのテスト |
-| E2E | `scripts/ci/ui-test-plan.json` の `pr` に載っている UI テストのクラス。2026-10-21 時点では `WorkbookE2EFixesUITests`・`WorkbookLongConversationUITests`・`WorkbookOnboardingUITests`・`DeviceWorkbookUITests`・`DeviceChatUITests`・`MinimumLoopE2ETests`・`E2EDriverUITests` |
-| 変更に関係する UI テスト | `scripts/ci/ui_test_plan.py --tier pr` が、main との差分のファイルと `ui-test-plan.json` の `paths` の対応表から選ぶ UI テストのクラス。差分が `["*"]` の対象に当たれば、すべての UI テストになります。変更した UI テストのファイルに書かれたクラスは、すべて選ばれます |
+| 契約 | `scripts/ci/ui-test-plan.json` の `contracts` の1つ。守る性質、それを確かめる UI テスト、対応するファイルを持ちます(`docs/testing.md`) |
+| 変更に関係する UI テスト | `scripts/ci/ui_test_plan.py --list` が、main との差分のファイルから選ぶ、当たった契約の UI テスト。0件のこともあります。どの変更でも必ず流す UI テスト(以前の E2E)はありません |
 | 緑 | 対象のテストがすべて成功し、ビルドも成功した状態。外部の入力がない時に理由付きで skip する既存のテスト(`docs/testing.md`)は許します。skip・期待失敗化・判定緩和・Re-run を新たに加えて成功させたものは、緑に含めません |
 | 赤 | 緑でない状態。テストの失敗、時間切れ、ビルドの失敗、途中で終わった実行を含みます |
 | 性能テスト | 時間を測るテスト。2026-10-21 時点では `striusUITests/testLaunchPerformance` だけです |
@@ -62,11 +62,10 @@
 |---|---|
 | 手元検証 | エージェントが自分の runner で流すテスト。目的は、不具合を見つけてその場で直すことです |
 | 作業中の手元検証 | 全項目が終わる前に、エージェントが自分の判断で流す手元検証。対象も回数も問いません |
-| 完了前の手元検証 | 全項目が終わった後、Ready にする前に流す手元検証。対象は、単体テスト全部、E2E、変更に関係する UI テストです |
+| 完了前の手元検証 | 全項目が終わった後、Ready にする前に流す手元検証。対象は、単体テスト全部と、変更に関係する UI テストです |
 | 手元検証の記録 | 完了前の手元検証について、HEAD の SHA、流したテストの一覧、それぞれの結果、実行した日時をまとめたもの。チェックポイントと PR の本文に残します |
-| 門 | マージしてよいかを決める検証。エージェントの外(Xcode Cloud)で流し、エージェントは結果を変えられません。対象は、完了前の手元検証と同じセットから、性能テストを除いたものです。UI テストはクラスを単位に並列で流すので、性能テストの値は意味を持たないためです(性能テストは Release で直列に流します) |
+| 門 | マージしてよいかを決める検証。エージェントの外(GitHub の `ios.yml` の `verify` ジョブ)で流し、エージェントは結果を変えられません。対象は、完了前の手元検証で流したテスト全部です。ビルド1回とテスト1回で流します |
 | 門の結果 | 門を流した HEAD の SHA と、その緑か赤か。制御ジョブが commit status `Struis / Ready gate` に書きます |
-| 門の予備 | Xcode Cloud が門の開始を受け付けなかった時に、門の代わりに GitHub で流す `ios.yml` の `pr` 段階 |
 | Xcode Cloud の今月の時間 | Apple の請求期間ごとの使用可能時間(無料枠は25時間)。カレンダー月とは限りません |
 | 時間が尽きた | Xcode Cloud が門の開始の要求に HTTP 4xx で応え、ビルドを作らなかった状態。今月の時間切れを含みます。残り時間を API で前もって知る方法は確かめられていないので、開始を試して断られたら切り替えます |
 | 門の起動回数の上限 | 1つの Issue で門を起動できる回数の上限。Ready にするたびに1回と数えます。3回です(`scripts/agent/gate-config.json`) |
@@ -100,8 +99,8 @@
 1. 不具合を見つけて直す作業は、エージェントが手元検証でやります。
 2. マージしてよいかは、門で決めます。手元検証が緑でも門は省略しません。門が緑でも、手元検証の記録がない変更はマージしません。
 3. 門は Ready の HEAD に対して流します。Draft の間は流しません。
-4. runner はエージェントの作業に使います。エージェント以外で使うのは、bootstrap のキャッシュ作成、prototype、門の予備、の3つに限ります。
-5. 門とリリースは、Xcode Cloud を基本にします。
+4. runner はエージェントの作業に使います。エージェント以外で使うのは、bootstrap のキャッシュ作成、prototype、門、の3つに限ります。
+5. 門は GitHub、リリースは Xcode Cloud で流します。Xcode Cloud の TEST action は、テストを0件にしてもビルド・受け渡し・後処理だけで毎回11〜19分かかり、門の目標(狭い変更で約10分)に届かないためです(`docs/xcode-cloud.md`)。
 6. 使わなかったチェックポイントと cache は、削除します。削除を忘れても期限で消える仕組み(Artifact の保存期間14日)を、最後の段に置きます。
 7. 仕組みを動かすのに、リポジトリの変数・Secrets の追加、Worker のデプロイ、R2 の設定変更を要しません。設定はリポジトリのファイルに置きます。
 
@@ -188,8 +187,7 @@ Ready は、マージの承認でも、依頼の完了でもありません。
 |---|---|---|
 | 作業中の手元検証 | エージェントの runner | 全項目が終わる前、エージェントの判断で |
 | 完了前の手元検証 | エージェントの runner | Ready にする前に毎回 |
-| 門 | Xcode Cloud(PR Gate) | Ready になるたびに |
-| 門の予備 | GitHub(`ios.yml`) | Xcode Cloud が門の開始を受け付けなかった時 |
+| 門 | GitHub(`ios.yml` の `verify`) | Ready になるたびに |
 | 門の結果を待つ | 制御ジョブ(Linux) | 門の実行中 |
 | リリース(全件の UI テストを直列で、TestFlight 内部配布用の archive) | Xcode Cloud(Release) | 依頼された時だけ。`repository_dispatch`(`xcode-cloud`)で、main から |
 | bootstrap のキャッシュ作成と、Xcode Cloud 用の native の生成物の公開 | GitHub(`agent-native-cache.yml`) | `NativeRuntime/` が変わった時 |
@@ -203,6 +201,8 @@ Draft への push と main への push では、macOS の検証を起動しま�
 |---|---|
 | 毎晩の全件 UI テスト(`ios.yml` の `schedule`) | Release(Xcode Cloud)で全件が通ることを確かめた(Release 154・155)。全件は依頼に応じて Release で流す |
 | main への push ごとの `signed-archive` | TestFlight 配信を Xcode Cloud の Release で確かめた(Release 155) |
+| Xcode Cloud の PR Gate での門 | テスト以外の段階だけで毎回11〜19分かかる(PR Gate 158〜163)。GitHub の1台で、ビルド1回とテスト1回で流す方が速い(UI 0件で平均9分30秒、2026-10-22)。PR Gate の workflow と生成するテストプランは残しているが、門は起動しない(`gate-config.json` の `backend: github`) |
+| どの変更でも必ず流す E2E のクラス | 毎回の待ち時間を増やすだけで、変更と関係のない UI テストを流していた。各 UI テストは、守る性質に関係する変更の時だけ流す |
 
 `ios-cold.yml`(まっさらな clone からの build)は残します。
 

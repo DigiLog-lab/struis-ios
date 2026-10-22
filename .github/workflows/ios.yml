@@ -131,8 +131,10 @@ jobs:
           echo '::error::Native Runtime cacheを保存できませんでした。agent-native-cache.yml が同じcacheを保存中の可能性があります。その実行が終わってから、このworkflowを再実行してください。'
           exit 1
 
+  # Manual full runs only (a release from main, or ui_tier=full): the pull request and gate path is `verify`.
   build:
-    needs: native
+    needs: [native, ui-plan]
+    if: needs.ui-plan.outputs.tier == 'full'
     runs-on: xcode-27
     timeout-minutes: 90
     steps:
@@ -193,27 +195,11 @@ jobs:
           name: ios-test-results-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/*.xcresult
           if-no-files-found: ignore
-      # The gate controller compares these names with the tests the gate requires
-      # (a missing test is never green), as it does for Xcode Cloud.
-      - name: 門の照合用に実行したテストの一覧を書き出す
-        if: always() && inputs.gate_pr
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/gate-tests"
-          xcrun xcresulttool get test-results tests --path "$RUNNER_TEMP/StruisTests.xcresult" --format json \
-            > "$RUNNER_TEMP/gate-tests/unit.json"
-      - name: 門の照合用の一覧を保存
-        if: always() && inputs.gate_pr
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ios-gate-tests-${{ github.run_id }}-${{ github.run_attempt }}-unit
-          path: ${{ runner.temp }}/gate-tests
-          if-no-files-found: error
 
-  # Decides which UI tests run and splits them across runners (scripts/ci/ui_test_plan.py,
-  # scripts/ci/ui-test-plan.json). Pull requests and the agent's CI requests run the `pr` tier
-  # (the E2E classes plus the classes mapped to the changed files, 2 runners); a manual run on main
-  # and a manual `full` run every UI test (3 runners).
+  # Decides the tier and the UI tests (scripts/ci/ui_test_plan.py, scripts/ci/ui-test-plan.json).
+  # Pull requests, the gate and the agent's CI requests run the `pr` tier in the single `verify` job:
+  # every unit test plus the UI tests of the contracts the change touches (possibly none).
+  # A manual run on main and a manual `full` run every UI test across runners (`build` + `ui-tests`).
   ui-plan:
     if: >-
       github.event_name != 'pull_request' ||
@@ -221,7 +207,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
+      tier: ${{ steps.plan.outputs.tier }}
       matrix: ${{ steps.plan.outputs.matrix }}
+      ui: ${{ steps.plan.outputs.ui }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -231,7 +219,6 @@ jobs:
       - name: 実行するUIテストを決める
         id: plan
         env:
-          EVENT: ${{ github.event_name }}
           REF: ${{ github.ref }}
           PR_BASE: ${{ github.base_ref }}
           REQUESTED_TIER: ${{ inputs.ui_tier }}
@@ -240,29 +227,149 @@ jobs:
           set -euo pipefail
           # Manual main runs (release) get every UI test.
           if [[ -z "$SOURCE_REF" && ( "$REQUESTED_TIER" == "full" || "$REF" == "refs/heads/main" ) ]]; then
-            tier=full
-            : > "$RUNNER_TEMP/changed.txt"
-          else
-            tier=pr
-            base="${PR_BASE:-main}"
-            git rev-parse --verify --quiet "origin/$base" >/dev/null || base=main
-            git diff --name-only --no-renames "origin/$base...HEAD" > "$RUNNER_TEMP/changed.txt"
+            echo "tier=full" >> "$GITHUB_OUTPUT"
+            matrix=$(python3 scripts/ci/ui_test_plan.py --matrix)
+            echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+            echo "ui=" >> "$GITHUB_OUTPUT"
+            echo "### UIテスト: 全件 ($(python3 -c 'import json,sys; print(sum(i["count"] for i in json.loads(sys.argv[1])))' "$matrix")件)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
-          extra=()
-          if [[ -n "$SOURCE_REF" ]]; then extra+=(--cloud-compatible); fi
-          matrix=$(python3 scripts/ci/ui_test_plan.py --matrix --tier "$tier" --changed-files "$RUNNER_TEMP/changed.txt" "${extra[@]}")
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-          python3 - "$matrix" "$tier" <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          echo "tier=pr" >> "$GITHUB_OUTPUT"
+          echo "matrix=[]" >> "$GITHUB_OUTPUT"
+          base="${PR_BASE:-main}"
+          args=()
+          if git rev-parse --verify --quiet "origin/$base" >/dev/null; then
+            git diff --name-only --no-renames "origin/$base...HEAD" > "$RUNNER_TEMP/changed.txt"
+            git diff -U0 --no-renames "origin/$base...HEAD" -- strius.xcodeproj/project.pbxproj > "$RUNNER_TEMP/project.diff"
+            args=(--changed-files "$RUNNER_TEMP/changed.txt" --project-diff "$RUNNER_TEMP/project.diff")
+          else
+            # No base to compare with: every contract (never fewer tests than the change needs).
+            args=(--no-diff)
+          fi
+          python3 scripts/ci/ui_test_plan.py --list "${args[@]}" > "$RUNNER_TEMP/selection.json"
+          ui=$(python3 -c 'import json,sys; print(" ".join("-only-testing:striusUITests/" + t for t in json.load(open(sys.argv[1]))["uiTests"]))' "$RUNNER_TEMP/selection.json")
+          echo "ui=$ui" >> "$GITHUB_OUTPUT"
+          python3 - "$RUNNER_TEMP/selection.json" <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json, sys
-          matrix = json.loads(sys.argv[1])
-          print(f'### UIテストの割り当て ({sys.argv[2]})\n')
-          for item in matrix:
-              print(f"- runner {item['shard']}: {item['count']}件、約{item['minutes']}分")
+          selection = json.load(open(sys.argv[1]))
+          print(f"### UIテスト: {len(selection['uiTests'])}件 (単体テストは全部)\n")
+          for reason, paths in sorted(selection['reasons'].items()):
+              print(f"- {reason}: " + ", ".join(f"`{path}`" for path in paths[:5]) + (" ほか" if len(paths) > 5 else ""))
+          for test in selection['uiTests']:
+              print(f"  - {test}")
           PY
+
+  # The pull request and gate check: one build and one test run. Unit tests and the selected UI tests
+  # run in a single xcodebuild invocation on one booted Simulator; with no UI test selected, only
+  # -only-testing:striusTests is passed (an empty filter would run every test).
+  verify:
+    needs: [native, ui-plan]
+    if: needs.ui-plan.outputs.tier == 'pr'
+    runs-on: xcode-27
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
+      - name: Spotlight の索引を止める
+        # The runner VM has 3 CPUs and 7 GB; Xcode, the Simulator and the app already fill the memory, and a
+        # stackshot of a 2-minute stall showed Spotlight (mds_stores) indexing while pages were read back in.
+        run: |
+          sudo mdutil -a -i off >/dev/null 2>&1 || true
+          echo "memory: $(( $(sysctl -n hw.memsize) / 1073741824 )) GB, cpus: $(sysctl -n hw.ncpu)"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: Native Runtime cacheを復元
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          fail-on-cache-miss: true
+      - name: テスト用にビルドし、Simulatorを起動する
+        # Tests run signed (no CODE_SIGNING_ALLOWED=NO): an unsigned run failed
+        # ClaudeAppAttestTests/testReinstalledDeviceRegistersANewKeyWhenTheStoredKeyIsUnusable (2026-10-22).
+        timeout-minutes: 40
+        run: |
+          set -euo pipefail
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          ios = sorted((key for key in runtimes if ".iOS-" in key),
+                       key=lambda key: [int(part) for part in key.rsplit(".iOS-", 1)[1].split("-")])
+          for key in reversed(ios):
+              for device in runtimes[key]:
+                  if device["name"] == "iPhone 17":
+                      print(device["udid"]); sys.exit()
+          sys.exit("iPhone 17 simulator not found")')
+          echo "SIMULATOR_UDID=$udid" >> "$GITHUB_ENV"
+          xcodebuild build-for-testing -project strius.xcodeproj -scheme strius \
+            -destination "id=$udid" -derivedDataPath "$RUNNER_TEMP/DerivedData" ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
+          xcrun simctl boot "$udid" 2>/dev/null || true
+          xcrun simctl bootstatus "$udid" -b
+      - name: 単体テスト全部と選んだUIテストを流す
+        env:
+          UI_TESTS: ${{ needs.ui-plan.outputs.ui }}
+        run: |
+          set -euo pipefail
+          ui=()
+          if [[ -n "$UI_TESTS" ]]; then read -r -a ui <<< "$UI_TESTS"; fi
+          echo "UI tests: ${#ui[@]}"
+          xcodebuild test-without-building -project strius.xcodeproj -scheme strius \
+            -destination "id=$SIMULATOR_UDID" -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -resultBundlePath "$RUNNER_TEMP/StruisGate.xcresult" \
+            -collect-test-diagnostics never -only-testing:striusTests "${ui[@]}" \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
+            -maximum-test-execution-time-allowance 600 \
+            -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES \
+            TEST_RUNNER_STRUIS_PROBE_DIR="$RUNNER_TEMP/ui-probe"
+      - name: 実機向けRelease archiveを検証
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
+        timeout-minutes: 30
+        run: |
+          set -euo pipefail
+          xcodebuild archive -project strius.xcodeproj -scheme strius \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/StruisPR.xcarchive" CODE_SIGNING_ALLOWED=NO
+      - name: メモリの様子を記録
+        if: always()
+        run: |
+          sysctl vm.swapusage || true
+          vm_stat | grep -E 'Pages (free|active|wired down|occupied by compressor)|Swapins|Swapouts' || true
+      - name: テスト結果を保存
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-test-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/*.xcresult
+            ${{ runner.temp }}/ui-probe
+          if-no-files-found: ignore
+      # The gate controller compares these names with the tests the gate requires
+      # (a missing test is never green).
+      - name: 門の照合用に実行したテストの一覧を書き出す
+        if: always() && inputs.gate_pr
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/gate-tests"
+          xcrun xcresulttool get test-results tests --path "$RUNNER_TEMP/StruisGate.xcresult" --format json \
+            > "$RUNNER_TEMP/gate-tests/verify.json"
+      - name: 門の照合用の一覧を保存
+        if: always() && inputs.gate_pr
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-gate-tests-${{ github.run_id }}-${{ github.run_attempt }}-verify
+          path: ${{ runner.temp }}/gate-tests
+          if-no-files-found: error
 
   ui-tests:
     needs: [native, ui-plan]
-    if: needs.ui-plan.outputs.matrix != '[]'
+    if: needs.ui-plan.outputs.tier == 'full' && needs.ui-plan.outputs.matrix != '[]'
     name: UIテスト (${{ matrix.shard }})
     runs-on: xcode-27
     timeout-minutes: 90
@@ -371,20 +478,6 @@ jobs:
             ${{ runner.temp }}/*.xcresult
             ${{ runner.temp }}/ui-probe
           if-no-files-found: ignore
-      - name: 門の照合用に実行したテストの一覧を書き出す
-        if: always() && inputs.gate_pr
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/gate-tests"
-          xcrun xcresulttool get test-results tests --path "$RUNNER_TEMP/StruisUITests.xcresult" --format json \
-            > "$RUNNER_TEMP/gate-tests/ui-${{ matrix.shard }}.json"
-      - name: 門の照合用の一覧を保存
-        if: always() && inputs.gate_pr
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ios-gate-tests-${{ github.run_id }}-${{ github.run_attempt }}-ui-${{ matrix.shard }}
-          path: ${{ runner.temp }}/gate-tests
-          if-no-files-found: error
 
   signed-archive:
     needs: [build, ui-plan, ui-tests]

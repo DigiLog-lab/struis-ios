@@ -42,7 +42,6 @@
         "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex()",
         "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff()",
         "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts()",
-        "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice()",
         "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex()",
         "E2EDriverUITests/testDrive()",
         "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas()",

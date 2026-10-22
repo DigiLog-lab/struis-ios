@@ -16,6 +16,9 @@ class WorkbookSplitGradingUITestCase: XCTestCase {
     fileprivate func launch() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["-skip-onboarding"]
+        // 演習の一枚を開いた状態から始める(類題に合格して演習を作るまでは台帳に本物の規則で入れる。
+        // その準備が正しいことは単体テスト WorkbookPracticeFixtureTests が確かめる)。
+        app.launchArguments += ["-workbook-practice-ready"]
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = UITestSupport.paperImagePath
         // 撮影の途中には何もしない(完了を待ってから次へ進む)ので、偽カメラの完了までの間は短くする。
@@ -43,21 +46,15 @@ class WorkbookSplitGradingUITestCase: XCTestCase {
         return String(lines.joined(separator: " | ").prefix(3000))
     }
 
-    /// 類題をクリアして、演習の一枚(5 問)を開く。
+    /// 準備済みの演習の一枚(5 問)を開く。
     @MainActor
     fileprivate func openPracticeSet(_ app: XCUIApplication) {
         let row = element(app, "workbook-subunit-sub-1")
         XCTAssertTrue(row.appears(timeout: 15))
         row.tap()
-        let request = element(app, "workbook-request-set")
-        XCTAssertTrue(request.appears(timeout: 10))
-        request.tap()
-        XCTAssertTrue(element(app, "workbook-set-problem-1").appears(timeout: 20))
-        tapCamera(app)
-        shoot(app)
-        let status = element(app, "workbook-result-status")
-        XCTAssertTrue(waitLabel(status, "クリア"), "類題がクリアにならない: \(screenSummary(app))")
-        element(app, "workbook-result-practice").tap()
+        let open = element(app, "workbook-open-set")
+        XCTAssertTrue(open.appears(timeout: 15), "準備した演習の一枚が無い")
+        open.tap()
         XCTAssertTrue(element(app, "workbook-set-problem-5").appears(timeout: 20), "演習の一枚が開かない")
     }
 
