@@ -317,13 +317,14 @@ jobs:
           UI_TESTS: ${{ needs.ui-plan.outputs.ui }}
         run: |
           set -euo pipefail
+          # macOS bash 3.2 treats "${ui[@]}" of an empty array as unbound under set -u; ${ui[@]+...} expands to nothing.
           ui=()
           if [[ -n "$UI_TESTS" ]]; then read -r -a ui <<< "$UI_TESTS"; fi
           echo "UI tests: ${#ui[@]}"
           xcodebuild test-without-building -project strius.xcodeproj -scheme strius \
             -destination "id=$SIMULATOR_UDID" -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             -resultBundlePath "$RUNNER_TEMP/StruisGate.xcresult" \
-            -collect-test-diagnostics never -only-testing:striusTests "${ui[@]}" \
+            -collect-test-diagnostics never -only-testing:striusTests ${ui[@]+"${ui[@]}"} \
             -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
             -maximum-test-execution-time-allowance 600 \
             -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES \
