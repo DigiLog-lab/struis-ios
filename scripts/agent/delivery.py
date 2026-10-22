@@ -200,7 +200,10 @@ def local_verify():
         record['finishedAt'] = iso()
         write('local-verification.json', record)
         (logs / 'local-verification.json').write_text(json.dumps(record, ensure_ascii=False, indent=2))
-    if not checkpoints.save(Store(), run['issue'], run):
+    # Inside Claude's session claude-code-action removes the OIDC request variables, so the store
+    # cannot be written there. Ready saves the same complete checkpoint from the step after the
+    # session (request_ready / agentctl validate); the periodic monitor keeps saving meanwhile.
+    if oidc_available() and not checkpoints.save(Store(), run['issue'], run):
         raise RuntimeError('Local verification passed, but its complete checkpoint was not published')
     return record
 
@@ -315,6 +318,45 @@ def summary(record):
     lines += ['', '<details><summary>UIテストの選択</summary>', '',
               *[f'- `{name}`' for name in record['selection']['uiTests']], '', '</details>', SUMMARY_END]
     return '\n'.join(lines)
+
+
+def oidc_available():
+    return bool(os.environ.get('ACTIONS_ID_TOKEN_REQUEST_URL') and os.environ.get('ACTIONS_ID_TOKEN_REQUEST_TOKEN'))
+
+
+READY_REQUEST = 'ready-request.json'
+
+
+def request_ready():
+    """Record Ready for the step after Claude's session, which has OIDC and runs ready().
+
+    claude-code-action strips ACTIONS_ID_TOKEN_REQUEST_* from the Claude session, so the store
+    (and with it the gate request) cannot be written from there. This checks everything ready()
+    checks locally and leaves the request in the agent home; `agentctl validate` performs it.
+    """
+    run, record = read('run.json'), read('local-verification.json')
+    head = clean_pushed(run)
+    if not verified(record, head, read('request-snapshot.json'), read('work-items.json')):
+        raise RuntimeError('Ready requires all work items and successful full local verification of this pushed HEAD')
+    gh = GitHub()
+    prs = gh.get(f'/repos/{gh.repository}/pulls?head={gh.repository.split("/")[0]}:{run["branch"]}&base=main&state=open')
+    if len(prs) != 1:
+        raise RuntimeError('Create/update one Draft PR with request-pr first')
+    if prs[0]['head']['sha'] != head:
+        raise RuntimeError('PR HEAD changed')
+    request = {'head': head, 'pr': prs[0]['number'], 'at': iso()}
+    write(READY_REQUEST, request)
+    print(f'Readyの依頼を記録しました(PR #{request["pr"]}、HEAD {head[:12]})。'
+          'このセッションを終えると、作業用ジョブがReadyにして門を起動します。門は待たずにセッションを終えてください。')
+    return request
+
+
+def perform_requested_ready(run):
+    """Run ready() for a Ready request recorded in Claude's session on the same HEAD (agentctl validate)."""
+    request = read(READY_REQUEST)
+    if not request or request.get('head') != git('rev-parse', 'HEAD') or waiting(run):
+        return None
+    return ready()
 
 
 def ready():

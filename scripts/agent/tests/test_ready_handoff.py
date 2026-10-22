@@ -66,6 +66,31 @@ class ReadyHandoffTests(unittest.TestCase):
                                                        + request['request'] + ' ' + self.base}]
         return self.controller.poll(self.store.get_json('gates/pr-8.json'))
 
+    def test_ready_in_claude_session_is_recorded_and_performed_by_validate(self):
+        # claude-code-action removes the OIDC request variables from Claude's session (Issue #44).
+        self.run.update(headBefore='0' * 40, validationRequired=True)
+        with mock.patch.dict(os.environ, {'ACTIONS_ID_TOKEN_REQUEST_URL': '', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN': ''}):
+            self.assertFalse(delivery.oidc_available())
+            recorded = delivery.request_ready()
+        self.assertEqual((recorded['head'], recorded['pr']), (self.base, 8))
+        self.assertTrue(self.gh.pr['draft'], 'the request alone must not leave Draft')
+        self.assertIsNone(self.store.get_json('sessions/4/gate-request.json'))
+        with self.assertRaisesRegex(RuntimeError, 'enter Ready'):
+            delivery.verify_outcome(self.run)
+        # The step after the session (agentctl validate) has OIDC and performs the real Ready.
+        request = delivery.perform_requested_ready(self.run)
+        self.assertEqual(request['head'], self.base)
+        self.assertFalse(self.gh.pr['draft'])
+        self.assertEqual(self.store.get_json('sessions/4/gate-request.json')['request'], request['request'])
+        delivery.verify_outcome(self.run)
+        # Running validate again does not start a second Ready.
+        self.assertIsNone(delivery.perform_requested_ready(self.run))
+
+    def test_a_ready_request_for_an_older_head_is_ignored(self):
+        delivery.write(delivery.READY_REQUEST, {'head': 'f' * 40, 'pr': 8, 'at': 'x'})
+        self.assertIsNone(delivery.perform_requested_ready(self.run))
+        self.assertTrue(self.gh.pr['draft'])
+
     def test_ready_proof_and_repair_survive_pruning_before_start_and_result(self):
         request = delivery.ready()
         original = request['checkpoint']['artifact']['id']

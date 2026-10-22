@@ -825,6 +825,8 @@ def cmd_validate(_args):
     if execution_is_noop(report):
         sys.exit('Claude Codeが0ターンで終了しました。作業を実行していないため成果検証を開始しません。')
     run = json.loads((agent_home() / 'run.json').read_text())
+    # A Ready requested inside Claude's session (no OIDC there) is performed here, where the store is reachable.
+    delivery.perform_requested_ready(run)
     try:
         verify_outcome(run)
     except CIVerificationFailed:
@@ -1553,7 +1555,8 @@ def main():
     verify.add_argument('--run', action='store_true', help=argparse.SUPPRESS)
     verify.add_argument('--wait-minutes', type=float, default=9, help='待つ時間(分)。Bashツールの上限10分より短くする')
     verify.set_defaults(func=cmd_local_verify)
-    commands.add_parser('ready', help='手元検証済みHEADをReadyにして門を起動').set_defaults(func=lambda args: delivery.ready())
+    commands.add_parser('ready', help='手元検証済みHEADをReadyにして門を起動').set_defaults(
+        func=lambda args: delivery.ready() if delivery.oidc_available() else delivery.request_ready())
     request_pr = commands.add_parser('request-pr', help='1つのDraft PRを作成・更新する')
     request_pr.add_argument('--title', required=True)
     request_pr.add_argument('--body-file', required=True)
