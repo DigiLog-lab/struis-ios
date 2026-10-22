@@ -12,7 +12,7 @@ from pathlib import Path
 import subprocess
 import time
 
-from benchmark_selected import Experiment, now, validate_exports, test_cases
+from benchmark_selected import Experiment, choose, now, validate_exports, test_cases
 
 
 MUTANTS = [
@@ -55,7 +55,9 @@ def results(experiment, label):
 def build(experiment, label):
     experiment.run(label, ['xcodebuild', 'build-for-testing', '-project', 'strius.xcodeproj', '-scheme', 'strius',
                           '-destination', 'platform=iOS Simulator,name=iPhone 17', '-derivedDataPath', experiment.derived,
-                          '-only-testing:striusTests', 'ARCHS=arm64', 'STRUIS_AUTH_REQUIRED=YES'], timeout=720)
+                          '-showBuildTimingSummary',
+                          'COMPILATION_CACHE_ENABLE_CACHING=YES', 'COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES',
+                          'ARCHS=arm64', 'STRUIS_AUTH_REQUIRED=YES'], timeout=720)
 
 
 def main():
@@ -70,6 +72,22 @@ def main():
             if originals[mutant['path']].count(mutant['old']) != 1:
                 raise RuntimeError('Mutation anchor is not unique: ' + mutant['id'])
         build(experiment, 'baseline-build')
+        app = Path(experiment.derived) / 'Build/Products/Debug-iphonesimulator/strius.app'
+        groups = {}
+        for folder, _, files in os.walk(app):
+            for name in files:
+                path = Path(folder) / name
+                relative = path.relative_to(app).parts
+                group = '/'.join(relative[:2]) if len(relative) > 1 else relative[0]
+                group_stats = groups.setdefault(group, {'files': 0, 'bytes': 0})
+                group_stats['files'] += 1
+                group_stats['bytes'] += path.lstat().st_size
+        experiment.data['appFootprint'] = {'files': sum(v['files'] for v in groups.values()),
+            'bytes': sum(v['bytes'] for v in groups.values()),
+            'largestGroups': dict(sorted(groups.items(), key=lambda x: -x[1]['bytes'])[:15])}
+        memory = subprocess.run(['sysctl', 'vm.swapusage'], capture_output=True, text=True, timeout=10)
+        experiment.data['memoryAfterBaselineBuild'] = memory.stdout.strip()
+        experiment.save()
         devices = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'available', '-j'], text=True))
         candidates = [(runtime, d) for runtime, ds in devices['devices'].items() if '.iOS-' in runtime
                       for d in ds if d['name'] == 'iPhone 17']
@@ -106,6 +124,8 @@ def main():
                 detected = (record['exitCode'] != 0 and not record.get('timedOut')
                             and len(cases) == 1 and cases[0].get('nodeIdentifier') == mutant['test'] + '()'
                             and cases[0].get('result') == 'Failed' and summary.get('failedTests') == 1
+                            and summary.get('totalTestCount') == 1 and summary.get('passedTests') == 0
+                            and summary.get('skippedTests') == 0
                             and mutant['message'] in messages and 'XCTAssert' in messages)
                 experiment.data['mutations'].append({'id': mutant['id'], 'test': mutant['test'],
                     'detectedByExpectedAssertion': detected, 'commandExitCode': record['exitCode'],
@@ -116,8 +136,31 @@ def main():
                     raise RuntimeError('Mutant survived, failed for another reason, or was not executed: ' + mutant['id'])
             finally:
                 path.write_text(originals[mutant['path']])
+        # A new compiler input with the same Bool result and the same getter order.
+        # This is an explicit warm-worker simulation, not a new GitHub commit/check.
+        chat_path = Path(MUTANTS[0]['path'])
+        equivalent = originals[MUTANTS[0]['path']].replace(MUTANTS[0]['old'],
+            'var isReplyBusy: Bool { isSending && (replyFinishingInBackground == false) }', 1)
+        changed_at, changed_clock = now(), time.monotonic()
+        chat_path.write_text(equivalent)
+        (experiment.out / 'warm-worker-source-change.patch').write_text(''.join(difflib.unified_diff(
+            originals[MUTANTS[0]['path']].splitlines(True), equivalent.splitlines(True),
+            fromfile=MUTANTS[0]['path'], tofile=MUTANTS[0]['path'])))
+        experiment.selected = choose('conversation_scroll_core')
+        experiment.data['warmWorkerVerification'] = {
+            'requestedAt': changed_at, 'profile': 'conversation_scroll_core', 'selectedUI': experiment.selected,
+            'unitExpected': len(experiment.expected_unit), 'sourcePatch': 'warm-worker-source-change.patch',
+            'sourceCommitIsBaseline': True,
+            'limitation': 'Small equivalent source edit in an already allocated VM. Excludes earlier allocation, checkout and cold preparation; not a new PR check.'}
+        experiment.save()
+        build(experiment, 'warm-worker-rebuild')
+        experiment.measure_tests('warm-worker-selected-gate', True, True)
+        experiment.data['warmWorkerVerification'].update(
+            decisionReadyAt=now(), elapsedSeconds=time.monotonic() - changed_clock)
+        experiment.data['restoredBaseline'] = experiment.data['phases'][-1]['validated']
         experiment.data.update(status='mutation-probes-complete', finishedAt=now(),
                                restoredSources=True, detectedDefects=2,
+                               compilationCacheScope='Enabled only in this VM; cross-VM cache persistence not measured',
                                harnessElapsedSeconds=time.monotonic() - experiment.start)
     except Exception as error:
         experiment.data.update(status='failure', error=str(error), finishedAt=now())
