@@ -1,5 +1,5 @@
 name: Selected CI ten-minute experiment
-run-name: Selected CI all units with zero UI for logic-only scope
+run-name: Selected CI repeat all units with zero UI for logic-only scope
 
 on:
   push:
@@ -24,7 +24,7 @@ jobs:
       max-parallel: 2
       matrix:
         include:
-          - config: selected-direct-unit-only
+          - config: selected-direct-unit-only-r2
             warm: none
             commands: combined
     env:
