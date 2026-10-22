@@ -1,0 +1,3304 @@
+{
+  "version": 1,
+  "recordedDateJST": "2026-10-22",
+  "sourceCommit": "d3fe8a59acffe7fe21f87941e6f9863047813e8e",
+  "experimentParent": "ada0edfa37f07b00e8bc94b2b7f40888e408866a",
+  "status": "Per-test scope decisions recorded; production CI unchanged; no selective merge run measured",
+  "alwaysRequiredUITests": [],
+  "unitPolicy": "コード変更時は当面全Unit/結合テストを維持。docs-onlyで入力同一なら再実行を省ける。夜間は369 Passed /29 Skipped /0 Failed。29 Skippedを成功に読み替えない。",
+  "counts": {
+    "affected_only": 35,
+    "environment_required": 10,
+    "operation_tool": 1,
+    "manual_evidence": 3,
+    "replace_after": 5,
+    "retire_from_merge": 2
+  },
+  "cases": [
+    {
+      "test": "ChatCameraUITests/testCameraAndChatPreservation",
+      "source": {
+        "path": "striusUITests/ChatCameraUITests.swift",
+        "line": 146
+      },
+      "decision": "affected_only",
+      "domain": "camera_ui",
+      "property": "カメラ開閉/取消で既存会話・入力欄の位置と内容を保つ",
+      "rerunWhen": "ChatCamera、カメラの共通表示、向き、添付入口、会話レイアウト",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 77.892,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "ChatCameraUITests/testCameraRotationAndReopening",
+      "source": {
+        "path": "striusUITests/ChatCameraUITests.swift",
+        "line": 9
+      },
+      "decision": "affected_only",
+      "domain": "camera_ui",
+      "property": "回転後のpreview/shutter/cancelの位置・操作と再度開く動作",
+      "rerunWhen": "ChatCamera、カメラの共通表示、向き、添付入口、会話レイアウト",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 62.058,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing",
+      "source": {
+        "path": "striusUITests/ChatImmediateImageSendUITests.swift",
+        "line": 16
+      },
+      "decision": "affected_only",
+      "domain": "camera_send",
+      "property": "撮影完了より先の取消で遅れて添付が復活しない",
+      "rerunWhen": "ChatCamera、添付公開のタイミング、ChatStoreの添付保存、送信・復元経路",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 25.927,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment",
+      "source": {
+        "path": "striusUITests/ChatImmediateImageSendUITests.swift",
+        "line": 99
+      },
+      "decision": "affected_only",
+      "domain": "camera_send",
+      "property": "撮影完了前に添付を公開せず、完了直後の送信で履歴へ反映する",
+      "rerunWhen": "ChatCamera、添付公開のタイミング、ChatStoreの添付保存、送信・復元経路",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 28.679,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch",
+      "source": {
+        "path": "striusUITests/ChatImmediateImageSendUITests.swift",
+        "line": 47
+      },
+      "decision": "affected_only",
+      "domain": "camera_send",
+      "property": "2枚の送信画像が会話に表示され、アプリ再起動後も残る",
+      "rerunWhen": "ChatCamera、添付公開のタイミング、ChatStoreの添付保存、送信・復元経路",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "ChatStore.send/storeAttachments→台帳を開き直す結合テストの不足を補える。ただし再起動画面の表示・画像の結線のUIは別に残す。現時点では関連変更時に現行UIを維持。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 46.124,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend",
+      "source": {
+        "path": "striusUITests/ChatPhysicalImageSendUITests.swift",
+        "line": 7
+      },
+      "decision": "environment_required",
+      "domain": "physical_camera",
+      "property": "実機カメラから実送信・再起動復元",
+      "rerunWhen": "実機カメラ、画像送信・認証・実runtime",
+      "fastEvidence": [],
+      "prerequisites": [
+        "Test skipped - 実機の撮影・本番送信を明示的に許可した検証でのみ実行"
+      ],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Skipped",
+      "skipReasons": [
+        "Test skipped - 実機の撮影・本番送信を明示的に許可した検証でのみ実行"
+      ],
+      "mockWarmTestBodyMeanSeconds": 0.125,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        }
+      ]
+    },
+    {
+      "test": "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts",
+      "source": {
+        "path": "striusUITests/ChatScrollStabilityUITests.swift",
+        "line": 71
+      },
+      "decision": "affected_only",
+      "domain": "chat_scroll",
+      "property": "指を離してから会話が2ptを超えて跳ばない",
+      "rerunWhen": "会話スクロール、数式の表示部品、メッセージ差分更新、共有レイアウト",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 69.526,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation",
+      "source": {
+        "path": "striusUITests/ChatScrollStabilityUITests.swift",
+        "line": 145
+      },
+      "decision": "affected_only",
+      "domain": "chat_scroll",
+      "property": "数式の吹き出し上から縦ドラッグしても会話が動く",
+      "rerunWhen": "会話スクロール、数式の表示部品、メッセージ差分更新、共有レイアウト",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 38.721,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger",
+      "source": {
+        "path": "striusUITests/ChatScrollStabilityUITests.swift",
+        "line": 126
+      },
+      "decision": "affected_only",
+      "domain": "chat_scroll",
+      "property": "開いた直後の最初のドラッグから会話が動く",
+      "rerunWhen": "会話スクロール、数式の表示部品、メッセージ差分更新、共有レイアウト",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 22.636,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation",
+      "source": {
+        "path": "striusUITests/ChatScrollStabilityUITests.swift",
+        "line": 180
+      },
+      "decision": "affected_only",
+      "domain": "chat_scroll",
+      "property": "小単元の横操作で入力欄が横へずれず、旧分岐ページに入らない",
+      "rerunWhen": "会話スクロール、数式の表示部品、メッセージ差分更新、共有レイアウト",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 15.934,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways",
+      "source": {
+        "path": "striusUITests/ChatScrollStabilityUITests.swift",
+        "line": 241
+      },
+      "decision": "affected_only",
+      "domain": "chat_scroll",
+      "property": "幅の大きい表示数式は横へスクロールできる",
+      "rerunWhen": "会話スクロール、数式の表示部品、メッセージ差分更新、共有レイアウト",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 32.259,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives",
+      "source": {
+        "path": "striusUITests/ChatScrollStabilityUITests.swift",
+        "line": 204
+      },
+      "decision": "affected_only",
+      "domain": "chat_scroll",
+      "property": "読み返し中の位置が応答完了で引き戻されない",
+      "rerunWhen": "会話スクロール、数式の表示部品、メッセージ差分更新、共有レイアウト",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 37.122,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "ChatTypingExperienceUITests/testJapaneseCandidateSelection",
+      "source": {
+        "path": "striusUITests/ChatTypingExperienceUITests.swift",
+        "line": 60
+      },
+      "decision": "environment_required",
+      "domain": "japanese_input",
+      "property": "日本語候補・複数行・送信後クリア・キーボード状態",
+      "rerunWhen": "入力部品・IME・キーボード・送信UI",
+      "fastEvidence": [],
+      "prerequisites": [
+        "Test skipped"
+      ],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Skipped",
+      "skipReasons": [
+        "Test skipped"
+      ],
+      "mockWarmTestBodyMeanSeconds": 0.193,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        }
+      ]
+    },
+    {
+      "test": "ChatTypingExperienceUITests/testJapaneseMultilineAndSend",
+      "source": {
+        "path": "striusUITests/ChatTypingExperienceUITests.swift",
+        "line": 7
+      },
+      "decision": "environment_required",
+      "domain": "japanese_input",
+      "property": "日本語候補・複数行・送信後クリア・キーボード状態",
+      "rerunWhen": "入力部品・IME・キーボード・送信UI",
+      "fastEvidence": [],
+      "prerequisites": [
+        "Test skipped - ローカル検証サーバーを使う入力UIテスト"
+      ],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Skipped",
+      "skipReasons": [
+        "Test skipped - ローカル検証サーバーを使う入力UIテスト"
+      ],
+      "mockWarmTestBodyMeanSeconds": 0.175,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        }
+      ]
+    },
+    {
+      "test": "ConversationExportUITests/testCopyConversation",
+      "source": {
+        "path": "striusUITests/ConversationExportUITests.swift",
+        "line": 5
+      },
+      "decision": "affected_only",
+      "domain": "export_ui",
+      "property": "書き出し画面からコピーし入力欄に貼り付ける",
+      "rerunWhen": "会話書き出し、クリップボード、入力欄、関連ナビゲーション",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 23.004,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "DeviceChatUITests/testInterruptWithRealCodex",
+      "source": {
+        "path": "striusUITests/DeviceChatUITests.swift",
+        "line": 91
+      },
+      "decision": "environment_required",
+      "domain": "chat_turn",
+      "property": "実Codexを停止し、再送と再起動後の継続が成功する",
+      "rerunWhen": "質問導線、ChatStore、TurnCoordinator、応答整形、起動時の依存の接続",
+      "fastEvidence": [],
+      "prerequisites": [
+        "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+      ],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Skipped",
+      "skipReasons": [
+        "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+      ],
+      "mockWarmTestBodyMeanSeconds": 0.133,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        }
+      ]
+    },
+    {
+      "test": "DeviceChatUITests/testQuestionTurnWithMockModel",
+      "source": {
+        "path": "striusUITests/DeviceChatUITests.swift",
+        "line": 18
+      },
+      "decision": "affected_only",
+      "domain": "chat_turn",
+      "property": "質問から応答まで接続され、私的ブロックが本文に漏れない",
+      "rerunWhen": "質問導線、ChatStore、TurnCoordinator、応答整形、起動時の依存の接続",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 21.578,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "DeviceChatUITests/testQuestionTurnWithRealCodex",
+      "source": {
+        "path": "striusUITests/DeviceChatUITests.swift",
+        "line": 31
+      },
+      "decision": "environment_required",
+      "domain": "chat_turn",
+      "property": "質問から応答まで接続され、私的ブロックが本文に漏れない",
+      "rerunWhen": "質問導線、ChatStore、TurnCoordinator、応答整形、起動時の依存の接続",
+      "fastEvidence": [],
+      "prerequisites": [
+        "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+      ],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Skipped",
+      "skipReasons": [
+        "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+      ],
+      "mockWarmTestBodyMeanSeconds": 0.15,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        }
+      ]
+    },
+    {
+      "test": "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex",
+      "source": {
+        "path": "striusUITests/DeviceChatUITests.swift",
+        "line": 60
+      },
+      "decision": "environment_required",
+      "domain": "chat_turn",
+      "property": "実Codexの単元提案カードから開始でき、保存済み内容を照会できる",
+      "rerunWhen": "質問導線、ChatStore、TurnCoordinator、応答整形、起動時の依存の接続",
+      "fastEvidence": [],
+      "prerequisites": [
+        "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+      ],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Skipped",
+      "skipReasons": [
+        "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+      ],
+      "mockWarmTestBodyMeanSeconds": 0.11,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        }
+      ]
+    },
+    {
+      "test": "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff",
+      "source": {
+        "path": "striusUITests/DeviceLedgerSettingsUITests.swift",
+        "line": 13
+      },
+      "decision": "affected_only",
+      "domain": "settings_ledger",
+      "property": "使用量報告の既定オフ・非空台帳のimport禁止・exportと共有の導線",
+      "rerunWhen": "設定、UsageReport、台帳import/export、初期設定値",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "Archive round-tripは既存LedgerTestsにあるが、使用量報告の既定オフと画面の操作は別の性質。既定値unitを補うまでは削除しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 13.447,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts",
+      "source": {
+        "path": "striusUITests/DeviceRuntimeUITests.swift",
+        "line": 14
+      },
+      "decision": "affected_only",
+      "domain": "native_runtime",
+      "property": "実ランタイム起動と接続開始を画面から確認する",
+      "rerunWhen": "NativeRuntime、runtime準備・起動、アカウント接続、設定のruntime画面",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 17.74,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice",
+      "source": {
+        "path": "striusUITests/DeviceWorkbookUITests.swift",
+        "line": 14
+      },
+      "decision": "affected_only",
+      "domain": "workbook_capture",
+      "property": "問題生成から撮影確認・採点結果までの接続",
+      "rerunWhen": "WorkbookStore、生成/採点Coordinator、撮影確認、問題・結果画面、関連DTO",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 27.306,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex",
+      "source": {
+        "path": "striusUITests/DeviceWorkbookUITests.swift",
+        "line": 28
+      },
+      "decision": "environment_required",
+      "domain": "workbook_capture",
+      "property": "問題生成から撮影確認・採点結果までの接続",
+      "rerunWhen": "WorkbookStore、生成/採点Coordinator、撮影確認、問題・結果画面、関連DTO",
+      "fastEvidence": [],
+      "prerequisites": [
+        "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+      ],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Skipped",
+      "skipReasons": [
+        "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+      ],
+      "mockWarmTestBodyMeanSeconds": 0.093,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        }
+      ]
+    },
+    {
+      "test": "E2EDriverUITests/testDrive",
+      "source": {
+        "path": "striusUITests/E2EDriverUITests.swift",
+        "line": 23
+      },
+      "decision": "operation_tool",
+      "domain": "operation_tool",
+      "property": "外部コマンドによる検証操作の代行",
+      "rerunWhen": "操作ツール自体の変更時/明示した手動操作",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Skipped",
+      "skipReasons": [
+        "Test skipped - 検証専用の操作代行ランナー(STRUIS_E2E_DRIVER_DIR が無いときは動かさない)"
+      ],
+      "mockWarmTestBodyMeanSeconds": 0.081,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        }
+      ]
+    },
+    {
+      "test": "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
+      "source": {
+        "path": "striusUITests/ImmersionSceneChatUITests.swift",
+        "line": 23
+      },
+      "decision": "affected_only",
+      "domain": "immersion",
+      "property": "シーン上で質問し、同じcanvasへ復帰してcomposerが残る",
+      "rerunWhen": "ImmersionLab、シーンJSON/JS・WebView橋渡し、質問パネル、シーンへの入口",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 18.604,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
+      "source": {
+        "path": "striusUITests/ImmersionSceneChatUITests.swift",
+        "line": 98
+      },
+      "decision": "affected_only",
+      "domain": "immersion",
+      "property": "候補変更のボタンが実際に候補選択を開く",
+      "rerunWhen": "ImmersionLab、シーンJSON/JS・WebView橋渡し、質問パネル、シーンへの入口",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 12.836,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes",
+      "source": {
+        "path": "striusUITests/ImmersionSceneChatUITests.swift",
+        "line": 209
+      },
+      "decision": "affected_only",
+      "domain": "immersion",
+      "property": "タップでは進めずslider介入で進み、転移と終了まで到達する",
+      "rerunWhen": "ImmersionLab、シーンJSON/JS・WebView橋渡し、質問パネル、シーンへの入口",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "同一VM2workerの再測定でslider欠落によりFailed。成功した直列6試行とは分けて保持し、関連変更の判定対象から外さない。原因と並列実行の可否は未解決。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 22.325,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording",
+      "source": {
+        "path": "striusUITests/ImmersionSceneChatUITests.swift",
+        "line": 124
+      },
+      "decision": "manual_evidence",
+      "domain": "immersion",
+      "property": "質問/復帰と、再起動後の介入から終了までを録画用に通す",
+      "rerunWhen": "ImmersionLab、シーンJSON/JS・WebView橋渡し、質問パネル、シーンへの入口",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "前半はAskFromSceneThenReturnToSameCanvas、再起動後の後半はExploreRequiresManipulationThenFullCycleCompletesで検証。録画用sleepを含む。2workerでの失敗記録は保持し、専用のcycleテストでも起きたslider欠落は未解決として残す。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 56.147,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult",
+      "source": {
+        "path": "striusUITests/Issue10ScreenshotUITests.swift",
+        "line": 54
+      },
+      "decision": "affected_only",
+      "domain": "workbook_problem_ui",
+      "property": "個別問題を撮り直し結果から問題一覧へ戻る",
+      "rerunWhen": "WorkbookProblemView、retry/return-to-setの導線、結果画面、撮影経路",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 45.915,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration",
+      "source": {
+        "path": "striusUITests/Issue10ScreenshotUITests.swift",
+        "line": 100
+      },
+      "decision": "manual_evidence",
+      "domain": "workbook_problem_ui",
+      "property": "背景記録中と応答完了後の画像を残す（数式自体は自動判定しない）",
+      "rerunWhen": "WorkbookProblemView、retry/return-to-setの導線、結果画面、撮影経路",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "記録中/完了の状態をassertして画像を残すが、数式の描画自体をassertしていない。MathRenderingTestsはglyph等を検証する。生成直後の実画面の数式は目視のままなので、自動検証済みとは扱わない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 31.85,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "LearningProgressUITests/testInspectActualReplyProgress",
+      "source": {
+        "path": "striusUITests/LearningProgressUITests.swift",
+        "line": 5
+      },
+      "decision": "environment_required",
+      "domain": "external_progress",
+      "property": "実返信から進行詳細・コピー・復帰を操作する",
+      "rerunWhen": "LearningProgressSheet、実バックエンドの進行契約・認証",
+      "fastEvidence": [],
+      "prerequisites": [
+        "Test skipped - 実バックエンドURL・検証用認証・対象返信IDが必要です"
+      ],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Skipped",
+      "skipReasons": [
+        "Test skipped - 実バックエンドURL・検証用認証・対象返信IDが必要です"
+      ],
+      "mockWarmTestBodyMeanSeconds": 0.105,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        }
+      ]
+    },
+    {
+      "test": "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply",
+      "source": {
+        "path": "striusUITests/MinimumLoopE2ETests.swift",
+        "line": 14
+      },
+      "decision": "environment_required",
+      "domain": "external_backend",
+      "property": "実バックエンドへの認証・送信・応答完了",
+      "rerunWhen": "実バックエンドのAPI/認証・通信契約",
+      "fastEvidence": [],
+      "prerequisites": [
+        "Test skipped - STRUIS_E2E_ACCESS_TOKEN is required for the deployed-backend E2E"
+      ],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Skipped",
+      "skipReasons": [
+        "Test skipped - STRUIS_E2E_ACCESS_TOKEN is required for the deployed-backend E2E"
+      ],
+      "mockWarmTestBodyMeanSeconds": 0.089,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        }
+      ]
+    },
+    {
+      "test": "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+      "source": {
+        "path": "striusUITests/ReplyTailUITests.swift",
+        "line": 102
+      },
+      "decision": "replace_after",
+      "domain": "reply_tail_ui",
+      "property": "背景記録中にも送信・段の移動を実画面から行える",
+      "rerunWhen": "ChatStore、TurnCoordinator、記録中の状態通知、送信/進むの表示・操作",
+      "fastEvidence": [
+        "striusTests/Ledger/ReplyTailQueueTests.swift:testExampleReadyIsRecordedBeforeTheTailFinishes"
+      ],
+      "prerequisites": [
+        "ready前後と背景記録中の状態を実状態fixtureで用意し、進むボタンを実際に操作する短いUIを残す",
+        "stage3遷移・記録完了・prefetchと永続化は既存結合テストで実行する"
+      ],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 20.351,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex",
+      "source": {
+        "path": "striusUITests/ReplyTailUITests.swift",
+        "line": 143
+      },
+      "decision": "environment_required",
+      "domain": "reply_tail_ui",
+      "property": "背景記録中にも送信・段の移動を実画面から行える",
+      "rerunWhen": "ChatStore、TurnCoordinator、記録中の状態通知、送信/進むの表示・操作",
+      "fastEvidence": [],
+      "prerequisites": [
+        "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+      ],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Skipped",
+      "skipReasons": [
+        "Test skipped - TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)"
+      ],
+      "mockWarmTestBodyMeanSeconds": 0.308,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Skipped"
+        }
+      ]
+    },
+    {
+      "test": "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+      "source": {
+        "path": "striusUITests/ReplyTailUITests.swift",
+        "line": 65
+      },
+      "decision": "replace_after",
+      "domain": "reply_tail_ui",
+      "property": "背景記録中にも送信・段の移動を実画面から行える",
+      "rerunWhen": "ChatStore、TurnCoordinator、記録中の状態通知、送信/進むの表示・操作",
+      "fastEvidence": [
+        "striusTests/Ledger/ReplyTailQueueTests.swift:testSendDuringPrivateTailQueuesWithoutStoppingTheRecord",
+        "striusTests/Ledger/ReplyTailQueueTests.swift:testStoppingQueuedSendLeavesTheRecordRunning"
+      ],
+      "prerequisites": [
+        "既存の制御可能なtail fixtureから送信可能・停止ボタンでない・入力が受け付けられるUIを残す",
+        "順序・完了・中断なし・台帳保存の全assertionを既存結合テストで実行する"
+      ],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 25.452,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "UnitDeletionUITests/testLargeTextConfirmationAndCancel",
+      "source": {
+        "path": "striusUITests/UnitDeletionUITests.swift",
+        "line": 42
+      },
+      "decision": "affected_only",
+      "domain": "unit_deletion",
+      "property": "大きな文字でも削除の確認を操作でき、取消で単元を保つ",
+      "rerunWhen": "WorkbookHomeView、単元削除、確認ダイアログ、関連台帳イベント、文字サイズ/共有デザイン",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 14.746,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState",
+      "source": {
+        "path": "striusUITests/UnitDeletionUITests.swift",
+        "line": 5
+      },
+      "decision": "affected_only",
+      "domain": "unit_deletion",
+      "property": "長押し削除の取消と実行、最後の単元削除後の空状態",
+      "rerunWhen": "WorkbookHomeView、単元削除、確認ダイアログ、関連台帳イベント、文字サイズ/共有デザイン",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 20.653,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned",
+      "source": {
+        "path": "striusUITests/WorkbookE2EFixesUITests.swift",
+        "line": 80
+      },
+      "decision": "affected_only",
+      "domain": "workbook_navigation",
+      "property": "未入力で導入が始まり例題が固定され、開き直しても増殖しない",
+      "rerunWhen": "WorkbookStore、kickoff、段遷移、単元/問題/結果画面、関連DTO・台帳イベント",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 15.787,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately",
+      "source": {
+        "path": "striusUITests/WorkbookE2EFixesUITests.swift",
+        "line": 122
+      },
+      "decision": "affected_only",
+      "domain": "workbook_navigation",
+      "property": "撮影後に結果が開き、演習の合格・直近n問・次の小単元が即表示される",
+      "rerunWhen": "WorkbookStore、kickoff、段遷移、単元/問題/結果画面、関連DTO・台帳イベント",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 39.694,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton",
+      "source": {
+        "path": "striusUITests/WorkbookHomeUITests.swift",
+        "line": 14
+      },
+      "decision": "affected_only",
+      "domain": "workbook_home",
+      "property": "ホームの最近の行・段表示・撮影ボタンの接続",
+      "rerunWhen": "WorkbookHomeView、ホームprojection/refresh、行のナビゲーション・撮影入口",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 10.121,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze",
+      "source": {
+        "path": "striusUITests/WorkbookE2EFixesUITests.swift",
+        "line": 158
+      },
+      "decision": "affected_only",
+      "domain": "long_chat",
+      "property": "長い会話で送信20回とスクロールができ、送信文が見える",
+      "rerunWhen": "長文の描画/メッセージ更新、ChatView、数式部品、スクロール、レイアウト、関連runtime/メモリ処理",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "常時必須から外す。40往復fixtureと送信/scroll20回の実操作に固有の検証価値があるため関連変更時は維持。MAX_MAIN_THREAD_STALL_MSは値の記録であり、2秒以下の自動assertとして数えない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 191.684,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain",
+      "source": {
+        "path": "striusUITests/WorkbookE2EFixesUITests.swift",
+        "line": 213
+      },
+      "decision": "affected_only",
+      "domain": "onboarding",
+      "property": "初回設定から最初の単元に到達し再起動で繰り返さない",
+      "rerunWhen": "OnboardingProfile/View、完了フラグ、単元生成とproposal refresh、起動・関連ナビゲーション",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 61.479,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+      "source": {
+        "path": "striusUITests/WorkbookSplitGradingUITests.swift",
+        "line": 176
+      },
+      "decision": "affected_only",
+      "domain": "batch_capture",
+      "property": "3枚撮影→1枚削除→残る2枚を提出・表示できる",
+      "rerunWhen": "ChatCamera/WorkbookCaptureFlow、レビューと削除、WorkbookStore.submitCapture、採点へのpagePaths受け渡し",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "写真の削除と提出枚数はUI固有。Store.submitCapture(pages:)→保存→採点への順序/枚数/画像内容の結合テストが未整備なので、このUIをunitで置き換えたと扱わない。関連変更時には現行の方法を残す。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 37.982,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+      "source": {
+        "path": "striusUITests/WorkbookSplitGradingUITests.swift",
+        "line": 137
+      },
+      "decision": "replace_after",
+      "domain": "close_grading",
+      "property": "途中締切・結果表示・後からの提出が接続される",
+      "rerunWhen": "closeSet、WorkbookVerdictView、未提出表示、関連Store/DTO",
+      "fastEvidence": [
+        "striusTests/Ledger/WorkbookRulesTests.swift:testClosingWithMissingProblemsGradesWhatWasFound"
+      ],
+      "prerequisites": [
+        "実状態fixtureからcloseSetボタン→未提出/score/actionの反映を短いUIで残す",
+        "追加提出の集計と二重計上防止は既存Rulesテストで実行する"
+      ],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 51.451,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+      "source": {
+        "path": "striusUITests/WorkbookSplitGradingUITests.swift",
+        "line": 99
+      },
+      "decision": "replace_after",
+      "domain": "split_grading",
+      "property": "途中の結果から撮り足し、同じセットを完成できる",
+      "rerunWhen": "分割採点、WorkbookVerdictView、撮り足し、関連Store/DTO",
+      "fastEvidence": [
+        "striusTests/Ledger/WorkbookRulesTests.swift:testSetCapturedInThreePhotosIsGradedAsOneSet"
+      ],
+      "prerequisites": [
+        "partial/resultの文言・action一覧のprojectionテストを補う",
+        "実状態fixtureから撮り足すボタン→カメラと採点結果の表示を短いUIで残す"
+      ],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 44.208,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap",
+      "source": {
+        "path": "striusUITests/WorkbookSubunitHeaderUITests.swift",
+        "line": 14
+      },
+      "decision": "affected_only",
+      "domain": "workbook_header",
+      "property": "縦スワイプ/タップによる開閉と再起動をまたぐ保持",
+      "rerunWhen": "WorkbookSubunitHeader、開閉状態の保存、ジェスチャ、共有デザイン/文字サイズ",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 23.213,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle",
+      "source": {
+        "path": "striusUITests/WorkbookSubunitHeaderUITests.swift",
+        "line": 50
+      },
+      "decision": "affected_only",
+      "domain": "workbook_header",
+      "property": "ヘッダーを横にドラッグしても開閉しない",
+      "rerunWhen": "WorkbookSubunitHeader、開閉状態の保存、ジェスチャ、共有デザイン/文字サイズ",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 12.33,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation",
+      "source": {
+        "path": "striusUITests/WorkbookSubunitLayoutUITests.swift",
+        "line": 258
+      },
+      "decision": "manual_evidence",
+      "domain": "workbook_layout",
+      "property": "ボタン帯に吹き出しを重ねた画像を作る（遮蔽判定は目視）",
+      "rerunWhen": "WorkbookSubunitView/Components、例題バー/進む/カード、キーボード、会話の追従、共有デザイン",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "吹き出しをボタン帯に重ねた配置までassertする。隠れていないかはソースに目視と明記され、自動の遮蔽判定はない。該当レイアウト変更時に画像レビュー、または将来の画像差分/タップ検証を要求する。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 10.903,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply",
+      "source": {
+        "path": "striusUITests/WorkbookSubunitLayoutUITests.swift",
+        "line": 235
+      },
+      "decision": "affected_only",
+      "domain": "workbook_layout",
+      "property": "読み返し中から段を進めたとき新しい段の応答へ追従する",
+      "rerunWhen": "WorkbookSubunitView/Components、例題バー/進む/カード、キーボード、会話の追従、共有デザイン",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 29.293,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady",
+      "source": {
+        "path": "striusUITests/WorkbookSubunitLayoutUITests.swift",
+        "line": 187
+      },
+      "decision": "replace_after",
+      "domain": "workbook_layout",
+      "property": "ready前は進むを隠し、ready後は再訪しても表示され実際に進める",
+      "rerunWhen": "WorkbookSubunitView/Components、例題バー/進む/カード、キーボード、会話の追従、共有デザイン",
+      "fastEvidence": [
+        "striusTests/WorkbookSubunitLayoutTests.swift:testAdvanceIsHiddenInExampleStageUntilModelMarksReady",
+        "striusTests/Ledger/ReplyTailQueueTests.swift:testExampleReadyIsRecordedBeforeTheTailFinishes"
+      ],
+      "prerequisites": [
+        "ready前に非表示・ready後に表示と実際に進めることを上記の短いready UIに統合する",
+        "私的ready blockが本文に出ない検証と開き直し後のready保持を代替側へ移す"
+      ],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 24.847,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance",
+      "source": {
+        "path": "striusUITests/WorkbookSubunitLayoutUITests.swift",
+        "line": 66
+      },
+      "decision": "affected_only",
+      "domain": "workbook_layout",
+      "property": "進捗/例題バーの配置・操作・保持とキーボード/進むボタンの干渉",
+      "rerunWhen": "WorkbookSubunitView/Components、例題バー/進む/カード、キーボード、会話の追従、共有デザイン",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "ソフトキーボードが出ない場合はguardで後半をreturnするため、その実行ではキーボード後半のassertionsは未実行。1本Passedから全分岐確認済みとは言えない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 38.649,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar",
+      "source": {
+        "path": "striusUITests/WorkbookSubunitLayoutUITests.swift",
+        "line": 159
+      },
+      "decision": "affected_only",
+      "domain": "workbook_layout",
+      "property": "入力フォーカスと送信が例題バーの折り畳みに接続される",
+      "rerunWhen": "WorkbookSubunitView/Components、例題バー/進む/カード、キーボード、会話の追従、共有デザイン",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "既存state unitと重複しても、入力フォーカス/送信イベントが実Viewに接続される保証は固有。丸ごと削除しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 19.221,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched",
+      "source": {
+        "path": "striusUITests/WorkbookSubunitLayoutUITests.swift",
+        "line": 304
+      },
+      "decision": "affected_only",
+      "domain": "workbook_layout",
+      "property": "単元カードの正解数/n・未着手非表示と小単元のマスへの導線",
+      "rerunWhen": "WorkbookSubunitView/Components、例題バー/進む/カード、キーボード、会話の追従、共有デザイン",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "数の計算は既存UnitCard3テストで確認済み。実カードのlabelと小単元tilesへの導線はこの短いUIで確認する。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 8.866,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "striusUITests/testExample",
+      "source": {
+        "path": "striusUITests/striusUITests.swift",
+        "line": 26
+      },
+      "decision": "retire_from_merge",
+      "domain": "question_navigation",
+      "property": "質問画面を横に動かしても旧ページへ遷移しない",
+      "rerunWhen": "質問シート、ChatView、横ジェスチャ、ナビゲーション",
+      "fastEvidence": [],
+      "prerequisites": [
+        "既定起動条件を変える変更時は、同じ引数/環境の初期画面まで確かめる機能UIを対象に入れる。起動クラッシュ検出まで捨てない。"
+      ],
+      "reason": "app.launchのみ。対応する機能UIが必要時に起動を含む。既定の起動条件そのものを変えた変更では専用起動検証を選ぶ。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 7.264,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "striusUITests/testHorizontalSwipesKeepTheSingleChatPage",
+      "source": {
+        "path": "striusUITests/striusUITests.swift",
+        "line": 38
+      },
+      "decision": "affected_only",
+      "domain": "question_navigation",
+      "property": "質問画面を横に動かしても旧ページへ遷移しない",
+      "rerunWhen": "質問シート、ChatView、横ジェスチャ、ナビゲーション",
+      "fastEvidence": [],
+      "prerequisites": [],
+      "reason": "この操作・画面・接続に影響する変更時に実行する。無関係な変更では実行しない。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 15.12,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    },
+    {
+      "test": "striusUITestsLaunchTests/testLaunch",
+      "source": {
+        "path": "striusUITests/striusUITestsLaunchTests.swift",
+        "line": 21
+      },
+      "decision": "retire_from_merge",
+      "domain": "app_launch",
+      "property": "起動時のスクリーンショット",
+      "rerunWhen": "アプリ起動・Launch画面",
+      "fastEvidence": [],
+      "prerequisites": [
+        "既定起動条件を変える変更時は、同じ引数/環境の初期画面まで確かめる機能UIを対象に入れる。起動クラッシュ検出まで捨てない。"
+      ],
+      "reason": "起動して画像を添付するテンプレート。機能判定はない。複数UI構成の外観確認は必要時の目視資料として別に要求する。",
+      "initialSerialResult": "Passed",
+      "skipReasons": [],
+      "mockWarmTestBodyMeanSeconds": 8.907,
+      "observations": [
+        {
+          "runId": 39630297628,
+          "jobId": 119326515536,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515734,
+          "configuration": "baseline",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515669,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515673,
+          "configuration": "optimized",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515465,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        },
+        {
+          "runId": 39630297628,
+          "jobId": 119326515494,
+          "configuration": "optimized-mock-warm",
+          "result": "Passed"
+        }
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "id": "documentation_only",
+      "change": "実験の説明文だけ。アプリ/テスト/fixture/設定/生成資産は同一。",
+      "ui": [],
+      "unit": "再実行なし。元のコードへの有効な検証記録を参照する。",
+      "conditions": [
+        "docs配下という名前だけで判定しない。ビルドが読む資産や生成入力でないことを確認する。"
+      ],
+      "uiTestCount": 0,
+      "retrospectiveTestBodySumSeconds": 0
+    },
+    {
+      "id": "grading_boundary_logic_only",
+      "change": "WorkbookRulesの採点境界条件。DTO/action/stage/保存形式/画面への通知契約は変わらない。",
+      "ui": [],
+      "unit": "既存Unit/結合テスト全体を維持。WorkbookRulesTests、LedgerTests、WorkbookStoreRefreshTestsを含む。",
+      "conditions": [
+        "変更した境界条件をRulesテストで検出できること。",
+        "stage/action/DTOや通知の意味を変えるなら、このprofileは使わず、その契約を使う画面のUIを追加する。",
+        "ファイル名だけで自動適用するprofileではない。"
+      ],
+      "uiTestCount": 0,
+      "retrospectiveTestBodySumSeconds": 0
+    },
+    {
+      "id": "subunit_header_only",
+      "change": "WorkbookSubunitHeaderの開閉ジェスチャ・状態保持の変更。共通会話/デザインは変更なし。",
+      "ui": [
+        "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap",
+        "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle"
+      ],
+      "unit": "既存Unit/結合テスト全体。",
+      "conditions": [
+        "ヘッダーの高さ/配置を変えるならWorkbookSubunitLayoutと関連scroll UIも追加する。"
+      ],
+      "uiTestCount": 2,
+      "retrospectiveTestBodySumSeconds": 35.543
+    },
+    {
+      "id": "reply_tail_contract",
+      "change": "背景記録と追加送信/ready通知の契約を変更。",
+      "ui": [
+        "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+        "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+        "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady"
+      ],
+      "unit": "既存Unit/結合テスト全体。ReplyTailQueueTestsは必須。",
+      "conditions": [
+        "代替UI完成まではこの3本を維持。完成・故障検出比較後に薄い送信UIとready UIの2本へ置換する。",
+        "ChatView全体/共有runtimeの変更なら、このprofileだけには限定しない。"
+      ],
+      "uiTestCount": 3,
+      "retrospectiveTestBodySumSeconds": 70.65
+    },
+    {
+      "id": "immersion_only",
+      "change": "没頭シーンの候補・質問/復帰・介入と完走を変更。",
+      "ui": [
+        "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
+        "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
+        "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes"
+      ],
+      "unit": "既存Unit/結合テスト全体。",
+      "conditions": [
+        "録画用Journeyはmerge判定に重ねない。",
+        "2workerの失敗をこの取捨選択で解決した扱いにしない。直列の実行構成を基準にする。"
+      ],
+      "uiTestCount": 3,
+      "retrospectiveTestBodySumSeconds": 53.765
+    },
+    {
+      "id": "conversation_scroll_core",
+      "change": "会話のscroll/数式ジェスチャ/差分更新に影響する変更。",
+      "ui": [
+        "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts",
+        "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation",
+        "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger",
+        "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation",
+        "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways",
+        "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives",
+        "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze",
+        "striusUITests/testHorizontalSwipesKeepTheSingleChatPage",
+        "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply"
+      ],
+      "unit": "既存Unit/結合テスト全体。MathRenderingTests、WorkbookSubunitLayoutTestsを含む。",
+      "conditions": [
+        "composer/camera/ready/headerなど他の契約も変えた場合は該当テストを加える。",
+        "巨大なChatView.swiftの変更をファイル名だけでこのprofileに限定しない。"
+      ],
+      "uiTestCount": 9,
+      "retrospectiveTestBodySumSeconds": 452.295
+    }
+  ],
+  "existingGateExclusions": [
+    {
+      "test": "striusUITests/testLaunchPerformance",
+      "decision": "separate_performance_measurement",
+      "reason": "既存の性能測定除外を維持。56件には含まれない。"
+    }
+  ],
+  "replacementAcceptance": [
+    "既存UIの各assertionが検証する性質をunit/結合/短いUIのいずれかに割り当てる。未割当がある間は元テストを関連変更時に残す。",
+    "2枚目の写真破棄、送信時の記録中断、採点の早期締切、ready前の進む表示などの故障を意図的に作り、代替構成でも検出することを比較確認する。まだ未実施。",
+    "既存の不具合修正を逆に適用する検証も行い、見逃しがあれば速いテストを補うか対象UIを残す。全ての未知の不具合への保証とはしない。"
+  ],
+  "automationStatus": {
+    "automaticSemanticSelection": "not_implemented",
+    "dependencyGraph": "not_implemented",
+    "dynamicTestImpactCoverage": "not_implemented",
+    "crossFeatureHostBuilds": "not_implemented",
+    "wholeInputReceipt": "offline prototype only; docs-only same-input reuse; no changed-code reuse",
+    "pathSelectionShadow": "20変更の監査のみ。今回の取捨選択の正当性や依存関係の証明には使わない。"
+  },
+  "knownUnresolvedFailures": [
+    {
+      "runId": 39653968167,
+      "jobId": 119409293370,
+      "configuration": "optimized-two-workers",
+      "test": "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes",
+      "result": "Failed",
+      "issue": "WebView sliderが出ない"
+    },
+    {
+      "runId": 39653968167,
+      "jobId": 119409293370,
+      "configuration": "optimized-two-workers",
+      "test": "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording",
+      "result": "Failed",
+      "issue": "XCTAssertTrue失敗。録画用から外す判断で解決済みとは扱わない"
+    }
+  ]
+}
