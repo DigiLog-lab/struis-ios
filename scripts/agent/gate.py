@@ -64,7 +64,9 @@ def signature(record, key):
 
 
 def gate_key(pr):
-    return f'gates/pr-{int(pr)}.json'
+    # Under sessions/: the store Worker accepts only sessions/, prototypes/, media/ and usage/ keys
+    # (cloudflare/agent/src/index.js KEY_PREFIXES). Records are signed, so the location adds no trust.
+    return f'sessions/gates/pr-{int(pr)}.json'
 
 
 def issue_for(pr):
@@ -337,8 +339,8 @@ class Controller:
 
     def waiting(self):
         records = []
-        for item in self.store.list('gates/'):
-            match = re.fullmatch(r'gates/pr-(\d+)\.json', item['key'])
+        for item in self.store.list('sessions/gates/'):
+            match = re.fullmatch(r'sessions/gates/pr-(\d+)\.json', item['key'])
             if match:
                 try:
                     record = self.load(int(match[1]))
@@ -395,7 +397,7 @@ class Controller:
         if old and old.get('phase') not in TERMINAL:
             self.invalidate(old, pr, 'A newer Ready request replaced this gate', redraft=False)
         limit = max_attempts()
-        counter = store.get_json(f'gates/issue-{request["issue"]}.json') or {}
+        counter = store.get_json(f'sessions/gates/issue-{request["issue"]}.json') or {}
         attempts = max(int(counter.get('attempts', 0)), int(old.get('attempts', 0)),
                        status_attempts(gh, request['issue'], request['branch']))
         if attempts >= limit:
@@ -404,7 +406,7 @@ class Controller:
         workflow = cloud_workflow(cloud_client()) if selected == 'xcode-cloud' else None
         record = dict(request, backend=selected, attempts=attempts + 1,
                       phase='starting', startedAt=iso(), dispatched=[])
-        store.update_json(f'gates/issue-{request["issue"]}.json',
+        store.update_json(f'sessions/gates/issue-{request["issue"]}.json',
                           lambda current: {'attempts': attempts + 1, 'lastRequest': request['request'], 'at': iso()}, default={})
         if workflow:
             record['workflow'] = workflow['id']
@@ -685,8 +687,8 @@ class Controller:
             elif self.unconsumed(record):
                 print(f'Issue #{record["issue"]} has not processed gate {record["request"]}; waking it again')
                 self.wake(record)
-        for item in self.store.list('gates/'):
-            match = re.fullmatch(r'gates/pr-(\d+)\.json', item['key'])
+        for item in self.store.list('sessions/gates/'):
+            match = re.fullmatch(r'sessions/gates/pr-(\d+)\.json', item['key'])
             if match:
                 attempt(lambda: reconcile_record(int(match[1])))
         if errors:

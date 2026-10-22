@@ -371,8 +371,8 @@ def ready():
     pr = prs[0]
     if pr['head']['sha'] != head:
         raise RuntimeError('PR HEAD changed')
-    previous = store.get_json(f'gates/pr-{pr["number"]}.json') or {}
-    counter = store.get_json(f'gates/issue-{run["issue"]}.json') or {}
+    previous = store.get_json(f'sessions/gates/pr-{pr["number"]}.json') or {}
+    counter = store.get_json(f'sessions/gates/issue-{run["issue"]}.json') or {}
     pending = store.get_json(session_key(run['issue'], 'gate-request.json')) or {}
     proof = checkpoints.digest(json.dumps(record, ensure_ascii=False, indent=2).encode())
     if (not pr['draft'] and pending.get('head') == head and pending.get('pr') == pr['number']

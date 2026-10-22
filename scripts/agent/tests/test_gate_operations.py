@@ -111,12 +111,12 @@ class GateBoundaryTests(unittest.TestCase):
     def test_completed_proof_can_be_deleted_without_drafting_successful_pr(self):
         self.controller.start(8)
         self.results()
-        self.controller.poll(self.store.get_json('gates/pr-8.json'))
+        self.controller.poll(self.store.get_json('sessions/gates/pr-8.json'))
         for identifier in list(self.store.artifacts.items):
             self.store.artifacts.delete(identifier)
         self.controller.reconcile()
         self.assertFalse(self.gh.pr['draft'])
-        self.assertTrue(self.store.get_json('gates/pr-8.json')['success'])
+        self.assertTrue(self.store.get_json('sessions/gates/pr-8.json')['success'])
 
     def test_human_ready_uses_same_checkpoint_conditions_without_agent_dispatch(self):
         del self.store.data['sessions/4/gate-request.json']
@@ -256,7 +256,7 @@ class GateRaceTests(unittest.TestCase):
         with mock.patch.object(gate, 'max_attempts', side_effect=RuntimeError('configuration error')), \
                 self.assertRaises(RuntimeError):
             self.controller.start(8, 'req1')
-        self.assertEqual(self.store.get_json('gates/pr-8.json')['phase'], 'blocked')
+        self.assertEqual(self.store.get_json('sessions/gates/pr-8.json')['phase'], 'blocked')
         # The worker repairs and makes a new Ready request R2 (Draft cleared, dispatch queued).
         self.store.put_json('sessions/4/gate-request.json', dict(self.request, request='req2'))
         self.gh.pr['draft'] = False
@@ -264,11 +264,11 @@ class GateRaceTests(unittest.TestCase):
     def test_reconcile_starts_the_workers_fresh_request_and_the_queued_dispatch_keeps_it(self):
         self.block_previous_gate()
         self.controller.reconcile()  # the minute loop of another control run sees the Ready PR first
-        record = self.store.get_json('gates/pr-8.json')
+        record = self.store.get_json('sessions/gates/pr-8.json')
         self.assertEqual((record['request'], record['phase']), ('req2', 'waiting'))
         self.assertEqual(self.store.get_json('sessions/4/gate-request.json')['request'], 'req2')
         self.controller.start(8, 'req2')  # the queued agent-gate dispatch of the worker
-        record = self.store.get_json('gates/pr-8.json')
+        record = self.store.get_json('sessions/gates/pr-8.json')
         self.assertEqual((record['request'], record['phase']), ('req2', 'waiting'))
         self.assertFalse(self.gh.pr['draft'])
         self.assertEqual([body['inputs']['ci_request'] for _, _, body in self.dispatches('agent-tests.yml')], ['req2'])
@@ -277,7 +277,7 @@ class GateRaceTests(unittest.TestCase):
         self.block_previous_gate()
         self.controller.start(8, 'req2')
         self.controller.start(8, 'req1')  # a late duplicate of the old request
-        record = self.store.get_json('gates/pr-8.json')
+        record = self.store.get_json('sessions/gates/pr-8.json')
         self.assertEqual((record['request'], record['phase']), ('req2', 'waiting'))
         self.assertFalse(self.gh.pr['draft'])
 
@@ -286,7 +286,7 @@ class GateRaceTests(unittest.TestCase):
         with mock.patch.object(gate, 'request_data', side_effect=RuntimeError('evidence unreadable')), \
                 self.assertRaises(RuntimeError):
             self.controller.start(8)
-        record = self.store.get_json('gates/pr-8.json')
+        record = self.store.get_json('sessions/gates/pr-8.json')
         self.assertEqual((record['request'], record['phase']), ('req1', 'waiting'))
         self.assertFalse(self.gh.pr['draft'])
 
@@ -295,7 +295,7 @@ class GateRaceTests(unittest.TestCase):
         with mock.patch.object(self.controller, 'workflow_result', side_effect=OSError('connection reset')), \
                 self.assertRaises(OSError):
             self.controller.start(8, 'req1')
-        self.assertEqual(self.store.get_json('gates/pr-8.json')['phase'], 'waiting')
+        self.assertEqual(self.store.get_json('sessions/gates/pr-8.json')['phase'], 'waiting')
         self.assertFalse(self.gh.pr['draft'])
         self.results()
         self.assertTrue(self.controller.start(8, 'req1')['success'])
@@ -309,7 +309,7 @@ class GateRaceTests(unittest.TestCase):
                 raise OSError('status write lost')
             return original(method, path, body)
         with mock.patch.object(self.gh, 'request', side_effect=flaky), self.assertRaises(OSError):
-            self.controller.poll(self.store.get_json('gates/pr-8.json'))
+            self.controller.poll(self.store.get_json('sessions/gates/pr-8.json'))
         self.assertEqual(self.wakes(), [])
         self.controller.reconcile()
         self.assertEqual(gate.gate_status(self.gh, 'a' * 40), 'success')
@@ -319,21 +319,21 @@ class GateRaceTests(unittest.TestCase):
 
     def test_a_record_written_by_another_job_is_refused_and_replaced(self):
         self.controller.start(8, 'req1')
-        forged = dict(self.store.get_json('gates/pr-8.json'), cloudRun='a-build-that-passed-on-retry',
+        forged = dict(self.store.get_json('sessions/gates/pr-8.json'), cloudRun='a-build-that-passed-on-retry',
                       backend='xcode-cloud', workflow='workflow1')
         forged.pop('signature')
-        self.store.put_json('gates/pr-8.json', forged)
+        self.store.put_json('sessions/gates/pr-8.json', forged)
         with mock.patch.object(gate, 'cloud_client') as client:
             with self.assertRaisesRegex(RuntimeError, 'not signed'):
                 self.controller.start(8, 'req1')
             client.assert_not_called()
-        record = self.store.get_json('gates/pr-8.json')
+        record = self.store.get_json('sessions/gates/pr-8.json')
         self.assertEqual(record['phase'], 'blocked')
         self.assertTrue(self.gh.pr['draft'])
         self.assertEqual(gate.gate_status(self.gh, 'a' * 40), 'error')
         # A copied signature does not cover changed fields either.
-        signed = self.store.get_json('gates/pr-8.json')
-        self.store.put_json('gates/pr-8.json', dict(signed, phase='complete', success=True))
+        signed = self.store.get_json('sessions/gates/pr-8.json')
+        self.store.put_json('sessions/gates/pr-8.json', dict(signed, phase='complete', success=True))
         with self.assertRaises(gate.TamperedRecord):
             self.controller.load(8)
 
@@ -470,8 +470,8 @@ class GateSecondReviewTests(unittest.TestCase):
 
     def test_malformed_records_are_refused_without_stopping_other_prs(self):
         self.controller.start(8, 'req1')
-        self.store.put_json('gates/pr-998.json', ['x'])
-        self.store.put_json('gates/pr-999.json', {'pr': 999, 'phase': 'waiting', 'signature': 'é'})
+        self.store.put_json('sessions/gates/pr-998.json', ['x'])
+        self.store.put_json('sessions/gates/pr-999.json', {'pr': 999, 'phase': 'waiting', 'signature': 'é'})
         for number in (998, 999):
             with self.assertRaises(gate.TamperedRecord):
                 self.controller.load(number)
@@ -499,7 +499,7 @@ class GateSecondReviewTests(unittest.TestCase):
         self.gh.pr['head']['repo']['full_name'] = 'outsider/repo'
         self.controller.reconcile()
         self.assertIsNone(self.controller.start(8))
-        self.assertEqual(self.store.get_json('gates/pr-8.json'), None)
+        self.assertEqual(self.store.get_json('sessions/gates/pr-8.json'), None)
         self.assertFalse(self.gh.pr['draft'])
         self.assertEqual([call for call in self.gh.calls if call[0] == 'comment'], [])
 

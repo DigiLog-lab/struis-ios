@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import re
 
-from agentlib import PreconditionFailed
+from agentlib import PreconditionFailed, StoreError
 import artifacts as artifact_store
 
 
@@ -43,6 +43,16 @@ class MemoryArtifacts:
         return b''.join(data for item in self.items.values() for data in item['files'].values())
 
 
+# Same rule as the store Worker (cloudflare/agent/src/index.js KEY_PREFIXES): any other key is 403.
+STORE_PREFIXES = ('sessions/', 'prototypes/', 'media/', 'usage/')
+
+
+def checked(key):
+    if not key.startswith(STORE_PREFIXES):
+        raise StoreError(f'HTTP 403 Key outside the agent namespaces: {key}')
+    return key
+
+
 class MemoryStore:
     def __init__(self):
         self.data, self.versions = {}, {}
@@ -57,7 +67,7 @@ class MemoryStore:
         self.artifacts.fail_upload = value
 
     def get(self, key):
-        return self.data.get(key)
+        return self.data.get(checked(key))
 
     def get_json(self, key):
         data = self.get(key)
@@ -67,6 +77,7 @@ class MemoryStore:
         return self.get_json(key), str(self.versions[key]) if key in self.versions else None
 
     def put_json(self, key, value, if_match=None, if_none_match=False):
+        checked(key)
         if if_match is not None and str(self.versions.get(key)) != if_match:
             raise PreconditionFailed('CAS conflict')
         if if_none_match and key in self.data:
@@ -80,9 +91,10 @@ class MemoryStore:
         return updated
 
     def upload_file(self, key, path):
-        self.data[key] = Path(path).read_bytes()
+        self.data[checked(key)] = Path(path).read_bytes()
 
     def list(self, prefix):
+        checked(prefix)
         return [{'key': key} for key in self.data if key.startswith(prefix)]
 
 

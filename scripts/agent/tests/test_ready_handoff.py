@@ -64,7 +64,7 @@ class ReadyHandoffTests(unittest.TestCase):
                                       'conclusion': 'success' if success else 'failure', 'html_url': 'https://example.test/run',
                                       'display_title': ('iOS CI ' if workflow == 'ios.yml' else 'Agent tests CI ')
                                                        + request['request'] + ' ' + self.base}]
-        return self.controller.poll(self.store.get_json('gates/pr-8.json'))
+        return self.controller.poll(self.store.get_json('sessions/gates/pr-8.json'))
 
     def test_ready_in_claude_session_is_recorded_and_performed_by_validate(self):
         # claude-code-action removes the OIDC request variables from Claude's session (Issue #44).
@@ -124,7 +124,7 @@ class ReadyHandoffTests(unittest.TestCase):
         self.assertEqual(self.store.get_json('sessions/4/state.json')['workerStatus'], 'waiting-gate')
         self.controller.reconcile()
         self.controller.reconcile()
-        record = self.store.get_json('gates/pr-8.json')
+        record = self.store.get_json('sessions/gates/pr-8.json')
         self.assertEqual(record['request'], pending['request'])
         self.assertEqual(record['attempts'], 1)
         self.assertEqual(len([call for call in self.gh.calls if '/ios.yml/dispatches' in str(call[1])]), 1)

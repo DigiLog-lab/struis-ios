@@ -137,7 +137,7 @@ class GateTests(unittest.TestCase):
             self.assertEqual(body['inputs']['source_ref'], 'a' * 40)
         self.controller.start(8, 'req1')
         self.assertEqual(len(self.dispatches()), 2)
-        self.assertEqual(self.store.get_json('gates/issue-4.json')['attempts'], 1)
+        self.assertEqual(self.store.get_json('sessions/gates/issue-4.json')['attempts'], 1)
 
     def test_head_change_drafts_and_old_success_never_wakes_worker(self):
         record = self.controller.start(8)
@@ -146,7 +146,7 @@ class GateTests(unittest.TestCase):
         self.assertEqual(self.controller.poll(record)['phase'], 'invalidated')
         # The new HEAD has no Ready request of its own: Draft, and nothing is woken.
         self.assertTrue(self.gh.pr['draft'])
-        self.assertEqual((self.store.get_json('gates/pr-8.json')['head'], self.store.get_json('gates/pr-8.json')['phase']),
+        self.assertEqual((self.store.get_json('sessions/gates/pr-8.json')['head'], self.store.get_json('sessions/gates/pr-8.json')['phase']),
                          ('b' * 40, 'blocked'))
         self.assertEqual(self.wakes(), [])
 
@@ -154,7 +154,7 @@ class GateTests(unittest.TestCase):
         record = self.controller.start(8)
         self.results()
         self.controller.poll(record)
-        self.controller.poll(self.store.get_json('gates/pr-8.json'))
+        self.controller.poll(self.store.get_json('sessions/gates/pr-8.json'))
         self.assertEqual(len(self.wakes()), 1)
         self.assertEqual(self.wakes()[0][2]['client_payload'], {'issue': '4', 'automatic_retry': 'true', 'gate_result': 'req1'})
         self.assertFalse(gate.consume_result(4, 'req1', self.gh, self.store))
@@ -189,7 +189,7 @@ class GateTests(unittest.TestCase):
         self.assertEqual(result['results']['agent-tests.yml']['attempt'], 2)
 
     def test_missing_local_record_and_issue_attempt_limit_block_without_dispatch(self):
-        self.store.put_json('gates/issue-4.json', {'attempts': 3})
+        self.store.put_json('sessions/gates/issue-4.json', {'attempts': 3})
         with self.assertRaisesRegex(RuntimeError, 'limit'):
             self.controller.start(8)
         self.assertEqual(self.dispatches(), [])
@@ -202,7 +202,7 @@ class GateTests(unittest.TestCase):
     def test_stale_gate_wake_cannot_complete_or_repair_new_head(self):
         self.controller.start(8)
         self.results()
-        self.controller.poll(self.store.get_json('gates/pr-8.json'))
+        self.controller.poll(self.store.get_json('sessions/gates/pr-8.json'))
         self.gh.pr['head']['sha'] = 'b' * 40
         self.assertFalse(gate.consume_result(4, 'req1', self.gh, self.store))
         self.assertIsNone(self.store.get_json('sessions/4/state.json'))
@@ -224,7 +224,7 @@ class GateTests(unittest.TestCase):
         self.assertEqual(record['backend'], 'github')
         self.assertIn('HTTP 409', record['cloudStartError'])
         self.assertEqual(len(self.dispatches('ios.yml')), 1)
-        self.store.put_json('gates/pr-8.json', {})
+        self.store.put_json('sessions/gates/pr-8.json', {})
         self.gh.pr['draft'] = False
         with mock.patch.dict(os.environ, {'AGENT_GATE_BACKEND': 'xcode-cloud'}), \
                 mock.patch.object(gate, 'cloud_workflow', return_value=workflow), \
@@ -250,8 +250,8 @@ class GateTests(unittest.TestCase):
         self.results()
         self.controller.poll(record)
         # A forged store record cannot complete the Issue without the controller's status...
-        forged = dict(self.store.get_json('gates/pr-8.json'), success=False)
-        self.store.put_json('gates/pr-8.json', forged)
+        forged = dict(self.store.get_json('sessions/gates/pr-8.json'), success=False)
+        self.store.put_json('sessions/gates/pr-8.json', forged)
         self.assertFalse(gate.consume_result(4, 'req1', self.gh, self.store))
         self.assertIsNone(self.store.get_json('sessions/4/state.json'))
         # ...and a status written by anyone else does not count.
@@ -276,7 +276,7 @@ class GateTests(unittest.TestCase):
             if len(calls) == 2:
                 self.results()
         gate.watch(self.controller, 30, interval=60, clock=lambda: now[0], sleep=sleep)
-        self.assertEqual(self.store.get_json('gates/pr-8.json')['phase'], 'complete')
+        self.assertEqual(self.store.get_json('sessions/gates/pr-8.json')['phase'], 'complete')
         self.assertEqual(len(calls), 2)
         self.assertEqual(len(self.wakes()), 1)
         # With nothing running the watch returns at once.
