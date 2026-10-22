@@ -35,7 +35,8 @@ class ExactHeadOriginTests(unittest.TestCase):
         record = {'status': 'success', 'commit': self.sha, 'runId': 7, 'retries': 0,
                   'configuration': 'case', 'selection': {'selected': self.ui},
                   'phases': [{'label': 'combined', 'exitCode': 0}]}
-        summary = {'totalTestCount': 3, 'passedTests': 3, 'skippedTests': 0, 'failedTests': 0, 'result': 'Passed'}
+        count = len(self.nodes['testNodes'])
+        summary = {'totalTestCount': count, 'passedTests': count, 'skippedTests': 0, 'failedTests': 0, 'result': 'Passed'}
         with zipfile.ZipFile(self.archive, 'w') as bundle:
             for name, value in [('measurement.json', record), ('combined-summary.json', summary),
                                 ('combined-tests.json', self.nodes)]:
@@ -79,6 +80,18 @@ class ExactHeadOriginTests(unittest.TestCase):
     def test_rejects_changed_workflow_definition(self):
         with self.assertRaisesRegex(ValueError, 'Unapproved'):
             self.check(trusted={'b' * 40})
+
+    def test_explicit_zero_ui_accepts_only_the_complete_unit_result(self):
+        self.ui = []
+        self.nodes['testNodes'] = self.nodes['testNodes'][:1]
+        self.write()
+        self.assertEqual(self.check()['selectedUI'], [])
+
+    def test_zero_ui_cannot_silently_execute_unrequested_ui(self):
+        self.ui = []
+        self.write()
+        with self.assertRaisesRegex(ValueError, 'unexpected'):
+            self.check()
 
 
 if __name__ == '__main__':

@@ -4,7 +4,7 @@
 Mutations exist only in this job's working tree and are restored in finally.
 An expected mutant assertion failure is recorded as detection, never as an app pass.
 """
-from argparse import Namespace
+from argparse import ArgumentParser, Namespace
 import difflib
 import json
 import os
@@ -61,8 +61,12 @@ def build(experiment, label):
 
 
 def main():
+    parser = ArgumentParser()
+    parser.add_argument('--warm-only', action='store_true',
+                        help='Repeat the source-edit experiment after one baseline build/test; no mutant runs')
+    args = parser.parse_args()
     experiment = Experiment(Namespace(profile='grading_boundary_logic_only', warm='none', commands='combined',
-                                      configuration='fast-regression-detection-probe'))
+                                      configuration='warm-worker-repeat' if args.warm_only else 'fast-regression-detection-probe'))
     experiment.data.update(purpose='Quality comparison only; not a timed merge gate',
                            mutations=[], selection={'unit': [m['test'] for m in MUTANTS], 'ui': []})
     experiment.derived = os.environ['RUNNER_TEMP'] + '/DerivedData'
@@ -102,7 +106,7 @@ def main():
         experiment.data['baseline'] = validate_exports(exports['summary'], exports['tests'],
             {m['test'] + '()': 'Passed' for m in MUTANTS}, [], include_ui=False)
         experiment.save()
-        for mutant in MUTANTS:
+        for mutant in ([] if args.warm_only else MUTANTS):
             path = Path(mutant['path'])
             changed = originals[mutant['path']].replace(mutant['old'], mutant['new'], 1)
             (experiment.out / (mutant['id'] + '.patch')).write_text(''.join(difflib.unified_diff(
@@ -158,8 +162,8 @@ def main():
         experiment.data['warmWorkerVerification'].update(
             decisionReadyAt=now(), elapsedSeconds=time.monotonic() - changed_clock)
         experiment.data['restoredBaseline'] = experiment.data['phases'][-1]['validated']
-        experiment.data.update(status='mutation-probes-complete', finishedAt=now(),
-                               restoredSources=True, detectedDefects=2,
+        experiment.data.update(status='warm-worker-complete' if args.warm_only else 'mutation-probes-complete', finishedAt=now(),
+                               restoredSources=True, detectedDefects=len(experiment.data['mutations']),
                                compilationCacheScope='Enabled only in this VM; cross-VM cache persistence not measured',
                                harnessElapsedSeconds=time.monotonic() - experiment.start)
     except Exception as error:

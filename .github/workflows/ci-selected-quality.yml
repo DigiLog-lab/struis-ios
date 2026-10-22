@@ -1,5 +1,5 @@
 name: Selected CI regression detection experiment
-run-name: Selected CI two faults and same-VM build reuse
+run-name: Selected CI repeat warm worker with nine affected UI cases
 
 on:
   push:
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Two concrete faults and restored baseline
+    name: Repeat warm worker all units and nine UI cases
     runs-on: xcode-27
     timeout-minutes: 25
     env:
@@ -51,8 +51,8 @@ jobs:
         run: |
           python3 -m unittest discover -s scripts/ci -p test_benchmark_selected.py
           python3 -m py_compile scripts/ci/probe_selected_quality.py
-      - name: Baseline, two deliberate faults, and restored baseline
-        run: python3 scripts/ci/probe_selected_quality.py
+      - name: Baseline preparation and warm worker repeat
+        run: python3 scripts/ci/probe_selected_quality.py --warm-only
       - name: Save expected failures and full evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
