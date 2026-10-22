@@ -172,7 +172,8 @@ class GateTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 agentctl.cmd_finalize(None)
         gh.request.assert_called_once()
-        self.assertIn('/actions/workflows/agent.yml/dispatches', gh.request.call_args.args[1])
+        self.assertTrue(gh.request.call_args.args[1].endswith('/dispatches'))
+        self.assertEqual(gh.request.call_args.args[2]['event_type'], 'agent-issue')
         upload.assert_not_called()
         body = gh.comment.call_args.args[1]
         self.assertNotIn('secret-result', body)

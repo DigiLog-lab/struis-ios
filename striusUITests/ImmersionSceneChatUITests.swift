@@ -241,30 +241,31 @@ final class ImmersionSceneChatUITests: XCTestCase {
         }
         if !manipulated { UITestSupport.saveProbe(app, name: "immersion-no-manipulation") }
         XCTAssertTrue(manipulated, "なぞる操作で介入が成立しなかった")
-        advance.tap()
+        // ここからは段が切り替わるたびにボタンが動くので、止まってから押す(tapWhenSettled)。
+        advance.tapWhenSettled()
         XCTAssertTrue(app.staticTexts["予想と、結果。"].appears(timeout: 5))
 
         // consequence → insight: 即答の再試行 (選択肢は誤予想由来)
-        app.buttons["もう一度予想する"].tap()
+        app.buttons["もう一度予想する"].tapWhenSettled()
         XCTAssertTrue(app.staticTexts["氷が全部溶けて 2 倍の量になったら、甘さは?"].appears(timeout: 5))
-        app.buttons["半分"].tap()
+        app.buttons["半分"].tapWhenSettled()
 
         // 圧縮が使えたら支援なしの転移へ
         let toTransfer = app.buttons["支援なしで試してみる"]
         XCTAssertTrue(toTransfer.appears(timeout: 5))
-        toTransfer.tap()
+        toTransfer.tapWhenSettled()
         let transferField = app.textFields["答えだけここに"]
         XCTAssertTrue(transferField.appears(timeout: 5))
         transferField.tap()
         transferField.typeText("half")
-        app.buttons["答えを置く"].tap()
+        app.buttons["答えを置く"].tapWhenSettled()
 
         // 転移の答えを置いたら境界の二択、そして終了
         let toBoundary = app.buttons["区切りを確認する"]
         XCTAssertTrue(toBoundary.appears(timeout: 5))
-        toBoundary.tap()
+        toBoundary.tapWhenSettled()
         XCTAssertTrue(app.buttons["もう少し続ける"].appears(timeout: 5))
-        app.buttons["今日はここまで"].tap()
+        app.buttons["今日はここまで"].tapWhenSettled()
         XCTAssertTrue(app.staticTexts["今日はここまで。"].appears(timeout: 5))
     }
 }

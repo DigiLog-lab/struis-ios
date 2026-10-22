@@ -53,6 +53,8 @@ final class Issue10ScreenshotUITests: XCTestCase {
     @MainActor
     func testProblemCaptureAndAllCorrectResult() throws {
         let app = UITestSupport.deviceApp()
+        // 撮影の途中には何もしない(完了を待ってから次へ進む)ので、偽カメラの完了までの間は短くする。
+        app.launchEnvironment["STRUIS_TEST_CAPTURE_FINISH_SECONDS"] = UITestSupport.captureFinishSecondsWithoutRace
         app.launchEnvironment["STRUIS_MOCK_GRADING_LAST_ONLY"] = "1"
         app.launch()
         let row = element(app, "workbook-subunit-sub-1")
@@ -103,7 +105,9 @@ final class Issue10ScreenshotUITests: XCTestCase {
         let input = app.textViews.matching(identifier: "chat-page").firstMatch
         input.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).tap()
         input.typeText("積分の途中を見て")
-        let send = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == %@", "送信", "chat-page")).firstMatch
+        // Resolve from a complete query snapshot. firstMatch's lazy traversal
+        // stalled for nearly two minutes on CI's iOS 27 accessibility tree.
+        let send = app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == %@", "送信", "chat-page")).element(boundBy: 0)
         XCTAssertTrue(send.appears(timeout: 10))
         send.press(forDuration: 0.15)
 

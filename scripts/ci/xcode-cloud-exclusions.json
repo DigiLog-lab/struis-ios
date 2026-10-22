@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "methods": [
+    {"test": "striusUITests/testLaunchPerformance", "reason": "起動時間を測る性能テスト。門ではUIテストを並列に流すので値が意味を持たない。直列で流すReleaseと手元検証で実行する。", "source": "striusUITests/striusUITests.swift"}
+  ]
+}

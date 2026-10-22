@@ -1,5 +1,5 @@
 name: Agent prototype
-run-name: "${{ inputs.operation == 'register-slots' && 'Prototype slots' || format('Prototype #{0} {1}', inputs.issue, inputs.variant) }}"
+run-name: "${{ (inputs.operation || github.event.client_payload.operation) == 'register-slots' && 'Prototype slots' || format('Prototype #{0} {1}', (inputs.issue || github.event.client_payload.issue), (inputs.variant || github.event.client_payload.variant)) }}"
 
 # Builds one Ad Hoc prototype (prototype/{issue}/{variant}) with its own Bundle
 # IDs and App Group, uploads the IPA to the agent store and posts an expiring
@@ -33,12 +33,15 @@ on:
         description: register-slots で用意する枠の数
         type: string
         default: '9'
+  # agentctl prototype-build sends this with only contents: write.
+  repository_dispatch:
+    types: [agent-prototype]
 
 permissions:
   contents: read
 
 concurrency:
-  group: agent-prototype-${{ inputs.operation }}-${{ inputs.issue }}-${{ inputs.variant }}
+  group: agent-prototype-${{ (inputs.operation || github.event.client_payload.operation) }}-${{ (inputs.issue || github.event.client_payload.issue) }}-${{ (inputs.variant || github.event.client_payload.variant) }}
   cancel-in-progress: false
 
 env:
@@ -47,7 +50,7 @@ env:
 
 jobs:
   register-slots:
-    if: inputs.operation == 'register-slots'
+    if: (inputs.operation || github.event.client_payload.operation) == 'register-slots'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: prototype-distribution
@@ -64,11 +67,11 @@ jobs:
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          SLOT_COUNT: ${{ inputs.slot_count }}
+          SLOT_COUNT: ${{ (inputs.slot_count || github.event.client_payload.slot_count) }}
         run: python3 scripts/agent/prototype.py register-slots --count "$SLOT_COUNT"
 
   build:
-    if: inputs.operation == 'build'
+    if: (inputs.operation || github.event.client_payload.operation) == 'build'
     runs-on: xcode-27
     timeout-minutes: 200
     environment: prototype-distribution
@@ -77,11 +80,11 @@ jobs:
       issues: write
       id-token: write
     env:
-      ISSUE: ${{ inputs.issue }}
-      VARIANT: ${{ inputs.variant }}
-      REF: ${{ inputs.ref }}
-      TITLE: ${{ inputs.title }}
-      SUMMARY: ${{ inputs.summary }}
+      ISSUE: ${{ (inputs.issue || github.event.client_payload.issue) }}
+      VARIANT: ${{ (inputs.variant || github.event.client_payload.variant) }}
+      REF: ${{ (inputs.ref || github.event.client_payload.ref) }}
+      TITLE: ${{ (inputs.title || github.event.client_payload.title) }}
+      SUMMARY: ${{ (inputs.summary || github.event.client_payload.summary) }}
     steps:
       - name: 入力を検証
         run: |
@@ -91,7 +94,7 @@ jobs:
           [[ "$REF" == "prototype/$ISSUE/$VARIANT" ]] || { echo "::error::ref must be prototype/$ISSUE/$VARIANT"; exit 1; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ (inputs.ref || github.event.client_payload.ref) }}
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -184,7 +187,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: prototype-${{ inputs.issue }}-${{ inputs.variant }}-run-${{ github.run_id }}
+          name: prototype-${{ (inputs.issue || github.event.client_payload.issue) }}-${{ (inputs.variant || github.event.client_payload.variant) }}-run-${{ github.run_id }}
           path: ${{ runner.temp }}/prototype/record.json
           if-no-files-found: ignore
           retention-days: 30

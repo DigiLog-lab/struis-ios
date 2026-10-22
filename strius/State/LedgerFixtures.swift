@@ -9,7 +9,10 @@ nonisolated enum LedgerFixtures {
         let empty = (try? await ledger.read { db in try WorkbookUnitRecord.fetchCount(db) == 0 }) ?? false
         // 単元の無い初回(オンボーディング → 単元づくり)を確かめる時は入れない。
         guard empty, !ProcessInfo.processInfo.arguments.contains("-workbook-empty") else { return }
-        let introduction = ProcessInfo.processInfo.arguments.contains("-workbook-model-stage")
+        let arguments = ProcessInfo.processInfo.arguments
+        let introduction = arguments.contains("-workbook-model-stage")
+        // 例題の段から始める(要点の段を通らない)。例題そのものを確かめる UI テスト用。
+        let example = arguments.contains("-workbook-example-stage")
         try? await ledger.commit { db in
             var machine = try WorkbookMachine(loading: db)
             var ids = ["unit-1", "sub-1", "sub-2", "sub-3"]
@@ -22,8 +25,11 @@ nonisolated enum LedgerFixtures {
                     WorkbookMachine.SubunitSpec(title: "最大値・最小値が求められる", outcome: "定義域つきで最大最小を求める", n: 6, scoringUnit: "1問ごとに正誤"),
                 ],
                 overview: .object(["unit_title": .string("二次関数"), "outcome": .string("二次関数の基本問題が自力で解ける")]),
-                firstStage: introduction ? 1 : 3
+                firstStage: example ? 2 : (introduction ? 1 : 3)
             )
+            if arguments.contains("-workbook-practice-ready") {
+                try seedReadyPractice(&machine, subunitID: "sub-1")
+            }
             if ProcessInfo.processInfo.arguments.contains("-texture-demo") {
                 seedDemoCaptures(&machine)
             }
@@ -36,6 +42,29 @@ nonisolated enum LedgerFixtures {
             }
             return (machine.events + chatEvents, ())
         }
+    }
+
+    /// 分割採点の UI テストの準備: 類題に合格し、演習の一枚(5 問)を開いた状態にする。
+    /// 画面で行う操作と同じ規則(WorkbookMachine)を通し、射影を直接書き換えない。
+    static func seedReadyPractice(_ machine: inout WorkbookMachine, subunitID: String) throws {
+        let firstSpec = try machine.nextSetSpec(subunitID: subunitID)
+        let firstSet = machine.insertGeneratingSet(subunitID: subunitID, spec: firstSpec)
+        let firstIDs = machine.addProblems(subunitID: subunitID,
+            problems: [.init(prompt: "類題: y = x^2 - 2x の頂点の座標を求めよ")], source: "generated")
+        machine.fillSet(setID: firstSet, problemIDs: firstIDs)
+        let captureID = LedgerID.make()
+        _ = try machine.createCapture(id: captureID, imagePath: "ci-setup.jpg", contentType: "image/jpeg",
+            sha256: "0", byteCount: 1, subunitID: nil, setID: firstSet)
+        let context = machine.gradingContext(capture: machine.captures[captureID]!)
+        _ = try machine.applyGradingResult(captureID: captureID,
+            graded: .init(readable: true, items: firstIDs.map {
+                .init(label: "問1", promptText: "", matchedProblemId: $0, verdict: "correct", errorTag: "", note: "")
+            }, candidates: [], newSubunit: nil, note: ""), context: context)
+        let spec = try machine.nextSetSpec(subunitID: subunitID)
+        let setID = machine.insertGeneratingSet(subunitID: subunitID, spec: spec)
+        let ids = machine.addProblems(subunitID: subunitID,
+            problems: (0..<spec.count).map { .init(prompt: "演習 \($0 + 1): 頂点の座標を求めよ") }, source: "generated")
+        machine.fillSet(setID: setID, problemIDs: ids)
     }
 
     /// 固まらないことの確認用(E2E H2): 小単元 1 の会話に、数式入りの返事と全体像カードを含む 40 往復を入れる。

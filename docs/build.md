@@ -12,7 +12,7 @@ Xcodeの参照とターゲットはソースに含まれており、通常の導
 
 実機archiveにはApple Developerの署名チーム、`com.digiloglab.strius`とworkerのBundle ID、`group.com.digiloglab.struis.runtime`のApp Groups entitlementを設定します。既存データの検証では同じ識別子を維持してください。
 
-GitHub Actionsの`.github/workflows/ios.yml`は標準の`xcode-27` runnerを使用します。`main`へのpushとpull requestでは、`agent-native-cache.yml`およびプロトタイプと同じ固定依存のActions cacheを使用します。cache hit時はNative Runtimeの再生成を省略し、miss時はREADMEのbootstrapを実行してcacheを保存します。いずれの場合もarm64 Simulator buildと単体テストを実施し、`-collect-test-diagnostics never`で長時間のSimulator診断収集を抑制します。`main`へのpushと手動実行では、Actions Secretsから署名を供給してdevice archiveを作成し、実bundleの署名・同梱資源・リンクマップを監査します。pull requestのコードには署名・配信の秘密値を渡しません。archive、IPA、秘密設定と実行ログは公開artifactへアップロードしません。CIのsummaryに元commit、version、buildと検証結果だけを記録します。
+GitHub Actionsの`.github/workflows/ios.yml`は標準の`xcode-27` runnerを使用します(門の予備・`ios-verify`ラベルの診断・手動の配布。mainへのpushでは動きません)。実行時は、`agent-native-cache.yml`およびプロトタイプと同じ固定依存のActions cacheを使用します。cache hit時はNative Runtimeの再生成を省略し、miss時はREADMEのbootstrapを実行してcacheを保存します。いずれの場合もarm64 Simulator buildと単体テストを実施し、`-collect-test-diagnostics never`で長時間のSimulator診断収集を抑制します。mainでの手動実行では、Actions Secretsから署名を供給してdevice archiveを作成し、実bundleの署名・同梱資源・リンクマップを監査します。pull requestのコードには署名・配信の秘密値を渡しません。archive、IPA、秘密設定と実行ログは公開artifactへアップロードしません。CIのsummaryに元commit、version、buildと検証結果だけを記録します。
 
 `.github/workflows/ios-cold.yml`は週1回（日曜12:00 JST）または手動実行で公開リポジトリを認証なしで新規cloneし、`GITHUB_SHA`のcommitと空の依存cacheを確認してからREADMEのbootstrap・arm64 Simulator build・単体テストを実行します。こちらはNative RuntimeのActions cacheを使用しません。公開ソースの完全クリーンビルドを配布前に確認する場合は、このWorkflowを`main`で手動実行してください。
 

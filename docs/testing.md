@@ -32,25 +32,58 @@ HTTP bootstrapの同時読込テストは認証有効のビルドを前提にし
 
 実キーなしで Simulator の配線を確かめる場合は、`scripts/e2e/fake_anthropic.py`(現行の Claude が拒む要求の形を 400 で返す模擬サーバー)と `scripts/e2e/standin_assets.py`(配信の代わりの最小の prompt・schema)を使い、DEBUG の Simulator に `STRUIS_ANTHROPIC_BASE_URL=http://127.0.0.1:8787`・`STRUIS_DEVICE_ASSETS_DIR=<出力先>` を渡します。模擬サーバーの返事は決まった文で、Claude の答えの質の確認にはなりません。Simulator は App Attest を使えないため、実キーで確認する場合は 0600 の作業コピーを `STRUIS_DEBUG_ANTHROPIC_KEY_FILE` で渡します(DEBUG の Simulator のみ。端末向けのビルドにはこの経路が入りません)。実機は App Attest で Anthropic から token を受け取ります。token 取得の手順(チャレンジ・登録・交換・401 での取り直し)は `ClaudeAppAttestTests` が模擬の Apple・Anthropic で確かめ、Apple の本物の attestation は実機で確かめます。`STRUIS_CLAUDE_PROXY_DUMP_DIR` を付けると、変換前後の要求(画像は省略)を書き出します。
 
-## CIでのUIテストの範囲と割り当て(Issue #22 の 7、引き継ぎ 2.3)
+## マージ前に回すテストの範囲(2026-10-22 の方針)
 
-`iOS` workflowは、UIテストをテストメソッド単位で複数のrunnerへ割り当てて並行に実行します。runnerごとにSimulatorは1台です(`xcode-27`の標準runnerは3コア・メモリ7GBで、1台の中で並列にすると遅くなるため)。
+PR ごとに、単体テスト全部と、変更が当たった「契約」のUIテストだけをマージ前に回します。夜間の全件実行はしません。UIテストに件数の上限はなく、選ばれた分は全部回します。狭い変更なら約10分、`ChatView.swift` と `ChatStore.swift` を一緒に触るような広い変更は20〜30分かかります。
 
-実行する範囲は2段階です。
+理由は費用の構造です。単体テスト約400件の本体は25秒ですが、UIテストは1件20〜45秒かかり、全件では30分を超えます(2026-10-21〜22 の実測、`docs/ci-experiments/` は実験ブランチ `experiment/ci-overnight-20261022` にあります)。夜間の全件実行は「選び方を信用していない」ための保険で、失敗しても通知されず、変更のない日も回っていたのでやめました。その代わり、契約表の漏れはそのまま見逃しになるので、表は「迷ったら契約に入れる」向きに作ります。
 
-| 段階 | いつ | 何を | runner |
-|---|---|---|---|
-| `pr` | PR、エージェントのCI要求(`workflow_dispatch` で main 以外)、手動の既定 | 学習の流れを通すE2Eのクラス(`pr`)+ 変更したファイルに対応するクラス(`paths`) | 2 |
-| `full` | 毎日 03:00 JST(`schedule`)、手動で `ui_tier=full`、手動の main(配布) | すべてのUIテスト | 3 |
-| なし | mainへのpush | UIテストは回さない(PRで変更に関係するクラスを回し済み。全件は毎晩) | 0 |
+### テストの層
 
-- 割り当ては`scripts/ci/ui_test_plan.py`が`scripts/ci/ui-test-plan.json`を読んで決めます。所要時間の長いテストから順に、合計時間が最も短いrunnerへ入れます。
-- `shards`: 段階ごとのrunnerの数。macOSのrunnerは同時に5台までで、エージェント本体や他のCIと共有するため、PRは2、全件は3にしています。PRでも全件が選ばれた時(全件に影響する変更)は全件のrunner数で分けます。
-- `durations`: テストメソッドごとの所要秒数(CIの実測値。2026-10-18〜19 の緑の run 2 回の大きい方)。載っていないテストは60秒として扱います。テストが大きく変わったら更新します。
-- `pr`: PRのCIで必ず実行するテストクラス(単元作成 → 一枚 → 撮影 → 判定、質問シートの会話、端末完結の問題集ループ)。
-- `paths`: `{"変更ファイルのglob": ["テストクラス", ...]}`。PRで変更したファイルが一致すれば、そのクラスも実行します。`["*"]` はすべて(どのテストにも影響しうる変更: `strius/App`、`strius/Design`、`strius/Auth`、`strius.xcodeproj`、`scripts/ci`、`ios.yml`)。`striusUITests/<クラス>.swift` を変えればそのクラス、`UITestSupport.swift` を変えればすべてが走ります(対応表に書かなくてもよい)。
-- 見積もり(2026-10-19 の実測から): 全件は 3 runner で各 15 分弱、PRの最小構成(E2E のみ)は 2 runner で各 5 分、`strius/Features/Chat` を変えたPRで各 13 分。単体テストと archive 検証の `build` job(約 15 分)と並行に走るので、PRのCIはおよそ 15〜20 分で終わります。
-- 各runnerは、テストの前にUIテスト用のビルドをしてSimulatorを起動し、アプリを一度起動しておきます。新しいrunnerでは最初の起動に40秒以上(一度は3分以上)かかり、最初のテストの時間上限を使い切ってしまうためです。
-- 各runnerの結果は`ios-ui-test-results-<実行ID>-<再実行番号>-<runner番号>`のartifactに保存します(xcresult と、落ちた時の画面の写真・要素の木 `ui-probe`)。runnerごとに終わるので、他のrunnerの実行中でも終わった分の結果を見られます。
-- 署名付きarchive(配信)は、mainのpushでは`build` job(単体テスト)が通った後に作ります(#32 より前と同じ)。手動の main(配布)では全件のUIテストが通った後に作ります。
-- mainへのpushで全件を回さないのは、macOSのrunnerが同時に5台までのためです。マージのたびに全件(3 runner + build)を約30分回すと、開いているPRのCIがその間待たされました(2026-10-19、#32 のマージ直後に3本のPRのjobが待ちになった)。
+| 層 | いつ | 何を |
+|---|---|---|
+| 毎PR | 毎回 | 単体テスト全部 |
+| 毎PR | 契約に当たった時だけ | 契約のUIテスト(`scripts/ci/ui-test-plan.json` の `contracts`) |
+| 手動 | TestFlight 配信の前、その機能を変えた時 | 実機・実Codex・実通信が要るUIテスト、画像を目で見て確かめるUIテスト(`manual`。理由つき) |
+| 外す | ― | 起動テンプレート、起動時間の計測、操作の道具(`excluded`。理由つき) |
+
+単体テストの既知の skip(実ランタイム・実通信)も毎PRでは確かめていない範囲です。手動の層と同じく、その機能を変えた時に環境を用意して回します。skip のまま成功扱いにはしません。
+
+### 契約と選び方
+
+`scripts/ci/ui_test_plan.py --list` が、main との差分のファイルから選びます。
+
+1. 契約(`contracts`)ごとに、守る性質・UIテスト・対応するファイル(`paths`)を書きます。変更したファイルが当たった契約のUIテストを全部選び、複数当たれば和をとります。
+2. `everything` に当たる変更(`strius/Design`、`strius/App`、`strius/Auth`、`strius/Resources`、`Info.plist`、`Config`、固定応答の `MockTurnRunner.swift`、台帳の fixture、`ios.yml`、選び方そのもの)は全契約です。
+3. `strius.xcodeproj/project.pbxproj` は、差分がファイル参照の追加・削除だけなら何も足さず(足したファイル自身が契約を選ぶ)、ビルド設定などが変わる時は全契約です。
+4. 契約にないファイルは `folders` の既定(フォルダごと、最初に当たったもの)で選びます。`guarded`(アプリと UI テストのソース)にあって、どの規則にも当たらないファイルがあると計画は止まります。新しいファイルは表に足して、選ぶUIテストを決めてから進めます。
+5. `striusUITests/` のテストのファイルを変えると、そこに書かれた契約のUIテストを選びます。テストクラスの無い共通コード(`UITestSupport.swift` など)を変えると全契約です。
+6. 見つかったUIテストは、どれかの契約か、`manual`・`excluded` のどれかに必ず入っていなければなりません。どこにも無い新しいテストがあると計画は止まります。
+7. 選び方の表とスクリプトを変えた PR は、全契約を回します(PR が自分の検証を軽くできないようにするため)。
+
+UIテストが0件の時は `-only-testing:striusTests` だけを渡します。空の絞り込みのまま `xcodebuild` を呼ぶと全件が走るためです。
+
+### 実行の形
+
+門は GitHub の `iOS` workflow(`verify` ジョブ)で、ビルド1回とテスト1回だけを回します。エージェントの完了前の手元検証(`scripts/agent/delivery.py` の `local_verify`)も同じ形です。
+
+- `build-for-testing` を1回、`test-without-building` を1回。単体テストと選んだUIテストを1つのコマンドで流します。
+- テストの時は署名を外しません(`CODE_SIGNING_ALLOWED=NO` を渡さない)。外した試行で `ClaudeAppAttestTests` が1件落ちたためです(2026-10-22)。
+- Simulator は1台、並列にしません(`xcode-27` の runner は3コア・7GBで、1台の中で並列にすると遅く、不安定になった)。
+- 結果は `ios-test-results-<実行ID>-<再実行番号>` の artifact に保存します(xcresult と、落ちた時の画面の写真・要素の木 `ui-probe`)。門の時は、実行したテストの一覧を `ios-gate-tests-…-verify` に保存し、制御ジョブが必要なテストと照合します。
+- 手動の全件実行(`ui_tier=full`、または main での手動実行)は、従来どおり3台の runner に分けて流します(`build` + `ui-tests` ジョブ)。
+
+### 時間を縮めるための fixture
+
+同じ道筋を毎回最初からたどらないよう、必要な状態から始める起動の引数があります。準備は画面と同じ規則(`WorkbookMachine`)を通し、射影を直接書き換えません。
+
+| 引数 | 始まる状態 | 使うテスト |
+|---|---|---|
+| `-workbook-practice-ready` | 類題に合格し、演習の一枚(5問)が開いている | 分割採点の3本。準備が正しいことは単体テスト `WorkbookPracticeFixtureTests` が確かめる |
+| `-workbook-example-stage` | 小単元1が例題の段 | `testSendingCollapsesExampleBar`、`testExampleAdvanceAppearsOnlyAfterModelMarksReady`。要点から「先に進む」までは `testExampleStageBarsComposerAndFloatingAdvance` が確かめる |
+
+返事の後ろの記録を待つテスト(`ReplyTailUITests`)は、確かめ終わった時点でテストから合図(Darwin 通知)を送り、記録を終わらせます。決まった時間だけ待つと、確かめ終わった後もその残り(偽の記録40秒の残り約33秒)を毎回待っていました。
+
+### 導入後に測ること
+
+導入から2週間、PRの「push から必須チェックが出るまで」の時間、選ばれたUIの件数(全契約に倒れた割合と、その原因のファイル)、マージ後に見つかった見逃し、同じ HEAD で再実行したら通った不安定な失敗を記録します。全契約に倒れる原因は `MockTurnRunner.swift` と大きいファイル(`ChatView.swift`、`ChatStore.swift`)だと見ています(main の最近の変更を当て直すと、全契約になった7件のうち3件が `MockTurnRunner.swift` によるもの)。その時は、ファイルを契約の単位に分けることを次の改善にします。

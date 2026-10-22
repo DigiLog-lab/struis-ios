@@ -1,114 +1,292 @@
 {
+  "schema": 2,
   "shards": {
-    "pr": 2,
     "full": 3
   },
-  "pr": [
-    "WorkbookE2EFixesUITests",
-    "DeviceWorkbookUITests",
-    "DeviceChatUITests",
-    "MinimumLoopE2ETests",
-    "E2EDriverUITests"
+  "contracts": {
+    "conversation-scroll": {
+      "property": "会話の表示とスクロール: 指を離した後に跳ばない、数式の上からも動く、応答で読み返し位置を奪わない、長い会話で止まらない",
+      "tests": [
+        "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts",
+        "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation",
+        "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger",
+        "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation",
+        "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways",
+        "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives",
+        "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze",
+        "striusUITests/testHorizontalSwipesKeepTheSingleChatPage",
+        "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply"
+      ],
+      "paths": [
+        "strius/Features/Chat/ChatView.swift",
+        "strius/Features/Chat/ChatTimeline.swift",
+        "strius/Features/Chat/MessageBubble.swift",
+        "strius/Features/Chat/KaTeXMathText.swift",
+        "strius/Features/Chat/NativeMathText.swift",
+        "strius/Features/Chat/MathTextLayout.swift",
+        "strius/Features/Chat/MathPlainText.swift",
+        "strius/Features/Chat/MathSourceNormalizer.swift",
+        "strius/Features/Chat/StruisMarkedSpans.swift",
+        "strius/Features/Workbook/WorkbookSubunitView.swift",
+        "strius/Engine/ConversationExpressions.swift",
+        "strius/Ledger/ChatRepository.swift"
+      ]
+    },
+    "reply-tail": {
+      "property": "返事の後ろの記録: 記録中も送信と「先に進む」ができ、前の返事を止めない",
+      "tests": [
+        "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+        "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+        "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady"
+      ],
+      "paths": [
+        "strius/Features/Chat/ChatStore.swift",
+        "strius/Features/Chat/ChatComposer.swift",
+        "strius/Features/Chat/ChatView.swift",
+        "strius/State/ChatTurnCoordinator.swift",
+        "strius/State/ChatTurnRecovery.swift",
+        "strius/State/TurnCoordinator.swift",
+        "strius/State/TurnActivity.swift",
+        "strius/Engine/ChatTurns.swift",
+        "strius/Engine/TurnComposer.swift",
+        "strius/Engine/TurnProgress.swift",
+        "strius/Engine/TurnActivityLabels.swift",
+        "strius/Engine/LearnerText.swift",
+        "strius/Runtime/TurnPlan.swift",
+        "strius/Runtime/TurnClock.swift"
+      ]
+    },
+    "subunit-stage": {
+      "property": "小単元の段と例題: 未入力で導入が始まる、例題の固定と畳み方、単元カードの正解数",
+      "tests": [
+        "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned",
+        "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance",
+        "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar",
+        "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched"
+      ],
+      "paths": [
+        "strius/Features/Workbook/WorkbookSubunitView.swift",
+        "strius/Features/Workbook/WorkbookComponents.swift",
+        "strius/Features/Workbook/WorkbookExampleWait.swift",
+        "strius/Features/Workbook/WorkbookUnitView.swift",
+        "strius/Features/Workbook/WorkbookQuestionScreen.swift",
+        "strius/State/ChatKickoff.swift",
+        "strius/State/ExamplePrefetch.swift",
+        "strius/State/UnitPrefetch.swift",
+        "strius/Engine/LearnerText.swift",
+        "strius/DTO/WorkbookDTO.swift"
+      ]
+    },
+    "workbook-grading": {
+      "property": "問題集の生成・撮影・採点: 一枚を作って撮ると結果が出る、撮り足しと途中締切、複数枚が1つの答案になる",
+      "tests": [
+        "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately",
+        "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult",
+        "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+        "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+        "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer"
+      ],
+      "paths": [
+        "strius/Features/Workbook/WorkbookStore.swift",
+        "strius/Features/Workbook/WorkbookSetView.swift",
+        "strius/Features/Workbook/WorkbookProblemView.swift",
+        "strius/Features/Workbook/WorkbookVerdictView.swift",
+        "strius/Features/Workbook/WorkbookCaptureFlow.swift",
+        "strius/Features/Workbook/WorkbookAnswerRegions.swift",
+        "strius/Features/Workbook/WorkbookGradingStage.swift",
+        "strius/Features/Workbook/WorkbookTriageView.swift",
+        "strius/Engine/WorkbookRules.swift",
+        "strius/Engine/AttachmentStaging.swift",
+        "strius/DTO/WorkbookDTO.swift",
+        "strius/Networking/WorkbookEndpoints.swift"
+      ]
+    },
+    "camera-attachment": {
+      "property": "カメラと画像添付: 回転と開き直し、撮影完了前の取消、2枚が再起動後も残る",
+      "tests": [
+        "ChatCameraUITests/testCameraAndChatPreservation",
+        "ChatCameraUITests/testCameraRotationAndReopening",
+        "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing",
+        "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment",
+        "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch"
+      ],
+      "paths": [
+        "strius/Features/Chat/ChatCamera.swift",
+        "strius/Features/Chat/AttachmentIntake.swift",
+        "strius/Features/Chat/ChatComposer.swift",
+        "strius/Features/Chat/ChatView.swift",
+        "strius/Engine/AttachmentStaging.swift"
+      ]
+    },
+    "immersion": {
+      "property": "没頭シーン: 質問して同じ画面に戻る、候補変更、触らないと進まない",
+      "tests": [
+        "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
+        "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
+        "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes"
+      ],
+      "paths": [
+        "strius/Features/ImmersionLab/**"
+      ]
+    },
+    "subunit-header": {
+      "property": "小単元ヘッダー: スワイプとタップで開閉し、再起動後も保つ",
+      "tests": [
+        "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap",
+        "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle"
+      ],
+      "paths": [
+        "strius/Features/Workbook/WorkbookSubunitHeader.swift"
+      ]
+    },
+    "home-deletion": {
+      "property": "ホームと単元の削除: 最近の行と撮影ボタン、削除の確認と取消、空の状態",
+      "tests": [
+        "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton",
+        "UnitDeletionUITests/testLargeTextConfirmationAndCancel",
+        "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState"
+      ],
+      "paths": [
+        "strius/Features/Workbook/WorkbookHomeView.swift",
+        "strius/Features/Workbook/UnitCatalog.swift",
+        "strius/Features/Workbook/WorkbookProposalCard.swift",
+        "strius/Ledger/UnitDeletion.swift"
+      ]
+    },
+    "chat-wiring": {
+      "property": "質問から応答まで: 通常に近い起動で質問から応答まで配線され、私的ブロックが出ない",
+      "tests": [
+        "DeviceChatUITests/testQuestionTurnWithMockModel"
+      ],
+      "paths": [
+        "strius/State/BootstrapStore.swift",
+        "strius/Engine/TutorMemory.swift",
+        "strius/Engine/LearningProgress.swift",
+        "strius/Features/Chat/LearningProgressSheet.swift"
+      ]
+    },
+    "settings-runtime-export": {
+      "property": "設定・ランタイム・書き出し: 使用量の既定オフ、台帳の書き出し、ランタイム起動、会話のコピー",
+      "tests": [
+        "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff",
+        "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts",
+        "ConversationExportUITests/testCopyConversation"
+      ],
+      "paths": [
+        "strius/Features/Settings/**",
+        "strius/Ledger/LedgerArchive.swift",
+        "strius/State/UsageReporter.swift",
+        "strius/Features/Chat/ChatView.swift"
+      ]
+    },
+    "onboarding": {
+      "property": "初回設定: 初回設定から最初の単元に着き、再起動で繰り返さない",
+      "tests": [
+        "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain"
+      ],
+      "paths": [
+        "strius/Features/Onboarding/**",
+        "strius/Features/Workbook/UnitCreationDecomposer.swift",
+        "strius/Features/Workbook/UnitCreationSieve.swift",
+        "strius/Features/Workbook/WorkbookProposalCard.swift"
+      ]
+    }
+  },
+  "everything": [
+    "strius/Design/**",
+    "strius/App/**",
+    "strius/Auth/**",
+    "strius/Resources/**",
+    "strius/Assets.xcassets/**",
+    "strius/striusApp.swift",
+    "strius/*.h",
+    "Info.plist",
+    "Config/**",
+    "strius/Runtime/MockTurnRunner.swift",
+    "strius/State/SimulatorFixtures.swift",
+    "strius/State/LedgerFixtures.swift",
+    ".github/workflows/ios.yml",
+    "strius.xcodeproj/**",
+    "scripts/ci/ui-test-plan.json",
+    "scripts/ci/ui_test_plan.py"
   ],
-  "paths": {
+  "folders": {
     "strius/Features/Chat/**": [
-      "ChatScrollStabilityUITests",
-      "ChatCameraUITests",
-      "ChatImmediateImageSendUITests",
-      "ChatPhysicalImageSendUITests",
-      "ChatTypingExperienceUITests",
-      "ReplyTailUITests",
-      "ConversationExportUITests",
-      "Issue10ScreenshotUITests",
-      "LearningProgressUITests",
-      "WorkbookSplitGradingUITests",
-      "ImmersionSceneChatUITests"
+      "conversation-scroll",
+      "reply-tail",
+      "camera-attachment"
     ],
     "strius/Features/Workbook/**": [
-      "WorkbookSubunitLayoutUITests",
-      "WorkbookSubunitHeaderUITests",
-      "WorkbookSplitGradingUITests",
-      "WorkbookHomeUITests",
-      "UnitDeletionUITests",
-      "Issue10ScreenshotUITests",
-      "ReplyTailUITests",
-      "ChatScrollStabilityUITests"
+      "subunit-stage",
+      "workbook-grading",
+      "subunit-header",
+      "home-deletion"
     ],
-    "strius/Features/ImmersionLab/**": [
-      "ImmersionSceneChatUITests"
+    "strius/Features/ProblemCatalog/**": [],
+    "strius/Features/Workspace/**": [],
+    "strius/Engine/**": [
+      "reply-tail",
+      "workbook-grading"
     ],
-    "strius/Features/Onboarding/**": [
-      "striusUITests",
-      "striusUITestsLaunchTests"
-    ],
-    "strius/Features/Settings/**": [
-      "DeviceLedgerSettingsUITests",
-      "DeviceRuntimeUITests"
-    ],
-    "strius/Runtime/**": [
-      "DeviceRuntimeUITests",
-      "DeviceChatUITests",
-      "DeviceWorkbookUITests"
-    ],
-    "strius/Runtime/MockTurnRunner.swift": [
-      "*"
-    ],
-    "NativeRuntime/**": [
-      "DeviceRuntimeUITests"
+    "strius/State/MainThreadWatchdog.swift": [],
+    "strius/State/**": [
+      "reply-tail",
+      "subunit-stage"
     ],
     "strius/Ledger/**": [
-      "DeviceLedgerSettingsUITests",
-      "ConversationExportUITests",
-      "UnitDeletionUITests",
-      "ChatImmediateImageSendUITests",
-      "WorkbookHomeUITests"
+      "camera-attachment",
+      "home-deletion",
+      "settings-runtime-export"
     ],
-    "strius/State/**": [
-      "ChatScrollStabilityUITests",
-      "ReplyTailUITests",
-      "WorkbookSubunitLayoutUITests",
-      "LearningProgressUITests",
-      "WorkbookHomeUITests",
-      "UnitDeletionUITests"
+    "strius/Runtime/**": [
+      "chat-wiring",
+      "settings-runtime-export"
     ],
-    "strius/State/ChatTurnCoordinator.swift": [
-      "ChatImmediateImageSendUITests"
+    "strius/DTO/**": [
+      "subunit-stage",
+      "workbook-grading",
+      "chat-wiring"
     ],
-    "strius/Engine/**": [
-      "WorkbookSplitGradingUITests",
-      "WorkbookSubunitLayoutUITests",
-      "Issue10ScreenshotUITests"
+    "strius/Networking/**": [
+      "chat-wiring",
+      "immersion"
     ],
-    "strius/Engine/ChatTurns.swift": [
-      "ChatImmediateImageSendUITests"
+    "strius/Delivery/**": [
+      "chat-wiring"
     ],
-    "strius/App/**": [
-      "*"
-    ],
-    "strius/Design/**": [
-      "*"
-    ],
-    "strius/Resources/**": [
-      "*"
-    ],
-    "strius/Auth/**": [
-      "*"
-    ],
-    "strius/striusApp.swift": [
-      "*"
-    ],
-    "Info.plist": [
-      "*"
-    ],
-    "strius.xcodeproj/**": [
-      "*"
-    ],
-    "scripts/ci/**": [
-      "*"
-    ],
-    ".github/workflows/ios.yml": [
-      "*"
+    "NativeRuntime/**/*.md": [],
+    "NativeRuntime/**": [
+      "settings-runtime-export"
     ]
+  },
+  "guarded": [
+    "strius/**",
+    "NativeRuntime/**",
+    "striusUITests/**",
+    "Config/**",
+    "Info.plist",
+    "strius.xcodeproj/**"
+  ],
+  "manual": {
+    "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend": "実機のカメラが要る",
+    "ChatTypingExperienceUITests/testJapaneseCandidateSelection": "日本語入力の候補はSimulatorで再現できない",
+    "ChatTypingExperienceUITests/testJapaneseMultilineAndSend": "日本語入力の候補はSimulatorで再現できない",
+    "DeviceChatUITests/testInterruptWithRealCodex": "実Codexが要る",
+    "DeviceChatUITests/testQuestionTurnWithRealCodex": "実Codexが要る",
+    "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex": "実Codexが要る",
+    "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex": "実Codexが要る",
+    "LearningProgressUITests/testInspectActualReplyProgress": "実バックエンドの返事が要る",
+    "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply": "実バックエンドの認証が要る",
+    "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex": "実Codexが要る",
+    "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording": "録画用。質問・復帰と介入から終了までの2本をつなげた内容で、自動の判定は2本が持つ",
+    "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration": "数式の描き方は画像を目で見て確かめる",
+    "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation": "ボタン帯の重なりは画像を目で見て確かめる"
+  },
+  "excluded": {
+    "striusUITests/testExample": "起動するだけのテンプレート。起動の失敗は選ばれたどのUIテストでも分かる",
+    "striusUITestsLaunchTests/testLaunch": "起動画面の撮影だけのテンプレート",
+    "striusUITests/testLaunchPerformance": "起動時間の計測。並列や混んだrunnerでは値に意味がない",
+    "E2EDriverUITests/testDrive": "外部からの操作を代行する道具で、回帰テストではない"
   },
   "durations": {
     "ChatCameraUITests/testCameraAndChatPreservation": 95,
@@ -132,7 +310,6 @@
     "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex": 0,
     "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff": 24,
     "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts": 25,
-    "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice": 32,
     "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex": 0,
     "E2EDriverUITests/testDrive": 0,
     "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas": 22,
@@ -149,12 +326,12 @@
     "UnitDeletionUITests/testLargeTextConfirmationAndCancel": 29,
     "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState": 31,
     "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned": 78,
-    "WorkbookE2EFixesUITests/testLongSubunitConversationDoesNotFreeze": 298,
-    "WorkbookE2EFixesUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain": 94,
     "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately": 84,
     "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton": 24,
-    "WorkbookSplitGradingUITests/testBatchOfPhotosGradedAsOneAnswer": 82,
-    "WorkbookSplitGradingUITests/testCloseSetWithFoundProblems": 110,
+    "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze": 298,
+    "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain": 94,
+    "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer": 82,
+    "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems": 110,
     "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult": 98,
     "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap": 40,
     "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle": 23,

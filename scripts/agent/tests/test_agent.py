@@ -8,11 +8,13 @@ import tarfile
 import tempfile
 import unittest
 from unittest import mock
+import urllib.error
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import agentctl  # noqa: E402
 import agentlib  # noqa: E402
 import appstoreconnect  # noqa: E402
+import gate  # noqa: E402
 import prototype  # noqa: E402
 
 
@@ -146,6 +148,44 @@ class AppStoreConnectTests(unittest.TestCase):
         self.assertEqual(len(raw), 64)
         self.assertEqual(int.from_bytes(raw[:32], 'big'), 1)
         self.assertEqual(int.from_bytes(raw[32:], 'big'), 0x80)
+
+    def _client_with_responses(self, codes):
+        client = appstoreconnect.AppStoreConnect('/unused.p8', 'KEY', 'ISSUER')
+        calls = []
+
+        def urlopen(request, timeout):
+            calls.append(request.get_method())
+            code = codes[len(calls) - 1]
+            if code == 200:
+                response = mock.MagicMock()
+                response.__enter__.return_value.read.return_value = b'{"data": {"id": "build1"}}'
+                return response
+            raise urllib.error.HTTPError(request.full_url, code, 'error', {}, io.BytesIO(b'{}'))
+        return client, calls, urlopen
+
+    def test_build_start_is_never_retried_after_a_server_error(self):
+        client, calls, urlopen = self._client_with_responses([503, 200])
+        with mock.patch.object(client, 'token', return_value='t'), \
+                mock.patch.object(appstoreconnect.urllib.request, 'urlopen', side_effect=urlopen), \
+                mock.patch.object(appstoreconnect.time, 'sleep'), self.assertRaisesRegex(RuntimeError, 'HTTP 503'):
+            gate.post_build(client, 'workflow1', 'ref1')
+        self.assertEqual(calls, ['POST'])  # the build may already exist; a retry could start a second one
+
+    def test_rate_limited_start_and_reads_are_retried(self):
+        client, calls, urlopen = self._client_with_responses([429, 200, 503, 200])
+        with mock.patch.object(client, 'token', return_value='t'), \
+                mock.patch.object(appstoreconnect.urllib.request, 'urlopen', side_effect=urlopen), \
+                mock.patch.object(appstoreconnect.time, 'sleep'):
+            self.assertEqual(gate.post_build(client, 'workflow1', 'ref1'), {'id': 'build1'})
+            self.assertEqual(client.request('GET', '/v1/ciBuildRuns/build1'), {'data': {'id': 'build1'}})
+        self.assertEqual(calls, ['POST', 'POST', 'GET', 'GET'])
+
+    def test_rejected_build_start_falls_back_instead_of_blocking(self):
+        client, _calls, urlopen = self._client_with_responses([409])
+        with mock.patch.object(client, 'token', return_value='t'), \
+                mock.patch.object(appstoreconnect.urllib.request, 'urlopen', side_effect=urlopen), \
+                self.assertRaises(gate.CloudStartRejected):
+            gate.post_build(client, 'workflow1', 'ref1')
 
 
 class PullRequestCITests(unittest.TestCase):

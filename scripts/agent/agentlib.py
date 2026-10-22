@@ -205,8 +205,14 @@ class Store:
             raise
 
     def list(self, prefix):
-        query = urllib.parse.urlencode({'prefix': prefix})
-        return json.loads(self.request('GET', f'/v1/list?{query}'))['objects']
+        result, cursor = [], None
+        while True:
+            query = urllib.parse.urlencode(dict(prefix=prefix, **({'cursor': cursor} if cursor else {})))
+            page = json.loads(self.request('GET', f'/v1/list?{query}'))
+            result.extend(page['objects'])
+            cursor = page.get('nextCursor')
+            if not cursor:
+                return result
 
     def sign_install(self, issue, variant, build, ttl_seconds=None):
         body = {'issue': issue, 'variant': variant, 'build': build}
@@ -223,10 +229,10 @@ class GitHub:
         self.token = token or os.environ.get('GH_TOKEN') or os.environ['GITHUB_TOKEN']
         self.repository = repository or os.environ['GITHUB_REPOSITORY']
 
-    def request(self, method, path, body=None, accept='application/vnd.github+json'):
+    def request(self, method, path, body=None, accept='application/vnd.github+json', retry=True):
         url = path if path.startswith('https://') else f'{API_URL}{path}'
         data = None if body is None else json.dumps(body).encode()
-        for attempt in range(4):
+        for attempt in range(4 if retry else 1):
             request = urllib.request.Request(url, data=data, method=method, headers={
                 'Authorization': f'Bearer {self.token}', 'Accept': accept,
                 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'struis-agent-ci',
@@ -237,15 +243,19 @@ class GitHub:
                     link = response.headers.get('Link', '')
                     return (json.loads(payload) if payload else None), link
             except urllib.error.HTTPError as error:
-                if error.code >= 500 and attempt < 3:
+                if retry and error.code >= 500 and attempt < 3:
                     time.sleep(2 ** attempt)
                     continue
                 raise RuntimeError(f'GitHub {method} {path}: HTTP {error.code} {error.read()[:300]!r}') from None
             except urllib.error.URLError:
-                if attempt < 3:
+                if retry and attempt < 3:
                     time.sleep(2 ** attempt)
                     continue
                 raise
+
+    def request_once(self, method, path, body=None):
+        """A call that must not be repeated after a 5xx or a lost response (it may have taken effect)."""
+        return self.request(method, path, body, retry=False)
 
     def get(self, path):
         return self.request('GET', path)[0]
@@ -307,3 +317,33 @@ def issue_is_pending(issue, state):
 
 def session_key(issue, name):
     return f'sessions/{issue}/{name}'
+
+
+CONFIG_FILE = Path(__file__).resolve().with_name('gate-config.json')
+CONFIG_ENV = {'gateMaxAttempts': 'AGENT_GATE_MAX_ATTEMPTS', 'backend': 'AGENT_GATE_BACKEND',
+              'checkpointSeconds': 'AGENT_CHECKPOINT_SECONDS'}
+
+
+def gate_config():
+    """Settings committed with the controller (scripts/agent/gate-config.json).
+
+    No repository variable is needed. The environment overrides a value only
+    when it is set and non-empty (local tests and one-off diagnostics).
+    """
+    config = json.loads(CONFIG_FILE.read_text())
+    for key, variable in CONFIG_ENV.items():
+        value = os.environ.get(variable)
+        if value not in (None, ''):
+            config[key] = int(value) if isinstance(config.get(key), int) else value
+    return config
+
+
+def dispatch(gh, event_type, payload):
+    """Start a workflow on main with a repository_dispatch event.
+
+    Unlike workflow_dispatch this needs only contents: write, so the macOS
+    worker does not hold actions: write (it could otherwise re-run or delete
+    the runs and artifacts that decide the gate).
+    """
+    gh.request('POST', f'/repos/{gh.repository}/dispatches',
+               {'event_type': event_type, 'client_payload': {key: str(value) for key, value in payload.items()}})

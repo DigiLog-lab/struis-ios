@@ -2,42 +2,80 @@ import XCTest
 
 /// E2E 2026-09-23 の修正(配信Skillの説明 §2.2 / §2.4 / §2.6)をモック応答で確かめる。
 /// シミュレータ既定フィクスチャ(台帳は起動ごとに空、ターンはモック)。
-final class WorkbookE2EFixesUITests: XCTestCase {
+///
+/// 共通の起動と導線だけを持つ入れ物。テストは下の 3 つのクラスに分けている。Xcode の並列テストは
+/// クラスを単位にシミュレータの複製へ配るので、長いテスト(20 往復)を 1 クラスに詰めると門全体が
+/// その 1 クラスの合計を待つことになる。テストの中身と判定は分ける前と同じ。
+class WorkbookE2EUITestCase: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
     }
 
     @MainActor
-    private func launch(_ arguments: [String]) -> XCUIApplication {
+    fileprivate func launch(_ arguments: [String], environment: [String: String] = [:]) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += arguments
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
+        app.launchEnvironment.merge(environment) { $1 }
         app.launch()
         return app
     }
 
     @MainActor
-    private func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
+    fileprivate func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any)[identifier].firstMatch
     }
 
     @MainActor
-    private func waitEnabled(_ element: XCUIElement, timeout: TimeInterval = 15) -> Bool {
+    fileprivate func waitEnabled(_ element: XCUIElement, timeout: TimeInterval = 15) -> Bool {
         XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true AND enabled == true"), object: element)], timeout: timeout) == .completed
     }
 
     /// 失敗した時の画面の中身(見えている文字)。Xcode Cloud では結果の束を見られないので、失敗メッセージに載せる。
     @MainActor
-    private func screenSummary(_ app: XCUIApplication) -> String {
+    fileprivate func screenSummary(_ app: XCUIApplication) -> String {
         let lines = app.debugDescription.split(separator: "\n")
             .filter { $0.contains("label:") || $0.contains("identifier: 'workbook-") || $0.contains("value: ") }
             .map { $0.trimmingCharacters(in: .whitespaces) }
         return String(lines.joined(separator: " | ").prefix(3000))
     }
 
-    // MARK: §2.2 要点・例題をモデルが始める
+    @MainActor
+    fileprivate func shoot(_ app: XCUIApplication) {
+        let camera = element(app, "workbook-capture-button")
+        XCTAssertTrue(camera.appears(timeout: 5))
+        camera.tap()
+        let shutter = app.buttons["chat-camera-shutter"].firstMatch
+        XCTAssertTrue(shutter.appears(timeout: 15), "カメラが開かない")
+        if !shutter.isEnabled { app.tap() }
+        _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: shutter)], timeout: 15)
+        shutter.tap()
+        // カメラは閉じずに続けて撮れる(一括採点)。「採点する 1」で確認画面へ。
+        let done = app.buttons["chat-camera-done"].firstMatch
+        XCTAssertTrue(done.appears(timeout: 20), "「採点する」が出ない: \(screenSummary(app))")
+        done.tap()
+        let use = element(app, "workbook-capture-use")
+        XCTAssertTrue(use.appears(timeout: 20), "撮影確認が出ない: \(screenSummary(app))")
+        use.tap()
+    }
 
+    @MainActor
+    fileprivate func sendButton(_ app: XCUIApplication) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == %@", "送信", "chat-page")).element(boundBy: 0)
+    }
+
+    @MainActor
+    fileprivate func attach(_ app: XCUIApplication, _ name: String) {
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+}
+
+/// §2.2 要点・例題をモデルが始める / §1.2 リザルト画面
+final class WorkbookE2EFixesUITests: WorkbookE2EUITestCase {
     @MainActor
     func testIntroductionStartsWithoutTypingAndExampleIsPinned() throws {
         let app = launch(["-skip-onboarding", "-workbook-model-stage"])
@@ -80,14 +118,14 @@ final class WorkbookE2EFixesUITests: XCTestCase {
         attach(app, "example-pinned")
     }
 
-    // MARK: §1.2 リザルト画面
-
     @MainActor
     func testSetCaptureOpensResultAndPassShowsImmediately() throws {
-        let app = launch(["-skip-onboarding"])
-        app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = UITestSupport.paperImagePath
-        app.terminate()
-        app.launch()
+        // カメラの画像を渡して 1 回だけ起動する(前は起動してから画像を足し、終了して起動し直していた。台帳は起動ごとに空なので、
+        // 1 回目の起動は何も残さない)。撮影の途中には何もしないので、偽カメラの完了までの間は短くする。
+        let app = launch(["-skip-onboarding"], environment: [
+            "STRUIS_TEST_CAMERA_IMAGE": UITestSupport.paperImagePath,
+            "STRUIS_TEST_CAPTURE_FINISH_SECONDS": UITestSupport.captureFinishSecondsWithoutRace,
+        ])
         let row = element(app, "workbook-subunit-sub-1")
         XCTAssertTrue(row.appears(timeout: 15))
         row.tap()
@@ -112,28 +150,10 @@ final class WorkbookE2EFixesUITests: XCTestCase {
         XCTAssertTrue(element(app, "workbook-verdict-next").exists, "「次の小単元へ」が無い")
         attach(app, "result-subunit-passed")
     }
+}
 
-    @MainActor
-    private func shoot(_ app: XCUIApplication) {
-        let camera = element(app, "workbook-capture-button")
-        XCTAssertTrue(camera.appears(timeout: 5))
-        camera.tap()
-        let shutter = app.buttons["chat-camera-shutter"].firstMatch
-        XCTAssertTrue(shutter.appears(timeout: 15), "カメラが開かない")
-        if !shutter.isEnabled { app.tap() }
-        _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: shutter)], timeout: 15)
-        shutter.tap()
-        // カメラは閉じずに続けて撮れる(一括採点)。「採点する 1」で確認画面へ。
-        let done = app.buttons["chat-camera-done"].firstMatch
-        XCTAssertTrue(done.appears(timeout: 20), "「採点する」が出ない: \(screenSummary(app))")
-        done.tap()
-        let use = element(app, "workbook-capture-use")
-        XCTAssertTrue(use.appears(timeout: 20), "撮影確認が出ない: \(screenSummary(app))")
-        use.tap()
-    }
-
-    // MARK: §2.4 固まらない
-
+/// §2.4 固まらない
+final class WorkbookLongConversationUITests: WorkbookE2EUITestCase {
     @MainActor
     func testLongSubunitConversationDoesNotFreeze() throws {
         // 数式入りの返事と全体像カードを含む 40 往復を、ヘッダーのある小単元の画面(表示域が狭い)に読み込み、
@@ -152,9 +172,9 @@ final class WorkbookE2EFixesUITests: XCTestCase {
         let row = element(app, "workbook-subunit-sub-1")
         XCTAssertTrue(row.appears(timeout: 30))
         row.tap()
-        let input = app.textViews.matching(identifier: "chat-page").firstMatch
+        let input = app.textViews.matching(identifier: "chat-page").element(boundBy: 0)
         XCTAssertTrue(input.appears(timeout: 30))
-        let page = element(app, "chat-page")
+        let page = app.scrollViews.matching(identifier: "chat-page").element(boundBy: 0)
         for round in 1...20 {
             input.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).tap()
             input.typeText("確認 \(round)")
@@ -162,7 +182,10 @@ final class WorkbookE2EFixesUITests: XCTestCase {
             XCTAssertTrue(waitEnabled(send, timeout: 30), "送信ボタンが押せない (\(round))")
             Thread.sleep(forTimeInterval: 0.5)
             send.press(forDuration: 0.15)
-            let mine = app.staticTexts["確認 \(round)"].firstMatch
+            // A lazy firstMatch query repeatedly faults individual nodes on
+            // long conversations (70s for round 11 in CI). Resolve the indexed
+            // match from one complete query snapshot instead.
+            let mine = app.staticTexts.matching(NSPredicate(format: "label == %@", "確認 \(round)")).element(boundBy: 0)
             XCTAssertTrue(mine.appears(timeout: 30), "送ったメッセージが出ない (\(round))")
             XCTAssertTrue(mine.isHittable, "送ったメッセージが見える位置にない (\(round))")
             // 上へ読み返して、下へ戻す。速く動かすが、指を止めてから離す(慣性で流さない)。`swipeDown`/`swipeUp` は
@@ -182,9 +205,10 @@ final class WorkbookE2EFixesUITests: XCTestCase {
         }
         attach(app, "long-chat-after-20-rounds")
     }
+}
 
-    // MARK: §2.6 オンボーディング → 最初の単元
-
+/// §2.6 オンボーディング → 最初の単元
+final class WorkbookOnboardingUITests: WorkbookE2EUITestCase {
     @MainActor
     func testOnboardingLeadsToFirstUnitAndIsNotShownAgain() throws {
         var app = launch(["-reset-onboarding", "-workbook-empty"])
@@ -245,18 +269,5 @@ final class WorkbookE2EFixesUITests: XCTestCase {
         XCTAssertTrue(element(app, "workbook-create-unit").appears(timeout: 20), "再起動後にホーム(単元を作る)が出ない")
         XCTAssertFalse(app.buttons["はじめる"].exists, "再起動でオンボーディングがまた出た")
         attach(app, "relaunch-empty-home")
-    }
-
-    @MainActor
-    private func sendButton(_ app: XCUIApplication) -> XCUIElement {
-        app.buttons.matching(NSPredicate(format: "label == %@ AND identifier == %@", "送信", "chat-page")).firstMatch
-    }
-
-    @MainActor
-    private func attach(_ app: XCUIApplication, _ name: String) {
-        let shot = XCTAttachment(screenshot: app.screenshot())
-        shot.name = name
-        shot.lifetime = .keepAlways
-        add(shot)
     }
 }

@@ -47,6 +47,11 @@ class RestartKindTests(unittest.TestCase):
         if store is None:
             store = mock.Mock()
             store.get_json.return_value = json.loads(json.dumps(state))
+            def update(key, change, default=None):
+                value = change(json.loads(json.dumps(state)))
+                store.put_json(key, value)
+                return value
+            store.update_json.side_effect = update
         env = {'VALIDATION_OUTCOME': validation_outcome, 'CLAUDE_OUTCOME': claude_outcome}
         with mock.patch.dict(os.environ, env), \
                 mock.patch.object(agentctl, 'GitHub', return_value=gh), \
@@ -78,7 +83,8 @@ class RestartKindTests(unittest.TestCase):
         self.assertEqual(state['lastCommentId'], 10)
         self.assertIn('PR CI未成功', state['validationFailure']['failures'][0])
         gh.request.assert_called_once()
-        self.assertIn('/actions/workflows/agent.yml/dispatches', gh.request.call_args.args[1])
+        self.assertTrue(gh.request.call_args.args[1].endswith('/dispatches'))
+        self.assertEqual(gh.request.call_args.args[2]['event_type'], 'agent-issue')
         self.assertIn('CIの失敗だけ', gh.comment.call_args.args[1])
 
     def test_validation_kind_is_saved_with_the_repair_before_the_restart_is_dispatched(self):

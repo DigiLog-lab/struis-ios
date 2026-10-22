@@ -1,9 +1,13 @@
 name: Agent tests
-run-name: ${{ inputs.ci_request && format('Agent tests CI {0}', inputs.ci_request) || 'Agent tests' }}
+run-name: ${{ inputs.ci_request && format('Agent tests CI {0} {1}', inputs.ci_request, inputs.source_ref) || 'Agent tests' }}
 
 on:
   workflow_dispatch:
     inputs:
+      source_ref:
+        description: 門の対象の厳密なcommit SHA（定義はmainから実行）
+        type: string
+        required: false
       ci_request:
         description: エージェントのCI要求識別子
         type: string
@@ -14,6 +18,9 @@ on:
       - '.github/actionlint.yaml'
       - 'scripts/agent/**'
       - 'scripts/ci/**'
+      - 'ci_scripts/**'
+      - 'TestPlans/**'
+      - 'strius.xcodeproj/xcshareddata/xcschemes/**'
       - 'striusUITests/**'
       - '.github/workflows/ios.yml'
       - 'cloudflare/agent/**'
@@ -23,6 +30,9 @@ on:
       - '.github/actionlint.yaml'
       - 'scripts/agent/**'
       - 'scripts/ci/**'
+      - 'ci_scripts/**'
+      - 'TestPlans/**'
+      - 'strius.xcodeproj/xcshareddata/xcschemes/**'
       - 'striusUITests/**'
       - '.github/workflows/ios.yml'
       - 'cloudflare/agent/**'
@@ -32,13 +42,18 @@ permissions:
   contents: read
 
 jobs:
+  # Runs the requested commit's code (for the gate, an agent PR): read-only token.
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          ref: ${{ inputs.source_ref || github.sha }}
       - name: 制御スクリプトの単体テスト
         run: python3 -m unittest discover -s scripts/agent/tests -v
       - name: UIテストの割り当てスクリプトの単体テスト
@@ -59,3 +74,38 @@ jobs:
           "$RUNNER_TEMP/actionlint" -shellcheck= -pyflakes= .github/workflows/*.yml
       - name: Workerの構文確認
         run: node --check cloudflare/agent/src/index.js
+      - name: Actions cacheの合計サイズを記録
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/cache_usage.py
+
+  # Uploads, reads back and deletes a real artifact, so it needs actions: write.
+  # Never for a gate request (source_ref): that would hand an agent PR's code the
+  # write token the worker does not have. main and human PRs run it.
+  artifact-roundtrip:
+    if: ${{ !inputs.source_ref }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: チェックポイント用の成果物サービスの資格情報を渡す
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const home = `${process.env.RUNNER_TEMP}/agent`;
+            fs.mkdirSync(home, { recursive: true });
+            fs.writeFileSync(`${home}/actions-runtime.json`,
+              JSON.stringify({ token: process.env.ACTIONS_RUNTIME_TOKEN, resultsUrl: process.env.ACTIONS_RESULTS_URL }),
+              { mode: 0o600 });
+      - name: 成果物サービスとの往復（アップロード・取得・出どころの確認・削除）
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AGENT_HOME: ${{ runner.temp }}/agent
+          ARTIFACT_DELETE: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        run: python3 scripts/agent/tests/artifact_roundtrip.py

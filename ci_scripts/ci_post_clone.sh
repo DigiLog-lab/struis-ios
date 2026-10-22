@@ -7,38 +7,104 @@ if [ "${CI_XCODE_CLOUD:-}" != "TRUE" ]; then
 fi
 
 cd "${CI_PRIMARY_REPOSITORY_PATH}"
+. ./ci_scripts/timing.sh
+clone_started=$(date +%s)
+trap 'clone_result=$?; echo "STRUIS_POST_CLONE elapsed_seconds=$(($(date +%s) - clone_started)) exit_code=$clone_result"' EXIT
+echo "STRUIS_HOST workflow=${CI_WORKFLOW:-unknown} action=${CI_XCODEBUILD_ACTION:-unknown} build=${CI_BUILD_ID:-unknown}"
+uname -m
+sysctl -n hw.ncpu hw.memsize
+xcodebuild -version
+
+# Xcode Cloud retains DerivedData between non-clean builds. The Rust builder
+# already accepts CARGO_TARGET_DIR, so keep its incremental output there too.
+if [ -n "${CI_DERIVED_DATA_PATH:-}" ]; then
+    export CARGO_TARGET_DIR="${CI_DERIVED_DATA_PATH}/StruisNative/cargo"
+else
+    export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${CI_PRIMARY_REPOSITORY_PATH}/NativeRuntime/.build/codex}"
+    echo "STRUIS_CARGO_CACHE persistence=unavailable reason=CI_DERIVED_DATA_PATH-is-unset"
+fi
+cargo_cache_size before
 
 # Keep host tooling separate from bundled native dependencies.
-if ! command -v python3.14 >/dev/null 2>&1; then brew install python@3.14; fi
+if ! command -v python3.14 >/dev/null 2>&1; then run_stage python-toolchain brew install python@3.14; fi
 export PATH="$(brew --prefix python@3.14)/bin:$PATH"
-if ! command -v rustup >/dev/null 2>&1; then
-    brew install rustup
-    export PATH="$(brew --prefix rustup)/bin:$PATH"
+# Apple's system Ruby does not include xcodeproj. Prepare host-only gems before
+# the expensive native build, and keep them outside the packaged runtime.
+ruby_prefix="$(brew --prefix ruby@3.4)"
+if [ ! -x "$ruby_prefix/bin/ruby" ]; then run_stage ruby-toolchain brew install ruby@3.4; fi
+export PATH="$ruby_prefix/bin:$PATH"
+ruby_abi="$(ruby -e 'require "rbconfig"; print RbConfig::CONFIG.fetch("ruby_version")')"
+export GEM_HOME="${CI_DERIVED_DATA_PATH:-${TMPDIR:-/tmp}}/StruisHostTools/ruby-$ruby_abi"
+export GEM_PATH="$GEM_HOME"
+if ! ruby -e 'gem "xcodeproj", "1.27.0"; require "xcodeproj"' >/dev/null 2>&1; then
+    run_stage ruby-gems gem install xcodeproj --version 1.27.0 --no-document --install-dir "$GEM_HOME"
 fi
-rustup toolchain install 1.95.0 --profile minimal
+run_stage ruby-check ruby -e 'gem "xcodeproj", "1.27.0"; require "xcodeproj"; puts "STRUIS_RUBY version=#{RUBY_VERSION} xcodeproj=#{Xcodeproj::VERSION}"'
+cloud_test_tier=""
+case "${CI_XCODE_SCHEME:-}" in
+    StruisPRGate) cloud_test_tier=pr ;;
+    StruisRelease) cloud_test_tier=full ;;
+    *)
+        case "${CI_WORKFLOW:-}" in
+            "PR Gate") cloud_test_tier=pr ;;
+            "Release") cloud_test_tier=full ;;
+        esac
+        ;;
+esac
 native_platform="${STRUIS_NATIVE_PLATFORM:-}"
 if [ -z "$native_platform" ]; then
-    case "${CI_WORKFLOW:-}" in
-        "Hyotan Native Tests"|"Hyotan Native Runtime Tests"|"Hyotan Native Camera Tests"|"Hyotan Threaded Python Foundation Tests") native_platform=simulator ;;
-        *) native_platform=device ;;
+    case "$cloud_test_tier" in
+        pr) native_platform=simulator ;;
+        full) native_platform=both ;;
+        *)
+            case "${CI_WORKFLOW:-}" in
+                "Hyotan Native Tests"|"Hyotan Native Runtime Tests"|"Hyotan Native Camera Tests"|"Hyotan Threaded Python Foundation Tests") native_platform=simulator ;;
+                *) native_platform=device ;;
+            esac
+            ;;
     esac
 fi
 case "$native_platform" in
-    device) rustup target add --toolchain 1.95.0 aarch64-apple-ios ;;
-    simulator) rustup target add --toolchain 1.95.0 aarch64-apple-ios-sim ;;
-    both) rustup target add --toolchain 1.95.0 aarch64-apple-ios aarch64-apple-ios-sim ;;
+    device|simulator|both) ;;
     *) echo "Unsupported STRUIS_NATIVE_PLATFORM: $native_platform" >&2; exit 1 ;;
 esac
-export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
-export PATH="$CARGO_HOME/bin:$PATH"
 # The signed Dash stage pool is a dedicated Simulator preparation, never an
 # archive/device default or a model-selected execution option.
 if [ "${CI_WORKFLOW:-}" = "Hyotan Native Runtime Tests" ]; then
     [ "$native_platform" = simulator ] || { echo "Compound Dash preparation requires Simulator" >&2; exit 1; }
     export STRUIS_COMPOUND_DASH_PREPARATION=1
 fi
-echo "Building native runtime for $native_platform"
-python3.14 NativeRuntime/Scripts/bootstrap.py --platform "$native_platform"
+# The PR Gate reuses the outputs that agent-native-cache.yml built on GitHub
+# for the same NativeRuntime inputs (both SDKs), verified by SHA-256. Release
+# (TestFlight) always builds from source: the asset and its checksum live in a
+# GitHub Release, which a job with contents: write (the agent worker) can
+# replace, and nothing the agent can write goes into a distributed build.
+# Anything else, or an input set not published yet, builds from source.
+native_source=build
+if [ "$cloud_test_tier" = pr ] && [ "${STRUIS_NATIVE_PREBUILT:-1}" = 1 ]; then
+    rm -f NativeRuntime/.prebuilt.json
+    run_stage native-prebuilt python3.14 scripts/ci/native_prebuilt.py apply || true
+    if [ -f NativeRuntime/.prebuilt.json ]; then native_source=prebuilt; fi
+fi
+echo "STRUIS_NATIVE_SOURCE source=$native_source platform=$native_platform"
+if [ "$native_source" = build ]; then
+    if ! command -v rustup >/dev/null 2>&1; then
+        run_stage rustup-install brew install rustup
+        export PATH="$(brew --prefix rustup)/bin:$PATH"
+    fi
+    run_stage rust-toolchain rustup toolchain install 1.95.0 --profile minimal
+    case "$native_platform" in
+        device) rustup target add --toolchain 1.95.0 aarch64-apple-ios ;;
+        simulator) rustup target add --toolchain 1.95.0 aarch64-apple-ios-sim ;;
+        both) rustup target add --toolchain 1.95.0 aarch64-apple-ios aarch64-apple-ios-sim ;;
+    esac
+    export CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}"
+    export PATH="$CARGO_HOME/bin:$PATH"
+    echo "Building native runtime for $native_platform"
+    run_stage native-inputs python3.14 scripts/ci/prefetch_native.py --platform "$native_platform"
+    run_stage native-bootstrap python3.14 NativeRuntime/Scripts/bootstrap.py --platform "$native_platform"
+fi
+cargo_cache_size after
 test -f NativeRuntime/Vendor/NativeCodex.xcframework/Info.plist
 if [ "${STRUIS_COMPOUND_DASH_PREPARATION:-0}" = 1 ]; then
     python3.14 scripts/configure_compound_dash_preparation.py
@@ -64,7 +130,23 @@ if [ "${CI_WORKFLOW:-}" = "Hyotan Native Runtime Tests" ] || [ "${CI_WORKFLOW:-}
     fi
 fi
 
-python3.14 scripts/sync_test_resources.py
+run_stage test-resources python3.14 scripts/sync_test_resources.py
+
+# The original strius scheme stays independent of these plans. Unknown or
+# unavailable base refs expand PR Gate to every eligible UI test.
+case "$cloud_test_tier" in
+    pr)
+        run_stage pr-test-plan python3.14 scripts/ci/xcode_test_plan.py --tier pr \
+            --base "${CI_PULL_REQUEST_TARGET_BRANCH:-main}" \
+            --output TestPlans/PRGate.xctestplan \
+            --report "${CI_DERIVED_DATA_PATH:-${TMPDIR:-/tmp}}/struis-pr-test-selection.json"
+        ;;
+    full)
+        run_stage release-test-plan python3.14 scripts/ci/xcode_test_plan.py --tier full \
+            --output TestPlans/Release.xctestplan \
+            --report "${CI_DERIVED_DATA_PATH:-${TMPDIR:-/tmp}}/struis-release-test-selection.json"
+        ;;
+esac
 
 current_version="$(xcrun agvtool what-version -terse | tail -n 1)"
 if [ "${CI_BUILD_NUMBER}" -gt "${current_version}" ]; then
@@ -74,4 +156,4 @@ else
 fi
 
 echo "Setting CURRENT_PROJECT_VERSION to ${next_version} (CI_BUILD_NUMBER=${CI_BUILD_NUMBER}, current=${current_version})"
-xcrun agvtool new-version -all "${next_version}"
+run_stage build-number xcrun agvtool new-version -all "${next_version}"
