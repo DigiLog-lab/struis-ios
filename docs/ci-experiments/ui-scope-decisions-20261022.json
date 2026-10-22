@@ -3,7 +3,7 @@
   "recordedDateJST": "2026-10-22",
   "sourceCommit": "d3fe8a59acffe7fe21f87941e6f9863047813e8e",
   "experimentParent": "ada0edfa37f07b00e8bc94b2b7f40888e408866a",
-  "status": "Per-test scope decisions recorded; production CI unchanged; no selective merge run measured",
+  "status": "Per-test scope decisions recorded; explicit selected profiles measured in follow-up; production CI unchanged; actual PR merge-gate mean unmeasured",
   "alwaysRequiredUITests": [],
   "unitPolicy": "コード変更時は当面全Unit/結合テストを維持。docs-onlyで入力同一なら再実行を省ける。夜間は369 Passed /29 Skipped /0 Failed。29 Skippedを成功に読み替えない。",
   "counts": {
@@ -3272,7 +3272,7 @@
   ],
   "replacementAcceptance": [
     "既存UIの各assertionが検証する性質をunit/結合/短いUIのいずれかに割り当てる。未割当がある間は元テストを関連変更時に残す。",
-    "2枚目の写真破棄、送信時の記録中断、採点の早期締切、ready前の進む表示などの故障を意図的に作り、代替構成でも検出することを比較確認する。まだ未実施。",
+    "2枚目の写真破棄、送信時の記録中断、採点の早期締切、ready前の進む表示などの故障で代替を確認する。follow-upでは入力busy化と採点の早期締切の2故障を既存Unitが検出した。残る故障・全UI assertionの対応は未完了。",
     "既存の不具合修正を逆に適用する検証も行い、見逃しがあれば速いテストを補うか対象UIを残す。全ての未知の不具合への保証とはしない。"
   ],
   "automationStatus": {
@@ -3281,7 +3281,9 @@
     "dynamicTestImpactCoverage": "not_implemented",
     "crossFeatureHostBuilds": "not_implemented",
     "wholeInputReceipt": "offline prototype only; docs-only same-input reuse; no changed-code reuse",
-    "pathSelectionShadow": "20変更の監査のみ。今回の取捨選択の正当性や依存関係の証明には使わない。"
+    "pathSelectionShadow": "20変更の監査のみ。今回の取捨選択の正当性や依存関係の証明には使わない。",
+    "selectedProfileExecution": "experimental workflows only; see selected-final-20261022.md/json",
+    "offlineExactHeadReceipt": "selected_receipt.py prototype; raw artifacts validated for same HEAD only; not wired into agent gate"
   },
   "knownUnresolvedFailures": [
     {
@@ -3300,5 +3302,6 @@
       "result": "Failed",
       "issue": "XCTAssertTrue失敗。録画用から外す判断で解決済みとは扱わない"
     }
-  ]
+  ],
+  "followupReport": "selected-final-20261022.md"
 }

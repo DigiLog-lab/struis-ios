@@ -56,7 +56,64 @@
       },
       "wrongHeadRejected": "Requested HEAD does not match verification origin",
       "localValidationSeconds": 0.015368099004263058
+    },
+    {
+      "configuration": "selected-direct-unit-only",
+      "accepted": {
+        "decision": "accept-current-head-without-another-macOS-test-run",
+        "head": "79057ace83d3dd236b6a12a2f8c92d71b4c0e321",
+        "jobId": 119595400538,
+        "runId": 39708942168,
+        "selectedUI": [],
+        "unitCount": 398,
+        "artifactSha256": "1f96b8d89355d8d4e6f47789a7223a0773ee2d311132dcbf79339c55c420957d",
+        "scope": "Explicit policy + exact HEAD; no cross-source reuse or dependency-safety proof"
+      },
+      "wrongHeadRejected": "Requested HEAD does not match verification origin",
+      "localValidationSeconds": 0.0062974799948278815
+    },
+    {
+      "configuration": "selected-direct-unit-only-r2",
+      "accepted": {
+        "decision": "accept-current-head-without-another-macOS-test-run",
+        "head": "2ff306e7873df2cac76d3b1dfd87c3483f0ad7d9",
+        "jobId": 119598755458,
+        "runId": 39709986533,
+        "selectedUI": [],
+        "unitCount": 398,
+        "artifactSha256": "610b08e6e1aa8c80d72fba0a0f79d2d0d830c0575bc6846a94496c524f2eca5f",
+        "scope": "Explicit policy + exact HEAD; no cross-source reuse or dependency-safety proof"
+      },
+      "wrongHeadRejected": "Requested HEAD does not match verification origin",
+      "localValidationSeconds": 0.006126678999862634
     }
   ],
-  "limitation": "Offline local validation only. Excludes API fetch, artifact download, queue and publishing a required check. Push-workflow binding only; not wired into agent/gate.py or production CI."
+  "limitation": "Offline local validation only. Excludes API fetch, artifact download, queue and publishing a required check. Push-workflow binding only; not wired into agent/gate.py or production CI.",
+  "actualFailedJobRejected": {
+    "striusTests": {
+      "expected": 398,
+      "actual": 398,
+      "missing": [],
+      "unexpected": [],
+      "resultChanges": {
+        "ClaudeAppAttestTests/testReinstalledDeviceRegistersANewKeyWhenTheStoredKeyIsUnusable()": {
+          "expected": "Passed",
+          "actual": "Failed"
+        }
+      }
+    },
+    "striusUITests": {
+      "expected": 4,
+      "actual": 4,
+      "missing": [],
+      "unexpected": [],
+      "resultChanges": {}
+    },
+    "receiptRejected": "Verification job did not succeed"
+  },
+  "warmQualityRunNotAcceptedAsHeadReceipt": {
+    "runId": 39706557023,
+    "rejected": "Unapproved workflow definition",
+    "reason": "Quality workflow and equivalent working-tree edit are not an approved exact-HEAD verification origin."
+  }
 }
