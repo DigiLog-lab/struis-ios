@@ -1,0 +1,62 @@
+{
+  "proofs": [
+    {
+      "configuration": "selected-direct-combined",
+      "accepted": {
+        "decision": "accept-current-head-without-another-macOS-test-run",
+        "head": "5df4eb2d6dc824b49218410510882a4224583c56",
+        "jobId": 119577045813,
+        "runId": 39703205685,
+        "selectedUI": [
+          "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady"
+        ],
+        "unitCount": 398,
+        "artifactSha256": "7fa5ee961faea1b8c217caf8056b66f9f341be69484034e336f683027b03c763",
+        "scope": "Explicit policy + exact HEAD; no cross-source reuse or dependency-safety proof"
+      },
+      "wrongHeadRejected": "Requested HEAD does not match verification origin",
+      "localValidationSeconds": 0.01589614900149172
+    },
+    {
+      "configuration": "selected-warm-separate",
+      "accepted": {
+        "decision": "accept-current-head-without-another-macOS-test-run",
+        "head": "5df4eb2d6dc824b49218410510882a4224583c56",
+        "jobId": 119577045435,
+        "runId": 39703205685,
+        "selectedUI": [
+          "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady"
+        ],
+        "unitCount": 398,
+        "artifactSha256": "2e46030320e6e4cd57969d38ff370ca4773b731179ac717fd86879555b4b6f31",
+        "scope": "Explicit policy + exact HEAD; no cross-source reuse or dependency-safety proof"
+      },
+      "wrongHeadRejected": "Requested HEAD does not match verification origin",
+      "localValidationSeconds": 0.014147022993711289
+    },
+    {
+      "configuration": "selected-direct-combined-r2",
+      "accepted": {
+        "decision": "accept-current-head-without-another-macOS-test-run",
+        "head": "69dcd24d3134803f8c1e2ed987d11fb954979b36",
+        "jobId": 119582540856,
+        "runId": 39704905140,
+        "selectedUI": [
+          "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+          "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+          "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady"
+        ],
+        "unitCount": 398,
+        "artifactSha256": "27991b7615ddb25c73b9fd2c44305f15788f43dd2957660a686338ae4f390de0",
+        "scope": "Explicit policy + exact HEAD; no cross-source reuse or dependency-safety proof"
+      },
+      "wrongHeadRejected": "Requested HEAD does not match verification origin",
+      "localValidationSeconds": 0.015368099004263058
+    }
+  ],
+  "limitation": "Offline local validation only. Excludes API fetch, artifact download, queue and publishing a required check. Push-workflow binding only; not wired into agent/gate.py or production CI."
+}

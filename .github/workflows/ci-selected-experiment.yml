@@ -1,5 +1,5 @@
 name: Selected CI ten-minute experiment
-run-name: Selected CI direct combined repeat 2
+run-name: Selected CI direct combined without Simulator signing
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-selected-${{ github.ref }}-direct-repeat-2
+  group: ci-selected-${{ github.ref }}-unsigned
   cancel-in-progress: false
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
       max-parallel: 2
       matrix:
         include:
-          - config: selected-direct-combined-r2
+          - config: selected-direct-unsigned
             warm: none
             commands: combined
     env:
@@ -63,6 +63,7 @@ jobs:
           --configuration '${{ matrix.config }}'
           --warm '${{ matrix.warm }}'
           --commands '${{ matrix.commands }}'
+          --no-signing
       - name: Save evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

@@ -102,6 +102,8 @@ class Experiment:
         self.shards = getattr(args, 'ui_shards', 1)
         self.shard = getattr(args, 'ui_shard', 1)
         self.units = getattr(args, 'units', 'all')
+        self.no_signing = getattr(args, 'no_signing', False)
+        self.data['codeSigningAllowed'] = 'NO' if self.no_signing else 'toolchain default'
         if not 1 <= self.shard <= self.shards:
             raise ValueError('Invalid shard number')
         if self.shards > 1:
@@ -161,6 +163,8 @@ class Experiment:
                    '-test-timeouts-enabled', 'YES', '-default-test-execution-time-allowance', '180',
                    '-maximum-test-execution-time-allowance', '600', '-resultBundlePath', str(result),
                    'ARCHS=arm64', 'STRUIS_AUTH_REQUIRED=YES']
+        if self.no_signing:
+            command.append('CODE_SIGNING_ALLOWED=NO')
         if include_unit:
             command.append('-only-testing:striusTests')
         if include_ui:
@@ -196,9 +200,12 @@ class Experiment:
 
     def execute(self):
         self.derived = os.environ['RUNNER_TEMP'] + '/DerivedData'
-        self.run('build', ['xcodebuild', 'build-for-testing', '-project', 'strius.xcodeproj',
+        build_command = ['xcodebuild', 'build-for-testing', '-project', 'strius.xcodeproj',
                           '-scheme', 'strius', '-destination', 'platform=iOS Simulator,name=iPhone 17',
-                          '-derivedDataPath', self.derived, 'ARCHS=arm64', 'STRUIS_AUTH_REQUIRED=YES'])
+                          '-derivedDataPath', self.derived, 'ARCHS=arm64', 'STRUIS_AUTH_REQUIRED=YES']
+        if self.no_signing:
+            build_command.append('CODE_SIGNING_ALLOWED=NO')
+        self.run('build', build_command)
         listing = json.loads(subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'available', '-j'], text=True))
         candidates = [(runtime, d) for runtime, devices in listing['devices'].items() if '.iOS-' in runtime
                       for d in devices if d['name'] == 'iPhone 17']
@@ -251,6 +258,7 @@ def main():
     parser.add_argument('--ui-shards', type=int, default=1)
     parser.add_argument('--ui-shard', type=int, default=1)
     parser.add_argument('--units', choices=['all', 'none'], default='all')
+    parser.add_argument('--no-signing', action='store_true')
     args = parser.parse_args()
     experiment = Experiment(args)
     try:
