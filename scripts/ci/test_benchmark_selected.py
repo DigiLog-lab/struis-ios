@@ -1,7 +1,7 @@
 import copy
 import unittest
 
-from benchmark_selected import PROBE, validate_exports
+from benchmark_selected import PROBE, split_ui, validate_exports
 
 
 class ResultCompletenessTests(unittest.TestCase):
@@ -57,6 +57,20 @@ class ResultCompletenessTests(unittest.TestCase):
         summary = dict(self.summary, totalTestCount=0)
         with self.assertRaisesRegex(ValueError, 'Summary mismatch'):
             self.check(summary=summary)
+
+
+class SeparateVMAllocationTests(unittest.TestCase):
+    def test_every_required_case_is_assigned_once_and_units_affect_balance(self):
+        selected = ['long', 'short-a', 'short-b']
+        durations = {'long': 200, 'short-a': 60, 'short-b': 50}
+        shards = split_ui(selected, 2, durations, unit_seconds=70)
+        self.assertEqual(sorted(test for shard in shards for test in shard), sorted(selected))
+        self.assertIn('long', shards[1])
+        self.assertEqual(set(shards[0]), {'short-a', 'short-b'})
+
+    def test_invalid_shard_count_is_rejected(self):
+        with self.assertRaises(ValueError):
+            split_ui(['case'], 0, {'case': 1})
 
 
 if __name__ == '__main__':

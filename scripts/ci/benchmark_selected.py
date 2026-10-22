@@ -42,6 +42,18 @@ def choose(profile):
     return selected
 
 
+def split_ui(selected, count, durations, unit_seconds=71.7):
+    """Separate VMs, with all units assigned only to VM 1; no Simulator clones."""
+    if count < 1:
+        raise ValueError('Invalid shard count')
+    shards, loads = [[] for _ in range(count)], [unit_seconds] + [0.0] * (count - 1)
+    for test in sorted(selected, key=lambda name: (-durations[name], name)):
+        index = min(range(count), key=lambda i: (loads[i], i))
+        shards[index].append(test)
+        loads[index] += durations[test]
+    return [sorted(tests) for tests in shards]
+
+
 def validate_exports(summary, nodes, expected_unit, selected, include_unit=True, include_ui=True):
     expected_ui = {s + '()': 'Passed' for s in selected + [PROBE]} if include_ui else {}
     expected = {'striusTests': expected_unit if include_unit else {}, 'striusUITests': expected_ui}
@@ -86,9 +98,25 @@ class Experiment:
                      'phases': [], 'status': 'running', 'retries': 0,
                      'limitation': 'Explicit scenario profile, not an implemented automatic impact graph.'}
         self.selected = choose(args.profile)
+        all_selected = list(self.selected)
+        self.shards = getattr(args, 'ui_shards', 1)
+        self.shard = getattr(args, 'ui_shard', 1)
+        self.units = getattr(args, 'units', 'all')
+        if not 1 <= self.shard <= self.shards:
+            raise ValueError('Invalid shard number')
+        if self.shards > 1:
+            if self.units != ('all' if self.shard == 1 else 'none'):
+                raise ValueError('Only VM 1 must execute the entire unit suite')
+            decisions = json.loads((ROOT / 'docs/ci-experiments/ui-scope-decisions-20261022.json').read_text())
+            durations = {r['test']: r['mockWarmTestBodyMeanSeconds'] for r in decisions['cases']}
+            self.selected = split_ui(self.selected, self.shards, durations)[self.shard - 1]
+        if not self.selected and self.units == 'none':
+            raise ValueError('Refuse an empty VM')
         self.expected_unit = json.loads((ROOT / 'scripts/ci/selected_unit_inventory.json').read_text())['expectedUnitCases']
-        self.data['selection'] = {'selected': self.selected, 'probe': PROBE,
-                                  'unitExpected': len(self.expected_unit),
+        self.data['selection'] = {'selected': self.selected, 'fullProfile': all_selected,
+                                  'shard': self.shard, 'shards': self.shards,
+                                  'probe': PROBE if self.selected else None,
+                                  'unitExpected': len(self.expected_unit) if self.units == 'all' else 0,
                                   'omitted': [r['test'] for r in json.loads((ROOT / 'docs/ci-experiments/ui-scope-decisions-20261022.json').read_text())['cases']
                                               if r['test'] not in self.selected]}
         self.save()
@@ -202,10 +230,12 @@ class Experiment:
                                         'exitCode': 0, 'finishedAt': now()})
             self.run('warm-terminate', ['xcrun', 'simctl', 'terminate', self.udid, bundle], timeout=30)
         if self.args.commands == 'combined':
-            self.measure_tests('combined', True, True)
+            self.measure_tests('combined', self.units == 'all', bool(self.selected))
         else:
-            self.measure_tests('unit', True, False)
-            self.measure_tests('ui', False, True)
+            if self.units == 'all':
+                self.measure_tests('unit', True, False)
+            if self.selected:
+                self.measure_tests('ui', False, True)
         self.data.update(status='success', decisionReadyAt=now(), harnessElapsedSeconds=time.monotonic() - self.start)
         self.save()
         print('SELECTED_READY ' + json.dumps({k: self.data[k] for k in
@@ -218,6 +248,9 @@ def main():
     parser.add_argument('--warm', choices=['none', 'mock'], required=True)
     parser.add_argument('--commands', choices=['combined', 'separate'], required=True)
     parser.add_argument('--configuration', required=True)
+    parser.add_argument('--ui-shards', type=int, default=1)
+    parser.add_argument('--ui-shard', type=int, default=1)
+    parser.add_argument('--units', choices=['all', 'none'], default='all')
     args = parser.parse_args()
     experiment = Experiment(args)
     try:

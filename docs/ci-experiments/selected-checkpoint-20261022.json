@@ -1,0 +1,218 @@
+{
+  "status": "First selected direct-combined trial passed; second exact configuration repeat planned. Warm control still pending.",
+  "trials": [
+    {
+      "runId": 39703205685,
+      "jobId": 119577045813,
+      "configuration": "selected-direct-combined",
+      "workflowCreatedAt": "2026-10-22T01:01:15Z",
+      "jobStartedAt": "2026-10-22T01:01:18Z",
+      "jobCompletedAt": "2026-10-22T01:11:14Z",
+      "queueSeconds": 3.0,
+      "checkReadySeconds": 599.0,
+      "runnerSeconds": 596.0,
+      "counts": {
+        "totalTestCount": 402,
+        "passedTests": 373,
+        "skippedTests": 29,
+        "failedTests": 0
+      },
+      "measurement": {
+        "startedAt": "2026-10-22T01:01:36.506878+00:00",
+        "commit": "5df4eb2d6dc824b49218410510882a4224583c56",
+        "sourceCommit": "d3fe8a59acffe7fe21f87941e6f9863047813e8e",
+        "runId": "39703205685",
+        "configuration": "selected-direct-combined",
+        "profile": "reply_tail_contract",
+        "warm": "none",
+        "commands": "combined",
+        "phases": [
+          {
+            "label": "build",
+            "startedAt": "2026-10-22T01:01:36.570820+00:00",
+            "command": [
+              "xcodebuild",
+              "build-for-testing",
+              "-project",
+              "strius.xcodeproj",
+              "-scheme",
+              "strius",
+              "-destination",
+              "platform=iOS Simulator,name=iPhone 17",
+              "-derivedDataPath",
+              "/Users/runner/work/_temp/DerivedData",
+              "ARCHS=arm64",
+              "STRUIS_AUTH_REQUIRED=YES"
+            ],
+            "exitCode": 0,
+            "wallSeconds": 159.03439320899997,
+            "finishedAt": "2026-10-22T01:04:15.605451+00:00"
+          },
+          {
+            "label": "sim-boot-request",
+            "startedAt": "2026-10-22T01:04:16.596165+00:00",
+            "command": [
+              "xcrun",
+              "simctl",
+              "boot",
+              "B8D3DB6B-98FB-4E92-9ACE-9BC307F7FDE7"
+            ],
+            "exitCode": 0,
+            "wallSeconds": 7.15626466599997,
+            "finishedAt": "2026-10-22T01:04:23.752492+00:00"
+          },
+          {
+            "label": "sim-boot-ready",
+            "startedAt": "2026-10-22T01:04:23.878726+00:00",
+            "command": [
+              "xcrun",
+              "simctl",
+              "bootstatus",
+              "B8D3DB6B-98FB-4E92-9ACE-9BC307F7FDE7",
+              "-b"
+            ],
+            "exitCode": 0,
+            "wallSeconds": 43.785027833000186,
+            "finishedAt": "2026-10-22T01:05:07.663842+00:00"
+          },
+          {
+            "label": "combined",
+            "startedAt": "2026-10-22T01:05:07.913217+00:00",
+            "command": [
+              "xcodebuild",
+              "test-without-building",
+              "-project",
+              "strius.xcodeproj",
+              "-scheme",
+              "strius",
+              "-destination",
+              "id=B8D3DB6B-98FB-4E92-9ACE-9BC307F7FDE7",
+              "-derivedDataPath",
+              "/Users/runner/work/_temp/DerivedData",
+              "-parallel-testing-enabled",
+              "NO",
+              "-collect-test-diagnostics",
+              "never",
+              "-test-timeouts-enabled",
+              "YES",
+              "-default-test-execution-time-allowance",
+              "180",
+              "-maximum-test-execution-time-allowance",
+              "600",
+              "-resultBundlePath",
+              "/Users/runner/work/_temp/ci-selected/combined.xcresult",
+              "ARCHS=arm64",
+              "STRUIS_AUTH_REQUIRED=YES",
+              "-only-testing:striusTests",
+              "-only-testing:striusUITests/ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+              "-only-testing:striusUITests/ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+              "-only-testing:striusUITests/WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady",
+              "-only-testing:striusUITests/CIBenchmarkModeUITests/testOptimizedVariantInjection"
+            ],
+            "exitCode": 0,
+            "wallSeconds": 331.85846504100004,
+            "finishedAt": "2026-10-22T01:10:39.772607+00:00",
+            "counts": {
+              "totalTestCount": 402,
+              "passedTests": 373,
+              "skippedTests": 29,
+              "failedTests": 0,
+              "result": "Passed"
+            },
+            "validated": {
+              "unit": 398,
+              "selectedUI": 3,
+              "probe": 1,
+              "passed": 373,
+              "skipped": 29,
+              "failed": 0
+            }
+          }
+        ],
+        "status": "success",
+        "retries": 0,
+        "limitation": "Explicit scenario profile, not an implemented automatic impact graph.",
+        "selection": {
+          "selected": [
+            "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording",
+            "ReplyTailUITests/testAdvanceAppearsWhileReadyReplyIsRecording",
+            "WorkbookSubunitLayoutUITests/testExampleAdvanceAppearsOnlyAfterModelMarksReady"
+          ],
+          "probe": "CIBenchmarkModeUITests/testOptimizedVariantInjection",
+          "unitExpected": 398,
+          "omitted": [
+            "ChatCameraUITests/testCameraAndChatPreservation",
+            "ChatCameraUITests/testCameraRotationAndReopening",
+            "ChatImmediateImageSendUITests/testCancelWhileCaptureIsFinishing",
+            "ChatImmediateImageSendUITests/testSendImmediatelyAfterCameraAttachment",
+            "ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch",
+            "ChatPhysicalImageSendUITests/testPhysicalCameraImmediateSend",
+            "ChatScrollStabilityUITests/testConversationDoesNotJumpAfterTheFingerLifts",
+            "ChatScrollStabilityUITests/testDragStartingOnMathBubbleScrollsTheConversation",
+            "ChatScrollStabilityUITests/testFirstDragAfterOpeningFollowsTheFinger",
+            "ChatScrollStabilityUITests/testHorizontalSwipeInSubunitConversationStaysOnTheConversation",
+            "ChatScrollStabilityUITests/testOverflowingDisplayMathStillScrollsSideways",
+            "ChatScrollStabilityUITests/testReadingBackIsNotPulledWhenTheReplyArrives",
+            "ChatTypingExperienceUITests/testJapaneseCandidateSelection",
+            "ChatTypingExperienceUITests/testJapaneseMultilineAndSend",
+            "ConversationExportUITests/testCopyConversation",
+            "DeviceChatUITests/testInterruptWithRealCodex",
+            "DeviceChatUITests/testQuestionTurnWithMockModel",
+            "DeviceChatUITests/testQuestionTurnWithRealCodex",
+            "DeviceChatUITests/testWorkbookProposalAndLookupWithRealCodex",
+            "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff",
+            "DeviceRuntimeUITests/testRuntimeBootsAndDeviceCodeLoginStarts",
+            "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingOnDevice",
+            "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealCodex",
+            "E2EDriverUITests/testDrive",
+            "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
+            "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
+            "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes",
+            "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording",
+            "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult",
+            "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration",
+            "LearningProgressUITests/testInspectActualReplyProgress",
+            "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply",
+            "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex",
+            "UnitDeletionUITests/testLargeTextConfirmationAndCancel",
+            "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState",
+            "WorkbookE2EFixesUITests/testIntroductionStartsWithoutTypingAndExampleIsPinned",
+            "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately",
+            "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton",
+            "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze",
+            "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain",
+            "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer",
+            "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems",
+            "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult",
+            "WorkbookSubunitHeaderUITests/testHeaderCollapsesBySwipePersistsAndReopensByTap",
+            "WorkbookSubunitHeaderUITests/testHorizontalDragOnHeaderDoesNotToggle",
+            "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation",
+            "WorkbookSubunitLayoutUITests/testAdvanceScrollsToTheNewStageReply",
+            "WorkbookSubunitLayoutUITests/testExampleStageBarsComposerAndFloatingAdvance",
+            "WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar",
+            "WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched",
+            "striusUITests/testExample",
+            "striusUITests/testHorizontalSwipesKeepTheSingleChatPage",
+            "striusUITestsLaunchTests/testLaunch"
+          ]
+        },
+        "simulator": {
+          "udid": "B8D3DB6B-98FB-4E92-9ACE-9BC307F7FDE7",
+          "initialState": "Shutdown",
+          "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-0"
+        },
+        "decisionReadyAt": "2026-10-22T01:10:46.825841+00:00",
+        "harnessElapsedSeconds": 550.319021042
+      },
+      "artifactSha256": "7fa5ee961faea1b8c217caf8056b66f9f341be69484034e336f683027b03c763"
+    }
+  ],
+  "notMeasured": [
+    "Average across repeat trials",
+    "Real distribution of daily PR changes",
+    "Automatic semantic selection",
+    "9-case scroll profile split across separate VMs",
+    "Replacement UI and full fault-detection comparison"
+  ],
+  "productionCIChanged": false
+}

@@ -1,5 +1,5 @@
 name: Selected CI ten-minute experiment
-run-name: Selected CI first comparison - warm separate vs direct combined
+run-name: Selected CI direct combined repeat 2
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-selected-${{ github.ref }}
+  group: ci-selected-${{ github.ref }}-direct-repeat-2
   cancel-in-progress: false
 
 jobs:
@@ -24,10 +24,7 @@ jobs:
       max-parallel: 2
       matrix:
         include:
-          - config: selected-warm-separate
-            warm: mock
-            commands: separate
-          - config: selected-direct-combined
+          - config: selected-direct-combined-r2
             warm: none
             commands: combined
     env:
