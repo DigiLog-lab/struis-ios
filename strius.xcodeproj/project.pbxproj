@@ -231,6 +231,7 @@
 		FD261933644D618087CF5359 /* text-native.xcframework in Embed Native Frameworks */ = {isa = PBXBuildFile; fileRef = 6501D2306BFF134780428A95 /* text-native.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		F8A1C0E00000000000000002 /* engine-vectors in Resources */ = {isa = PBXBuildFile; fileRef = F8A1C0E00000000000000001 /* engine-vectors */; };
 		E514CEE8E85559824C96A52E /* Prompts in Resources */ = {isa = PBXBuildFile; fileRef = 84586C66B08BCD849F2783CE /* Prompts */; };
+		3A89FB606BB76E53890A1F9D /* TimelineRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E0302BEB4AE02B1638D2E0A /* TimelineRows.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -504,6 +505,7 @@
 		FA3411766DF329BEF05F1053 /* StruisExec.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StruisExec.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		F8A1C0E00000000000000001 /* engine-vectors */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = "engine-vectors"; path = "striusTests/Fixtures/engine-vectors"; sourceTree = SOURCE_ROOT; };
 		84586C66B08BCD849F2783CE /* Prompts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Prompts; sourceTree = "<group>"; };
+		6E0302BEB4AE02B1638D2E0A /* TimelineRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineRows.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -927,6 +929,7 @@
 		E808D880E3F0720DB3DD2D9F /* Ledger */ = {
 			isa = PBXGroup;
 			children = (
+				6E0302BEB4AE02B1638D2E0A /* TimelineRows.swift */,
 				E886438606454527D4DD463C /* Ledger.swift */,
 				E8AE201EA0D519FE16B607CA /* LedgerEvents.swift */,
 				E8DE42321A7D3F680E6B8B27 /* LedgerRows.swift */,
@@ -1420,6 +1423,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3A89FB606BB76E53890A1F9D /* TimelineRows.swift in Sources */,
 				D10000000000000000000001 /* WorkspaceBrowserDTO.swift in Sources */,
 				D10000000000000000000002 /* WorkspaceBrowserEndpoints.swift in Sources */,
 				E710000000000000000000001 /* WorkbookStore.swift in Sources */,

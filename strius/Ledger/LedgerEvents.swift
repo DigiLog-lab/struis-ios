@@ -68,6 +68,13 @@ nonisolated struct LedgerEvent: Codable, Hashable, Sendable {
         case .codexAccount: try Self.decode(CodexAccountRecord.self, from: payload).save(db)
         case .threadBranches: try Self.decode(ThreadBranchRecord.self, from: payload).save(db)
         case .branchForkAttempts: try Self.decode(BranchForkAttemptRecord.self, from: payload).save(db)
+        case .timelineSkills: try Self.decode(TimelineSkillRecord.self, from: payload).save(db)
+        case .timelineSkillEdges: try Self.decode(TimelineSkillEdgeRecord.self, from: payload).save(db)
+        case .timelineMapChanges: try Self.decode(TimelineMapChangeRecord.self, from: payload).save(db)
+        case .timelineBatches: try Self.decode(TimelineBatchRecord.self, from: payload).save(db)
+        case .timelineCards: try Self.decode(TimelineCardRecord.self, from: payload).save(db)
+        case .timelineAttempts: try Self.decode(TimelineAttemptRecord.self, from: payload).save(db)
+        case .timelineDips: try Self.decode(TimelineDipRecord.self, from: payload).save(db)
         }
     }
 
