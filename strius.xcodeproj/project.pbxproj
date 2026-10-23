@@ -232,6 +232,11 @@
 		F8A1C0E00000000000000002 /* engine-vectors in Resources */ = {isa = PBXBuildFile; fileRef = F8A1C0E00000000000000001 /* engine-vectors */; };
 		E514CEE8E85559824C96A52E /* Prompts in Resources */ = {isa = PBXBuildFile; fileRef = 84586C66B08BCD849F2783CE /* Prompts */; };
 		3A89FB606BB76E53890A1F9D /* TimelineRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E0302BEB4AE02B1638D2E0A /* TimelineRows.swift */; };
+		9300634436D74C4BBE35699D /* TimelineExpression.swift in Sources */ = {isa = PBXBuildFile; fileRef = 807F62CB64FE8239B5C8353B /* TimelineExpression.swift */; };
+		F9CD06CA0E3B89397D2BA8D0 /* TimelineRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB05E17118FB7AF5CDA81A6F /* TimelineRules.swift */; };
+		FC31020B54D6F11FAD2E36D4 /* TimelineGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CCDF6B0A0C3EA7362D61C81 /* TimelineGraph.swift */; };
+		54CB1AC84DB7F05328E777C9 /* TimelineCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 804E6CA24FAD8D46755DF731 /* TimelineCards.swift */; };
+		17C8266FA86E6432F1F0C8C5 /* TimelineMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FEBAE568FDA5E20EBE7967 /* TimelineMachine.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -506,6 +511,11 @@
 		F8A1C0E00000000000000001 /* engine-vectors */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = "engine-vectors"; path = "striusTests/Fixtures/engine-vectors"; sourceTree = SOURCE_ROOT; };
 		84586C66B08BCD849F2783CE /* Prompts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Prompts; sourceTree = "<group>"; };
 		6E0302BEB4AE02B1638D2E0A /* TimelineRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineRows.swift; sourceTree = "<group>"; };
+		807F62CB64FE8239B5C8353B /* TimelineExpression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineExpression.swift; sourceTree = "<group>"; };
+		BB05E17118FB7AF5CDA81A6F /* TimelineRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineRules.swift; sourceTree = "<group>"; };
+		3CCDF6B0A0C3EA7362D61C81 /* TimelineGraph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineGraph.swift; sourceTree = "<group>"; };
+		804E6CA24FAD8D46755DF731 /* TimelineCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineCards.swift; sourceTree = "<group>"; };
+		63FEBAE568FDA5E20EBE7967 /* TimelineMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineMachine.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -1072,6 +1082,11 @@
 		E88D869D0CD3754EED0470FA /* Engine */ = {
 			isa = PBXGroup;
 			children = (
+				63FEBAE568FDA5E20EBE7967 /* TimelineMachine.swift */,
+				804E6CA24FAD8D46755DF731 /* TimelineCards.swift */,
+				3CCDF6B0A0C3EA7362D61C81 /* TimelineGraph.swift */,
+				BB05E17118FB7AF5CDA81A6F /* TimelineRules.swift */,
+				807F62CB64FE8239B5C8353B /* TimelineExpression.swift */,
 				E8142AA1A6A4E8CC68342E91 /* EngineJSON.swift */,
 				E8915C459B984FB12D695D8E /* LearnerText.swift */,
 				E8B38629B54E9F836AA83DEB /* LearningProgress.swift */,
@@ -1423,6 +1438,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				17C8266FA86E6432F1F0C8C5 /* TimelineMachine.swift in Sources */,
+				54CB1AC84DB7F05328E777C9 /* TimelineCards.swift in Sources */,
+				FC31020B54D6F11FAD2E36D4 /* TimelineGraph.swift in Sources */,
+				F9CD06CA0E3B89397D2BA8D0 /* TimelineRules.swift in Sources */,
+				9300634436D74C4BBE35699D /* TimelineExpression.swift in Sources */,
 				3A89FB606BB76E53890A1F9D /* TimelineRows.swift in Sources */,
 				D10000000000000000000001 /* WorkspaceBrowserDTO.swift in Sources */,
 				D10000000000000000000002 /* WorkspaceBrowserEndpoints.swift in Sources */,
