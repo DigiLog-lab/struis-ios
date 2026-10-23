@@ -183,6 +183,15 @@ struct AppRootView: View {
                     .sheet(item: Binding(get: { isUnitsPresented ? nil : coordinator.question }, set: { coordinator.question = $0 })) { context in
                         WorkbookQuestionScreen(context: context)
                     }
+                    // 単元づくりの「はじめる」など、単元ホームの中の画面へ移る時は、単元ホームを重ねてから移る。
+                    .onChange(of: coordinator.path) { _, path in
+                        guard !path.isEmpty, !isUnitsPresented else { return }
+                        // 質問のシートを閉じている途中に重ねると出ないことがあるので、閉じ終わるのを待つ。
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(450))
+                            isUnitsPresented = true
+                        }
+                    }
                     .onAppear { chat.start() }
                     .task {
                         if case .idle = bootstrap.loadState {

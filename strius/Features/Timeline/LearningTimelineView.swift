@@ -134,8 +134,25 @@ struct LearningTimelineView: View {
             }
         case .result:
             if let card = store.current, let attempt = store.lastAttempt {
-                ScrollView { TimelineResultView(card: card, attempt: attempt, store: store).padding(.trailing, 60).padding(.bottom, 24) }
-                    .scrollIndicators(.hidden)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        TimelineResultView(card: card, attempt: attempt, store: store)
+                        if attempt.verdict == "wrong", store.isStuck(card) {
+                            // 2日続けて同じ所で止まった: 直近の答案をすべて渡して、質問(チューターとの会話)で一緒に考える。
+                            Button { askWithHistory(card) } label: {
+                                Label("質問で一緒に考える", systemImage: TimelineSymbol.ask)
+                                    .font(Typography.sans(size: 15, weight: .bold))
+                                    .padding(.horizontal, 18).padding(.vertical, 12)
+                                    .foregroundStyle(Theme.primaryText)
+                                    .background(Theme.accentColor.opacity(0.16), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("timeline-stuck-ask")
+                        }
+                    }
+                    .padding(.trailing, 60).padding(.bottom, 24)
+                }
+                .scrollIndicators(.hidden)
             }
         case .solving, .grading:
             if let card = store.current {
@@ -167,17 +184,25 @@ struct LearningTimelineView: View {
             .gesture(hasInk ? nil : swipeUp)
     }
 
+    /// 左下: 前に解いた印(「↺ 2日前 ○」)と通し番号。
     private func footnote(_ card: TimelineCardRecord) -> some View {
-        HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             switch store.badge {
-            case .resume?: Label("昨日", systemImage: TimelineSymbol.past)
-            case .history(let days)?: Label(days <= 1 ? "昨日" : "\(days)日前", systemImage: TimelineSymbol.past); TimelineMark(correct: true, size: 11)
-            default: EmptyView()
+            case .resume?:
+                Label("昨日", systemImage: TimelineSymbol.past)
+            case .history(let days)?:
+                HStack(spacing: 6) {
+                    Label(days <= 1 ? "昨日" : "\(days)日前", systemImage: TimelineSymbol.past)
+                    TimelineMark(correct: true, size: 11)
+                }
+            default:
+                EmptyView()
             }
-            Spacer()
+            Text("No. \(store.problemNumber)").font(Typography.ordinal).foregroundStyle(Theme.tertiaryText)
         }
         .font(Typography.sans(size: 14, weight: .medium))
         .foregroundStyle(Theme.secondaryText)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.trailing, 90)
     }
 
@@ -375,6 +400,11 @@ struct LearningTimelineView: View {
     private func ask(_ card: TimelineCardRecord) {
         coordinator.ask(WorkbookQuestionContext(subunitId: card.subunitId, setId: nil, title: "タイムライン", stageLabel: nil,
                                                 initialDraft: "この問題について質問です。\n" + problemText(card)))
+    }
+
+    private func askWithHistory(_ card: TimelineCardRecord) {
+        coordinator.ask(WorkbookQuestionContext(subunitId: card.subunitId, setId: nil, title: "タイムライン", stageLabel: nil,
+                                                initialDraft: "同じところで2日続けて止まっています。一緒に考えてください。\n" + problemText(card) + "\n\nこれまでの答案:\n" + store.recentAnswers(for: card)))
     }
 
     private func explain(_ card: TimelineCardRecord) {

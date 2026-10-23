@@ -150,6 +150,30 @@ final class TimelineStore {
 
     var rapidBest: Double? { machine.rapidBest }
 
+    /// 通し番号(左下の「No. 21」)。
+    var problemNumber: Int { machine.attempts.values.filter { $0.verdict != "skipped" }.count + (phase == .result ? 0 : 1) }
+
+    /// 2日続けて同じ所で止まった(質問へ誘導する)。
+    func isStuck(_ card: TimelineCardRecord) -> Bool {
+        !TimelineRules.stuckTwoDays(results: machine.skillResults, today: machine.today).isDisjoint(with: card.skills)
+    }
+
+    /// 質問を始める時に渡す、その手順の直近の答案(すべて)。
+    func recentAnswers(for card: TimelineCardRecord) -> String {
+        let attempts = machine.orderedAttempts.filter { attempt in
+            attempt.verdict == "correct" || attempt.verdict == "wrong" ? !(machine.cards[attempt.cardId]?.skills ?? []).allSatisfy { !card.skills.contains($0) } : false
+        }.suffix(6)
+        return attempts.compactMap { attempt -> String? in
+            guard let past = machine.cards[attempt.cardId] else { return nil }
+            let errors = attempt.errors.arrayValue?.compactMap { error -> String? in
+                let wrote = error["wrote"]?.stringValue ?? "", correct = error["correct"]?.stringValue ?? "", detail = error["detail"]?.stringValue ?? ""
+                return [wrote.isEmpty ? nil : "書いたもの: \(wrote)", correct.isEmpty ? nil : "正しくは: \(correct)", detail.isEmpty ? nil : detail].compactMap { $0 }.joined(separator: " / ")
+            } ?? []
+            let day = TimelineRules.day(attempt.createdAt) ?? ""
+            return "- \(day) \(TimelineCards.problemLine(prompt: past.prompt, math: past.math)) \(past.question) → \(attempt.verdict == "correct" ? "○" : "×")" + (errors.isEmpty ? "" : "(" + errors.joined(separator: "; ") + ")")
+        }.joined(separator: "\n")
+    }
+
     // MARK: - 始める
 
     /// 起動したらすぐ出す。1枚目は手元から選び、AI を呼ばない。出すと同時に、その日の最初の5枚を頼む。
