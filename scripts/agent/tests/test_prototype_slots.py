@@ -79,6 +79,17 @@ class PrototypeSlotTests(unittest.TestCase):
         self.assertEqual((owner['issue'], owner['variant']), (4, 'b'))
         self.assertIsNone(self.slots()['s05']['assigned'])
 
+    def test_rebuild_after_an_archive_cut_short_takes_a_slot_again(self) -> None:
+        # The archive freed s05 in the registry but stopped before marking meta.json.
+        self.store.update_json(prototype.SLOTS_KEY, lambda document: {
+            **document, 'slots': {**document['slots'], 's05': {**document['slots']['s05'], 'assigned': None}}})
+        with mock.patch('builtins.print'):
+            prototype.cmd_allocate(allocate_args(46, 'a', 'agent/issue-46'))
+            prototype.cmd_allocate(allocate_args(4, 'b', 'prototype/4/b'))
+        self.assertEqual(self.store.get_json(prototype.meta_key(46, 'a'))['slot'], 's05')
+        # 4/b must not keep using s05, which 46/a now owns.
+        self.assertEqual(self.store.get_json(prototype.meta_key(4, 'b'))['slot'], 's06')
+
     def test_a_prototype_that_keeps_its_slot_is_not_moved(self) -> None:
         prototype.release_slot(self.store, 2, 'a')
         with mock.patch('builtins.print'):
@@ -115,8 +126,14 @@ class PrototypeWorkflowTests(unittest.TestCase):
     def test_build_accepts_any_branch_and_checks_it_exists(self) -> None:
         text: str = WORKFLOW.read_text()
         self.assertNotIn('ref must be prototype/', text)
-        self.assertIn('git/ref/heads/$REF', text)
+        self.assertIn('git check-ref-format --branch "$REF"', text)
+        self.assertIn('git/ref/heads/$encoded', text)
         self.assertIn("ref: refs/heads/${{ (inputs.ref || github.event.client_payload.ref) }}", text)
+
+    def test_build_and_archive_of_one_prototype_share_a_concurrency_group(self) -> None:
+        group: str = WORKFLOW.read_text().split('\nconcurrency:\n', 1)[1].split('cancel-in-progress', 1)[0]
+        self.assertIn("format('agent-prototype-{0}-{1}'", group)
+        self.assertNotIn("format('agent-prototype-{0}-{1}-{2}'", group)
 
     def test_archive_job_needs_no_signing_secret(self) -> None:
         text: str = WORKFLOW.read_text()

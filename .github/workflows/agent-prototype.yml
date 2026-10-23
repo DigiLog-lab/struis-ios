@@ -44,7 +44,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: agent-prototype-${{ (inputs.operation || github.event.client_payload.operation) }}-${{ (inputs.issue || github.event.client_payload.issue) }}-${{ (inputs.variant || github.event.client_payload.variant) }}
+  # build and archive of the same prototype share one group, so an archive never
+  # frees the slot while a build of that prototype is still signing with it.
+  group: >-
+    ${{ (inputs.operation || github.event.client_payload.operation) == 'register-slots' && 'agent-prototype-register-slots' ||
+        format('agent-prototype-{0}-{1}', (inputs.issue || github.event.client_payload.issue), (inputs.variant || github.event.client_payload.variant)) }}
   cancel-in-progress: false
 
 env:
@@ -123,8 +127,9 @@ jobs:
           [[ "$ISSUE" =~ ^[1-9][0-9]*$ ]] || { echo "::error::issue must be a number"; exit 1; }
           [[ "$VARIANT" =~ ^[a-z][a-z0-9]{0,7}$ ]] || { echo "::error::variant must be lowercase"; exit 1; }
           # Any branch of this repository: no tag, commit SHA or refs/pull/*.
-          [[ "$REF" =~ ^[A-Za-z0-9._/-]+$ && "$REF" != refs/* ]] || { echo "::error::ref must be a branch name"; exit 1; }
-          gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$REF" --silent || { echo "::error::branch $REF does not exist in $GITHUB_REPOSITORY"; exit 1; }
+          [[ "$REF" != refs/* ]] && git check-ref-format --branch "$REF" >/dev/null || { echo "::error::ref must be a branch name"; exit 1; }
+          encoded=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe="/"))' "$REF")
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$encoded" --silent || { echo "::error::branch $REF does not exist in $GITHUB_REPOSITORY"; exit 1; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: refs/heads/${{ (inputs.ref || github.event.client_payload.ref) }}

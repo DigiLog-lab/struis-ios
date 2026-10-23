@@ -207,16 +207,16 @@ def cmd_allocate(args):
         except StoreError:
             meta, _ = store.get_json_with_etag(meta_key(issue, variant))
     else:
-        # An archived prototype gave its slot away; take a free one again.
-        assigned: dict | None = assign_slot(store, issue, variant) if meta.get('released') else None
+        # The registry decides ownership: the slot this prototype still holds, or a
+        # free one when it was archived (even if the archive stopped before marking meta).
+        assigned: dict = assign_slot(store, issue, variant)
 
         def refresh(document: dict) -> dict:
             document['branch'] = args.ref
             document['title'] = args.title or document.get('title')
             document['summary'] = args.summary or document.get('summary')
-            if assigned:
-                document.update(slot=assigned['name'], bundleId=assigned['bundleBase'], appGroup=assigned['appGroup'])
-                document.pop('released', None)
+            document.update(slot=assigned['name'], bundleId=assigned['bundleBase'], appGroup=assigned['appGroup'])
+            document.pop('released', None)
             return document
         meta = store.update_json(meta_key(issue, variant), refresh)
     event(store, issue, variant, 'building', args.summary)
