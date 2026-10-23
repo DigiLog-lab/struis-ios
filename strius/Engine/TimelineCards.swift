@@ -289,7 +289,7 @@ nonisolated enum TimelineCards {
             return steps.indices.contains(index) ? (index, wrong) : nil
         }
         var shuffle = Shuffle(seed: base.id + kind.rawValue)
-        let problem = [base.prompt, base.math].filter { !$0.isEmpty }.joined(separator: " ")
+        let problem = problemLine(prompt: base.payload["problem"]?.stringValue ?? base.prompt, math: base.math)
         switch kind {
         case .solve, .guide:
             return nil
@@ -349,6 +349,12 @@ nonisolated enum TimelineCards {
             guard let reason = base.payload["reason"]?.objectValue, !(reason["options"]?.arrayValue?.isEmpty ?? true) else { return nil }
             return (reason["question"]?.stringValue ?? "なぜ？", reason)
         }
+    }
+
+    /// 問題文と式を 1 行の読める文字にする(組み替えたカードの問題・下の帯)。
+    static func problemLine(prompt: String, math: String) -> String {
+        let readable = math.isEmpty ? "" : MathPlainText.preview("\\(" + math + "\\)")
+        return [prompt, readable].filter { !$0.isEmpty }.joined(separator: " ")
     }
 
     static func format(_ value: Double) -> String {

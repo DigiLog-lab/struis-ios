@@ -311,7 +311,7 @@ nonisolated struct TimelineMachine {
         )
         if let kind = TimelineCards.Kind(rawValue: draft.kind), kind != .solve, let derived = TimelineCards.derive(kind, from: card) {
             card.kind = kind.rawValue
-            card.payload = .object(payload.merging(derived.payload) { _, new in new }.merging(["problem": .string([draft.prompt, draft.math].filter { !$0.isEmpty }.joined(separator: " "))]) { old, _ in old })
+            card.payload = .object(payload.merging(derived.payload) { _, new in new }.merging(["problem": .string(TimelineCards.problemLine(prompt: draft.prompt, math: draft.math))]) { old, _ in old })
             card.prompt = derived.prompt
             if !kind.needsReading { card.subunitId = nil }
         }
@@ -326,7 +326,7 @@ nonisolated struct TimelineMachine {
         let first = queue.first?.position ?? nextPosition
         var payload = base.payload.objectValue ?? [:]
         payload.merge(derived.payload) { _, new in new }
-        payload["problem"] = .string([base.prompt, base.math].filter { !$0.isEmpty }.joined(separator: " "))
+        payload["problem"] = .string(TimelineCards.problemLine(prompt: base.payload["problem"]?.stringValue ?? base.prompt, math: base.math))
         payload["derived_from"] = .string(base.id)
         let card = TimelineCardRecord(
             id: newID(), batchId: base.batchId, position: first - 1, kind: kind.rawValue, level: base.level, skills: base.skills,

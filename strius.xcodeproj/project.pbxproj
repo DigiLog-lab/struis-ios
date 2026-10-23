@@ -238,6 +238,11 @@
 		54CB1AC84DB7F05328E777C9 /* TimelineCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 804E6CA24FAD8D46755DF731 /* TimelineCards.swift */; };
 		17C8266FA86E6432F1F0C8C5 /* TimelineMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FEBAE568FDA5E20EBE7967 /* TimelineMachine.swift */; };
 		7F2137BB93FD6387FE8AC370 /* TimelineTurns.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9BAEF74E6FF625CB4C478F3 /* TimelineTurns.swift */; };
+		EF55AF6D8620EE4ECF28C485 /* TimelineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E65AE9A79C0EBE31438EA058 /* TimelineStore.swift */; };
+		28A97A05E707E328626BB54C /* TimelineParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 833CCE513E78354E7FE8CB3E /* TimelineParts.swift */; };
+		2B7ECE02890F0AF50AA91B1A /* TimelineCardContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34208B315DFCB1CD386D3343 /* TimelineCardContent.swift */; };
+		DF7417F7B2FBE312887DEABA /* TimelineDipViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F0CE00FDFB0E6441B2DC5E /* TimelineDipViews.swift */; };
+		BDA40009050301B7C0246D93 /* LearningTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E8C890FA310BDE40DFF28DE /* LearningTimelineView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -518,6 +523,11 @@
 		804E6CA24FAD8D46755DF731 /* TimelineCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineCards.swift; sourceTree = "<group>"; };
 		63FEBAE568FDA5E20EBE7967 /* TimelineMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineMachine.swift; sourceTree = "<group>"; };
 		A9BAEF74E6FF625CB4C478F3 /* TimelineTurns.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineTurns.swift; sourceTree = "<group>"; };
+		E65AE9A79C0EBE31438EA058 /* TimelineStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineStore.swift; sourceTree = "<group>"; };
+		833CCE513E78354E7FE8CB3E /* TimelineParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineParts.swift; sourceTree = "<group>"; };
+		34208B315DFCB1CD386D3343 /* TimelineCardContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineCardContent.swift; sourceTree = "<group>"; };
+		A3F0CE00FDFB0E6441B2DC5E /* TimelineDipViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineDipViews.swift; sourceTree = "<group>"; };
+		7E8C890FA310BDE40DFF28DE /* LearningTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningTimelineView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -747,6 +757,7 @@
 		A30000000000000000000005 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				7B9F41B2C3D6F8CBB6B47286 /* Timeline */,
 				A30000000000000000000006 /* Chat */,
 				C30000000000000000000001 /* ImmersionLab */,
 				A3000000000000000000000C /* Onboarding */,
@@ -1174,6 +1185,18 @@
 			path = Settings;
 			sourceTree = "<group>";
 		};
+		7B9F41B2C3D6F8CBB6B47286 /* Timeline */ = {
+			isa = PBXGroup;
+			children = (
+				7E8C890FA310BDE40DFF28DE /* LearningTimelineView.swift */,
+				A3F0CE00FDFB0E6441B2DC5E /* TimelineDipViews.swift */,
+				34208B315DFCB1CD386D3343 /* TimelineCardContent.swift */,
+				833CCE513E78354E7FE8CB3E /* TimelineParts.swift */,
+				E65AE9A79C0EBE31438EA058 /* TimelineStore.swift */,
+			);
+			path = Timeline;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -1441,6 +1464,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BDA40009050301B7C0246D93 /* LearningTimelineView.swift in Sources */,
+				DF7417F7B2FBE312887DEABA /* TimelineDipViews.swift in Sources */,
+				2B7ECE02890F0AF50AA91B1A /* TimelineCardContent.swift in Sources */,
+				28A97A05E707E328626BB54C /* TimelineParts.swift in Sources */,
+				EF55AF6D8620EE4ECF28C485 /* TimelineStore.swift in Sources */,
 				7F2137BB93FD6387FE8AC370 /* TimelineTurns.swift in Sources */,
 				17C8266FA86E6432F1F0C8C5 /* TimelineMachine.swift in Sources */,
 				54CB1AC84DB7F05328E777C9 /* TimelineCards.swift in Sources */,
