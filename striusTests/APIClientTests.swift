@@ -5,6 +5,18 @@ import Testing
 @Suite(.serialized)
 @MainActor
 struct APIClientTests {
+    @Test func usageReportingIsOffWhenNothingIsSaved() {
+        let defaults = UserDefaults.standard
+        let saved = defaults.object(forKey: UsageReporter.defaultsKey)
+        defer {
+            if let saved { defaults.set(saved, forKey: UsageReporter.defaultsKey) } else { defaults.removeObject(forKey: UsageReporter.defaultsKey) }
+        }
+        defaults.removeObject(forKey: UsageReporter.defaultsKey)
+        #expect(defaults.object(forKey: UsageReporter.defaultsKey) == nil)
+        #expect(UsageReporter.isEnabled == false)
+        #expect(SettingsStore(runtime: nil).usageReportingEnabled == false)
+    }
+
     @Test func usageOptInSendsOnlyStatisticsFromCompletedLedgerTurn() async throws {
         StubURLProtocol.reset()
         let path = "/v1/device-runtime/usage"
