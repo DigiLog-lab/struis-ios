@@ -200,7 +200,7 @@ actor CodexTurnRunner: TurnRunning {
     }
 
     nonisolated static func isStructured(_ kind: TurnPlan.Kind) -> Bool {
-        kind == .workbookUnit || kind == .workbookSet || kind == .workbookGrading
+        kind == .workbookUnit || kind == .workbookSet || kind == .workbookGrading || TimelineTurns.isTimeline(kind)
     }
 
     private func readRateLimitsLater() {
@@ -367,7 +367,7 @@ actor CodexTurnRunner: TurnRunning {
     /// スレッドを始めた時の設定の版(`ThreadContextStore.Profile`)。
     nonisolated static func threadProfile(_ plan: TurnPlan, base: String, developer: String) -> ThreadContextStore.Profile {
         let claude = plan.thread.provider == .anthropic
-        let tools = (try? JSONSerialization.data(withJSONObject: NativeToolRouter.definitions, options: [.sortedKeys]))
+        let tools = (try? JSONSerialization.data(withJSONObject: NativeToolRouter.definitions(for: plan.kind), options: [.sortedKeys]))
             .map { String(decoding: $0, as: UTF8.self) } ?? ""
         let schema = plan.turn?.outputSchema.flatMap { try? JSONSerialization.data(withJSONObject: $0.any, options: [.sortedKeys]) }
             .map { ThreadContextStore.hash(String(decoding: $0, as: UTF8.self)) }
@@ -396,7 +396,7 @@ actor CodexTurnRunner: TurnRunning {
         }
         let fullDeveloper = developer + "\n\n" + NativeToolRouter.instructions
         var params: JSONObject = [
-            "dynamicTools": NativeToolRouter.definitions,
+            "dynamicTools": NativeToolRouter.definitions(for: plan.kind),
             "model": spec.model, "approvalPolicy": "never", "sandbox": "danger-full-access",
             "allowProviderModelFallback": false, "baseInstructions": base, "developerInstructions": fullDeveloper,
             "config": NativeToolRouter.configuration(spec.config.any as? JSONObject ?? [:]),

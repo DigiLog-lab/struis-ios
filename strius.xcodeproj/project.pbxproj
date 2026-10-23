@@ -237,6 +237,7 @@
 		FC31020B54D6F11FAD2E36D4 /* TimelineGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CCDF6B0A0C3EA7362D61C81 /* TimelineGraph.swift */; };
 		54CB1AC84DB7F05328E777C9 /* TimelineCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 804E6CA24FAD8D46755DF731 /* TimelineCards.swift */; };
 		17C8266FA86E6432F1F0C8C5 /* TimelineMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FEBAE568FDA5E20EBE7967 /* TimelineMachine.swift */; };
+		7F2137BB93FD6387FE8AC370 /* TimelineTurns.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9BAEF74E6FF625CB4C478F3 /* TimelineTurns.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -516,6 +517,7 @@
 		3CCDF6B0A0C3EA7362D61C81 /* TimelineGraph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineGraph.swift; sourceTree = "<group>"; };
 		804E6CA24FAD8D46755DF731 /* TimelineCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineCards.swift; sourceTree = "<group>"; };
 		63FEBAE568FDA5E20EBE7967 /* TimelineMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineMachine.swift; sourceTree = "<group>"; };
+		A9BAEF74E6FF625CB4C478F3 /* TimelineTurns.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineTurns.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -1082,6 +1084,7 @@
 		E88D869D0CD3754EED0470FA /* Engine */ = {
 			isa = PBXGroup;
 			children = (
+				A9BAEF74E6FF625CB4C478F3 /* TimelineTurns.swift */,
 				63FEBAE568FDA5E20EBE7967 /* TimelineMachine.swift */,
 				804E6CA24FAD8D46755DF731 /* TimelineCards.swift */,
 				3CCDF6B0A0C3EA7362D61C81 /* TimelineGraph.swift */,
@@ -1438,6 +1441,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7F2137BB93FD6387FE8AC370 /* TimelineTurns.swift in Sources */,
 				17C8266FA86E6432F1F0C8C5 /* TimelineMachine.swift in Sources */,
 				54CB1AC84DB7F05328E777C9 /* TimelineCards.swift in Sources */,
 				FC31020B54D6F11FAD2E36D4 /* TimelineGraph.swift in Sources */,

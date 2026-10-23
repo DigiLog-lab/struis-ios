@@ -21,7 +21,7 @@ final class UsageReporter {
     nonisolated static let effortKeys: Set<String> = ["requested_effort", "resolved_effort", "actual_effort"]
     nonisolated static let efforts: Set<String> = ["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]
     nonisolated static let statuses: Set<String> = ["starting", "in_progress", "completed", "failed", "interrupted"]
-    nonisolated static let taskTypes: Set<String> = ["chat", "workbook_grading", "workbook_set", "workbook_unit", "thread_fork", "thread_inject", "luna_lookup", "material_search", "fact_extraction"]
+    nonisolated static let taskTypes: Set<String> = ["chat", "workbook_grading", "workbook_set", "workbook_unit", "thread_fork", "thread_inject", "luna_lookup", "material_search", "fact_extraction", "timeline_batch", "timeline_grading", "timeline_graph"]
     nonisolated static let tokenKeys: Set<String> = ["input_tokens", "cached_input_tokens", "cache_write_input_tokens", "output_tokens", "reasoning_output_tokens", "total_tokens", "inputTokens", "cachedInputTokens", "cacheWriteInputTokens", "outputTokens", "reasoningOutputTokens", "totalTokens", "modelContextWindow"]
     nonisolated static let finishedStatuses: Set<String> = ["completed", "failed", "interrupted"]
 

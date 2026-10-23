@@ -229,6 +229,11 @@ actor TurnCoordinator {
         await start(kind: .workbookUnit, targetID: proposalID)
     }
 
+    /// 学習タイムライン(Issue #46): 次の5枚・採点・知識グラフ。5枚は学習者が待っていない先回り(1枚目は手元から出す)。
+    func startTimeline(kind: TurnPlan.Kind, targetID: String, prefetch: Bool = false) async {
+        await start(kind: kind, targetID: targetID, prefetch: prefetch)
+    }
+
     private func start(kind: TurnPlan.Kind, targetID: String, prefetch: Bool = false) async {
         let turnID = LedgerID.make()
         if prefetch {
@@ -254,6 +259,11 @@ actor TurnCoordinator {
             composingTargets.remove(targetID)
             stoppedWhileComposing.remove(targetID)
             turnLog.error("compose \(kind.rawValue, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+            if TimelineTurns.isTimeline(kind) {
+                try? await ledger.commit { db in (try TimelineTurns.fail(kind: kind, targetID: targetID, error: String(describing: error), db: db), ()) }
+                notify(Notice(turnID: turnID, kind: kind, targetID: targetID, status: "failed"))
+                return
+            }
             try? await ledger.commit { db in
                 var machine = try WorkbookMachine(loading: db)
                 switch kind {
@@ -280,6 +290,14 @@ actor TurnCoordinator {
             return (try await composer.set(planID: turnID, machine: machine, setID: targetID, avoidExpressions: avoid), nil)
         case .workbookUnit:
             return (try await composer.unit(planID: turnID, machine: machine, proposalID: targetID), nil)
+        case .timelineBatch, .timelineGrading, .timelineGraph:
+            let timeline = try await ledger.read { db in try TimelineMachine(loading: db) }
+            let composer = self.composer
+            switch kind {
+            case .timelineBatch: return (try await TimelineTurns.batch(composer: composer, planID: turnID, batchID: targetID, workbook: machine, timeline: timeline), nil)
+            case .timelineGrading: return (try await TimelineTurns.grading(composer: composer, planID: turnID, attemptID: targetID, workbook: machine, timeline: timeline), nil)
+            default: return (try await TimelineTurns.graph(composer: composer, planID: turnID, batchID: targetID, workbook: machine, timeline: timeline), nil)
+            }
         default:
             throw LedgerError.invalid("unsupported turn kind \(kind.rawValue)")
         }
@@ -413,6 +431,21 @@ actor TurnCoordinator {
         do {
             followUp = try await ledger.commit { db in
                 guard try TurnRecord.fetchOne(db, key: turnID) != nil else { return ([], TurnApplier.FollowUp()) }
+                if TimelineTurns.isTimeline(plan.kind) {
+                    let applied = try TimelineTurns.apply(kind: plan.kind, targetID: targetID ?? "", outcome: outcome, model: plan.thread.model, db: db)
+                    var events = applied.events
+                    if var turn = try TurnRecord.fetchOne(db, key: turnID) {
+                        turn.status = outcome.status.rawValue
+                        turn.outcome = outcome.json
+                        turn.codexThreadId = outcome.codexThreadID
+                        turn.codexTurnId = outcome.codexTurnID
+                        turn.executions = .array(outcome.executions)
+                        turn.error = outcome.error
+                        turn.completedAt = LedgerClock.now()
+                        events.append(.upsert("turn.\(outcome.status.rawValue)", turn))
+                    }
+                    return (events, TurnApplier.FollowUp(retryTimeline: applied.followUp.retry))
+                }
                 var machine = try WorkbookMachine(loading: db)
                 switch plan.kind {
                 case .workbookGrading: guard let targetID, machine.captures[targetID] != nil else { return ([], TurnApplier.FollowUp()) }
@@ -451,6 +484,11 @@ actor TurnCoordinator {
         }
         WorkspaceStager.cleanup(plan: plan)
         notify(Notice(turnID: turnID, kind: plan.kind, targetID: targetID, status: outcome.status.rawValue))
+        if TimelineTurns.isTimeline(plan.kind) {
+            // 受け取りを断った(skills の ID・段の上限・検算・グラフの点検): 1 回だけ作り直させる。
+            if followUp.retryTimeline, let targetID { await start(kind: plan.kind, targetID: targetID, prefetch: wasPrefetch) }
+            return acquired
+        }
         if let setID = followUp.setIDToGenerate {
             // 一枚の残り(§3.2)。先回りで組んでいた一枚は、学習者が求めるまで先回りのまま。
             await start(kind: .workbookSet, targetID: setID, prefetch: wasPrefetch && plan.kind == .workbookSet && prefetchTargets[setID] == turnID)

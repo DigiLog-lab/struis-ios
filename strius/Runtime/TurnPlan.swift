@@ -12,6 +12,10 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
         case threadFork = "thread_fork"
         case threadInject = "thread_inject"
         case lunaLookup = "luna_lookup"
+        /// 学習タイムライン(Issue #46): 次の5枚、採点、知識グラフを作る・見直す。
+        case timelineBatch = "timeline_batch"
+        case timelineGrading = "timeline_grading"
+        case timelineGraph = "timeline_graph"
     }
 
     nonisolated struct AssetRef: Codable, Hashable, Sendable {

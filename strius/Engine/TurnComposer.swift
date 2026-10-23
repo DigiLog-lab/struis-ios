@@ -156,6 +156,8 @@ nonisolated enum TurnApplier {
         var setIDToGenerate: String?
         /// 学習者が待っていない、次に要る一枚(§3.1)。学習者が待っている処理より後に回す。
         var prefetchSetID: String?
+        /// 学習タイムラインの結果を断った(作り直させる)。
+        var retryTimeline = false
     }
 
     /// `apply_grading_result`. 次の一枚は学習者がリザルト画面で選ぶ。ただし類題 ○ で演習に進んだ時は、次に要る
