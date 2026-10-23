@@ -45,10 +45,10 @@
 複数の実装案・UI 案を、登録済みの iPhone に同時インストールして比較するための仕組みです。
 
 1. 案ごとに小文字の英字で Prototype ID を決めます(`a`、`b`、`c`…)。既存の案(`<github-issue-event>` のプロトタイプ一覧)を更新するときは同じ ID を使い、新しい案には未使用の ID を使います。
-2. 案ごとのブランチ `prototype/{Issue番号}/{ID}` を作成して実装し、commit して push します。通常は作業ブランチまたは `main` から分岐します。案同士の変更は混ぜないでください。
-3. `python3 "$AGENT_CTL" prototype-build <ID> --title "<案の名前>" --summary "<変更内容の要約>" --wait` を実行します(最大9分待ち、それ以降は表示された `gh run watch` をバックグラウンドで実行して完了を待ちます。初回や native 依存の更新時は1時間ほどかかります)。専用の workflow が Bundle ID の割り当て、Apple Developer の設定、Ad Hoc 署名、IPA の生成、配布ページの発行を行い、結果を Issue に投稿します。同じ ID を再ビルドすると、Bundle ID を維持して Build Number が増えます。
+2. このリポジトリのどのブランチでもビルドできます。今の作業を試してもらうだけなら、作業ブランチをそのまま `--ref` で渡します(`--ref agent/issue-{番号}`)。複数の案を並べて比べるときは、案ごとのブランチ(既定は `prototype/{Issue番号}/{ID}`)を作って commit・push し、案同士の変更は混ぜないでください。
+3. `python3 "$AGENT_CTL" prototype-build <ID> [--ref <ブランチ>] --title "<案の名前>" --summary "<変更内容の要約>" --wait` を実行します(最大9分待ち、それ以降は表示された `gh run watch` をバックグラウンドで実行して完了を待ちます。初回や native 依存の更新時は1時間ほどかかります)。専用の workflow が Bundle ID の割り当て、Apple Developer の設定、Ad Hoc 署名、IPA の生成、配布ページの発行を行い、結果を Issue に投稿します。同じ ID を再ビルドすると、Bundle ID を維持して Build Number が増えます。
 4. 失敗した場合は表示された `gh run view <id> --log-failed` で原因を調べ、修正して push し、再実行してください。
-5. 状態の変更(検証中、採用、保管など)は `python3 "$AGENT_CTL" prototype-status <ID> <draft|building|ready|testing|selected|archived|failed> --note "<理由>"` で記録します。採用された案は作業ブランチへ統合し、Pull Request を作成します。
+5. 状態の変更(検証中、採用、保管など)は `python3 "$AGENT_CTL" prototype-status <ID> <draft|building|ready|testing|selected|archived|failed> --note "<理由>"` で記録します。`archived` にするとその案の識別子枠が解放され、次の新しい案が使います(同じ Bundle ID への上書きインストールになります)。比べ終わった案は、頼まれたら `archived` にしてください。採用された案は作業ブランチへ統合し、Pull Request を作成します。
 6. 返信では、各案の違い、配布結果、比較してほしい観点を簡潔にまとめてください。インストールリンクは workflow が Issue に投稿します。
 
 プロトタイプは本番アプリと別の Bundle ID・App Group・表示名・アイコンでビルドされます。本番の識別子や署名設定を、プロトタイプのために変更しないでください。

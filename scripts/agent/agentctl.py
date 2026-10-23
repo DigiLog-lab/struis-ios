@@ -1047,6 +1047,10 @@ def record_prototype_events(store, number, entries, source):
     for entry in entries:
         variant = entry['variant']
         event = {'status': entry['status'], 'note': entry.get('note'), 'at': iso(), 'source': source}
+        if entry['status'] == 'archived':
+            # Archiving frees the prototype's identifier slot for the next new prototype.
+            from prototype import release_slot
+            event['releasedSlot'] = release_slot(store, number, variant)
         stamp = utc_now().strftime('%Y%m%dT%H%M%S%fZ')
         store.put_json(f'prototypes/{number}/{variant}/events/{stamp}-{source}.json', event)
 
@@ -1413,7 +1417,8 @@ def cmd_attach(args):
 
 def cmd_prototype_status(args):
     outbox_append({'type': 'prototype-status', 'variant': args.variant, 'status': args.status, 'note': args.note})
-    print(f'Prototype {args.variant} を {args.status} にします(ターン終了時に保存)。')
+    released = '。枠を解放します' if args.status == 'archived' else ''
+    print(f'Prototype {args.variant} を {args.status} にします(ターン終了時に保存{released})。')
 
 
 def process_alive(pid):
@@ -1581,7 +1586,7 @@ def main():
     build.add_argument('variant')
     build.add_argument('--title', required=True)
     build.add_argument('--summary')
-    build.add_argument('--ref')
+    build.add_argument('--ref', help='ビルドするブランチ(既定 prototype/{Issue}/{ID})。作業ブランチをそのまま渡せる')
     build.add_argument('--wait', action='store_true')
     build.add_argument('--wait-minutes', type=float, default=9,
                        help='Bash ツールの上限(10分)より短く待つ')

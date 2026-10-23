@@ -1,18 +1,21 @@
 name: Agent prototype
-run-name: "${{ (inputs.operation || github.event.client_payload.operation) == 'register-slots' && 'Prototype slots' || format('Prototype #{0} {1}', (inputs.issue || github.event.client_payload.issue), (inputs.variant || github.event.client_payload.variant)) }}"
+run-name: "${{ (inputs.operation || github.event.client_payload.operation) == 'register-slots' && 'Prototype slots' ||
+  (inputs.operation || github.event.client_payload.operation) == 'archive' && format('Prototype archive #{0} {1}', (inputs.issue || github.event.client_payload.issue), (inputs.variant || github.event.client_payload.variant)) ||
+  format('Prototype #{0} {1}', (inputs.issue || github.event.client_payload.issue), (inputs.variant || github.event.client_payload.variant)) }}"
 
-# Builds one Ad Hoc prototype (prototype/{issue}/{variant}) with its own Bundle
-# IDs and App Group, uploads the IPA to the agent store and posts an expiring
-# install link to the Issue. Signing secrets are only available through the
-# `prototype-distribution` environment, which accepts the default branch and can
-# require a reviewer when manual approval is wanted.
+# Builds one Ad Hoc prototype from any branch of this repository with its own
+# Bundle IDs and App Group (the slot of Issue + variant), uploads the IPA to the
+# agent store and posts an expiring install link to the Issue. `archive` frees a
+# prototype's slot for the next new prototype. Signing secrets are only available
+# through the `prototype-distribution` environment, which accepts the default
+# branch and can require a reviewer when manual approval is wanted.
 on:
   workflow_dispatch:
     inputs:
       operation:
-        description: build / register-slots
+        description: build / archive / register-slots
         type: choice
-        options: [build, register-slots]
+        options: [build, archive, register-slots]
         default: build
       issue:
         description: Issue番号
@@ -21,13 +24,13 @@ on:
         description: Prototype ID (a, b, c…)
         type: string
       ref:
-        description: ビルドするブランチ (prototype/{issue}/{variant})
+        description: ビルドするブランチ(このリポジトリのブランチ名。例 agent/issue-46)
         type: string
       title:
         description: 案の名前
         type: string
       summary:
-        description: 変更内容の要約
+        description: 変更内容の要約(archive では理由)
         type: string
       slot_count:
         description: register-slots で用意する枠の数
@@ -70,6 +73,32 @@ jobs:
           SLOT_COUNT: ${{ (inputs.slot_count || github.event.client_payload.slot_count) }}
         run: python3 scripts/agent/prototype.py register-slots --count "$SLOT_COUNT"
 
+  # Frees the slot of a prototype that is no longer compared (open or closed
+  # Issue). Needs no signing secret: the store accepts this workflow from main.
+  archive:
+    if: (inputs.operation || github.event.client_payload.operation) == 'archive'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ISSUE: ${{ (inputs.issue || github.event.client_payload.issue) }}
+      VARIANT: ${{ (inputs.variant || github.event.client_payload.variant) }}
+      NOTE: ${{ (inputs.summary || github.event.client_payload.summary) }}
+    steps:
+      - name: 入力を検証
+        run: |
+          set -euo pipefail
+          [[ "$ISSUE" =~ ^[1-9][0-9]*$ ]] || { echo "::error::issue must be a number"; exit 1; }
+          [[ "$VARIANT" =~ ^[a-z][a-z0-9]{0,7}$ ]] || { echo "::error::variant must be lowercase"; exit 1; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/agent
+      - name: アーカイブして枠を解放
+        run: python3 scripts/agent/prototype.py archive --issue "$ISSUE" --variant "$VARIANT" --note "$NOTE"
+
   build:
     if: (inputs.operation || github.event.client_payload.operation) == 'build'
     runs-on: xcode-27
@@ -87,14 +116,18 @@ jobs:
       SUMMARY: ${{ (inputs.summary || github.event.client_payload.summary) }}
     steps:
       - name: 入力を検証
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           [[ "$ISSUE" =~ ^[1-9][0-9]*$ ]] || { echo "::error::issue must be a number"; exit 1; }
           [[ "$VARIANT" =~ ^[a-z][a-z0-9]{0,7}$ ]] || { echo "::error::variant must be lowercase"; exit 1; }
-          [[ "$REF" == "prototype/$ISSUE/$VARIANT" ]] || { echo "::error::ref must be prototype/$ISSUE/$VARIANT"; exit 1; }
+          # Any branch of this repository: no tag, commit SHA or refs/pull/*.
+          [[ "$REF" =~ ^[A-Za-z0-9._/-]+$ && "$REF" != refs/* ]] || { echo "::error::ref must be a branch name"; exit 1; }
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$REF" --silent || { echo "::error::branch $REF does not exist in $GITHUB_REPOSITORY"; exit 1; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ (inputs.ref || github.event.client_payload.ref) }}
+          ref: refs/heads/${{ (inputs.ref || github.event.client_payload.ref) }}
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
