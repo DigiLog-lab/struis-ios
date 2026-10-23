@@ -110,16 +110,23 @@ class PrototypeSlotTests(unittest.TestCase):
         self.assertIsNone(prototype.release_slot(self.store, 99, 'z'))
         self.assertEqual(self.slots(), before)
 
-    def test_agent_archived_status_releases_the_slot(self) -> None:
-        agentctl.record_prototype_events(self.store, 6, [{'variant': 'a', 'status': 'archived', 'note': '済み'}], 'agent')
-        self.assertIsNone(self.slots()['s04']['assigned'])
-        events: list[dict] = [json.loads(value) for key, value in self.store.data.items()
-                              if key.startswith('prototypes/6/a/events/')]
-        self.assertEqual([(event['status'], event['releasedSlot']) for event in events], [('archived', 's04')])
+    def test_agent_archived_status_goes_through_the_serialized_archive_job(self) -> None:
+        gh: mock.Mock = mock.Mock()
+        with mock.patch.object(agentctl, 'dispatch') as dispatch:
+            agentctl.record_prototype_events(self.store, 6, [{'variant': 'a', 'status': 'archived', 'note': '済み'}], 'agent', gh)
+        dispatch.assert_called_once_with(gh, 'agent-prototype', {'operation': 'archive', 'issue': 6, 'variant': 'a', 'summary': '済み'})
+        # The worker itself never frees the slot: a build of 6/a may still be signing with it.
+        self.assertEqual(self.slots()['s04']['assigned']['issue'], 6)
+        self.assertFalse([key for key in self.store.data if key.startswith('prototypes/6/a/events/')])
 
     def test_agent_other_status_keeps_the_slot(self) -> None:
-        agentctl.record_prototype_events(self.store, 6, [{'variant': 'a', 'status': 'testing'}], 'agent')
+        with mock.patch.object(agentctl, 'dispatch') as dispatch:
+            agentctl.record_prototype_events(self.store, 6, [{'variant': 'a', 'status': 'testing'}], 'agent', mock.Mock())
+        dispatch.assert_not_called()
         self.assertEqual(self.slots()['s04']['assigned']['issue'], 6)
+        events: list[dict] = [json.loads(value) for key, value in self.store.data.items()
+                              if key.startswith('prototypes/6/a/events/')]
+        self.assertEqual([event['status'] for event in events], ['testing'])
 
 
 class PrototypeWorkflowTests(unittest.TestCase):

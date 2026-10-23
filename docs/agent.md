@@ -55,7 +55,7 @@ Claude は Issue の依頼に応じて `python3 "$AGENT_CTL" prototype-build <ID
 
 ### アーカイブと枠の解放
 
-比べ終わった案をアーカイブすると、その案の枠が空きます。Claude は Issue で `prototype-status <ID> archived` を記録します(ターン終了時に解放)。閉じた Issue の案など、Claude のセッションが無い案は Actions → Agent prototype → Run workflow で `operation=archive`、Issue 番号、ID(任意で `summary` に理由)を指定します。アーカイブした案をもう一度ビルドすると、空いている枠を取り直します。
+比べ終わった案をアーカイブすると、その案の枠が空きます。Claude は Issue で `prototype-status <ID> archived` を記録します(ターン終了時に `operation=archive` を起動し、そのジョブが解放します。同じ案のビルドが走っている間は、ビルドが終わるのを待ってから解放します)。閉じた Issue の案など、Claude のセッションが無い案は Actions → Agent prototype → Run workflow で `operation=archive`、Issue 番号、ID(任意で `summary` に理由)を指定します。アーカイブした案をもう一度ビルドすると、空いている枠を取り直します。
 
 空いた枠を次の案が使うと、端末上では同じ Bundle ID への上書きインストールになり、前の案のアプリの鍵と台帳のデータを引き継ぎます。きれいな状態から試すときは、前の案のアプリを先に削除してください。空いている枠が無いときは、ビルドが理由を Issue に投稿して止まります。
 
