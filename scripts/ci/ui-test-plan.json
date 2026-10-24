@@ -192,14 +192,15 @@
       ]
     },
     "timeline": {
-      "property": "学習タイムライン: 起動したらタイムラインが出る、単元ホームを重ねて戻る、撮る・指で書く・飛ばす・2択カード・やめどき",
+      "property": "学習タイムライン: 起動したらタイムラインが出る、単元ホームを重ねて戻る、撮る・指で書く・飛ばす・2択カード・やめどき、誤答の画面の2つの答えと判定への申し出",
       "tests": [
         "TimelineUITests/testLaunchShowsTimelineAndUnitsHomeCoversIt",
         "TimelineUITests/testCaptureGradesAndMovesToTheNextProblem",
         "TimelineUITests/testWritingInTheMarginTurnsTheBigButtonIntoSend",
         "TimelineUITests/testInkCoversTheWholeWidthAndTheProblemTextAndZoomsAroundThePinch",
         "TimelineUITests/testSkippingShowsReasonsAndTwoSkipsOfferTheDipCard",
-        "TimelineUITests/testStopSheetOffersOneMoreOrStop"
+        "TimelineUITests/testStopSheetOffersOneMoreOrStop",
+        "TimelineUITests/testWrongAnswerShowsBothAnswersAndOffersADisputeFromAsk"
       ],
       "paths": [
         "strius/Features/Timeline/**",
@@ -371,6 +372,7 @@
     "TimelineUITests/testWritingInTheMarginTurnsTheBigButtonIntoSend": 40,
     "TimelineUITests/testInkCoversTheWholeWidthAndTheProblemTextAndZoomsAroundThePinch": 45,
     "TimelineUITests/testSkippingShowsReasonsAndTwoSkipsOfferTheDipCard": 40,
-    "TimelineUITests/testStopSheetOffersOneMoreOrStop": 40
+    "TimelineUITests/testStopSheetOffersOneMoreOrStop": 40,
+    "TimelineUITests/testWrongAnswerShowsBothAnswersAndOffersADisputeFromAsk": 40
   }
 }

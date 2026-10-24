@@ -9,10 +9,11 @@ final class TimelineUITests: XCTestCase {
 
     /// タイムラインから始める起動(単元ホームを重ねない)。
     @MainActor
-    private func launchTimeline() -> XCUIApplication {
+    private func launchTimeline(wrong: Bool = false) -> XCUIApplication {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments = ["-skip-onboarding"]
+        if wrong { app.launchEnvironment["STRUIS_MOCK_TIMELINE_WRONG"] = "1" }
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
         app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = UITestSupport.paperImagePath
@@ -65,6 +66,34 @@ final class TimelineUITests: XCTestCase {
         XCTAssertTrue(app.buttons["timeline-capture"].appears(timeout: 10))
         XCTAssertNotEqual(app.descendants(matching: .any)["timeline-question"].firstMatch.label, first, "次の問題に進まない")
         XCTAssertTrue(app.descendants(matching: .any)["timeline-chain-bar"].firstMatch.label.contains("2"), "さっきの続きの2問目ではない")
+    }
+
+    /// 誤答の画面: 「あなたの答え」と「正しい答え」をラベル付きで並べ、「質問」から判定に納得できないと伝えられる。
+    @MainActor
+    func testWrongAnswerShowsBothAnswersAndOffersADisputeFromAsk() throws {
+        let app = launchTimeline(wrong: true)
+        waitForProblem(app)
+        app.buttons["timeline-capture"].tap()
+        let shutter = app.buttons["chat-camera-shutter"]
+        XCTAssertTrue(shutter.appears(timeout: 10))
+        shutter.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["timeline-result-wrong"].firstMatch.appears(timeout: 30), "誤答の結果が出ない")
+        XCTAssertTrue(app.descendants(matching: .any)["timeline-learner-answer"].firstMatch.exists, "「あなたの答え」が無い")
+        XCTAssertTrue(app.descendants(matching: .any)["timeline-answer-key"].firstMatch.exists, "「正しい答え」が無い")
+        XCTAssertTrue(app.staticTexts["あなたの答え"].exists)
+        XCTAssertTrue(app.staticTexts["正しい答え"].exists)
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "timeline-wrong-result"
+        shot.lifetime = .keepAlways
+        add(shot)
+        app.buttons["timeline-ask"].tap()
+        let dispute = app.buttons["判定に納得できない"]
+        XCTAssertTrue(dispute.appears(timeout: 5), "「質問」から判定に納得できないと伝えられない")
+        dispute.tap()
+        let send = app.buttons["見直してもらう"]
+        XCTAssertTrue(send.appears(timeout: 5))
+        send.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["timeline-dispute-sent"].firstMatch.appears(timeout: 10), "見直しを頼んだことが出ない")
     }
 
     /// 余白に指で書いたら、大きいボタンが「送る」に変わる。送ると採点される。
