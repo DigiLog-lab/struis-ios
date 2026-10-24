@@ -8,10 +8,11 @@ on:
   # A label already present on a PR does not run again on a WIP push.
   pull_request:
     types: [labeled]
-  # No push or nightly trigger: the merge decision is the Xcode Cloud gate, and
-  # the full UI suite and TestFlight run in the Xcode Cloud Release workflow on
-  # request (docs/verification-and-delivery-policy.md). workflow_dispatch is the
-  # gate's GitHub fallback and the manual release/upload route.
+  # No push or nightly trigger. workflow_dispatch carries the merge gate (the
+  # `verify` job, dispatched by the Ready controller) and the release route
+  # (a manual run on main: every UI test, then `signed-archive` and the optional
+  # TestFlight upload). Xcode Cloud (PR Gate / Release) is kept only as a manual
+  # backup (docs/verification-and-delivery-policy.md).
   workflow_dispatch:
     inputs:
       source_ref:
