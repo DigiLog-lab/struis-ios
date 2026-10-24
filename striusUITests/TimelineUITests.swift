@@ -83,6 +83,37 @@ final class TimelineUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["timeline-result-correct"].firstMatch.appears(timeout: 30))
     }
 
+    /// 書く面は、上の帯と下の帯の間を画面の端から端まで覆う。問題文の上にも書け、指が触れただけでは「送る」にならない。
+    /// 2本指でつまむと縮小でき、「元の大きさ」で戻せる。
+    @MainActor
+    func testInkCoversTheWholeWidthAndTheProblemTextAndZoomsOut() throws {
+        let app = launchTimeline()
+        waitForProblem(app)
+        let ink = app.descendants(matching: .any)["timeline-ink"].firstMatch
+        XCTAssertTrue(ink.appears(timeout: 5))
+        let window = app.windows.firstMatch.frame
+        XCTAssertEqual(ink.frame.minX, window.minX, accuracy: 1, "書く面が画面の左端まで無い")
+        XCTAssertEqual(ink.frame.maxX, window.maxX, accuracy: 1, "書く面が画面の右端まで無い")
+        let question = app.descendants(matching: .any)["timeline-question"].firstMatch
+        XCTAssertTrue(ink.frame.contains(CGPoint(x: question.frame.midX, y: question.frame.midY)), "問題文の上に書けない")
+        // 指が触れただけの点は、書いたものに数えない。
+        ink.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6)).tap()
+        XCTAssertFalse(app.buttons["timeline-send"].waitForExistence(timeout: 1), "触れただけで「送る」になった")
+        // 問題文の上を横切って書く。
+        let origin = ink.coordinate(withNormalizedOffset: .zero)
+        let from = origin.withOffset(CGVector(dx: 8, dy: question.frame.midY - ink.frame.minY))
+        let to = origin.withOffset(CGVector(dx: ink.frame.width - 8, dy: question.frame.midY - ink.frame.minY + 10))
+        from.press(forDuration: 0.05, thenDragTo: to)
+        XCTAssertTrue(app.buttons["timeline-send"].appears(timeout: 5), "問題文の上に書いたのに「送る」にならない")
+        XCTAssertTrue(app.buttons["timeline-skip"].exists == false, "書いた後も「飛ばす」が残っている")
+        ink.pinch(withScale: 0.5, velocity: -1)
+        let reset = app.buttons["timeline-ink-zoom-reset"]
+        XCTAssertTrue(reset.appears(timeout: 5), "つまんでも縮小できない")
+        reset.tap()
+        XCTAssertTrue(reset.waitForNonExistence(timeout: 5), "「元の大きさ」で戻らない")
+        XCTAssertTrue(app.buttons["timeline-send"].exists, "縮小して戻したら書いたものが消えた")
+    }
+
     /// 飛ばしたら、画面の上に「飛ばしました」と理由の2択。2回続けて飛ばしたら2択カード。
     @MainActor
     func testSkippingShowsReasonsAndTwoSkipsOfferTheDipCard() throws {

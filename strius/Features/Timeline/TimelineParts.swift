@@ -159,38 +159,129 @@ struct TimelineActionButton: View {
     }
 }
 
-/// 余白に指で書く(枠を置かない: 答えの形が分かってしまうため)。
+/// 余白に指で書く(枠を置かない: 答えの形が分かってしまうため)。上の帯と下の帯の間を、画面の端から端まで覆う。
+/// 問題文の上にも書ける。下に置いたボタン(使う手順の「見る」など)の上だけは、指をボタンへ通す。
+/// 2本指でつまむと縮小でき、紙を足したように右と下へ書き足せる(最大で縦横2倍)。
 struct TimelineInkCanvas: UIViewRepresentable {
     @Binding var hasInk: Bool
+    @Binding var isDrawing: Bool
+    @Binding var isZoomedOut: Bool
     let controller: TimelineInkController
+    /// 指を通す区画(このビューの座標)。
+    var passThrough: [CGRect] = []
 
-    func makeUIView(context: Context) -> PKCanvasView {
-        let canvas = PKCanvasView()
+    /// 書いた線の色と太さ。指で書いても読めるよう、濃く太い一定幅の線にする。
+    static let inkColor = UIColor(red: 0.08, green: 0.07, blue: 0.06, alpha: 1)
+    static let inkWidth: CGFloat = 5
+    /// 指が触れただけの点は、書いたものに数えない(pt)。
+    static let minimumStrokeExtent: CGFloat = 6
+    /// 縮小の下限(縦横2倍の紙を画面に収める)。
+    static let minimumZoom: CGFloat = 0.5
+
+    func makeUIView(context: Context) -> TimelinePassThroughCanvas {
+        let canvas = TimelinePassThroughCanvas()
         canvas.drawingPolicy = .anyInput
         canvas.backgroundColor = .clear
         canvas.isOpaque = false
-        canvas.tool = PKInkingTool(.pen, color: UIColor(Theme.primaryText), width: 3)
+        canvas.tool = PKInkingTool(.monoline, color: Self.inkColor, width: Self.inkWidth)
+        canvas.minimumZoomScale = Self.minimumZoom
+        canvas.maximumZoomScale = 1
+        canvas.bouncesZoom = false
+        canvas.showsVerticalScrollIndicator = false
+        canvas.showsHorizontalScrollIndicator = false
+        canvas.contentInsetAdjustmentBehavior = .never
         canvas.delegate = context.coordinator
         canvas.accessibilityIdentifier = "timeline-ink"
         controller.canvas = canvas
         return canvas
     }
 
-    func updateUIView(_ canvas: PKCanvasView, context: Context) {}
+    func updateUIView(_ canvas: TimelinePassThroughCanvas, context: Context) {
+        canvas.passThrough = passThrough
+    }
 
-    func makeCoordinator() -> Coordinator { Coordinator(hasInk: $hasInk) }
+    func makeCoordinator() -> Coordinator { Coordinator(hasInk: $hasInk, isDrawing: $isDrawing, isZoomedOut: $isZoomedOut) }
+
+    /// 指が触れただけの点(ごく短い線)を除いて、書いた線があるか。
+    static func hasMeaningfulInk(_ drawing: PKDrawing) -> Bool {
+        drawing.strokes.contains { stroke in
+            let points = stroke.path.map(\.location)
+            guard let first = points.first else { return false }
+            return points.contains { abs($0.x - first.x) >= minimumStrokeExtent || abs($0.y - first.y) >= minimumStrokeExtent }
+        }
+    }
 
     final class Coordinator: NSObject, PKCanvasViewDelegate {
         let hasInk: Binding<Bool>
-        init(hasInk: Binding<Bool>) { self.hasInk = hasInk }
+        let isDrawing: Binding<Bool>
+        let isZoomedOut: Binding<Bool>
+        init(hasInk: Binding<Bool>, isDrawing: Binding<Bool>, isZoomedOut: Binding<Bool>) {
+            self.hasInk = hasInk
+            self.isDrawing = isDrawing
+            self.isZoomedOut = isZoomedOut
+        }
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
-            let value = !canvasView.drawing.strokes.isEmpty
+            let value = TimelineInkCanvas.hasMeaningfulInk(canvasView.drawing)
             if hasInk.wrappedValue != value { hasInk.wrappedValue = value }
+        }
+        func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) {
+            if !isDrawing.wrappedValue { isDrawing.wrappedValue = true }
+        }
+        func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) {
+            if isDrawing.wrappedValue { isDrawing.wrappedValue = false }
+        }
+        func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            let value = scrollView.zoomScale < 0.99
+            if isZoomedOut.wrappedValue != value { isZoomedOut.wrappedValue = value }
         }
     }
 }
 
-/// 書いた線の「1つ戻す」「全部消す」と、送る画像づくり。
+/// 書く面。紙は画面の縦横2倍の大きさで持ち、等倍では左上の1画面分を見せる。指を通す区画では触れても書かない。
+final class TimelinePassThroughCanvas: PKCanvasView {
+    var passThrough: [CGRect] = []
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        // 紙の大きさは等倍の画面の2倍。縮小中に呼ばれても、等倍の大きさから決める。
+        let paper = CGSize(width: bounds.width * 2, height: bounds.height * 2)
+        let scaled = CGSize(width: paper.width * zoomScale, height: paper.height * zoomScale)
+        if abs(contentSize.width - scaled.width) > 0.5 || abs(contentSize.height - scaled.height) > 0.5 {
+            contentSize = scaled
+        }
+    }
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        // passThrough はこのビューの枠の座標。スクロールした分を引いて比べる。
+        let local = CGPoint(x: point.x - contentOffset.x, y: point.y - contentOffset.y)
+        if passThrough.contains(where: { $0.contains(local) }) { return nil }
+        return super.hitTest(point, with: event)
+    }
+}
+
+/// 指を通す区画(書く面の座標空間 `TimelineInkSpace.name` での枠)を集める。
+struct TimelineInkPassThroughKey: PreferenceKey {
+    static let defaultValue: [CGRect] = []
+    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) { value.append(contentsOf: nextValue()) }
+}
+
+enum TimelineInkSpace {
+    static let name = "timeline-ink-space"
+}
+
+extension View {
+    /// 書く面の上にあっても、このビューには指を通す(押せるボタン)。
+    func timelineInkPassThrough() -> some View {
+        background {
+            GeometryReader { proxy in
+                Color.clear.preference(key: TimelineInkPassThroughKey.self, value: [proxy.frame(in: .named(TimelineInkSpace.name))])
+            }
+        }
+    }
+}
+
+/// 書いた線の「1つ戻す」「全部消す」「元の大きさ」と、送る画像づくり。
 @MainActor
 final class TimelineInkController {
     weak var canvas: PKCanvasView?
@@ -205,11 +296,22 @@ final class TimelineInkController {
 
     func clear() { canvas?.drawing = PKDrawing() }
 
+    func resetZoom() {
+        guard let canvas else { return }
+        canvas.setZoomScale(1, animated: true)
+        canvas.setContentOffset(.zero, animated: true)
+    }
+
     /// 白地に書いた線(JPEG)。何も書いていなければ nil。
+    /// ダークモードでは PencilKit が線を明るい色に反転して描くため、白地に重ねる画像はライトモードの色で描く。
     func image() -> Data? {
-        guard let canvas, !canvas.drawing.strokes.isEmpty else { return nil }
-        let bounds = canvas.drawing.bounds.insetBy(dx: -24, dy: -24)
-        let ink = canvas.drawing.image(from: bounds, scale: 2)
+        guard let canvas, TimelineInkCanvas.hasMeaningfulInk(canvas.drawing) else { return nil }
+        let drawing = canvas.drawing
+        let bounds = drawing.bounds.insetBy(dx: -24, dy: -24)
+        var ink = UIImage()
+        UITraitCollection(userInterfaceStyle: .light).performAsCurrent {
+            ink = drawing.image(from: bounds, scale: 2)
+        }
         let renderer = UIGraphicsImageRenderer(size: ink.size)
         let composed = renderer.image { context in
             UIColor.white.setFill()

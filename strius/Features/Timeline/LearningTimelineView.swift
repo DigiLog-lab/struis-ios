@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 起動したら最初に出る、1問ずつの全画面の「タイムライン」(Issue #46)。ブランド名は出さない。
 /// 操作は右下の縦並び(上から 質問・飛ばす・撮る)、下の帯に次の問題の1行目を常に見せ、上に送ると次へ進む。
-/// 余白にはいつでも指で書ける(書いている間は、余白で上に送る操作を止め、下の帯を上に送ったときだけ次へ進む)。
+/// 上の帯と下の帯の間は、問題文の上も含めて画面の端から端まで指で書ける。次へ進むのは、下の帯を上に送ったときだけ。
 struct LearningTimelineView: View {
     let store: TimelineStore
     let onOpenUnits: () -> Void
@@ -11,6 +11,9 @@ struct LearningTimelineView: View {
     @State private var hasInk = false
     @State private var ink = TimelineInkController()
     @State private var inkGeneration = 0
+    @State private var isDrawing = false
+    @State private var isInkZoomedOut = false
+    @State private var inkPassThrough: [CGRect] = []
     @State private var isCameraPresented = false
     @State private var dragOffset: CGFloat = 0
 
@@ -26,10 +29,15 @@ struct LearningTimelineView: View {
                         .padding(.horizontal, 24)
                         .padding(.top, 16)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    if showsInk { inkLayer }
                     actions
                         .padding(.trailing, 20)
                         .padding(.bottom, 16)
+                        // 書いている間はボタンを薄くして、下に書いた字を透かす。
+                        .opacity(isDrawing ? 0.35 : 1)
                 }
+                .coordinateSpace(name: TimelineInkSpace.name)
+                .onPreferenceChange(TimelineInkPassThroughKey.self) { inkPassThrough = $0 }
                 .offset(y: min(0, dragOffset) * 0.35)
                 nextStrip
             }
@@ -129,7 +137,7 @@ struct LearningTimelineView: View {
                     TimelineRapidHeader(store: store, index: index)
                     TimelineMath(latex: card.math.isEmpty ? card.prompt : card.math, size: 30)
                     Text(card.prompt).font(Typography.sans(size: 17, weight: .bold))
-                    inkArea
+                    Spacer(minLength: 0)
                 }
             }
         case .result:
@@ -157,10 +165,10 @@ struct LearningTimelineView: View {
         case .solving, .grading:
             if let card = store.current {
                 VStack(alignment: .leading, spacing: 14) {
-                    header(card)
+                    TimelineProblemView(card: card, store: store)
                     if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true {
                         if card.kind != "solve" { TimelineWritingPrompt(card: card) }
-                        inkArea
+                        Spacer(minLength: 0)
                         footnote(card)
                     } else {
                         TimelineInteractiveCard(card: card, store: store).padding(.trailing, 64)
@@ -174,14 +182,6 @@ struct LearningTimelineView: View {
                 }
             }
         }
-    }
-
-    /// 問題の上の部分は、上に送ると次へ(書いている間は止める)。
-    private func header(_ card: TimelineCardRecord) -> some View {
-        TimelineProblemView(card: card, store: store)
-            .padding(.trailing, card.kind == "solve" ? 0 : 0)
-            .contentShape(Rectangle())
-            .gesture(hasInk ? nil : swipeUp)
     }
 
     /// 左下: 前に解いた印(「↺ 2日前 ○」)と通し番号。
@@ -204,26 +204,49 @@ struct LearningTimelineView: View {
         .foregroundStyle(Theme.secondaryText)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.trailing, 90)
+        // 書いた後は、同じ場所に「1つ戻す」「全部消す」を出す。
+        .opacity(hasInk || isInkZoomedOut ? 0 : 1)
     }
 
-    /// 余白(枠は置かない)。鉛筆のアイコンの横に「1つ戻す」「全部消す」。
-    private var inkArea: some View {
-        ZStack(alignment: .topLeading) {
-            TimelineInkCanvas(hasInk: $hasInk, controller: ink)
+    /// 指で書く面を出すか(読み取りで採点するカードを解いている間と、速攻)。
+    private var showsInk: Bool {
+        switch store.phase {
+        case .solving, .grading:
+            guard let card = store.current else { return false }
+            return TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true
+        case .rapid:
+            return store.current != nil
+        default:
+            return false
+        }
+    }
+
+    /// 書く面(枠は置かない)。上の帯と下の帯の間を、端から端まで覆う。左下に鉛筆と「1つ戻す」「全部消す」。
+    private var inkLayer: some View {
+        ZStack(alignment: .bottomLeading) {
+            TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomedOut: $isInkZoomedOut, controller: ink, passThrough: inkPassThrough)
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.trailing, 84)
-            if hasInk {
+                .allowsHitTesting(!isGrading)
+            if hasInk || isInkZoomedOut {
                 HStack(spacing: 14) {
                     Image(systemName: TimelineSymbol.pencil).foregroundStyle(Theme.tertiaryText)
-                    Button("1つ戻す") { ink.undo() }.accessibilityIdentifier("timeline-ink-undo")
-                    Button("全部消す") { ink.clear() }.accessibilityIdentifier("timeline-ink-clear")
+                    if hasInk {
+                        Button("1つ戻す") { ink.undo() }.accessibilityIdentifier("timeline-ink-undo")
+                        Button("全部消す") { ink.clear() }.accessibilityIdentifier("timeline-ink-clear")
+                    }
+                    if isInkZoomedOut {
+                        Button("元の大きさ") { ink.resetZoom() }.accessibilityIdentifier("timeline-ink-zoom-reset")
+                    }
                 }
                 .font(Typography.sans(size: 13, weight: .bold))
                 .foregroundStyle(Theme.secondaryText)
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(Theme.card.opacity(0.92), in: Capsule())
+                .padding(.leading, 16).padding(.bottom, 16)
+                .opacity(isDrawing ? 0.35 : 1)
             }
         }
-        .frame(minHeight: 160)
     }
 
     private var guide: some View {
@@ -327,6 +350,7 @@ struct LearningTimelineView: View {
     }
 
     private var isRapid: Bool { if case .rapid = store.phase { true } else { false } }
+    private var isGrading: Bool { if case .grading = store.phase { true } else { false } }
 
     private var stripLine: String {
         guard let next = store.upcoming else { return store.phase == .waiting ? "用意しています" : "" }
@@ -390,6 +414,8 @@ struct LearningTimelineView: View {
     private func clearInk() {
         ink.clear()
         hasInk = false
+        isDrawing = false
+        isInkZoomedOut = false
         inkGeneration += 1
     }
 

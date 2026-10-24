@@ -87,6 +87,8 @@ struct TimelineProcedureList: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("timeline-howto-open")
+                    // 書く面の上にあっても押せるようにする。
+                    .timelineInkPassThrough()
                 } else {
                     HStack {
                         Text(store.skillName(skill)).font(Typography.sans(size: 15, weight: .medium))

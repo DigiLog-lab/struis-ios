@@ -56,6 +56,7 @@
         "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex()",
         "ReplyTailUITests/testQuestionSheetSendsWhileReplyIsRecording()",
         "TimelineUITests/testCaptureGradesAndMovesToTheNextProblem()",
+        "TimelineUITests/testInkCoversTheWholeWidthAndTheProblemTextAndZoomsOut()",
         "TimelineUITests/testLaunchShowsTimelineAndUnitsHomeCoversIt()",
         "TimelineUITests/testSkippingShowsReasonsAndTwoSkipsOfferTheDipCard()",
         "TimelineUITests/testStopSheetOffersOneMoreOrStop()",
