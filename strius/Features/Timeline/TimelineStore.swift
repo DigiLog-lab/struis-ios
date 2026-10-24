@@ -55,7 +55,9 @@ final class TimelineStore {
     private(set) var rapidResults: [String: Double] = [:]
     private(set) var actionError: String?
 
-    private var cardStartedAt = Date()
+    /// カードを出した時刻(前面にいた時間だけを数える時計)。アプリを離れていた時間は解答時間に入れない
+    /// (2026-10-24 の実機では 2287 秒と記録された)。
+    private var cardStartedAt = ActiveClock.shared.now
     private var assisted = false
     /// やり方の確認の後に解く「同じ形」の後で戻る、元のカード。
     private var returnToID: String?
@@ -255,7 +257,7 @@ final class TimelineStore {
         lastAttemptID = nil
         decided = nil
         assisted = false
-        cardStartedAt = Date()
+        cardStartedAt = ActiveClock.shared.now
         phase = .solving
         Task {
             await commit { machine in machine.markShown(id) }
@@ -264,7 +266,7 @@ final class TimelineStore {
         }
     }
 
-    private var elapsed: Double { Date().timeIntervalSince(cardStartedAt) }
+    private var elapsed: Double { max(0, ActiveClock.shared.now - cardStartedAt) }
 
     /// 撮った・指で書いた答案を送る(採点は裏で走る)。
     func submit(image data: Data) async {
@@ -443,7 +445,7 @@ final class TimelineStore {
         rapidStartedAt = Date()
         let first = rapidIDs[0]
         currentID = first
-        cardStartedAt = Date()
+        cardStartedAt = ActiveClock.shared.now
         phase = .rapid(0)
         await commit { machine in machine.markShown(first) }
     }
@@ -479,7 +481,7 @@ final class TimelineStore {
     /// 速攻: 余白に書いてすぐ送る。採点は裏で走り、次の問題へすぐ進む(自分の記録との勝負)。
     func submitRapid(image data: Data) async {
         guard case .rapid(let index) = phase, let card = current else { return }
-        let seconds = Date().timeIntervalSince(cardStartedAt)
+        let seconds = elapsed
         rapidResults[card.id] = seconds
         do {
             let relative = "timeline-\(LedgerID.make()).jpg"
@@ -497,7 +499,7 @@ final class TimelineStore {
         if index + 1 < rapidIDs.count {
             let nextID = rapidIDs[index + 1]
             currentID = nextID
-            cardStartedAt = Date()
+            cardStartedAt = ActiveClock.shared.now
             phase = .rapid(index + 1)
             await commit { machine in machine.markShown(nextID) }
         } else {

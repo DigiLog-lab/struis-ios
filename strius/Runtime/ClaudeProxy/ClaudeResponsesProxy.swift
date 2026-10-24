@@ -50,6 +50,8 @@ actor ClaudeResponsesProxy {
     }
 
     /// 待ち受けを用意して、Codex に渡す base URL と token を返す。止まっていたら作り直す(port は変わり得る)。
+    static let listenerReadyTimeout: TimeInterval = 5
+
     func start() async throws -> Endpoint {
         if let endpoint, let listener, listener.state == .ready { return endpoint }
         listener?.cancel()
@@ -86,6 +88,13 @@ actor ClaudeResponsesProxy {
                 }
             }
             created.start(queue: queue)
+            // 待ち受けの準備に上限を置く(`.waiting` のまま永久に待つと、Claude のターンが全部止まる)。
+            queue.asyncAfter(deadline: .now() + Self.listenerReadyTimeout) {
+                guard once.take() else { return }
+                proxyLog.error("listener was not ready in \(Self.listenerReadyTimeout, privacy: .public)s")
+                created.cancel()
+                continuation.resume(throwing: ProxyError.listenerFailed("not ready in \(Int(Self.listenerReadyTimeout))s"))
+            }
         }
         guard port != 0 else { throw ProxyError.listenerFailed("no port") }
         listener = created

@@ -172,3 +172,41 @@ nonisolated final class BackgroundTurnActivity: @unchecked Sendable {
         #endif
     }
 }
+
+/// ターンがどの段階まで進んだか(`startup` / `runtime_ready` / `thread_configured` / `turn_started` / `first_event`)。
+/// 返らなかったターンがどこで待っていたかを台帳に残すため、ターンを走らせる側が `@TaskLocal` の受け口を置く。
+nonisolated enum TurnStage {
+    @TaskLocal static var sink: (@Sendable (String) -> Void)?
+
+    static func report(_ stage: String) { sink?(stage) }
+}
+
+/// 先に終わった方の結果を 1 回だけ受け取る(ターンと時間切れの競争)。
+nonisolated final class TurnRace<Value: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Value?
+    private var continuation: CheckedContinuation<Value, Never>?
+
+    func finish(_ result: Value) {
+        let waiting: CheckedContinuation<Value, Never>? = lock.withLock {
+            guard value == nil else { return nil }
+            value = result
+            defer { continuation = nil }
+            return continuation
+        }
+        waiting?.resume(returning: result)
+    }
+
+    var result: Value {
+        get async {
+            await withCheckedContinuation { continuation in
+                let ready: Value? = lock.withLock {
+                    if let value { return value }
+                    self.continuation = continuation
+                    return nil
+                }
+                if let ready { continuation.resume(returning: ready) }
+            }
+        }
+    }
+}
