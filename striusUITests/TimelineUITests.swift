@@ -84,9 +84,9 @@ final class TimelineUITests: XCTestCase {
     }
 
     /// 書く面は、上の帯と下の帯の間を画面の端から端まで覆う。問題文の上にも書け、指が触れただけでは「送る」にならない。
-    /// 2本指でつまむと縮小でき、「元の大きさ」で戻せる。
+    /// 2本指でつまむと、つまんだ所を中心に拡大・縮小でき、「元の大きさ」で戻せる。
     @MainActor
-    func testInkCoversTheWholeWidthAndTheProblemTextAndZoomsOut() throws {
+    func testInkCoversTheWholeWidthAndTheProblemTextAndZoomsAroundThePinch() throws {
         let app = launchTimeline()
         waitForProblem(app)
         let ink = app.descendants(matching: .any)["timeline-ink"].firstMatch
@@ -106,12 +106,28 @@ final class TimelineUITests: XCTestCase {
         from.press(forDuration: 0.05, thenDragTo: to)
         XCTAssertTrue(app.buttons["timeline-send"].appears(timeout: 5), "問題文の上に書いたのに「送る」にならない")
         XCTAssertTrue(app.buttons["timeline-skip"].exists == false, "書いた後も「飛ばす」が残っている")
-        ink.pinch(withScale: 0.5, velocity: -1)
+        // 指を広げると、つまんだ所(書く面の真ん中)を中心に拡大する。左上へ跳ばない。
+        let center = try XCTUnwrap(inkCenter(ink))
+        ink.pinch(withScale: 2, velocity: 2)
         let reset = app.buttons["timeline-ink-zoom-reset"]
+        XCTAssertTrue(reset.appears(timeout: 5), "指を広げても拡大できない")
+        let zoomedIn = try XCTUnwrap(inkCenter(ink))
+        XCTAssertEqual(zoomedIn.x, center.x, accuracy: ink.frame.width * 0.15, "拡大したら、つまんだ所から横にずれた")
+        XCTAssertEqual(zoomedIn.y, center.y, accuracy: ink.frame.height * 0.15, "拡大したら、つまんだ所から縦にずれた")
+        reset.tap()
+        XCTAssertTrue(reset.waitForNonExistence(timeout: 5), "「元の大きさ」で戻らない")
+        ink.pinch(withScale: 0.5, velocity: -1)
         XCTAssertTrue(reset.appears(timeout: 5), "つまんでも縮小できない")
         reset.tap()
         XCTAssertTrue(reset.waitForNonExistence(timeout: 5), "「元の大きさ」で戻らない")
         XCTAssertTrue(app.buttons["timeline-send"].exists, "縮小して戻したら書いたものが消えた")
+    }
+
+    /// 書く面の真ん中に見えている紙の位置(等倍の座標)。
+    private func inkCenter(_ ink: XCUIElement) -> CGPoint? {
+        guard let parts = (ink.value as? String)?.split(separator: ","), parts.count == 2,
+              let x = Double(parts[0]), let y = Double(parts[1]) else { return nil }
+        return CGPoint(x: x, y: y)
     }
 
     /// 飛ばしたら、画面の上に「飛ばしました」と理由の2択。2回続けて飛ばしたら2択カード。

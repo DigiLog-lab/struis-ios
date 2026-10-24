@@ -161,22 +161,23 @@ struct TimelineActionButton: View {
 
 /// 余白に指で書く(枠を置かない: 答えの形が分かってしまうため)。上の帯と下の帯の間を、画面の端から端まで覆う。
 /// 問題文の上にも書ける。下に置いたボタン(使う手順の「見る」など)の上だけは、指をボタンへ通す。
-/// 2本指でつまむと縮小でき、紙を足したように右と下へ書き足せる(最大で縦横2倍)。
+/// 2本指でつまむと、指の間を中心に縮小・拡大できる。縮小すると、紙を足したように右と下へ書き足せる(最大で縦横2倍)。
 struct TimelineInkCanvas: UIViewRepresentable {
     @Binding var hasInk: Bool
     @Binding var isDrawing: Bool
-    @Binding var isZoomedOut: Bool
+    @Binding var isZoomed: Bool
     let controller: TimelineInkController
     /// 指を通す区画(このビューの座標)。
     var passThrough: [CGRect] = []
 
-    /// 書いた線の色と太さ。指で書いても読めるよう、濃く太い一定幅の線にする。
+    /// 書いた線の色と太さ。細さは前のペン(幅3)のまま、濃い一定幅の線にする。
     static let inkColor = UIColor(red: 0.08, green: 0.07, blue: 0.06, alpha: 1)
-    static let inkWidth: CGFloat = 5
+    static let inkWidth: CGFloat = 3
     /// 指が触れただけの点は、書いたものに数えない(pt)。
     static let minimumStrokeExtent: CGFloat = 6
-    /// 縮小の下限(縦横2倍の紙を画面に収める)。
+    /// 縮小の下限(縦横2倍の紙を画面に収める)と、拡大の上限。
     static let minimumZoom: CGFloat = 0.5
+    static let maximumZoom: CGFloat = 3
 
     func makeUIView(context: Context) -> TimelinePassThroughCanvas {
         let canvas = TimelinePassThroughCanvas()
@@ -185,7 +186,7 @@ struct TimelineInkCanvas: UIViewRepresentable {
         canvas.isOpaque = false
         canvas.tool = PKInkingTool(.monoline, color: Self.inkColor, width: Self.inkWidth)
         canvas.minimumZoomScale = Self.minimumZoom
-        canvas.maximumZoomScale = 1
+        canvas.maximumZoomScale = Self.maximumZoom
         canvas.bouncesZoom = false
         canvas.showsVerticalScrollIndicator = false
         canvas.showsHorizontalScrollIndicator = false
@@ -200,7 +201,7 @@ struct TimelineInkCanvas: UIViewRepresentable {
         canvas.passThrough = passThrough
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(hasInk: $hasInk, isDrawing: $isDrawing, isZoomedOut: $isZoomedOut) }
+    func makeCoordinator() -> Coordinator { Coordinator(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isZoomed) }
 
     /// 指が触れただけの点(ごく短い線)を除いて、書いた線があるか。
     static func hasMeaningfulInk(_ drawing: PKDrawing) -> Bool {
@@ -214,11 +215,11 @@ struct TimelineInkCanvas: UIViewRepresentable {
     final class Coordinator: NSObject, PKCanvasViewDelegate {
         let hasInk: Binding<Bool>
         let isDrawing: Binding<Bool>
-        let isZoomedOut: Binding<Bool>
-        init(hasInk: Binding<Bool>, isDrawing: Binding<Bool>, isZoomedOut: Binding<Bool>) {
+        let isZoomed: Binding<Bool>
+        init(hasInk: Binding<Bool>, isDrawing: Binding<Bool>, isZoomed: Binding<Bool>) {
             self.hasInk = hasInk
             self.isDrawing = isDrawing
-            self.isZoomedOut = isZoomedOut
+            self.isZoomed = isZoomed
         }
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
             let value = TimelineInkCanvas.hasMeaningfulInk(canvasView.drawing)
@@ -230,9 +231,16 @@ struct TimelineInkCanvas: UIViewRepresentable {
         func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) {
             if isDrawing.wrappedValue { isDrawing.wrappedValue = false }
         }
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            (scrollView as? TimelinePassThroughCanvas)?.updateAccessibilityCenter()
+        }
         func scrollViewDidZoom(_ scrollView: UIScrollView) {
-            let value = scrollView.zoomScale < 0.99
-            if isZoomedOut.wrappedValue != value { isZoomedOut.wrappedValue = value }
+            (scrollView as? TimelinePassThroughCanvas)?.updateAccessibilityCenter()
+            let value = abs(scrollView.zoomScale - 1) > 0.01
+            if isZoomed.wrappedValue != value { isZoomed.wrappedValue = value }
+        }
+        func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
+            (scrollView as? TimelinePassThroughCanvas)?.fitPaper()
         }
     }
 }
@@ -240,16 +248,33 @@ struct TimelineInkCanvas: UIViewRepresentable {
 /// 書く面。紙は画面の縦横2倍の大きさで持ち、等倍では左上の1画面分を見せる。指を通す区画では触れても書かない。
 final class TimelinePassThroughCanvas: PKCanvasView {
     var passThrough: [CGRect] = []
+    private var paperBase: CGSize = .zero
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        guard bounds.width > 0, bounds.height > 0 else { return }
-        // 紙の大きさは等倍の画面の2倍。縮小中に呼ばれても、等倍の大きさから決める。
-        let paper = CGSize(width: bounds.width * 2, height: bounds.height * 2)
-        let scaled = CGSize(width: paper.width * zoomScale, height: paper.height * zoomScale)
+        // layoutSubviews はつまんでいる間も毎回呼ばれる。そこで大きさを入れ直すと、指の間を中心に縮まず左上へ跳ぶので、
+        // 紙の大きさは画面の大きさが変わった時だけ決め直す。
+        guard bounds.width > 0, bounds.height > 0, bounds.size != paperBase, !isZooming, !isZoomBouncing else { return }
+        paperBase = bounds.size
+        fitPaper()
+        updateAccessibilityCenter()
+    }
+
+    /// 紙(等倍の画面の2倍)を、今の倍率の大きさにする。
+    func fitPaper() {
+        guard paperBase.width > 0 else { return }
+        let scaled = CGSize(width: paperBase.width * 2 * zoomScale, height: paperBase.height * 2 * zoomScale)
         if abs(contentSize.width - scaled.width) > 0.5 || abs(contentSize.height - scaled.height) > 0.5 {
             contentSize = scaled
         }
+    }
+
+    /// 画面の真ん中に見えている紙の位置(等倍の座標)。つまんだ所を中心に縮むかを UI テストで確かめる。
+    func updateAccessibilityCenter() {
+        guard zoomScale > 0 else { return }
+        let x = (contentOffset.x + bounds.width / 2) / zoomScale
+        let y = (contentOffset.y + bounds.height / 2) / zoomScale
+        accessibilityValue = "\(Int(x.rounded())),\(Int(y.rounded()))"
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {

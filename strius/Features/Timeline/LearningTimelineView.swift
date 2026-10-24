@@ -12,7 +12,7 @@ struct LearningTimelineView: View {
     @State private var ink = TimelineInkController()
     @State private var inkGeneration = 0
     @State private var isDrawing = false
-    @State private var isInkZoomedOut = false
+    @State private var isInkZoomed = false
     @State private var inkPassThrough: [CGRect] = []
     @State private var isCameraPresented = false
     @State private var dragOffset: CGFloat = 0
@@ -205,7 +205,7 @@ struct LearningTimelineView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.trailing, 90)
         // 書いた後は、同じ場所に「1つ戻す」「全部消す」を出す。
-        .opacity(hasInk || isInkZoomedOut ? 0 : 1)
+        .opacity(hasInk || isInkZoomed ? 0 : 1)
     }
 
     /// 指で書く面を出すか(読み取りで採点するカードを解いている間と、速攻)。
@@ -224,18 +224,18 @@ struct LearningTimelineView: View {
     /// 書く面(枠は置かない)。上の帯と下の帯の間を、端から端まで覆う。左下に鉛筆と「1つ戻す」「全部消す」。
     private var inkLayer: some View {
         ZStack(alignment: .bottomLeading) {
-            TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomedOut: $isInkZoomedOut, controller: ink, passThrough: inkPassThrough)
+            TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isInkZoomed, controller: ink, passThrough: inkPassThrough)
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .allowsHitTesting(!isGrading)
-            if hasInk || isInkZoomedOut {
+            if hasInk || isInkZoomed {
                 HStack(spacing: 14) {
                     Image(systemName: TimelineSymbol.pencil).foregroundStyle(Theme.tertiaryText)
                     if hasInk {
                         Button("1つ戻す") { ink.undo() }.accessibilityIdentifier("timeline-ink-undo")
                         Button("全部消す") { ink.clear() }.accessibilityIdentifier("timeline-ink-clear")
                     }
-                    if isInkZoomedOut {
+                    if isInkZoomed {
                         Button("元の大きさ") { ink.resetZoom() }.accessibilityIdentifier("timeline-ink-zoom-reset")
                     }
                 }
@@ -415,7 +415,7 @@ struct LearningTimelineView: View {
         ink.clear()
         hasInk = false
         isDrawing = false
-        isInkZoomedOut = false
+        isInkZoomed = false
         inkGeneration += 1
     }
 

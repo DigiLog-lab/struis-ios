@@ -197,7 +197,7 @@
         "TimelineUITests/testLaunchShowsTimelineAndUnitsHomeCoversIt",
         "TimelineUITests/testCaptureGradesAndMovesToTheNextProblem",
         "TimelineUITests/testWritingInTheMarginTurnsTheBigButtonIntoSend",
-        "TimelineUITests/testInkCoversTheWholeWidthAndTheProblemTextAndZoomsOut",
+        "TimelineUITests/testInkCoversTheWholeWidthAndTheProblemTextAndZoomsAroundThePinch",
         "TimelineUITests/testSkippingShowsReasonsAndTwoSkipsOfferTheDipCard",
         "TimelineUITests/testStopSheetOffersOneMoreOrStop"
       ],
@@ -369,7 +369,7 @@
     "TimelineUITests/testLaunchShowsTimelineAndUnitsHomeCoversIt": 40,
     "TimelineUITests/testCaptureGradesAndMovesToTheNextProblem": 40,
     "TimelineUITests/testWritingInTheMarginTurnsTheBigButtonIntoSend": 40,
-    "TimelineUITests/testInkCoversTheWholeWidthAndTheProblemTextAndZoomsOut": 45,
+    "TimelineUITests/testInkCoversTheWholeWidthAndTheProblemTextAndZoomsAroundThePinch": 45,
     "TimelineUITests/testSkippingShowsReasonsAndTwoSkipsOfferTheDipCard": 40,
     "TimelineUITests/testStopSheetOffersOneMoreOrStop": 40
   }
