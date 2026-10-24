@@ -178,69 +178,143 @@ nonisolated enum TimelineTurns {
 
     // MARK: - 知識グラフ
 
-    static let gradeOrder = ["小1", "小2", "小3", "小4", "小5", "小6", "中1", "中2", "中3", "高1", "高2", "高3"]
+    /// 1回の分解で渡す点の数と、1つの構築で続ける段の数(費用の歯止め)。
+    static let graphStepSize = 8
+    static let graphStepLimit = 6
+    static let misconceptionNodeLimit = 40
 
-    static func graphRequest(purpose: String, unitID: String?, changeIDs: [String] = [], workbook: WorkbookMachine, timeline: TimelineMachine, profile: OnboardingProfile?) -> LedgerJSON {
-        var request: [String: LedgerJSON] = [:]
-        func unitJSON(_ unit: WorkbookUnitRecord) -> LedgerJSON {
-            .object([
-                "id": .string(unit.id), "title": .string(unit.title), "outcome": .string(unit.outcome),
-                "subunits": .array(workbook.orderedSubunits(unitID: unit.id).map { subunit in
-                    let attempts = workbook.attemptsOf(subunitID: subunit.id)
-                    return .object([
-                        "id": .string(subunit.id), "title": .string(subunit.title), "outcome": .string(subunit.outcome), "status": .string(subunit.status),
-                        "correct": .number(Double(attempts.filter { $0.verdict == "correct" }.count)),
-                        "wrong": .number(Double(attempts.filter { $0.verdict == "wrong" }.count)),
-                        "error_tags": .array(Array(Set(attempts.map(\.errorTag).filter { !$0.isEmpty })).sorted().prefix(8).map(LedgerJSON.string)),
-                    ])
-                }),
-            ])
+    /// 丸ごと見直す依頼(上位モデル)。
+    static func reviewRequest(changeIDs: [String], timeline: TimelineMachine) -> LedgerJSON {
+        var request: [String: LedgerJSON] = ["task": .string("review")]
+        // 同じ一覧の見直しを二度頼まないための印(`TimelineGraphSchedule`)。
+        request["change_ids"] = .array(changeIDs.map(LedgerJSON.string))
+        request["nodes"] = .array(timeline.activeSkills.map { .object(["id": .string($0.id), "name": .string($0.name), "kind": .string($0.kind),
+                                                                     "status": .string($0.status), "correct_days": .number(Double($0.correctDays))]) })
+        request["edges"] = .array(timeline.edges.values.sorted { $0.id < $1.id }.map { .object(["from": .string($0.requiresSkillId), "to": .string($0.skillId), "relation": .string($0.relation), "note": .string($0.note)]) })
+        let pending = timeline.changes.values.filter { !$0.reviewed }.sorted { $0.createdAt < $1.createdAt }
+        request["app_changes"] = .array(pending.map { change in
+            .object(["kind": .string(change.kind), "detail": change.detail, "evidence": .array(change.attemptIds.compactMap { id in
+                guard let attempt = timeline.attempts[id], let card = timeline.cards[attempt.cardId] else { return nil }
+                return .object(["attempt_id": .string(id), "prompt": .string(card.prompt + " " + card.math), "verdict": .string(attempt.verdict), "errors": attempt.errors])
+            })])
+        })
+        return .object(request)
+    }
+
+    /// 1段分の分解の依頼。渡すのはまだ前提を調べていない点だけで、モデルには 3 つだけを答えさせる(典型的な問題を
+    /// 1問手順に分けて書く / 各手順で使う、より小さい「できること」を挙げる / 既にある点から選べるものはその ID を使う)。
+    static func decomposeRequest(mode: String, nodes: [TimelineSkillRecord], units: [String], depth: Int, workbook: WorkbookMachine,
+                                 timeline: TimelineMachine, profile: OnboardingProfile?) -> LedgerJSON {
+        let nodeJSON: [LedgerJSON] = nodes.map { node in
+            let unitID = TimelineGraphSchedule.unitID(of: node, workbook: workbook)
+            var object: [String: LedgerJSON] = [
+                "id": .string(node.id), "name": .string(node.name), "kind": .string(node.kind),
+                "unit_id": unitID.map(LedgerJSON.string) ?? .null, "unit_title": .string(unitID.flatMap { workbook.units[$0]?.title } ?? ""),
+            ]
+            // 一番上の点(小単元の到達目標)は、小単元の到達目標の文も渡す。
+            if let subunit = node.unitId.flatMap({ workbook.subunits[$0] }) { object["goal"] = .string(subunit.outcome.isEmpty ? subunit.title : subunit.outcome) }
+            return .object(object)
         }
-        switch purpose {
-        case "graph_extend":
-            request["task"] = .string("extend_unit")
-            if let unitID, let unit = workbook.units[unitID] { request["unit"] = unitJSON(unit) }
-            request["existing_nodes"] = .array(timeline.activeSkills.map { .object(["id": .string($0.id), "name": .string($0.name), "kind": .string($0.kind)]) })
-        case "graph_review":
-            request["task"] = .string("review")
-            // 同じ一覧の見直しを二度頼まないための印(`TimelineGraphSchedule`)。
-            request["change_ids"] = .array(changeIDs.map(LedgerJSON.string))
-            request["nodes"] = .array(timeline.activeSkills.map { .object(["id": .string($0.id), "name": .string($0.name), "kind": .string($0.kind),
-                                                                         "status": .string($0.status), "correct_days": .number(Double($0.correctDays))]) })
-            request["edges"] = .array(timeline.edges.values.sorted { $0.id < $1.id }.map { .object(["from": .string($0.requiresSkillId), "to": .string($0.skillId), "relation": .string($0.relation), "note": .string($0.note)]) })
-            let pending = timeline.changes.values.filter { !$0.reviewed }.sorted { $0.createdAt < $1.createdAt }
-            request["app_changes"] = .array(pending.map { change in
-                .object(["kind": .string(change.kind), "detail": change.detail, "evidence": .array(change.attemptIds.compactMap { id in
-                    guard let attempt = timeline.attempts[id], let card = timeline.cards[attempt.cardId] else { return nil }
-                    return .object(["attempt_id": .string(id), "prompt": .string(card.prompt + " " + card.math), "verdict": .string(attempt.verdict), "errors": attempt.errors])
-                })])
-            })
-        default:
-            request["task"] = .string("build")
-            request["units"] = .array(workbook.orderedUnits().map(unitJSON))
-            if let profile {
-                request["grade"] = profile.grade.map(LedgerJSON.string) ?? .null
-                request["subject"] = profile.subject.map(LedgerJSON.string) ?? .null
-                if let grade = profile.grade, let index = gradeOrder.firstIndex(where: { grade.contains($0) }) {
-                    // その学年と1つ下の学年の単元と小単元(下りていける先を最初から用意する)。
-                    let grades = Set(gradeOrder[max(0, index - 1)...index])
-                    request["catalog"] = .array(UnitCatalog.units.filter { !grades.isDisjoint(with: $0.grades) }.map { unit in
-                        .object(["subject": .string(unit.subject), "name": .string(unit.name), "subunits": .array(unit.subunits.map(LedgerJSON.string))])
-                    })
-                }
-            }
+        let contextUnits = Set(units + nodes.compactMap { TimelineGraphSchedule.unitID(of: $0, workbook: workbook) })
+        var request: [String: LedgerJSON] = [
+            "task": .string("decompose"), "mode": .string(mode), "depth": .number(Double(depth)),
+            "units": .array(units.map(LedgerJSON.string)),
+            "unit_context": .array(workbook.orderedUnits().filter { contextUnits.contains($0.id) }.map { unit in
+                .object(["id": .string(unit.id), "title": .string(unit.title), "outcome": .string(unit.outcome),
+                         "subunits": .array(workbook.orderedSubunits(unitID: unit.id).map { .string($0.title) })])
+            }),
+            "nodes": .array(nodeJSON),
+            "existing_nodes": .array(timeline.activeSkills.prefix(300).map { .object(["id": .string($0.id), "name": .string($0.name), "kind": .string($0.kind)]) }),
+            "only_direct_prerequisites": .bool(mode == "descend"),
+        ]
+        if let profile {
+            request["grade"] = profile.grade.map(LedgerJSON.string) ?? .null
+            request["subject"] = profile.subject.map(LedgerJSON.string) ?? .null
         }
         return .object(request)
+    }
+
+    /// よくある勘違いを付ける依頼(形が決まった後に 1 回)。
+    static func misconceptionRequest(units: [String], workbook: WorkbookMachine, timeline: TimelineMachine) -> LedgerJSON? {
+        let unitSet = Set(units)
+        let nodes = timeline.activeSkills.filter { skill in
+            skill.expansion == "done" && TimelineGraphSchedule.unitID(of: skill, workbook: workbook).map(unitSet.contains) == true
+        }.prefix(misconceptionNodeLimit)
+        guard !nodes.isEmpty else { return nil }
+        return .object([
+            "task": .string("misconceptions"), "units": .array(units.map(LedgerJSON.string)),
+            "nodes": .array(nodes.map { .object(["id": .string($0.id), "name": .string($0.name), "kind": .string($0.kind)]) }),
+        ])
+    }
+
+    /// 依頼の行を書く(グラフを頼むかの判定の後、同じ書き込みの中で)。もう頼んでいたら・頼むものが無ければ nil。
+    static func insertGraphRequest(_ request: TimelineGraphSchedule.Request, timeline: inout TimelineMachine, workbook: WorkbookMachine, profile: OnboardingProfile?) -> String? {
+        guard !TimelineGraphSchedule.isBlocked(request, timeline: timeline) else { return nil }
+        switch request {
+        case .build, .extend:
+            let units: [String]
+            if case .extend(let unitID) = request { units = [unitID] } else { units = workbook.orderedUnits().map(\.id) }
+            timeline.addGoalNodes(units.flatMap { workbook.orderedSubunits(unitID: $0) })
+            let unitSet = Set(units)
+            let nodes = timeline.pendingSkills.filter { TimelineGraphSchedule.unitID(of: $0, workbook: workbook).map(unitSet.contains) == true }.prefix(graphStepSize)
+            guard !nodes.isEmpty else { return nil }
+            let mode = request == .build ? "build" : "extend"
+            let body = decomposeRequest(mode: mode, nodes: Array(nodes), units: units, depth: 1, workbook: workbook, timeline: timeline, profile: profile)
+            return timeline.insertBatchRequest(purpose: request == .build ? "graph_build" : "graph_extend", request: body, accuracy: nil, levelCap: nil)
+        case .review(let changeIDs):
+            return timeline.insertBatchRequest(purpose: "graph_review", request: reviewRequest(changeIDs: changeIDs, timeline: timeline), accuracy: nil, levelCap: nil)
+        }
+    }
+
+    /// 1段下りる依頼(対象の 1 点の直前の前提だけを聞く。モデルは上位モデル)。
+    static func insertDescend(skillID: String, timeline: inout TimelineMachine, workbook: WorkbookMachine) -> String? {
+        guard let skill = timeline.skills[skillID], !TimelineGraphSchedule.descendRequested(timeline, skillID: skillID) else { return nil }
+        var body = decomposeRequest(mode: "descend", nodes: [skill], units: [], depth: 1, workbook: workbook, timeline: timeline, profile: OnboardingProfile.load())
+        if case .object(var object) = body {
+            object["skill_id"] = .string(skillID)
+            body = .object(object)
+        }
+        return timeline.insertBatchRequest(purpose: "graph_descend", request: body, accuracy: nil, levelCap: nil)
+    }
+
+    /// 1段を受け取った後: 今の単元の中身にまだ調べていない点が残っていれば次の段を、無ければよくある勘違いを頼む。
+    static func continueGraph(after batch: TimelineBatchRecord, timeline: inout TimelineMachine, workbook: WorkbookMachine) -> String? {
+        let units = (batch.request["units"]?.arrayValue ?? []).compactMap(\.stringValue)
+        let unitSet = Set(units)
+        let depth = batch.request["depth"]?.intValue ?? 1
+        let pending = timeline.pendingSkills.filter { skill in
+            unitSet.isEmpty || TimelineGraphSchedule.unitID(of: skill, workbook: workbook).map(unitSet.contains) == true
+        }
+        if !pending.isEmpty, depth < graphStepLimit {
+            let nodes = Array(pending.prefix(graphStepSize))
+            let ids = nodes.map(\.id).sorted()
+            let asked = timeline.batches.values.contains { row in
+                row.purpose.hasPrefix("graph") && (row.request["nodes"]?.arrayValue ?? []).compactMap { $0["id"]?.stringValue }.sorted() == ids
+            }
+            if !asked {
+                let body = decomposeRequest(mode: "step", nodes: nodes, units: units, depth: depth + 1, workbook: workbook, timeline: timeline, profile: OnboardingProfile.load())
+                return timeline.insertBatchRequest(purpose: "graph_step", request: body, accuracy: nil, levelCap: nil)
+            }
+        }
+        guard !units.isEmpty,
+              !timeline.batches.values.contains(where: { $0.purpose == "graph_misconceptions" && TimelineGraphSchedule.unitIDs(in: $0.request) == unitSet }),
+              let body = misconceptionRequest(units: units, workbook: workbook, timeline: timeline) else { return nil }
+        return timeline.insertBatchRequest(purpose: "graph_misconceptions", request: body, accuracy: nil, levelCap: nil)
     }
 
     static func graph(composer: TurnComposer, planID: String, batchID: String, workbook: WorkbookMachine, timeline: TimelineMachine) async throws -> TurnPlan {
         guard let batch = timeline.batches[batchID] else { throw LedgerError.notFound("timeline graph request") }
         var request = batch.request.objectValue ?? [:]
         if !batch.rejected.isEmpty { request["rejected_last_time"] = .array(batch.rejected.map(LedgerJSON.string)) }
+        let (instructions, schema) = switch request["task"]?.stringValue {
+        case "decompose": ("prompt:timeline_decompose_instructions", "schema:timeline_decompose")
+        case "misconceptions": ("prompt:timeline_misconceptions_instructions", "schema:timeline_misconceptions")
+        default: ("prompt:timeline_graph_instructions", "schema:timeline_graph")
+        }
         return TurnPlan(
             id: planID, kind: .timelineGraph, round: 1,
-            thread: try await thread(composer: composer, planID: planID, instructions: "prompt:timeline_graph_instructions", role: TimelineModels.graphRole, workbook: workbook, timeline: timeline),
-            turn: TurnPlan.TurnSpec(text: TurnComposer.dump(.object(request)), images: [], outputSchema: try await composer.assets.json("schema:timeline_graph"), sandboxPolicy: "dangerFullAccess"),
+            thread: try await thread(composer: composer, planID: planID, instructions: instructions, role: TimelineModels.graphRole, workbook: workbook, timeline: timeline),
+            turn: TurnPlan.TurnSpec(text: TurnComposer.dump(.object(request)), images: [], outputSchema: try await composer.assets.json(schema), sandboxPolicy: "dangerFullAccess"),
             workspace: workspace, delegation: nil, collect: [], limits: .structured, items: nil
         )
     }
@@ -250,6 +324,8 @@ nonisolated enum TimelineTurns {
     nonisolated struct FollowUp: Sendable, Equatable {
         /// 同じ対象でターンを組み直す(受け取りを断って作り直させる)。
         var retry = false
+        /// 続けて頼むグラフの依頼(次の段・よくある勘違い・1段下りる)。
+        var nextGraph: String?
     }
 
     static func apply(kind: TurnPlan.Kind, targetID: String, outcome: TurnOutcome, model: String, db: Database) throws -> (events: [LedgerEvent], followUp: FollowUp) {
@@ -280,6 +356,11 @@ nonisolated enum TimelineTurns {
                 break
             }
             let result = timeline.applyGrading(attemptID: targetID, grading: grading)
+            // 同じ点で別の問題の 2 回目の × が、概念・前提・解き方の誤りを含む: 「まだ掘っていない」点なら 1段下りる。
+            // 待っている間はやさしい版のカードでつなぐ(× の後の切り替えはいつも通り)。
+            if result.verdict == "wrong", let card = timeline.cards[attempt.cardId], let skillID = timeline.descendTarget(card: card) {
+                followUp.nextGraph = insertDescend(skillID: skillID, timeline: &timeline, workbook: try WorkbookMachine(loading: db))
+            }
             if result.countsForUnitHome, let card = timeline.cards[attempt.cardId], let subunitID = card.subunitId {
                 var workbook = try WorkbookMachine(loading: db)
                 workbook.recordTimelineAttempt(subunitID: subunitID, prompt: [card.prompt, card.math].filter { !$0.isEmpty }.joined(separator: " "),
@@ -287,38 +368,90 @@ nonisolated enum TimelineTurns {
                 extra = workbook.events
             }
         case .timelineGraph:
-            guard var batch = timeline.batches[targetID], batch.status == "requested" else { return ([], followUp) }
+            guard let batch = timeline.batches[targetID], batch.status == "requested" else { return ([], followUp) }
             timeline.noteUsage(batchID: targetID, model: model, executions: outcome.executions)
-            guard outcome.status == .completed, let output = try? JSONDecoder().decode(TimelineGraph.Output.self, from: Data(outcome.finalText.utf8)) else {
-                timeline.failBatch(id: targetID, error: outcome.error ?? "unreadable graph")
+            guard outcome.status == .completed else {
+                timeline.failBatch(id: targetID, error: outcome.error ?? outcome.status.rawValue)
                 break
             }
-            let problems: [TimelineGraph.Problem]
-            if batch.purpose == "graph_review" {
-                problems = timeline.applyGraphOps(output.ops, source: "review")
-                if problems.isEmpty { timeline.markReviewed() }
-            } else {
-                problems = timeline.applyGraph(output, source: "initial", unitID: batch.request["unit"]?["id"]?.stringValue)
-            }
-            batch = timeline.batches[targetID] ?? batch
-            if problems.isEmpty {
-                batch.status = "ready"
-                batch.reason = output.notes
-                batch.updatedAt = timeline.now()
-                timeline.put("timeline.graph_ready", batch)
-            } else if batch.retries < 1 {
-                batch.retries += 1
-                batch.rejected = problems.map(\.description)
-                batch.updatedAt = timeline.now()
-                timeline.put("timeline.graph_rejected", batch)
-                followUp.retry = true
-            } else {
-                timeline.failBatch(id: targetID, error: problems.map(\.description).joined(separator: "; "))
+            switch batch.request["task"]?.stringValue {
+            case "decompose":
+                followUp = try applyDecomposition(batchID: targetID, text: outcome.finalText, timeline: &timeline, db: db)
+            case "misconceptions":
+                guard let output = try? JSONDecoder().decode(TimelineGraph.Misconceptions.self, from: Data(outcome.finalText.utf8)) else {
+                    timeline.failBatch(id: targetID, error: "unreadable misconceptions")
+                    break
+                }
+                let count = timeline.applyMisconceptions(output)
+                markGraphReady(targetID, reason: "\(count) misconceptions. " + output.notes, timeline: &timeline)
+            default:
+                followUp = applyLegacyGraph(batchID: targetID, text: outcome.finalText, error: outcome.error, timeline: &timeline)
             }
         default:
             break
         }
         return (timeline.events + extra, followUp)
+    }
+
+    private static func markGraphReady(_ id: String, reason: String, timeline: inout TimelineMachine) {
+        guard var batch = timeline.batches[id] else { return }
+        batch.status = "ready"
+        batch.reason = String(reason.prefix(500))
+        batch.updatedAt = timeline.now()
+        timeline.put("timeline.graph_ready", batch)
+    }
+
+    /// 受け取りを断って 1 回だけ作り直させる。2 回目は失敗にする(起動し直しても自動では頼み直さない)。
+    private static func rejectGraph(_ id: String, problems: [String], timeline: inout TimelineMachine) -> FollowUp {
+        guard var batch = timeline.batches[id] else { return FollowUp() }
+        guard batch.retries < 1 else {
+            timeline.failBatch(id: id, error: problems.joined(separator: "; "))
+            return FollowUp()
+        }
+        batch.retries += 1
+        batch.rejected = problems
+        batch.updatedAt = timeline.now()
+        timeline.put("timeline.graph_rejected", batch)
+        return FollowUp(retry: true)
+    }
+
+    /// 1段分の分解を受け取る。循環の線だけを捨てて残りは受け取り、次の段(またはよくある勘違い)を続けて頼む。
+    private static func applyDecomposition(batchID: String, text: String, timeline: inout TimelineMachine, db: Database) throws -> FollowUp {
+        guard let batch = timeline.batches[batchID] else { return FollowUp() }
+        guard let output = try? TimelineGraph.Decomposition.parse(text) else { return rejectGraph(batchID, problems: ["unreadable decomposition"], timeline: &timeline) }
+        let requested: [String: String?] = Dictionary((batch.request["nodes"]?.arrayValue ?? []).compactMap { node -> (String, String?)? in
+            guard let id = node["id"]?.stringValue else { return nil }
+            return (id, node["unit_id"]?.stringValue)
+        }, uniquingKeysWith: { first, _ in first })
+        let descend = batch.request["mode"]?.stringValue == "descend"
+        let result = timeline.applyDecomposition(output, requested: requested, descend: descend)
+        let dug = requested.keys.filter { timeline.skills[$0]?.isDug == true }
+        guard !dug.isEmpty else { return rejectGraph(batchID, problems: ["no requested node was decomposed: " + requested.keys.sorted().joined(separator: ", ")], timeline: &timeline) }
+        var reason = "added \(result.added.count) nodes, \(result.edges) edges"
+        if !result.droppedCycles.isEmpty { reason += "; dropped cycle edges " + result.droppedCycles.joined(separator: ", ") }
+        if !result.removedRedundant.isEmpty { reason += "; removed redundant edges " + result.removedRedundant.joined(separator: ", ") }
+        markGraphReady(batchID, reason: reason + (output.notes.isEmpty ? "" : ". " + output.notes), timeline: &timeline)
+        guard !descend, let current = timeline.batches[batchID] else { return FollowUp() }
+        return FollowUp(nextGraph: continueGraph(after: current, timeline: &timeline, workbook: try WorkbookMachine(loading: db)))
+    }
+
+    /// 前の版の依頼(点と線の JSON・見直しの操作の列)。
+    private static func applyLegacyGraph(batchID: String, text: String, error: String?, timeline: inout TimelineMachine) -> FollowUp {
+        guard let batch = timeline.batches[batchID] else { return FollowUp() }
+        guard let output = try? JSONDecoder().decode(TimelineGraph.Output.self, from: Data(text.utf8)) else {
+            timeline.failBatch(id: batchID, error: error ?? "unreadable graph")
+            return FollowUp()
+        }
+        let problems: [TimelineGraph.Problem]
+        if batch.purpose == "graph_review" {
+            problems = timeline.applyGraphOps(output.ops, source: "review")
+            if problems.isEmpty { timeline.markReviewed() }
+        } else {
+            problems = timeline.applyGraph(output, source: "initial", unitID: batch.request["unit"]?["id"]?.stringValue)
+        }
+        guard problems.isEmpty else { return rejectGraph(batchID, problems: problems.map(\.description), timeline: &timeline) }
+        markGraphReady(batchID, reason: output.notes, timeline: &timeline)
+        return FollowUp()
     }
 
     /// 組めなかった・走らせる前に止めた時の後始末。

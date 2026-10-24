@@ -231,9 +231,13 @@ nonisolated struct BundledAssets: Sendable {
         "prompt:timeline_instructions": "timeline_instructions.md",
         "prompt:timeline_grading_instructions": "timeline_grading_instructions.md",
         "prompt:timeline_graph_instructions": "timeline_graph_instructions.md",
+        "prompt:timeline_decompose_instructions": "timeline_decompose_instructions.md",
+        "prompt:timeline_misconceptions_instructions": "timeline_misconceptions_instructions.md",
         "schema:timeline_batch": "timeline_batch.json",
         "schema:timeline_grading": "timeline_grading.json",
         "schema:timeline_graph": "timeline_graph.json",
+        "schema:timeline_decompose": "timeline_decompose.json",
+        "schema:timeline_misconceptions": "timeline_misconceptions.json",
         "skill:timeline_query": "skills/timeline-query/SKILL.md",
     ]
 

@@ -335,6 +335,34 @@ nonisolated enum TimelineRules {
         return stuck
     }
 
+    // MARK: 1段下りる(2026-10-24)
+
+    /// その点での 1 回の解答(1段下りるかの判断に使う)。
+    nonisolated struct SkillAnswer: Equatable, Sendable {
+        var cardID: String
+        var correct: Bool
+        /// 採点の誤りの種類(calculation・sign・concept・prerequisite・combination・method・misread)。
+        var kinds: [String]
+        /// practice | connection | unknown
+        var cause: String
+    }
+
+    static let slipKinds: Set<String> = ["calculation", "sign", "misread"]
+    static let gapKinds: Set<String> = ["concept", "prerequisite", "method"]
+
+    /// 同じ点の解答(古い順)から、1段下りるか決める。1回目の × では下りない(次は数値だけ変えた問題)。別の問題で
+    /// 2回目の × が出た時: 2回とも計算・符号・読み違いだけか練習不足なら下りない(同じ形の反復を続ける)。どちらか
+    /// 1回でも概念・前提・解き方の誤りなら下りる。× の後に ○ が入ったら数え直す。
+    static func shouldDescend(_ answers: [SkillAnswer]) -> Bool {
+        let tail = answers.lastIndex(where: \.correct).map { Array(answers[(answers.index(after: $0))...]) } ?? answers
+        let wrongs = tail.filter { !$0.correct }
+        guard let last = wrongs.last, let previous = wrongs.dropLast().last(where: { $0.cardID != last.cardID }) else { return false }
+        let pair = [previous, last]
+        let slipsOnly = pair.allSatisfy { $0.cause == "practice" || (!$0.kinds.isEmpty && Set($0.kinds).isSubset(of: slipKinds)) }
+        if slipsOnly { return false }
+        return pair.contains { !Set($0.kinds).isDisjoint(with: gapKinds) }
+    }
+
     // MARK: 単元ホームとの数え合い
 
     /// タイムラインの結果を単元ホームの合格に数えるか: 段3以上、その問題の初回、ヒントなし、小単元がある。

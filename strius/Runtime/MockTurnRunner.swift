@@ -267,6 +267,11 @@ actor MockTurnRunner: TurnRunning {
 
     nonisolated static func timelineGraph(_ request: JSONObject) -> JSONObject {
         let task = request["task"] as? String ?? "build"
+        if task == "decompose" { return timelineDecomposition(request) }
+        if task == "misconceptions" {
+            let nodes = (request["nodes"] as? [JSONObject] ?? []).compactMap { $0["id"] as? String }
+            return ["items": nodes.prefix(1).map { ["node_id": $0, "misconceptions": ["範囲の端だけを比べて、頂点を見落とす"]] }, "notes": ""]
+        }
         if task == "review" {
             return ["nodes": [], "edges": [], "ops": [], "start_node_id": NSNull(), "notes": "見直し: 変更なし"]
         }
@@ -287,6 +292,27 @@ actor MockTurnRunner: TurnRunning {
             ["from": "quad.axis_vs_range", "to": "quad.axis_vs_range", "relation": "misconception", "note": "範囲の端だけを比べて頂点を見落とす"],
         ].filter { edge in nodes.contains { node in node["id"] as? String == (edge["to"] as? String) } }
         return ["nodes": nodes, "edges": edges, "ops": [], "start_node_id": nodes.isEmpty ? NSNull() : "quad.vertex_form", "notes": "固定のグラフ"]
+    }
+
+    /// 1段ずつ分解する(固定の答え)。一番上の点は二次関数の最大最小に、その下は前に習う内容として置くだけにする。
+    nonisolated static func timelineDecomposition(_ request: JSONObject) -> JSONObject {
+        let nodes = (request["nodes"] as? [JSONObject] ?? []).compactMap { $0["id"] as? String }
+        let descend = request["mode"] as? String == "descend"
+        let items: [JSONObject] = nodes.map { id in
+            let uses: [JSONObject]
+            if descend {
+                uses = [["id": "\(id).basis", "name": "基礎の計算", "kind": "procedure", "in_unit": false]]
+            } else if id.hasPrefix("goal.") {
+                uses = [["id": "quad.vertex_form", "name": "平方完成", "kind": "procedure", "in_unit": true],
+                        ["id": "quad.axis_vs_range", "name": "軸と範囲の位置", "kind": "concept", "in_unit": true]]
+            } else if id == "quad.vertex_form" {
+                uses = [["id": "quad.expand", "name": "展開", "kind": "procedure", "in_unit": false]]
+            } else {
+                uses = [["id": "quad.graph_axis", "name": "グラフの軸と頂点", "kind": "concept", "in_unit": false]]
+            }
+            return ["node_id": id, "problem": "y = 2x^2 - 8x + 3(0 ≤ x ≤ 3)の最小値", "steps": [["text": "平方完成して軸を出す", "uses": uses]]]
+        }
+        return ["items": items, "notes": ""]
     }
 
     nonisolated static func timelineBatch(_ request: JSONObject, round: Int) -> JSONObject {

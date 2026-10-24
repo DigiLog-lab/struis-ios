@@ -527,7 +527,7 @@ actor TurnCoordinator {
                         turn.completedAt = LedgerClock.now()
                         events.append(.upsert("turn.\(outcome.status.rawValue)", turn))
                     }
-                    return (events, TurnApplier.FollowUp(retryTimeline: applied.followUp.retry))
+                    return (events, TurnApplier.FollowUp(retryTimeline: applied.followUp.retry, nextTimelineGraph: applied.followUp.nextGraph))
                 }
                 var machine = try WorkbookMachine(loading: db)
                 switch plan.kind {
@@ -570,6 +570,8 @@ actor TurnCoordinator {
         if TimelineTurns.isTimeline(plan.kind) {
             // 受け取りを断った(skills の ID・段の上限・検算・グラフの点検): 1 回だけ作り直させる。
             if followUp.retryTimeline, let targetID { await start(kind: plan.kind, targetID: targetID, prefetch: wasPrefetch) }
+            // 次の段・よくある勘違い・1段下りる: 学習者が待っていない先回りとして続けて頼む。
+            if let next = followUp.nextTimelineGraph { await start(kind: .timelineGraph, targetID: next, prefetch: true) }
             return acquired
         }
         if let setID = followUp.setIDToGenerate {

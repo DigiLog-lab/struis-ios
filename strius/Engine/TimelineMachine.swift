@@ -298,6 +298,7 @@ nonisolated struct TimelineMachine {
             payload["facts"] = .object(object)
         }
         if let easier = draft.easier { payload["easier"] = LedgerEvent.encode(easier) }
+        if let variant = draft.variant, !(variant.prompt.isEmpty && variant.math.isEmpty) { payload["variant"] = LedgerEvent.encode(variant) }
         for (key, value) in [("compare", draft.compare), ("reason", draft.reason), ("howto", draft.howto), ("diagnostic", draft.diagnostic)] {
             if let value, value != .null { payload[key] = value }
         }
@@ -338,19 +339,22 @@ nonisolated struct TimelineMachine {
         return card.id
     }
 
-    /// 間違えた時に出すやさしい版(AI を待たない)。元のカードの `easier` から作る。
+    /// 間違えた時に出すやさしい版(AI を待たない)。元のカードの `easier` から作る。`preferVariant` なら、同じ点を数値だけ
+    /// 変えた問題(`variant`)があればそちら(1回目の × では下りず、同じ形をもう 1 問)。
     @discardableResult
-    mutating func makeEasier(of cardID: String) -> String? {
-        guard let base = cards[cardID], let easier = base.payload["easier"]?.objectValue else { return nil }
+    mutating func makeEasier(of cardID: String, preferVariant: Bool = false) -> String? {
+        guard let base = cards[cardID] else { return nil }
+        let variant = preferVariant ? base.payload["variant"]?.objectValue : nil
+        guard let easier = variant ?? base.payload["easier"]?.objectValue else { return nil }
         if let existing = cards.values.first(where: { $0.easierOf == cardID }) { return existing.id }
         let first = queue.first?.position ?? nextPosition
         let card = TimelineCardRecord(
-            id: newID(), batchId: base.batchId, position: first - 1, kind: "solve", level: max(1, easier["level"]?.intValue ?? base.level - 1),
+            id: newID(), batchId: base.batchId, position: first - 1, kind: "solve", level: max(1, easier["level"]?.intValue ?? (variant != nil ? base.level : base.level - 1)),
             skills: base.skills, typeName: base.typeName, prompt: easier["prompt"]?.stringValue ?? base.prompt, math: easier["math"]?.stringValue ?? "",
             question: easier["question"]?.stringValue ?? "", answerKey: easier["answer_key"]?.stringValue ?? "",
             answerExpr: easier["answer_expr"]?.stringValue ?? "", checkpoints: easier["checkpoints"]?.arrayValue?.compactMap(\.stringValue) ?? [],
             commonMistakes: base.commonMistakes, estimatedSeconds: max(20, base.estimatedSeconds / 2), chain: base.chain, easierOf: base.id,
-            subunitId: nil, unitId: base.unitId, payload: .object(["steps": base.payload["steps"] ?? .emptyArray]), origin: "easier", status: "unused",
+            subunitId: nil, unitId: base.unitId, payload: .object(["steps": base.payload["steps"] ?? .emptyArray, "variant": .bool(variant != nil)]), origin: "easier", status: "unused",
             createdAt: now(), updatedAt: now()
         )
         put("timeline.card_easier", card)
@@ -769,6 +773,119 @@ nonisolated struct TimelineMachine {
             recordChange(kind: op.op, detail: LedgerEvent.encode(op), attemptIDs: op.evidence, source: source, reviewed: source == "review")
         }
         return []
+    }
+
+    // MARK: - 1段ずつ分解する(2026-10-24)
+
+    /// 点の初期値。
+    private func newSkill(_ node: TimelineGraph.Node, source: String, expansion: String) -> TimelineSkillRecord {
+        TimelineSkillRecord(
+            id: node.id, name: node.name, kind: node.kind, unitId: node.unitId, status: "practicing", correctDates: [],
+            masteryThreshold: TimelineRules.masteryThreshold, attempts: 0, lastCorrectAt: nil, nextReviewAt: nil, reviewCount: 0,
+            replacedBy: [], source: source, createdAt: now(), updatedAt: now(), expansion: expansion
+        )
+    }
+
+    /// 小単元の到達目標を一番上の点にする(小単元 ID を持つ)。もうある小単元は足さない。足した点の ID を返す。
+    @discardableResult
+    mutating func addGoalNodes(_ subunits: [WorkbookSubunitRecord]) -> [String] {
+        var added: [String] = []
+        for subunit in subunits where !skills.values.contains(where: { $0.unitId == subunit.id && $0.isActive }) {
+            let id = TimelineGraph.normalizedID("goal." + subunit.id)
+            guard skills[id] == nil else { continue }
+            let title = subunit.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            // 仮の点(グラフを作る前のカードで足したもの)と同じ ID は無い(goal. は分解でしか作らない)。
+            put("timeline.skill_added", newSkill(TimelineGraph.Node(id: id, name: title.isEmpty ? subunit.outcome : title, kind: "combination", unitId: subunit.id),
+                                                 source: "build", expansion: "pending"))
+            added.append(id)
+        }
+        return added
+    }
+
+    /// まだ前提を調べていない、今の単元の中身の点(次の段で分解する)。
+    var pendingSkills: [TimelineSkillRecord] {
+        activeSkills.filter { $0.expansion == "pending" }
+    }
+
+    nonisolated struct StepResult: Equatable, Sendable {
+        var added: [String]
+        var edges: Int
+        var droppedCycles: [String]
+        var removedRedundant: [String]
+    }
+
+    /// 分解の答えを点検してから入れる。循環を作る線だけを捨てて記録し、他の点を経由して届く直接の線は消す。
+    @discardableResult
+    mutating func applyDecomposition(_ output: TimelineGraph.Decomposition, requested: [String: String?], descend: Bool) -> StepResult {
+        let plan = TimelineGraph.plan(decomposition: output, requested: requested, descend: descend, existing: skills, existingEdges: Array(edges.values))
+        for node in plan.addNodes {
+            put("timeline.skill_added", newSkill(node, source: descend ? "descend" : "build", expansion: plan.expansion[node.id] ?? "unexplored"))
+        }
+        for id in plan.dugNodes {
+            guard var row = skills[id], row.expansion != "done" else { continue }
+            row.expansion = "done"
+            row.updatedAt = now()
+            put("timeline.skill_dug", row)
+        }
+        for edge in plan.addEdges {
+            addEdge(skillID: edge.to, requires: edge.from, relation: "prerequisite", source: descend ? "descend" : "build", note: "")
+        }
+        let removed = removeRedundantEdges()
+        let dropped = plan.droppedCycles.map { "\($0.from) -> \($0.to)" }
+        recordChange(kind: descend ? "descend" : "decompose", detail: .object([
+            "nodes": .array(plan.dugNodes.map(LedgerJSON.string)), "added": .array(plan.addNodes.map { .string($0.id) }),
+            "dropped_cycle_edges": .array(dropped.map(LedgerJSON.string)), "removed_redundant_edges": .array(removed.map(LedgerJSON.string)),
+            "problems": .object(plan.problems.mapValues(LedgerJSON.string)),
+        ]), attemptIDs: [], source: "build", reviewed: true)
+        return StepResult(added: plan.addNodes.map(\.id), edges: plan.addEdges.count, droppedCycles: dropped, removedRedundant: removed)
+    }
+
+    /// 他の点を経由して届く直接の前提の線を消す(直前の前提だけを残す)。消した線を「元 -> 先」で返す。
+    mutating func removeRedundantEdges() -> [String] {
+        let prerequisites = edges.values.filter { $0.relation == "prerequisite" && $0.requiresSkillId != $0.skillId }
+        let redundant = TimelineGraph.redundantEdges(prerequisites.sorted { $0.id < $1.id }.map { (from: $0.requiresSkillId, to: $0.skillId) })
+        var removed: [String] = []
+        for edge in redundant {
+            for row in edges.values where row.relation == "prerequisite" && row.requiresSkillId == edge.from && row.skillId == edge.to {
+                events.append(.delete("timeline.edge_removed", entity: .timelineSkillEdges, entityID: row.id))
+                edges[row.id] = nil
+            }
+            removed.append("\(edge.from) -> \(edge.to)")
+        }
+        return removed
+    }
+
+    /// よくある勘違いを付ける(形が決まった後の別の依頼)。同じ中身は重ねない。
+    mutating func applyMisconceptions(_ output: TimelineGraph.Misconceptions) -> Int {
+        var count = 0
+        for item in output.items {
+            let id = TimelineGraph.normalizedID(item.nodeId)
+            guard skills[id]?.isActive == true else { continue }
+            for note in item.misconceptions.map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }) where !note.isEmpty {
+                guard !edges.values.contains(where: { $0.skillId == id && $0.relation == "misconception" && $0.note == note }) else { continue }
+                addEdge(skillID: id, requires: id, relation: "misconception", source: "build", note: note)
+                count += 1
+            }
+        }
+        return count
+    }
+
+    /// その点の解答(古い順)。
+    func answers(skill id: String) -> [TimelineRules.SkillAnswer] {
+        orderedAttempts.compactMap { attempt in
+            guard attempt.verdict == "correct" || attempt.verdict == "wrong", let card = cards[attempt.cardId], card.skills.contains(id) else { return nil }
+            let kinds = attempt.errors.arrayValue?.compactMap { $0["kind"]?.stringValue } ?? []
+            return TimelineRules.SkillAnswer(cardID: card.id, correct: attempt.verdict == "correct", kinds: kinds, cause: attempt.cause)
+        }
+    }
+
+    /// × の後に 1段下りる点(無ければ nil): 「まだ掘っていない」印のある点で、まだ下りる依頼を出していないもの。
+    func descendTarget(card: TimelineCardRecord) -> String? {
+        guard !batches.values.contains(where: { $0.purpose.hasPrefix("graph") && $0.status == "requested" }) else { return nil }
+        return card.skills.first { id in
+            guard let skill = skills[id], skill.isActive, !skill.isDug, !TimelineGraphSchedule.descendRequested(self, skillID: id) else { return false }
+            return TimelineRules.shouldDescend(answers(skill: id))
+        }
     }
 
     /// 前の版で作った点に「まだ掘っていない」印を付ける(作り直さない)。前提の線が出ていない一番下の点が unexplored、

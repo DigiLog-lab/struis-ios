@@ -352,7 +352,8 @@ final class TimelineStore {
         let firstCause = machine.attempts(cardID: card.easierOf ?? "").first?.cause
         let next = await commitValue { machine -> TimelineRules.Next in
             var next = initial
-            if let base = next.makeEasierOf { next.cardID = machine.makeEasier(of: base) }
+            // 1回目の × では下りない: 同じ点を数値だけ変えた問題があればそれを次に出す。
+            if let base = next.makeEasierOf { next.cardID = machine.makeEasier(of: base, preferVariant: card.origin == "batch") }
             if outcome == .correct {
                 if card.origin == "easier", let returnTo {
                     // やり方の確認の後の「同じ形」を解いた: 元の問題に戻る。
@@ -578,24 +579,14 @@ final class TimelineStore {
     }
 
     /// 知識グラフを作る(初めて開いた時・新しい単元ができた時)・丸ごと見直す(きっかけが起きた時)。頼んだかは台帳の行で見る。
+    /// 1段下りる依頼は、採点結果を反映する時に `TimelineTurns.apply` が出す。
     private func ensureGraphWork() async {
         guard let request = TimelineGraphSchedule.next(timeline: machine, workbook: workbook) else { return }
         let profile = OnboardingProfile.load()
-        let purpose: String, body: LedgerJSON
-        switch request {
-        case .build:
-            purpose = "graph_build"
-            body = TimelineTurns.graphRequest(purpose: purpose, unitID: nil, workbook: workbook, timeline: machine, profile: profile)
-        case .extend(let unitID):
-            purpose = "graph_extend"
-            body = TimelineTurns.graphRequest(purpose: purpose, unitID: unitID, workbook: workbook, timeline: machine, profile: profile)
-        case .review(let changeIDs):
-            purpose = "graph_review"
-            body = TimelineTurns.graphRequest(purpose: purpose, unitID: nil, changeIDs: changeIDs, workbook: workbook, timeline: machine, profile: profile)
-        }
+        let workbook = self.workbook
         // 判定から行を書くまでの間に、別の判定が同じものを頼んでいないか(書き込みの中で確かめ直す)。
-        guard let id = await commitValue({ machine -> String? in
-            TimelineGraphSchedule.isBlocked(request, timeline: machine) ? nil : machine.insertBatchRequest(purpose: purpose, request: body, accuracy: nil, levelCap: nil)
+        guard let id = await commitValue({ machine in
+            TimelineTurns.insertGraphRequest(request, timeline: &machine, workbook: workbook, profile: profile)
         }) ?? nil else { return }
         await turns.startTimeline(kind: .timelineGraph, targetID: id, prefetch: true)
     }

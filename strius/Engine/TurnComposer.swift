@@ -158,6 +158,8 @@ nonisolated enum TurnApplier {
         var prefetchSetID: String?
         /// 学習タイムラインの結果を断った(作り直させる)。
         var retryTimeline = false
+        /// 続けて頼む知識グラフの依頼(次の段・よくある勘違い・1段下りる)。
+        var nextTimelineGraph: String?
     }
 
     /// `apply_grading_result`. 次の一枚は学習者がリザルト画面で選ぶ。ただし類題 ○ で演習に進んだ時は、次に要る

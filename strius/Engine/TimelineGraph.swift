@@ -201,6 +201,140 @@ nonisolated enum TimelineGraph {
         return plan
     }
 
+    // MARK: 1段ずつ分解する(2026-10-24)
+
+    /// 分解の 1 回分の答え: 渡した点ごとに、典型的な問題を手順に分けて書き、各手順で使う、より小さい「できること」。
+    nonisolated struct Decomposition: Codable, Sendable {
+        nonisolated struct Use: Codable, Sendable {
+            var id: String
+            var name: String
+            var kind: String
+            /// 今の単元の中身か(false なら前に習う内容で、置くだけにして掘らない)。
+            var inUnit: Bool
+            enum CodingKeys: String, CodingKey {
+                case id, name, kind
+                case inUnit = "in_unit"
+            }
+            init(id: String, name: String, kind: String, inUnit: Bool) {
+                self.id = id; self.name = name; self.kind = kind; self.inUnit = inUnit
+            }
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                id = try c.decodeIfPresent(String.self, forKey: .id) ?? ""
+                name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+                kind = try c.decodeIfPresent(String.self, forKey: .kind) ?? "procedure"
+                inUnit = try c.decodeIfPresent(Bool.self, forKey: .inUnit) ?? false
+            }
+        }
+        nonisolated struct Step: Codable, Sendable {
+            var text: String
+            var uses: [Use]
+        }
+        nonisolated struct Item: Codable, Sendable {
+            var nodeId: String
+            var problem: String
+            var steps: [Step]
+            enum CodingKeys: String, CodingKey {
+                case problem, steps
+                case nodeId = "node_id"
+            }
+        }
+        var items: [Item]
+        var notes: String
+
+        static func parse(_ text: String) throws -> Decomposition {
+            try JSONDecoder().decode(Decomposition.self, from: Data(text.utf8))
+        }
+    }
+
+    /// よくある勘違いの 1 回分の答え(形が決まった後に別の依頼で付ける)。
+    nonisolated struct Misconceptions: Codable, Sendable {
+        nonisolated struct Item: Codable, Sendable {
+            var nodeId: String
+            var misconceptions: [String]
+            enum CodingKeys: String, CodingKey {
+                case misconceptions
+                case nodeId = "node_id"
+            }
+        }
+        var items: [Item]
+        var notes: String
+    }
+
+    /// 1段ごとにコードが点検した結果。出力全体は失敗にせず、受け取れない線だけを捨てる。
+    nonisolated struct StepPlan: Sendable {
+        /// 新しく置く点(ID は正規化済み、同じ ID は 1 つにまとめた)。
+        var addNodes: [Node] = []
+        /// 新しく置く点の印(pending / unexplored)。
+        var expansion: [String: String] = [:]
+        /// 受け取る前提の線(元 = 前提、先 = 使う側)。
+        var addEdges: [(from: String, to: String)] = []
+        /// 循環を作るので捨てた線。
+        var droppedCycles: [(from: String, to: String)] = []
+        /// 分解を受け取った点(done にする)。
+        var dugNodes: [String] = []
+        /// 点ごとの典型的な問題(記録用)。
+        var problems: [String: String] = [:]
+    }
+
+    /// 分解の答えを点検する。`requested` は渡した点(ID → 新しい点に付ける単元 ID)、`descend` は 1段下りる依頼
+    /// (新しい点はすべて「まだ掘っていない」)。既にある点の ID を使った時は、元の紐づけのまま線だけを引く。
+    static func plan(decomposition: Decomposition, requested: [String: String?], descend: Bool,
+                     existing: [String: TimelineSkillRecord], existingEdges: [TimelineSkillEdgeRecord]) -> StepPlan {
+        var plan = StepPlan()
+        var accepted = existingEdges.filter { $0.relation == "prerequisite" && $0.requiresSkillId != $0.skillId }.map { (from: $0.requiresSkillId, to: $0.skillId) }
+        var newIDs = Set<String>()
+        for item in decomposition.items {
+            let parent = normalizedID(item.nodeId)
+            guard let unitID = requested[parent], existing[parent]?.isActive == true else { continue }
+            plan.dugNodes.append(parent)
+            if !item.problem.isEmpty { plan.problems[parent] = item.problem }
+            for use in item.steps.flatMap(\.uses) {
+                let id = normalizedID(use.id)
+                guard !id.isEmpty, id != parent else { continue }
+                if let known = existing[id] {
+                    guard known.isActive else { continue }
+                } else if newIDs.insert(id).inserted {
+                    let name = use.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                    plan.addNodes.append(Node(id: id, name: name.isEmpty ? id : name, kind: kinds.contains(use.kind) ? use.kind : "procedure", unitId: unitID))
+                    plan.expansion[id] = descend || !use.inUnit ? "unexplored" : "pending"
+                }
+                guard !accepted.contains(where: { $0.from == id && $0.to == parent }) else { continue }
+                // 循環を作る線だけを捨てる(出力全体は失敗にしない)。
+                if cycle(in: accepted + [(from: id, to: parent)]) != nil {
+                    plan.droppedCycles.append((from: id, to: parent))
+                    continue
+                }
+                accepted.append((from: id, to: parent))
+                plan.addEdges.append((from: id, to: parent))
+            }
+        }
+        return plan
+    }
+
+    /// 他の点を経由して届く直接の線(元 → 先)。直前の前提だけを残すために消す。
+    static func redundantEdges(_ edges: [(from: String, to: String)]) -> [(from: String, to: String)] {
+        var adjacency: [String: Set<String>] = [:]
+        for edge in edges where edge.from != edge.to { adjacency[edge.from, default: []].insert(edge.to) }
+        func reaches(_ start: String, _ target: String, skipping direct: (from: String, to: String)) -> Bool {
+            var stack = [start]
+            var seen: Set<String> = [start]
+            while let node = stack.popLast() {
+                for next in adjacency[node, default: []] {
+                    if node == direct.from && next == direct.to { continue }
+                    if next == target { return true }
+                    if seen.insert(next).inserted { stack.append(next) }
+                }
+            }
+            return false
+        }
+        var seenEdges = Set<String>()
+        return edges.filter { edge in
+            guard edge.from != edge.to, seenEdges.insert(edge.from + "->" + edge.to).inserted else { return false }
+            return reaches(edge.from, edge.to, skipping: edge)
+        }
+    }
+
     // MARK: 台帳への問い合わせ(Skill)
 
     /// 前提をたどる: 未定着の前提を、何段先かと一緒に(WITH RECURSIVE)。

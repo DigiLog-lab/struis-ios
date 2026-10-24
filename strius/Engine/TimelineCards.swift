@@ -110,6 +110,8 @@ nonisolated enum TimelineCards {
         var estimatedSeconds: Int
         var chain: Chain?
         var easier: Easier?
+        /// 初めて間違えた時に次に出す、同じ点を数値だけ変えた問題。
+        var variant: Easier?
         var subunitId: String?
         var facts: Facts?
         var compare: LedgerJSON?
@@ -118,7 +120,7 @@ nonisolated enum TimelineCards {
         var diagnostic: LedgerJSON?
 
         enum CodingKeys: String, CodingKey {
-            case kind, level, skills, prompt, math, question, checks, checkpoints, steps, chain, easier, facts, compare, reason, howto, diagnostic
+            case kind, level, skills, prompt, math, question, checks, checkpoints, steps, chain, easier, variant, facts, compare, reason, howto, diagnostic
             case typeName = "type_name"
             case answerKey = "answer_key"
             case answerExpr = "answer_expr"
@@ -147,6 +149,7 @@ nonisolated enum TimelineCards {
             estimatedSeconds = try c.decodeIfPresent(Int.self, forKey: .estimatedSeconds) ?? 60
             chain = try c.decodeIfPresent(Chain.self, forKey: .chain)
             easier = try c.decodeIfPresent(Easier.self, forKey: .easier)
+            variant = try c.decodeIfPresent(Easier.self, forKey: .variant)
             subunitId = try c.decodeIfPresent(String.self, forKey: .subunitId)
             facts = try c.decodeIfPresent(Facts.self, forKey: .facts)
             compare = try c.decodeIfPresent(LedgerJSON.self, forKey: .compare)
