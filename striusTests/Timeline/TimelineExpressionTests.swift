@@ -16,9 +16,10 @@ final class TimelineExpressionTests: XCTestCase {
         XCTAssertEqual(TimelineExpression.equivalent("2*2^2-8*2+3", "-5"), true)
     }
 
-    func testUnreadableIsNotAFailure() {
+    /// 読めない検算式は確かめられないので、通さない(2026-10-25: 前は欠けにしなかった)。
+    func testUnreadableChecksAreDefects() {
         XCTAssertNil(TimelineExpression.equivalent("最小値は -5", "-5"))
-        XCTAssertTrue(TimelineCards.verificationFailures([("最小値", "-5")]).isEmpty)
+        XCTAssertEqual(TimelineCards.verificationFailures([("最小値", "-5")]).count, 1)
         XCTAssertEqual(TimelineCards.verificationFailures([("2*x^2-8*x+3", "2*(x-2)^2+5")]).count, 1)
     }
 
