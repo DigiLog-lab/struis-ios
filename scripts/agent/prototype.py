@@ -9,7 +9,11 @@ App Groups of a slot are registered once on the developer portal. Everything
 else - App IDs, capabilities, devices, Ad Hoc profiles, signing, IPA, upload and
 install links - is automated here.
 
-Commands: register-slots, allocate, build, report-failure.
+Archiving a prototype releases its slot, so the next new prototype takes it
+(slots are taken in name order). Rebuilding an archived prototype assigns it a
+slot again. Any branch of the repository can be built.
+
+Commands: register-slots, allocate, build, report, archive.
 """
 import argparse
 import base64
@@ -130,36 +134,68 @@ def cmd_register_slots(args):
 
 # ------------------------------------------------------------- allocate ---
 
+def assign_slot(store: Store, issue: int, variant: str) -> dict:
+    """The slot this prototype holds, or the first free slot in name order."""
+    assigned: dict = {}
+
+    def take(document: dict | None) -> dict:
+        if not document:
+            raise SystemExit('Prototype slots are not registered. Run agent-prototype.yml with operation=register-slots.')
+        for name, record in sorted(document['slots'].items()):
+            owner: dict | None = record.get('assigned')
+            if owner and owner.get('issue') == issue and owner.get('variant') == variant:
+                assigned.update(name=name, **record)
+                return document
+        for name, record in sorted(document['slots'].items()):
+            if not record.get('assigned') and not record.get('retired'):
+                record['assigned'] = {'issue': issue, 'variant': variant, 'at': iso()}
+                assigned.update(name=name, **record)
+                return document
+        raise SystemExit('NO_FREE_SLOT')
+
+    try:
+        store.update_json(SLOTS_KEY, take)
+    except SystemExit as error:
+        if str(error) == 'NO_FREE_SLOT':
+            write_output('error', 'no-free-slot')
+            raise SystemExit('空いているプロトタイプ枠がありません。使い終わった案をアーカイブして枠を空けてください'
+                             '(agent-prototype.yml の operation=archive、または Issue で prototype-status <ID> archived)。')
+        raise
+    return assigned
+
+
+def release_slot(store: Store, issue: int, variant: str) -> str | None:
+    """Free the slot of an archived prototype; return its name (None if it held none)."""
+    released: list[str] = []
+
+    def free(document: dict | None) -> dict | None:
+        released.clear()
+        if not document:
+            return document
+        for name, record in document['slots'].items():
+            owner: dict | None = record.get('assigned')
+            if owner and owner.get('issue') == issue and owner.get('variant') == variant:
+                record['assigned'] = None
+                released.append(name)
+        return document
+
+    if store.get_json(SLOTS_KEY) is not None:
+        store.update_json(SLOTS_KEY, free)
+    if store.get_json(meta_key(issue, variant)) is not None:
+        def mark(document: dict) -> dict:
+            document['released'] = iso()
+            return document
+        store.update_json(meta_key(issue, variant), mark)
+    return released[0] if released else None
+
+
 def cmd_allocate(args):
-    """Keep the prototype's slot, or assign the next unused slot to a new prototype."""
+    """Keep the prototype's slot, or assign the next free slot to a new or archived prototype."""
     store = Store()
     issue, variant = args.issue, args.variant
     meta, _ = store.get_json_with_etag(meta_key(issue, variant))
     if not meta:
-        assigned = {}
-
-        def take(document):
-            if not document:
-                raise SystemExit('Prototype slots are not registered. Run agent-prototype.yml with operation=register-slots.')
-            for name, record in sorted(document['slots'].items()):
-                owner = record.get('assigned')
-                if owner and owner.get('issue') == issue and owner.get('variant') == variant:
-                    assigned.update(name=name, **record)
-                    return document
-            for name, record in sorted(document['slots'].items()):
-                if not record.get('assigned') and not record.get('retired'):
-                    record['assigned'] = {'issue': issue, 'variant': variant, 'at': iso()}
-                    assigned.update(name=name, **record)
-                    return document
-            raise SystemExit('NO_FREE_SLOT')
-
-        try:
-            store.update_json(SLOTS_KEY, take)
-        except SystemExit as error:
-            if str(error) == 'NO_FREE_SLOT':
-                write_output('error', 'no-free-slot')
-                raise SystemExit('未使用のプロトタイプ枠がありません。register-slots で枠を追加し、App Group を登録してください。')
-            raise
+        assigned: dict = assign_slot(store, issue, variant)
         meta = {
             'issue': issue, 'variant': variant, 'slot': assigned['name'],
             'bundleId': assigned['bundleBase'], 'appGroup': assigned['appGroup'],
@@ -171,10 +207,16 @@ def cmd_allocate(args):
         except StoreError:
             meta, _ = store.get_json_with_etag(meta_key(issue, variant))
     else:
-        def refresh(document):
+        # The registry decides ownership: the slot this prototype still holds, or a
+        # free one when it was archived (even if the archive stopped before marking meta).
+        assigned: dict = assign_slot(store, issue, variant)
+
+        def refresh(document: dict) -> dict:
             document['branch'] = args.ref
             document['title'] = args.title or document.get('title')
             document['summary'] = args.summary or document.get('summary')
+            document.update(slot=assigned['name'], bundleId=assigned['bundleBase'], appGroup=assigned['appGroup'])
+            document.pop('released', None)
             return document
         meta = store.update_json(meta_key(issue, variant), refresh)
     event(store, issue, variant, 'building', args.summary)
@@ -531,12 +573,30 @@ def cmd_report(args):
         raise SystemExit(1)
 
 
+# -------------------------------------------------------------- archive ---
+
+def cmd_archive(args):
+    """Archive a prototype (any Issue, open or closed) and free its slot."""
+    store = Store()
+    slot: str | None = release_slot(store, args.issue, args.variant)
+    event(store, args.issue, args.variant, 'archived', args.note or None)
+    line: str = (f'Prototype #{args.issue} {args.variant.upper()}: archived, slot {slot} released'
+                 if slot else f'Prototype #{args.issue} {args.variant.upper()}: archived (it held no slot)')
+    append_summary(f'### Prototype archive\n- {line}')
+    print(line)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     register = commands.add_parser('register-slots')
     register.add_argument('--count', type=int, required=True)
     register.set_defaults(func=cmd_register_slots)
+    archive = commands.add_parser('archive')
+    archive.add_argument('--issue', type=int, required=True)
+    archive.add_argument('--variant', required=True)
+    archive.add_argument('--note', default='')
+    archive.set_defaults(func=cmd_archive)
     for name, func in (('allocate', cmd_allocate), ('build', cmd_build), ('report', cmd_report)):
         command = commands.add_parser(name)
         command.add_argument('--issue', type=int, required=True)

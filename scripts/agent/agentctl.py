@@ -1043,9 +1043,16 @@ def upload_attachments(store, entries):
     return links
 
 
-def record_prototype_events(store, number, entries, source):
+def record_prototype_events(store, number, entries, source, gh=None):
     for entry in entries:
         variant = entry['variant']
+        if entry['status'] == 'archived':
+            # The slot is freed by agent-prototype.yml's archive job, which shares one
+            # concurrency group with that prototype's builds: a build still signing
+            # with the slot finishes before the slot is released. That job records the event.
+            dispatch(gh or GitHub(), 'agent-prototype', {'operation': 'archive', 'issue': number, 'variant': variant,
+                                                         'summary': entry.get('note') or ''})
+            continue
         event = {'status': entry['status'], 'note': entry.get('note'), 'at': iso(), 'source': source}
         stamp = utc_now().strftime('%Y%m%dT%H%M%S%fZ')
         store.put_json(f'prototypes/{number}/{variant}/events/{stamp}-{source}.json', event)
@@ -1138,7 +1145,7 @@ def cmd_finalize(_args):
                      for entry in outbox if entry.get('type') == 'pull-request']
     decisions = [{'at': iso(), 'text': entry['text']} for entry in outbox if entry.get('type') == 'decision']
     attachments = upload_attachments(store, [entry for entry in outbox if entry.get('type') == 'attach']) if success else []
-    record_prototype_events(store, number, [entry for entry in outbox if entry.get('type') == 'prototype-status'], 'agent')
+    record_prototype_events(store, number, [entry for entry in outbox if entry.get('type') == 'prototype-status'], 'agent', gh)
 
     usage = {
         'issue': number, 'run': run_url(), 'runAttempt': os.environ.get('GITHUB_RUN_ATTEMPT'),
@@ -1413,7 +1420,8 @@ def cmd_attach(args):
 
 def cmd_prototype_status(args):
     outbox_append({'type': 'prototype-status', 'variant': args.variant, 'status': args.status, 'note': args.note})
-    print(f'Prototype {args.variant} を {args.status} にします(ターン終了時に保存)。')
+    released = '。枠を解放します' if args.status == 'archived' else ''
+    print(f'Prototype {args.variant} を {args.status} にします(ターン終了時に保存{released})。')
 
 
 def process_alive(pid):
@@ -1581,7 +1589,7 @@ def main():
     build.add_argument('variant')
     build.add_argument('--title', required=True)
     build.add_argument('--summary')
-    build.add_argument('--ref')
+    build.add_argument('--ref', help='ビルドするブランチ(既定 prototype/{Issue}/{ID})。作業ブランチをそのまま渡せる')
     build.add_argument('--wait', action='store_true')
     build.add_argument('--wait-minutes', type=float, default=9,
                        help='Bash ツールの上限(10分)より短く待つ')
