@@ -6,7 +6,7 @@ import XCTest
 final class TimelineTurnsTests: XCTestCase {
     typealias F = TimelineFixture
 
-    func testBatchAndGradingShareTheSamePrefix() async throws {
+    func testBatchGradingAndReviewShareTheSamePrefix() async throws {
         let ledger = try Ledger.inMemory()
         try await ledger.commit { db in
             var timeline = try TimelineMachine(loading: db)
@@ -21,21 +21,42 @@ final class TimelineTurnsTests: XCTestCase {
         let attemptID = timeline.attempts.keys.first!
         let batch = try await TimelineTurns.batch(composer: composer, planID: "p1", batchID: batchID, workbook: workbook, timeline: timeline)
         let grading = try await TimelineTurns.grading(composer: composer, planID: "p2", attemptID: attemptID, workbook: workbook, timeline: timeline)
+        let review = try await TimelineTurns.review(composer: composer, planID: "p3", attemptID: attemptID, workbook: workbook, timeline: timeline)
         XCTAssertEqual(batch.kind, .timelineBatch)
+        // 1 つ目(どの依頼にも同じもの)と 2 つ目(今日の答案の一覧)が 3 つで同じ。今回の仕事は会話の最初の発話に置く。
         XCTAssertEqual(batch.thread.baseInstructions, grading.thread.baseInstructions)
-        XCTAssertNotEqual(batch.thread.developerInstructions?.asset, grading.thread.developerInstructions?.asset)
+        XCTAssertEqual(review.thread.baseInstructions, grading.thread.baseInstructions)
+        XCTAssertNil(grading.thread.developerInstructions)
+        XCTAssertEqual(batch.thread.developerText, grading.thread.developerText)
+        XCTAssertEqual(review.thread.developerText, grading.thread.developerText)
+        XCTAssertTrue(grading.thread.developerText?.contains(attemptID) == true)
+        XCTAssertTrue(grading.turn?.text.hasPrefix("# 今回の仕事: 採点") == true)
+        XCTAssertTrue(batch.turn?.text.hasPrefix("# 今回の仕事: 次の5枚") == true)
+        // 見直しだけ考える深さを上げる。
+        XCTAssertEqual(review.thread.effort, TimelineTurns.reviewEffort)
+        XCTAssertNotEqual(review.thread.effort, grading.thread.effort)
         func tools(_ kind: TurnPlan.Kind) throws -> String {
             String(decoding: try JSONSerialization.data(withJSONObject: NativeToolRouter.definitions(for: kind), options: [.sortedKeys]), as: UTF8.self)
         }
         XCTAssertEqual(try tools(batch.kind), try tools(grading.kind))
-        XCTAssertTrue(try tools(.timelineBatch).contains("timeline_query"))
+        XCTAssertEqual(try tools(review.kind), try tools(grading.kind))
+        for name in ["timeline_query", "timeline_add_card", "timeline_ask", "timeline_revise", "timeline_notice"] {
+            XCTAssertTrue(try tools(.timelineGrading).contains(name), name)
+        }
         XCTAssertFalse(try tools(.chat).contains("timeline_query"))
-        XCTAssertEqual(ClaudeTranslation.tailCacheTTL(kind: "timeline_batch"), "1h")
-        let request = try XCTUnwrap(LedgerJSON.parse(batch.turn!.text))
-        XCTAssertEqual(request["target_accuracy"]?.doubleValue, 0.8)
-        XCTAssertEqual(request["direction"]?.stringValue, "raise")
+        XCTAssertEqual(ClaudeTranslation.tailCacheTTL(kind: "timeline_grading"), "5m")
+        XCTAssertEqual(ClaudeTranslation.version(kind: "timeline_grading"), 3)
+        XCTAssertEqual(ClaudeTranslation.version(kind: "chat"), ClaudeTranslation.current)
+        let marker = try XCTUnwrap(batch.turn?.text.range(of: "# 今回の材料"))
+        let request = try XCTUnwrap(LedgerJSON.parse(String(batch.turn!.text[marker.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)))
+        XCTAssertEqual(request["accuracy_last_10"]?.doubleValue, 0.9)
+        // 判定の手順(段の上げ下げの向き・目標)や、直近10問の要約は渡さない。
+        XCTAssertNil(request["direction"])
+        XCTAssertNil(request["recent"])
         XCTAssertEqual(grading.turn?.images.count, 1)
-        XCTAssertTrue(batch.workspace.files.contains { $0.path == ".agents/skills/timeline-query/SKILL.md" })
+        // 処理ごとの作業フォルダの場所が、Codex の Skill の一覧として先頭に入らない。
+        XCTAssertTrue(batch.workspace.files.isEmpty)
+        XCTAssertTrue(grading.workspace.files.isEmpty)
     }
 
     func testMockBatchAndGraphPassTheirOwnChecks() throws {

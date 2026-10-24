@@ -39,7 +39,7 @@ final class TimelineMachineTests: XCTestCase {
         _ = machine.applyBatch(id: id, batch: try F.batch(cards: [F.draftJSON(kind: "order"), F.draftJSON(kind: "sort")]))
         XCTAssertEqual(machine.queue.map(\.kind), ["order", "sort"])
         XCTAssertNotNil(machine.queue[0].payload["shuffled"])
-        XCTAssertEqual(machine.queue[1].prompt, "軸 x = 2 を含む？")
+        XCTAssertEqual(machine.queue[1].prompt, "軸 x = 2 を含む範囲を右に、含まない範囲を左に分けなさい。")
     }
 
     private func gradingJSON(verdict: String, keySuspect: Bool = false, errors: [[String: String]] = []) throws -> TimelineMachine.Grading {
