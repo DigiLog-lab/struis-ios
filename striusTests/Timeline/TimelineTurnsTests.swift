@@ -29,7 +29,9 @@ final class TimelineTurnsTests: XCTestCase {
         XCTAssertNil(grading.thread.developerInstructions)
         XCTAssertEqual(batch.thread.developerText, grading.thread.developerText)
         XCTAssertEqual(review.thread.developerText, grading.thread.developerText)
-        XCTAssertTrue(grading.thread.developerText?.contains(attemptID) == true)
+        // 採点中の答案は一覧に載せず、今回の材料に入れる(結果が出ても一覧の前の部分が変わらない)。
+        XCTAssertFalse(grading.thread.developerText?.contains(attemptID) == true)
+        XCTAssertTrue(grading.turn?.text.contains(attemptID) == true)
         XCTAssertTrue(grading.turn?.text.hasPrefix("# 今回の仕事: 採点") == true)
         XCTAssertTrue(batch.turn?.text.hasPrefix("# 今回の仕事: 次の5枚") == true)
         // 見直しだけ考える深さを上げる。

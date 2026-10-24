@@ -52,7 +52,8 @@ nonisolated enum TimelineTurns {
     /// 中身の書き方は決めない(メモはモデルが自分の言葉で書いたもの)。後ろに足すだけなので、前の依頼の先頭はそのまま残る。
     static func answerLog(timeline: TimelineMachine) -> String {
         let today = timeline.today
-        let attempts = timeline.orderedAttempts.filter { TimelineRules.day($0.createdAt, calendar: timeline.calendar) == today }
+        // 採点中の答案は載せない(結果が出ると行が変わり、一覧が後ろに足すだけでなくなる。採点中の答案は今回の材料にある)。
+        let attempts = timeline.orderedAttempts.filter { TimelineRules.day($0.createdAt, calendar: timeline.calendar) == today && $0.verdict != "grading" }
         guard !attempts.isEmpty else { return "# 今日の答案\n\nまだありません。" }
         var blocks: [String] = ["# 今日の答案"]
         for attempt in attempts {
