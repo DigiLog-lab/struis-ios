@@ -62,7 +62,8 @@ final class TimelineStore {
     private var awayStartedAt: Date?
     private var observer: UUID?
     private var reloadTask: Task<Void, Never>?
-    private var requested: Set<String> = []
+    /// 前に読んだ単元(新しい単元ができたかを見る)。
+    private var knownUnitIDs: Set<String>?
     private var bannerTask: Task<Void, Never>?
     private var started = false
 
@@ -89,7 +90,7 @@ final class TimelineStore {
         decided = nil
         badge = nil
         started = false
-        requested = []
+        knownUnitIDs = nil
     }
 
     // MARK: - 読む
@@ -110,7 +111,7 @@ final class TimelineStore {
     func unitChip(for card: TimelineCardRecord) -> String? {
         if card.origin == "rapid" { return nil }
         if !card.skills.isEmpty, card.skills.allSatisfy({ machine.skills[$0]?.status == "mastered" }) { return nil }
-        let unitID = card.unitId ?? card.subunitId.flatMap { workbook.subunits[$0]?.unitId } ?? card.skills.compactMap { machine.skills[$0]?.unitId }.first
+        let unitID = card.unitId ?? card.subunitId.flatMap { workbook.subunits[$0]?.unitId } ?? card.skills.compactMap { machine.skills[$0].flatMap { TimelineGraphSchedule.unitID(of: $0, workbook: workbook) } }.first
         let unit = unitID.flatMap { workbook.units[$0]?.title } ?? card.payload["unit_title"]?.stringValue
         let skill = card.skills.first.flatMap { machine.skills[$0]?.name }
         let parts = [unit, skill].compactMap { $0 }.filter { !$0.isEmpty }
@@ -132,7 +133,7 @@ final class TimelineStore {
 
     /// 単元の進み(「4 / 5」と、あと 1 のとき「階段 あと 1」)。単元ホームの進みの数字をそのまま出す。
     func unitProgress(for card: TimelineCardRecord) -> (title: String, passed: Int, total: Int)? {
-        let unitID = card.unitId ?? card.subunitId.flatMap { workbook.subunits[$0]?.unitId } ?? card.skills.compactMap { machine.skills[$0]?.unitId }.first
+        let unitID = card.unitId ?? card.subunitId.flatMap { workbook.subunits[$0]?.unitId } ?? card.skills.compactMap { machine.skills[$0].flatMap { TimelineGraphSchedule.unitID(of: $0, workbook: workbook) } }.first
         guard let unitID, let unit = workbook.units[unitID] else { return nil }
         let subunits = workbook.orderedSubunits(unitID: unitID)
         guard !subunits.isEmpty else { return nil }
@@ -186,6 +187,7 @@ final class TimelineStore {
         let keep = Set([resume?.id].compactMap { $0 })
         let past = pastSolved()
         await commit { machine in
+            machine.markLegacyExpansion()
             machine.discardStale(keep: keep)
             if resume == nil, machine.rapidCards.isEmpty, machine.historyCards.isEmpty {
                 for item in past { machine.insertHistory(prompt: item.prompt, answerKey: item.answerKey, subunitID: item.subunitID, unitTitle: item.unit, solvedAt: item.at) }
@@ -216,7 +218,9 @@ final class TimelineStore {
                 if let next = machine.queue.first { show(next.id) } else { phase = workbook.units.isEmpty ? .guide : .waiting }
             }
         }
-        await ensureBackgroundWork()
+        // タイムラインを開いた時: グラフを頼むか決める。
+        await ensureGraphWork()
+        await requestBatch(notes: notesForNextBatch(paused: nil))
     }
 
     /// 単元ホームで前に解けた問題(新しい順に3つ)。
@@ -243,7 +247,7 @@ final class TimelineStore {
         guard let id, let card = machine.cards[id] else {
             currentID = nil
             phase = workbook.units.isEmpty && machine.cards.isEmpty ? .guide : .waiting
-            Task { await ensureBackgroundWork() }
+            Task { await requestBatch(notes: notesForNextBatch(paused: nil)) }
             return
         }
         if card.origin != "rapid" || phase != .rapidDone { if badge != nil, currentID != nil, currentID != id { badge = nil } }
@@ -255,7 +259,8 @@ final class TimelineStore {
         phase = .solving
         Task {
             await commit { machine in machine.markShown(id) }
-            await ensureBackgroundWork()
+            // グラフは頼まない(開いた時・単元ができた時・採点結果を反映した時だけ)。5枚は4枚目で頼む。
+            await requestBatch(notes: notesForNextBatch(paused: nil))
         }
     }
 
@@ -570,30 +575,26 @@ final class TimelineStore {
         await turns.startTimeline(kind: .timelineBatch, targetID: id, prefetch: true)
     }
 
-    /// 知識グラフを作る(初めて開いた時・新しい単元を始めた時)・丸ごと見直す(きっかけが起きた時)。
-    private func ensureBackgroundWork() async {
-        guard !workbook.units.isEmpty else { return }
-        let graphPending = machine.batches.values.contains { $0.purpose.hasPrefix("graph") && $0.status == "requested" }
-        if !graphPending {
-            let profile = OnboardingProfile.load()
-            if !machine.hasGraph, !requested.contains("graph_build") {
-                requested.insert("graph_build")
-                await requestGraph(purpose: "graph_build", unitID: nil, profile: profile)
-            } else if machine.hasGraph, let unit = workbook.orderedUnits().first(where: { unit in !machine.skills.values.contains { $0.unitId == unit.id } && !requested.contains("extend:" + unit.id) }),
-                      machine.changes.values.contains(where: { $0.kind == "build" }) {
-                requested.insert("extend:" + unit.id)
-                await requestGraph(purpose: "graph_extend", unitID: unit.id, profile: profile)
-            } else if machine.needsReview, !requested.contains("review:\(machine.changes.count)") {
-                requested.insert("review:\(machine.changes.count)")
-                await requestGraph(purpose: "graph_review", unitID: nil, profile: profile)
-            }
+    /// 知識グラフを作る(初めて開いた時・新しい単元ができた時)・丸ごと見直す(きっかけが起きた時)。頼んだかは台帳の行で見る。
+    private func ensureGraphWork() async {
+        guard let request = TimelineGraphSchedule.next(timeline: machine, workbook: workbook) else { return }
+        let profile = OnboardingProfile.load()
+        let purpose: String, body: LedgerJSON
+        switch request {
+        case .build:
+            purpose = "graph_build"
+            body = TimelineTurns.graphRequest(purpose: purpose, unitID: nil, workbook: workbook, timeline: machine, profile: profile)
+        case .extend(let unitID):
+            purpose = "graph_extend"
+            body = TimelineTurns.graphRequest(purpose: purpose, unitID: unitID, workbook: workbook, timeline: machine, profile: profile)
+        case .review(let changeIDs):
+            purpose = "graph_review"
+            body = TimelineTurns.graphRequest(purpose: purpose, unitID: nil, changeIDs: changeIDs, workbook: workbook, timeline: machine, profile: profile)
         }
-        await requestBatch(notes: notesForNextBatch(paused: nil))
-    }
-
-    private func requestGraph(purpose: String, unitID: String?, profile: OnboardingProfile?) async {
-        let request = TimelineTurns.graphRequest(purpose: purpose, unitID: unitID, workbook: workbook, timeline: machine, profile: profile)
-        guard let id = await commitValue({ machine in machine.insertBatchRequest(purpose: purpose, request: request, accuracy: nil, levelCap: nil) }) else { return }
+        // 判定から行を書くまでの間に、別の判定が同じものを頼んでいないか(書き込みの中で確かめ直す)。
+        guard let id = await commitValue({ machine -> String? in
+            TimelineGraphSchedule.isBlocked(request, timeline: machine) ? nil : machine.insertBatchRequest(purpose: purpose, request: body, accuracy: nil, levelCap: nil)
+        }) ?? nil else { return }
         await turns.startTimeline(kind: .timelineGraph, targetID: id, prefetch: true)
     }
 
@@ -617,11 +618,18 @@ final class TimelineStore {
             timelineLog.error("timeline reload failed: \(String(describing: error), privacy: .public)")
             return
         }
+        // 単元ができた: その単元の分のグラフを頼むか決める。
+        let unitIDs = Set(workbook.units.keys)
+        let newUnit = knownUnitIDs.map { !unitIDs.subtracting($0).isEmpty } ?? false
+        knownUnitIDs = unitIDs
+        if newUnit, started { await ensureGraphWork() }
         // 採点の結果が届いた。
         if case .grading(let attemptID) = phase, let attempt = machine.attempts[attemptID], attempt.verdict != "grading" {
             if attempt.verdict == "correct" || attempt.verdict == "wrong" {
                 phase = .result
                 await decide()
+                // 採点結果を反映した: 見直し・1段下りるのきっかけを見る。
+                await ensureGraphWork()
             } else {
                 // 読めなかった・採点できなかった: 撮り直してもらう。
                 actionError = attempt.feedback.isEmpty ? TimelineTurns.gradingFailure : attempt.feedback
@@ -635,7 +643,7 @@ final class TimelineStore {
         }
         if phase == .guide, !workbook.units.isEmpty {
             phase = .waiting
-            await ensureBackgroundWork()
+            await requestBatch(notes: notesForNextBatch(paused: nil))
         }
     }
 

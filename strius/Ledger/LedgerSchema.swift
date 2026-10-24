@@ -28,6 +28,10 @@ nonisolated enum LedgerSchema {
         migrator.registerMigration("v2-timeline") { db in
             try createTimelineProjections(db)
         }
+        // 知識グラフの点の「まだ掘っていない」印(2026-10-24)。列を足すだけで、既存の行は空(タイムラインが開いた時に付ける)。
+        migrator.registerMigration("v3-timeline-expansion") { db in
+            try addTimelineExpansion(db)
+        }
         return migrator
     }
 
@@ -35,6 +39,13 @@ nonisolated enum LedgerSchema {
     static func createProjections(_ db: Database) throws {
         try createV1Projections(db)
         try createTimelineProjections(db)
+        try addTimelineExpansion(db)
+    }
+
+    static func addTimelineExpansion(_ db: Database) throws {
+        try db.alter(table: "timeline_skills") { t in
+            t.add(column: "expansion", .text)
+        }
     }
 
     static func createTimelineProjections(_ db: Database) throws {

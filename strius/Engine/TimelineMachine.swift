@@ -771,6 +771,16 @@ nonisolated struct TimelineMachine {
         return []
     }
 
+    /// 前の版で作った点に「まだ掘っていない」印を付ける(作り直さない)。前提の線が出ていない一番下の点が unexplored、
+    /// 前提の線がある点は done。
+    mutating func markLegacyExpansion() {
+        for var skill in skills.values where skill.expansion == nil && skill.isActive {
+            skill.expansion = directPrerequisites(of: skill.id).isEmpty ? "unexplored" : "done"
+            skill.updatedAt = now()
+            put("timeline.skill_expansion_marked", skill)
+        }
+    }
+
     /// 上位モデルの見直しが要るか: 前回の見直しから、アプリが足した行・変えた行が3つ溜まった、または2日続けて同じ所で止まった。
     var needsReview: Bool {
         let pending = changes.values.filter { !$0.reviewed && $0.source == "app" }

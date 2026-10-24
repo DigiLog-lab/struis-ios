@@ -25,8 +25,12 @@ nonisolated struct TimelineSkillRecord: LedgerRow {
     var source: String  // initial | app | review | batch
     var createdAt: String
     var updatedAt: String
+    /// 前提をまだ調べていないか: pending(今の単元の中身。次の段で分解する)| unexplored(まだ掘っていない。前に習う内容で、
+    /// 1段下りる時に掘る)| done(直前の前提まで調べた)。前の版で作った点は空で、タイムラインを開いた時に付ける。
+    var expansion: String? = nil
     var entityID: String { id }
     var correctDays: Int { correctDates.count }
+    var isDug: Bool { expansion == "done" }
     var isActive: Bool { replacedBy.isEmpty }
 }
 

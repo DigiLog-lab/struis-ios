@@ -321,6 +321,86 @@ nonisolated enum TimelineGraph {
     }
 }
 
+/// 知識グラフをいつ頼むか(2026-10-24 の見直し)。「もう頼んだか」は台帳の `timeline_batches` の行で決める(起動し直しても
+/// 消えない)。失敗した依頼も頼んだ扱いにして、自動では頼み直さない(作り直しは今ある「1回だけ」で終わり)。
+nonisolated enum TimelineGraphSchedule {
+    nonisolated enum Request: Equatable, Sendable {
+        /// タイムラインを初めて開いた時の構築。
+        case build
+        /// 新しい単元ができた時の、その単元の分。
+        case extend(unitID: String)
+        /// アプリが直した行が溜まった時の見直し(対象の変更 ID の一覧)。
+        case review(changeIDs: [String])
+    }
+
+    /// 点の単元。小単元 ID を持つ点は、その小単元が属する単元の点として扱う。
+    static func unitID(of skill: TimelineSkillRecord, workbook: WorkbookMachine) -> String? {
+        guard let id = skill.unitId else { return nil }
+        return workbook.subunits[id]?.unitId ?? id
+    }
+
+    /// 依頼の `units` に入っていた単元(前の版は単元の JSON、今の版は ID の文字列)。
+    static func unitIDs(in request: LedgerJSON) -> Set<String> {
+        var ids = Set((request["units"]?.arrayValue ?? []).compactMap { $0.stringValue ?? $0["id"]?.stringValue })
+        if let unit = request["unit"]?["id"]?.stringValue ?? request["unit_id"]?.stringValue { ids.insert(unit) }
+        return ids
+    }
+
+    /// 単元の分をもう頼んだ単元(構築の依頼に入っていた単元と、単元の分の依頼)。
+    static func requestedUnits(_ timeline: TimelineMachine) -> Set<String> {
+        timeline.batches.values.filter { $0.purpose == "graph_build" || $0.purpose == "graph_extend" }.reduce(into: Set<String>()) { $0.formUnion(unitIDs(in: $1.request)) }
+    }
+
+    static func changeIDs(in request: LedgerJSON) -> [String] {
+        (request["change_ids"]?.arrayValue ?? []).compactMap(\.stringValue).sorted()
+    }
+
+    /// 見直しに渡す、まだ見直していないアプリの変更。
+    static func pendingReviewChanges(_ timeline: TimelineMachine) -> [String] {
+        timeline.changes.values.filter { !$0.reviewed && $0.source == "app" }.map(\.id).sorted()
+    }
+
+    /// 1段下りる依頼を、その点でもう出したか。
+    static func descendRequested(_ timeline: TimelineMachine, skillID: String) -> Bool {
+        timeline.batches.values.contains { $0.purpose == "graph_descend" && $0.request["skill_id"]?.stringValue == skillID }
+    }
+
+    /// その依頼をもう出したか、グラフの依頼が走っている最中か(行を書く書き込みの中で確かめ直す)。
+    static func isBlocked(_ request: Request, timeline: TimelineMachine) -> Bool {
+        if timeline.batches.values.contains(where: { $0.purpose.hasPrefix("graph") && $0.status == "requested" }) { return true }
+        switch request {
+        case .build: return timeline.batches.values.contains { $0.purpose == "graph_build" }
+        case .extend(let unitID): return requestedUnits(timeline).contains(unitID)
+        case .review(let ids): return timeline.batches.values.contains { $0.purpose == "graph_review" && changeIDs(in: $0.request) == ids }
+        }
+    }
+
+    /// 次に頼むもの(無ければ nil)。タイムラインを開いた時・単元ができた時・採点結果を反映した時だけ呼ぶ。
+    static func next(timeline: TimelineMachine, workbook: WorkbookMachine) -> Request? {
+        let units = workbook.orderedUnits()
+        guard !units.isEmpty else { return nil }
+        // 頼んでいる最中のグラフの依頼があれば、終わるまで次を頼まない。
+        guard !timeline.batches.values.contains(where: { $0.purpose.hasPrefix("graph") && $0.status == "requested" }) else { return nil }
+        let built = timeline.batches.values.contains { $0.purpose == "graph_build" }
+        let graphSkills = timeline.activeSkills.filter { $0.source != "batch" }
+        if !built {
+            // 構築の行が無く、グラフも無い: 初めて開いた。
+            return graphSkills.isEmpty ? .build : nil
+        }
+        let requested = requestedUnits(timeline)
+        let covered = Set(graphSkills.compactMap { unitID(of: $0, workbook: workbook) })
+        if let unit = units.first(where: { !requested.contains($0.id) && !covered.contains($0.id) }) {
+            return .extend(unitID: unit.id)
+        }
+        if timeline.needsReview {
+            let ids = pendingReviewChanges(timeline)
+            let asked = timeline.batches.values.contains { $0.purpose == "graph_review" && changeIDs(in: $0.request) == ids }
+            if !ids.isEmpty, !asked { return .review(changeIDs: ids) }
+        }
+        return nil
+    }
+}
+
 /// `struis.timeline_query` が読む台帳(起動時に `LearnerData` が設定する)。
 nonisolated enum TimelineQueryHost {
     nonisolated(unsafe) private static var ledger: Ledger?

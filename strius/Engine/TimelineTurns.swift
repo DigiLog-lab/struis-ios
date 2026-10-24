@@ -34,7 +34,7 @@ nonisolated enum TimelineTurns {
             for subunit in workbook.orderedSubunits(unitID: unit.id) {
                 lines.append("  - 小単元: \(subunit.title)(\(subunit.id))")
             }
-            let names = timeline.activeSkills.filter { $0.unitId == unit.id || $0.unitId == nil }.map { "\($0.name)(\($0.id))" }
+            let names = timeline.activeSkills.filter { skill in skill.unitId == nil || TimelineGraphSchedule.unitID(of: skill, workbook: workbook) == unit.id }.map { "\($0.name)(\($0.id))" }
             if !names.isEmpty {
                 lines.append("## この単元の「できること」")
                 lines.append(names.joined(separator: "、"))
@@ -74,7 +74,7 @@ nonisolated enum TimelineTurns {
         }
         let usedSkills = Set(attempts.suffix(10).compactMap { timeline.cards[$0.cardId] }.flatMap(\.skills))
         let unit = currentUnit(workbook: workbook, timeline: timeline)
-        let skillRows = timeline.activeSkills.filter { usedSkills.contains($0.id) || $0.unitId == unit?.id }.prefix(30).map { skill -> LedgerJSON in
+        let skillRows = timeline.activeSkills.filter { usedSkills.contains($0.id) || (unit != nil && TimelineGraphSchedule.unitID(of: $0, workbook: workbook) == unit?.id) }.prefix(30).map { skill -> LedgerJSON in
             .object([
                 "id": .string(skill.id), "name": .string(skill.name), "kind": .string(skill.kind),
                 "status": .string(TimelineGraph.statusLabels[skill.status] ?? skill.status), "attempts": .number(Double(skill.attempts)),
@@ -180,7 +180,7 @@ nonisolated enum TimelineTurns {
 
     static let gradeOrder = ["小1", "小2", "小3", "小4", "小5", "小6", "中1", "中2", "中3", "高1", "高2", "高3"]
 
-    static func graphRequest(purpose: String, unitID: String?, workbook: WorkbookMachine, timeline: TimelineMachine, profile: OnboardingProfile?) -> LedgerJSON {
+    static func graphRequest(purpose: String, unitID: String?, changeIDs: [String] = [], workbook: WorkbookMachine, timeline: TimelineMachine, profile: OnboardingProfile?) -> LedgerJSON {
         var request: [String: LedgerJSON] = [:]
         func unitJSON(_ unit: WorkbookUnitRecord) -> LedgerJSON {
             .object([
@@ -203,6 +203,8 @@ nonisolated enum TimelineTurns {
             request["existing_nodes"] = .array(timeline.activeSkills.map { .object(["id": .string($0.id), "name": .string($0.name), "kind": .string($0.kind)]) })
         case "graph_review":
             request["task"] = .string("review")
+            // 同じ一覧の見直しを二度頼まないための印(`TimelineGraphSchedule`)。
+            request["change_ids"] = .array(changeIDs.map(LedgerJSON.string))
             request["nodes"] = .array(timeline.activeSkills.map { .object(["id": .string($0.id), "name": .string($0.name), "kind": .string($0.kind),
                                                                          "status": .string($0.status), "correct_days": .number(Double($0.correctDays))]) })
             request["edges"] = .array(timeline.edges.values.sorted { $0.id < $1.id }.map { .object(["from": .string($0.requiresSkillId), "to": .string($0.skillId), "relation": .string($0.relation), "note": .string($0.note)]) })
