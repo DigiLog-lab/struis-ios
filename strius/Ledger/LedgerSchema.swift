@@ -22,12 +22,144 @@ nonisolated enum LedgerSchema {
                 t.column("synced_seq", .integer)
             }
             try db.create(index: "idx_ledger_events_entity", on: "ledger_events", columns: ["entity", "entity_id"])
-            try createProjections(db)
+            try createV1Projections(db)
+        }
+        // 学習タイムライン(Issue #46)。v1 の台帳に表を足すだけで、既存の行は変えない。
+        migrator.registerMigration("v2-timeline") { db in
+            try createTimelineProjections(db)
+        }
+        // 知識グラフの点の「まだ掘っていない」印(2026-10-24)。列を足すだけで、既存の行は空(タイムラインが開いた時に付ける)。
+        migrator.registerMigration("v3-timeline-expansion") { db in
+            try addTimelineExpansion(db)
         }
         return migrator
     }
 
+    /// 作り直し(`Ledger.rebuild`)で使う、今の全部の射影。
     static func createProjections(_ db: Database) throws {
+        try createV1Projections(db)
+        try createTimelineProjections(db)
+        try addTimelineExpansion(db)
+    }
+
+    static func addTimelineExpansion(_ db: Database) throws {
+        try db.alter(table: "timeline_skills") { t in
+            t.add(column: "expansion", .text)
+        }
+    }
+
+    static func createTimelineProjections(_ db: Database) throws {
+        try db.create(table: "timeline_skills") { t in
+            t.column("id", .text).primaryKey()
+            t.column("name", .text).notNull()
+            t.column("kind", .text).notNull()
+            t.column("unit_id", .text).indexed()
+            t.column("status", .text).notNull()
+            t.column("correct_dates", .text).notNull().defaults(to: "[]")
+            t.column("mastery_threshold", .integer).notNull().defaults(to: 3)
+            t.column("attempts", .integer).notNull().defaults(to: 0)
+            t.column("last_correct_at", .text)
+            t.column("next_review_at", .text)
+            t.column("review_count", .integer).notNull().defaults(to: 0)
+            t.column("replaced_by", .text).notNull().defaults(to: "[]")
+            t.column("source", .text).notNull()
+            t.column("created_at", .text).notNull()
+            t.column("updated_at", .text).notNull()
+        }
+        try db.create(table: "timeline_skill_edges") { t in
+            t.column("id", .text).primaryKey()
+            t.column("skill_id", .text).notNull().indexed()
+            t.column("requires_skill_id", .text).notNull().indexed()
+            t.column("relation", .text).notNull()
+            t.column("source", .text).notNull()
+            t.column("note", .text).notNull().defaults(to: "")
+            t.column("created_at", .text).notNull()
+        }
+        try db.create(table: "timeline_map_changes") { t in
+            t.column("id", .text).primaryKey()
+            t.column("kind", .text).notNull()
+            t.column("detail", .text).notNull().defaults(to: "{}")
+            t.column("attempt_ids", .text).notNull().defaults(to: "[]")
+            t.column("reviewed", .boolean).notNull().defaults(to: false)
+            t.column("source", .text).notNull()
+            t.column("created_at", .text).notNull()
+        }
+        try db.create(table: "timeline_batches") { t in
+            t.column("id", .text).primaryKey()
+            t.column("purpose", .text).notNull()
+            t.column("status", .text).notNull()
+            t.column("reason", .text).notNull().defaults(to: "")
+            t.column("accuracy", .double)
+            t.column("level_cap", .integer)
+            t.column("request", .text).notNull().defaults(to: "{}")
+            t.column("model", .text).notNull().defaults(to: "")
+            t.column("input_tokens", .integer).notNull().defaults(to: 0)
+            t.column("output_tokens", .integer).notNull().defaults(to: 0)
+            t.column("cache_write_tokens", .integer).notNull().defaults(to: 0)
+            t.column("cache_read_tokens", .integer).notNull().defaults(to: 0)
+            t.column("retries", .integer).notNull().defaults(to: 0)
+            t.column("rejected", .text).notNull().defaults(to: "[]")
+            t.column("error", .text)
+            t.column("created_at", .text).notNull()
+            t.column("updated_at", .text).notNull()
+        }
+        try db.create(table: "timeline_cards") { t in
+            t.column("id", .text).primaryKey()
+            t.column("batch_id", .text).indexed()
+            t.column("position", .integer).notNull().defaults(to: 0)
+            t.column("kind", .text).notNull()
+            t.column("level", .integer).notNull()
+            t.column("skills", .text).notNull().defaults(to: "[]")
+            t.column("type_name", .text).notNull().defaults(to: "")
+            t.column("prompt", .text).notNull()
+            t.column("math", .text).notNull().defaults(to: "")
+            t.column("question", .text).notNull().defaults(to: "")
+            t.column("answer_key", .text).notNull().defaults(to: "")
+            t.column("answer_expr", .text).notNull().defaults(to: "")
+            t.column("checkpoints", .text).notNull().defaults(to: "[]")
+            t.column("common_mistakes", .text).notNull().defaults(to: "[]")
+            t.column("estimated_seconds", .integer).notNull().defaults(to: 60)
+            t.column("chain", .text)
+            t.column("easier_of", .text)
+            t.column("subunit_id", .text)
+            t.column("unit_id", .text)
+            t.column("payload", .text).notNull().defaults(to: "{}")
+            t.column("origin", .text).notNull()
+            t.column("status", .text).notNull()
+            t.column("created_at", .text).notNull()
+            t.column("updated_at", .text).notNull()
+        }
+        try db.create(table: "timeline_attempts") { t in
+            t.column("id", .text).primaryKey()
+            t.column("card_id", .text).notNull().indexed()
+            t.column("capture_path", .text)
+            t.column("verdict", .text).notNull()
+            t.column("checkpoint_results", .text).notNull().defaults(to: "[]")
+            t.column("errors", .text).notNull().defaults(to: "[]")
+            t.column("learner_answer", .text).notNull().defaults(to: "")
+            t.column("cause", .text).notNull().defaults(to: "unknown")
+            t.column("seconds", .double).notNull().defaults(to: 0)
+            t.column("first_try", .boolean).notNull().defaults(to: true)
+            t.column("assisted", .boolean).notNull().defaults(to: false)
+            t.column("skip_reason", .text)
+            t.column("key_suspect", .boolean).notNull().defaults(to: false)
+            t.column("counts_for_accuracy", .boolean).notNull().defaults(to: true)
+            t.column("feedback", .text).notNull().defaults(to: "")
+            t.column("created_at", .text).notNull()
+            t.column("graded_at", .text)
+        }
+        try db.create(table: "timeline_dips") { t in
+            t.column("id", .text).primaryKey()
+            t.column("trigger", .text).notNull()
+            t.column("chosen", .text)
+            t.column("cards_after", .integer).notNull().defaults(to: 0)
+            t.column("created_at", .text).notNull()
+            t.column("updated_at", .text).notNull()
+        }
+    }
+
+    /// v1 の射影(この形のまま変えない。表を足すときは別の migration にする)。
+    static func createV1Projections(_ db: Database) throws {
         try db.create(table: "workbook_units") { t in
             t.column("id", .text).primaryKey()
             t.column("title", .text).notNull()

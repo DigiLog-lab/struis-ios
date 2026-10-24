@@ -12,7 +12,7 @@ final class WorkbookHomeUITests: XCTestCase {
 
     @MainActor
     func testRecentRowsStageAndCaptureButton() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments += ["-skip-onboarding", "-texture-demo"]
         // 空の台帳から始める(フィクスチャは空のときだけ入る)。
         app.launchEnvironment["STRUIS_LEDGER"] = "memory"

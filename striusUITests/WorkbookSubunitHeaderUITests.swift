@@ -63,7 +63,7 @@ final class WorkbookSubunitHeaderUITests: XCTestCase {
 
     @MainActor
     private func launch() -> XCUIApplication {
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments += ["-skip-onboarding", "-workbook-model-stage"]
         app.launch()
         return app

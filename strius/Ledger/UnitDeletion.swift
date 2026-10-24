@@ -92,6 +92,9 @@ nonisolated enum UnitDeletion {
         try add(WorkbookProposalRecord.self); try add(ThreadRecord.self); try add(MessageRecord.self)
         try add(ProgressRevisionRecord.self); try add(TurnRecord.self); try add(CodexThreadRecord.self)
         try add(ThreadBranchRecord.self); try add(BranchForkAttemptRecord.self)
+        try add(TimelineSkillRecord.self); try add(TimelineSkillEdgeRecord.self); try add(TimelineMapChangeRecord.self)
+        try add(TimelineBatchRecord.self); try add(TimelineCardRecord.self); try add(TimelineAttemptRecord.self)
+        try add(TimelineDipRecord.self)
         return result
     }
     static func scope(db: Database, unitID: String) throws -> Scope {
@@ -122,6 +125,15 @@ nonisolated enum UnitDeletion {
             changed = before != scope.all
         }
         for e in snapshots where e.entity == .workbookProposals && e.payload["unit_id"]?.stringValue == unitID { scope.add(e.entity, e.entityID) }
+        // タイムライン: その単元の「できること」と線、その小単元に数えるカードとその解答。
+        for e in snapshots where e.entity == .timelineSkills && e.payload["unit_id"]?.stringValue == unitID { scope.add(e.entity, e.entityID) }
+        for e in snapshots where e.entity == .timelineSkillEdges {
+            if [e.payload["skill_id"]?.stringValue, e.payload["requires_skill_id"]?.stringValue].contains(where: { $0.map { scope.contains(.timelineSkills, $0) } == true }) { scope.add(e.entity, e.entityID) }
+        }
+        for e in snapshots where e.entity == .timelineCards {
+            if e.payload["subunit_id"]?.stringValue.map({ scope.contains(.workbookSubunits, $0) }) == true || e.payload["unit_id"]?.stringValue == unitID { scope.add(e.entity, e.entityID) }
+        }
+        for e in snapshots where e.entity == .timelineAttempts && e.payload["card_id"]?.stringValue.map({ scope.contains(.timelineCards, $0) }) == true { scope.add(e.entity, e.entityID) }
         for e in snapshots where [.messages, .codexThreads, .branchForkAttempts].contains(e.entity) {
             let thread = e.payload["thread_id"]?.stringValue ?? e.payload["stem_thread_id"]?.stringValue
             if thread.map({ scope.contains(.threads, $0) }) == true { scope.add(e.entity, e.entityID) }

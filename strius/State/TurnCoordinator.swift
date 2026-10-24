@@ -63,10 +63,25 @@ actor TurnCoordinator {
     static let chatLimit = 1
     static let prefetchLimit = 1
 
-    init(ledger: Ledger, assets: AssetCache, runner: any TurnRunning) {
+    /// 構造化ターンの上限(前面にいた時間だけを数える)。超えたら `run` の終わりを待たずに失敗として返す
+    /// (2026-10-24: 返らないターンで採点・グラフ・会話が全部止まった)。会話と単元ホームの判定は今のまま(上限なし)。
+    static let defaultTimeLimits: [String: Duration] = [
+        TurnPlan.Kind.timelineGrading.rawValue: .seconds(90),
+        TurnPlan.Kind.timelineBatch.rawValue: .seconds(180),
+        TurnPlan.Kind.timelineGraph.rawValue: .seconds(180),
+        "graph_descend": .seconds(120),
+    ]
+    private var timeLimits = TurnCoordinator.defaultTimeLimits
+    private let clock: ActiveClock
+
+    /// テスト用: 上限を差し替える。
+    func setTimeLimits(_ limits: [String: Duration]) { timeLimits = limits }
+
+    init(ledger: Ledger, assets: AssetCache, runner: any TurnRunning, clock: ActiveClock = .shared) {
         self.ledger = ledger
         self.assets = assets
         self.runner = runner
+        self.clock = clock
     }
 
     private var deletingUnits: Set<String> = []
@@ -229,6 +244,11 @@ actor TurnCoordinator {
         await start(kind: .workbookUnit, targetID: proposalID)
     }
 
+    /// 学習タイムライン(Issue #46): 次の5枚・採点・知識グラフ。5枚は学習者が待っていない先回り(1枚目は手元から出す)。
+    func startTimeline(kind: TurnPlan.Kind, targetID: String, prefetch: Bool = false) async {
+        await start(kind: kind, targetID: targetID, prefetch: prefetch)
+    }
+
     private func start(kind: TurnPlan.Kind, targetID: String, prefetch: Bool = false) async {
         let turnID = LedgerID.make()
         if prefetch {
@@ -254,6 +274,11 @@ actor TurnCoordinator {
             composingTargets.remove(targetID)
             stoppedWhileComposing.remove(targetID)
             turnLog.error("compose \(kind.rawValue, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+            if TimelineTurns.isTimeline(kind) {
+                try? await ledger.commit { db in (try TimelineTurns.fail(kind: kind, targetID: targetID, error: String(describing: error), db: db), ()) }
+                notify(Notice(turnID: turnID, kind: kind, targetID: targetID, status: "failed"))
+                return
+            }
             try? await ledger.commit { db in
                 var machine = try WorkbookMachine(loading: db)
                 switch kind {
@@ -280,6 +305,14 @@ actor TurnCoordinator {
             return (try await composer.set(planID: turnID, machine: machine, setID: targetID, avoidExpressions: avoid), nil)
         case .workbookUnit:
             return (try await composer.unit(planID: turnID, machine: machine, proposalID: targetID), nil)
+        case .timelineBatch, .timelineGrading, .timelineGraph:
+            let timeline = try await ledger.read { db in try TimelineMachine(loading: db) }
+            let composer = self.composer
+            switch kind {
+            case .timelineBatch: return (try await TimelineTurns.batch(composer: composer, planID: turnID, batchID: targetID, workbook: machine, timeline: timeline), nil)
+            case .timelineGrading: return (try await TimelineTurns.grading(composer: composer, planID: turnID, attemptID: targetID, workbook: machine, timeline: timeline), nil)
+            default: return (try await TimelineTurns.graph(composer: composer, planID: turnID, batchID: targetID, workbook: machine, timeline: timeline), nil)
+            }
         default:
             throw LedgerError.invalid("unsupported turn kind \(kind.rawValue)")
         }
@@ -363,13 +396,88 @@ actor TurnCoordinator {
         for waiter in pending { waiter.resume() }
     }
 
+    /// このターンの上限(無ければ nil)。1段下りるグラフの依頼は短い。
+    private func timeLimit(kind: TurnPlan.Kind, targetID: String?) async -> Duration? {
+        if kind == .timelineGraph, let targetID,
+           let purpose = try? await ledger.read({ db in try TimelineBatchRecord.fetchOne(db, key: targetID)?.purpose }), purpose == "graph_descend" {
+            return timeLimits["graph_descend"] ?? timeLimits[kind.rawValue]
+        }
+        return timeLimits[kind.rawValue]
+    }
+
+    /// `runner.run` と上限の競争。上限が先なら、ターンを止めて接続を作り直させ、遅れて来た結果は捨てる。
+    /// 段階(`TurnStage`)は台帳のターンの行に書く。
+    private func runBounded(turnID: String, plan: TurnPlan, limit: Duration?, progress: @escaping @Sendable (TurnProgressEvent) -> Void) async -> TurnOutcome {
+        let runner = self.runner
+        let started = Date()
+        let first = TurnRace<Result<TurnOutcome, Error>?>()
+        let ledger = self.ledger
+        let sink: @Sendable (String) -> Void = { stage in
+            let at = LedgerClock.now()
+            Task { await TurnCoordinator.recordStage(ledger: ledger, turnID: turnID, stage: stage, at: at) }
+        }
+        let work = TurnStage.$sink.withValue(sink) {
+            Task {
+                do { first.finish(.success(try await runner.run(plan, progress: progress))) } catch { first.finish(.failure(error)) }
+            }
+        }
+        var timer: Task<Void, Never>?
+        if let limit {
+            let clock = self.clock
+            timer = Task {
+                do { try await clock.sleep(for: limit) } catch { return }
+                first.finish(nil)
+            }
+        }
+        let result = await first.result
+        timer?.cancel()
+        switch result {
+        case .success(let outcome)?:
+            return outcome
+        case .failure(let error)?:
+            return TurnOutcome(
+                planID: plan.id, round: plan.round, status: .failed, codexThreadID: plan.thread.codexThreadID, codexTurnID: nil,
+                finalText: "", executions: [], rateLimits: nil, files: [], error: error.localizedDescription,
+                elapsedMs: Int(Date().timeIntervalSince(started) * 1000)
+            )
+        case nil:
+            let seconds = Int((limit ?? .zero).timeInterval)
+            turnLog.error("turn \(turnID, privacy: .public) (\(plan.kind.rawValue, privacy: .public)) exceeded \(seconds, privacy: .public)s; giving up and rebuilding the connection")
+            work.cancel()
+            await runner.interrupt(planID: plan.id)
+            await runner.resetConnection()
+            return TurnOutcome(
+                planID: plan.id, round: plan.round, status: .failed, codexThreadID: plan.thread.codexThreadID, codexTurnID: nil,
+                finalText: "", executions: [.object(["type": .string("time_limit"), "seconds": .number(Double(seconds)), "at": .string(LedgerClock.now())])],
+                rateLimits: nil, files: [], error: "time limit \(seconds)s", elapsedMs: Int(Date().timeIntervalSince(started) * 1000)
+            )
+        }
+    }
+
+    /// ターンの段階を行の `executions` に足す(`turn.stage`)。
+    static func recordStage(ledger: Ledger, turnID: String, stage: String, at: String) async {
+        try? await ledger.commit { db in
+            guard var turn = try TurnRecord.fetchOne(db, key: turnID) else { return ([], ()) }
+            turn.executions = .array((turn.executions.arrayValue ?? []) + [.object(["type": .string("stage"), "stage": .string(stage), "at": .string(at)])])
+            return ([.upsert("turn.stage", turn)], ())
+        }
+    }
+
+    /// 完了時の `executions`: 段階の記録は残し、その後ろに結果の記録を並べる。
+    static func mergedExecutions(_ existing: LedgerJSON, _ outcome: [LedgerJSON]) -> LedgerJSON {
+        .array((existing.arrayValue ?? []).filter { $0["type"]?.stringValue == "stage" } + outcome)
+    }
+
     /// 枠を取って走らせたら true。
     private func execute(turnID: String, plan: TurnPlan, context: WorkbookMachine.GradingContext?) async -> Bool {
+        // 保存(ledger.commit)が終わるまで裏で動く許可を持つ(2026-10-24: run の中で返していたため、保存の途中で
+        // iOS に 18 分止められた)。run の中の begin/end は数える仕組みなので二重でよい。
+        BackgroundTurnActivity.begin()
+        defer { BackgroundTurnActivity.end() }
         // 待ちの画面へ、このターンで実際に起きた出来事を流す(信頼性計画 P2)。対象(答案・一枚・全体像)ごとに 1 本。
         let activity = await targetID(of: turnID).map { TurnActivityBoard.sink(TurnActivityKey.target($0)) }
         defer { activity?.finish() }
         let acquired = await acquire(kind: plan.kind, turnID: turnID)
-        let started = Date()
         var outcome: TurnOutcome
         if !acquired {
             // 枠が空く前に止められた: 走らせずに「止めた」結果として反映する(答案・一枚は「判定し直す」「作り直す」へ)。
@@ -380,18 +488,11 @@ actor TurnCoordinator {
         } else {
         await mark(turnID: turnID, status: "running")
         notify(Notice(turnID: turnID, kind: plan.kind, targetID: plan.kind == .chat ? plan.thread.codexThreadID : nil, status: "running"))
-        do {
-            outcome = try await runner.run(plan) { [weak self] event in
-                activity?.send(event)
-                guard let self else { return }
-                Task { await self.forwardProgress(turnID: turnID, event: event) }
-            }
-        } catch {
-            outcome = TurnOutcome(
-                planID: plan.id, round: plan.round, status: .failed, codexThreadID: plan.thread.codexThreadID, codexTurnID: nil,
-                finalText: "", executions: [], rateLimits: nil, files: [], error: error.localizedDescription,
-                elapsedMs: Int(Date().timeIntervalSince(started) * 1000)
-            )
+        let limit = await timeLimit(kind: plan.kind, targetID: await targetID(of: turnID))
+        outcome = await runBounded(turnID: turnID, plan: plan, limit: limit) { [weak self] event in
+            activity?.send(event)
+            guard let self else { return }
+            Task { await self.forwardProgress(turnID: turnID, event: event) }
         }
         }
         var followUp = TurnApplier.FollowUp()
@@ -413,6 +514,21 @@ actor TurnCoordinator {
         do {
             followUp = try await ledger.commit { db in
                 guard try TurnRecord.fetchOne(db, key: turnID) != nil else { return ([], TurnApplier.FollowUp()) }
+                if TimelineTurns.isTimeline(plan.kind) {
+                    let applied = try TimelineTurns.apply(kind: plan.kind, targetID: targetID ?? "", outcome: outcome, model: plan.thread.model, db: db)
+                    var events = applied.events
+                    if var turn = try TurnRecord.fetchOne(db, key: turnID) {
+                        turn.status = outcome.status.rawValue
+                        turn.outcome = outcome.json
+                        turn.codexThreadId = outcome.codexThreadID
+                        turn.codexTurnId = outcome.codexTurnID
+                        turn.executions = Self.mergedExecutions(turn.executions, outcome.executions)
+                        turn.error = outcome.error
+                        turn.completedAt = LedgerClock.now()
+                        events.append(.upsert("turn.\(outcome.status.rawValue)", turn))
+                    }
+                    return (events, TurnApplier.FollowUp(retryTimeline: applied.followUp.retry, nextTimelineGraph: applied.followUp.nextGraph))
+                }
                 var machine = try WorkbookMachine(loading: db)
                 switch plan.kind {
                 case .workbookGrading: guard let targetID, machine.captures[targetID] != nil else { return ([], TurnApplier.FollowUp()) }
@@ -439,7 +555,7 @@ actor TurnCoordinator {
                     turn.outcome = outcome.json
                     turn.codexThreadId = outcome.codexThreadID
                     turn.codexTurnId = outcome.codexTurnID
-                    turn.executions = .array(outcome.executions)
+                    turn.executions = Self.mergedExecutions(turn.executions, outcome.executions)
                     turn.error = outcome.error
                     turn.completedAt = LedgerClock.now()
                     events.append(.upsert("turn.\(outcome.status.rawValue)", turn))
@@ -451,6 +567,13 @@ actor TurnCoordinator {
         }
         WorkspaceStager.cleanup(plan: plan)
         notify(Notice(turnID: turnID, kind: plan.kind, targetID: targetID, status: outcome.status.rawValue))
+        if TimelineTurns.isTimeline(plan.kind) {
+            // 受け取りを断った(skills の ID・段の上限・検算・グラフの点検): 1 回だけ作り直させる。
+            if followUp.retryTimeline, let targetID { await start(kind: plan.kind, targetID: targetID, prefetch: wasPrefetch) }
+            // 次の段・よくある勘違い・1段下りる: 学習者が待っていない先回りとして続けて頼む。
+            if let next = followUp.nextTimelineGraph { await start(kind: .timelineGraph, targetID: next, prefetch: true) }
+            return acquired
+        }
         if let setID = followUp.setIDToGenerate {
             // 一枚の残り(§3.2)。先回りで組んでいた一枚は、学習者が求めるまで先回りのまま。
             await start(kind: .workbookSet, targetID: setID, prefetch: wasPrefetch && plan.kind == .workbookSet && prefetchTargets[setID] == turnID)

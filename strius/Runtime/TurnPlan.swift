@@ -12,6 +12,10 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
         case threadFork = "thread_fork"
         case threadInject = "thread_inject"
         case lunaLookup = "luna_lookup"
+        /// 学習タイムライン(Issue #46): 次の5枚、採点、知識グラフを作る・見直す。
+        case timelineBatch = "timeline_batch"
+        case timelineGrading = "timeline_grading"
+        case timelineGraph = "timeline_graph"
     }
 
     nonisolated struct AssetRef: Codable, Hashable, Sendable {
@@ -335,9 +339,12 @@ protocol TurnRunning: Sendable {
     /// ゲストと app-server を先に起こしておく(待ち時間の体験 §3.3: 学習者が答えている間に起動を進める)。
     func warmUp() async
     func forgetThreads(_ ids: Set<String>) async throws
+    /// 時間切れのターンを置いて先へ進んだ後、接続を作り直させる(返らない接続を次のターンが使わない)。
+    func resetConnection() async
 }
 
 extension TurnRunning {
     func warmUp() async {}
     func forgetThreads(_ ids: Set<String>) async throws {}
+    func resetConnection() async {}
 }

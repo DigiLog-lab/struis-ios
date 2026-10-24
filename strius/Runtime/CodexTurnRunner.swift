@@ -100,11 +100,13 @@ actor CodexTurnRunner: TurnRunning {
         let started = Date()
         let session = self.session
         let ensureRuntime = self.ensureRuntime
+        TurnStage.report("startup")
         do {
             try await awaitStartup(planID: plan.id) {
                 try await ensureRuntime()
                 try await session.ensureHealthy()
             }
+            TurnStage.report("runtime_ready")
         } catch CodexAppServerError.interrupted {
             return (TurnOutcome(planID: plan.id, round: plan.round, status: .interrupted, codexThreadID: plan.thread.codexThreadID, codexTurnID: nil, finalText: "", executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: Self.elapsed(started)), broken: false)
         } catch {
@@ -126,6 +128,7 @@ actor CodexTurnRunner: TurnRunning {
         do {
             let configured = try await configureThread(plan, session: session)
             threadID = configured.threadID
+            TurnStage.report("thread_configured")
             switch plan.kind {
             case .threadFork:
                 return (TurnOutcome(planID: plan.id, round: plan.round, status: .completed, codexThreadID: threadID, codexTurnID: nil, finalText: "", executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: Self.elapsed(started)), broken: false)
@@ -200,7 +203,7 @@ actor CodexTurnRunner: TurnRunning {
     }
 
     nonisolated static func isStructured(_ kind: TurnPlan.Kind) -> Bool {
-        kind == .workbookUnit || kind == .workbookSet || kind == .workbookGrading
+        kind == .workbookUnit || kind == .workbookSet || kind == .workbookGrading || TimelineTurns.isTimeline(kind)
     }
 
     private func readRateLimitsLater() {
@@ -295,6 +298,11 @@ actor CodexTurnRunner: TurnRunning {
     /// 停止 (design §3.6 / E2E H1): the local wait ends at once so the reply becomes 「停止しました」
     /// and the composer is usable; `turn/interrupt` is still sent to the guest. If the guest never
     /// reports the turn as finished, the next turn rebuilds the app-server first.
+    /// 時間切れの後: Codex との接続を作り直させる(次のターンが新しい接続で起動する)。
+    func resetConnection() async {
+        await session.close()
+    }
+
     func interrupt(planID: String) async {
         // 起動を待っている間(まだ Codex のターンが無い): 起動は続けたまま、このターンの待ちだけを外す。
         startupWaits.removeValue(forKey: planID)?.resume(throwing: CodexAppServerError.interrupted)
@@ -367,7 +375,7 @@ actor CodexTurnRunner: TurnRunning {
     /// スレッドを始めた時の設定の版(`ThreadContextStore.Profile`)。
     nonisolated static func threadProfile(_ plan: TurnPlan, base: String, developer: String) -> ThreadContextStore.Profile {
         let claude = plan.thread.provider == .anthropic
-        let tools = (try? JSONSerialization.data(withJSONObject: NativeToolRouter.definitions, options: [.sortedKeys]))
+        let tools = (try? JSONSerialization.data(withJSONObject: NativeToolRouter.definitions(for: plan.kind), options: [.sortedKeys]))
             .map { String(decoding: $0, as: UTF8.self) } ?? ""
         let schema = plan.turn?.outputSchema.flatMap { try? JSONSerialization.data(withJSONObject: $0.any, options: [.sortedKeys]) }
             .map { ThreadContextStore.hash(String(decoding: $0, as: UTF8.self)) }
@@ -396,7 +404,7 @@ actor CodexTurnRunner: TurnRunning {
         }
         let fullDeveloper = developer + "\n\n" + NativeToolRouter.instructions
         var params: JSONObject = [
-            "dynamicTools": NativeToolRouter.definitions,
+            "dynamicTools": NativeToolRouter.definitions(for: plan.kind),
             "model": spec.model, "approvalPolicy": "never", "sandbox": "danger-full-access",
             "allowProviderModelFallback": false, "baseInstructions": base, "developerInstructions": fullDeveloper,
             "config": NativeToolRouter.configuration(spec.config.any as? JSONObject ?? [:]),
@@ -637,6 +645,7 @@ actor CodexTurnRunner: TurnRunning {
                 audit["recovered_turn_start"] = true
             }
             guard !turnID.isEmpty else { throw CodexAppServerError.malformed("turn/start returned no turn id") }
+            TurnStage.report("turn_started")
             await session.watch(turnID: turnID, threadID: threadID)
             await watcher?.bindParent(threadID: threadID, turnID: turnID)
             await session.nativeTools.setTurn(threadID: threadID, turnID: turnID, registration: registration)
@@ -701,6 +710,7 @@ actor CodexTurnRunner: TurnRunning {
                 if firstEventAt == nil {
                     firstEventAt = lastProgress
                     audit["first_event_ms"] = Self.elapsed(started)
+                    TurnStage.report("first_event")
                 }
                 switch method {
                 case "item/agentMessage/delta":

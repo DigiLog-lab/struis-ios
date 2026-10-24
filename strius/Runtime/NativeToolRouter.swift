@@ -45,6 +45,15 @@ actor NativeToolRouter {
             DocumentTool.definition,
         ]]]
     }
+    /// ターンの種類ごとの native tool。タイムラインのターンだけ、台帳に問い合わせる `timeline_query` を足す
+    /// (出題と採点で同じ定義にして、キャッシュの先頭を揃える)。
+    nonisolated static func definitions(for kind: TurnPlan.Kind) -> [JSONObject] {
+        guard TimelineTurns.isTimeline(kind) else { return definitions }
+        var namespace = definitions[0]
+        namespace["tools"] = (namespace["tools"] as? [JSONObject] ?? []) + [TimelineGraph.toolDefinition]
+        return [namespace]
+    }
+
     func register(threadID: String, planID: String, cwd: String, delegate: (@Sendable (JSONObject) async throws -> JSONObject)?) -> UUID {
         let registration = UUID()
         contexts[threadID] = Context(registration: registration, planID: planID, cwd: cwd, delegate: delegate)
@@ -99,6 +108,11 @@ actor NativeToolRouter {
             guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw CodexAppServerError.interrupted }
             result = ["output": reply.output, "exit_code": reply.exitCode, "cwd": resolved.path, "truncated": reply.truncated]
             execution = ["threadId": threadID, "turnId": turnID, "item": ["type": "commandExecution", "id": params["callId"] ?? UUID().uuidString, "command": command, "cwd": resolved.path, "exitCode": reply.exitCode, "durationMs": Int(Date().timeIntervalSince(start) * 1000), "aggregatedOutput": reply.output, "truncated": reply.truncated, "status": "completed"]]
+        } else if name == "timeline_query" {
+            // 学習者の知識グラフと解答の台帳(ホスト側。前提は WITH RECURSIVE でたどり、結果だけを文にして返す)。
+            let text = await TimelineQueryHost.handle(arguments)
+            guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw CodexAppServerError.interrupted }
+            return (["success": true, "contentItems": [["type": "inputText", "text": text]]], nil)
         } else if name == DocumentTool.name {
             // 添付の PDF・画像を読む(ホスト側。主スレッドの外で、一度に 1 つ)。
             let reply = await DocumentTool.handle(arguments, root: context.cwd)

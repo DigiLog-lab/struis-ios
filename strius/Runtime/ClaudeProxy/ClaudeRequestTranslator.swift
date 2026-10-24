@@ -424,6 +424,8 @@ nonisolated enum ClaudeTranslation {
     static func tailCacheTTL(kind: String?) -> String {
         switch kind {
         case "chat", "thread_fork", "thread_inject": "1h"
+        // タイムラインは5枚を約7分おきに頼むので、5分のキャッシュは毎回切れる(Issue #46「費用の見積もり」)。
+        case "timeline_batch", "timeline_grading", "timeline_graph": "1h"
         default: "5m"
         }
     }

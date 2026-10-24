@@ -187,7 +187,8 @@ actor CodexAppServerSession {
         }
         let task = Task { try await self.launch() }
         starting = task
-        defer { starting = nil }
+        // 自分が作った起動の時だけ消す(時間切れの後の close で消えた後に、次の起動が入っていることがある)。
+        defer { if starting == task { starting = nil } }
         try await task.value
     }
 
@@ -222,8 +223,13 @@ actor CodexAppServerSession {
                 input.continuation.yield(.exited(code))
             })
         } catch {
-            stopReceiving()
+            if generation == self.generation { stopReceiving() }
             throw error
+        }
+        // 起動を待っている間に close された(返らない起動を置いて作り直した): 取れた接続は捨てる。
+        guard generation == self.generation else {
+            handle.terminate()
+            throw CodexAppServerError.closed("closed while launching")
         }
         process = handle
         initialized = false
@@ -238,6 +244,8 @@ actor CodexAppServerSession {
             initialized = true
         } catch {
             handle.terminate()
+            // close の後に次の起動が始まっていたら、その起動の状態には触らない。
+            guard generation == self.generation else { throw error }
             stopReceiving()
             process = nil
             initialized = false
@@ -246,6 +254,9 @@ actor CodexAppServerSession {
     }
 
     func close() {
+        // 起動の途中でも消す: 返らない起動を、次の start が待ち続けない。
+        starting?.cancel()
+        starting = nil
         stopReceiving()
         process?.closeInput()
         process?.terminate()

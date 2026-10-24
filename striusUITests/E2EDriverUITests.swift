@@ -30,7 +30,7 @@ final class E2EDriverUITests: XCTestCase {
         continueAfterFailure = true
         XCUIDevice.shared.orientation = .portrait
 
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         let prefix = "STRUIS_E2E_APP_ENV_"
         for (key, value) in env where key.hasPrefix(prefix) {
             app.launchEnvironment[String(key.dropFirst(prefix.count))] = value
