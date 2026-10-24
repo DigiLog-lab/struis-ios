@@ -1,115 +1,15 @@
 {
   "type": "object",
   "properties": {
-    "readable": {
-      "type": "boolean"
-    },
-    "solved_answer": {
-      "type": "string"
-    },
-    "learner_answer": {
-      "type": "string"
-    },
-    "learner_expr": {
-      "type": "string"
-    },
-    "verdict": {
-      "type": "string",
-      "enum": [
-        "correct",
-        "wrong"
-      ]
-    },
-    "key_suspect": {
-      "type": "boolean"
-    },
-    "checkpoints": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "text": {
-            "type": "string"
-          },
-          "result": {
-            "type": "string",
-            "enum": [
-              "correct",
-              "wrong",
-              "missing"
-            ]
-          }
-        },
-        "required": [
-          "text",
-          "result"
-        ],
-        "additionalProperties": false
-      }
-    },
-    "errors": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "kind": {
-            "type": "string",
-            "enum": [
-              "calculation",
-              "sign",
-              "concept",
-              "prerequisite",
-              "combination",
-              "method",
-              "misread"
-            ]
-          },
-          "where": {
-            "type": "string"
-          },
-          "wrote": {
-            "type": "string"
-          },
-          "correct": {
-            "type": "string"
-          },
-          "detail": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind",
-          "where",
-          "wrote",
-          "correct",
-          "detail"
-        ],
-        "additionalProperties": false
-      }
-    },
-    "cause": {
-      "type": "string",
-      "enum": [
-        "practice",
-        "connection",
-        "unknown"
-      ]
-    },
-    "feedback": {
-      "type": "string"
-    }
+    "readable": {"type": "boolean"},
+    "grade": {"type": "string", "enum": ["correct", "partial", "wrong"]},
+    "learner_answer": {"type": "string"},
+    "skill_ids": {"type": "array", "items": {"type": "string"}},
+    "transcript": {"type": "string"},
+    "notes": {"type": "string"},
+    "comment": {"type": "string"},
+    "key_suspect": {"type": "boolean"}
   },
-  "required": [
-    "readable",
-    "solved_answer",
-    "learner_answer",
-    "learner_expr",
-    "verdict",
-    "key_suspect",
-    "checkpoints",
-    "errors",
-    "cause",
-    "feedback"
-  ],
+  "required": ["readable", "grade", "learner_answer", "skill_ids", "transcript", "notes", "comment", "key_suspect"],
   "additionalProperties": false
 }

@@ -148,6 +148,25 @@ nonisolated struct TimelineAttemptRecord: LedgerRow {
     var feedback: String
     var createdAt: String
     var gradedAt: String?
+    /// 採点したモデルの正誤: correct | partial(答えは合うが途中に誤り)| wrong。`verdict` は partial を wrong にした値
+    /// (切り替え・正答率・定着は partial を × として数える)。前の版の行は空。
+    var grade: String? = nil
+    /// 採点したモデルが自分の言葉で書いたメモ(次にこの生徒を教える人へ)。今日の答案の一覧に載せる。
+    var notes: String? = nil
+    /// 手書きの書き起こし。
+    var transcript: String? = nil
+    /// 関係するスキルの ID。1 つならその点に ○× を付け、2 つ以上なら付けずに置いて見直しで決める。
+    var skillIds: [String]? = nil
+    /// スキルの ○× を見直しで決める(ID が 2 つ以上だった)。
+    var skillsPending: Bool? = nil
+    /// スキルごとに付けた ○×(correct | wrong)。採点で ID が 1 つだった時と、見直しで決めた時に入る。前の版の行は空で、
+    /// その時はカードの skills に答案全体の正誤を付けたものとして読む。
+    var skillMarks: [String: String]? = nil
+    /// 生徒が判定に納得できないと伝えた内容(結果の画面の「質問」から)。
+    var dispute: String? = nil
+    /// 見直しのメモ(前の判定を直した時はその理由)。
+    var reviewNotes: String? = nil
+    var reviewedAt: String? = nil
     var entityID: String { id }
 }
 

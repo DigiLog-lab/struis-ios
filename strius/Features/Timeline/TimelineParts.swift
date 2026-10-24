@@ -32,6 +32,10 @@ enum TimelineSymbol {
     static let send = "arrow.up"
     static let next = "arrow.down"
     static let explain = "text.book.closed"
+    /// 一段戻す(やさしくした問題)。↺(前に解いた)とは別の記号にする。
+    static let back = "arrow.turn.left.down"
+    /// 数値だけ変えた同じ形の問題
+    static let variant = "arrow.left.arrow.right"
 }
 
 /// ○ ×(正誤。色だけに頼らない)。
@@ -91,11 +95,19 @@ struct TimelineChainBar: View {
 struct TimelineMath: View {
     let latex: String
     var size: CGFloat = 34
+    /// 前の問題から変えたところ(式の中にあれば銅色の地にする)。
+    var changed: String? = nil
 
     var body: some View {
         // 長い式は小さくして、画面の幅に収める(横にはみ出させない)。
-        KaTeXMathText(latex, display: true, foregroundColor: UIColor(Theme.primaryText), fontSize: fitted, fontWeight: 500)
+        KaTeXMathText(TimelineMath.highlighting(latex, changed: changed), display: true, foregroundColor: UIColor(Theme.primaryText), fontSize: fitted, fontWeight: 500)
             .accessibilityIdentifier("timeline-math")
+    }
+
+    /// 変えたところを銅色の地にした式(見つからなければそのまま)。
+    static func highlighting(_ latex: String, changed: String?) -> String {
+        guard let changed = changed?.trimmingCharacters(in: .whitespaces), !changed.isEmpty, let range = latex.range(of: changed) else { return latex }
+        return latex.replacingCharacters(in: range, with: "\\colorbox{#E9C8A6}{$\\color{#1F1A17}{" + changed + "}$}")
     }
 
     private var fitted: CGFloat {
@@ -106,6 +118,40 @@ struct TimelineMath: View {
     /// 下の帯・選択肢に 1 行で出す、読める文字。
     static func plain(_ latex: String) -> String {
         latex.isEmpty ? "" : MathPlainText.preview("\\(" + latex + "\\)")
+    }
+}
+
+/// 本文と数式が混ざった文(結果の答え・「前は」・問題文など)。LaTeX を文字のまま出さずに数式として描く。
+struct TimelineRichText: View {
+    let text: String
+    var size: CGFloat = 16
+    var weight: Typography.SansFontName = .medium
+    var color: Color = Theme.primaryText
+
+    var body: some View {
+        let source = TimelineRichText.source(text)
+        if source.containsCatalogLaTeX {
+            KaTeXMathText(source, foregroundColor: UIColor(color), fontSize: size, fontWeight: weight == .bold ? 700 : 500)
+                .fixedSize(horizontal: false, vertical: true)
+                .allowsHitTesting(false)
+        } else {
+            Text(text).font(Typography.sans(size: size, weight: weight)).foregroundStyle(color).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// 数式区切りが無い LaTeX(`\frac{\pi}{2}+1` など、日本語を含まない式だけの文)は `$…$` で囲む。日本語の文の中の式は、
+    /// 単元ホームと同じ見分け方で区切る。
+    static func source(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.containsCatalogLaTeX else { return trimmed }
+        let japanese = trimmed.unicodeScalars.contains { (0x3040...0x30FF).contains($0.value) || (0x4E00...0x9FFF).contains($0.value) || (0xFF00...0xFFEF).contains($0.value) }
+        let latexLike = trimmed.contains("\\") || trimmed.contains("^") || trimmed.contains("_{")
+        if !japanese, latexLike { return "$" + trimmed + "$" }
+        if japanese, trimmed.contains("\\") {
+            // 日本語の中にある `\` から始まる式の塊を区切る。
+            return trimmed.replacingOccurrences(of: #"([A-Za-z0-9 ()+\-=^_{}.,\\]*\\[A-Za-z]+[A-Za-z0-9 ()+\-=^_{}.,\\]*)"#, with: "\\$$1\\$", options: .regularExpression)
+        }
+        return WorkbookMathSource.withInlineMath(trimmed)
     }
 }
 

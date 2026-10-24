@@ -382,7 +382,7 @@ actor CodexTurnRunner: TurnRunning {
         return ThreadContextStore.Profile(
             kind: plan.kind.rawValue, model: plan.thread.model, effort: plan.thread.effort,
             instructions: ThreadContextStore.hash(base, developer), tools: ThreadContextStore.hash(tools), schema: schema,
-            thinking: claude ? "adaptive/summarized" : "codex", translation: claude ? ClaudeTranslation.current : nil,
+            thinking: claude ? "adaptive/summarized" : "codex", translation: claude ? ClaudeTranslation.version(kind: plan.kind.rawValue) : nil,
             cacheTTL: claude ? ClaudeTranslation.tailCacheTTL(kind: plan.kind.rawValue) : nil, startedAt: Date()
         )
     }
@@ -436,7 +436,8 @@ actor CodexTurnRunner: TurnRunning {
             let threadID = (response["thread"] as? JSONObject)?["id"] as? String
             guard let threadID, !threadID.isEmpty else { throw CodexAppServerError.malformed("thread/start returned no thread id") }
             loadedThreads[threadID] = (generation, instructions, response)
-            if !spec.ephemeral {
+            // タイムラインの採点・出題・見直しは 1 回で終わるスレッドでも、Claude への変換の版と TTL を決めるために記録する。
+            if !spec.ephemeral || ClaudeTranslation.tutorKinds.contains(plan.kind.rawValue) {
                 let profile = Self.threadProfile(plan, base: base, developer: fullDeveloper)
                 contextStore.update(threadID) {
                     $0.developer = developerHash

@@ -71,12 +71,6 @@
               "additionalProperties": false
             }
           },
-          "checkpoints": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
           "common_mistakes": {
             "type": "array",
             "items": {
@@ -167,12 +161,6 @@
               },
               "answer_expr": {
                 "type": "string"
-              },
-              "checkpoints": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
               }
             },
             "required": [
@@ -181,8 +169,7 @@
               "math",
               "question",
               "answer_key",
-              "answer_expr",
-              "checkpoints"
+              "answer_expr"
             ],
             "additionalProperties": false
           },
@@ -209,12 +196,6 @@
               },
               "answer_expr": {
                 "type": "string"
-              },
-              "checkpoints": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
               }
             },
             "required": [
@@ -223,8 +204,7 @@
               "math",
               "question",
               "answer_key",
-              "answer_expr",
-              "checkpoints"
+              "answer_expr"
             ],
             "additionalProperties": false
           },
@@ -438,6 +418,9 @@
               "required_by"
             ],
             "additionalProperties": false
+          },
+          "reveal": {
+            "type": "string"
           }
         },
         "required": [
@@ -451,7 +434,6 @@
           "answer_key",
           "answer_expr",
           "checks",
-          "checkpoints",
           "common_mistakes",
           "steps",
           "mistake_steps",
@@ -464,7 +446,8 @@
           "compare",
           "reason",
           "howto",
-          "diagnostic"
+          "diagnostic",
+          "reveal"
         ],
         "additionalProperties": false
       }

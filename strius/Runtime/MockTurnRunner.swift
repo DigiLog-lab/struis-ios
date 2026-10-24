@@ -63,6 +63,7 @@ actor MockTurnRunner: TurnRunning {
         case .timelineBatch: text = Self.json(Self.timelineBatch(request, round: counter))
         case .timelineGrading: text = Self.json(Self.timelineGrading(request))
         case .timelineGraph: text = Self.json(Self.timelineGraph(request))
+        case .timelineReview: text = Self.json(["skill_results": [], "notes": ""])
         }
         let threadID = plan.thread.codexThreadID ?? "thr_mock_\(UUID().uuidString.prefix(16).lowercased())"
         return TurnOutcome(
@@ -108,7 +109,10 @@ actor MockTurnRunner: TurnRunning {
     // MARK: - Canned answers
 
     nonisolated private static func request(from text: String) -> JSONObject {
-        guard let data = text.data(using: .utf8), let value = try? JSONSerialization.jsonObject(with: data) as? JSONObject else { return [:] }
+        // タイムラインの発話は「今回の仕事」の後ろに「# 今回の材料」と JSON を置く。
+        let body = text.range(of: "# 今回の材料").map { String(text[$0.upperBound...]) } ?? text
+        guard let data = body.trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8),
+              let value = try? JSONSerialization.jsonObject(with: data) as? JSONObject else { return [:] }
         return value
     }
 
@@ -328,7 +332,8 @@ actor MockTurnRunner: TurnRunning {
             ["kind": kind, "level": level, "skills": skills(skillIDs), "type_name": "二次関数の最大最小", "prompt": prompt, "math": math, "question": question,
              "answer_key": answer, "answer_expr": answerExpr, "checks": checks, "checkpoints": ["平方完成 y = 2(x - 2)^2 - 5", "軸 x = 2 は範囲の中", "最小値 -5(x = 2)"],
              "common_mistakes": ["範囲の端だけを比べて、頂点を見落とす"], "steps": steps, "mistake_steps": mistakes, "estimated_seconds": seconds,
-             "chain": chain, "easier": easier, "subunit_id": NSNull(), "facts": facts, "compare": NSNull(), "reason": reason, "howto": howto, "diagnostic": NSNull()]
+             "chain": chain, "easier": easier, "subunit_id": NSNull(), "facts": facts, "compare": NSNull(), "reason": reason, "howto": howto, "diagnostic": NSNull(),
+             "reveal": (chain as? JSONObject)?["position"] as? Int == 3 ? "入試でよく出る形です。" : ""]
         }
         let easier: JSONObject = ["level": 1, "prompt": "次の放物線の最小値を求めなさい。", "math": "y = 2(x - 2)^2 - 5", "question": "最小値は？", "answer_key": "-5(x = 2)", "answer_expr": "-5", "checkpoints": ["最小値 -5"]]
         let howto: JSONObject = ["skill": "場合分け", "note": "軸が範囲のどこにあるかで、最小になる点が変わる", "diagram": [
@@ -363,15 +368,12 @@ actor MockTurnRunner: TurnRunning {
 
     nonisolated static func timelineGrading(_ request: JSONObject) -> JSONObject {
         let wrong = ProcessInfo.processInfo.environment["STRUIS_MOCK_TIMELINE_WRONG"] == "1"
-        let checkpoints = (request["checkpoints"] as? [String] ?? []).enumerated().map { index, text -> JSONObject in
-            ["text": text, "result": wrong && index == max(0, (request["checkpoints"] as? [String] ?? []).count - 1) ? "missing" : "correct"]
-        }
+        let key = request["answer_key"] as? String ?? ""
         return [
-            "readable": true, "solved_answer": request["answer_key"] ?? "", "learner_answer": request["answer_key"] ?? "",
-            "learner_expr": (request["target_vertex"] != nil) ? "2*(x-2)^2-5" : "", "verdict": wrong ? "wrong" : "correct", "key_suspect": false,
-            "checkpoints": checkpoints,
-            "errors": wrong ? [["kind": "combination", "where": "a ≥ 2 の場合", "wrote": "", "correct": "最小値 -5", "detail": "a ≥ 2 の場合を書いていない"]] : [],
-            "cause": wrong ? "connection" : "unknown", "feedback": wrong ? "a ≥ 2 の場合が抜けています" : "",
+            "readable": true, "grade": wrong ? "wrong" : "correct",
+            "learner_answer": request["target_vertex"] != nil ? "2(x-2)^2-5" : (wrong ? "-3" : key),
+            "skill_ids": [], "transcript": wrong ? "y = 2(x-2)^2 - 5\n最小値 -3" : key, "notes": wrong ? "a ≥ 2 の場合を書いていません。" : "",
+            "comment": wrong ? "a ≥ 2 の場合が抜けています。" : "", "key_suspect": false,
         ]
     }
 

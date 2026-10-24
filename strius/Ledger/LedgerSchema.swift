@@ -32,6 +32,10 @@ nonisolated enum LedgerSchema {
         migrator.registerMigration("v3-timeline-expansion") { db in
             try addTimelineExpansion(db)
         }
+        // 採点の見直し(2026-10-25): 3つの正誤・採点したモデルのメモと書き起こし・関係するスキル・見直し。列を足すだけ。
+        migrator.registerMigration("v4-timeline-review") { db in
+            try addTimelineReview(db)
+        }
         return migrator
     }
 
@@ -40,6 +44,21 @@ nonisolated enum LedgerSchema {
         try createV1Projections(db)
         try createTimelineProjections(db)
         try addTimelineExpansion(db)
+        try addTimelineReview(db)
+    }
+
+    static func addTimelineReview(_ db: Database) throws {
+        try db.alter(table: "timeline_attempts") { t in
+            t.add(column: "grade", .text)
+            t.add(column: "notes", .text)
+            t.add(column: "transcript", .text)
+            t.add(column: "skill_ids", .text)
+            t.add(column: "skills_pending", .boolean)
+            t.add(column: "skill_marks", .text)
+            t.add(column: "dispute", .text)
+            t.add(column: "review_notes", .text)
+            t.add(column: "reviewed_at", .text)
+        }
     }
 
     static func addTimelineExpansion(_ db: Database) throws {

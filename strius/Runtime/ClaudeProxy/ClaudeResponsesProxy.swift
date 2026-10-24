@@ -357,7 +357,7 @@ nonisolated private struct ClaudeRelay {
             compared = translation >= 2 && options.includeDiagnostics && options.previousResponseID != nil
             record = [
                 "reason": reason.rawValue, "requested_model": model, "translation": translation,
-                "cache_ttl": ["system": translation >= 2 ? "1h" : NSNull(), "tail": translation >= 2 ? tailTTL : "5m"],
+                "cache_ttl": ["system": translation >= 3 ? tailTTL as Any : translation >= 2 ? "1h" as Any : NSNull() as Any, "tail": translation >= 2 ? tailTTL : "5m"],
                 "thinking_stripped": options.stripThinking, "schema_in_instructions": options.schemaInInstructions,
                 "pricing_version": ClaudePricing.version, "started_at": LedgerClock.iso(Date()),
             ]

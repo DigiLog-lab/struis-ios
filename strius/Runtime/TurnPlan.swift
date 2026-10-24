@@ -16,6 +16,7 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
         case timelineBatch = "timeline_batch"
         case timelineGrading = "timeline_grading"
         case timelineGraph = "timeline_graph"
+        case timelineReview = "timeline_review"
     }
 
     nonisolated struct AssetRef: Codable, Hashable, Sendable {

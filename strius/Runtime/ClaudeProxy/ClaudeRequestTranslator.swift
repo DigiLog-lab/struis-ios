@@ -50,6 +50,8 @@ nonisolated enum ClaudeRequestTranslator {
         let tools = ClaudeToolNames(responsesTools: request["tools"] as? [[String: Any]] ?? [], sorted: options.translation >= 2)
         var builder = MessageBuilder(tools: tools, options: options)
         var systemParts: [String] = []
+        /// schema を指示文で渡す時の文(固定の先頭には入れない)。
+        var schemaPart: String?
         if let instructions = request["instructions"] as? String, !instructions.isEmpty { systemParts.append(instructions) }
         for item in request["input"] as? [[String: Any]] ?? [] {
             // 会話の前に来る developer / system 指示は Claude の system に入れる。
@@ -94,14 +96,25 @@ nonisolated enum ClaudeRequestTranslator {
            format["type"] as? String == "json_schema", let schema = format["schema"] {
             if options.schemaInInstructions {
                 let text = (try? JSONSerialization.data(withJSONObject: schema, options: [.sortedKeys])).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
-                systemParts.append("Answer with exactly one JSON object and nothing else. It must validate against this JSON Schema:\n" + text)
+                schemaPart = "Answer with exactly one JSON object and nothing else. It must validate against this JSON Schema:\n" + text
             } else {
                 outputConfig["format"] = ["type": "json_schema", "schema": ClaudeSchema.sanitize(schema)]
             }
             structured = true
         }
         if !outputConfig.isEmpty { body["output_config"] = outputConfig }
-        if !systemParts.isEmpty {
+        if options.translation >= 3, !systemParts.isEmpty {
+            // 指示(base)と、会話の前の developer 指示を別のブロックにし、それぞれの後ろに breakpoint を置く(最初と最後)。
+            // タイムラインでは 1 つ目が「どの依頼にも同じもの」、2 つ目が「今日の答案の一覧」(後ろに足していく)。
+            var blocks: [[String: Any]] = systemParts.enumerated().map { index, text in
+                var block: [String: Any] = ["type": "text", "text": text]
+                if index == 0 || index == systemParts.count - 1 { block["cache_control"] = ClaudeTranslation.cacheControl(ttl: options.tailCacheTTL) }
+                return block
+            }
+            if let schemaPart { blocks.append(["type": "text", "text": schemaPart]) }
+            body["system"] = blocks
+        } else if let schemaPart { systemParts.append(schemaPart) }
+        if options.translation < 3, !systemParts.isEmpty {
             let system = systemParts.joined(separator: "\n\n")
             if options.translation >= 2 {
                 // 固定の指示(tools と system)に独立した breakpoint を置く。処理をまたいで共有されるので 1 時間。
@@ -411,8 +424,15 @@ nonisolated struct ClaudeToolNames: Sendable {
 /// Claude への要求の変換方式の版。スレッドごとに始めた時の版を `ThreadContextStore` に記録し、続きのターンもその版で送る。
 /// - 1: 最初の版。自動の prompt caching(5 分)だけ。キーの順は決めない。
 /// - 2: キーの順・tools の順を固定し、固定の指示に 1 時間の breakpoint、会話の末尾は処理群ごとの TTL。cache diagnostics。
+/// - 3: 2 に加えて、system を指示と developer 指示の別々のブロックにし、それぞれの後ろに末尾と同じ TTL の breakpoint を置く。
+///   タイムラインの採点・出題・見直し(`tutorKinds`)だけが使う(2026-10-25)。
 nonisolated enum ClaudeTranslation {
     static let current = 2
+    static let tutor = 3
+    static let tutorKinds: Set<String> = ["timeline_batch", "timeline_grading", "timeline_review"]
+
+    /// スレッドを始める時の版。
+    static func version(kind: String) -> Int { tutorKinds.contains(kind) ? tutor : current }
 
     static func cacheControl(ttl: String?) -> [String: Any] {
         guard let ttl, ttl != "5m" else { return ["type": "ephemeral"] }
@@ -424,8 +444,8 @@ nonisolated enum ClaudeTranslation {
     static func tailCacheTTL(kind: String?) -> String {
         switch kind {
         case "chat", "thread_fork", "thread_inject": "1h"
-        // タイムラインは5枚を約7分おきに頼むので、5分のキャッシュは毎回切れる(Issue #46「費用の見積もり」)。
-        case "timeline_batch", "timeline_grading", "timeline_graph": "1h"
+        // タイムラインの採点・出題・見直しは、1 問ごとに続けて頼むので 5 分(2026-10-25 の依頼)。
+        case "timeline_batch", "timeline_grading", "timeline_review", "timeline_graph": "5m"
         default: "5m"
         }
     }

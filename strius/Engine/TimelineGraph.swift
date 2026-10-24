@@ -380,16 +380,21 @@ nonisolated enum TimelineGraph {
 
     /// 過去の解答: その点を使ったカードの直近5回(種類だけでなく、書いたもの・詳細も)。
     static func history(db: Database, skillID: String, limit: Int = 5) throws -> [LedgerJSON] {
-        let cards = try TimelineCardRecord.fetchAll(db).filter { $0.skills.contains(skillID) }
-        let byID = Dictionary(uniqueKeysWithValues: cards.map { ($0.id, $0) })
+        let byID = Dictionary(uniqueKeysWithValues: try TimelineCardRecord.fetchAll(db).map { ($0.id, $0) })
         let attempts = try TimelineAttemptRecord.order(Column("created_at").desc).fetchAll(db)
-            .filter { byID[$0.cardId] != nil && $0.verdict != "grading" }
+            .filter { attempt in
+                guard attempt.verdict != "grading", let card = byID[attempt.cardId] else { return false }
+                return attempt.skillIds.map { $0.contains(skillID) } ?? card.skills.contains(skillID)
+            }
             .prefix(limit)
         return attempts.map { attempt in
             let card = byID[attempt.cardId]!
             return .object([
+                "attempt_id": .string(attempt.id),
                 "prompt": .string(card.prompt + (card.math.isEmpty ? "" : " " + card.math)),
-                "verdict": .string(attempt.verdict), "errors": attempt.errors, "learner_answer": .string(attempt.learnerAnswer),
+                "verdict": .string(attempt.grade ?? attempt.verdict), "skill_result": attempt.skillMarks?[skillID].map(LedgerJSON.string) ?? .null,
+                "errors": attempt.errors, "learner_answer": .string(attempt.learnerAnswer),
+                "notes": .string(attempt.notes ?? ""), "transcript": .string(attempt.transcript ?? ""), "review": .string(attempt.reviewNotes ?? ""),
                 "date": .string(TimelineRules.day(attempt.createdAt) ?? ""), "type_name": .string(card.typeName),
             ])
         }
@@ -439,19 +444,84 @@ nonisolated enum TimelineGraph {
         case "combination":
             let other = arguments["other_skill_id"]?.stringValue ?? ""
             return "組み合わせの記録: " + TurnComposer.dump(try combination(db: db, skillID: skillID, otherSkillID: other))
+        case "sql":
+            return try sql(db: db, arguments["sql"]?.stringValue ?? "")
         default:
-            return "query は prerequisites・misconceptions・history・combination のどれかです。"
+            return "query は sql・prerequisites・misconceptions・history・combination のどれかです。"
+        }
+    }
+
+    static let sqlRowLimit = 200
+    static let sqlCellLimit = 4000
+
+    /// 読み取りの SQL(SELECT か WITH)。書き込みは台帳の読み取りの接続が断る。結果は 1 行 1 つの JSON。
+    static func sql(db: Database, _ text: String) throws -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let head = trimmed.prefix(6).lowercased()
+        guard head.hasPrefix("select") || head.hasPrefix("with") else { return "SELECT か WITH で始まる読み取りの SQL だけを実行できます。" }
+        do {
+            let cursor = try Row.fetchCursor(db, sql: trimmed)
+            var lines: [String] = []
+            while let row = try cursor.next() {
+                guard lines.count < sqlRowLimit else { lines.append("(\(sqlRowLimit) 行で打ち切りました)"); break }
+                var object: [String: LedgerJSON] = [:]
+                for (column, value) in row {
+                    switch value.storage {
+                    case .null: object[column] = .null
+                    case .int64(let number): object[column] = .number(Double(number))
+                    case .double(let number): object[column] = .number(number)
+                    case .string(let string): object[column] = .string(string.count > sqlCellLimit ? String(string.prefix(sqlCellLimit)) + "…" : string)
+                    case .blob: object[column] = .string("(blob)")
+                    }
+                }
+                lines.append(TurnComposer.dump(.object(object)))
+            }
+            return lines.isEmpty ? "(0 行)" : lines.joined(separator: "\n")
+        } catch {
+            return "SQL を実行できませんでした: \(error)"
         }
     }
 
     /// native tool の定義(タイムラインのターンだけに出す)。
     nonisolated static var toolDefinition: JSONObject {
         ["type": "function", "name": "timeline_query",
-         "description": "Query the learner's knowledge graph and answer ledger on this device (prerequisites, misconceptions, history, combination). Use only after repeated wrong answers.",
+         "description": "Read the learner's ledger on this device. query=sql runs one read-only SELECT/WITH statement. The other queries take skill_id (prerequisites, misconceptions, history, combination with other_skill_id).",
          "inputSchema": ["type": "object", "properties": [
-            "query": ["type": "string", "enum": ["prerequisites", "misconceptions", "history", "combination"]],
-            "skill_id": ["type": "string"], "other_skill_id": ["type": "string"],
-         ], "required": ["query", "skill_id"], "additionalProperties": false]]
+            "query": ["type": "string", "enum": ["sql", "prerequisites", "misconceptions", "history", "combination"]],
+            "sql": ["type": "string"], "skill_id": ["type": "string"], "other_skill_id": ["type": "string"],
+         ], "required": ["query"], "additionalProperties": false]]
+    }
+
+    /// 見直しなどで使う、台帳に書く tool(採点・出題・見直しで同じ定義にして、キャッシュの先頭を揃える)。
+    nonisolated static var writeToolDefinitions: [JSONObject] {
+        [
+            ["type": "function", "name": "timeline_add_card",
+             "description": "Put one checking problem at the position the learner solves next.",
+             "inputSchema": ["type": "object", "properties": [
+                "prompt": ["type": "string"], "math": ["type": "string", "description": "LaTeX"], "question": ["type": "string"],
+                "answer_key": ["type": "string"], "skill_ids": ["type": "array", "items": ["type": "string"]], "level": ["type": "integer"],
+                "note": ["type": "string", "description": "Why this problem (kept in the ledger)."],
+             ], "required": ["prompt", "answer_key", "skill_ids", "note"], "additionalProperties": false]],
+            ["type": "function", "name": "timeline_ask",
+             "description": "Ask the learner to choose one option (for example how to read their handwriting). Shown next; the choice appears in today's answers.",
+             "inputSchema": ["type": "object", "properties": [
+                "question": ["type": "string"], "options": ["type": "array", "items": ["type": "string"]], "about_attempt_id": ["type": "string"],
+             ], "required": ["question", "options"], "additionalProperties": false]],
+            ["type": "function", "name": "timeline_revise",
+             "description": "Withdraw an earlier judgement and correct it: the grade of an answer and optionally the result per skill.",
+             "inputSchema": ["type": "object", "properties": [
+                "attempt_id": ["type": "string"], "grade": ["type": "string", "enum": ["correct", "partial", "wrong"]],
+                "skill_results": ["type": "array", "items": ["type": "object", "properties": [
+                    "skill_id": ["type": "string"], "result": ["type": "string", "enum": ["correct", "wrong"]],
+                ], "required": ["skill_id", "result"], "additionalProperties": false]],
+                "note": ["type": "string"],
+             ], "required": ["attempt_id", "grade", "note"], "additionalProperties": false]],
+            ["type": "function", "name": "timeline_notice",
+             "description": "Show the learner a short message card next (for example that an earlier judgement was corrected).",
+             "inputSchema": ["type": "object", "properties": [
+                "text": ["type": "string"], "about_attempt_id": ["type": "string"],
+             ], "required": ["text"], "additionalProperties": false]],
+        ]
     }
 }
 
@@ -551,6 +621,61 @@ nonisolated enum TimelineQueryHost {
             return try await ledger.read { db in try TimelineGraph.query(db: db, arguments: args) }
         } catch {
             return "台帳を読めませんでした。"
+        }
+    }
+
+    static let writeToolNames: Set<String> = ["timeline_add_card", "timeline_ask", "timeline_revise", "timeline_notice"]
+
+    /// 台帳に書く tool(確かめの 1 問・生徒に選ばせる問い・判定の取り消し・お知らせ)。結果は文にして返す。
+    static func handleWrite(name: String, arguments: JSONObject) async -> (success: Bool, text: String) {
+        guard let ledger = lock.withLock({ self.ledger }) else { return (false, "台帳に書けませんでした。") }
+        let args = LedgerJSON(any: arguments).objectValue ?? [:]
+        do {
+            return try await ledger.commit { db in
+                var machine = try TimelineMachine(loading: db)
+                let result = TimelineWriteTools.apply(name: name, arguments: args, machine: &machine)
+                return (machine.events, result)
+            }
+        } catch {
+            return (false, "台帳に書けませんでした: \(error)")
+        }
+    }
+}
+
+/// 台帳に書く tool の中身(端末の台帳だけを変える。テストから直接呼べるように、台帳の読み書きから分けておく)。
+nonisolated enum TimelineWriteTools {
+    static func apply(name: String, arguments args: [String: LedgerJSON], machine: inout TimelineMachine) -> (success: Bool, text: String) {
+        func text(_ key: String) -> String { args[key]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "" }
+        switch name {
+        case "timeline_add_card":
+            guard !text("prompt").isEmpty || !text("math").isEmpty else { return (false, "prompt か math が要ります。") }
+            let id = machine.addReviewCard(prompt: text("prompt"), math: text("math"), question: text("question"), answerKey: text("answer_key"),
+                                           skillIDs: (args["skill_ids"]?.arrayValue ?? []).compactMap(\.stringValue), level: args["level"]?.intValue ?? 1, note: text("note"))
+            return (true, "カード \(id) を、生徒が次に解く位置に入れました。")
+        case "timeline_ask":
+            let options = (args["options"]?.arrayValue ?? []).compactMap(\.stringValue).filter { !$0.isEmpty }
+            guard !text("question").isEmpty, options.count >= 2 else { return (false, "question と 2 つ以上の options が要ります。") }
+            let about = text("about_attempt_id")
+            let id = machine.addAsk(question: text("question"), options: options, aboutAttemptID: about.isEmpty ? nil : about)
+            return (true, "問い \(id) を、次に出す位置に入れました。生徒が選んだものは今日の答案の一覧に載ります。")
+        case "timeline_revise":
+            let marks = args["skill_results"]?.arrayValue.map { items in
+                Dictionary(items.compactMap { item -> (String, String)? in
+                    guard let id = item["skill_id"]?.stringValue, let result = item["result"]?.stringValue else { return nil }
+                    return (id, result)
+                }, uniquingKeysWith: { _, last in last })
+            }
+            if let problem = machine.revise(attemptID: text("attempt_id"), grade: text("grade"), marks: marks, note: text("note")) {
+                return (false, problem)
+            }
+            return (true, "答案 \(text("attempt_id")) の判定を直しました。")
+        case "timeline_notice":
+            guard !text("text").isEmpty else { return (false, "text が要ります。") }
+            let about = text("about_attempt_id")
+            let id = machine.addNotice(text: text("text"), aboutAttemptID: about.isEmpty ? nil : about)
+            return (true, "お知らせ \(id) を、次に出す位置に入れました。")
+        default:
+            return (false, "unsupported tool \(name)")
         }
     }
 }

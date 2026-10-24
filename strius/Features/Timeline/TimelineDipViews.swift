@@ -9,7 +9,7 @@ struct TimelineDipChoiceView: View {
         let rapid = store.machine.rapidCards.prefix(TimelineRules.rapidCount)
         let next = store.upcoming ?? store.current
         VStack(alignment: .leading, spacing: 16) {
-            Text("次はどっち？").font(Typography.sans(size: 24, weight: .bold)).foregroundStyle(Theme.primaryText)
+            Text("次に解くものを選びなさい。").font(Typography.sans(size: 24, weight: .bold)).foregroundStyle(Theme.primaryText)
             if rapid.isEmpty, store.toyCard != nil {
                 Button { Task { await store.chooseToy() } } label: {
                     HStack {

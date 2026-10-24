@@ -45,12 +45,12 @@ actor NativeToolRouter {
             DocumentTool.definition,
         ]]]
     }
-    /// ターンの種類ごとの native tool。タイムラインのターンだけ、台帳に問い合わせる `timeline_query` を足す
-    /// (出題と採点で同じ定義にして、キャッシュの先頭を揃える)。
+    /// ターンの種類ごとの native tool。タイムラインのターンだけ、台帳に問い合わせる `timeline_query` と台帳に書く tool を足す
+    /// (採点・出題・見直しで同じ定義にして、キャッシュの先頭を揃える)。
     nonisolated static func definitions(for kind: TurnPlan.Kind) -> [JSONObject] {
         guard TimelineTurns.isTimeline(kind) else { return definitions }
         var namespace = definitions[0]
-        namespace["tools"] = (namespace["tools"] as? [JSONObject] ?? []) + [TimelineGraph.toolDefinition]
+        namespace["tools"] = (namespace["tools"] as? [JSONObject] ?? []) + [TimelineGraph.toolDefinition] + TimelineGraph.writeToolDefinitions
         return [namespace]
     }
 
@@ -113,6 +113,11 @@ actor NativeToolRouter {
             let text = await TimelineQueryHost.handle(arguments)
             guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw CodexAppServerError.interrupted }
             return (["success": true, "contentItems": [["type": "inputText", "text": text]]], nil)
+        } else if TimelineQueryHost.writeToolNames.contains(name) {
+            // 見直しなどが台帳に書く(確かめの 1 問・問い・判定の取り消し・お知らせ)。
+            let reply = await TimelineQueryHost.handleWrite(name: name, arguments: arguments)
+            guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw CodexAppServerError.interrupted }
+            return (["success": reply.success, "contentItems": [["type": "inputText", "text": reply.text]]], nil)
         } else if name == DocumentTool.name {
             // 添付の PDF・画像を読む(ホスト側。主スレッドの外で、一度に 1 つ)。
             let reply = await DocumentTool.handle(arguments, root: context.cwd)

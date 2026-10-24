@@ -18,6 +18,8 @@ nonisolated enum TimelineCards {
         case inverse        // 09 逆に作る
         case reason         // 10 理由を選ぶ
         case guide          // 使い始め: 単元を作るへの案内
+        case ask            // 見直しが生徒に選ばせる問い(正誤は無い)
+        case notice         // 見直しが判定を直したことなどを伝える
 
         /// 撮る・指で書いて送る(読み取りと検算が要る)カードか。それ以外は端末の中で採点する。
         var needsReading: Bool { self == .solve || self == .fillLine || self == .inverse }
@@ -36,7 +38,7 @@ nonisolated enum TimelineCards {
             case .predict: "08"
             case .inverse: "09"
             case .reason: "10"
-            case .solve, .guide: nil
+            case .solve, .guide, .ask, .notice: nil
             }
         }
 
@@ -54,6 +56,8 @@ nonisolated enum TimelineCards {
             case .inverse: "逆に作る"
             case .reason: "理由を選ぶ"
             case .guide: "はじめに"
+            case .ask: "確かめ"
+            case .notice: "お知らせ"
             }
         }
     }
@@ -81,6 +85,16 @@ nonisolated enum TimelineCards {
                 case level, prompt, math, question, checkpoints
                 case answerKey = "answer_key"
                 case answerExpr = "answer_expr"
+            }
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                level = try c.decodeIfPresent(Int.self, forKey: .level) ?? 1
+                prompt = try c.decodeIfPresent(String.self, forKey: .prompt) ?? ""
+                math = try c.decodeIfPresent(String.self, forKey: .math) ?? ""
+                question = try c.decodeIfPresent(String.self, forKey: .question) ?? ""
+                answerKey = try c.decodeIfPresent(String.self, forKey: .answerKey) ?? ""
+                answerExpr = try c.decodeIfPresent(String.self, forKey: .answerExpr) ?? ""
+                checkpoints = try c.decodeIfPresent([String].self, forKey: .checkpoints) ?? []
             }
         }
         nonisolated struct Facts: Codable, Sendable {
@@ -118,9 +132,11 @@ nonisolated enum TimelineCards {
         var reason: LedgerJSON?
         var howto: LedgerJSON?
         var diagnostic: LedgerJSON?
+        /// 解き終わった後に難しさを明かす言葉(モデルが生徒に合わせて書く)。空なら明かさない。
+        var reveal: String
 
         enum CodingKeys: String, CodingKey {
-            case kind, level, skills, prompt, math, question, checks, checkpoints, steps, chain, easier, variant, facts, compare, reason, howto, diagnostic
+            case kind, level, skills, prompt, math, question, checks, checkpoints, steps, chain, easier, variant, facts, compare, reason, howto, diagnostic, reveal
             case typeName = "type_name"
             case answerKey = "answer_key"
             case answerExpr = "answer_expr"
@@ -156,6 +172,7 @@ nonisolated enum TimelineCards {
             reason = try c.decodeIfPresent(LedgerJSON.self, forKey: .reason)
             howto = try c.decodeIfPresent(LedgerJSON.self, forKey: .howto)
             diagnostic = try c.decodeIfPresent(LedgerJSON.self, forKey: .diagnostic)
+            reveal = try c.decodeIfPresent(String.self, forKey: .reveal) ?? ""
         }
     }
 
@@ -216,7 +233,7 @@ nonisolated enum TimelineCards {
         if Kind(rawValue: draft.kind)?.needsReading ?? true, [draft.prompt, draft.math, draft.question].allSatisfy({ $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
             defects.append("empty prompt")
         }
-        if Kind(rawValue: draft.kind) == nil || draft.kind == Kind.guide.rawValue { defects.append("unknown kind \(draft.kind)") }
+        if Kind(rawValue: draft.kind) == nil || [Kind.guide, .ask, .notice].map(\.rawValue).contains(draft.kind) { defects.append("unknown kind \(draft.kind)") }
         if !(1...4).contains(draft.level) { defects.append("level \(draft.level) out of 1...4") }
         if let levelCap, draft.level > levelCap { defects.append("level \(draft.level) exceeds cap \(levelCap)") }
         if !allowedSkills.isEmpty {
@@ -250,10 +267,14 @@ nonisolated enum TimelineCards {
         return defects
     }
 
-    /// 検算: 等式の両辺を数値で比べて、合わないものを返す(読めない式は確かめられないので、欠けにはしない)。
+    /// 検算: 等式の両辺を数値で比べて、合わないもの・読めないものを返す(読めない式は確かめられないので、通さない)。
     static func verificationFailures(_ checks: [(String, String)]) -> [String] {
         checks.compactMap { left, right in
-            TimelineExpression.equivalent(left, right) == false ? "check failed: \(left) = \(right)" : nil
+            switch TimelineExpression.equivalent(left, right) {
+            case .some(true): nil
+            case .some(false): "check failed: \(left) = \(right)"
+            case .none: "check could not be evaluated (write both sides as program expressions): \(left) = \(right)"
+            }
         }
     }
 
@@ -294,7 +315,7 @@ nonisolated enum TimelineCards {
         var shuffle = Shuffle(seed: base.id + kind.rawValue)
         let problem = problemLine(prompt: base.payload["problem"]?.stringValue ?? base.prompt, math: base.math)
         switch kind {
-        case .solve, .guide:
+        case .solve, .guide, .ask, .notice:
             return nil
         case .order:
             guard steps.count >= 3 else { return nil }
@@ -305,7 +326,7 @@ nonisolated enum TimelineCards {
             guard steps.count >= 3, let mistake = mistakes.first else { return nil }
             var lines = steps
             lines[mistake.0] = mistake.1
-            return ("誰かの答案です。違う行は？", ["lines": .array(lines.map(LedgerJSON.string)), "answer_index": .number(Double(mistake.0)), "problem": .string(problem), "correct_line": .string(steps[mistake.0])])
+            return ("誰かの答案です。間違っている行を選びなさい。", ["lines": .array(lines.map(LedgerJSON.string)), "answer_index": .number(Double(mistake.0)), "problem": .string(problem), "correct_line": .string(steps[mistake.0])])
         case .nextStep:
             guard steps.count >= 2 else { return nil }
             let index = max(1, mistakes.first?.0 ?? steps.count - 1)
@@ -313,7 +334,7 @@ nonisolated enum TimelineCards {
             let distractors = Array(Set(wrongs).filter { $0 != steps[index] }).sorted().prefix(2)
             guard !distractors.isEmpty else { return nil }
             let options = shuffle.shuffled([steps[index]] + distractors)
-            return ("次は？", ["shown": .array(steps.prefix(index).map(LedgerJSON.string)), "options": .array(options.map(LedgerJSON.string)),
+            return ("次の一手を選びなさい。", ["shown": .array(steps.prefix(index).map(LedgerJSON.string)), "options": .array(options.map(LedgerJSON.string)),
                               "answer_index": .number(Double(options.firstIndex(of: steps[index]) ?? 0)), "problem": .string(problem)])
         case .fillLine:
             guard steps.count >= 2 else { return nil }
@@ -338,26 +359,26 @@ nonisolated enum TimelineCards {
                 let contains = Double(low) <= axis && axis <= Double(high)
                 items.append(.object(["text": .string("\(low) ≤ x ≤ \(high)"), "right": .bool(contains)]))
             }
-            return ("軸 x = \(format(axis)) を含む？", ["items": .array(shuffle.shuffled(items)), "left_label": .string("含まない"), "right_label": .string("含む")])
+            return ("軸 x = \(format(axis)) を含む範囲を右に、含まない範囲を左に分けなさい。", ["items": .array(shuffle.shuffled(items)), "left_label": .string("含まない"), "right_label": .string("含む")])
         case .predict:
             guard let value = base.payload["facts"]?["answer_value"]?.doubleValue, value != 0 else { return nil }
-            return ("答えは正？負？", ["options": .array([.string("＋"), .string("−")]), "answer_index": .number(value > 0 ? 0 : 1), "problem": .string(problem), "base_card_id": .string(base.id)])
+            return ("解く前に、答えが正か負かを予想しなさい。", ["options": .array([.string("＋"), .string("−")]), "answer_index": .number(value > 0 ? 0 : 1), "problem": .string(problem), "base_card_id": .string(base.id)])
         case .inverse:
             guard let vertex = base.payload["facts"]?["vertex"]?.arrayValue?.compactMap(\.doubleValue), vertex.count == 2 else { return nil }
-            return ("頂点が (\(format(vertex[0])), \(format(vertex[1]))) になる式は？", ["vertex": .array(vertex.map { .number($0) }), "note": .string("答えは1つじゃなくていい")])
+            return ("頂点が (\(format(vertex[0])), \(format(vertex[1]))) になる二次関数の式を 1 つ書きなさい。", ["vertex": .array(vertex.map { .number($0) }), "note": .string("答えは 1 つではありません。")])
         case .compare:
             guard let compare = base.payload["compare"]?.objectValue, !(compare["options"]?.arrayValue?.isEmpty ?? true) else { return nil }
-            return (compare["question"]?.stringValue ?? "どちらも何を出している？", compare)
+            return (compare["question"]?.stringValue ?? "2 つの解き方が、どちらも何を求めているかを選びなさい。", compare)
         case .reason:
             guard let reason = base.payload["reason"]?.objectValue, !(reason["options"]?.arrayValue?.isEmpty ?? true) else { return nil }
-            return (reason["question"]?.stringValue ?? "なぜ？", reason)
+            return (reason["question"]?.stringValue ?? "理由を選びなさい。", reason)
         }
     }
 
     /// 問題文と式を 1 行の読める文字にする(組み替えたカードの問題・下の帯)。
+    /// 問題文と式を 1 行にする。式は `$…$` のまま残す(画面では数式として描く)。
     static func problemLine(prompt: String, math: String) -> String {
-        let readable = math.isEmpty ? "" : MathPlainText.preview("\\(" + math + "\\)")
-        return [prompt, readable].filter { !$0.isEmpty }.joined(separator: " ")
+        [prompt, math.isEmpty ? "" : "$" + math + "$"].filter { !$0.isEmpty }.joined(separator: " ")
     }
 
     static func format(_ value: Double) -> String {

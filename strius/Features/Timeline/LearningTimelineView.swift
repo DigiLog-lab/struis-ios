@@ -16,6 +16,9 @@ struct LearningTimelineView: View {
     @State private var inkPassThrough: [CGRect] = []
     @State private var isCameraPresented = false
     @State private var dragOffset: CGFloat = 0
+    @State private var isResultAskPresented = false
+    @State private var isDisputePresented = false
+    @State private var disputeDraft = ""
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -302,7 +305,22 @@ struct LearningTimelineView: View {
                 .accessibilityIdentifier("timeline-grading")
             case .result:
                 if let card = store.current {
-                    TimelineActionButton(symbol: TimelineSymbol.ask, label: "質問", identifier: "timeline-ask") { ask(card) }
+                    // 結果の画面の「質問」: 問題について質問するか、判定に納得できないと伝えるか(後者は見直しに回す)。
+                    TimelineActionButton(symbol: TimelineSymbol.ask, label: "質問", identifier: "timeline-ask") { isResultAskPresented = true }
+                        .confirmationDialog("質問", isPresented: $isResultAskPresented, titleVisibility: .hidden) {
+                            Button("この問題について質問する") { ask(card) }
+                            if store.lastAttempt?.capturePath != nil {
+                                Button("判定に納得できない") { disputeDraft = ""; isDisputePresented = true }
+                            }
+                            Button("やめる", role: .cancel) {}
+                        }
+                        .alert("判定に納得できない", isPresented: $isDisputePresented) {
+                            TextField("どこが違うと思うか(書かなくてもよい)", text: $disputeDraft)
+                            Button("見直してもらう") { let text = disputeDraft; Task { await store.dispute(text) } }
+                            Button("やめる", role: .cancel) {}
+                        } message: {
+                            Text("この答案を見直します。見直した結果は、区切りのよいところでお知らせします。")
+                        }
                     if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? false {
                         TimelineActionButton(symbol: TimelineSymbol.explain, label: "解説", identifier: "timeline-explain") { explain(card) }
                     }
@@ -330,10 +348,9 @@ struct LearningTimelineView: View {
                 Text("Next").font(Typography.ordinal).foregroundStyle(Theme.tertiaryText)
             }
             .foregroundStyle(Theme.secondaryText)
-            Text(stripLine)
-                .font(Typography.sans(size: 16, weight: .medium))
+            ProblemCatalogRichText(text: stripLine, font: Typography.sans(size: 16, weight: .medium), katexFontSize: 16,
+                                   color: UIColor(Theme.primaryText), lineLimit: 1, maxKatexHeight: 26)
                 .foregroundStyle(Theme.primaryText)
-                .lineLimit(1)
         }
         .padding(.horizontal, 22)
         .padding(.top, 16)
@@ -354,12 +371,15 @@ struct LearningTimelineView: View {
 
     private var stripLine: String {
         guard let next = store.upcoming else { return store.phase == .waiting ? "用意しています" : "" }
-        let line = [TimelineMath.plain(next.math), next.question].filter { !$0.isEmpty }.joined(separator: "  ")
-        return next.kind == "solve" ? (line.isEmpty ? next.prompt : line) : next.prompt
+        // 式は数式として描く(LaTeX を文字のまま出さない)。
+        let line = [next.math.isEmpty ? "" : "$" + next.math + "$", TimelineRichText.source(next.question)].filter { !$0.isEmpty }.joined(separator: "  ")
+        return next.kind == "solve" ? (line.isEmpty ? TimelineRichText.source(next.prompt) : line) : TimelineRichText.source(next.prompt)
     }
 
     private func stripLabel(_ next: TimelineCardRecord) -> String {
         if next.origin == "easier" { return "一段戻す" }
+        if next.origin == "variant" { return "数値を変えて" }
+        if next.kind == TimelineCards.Kind.ask.rawValue || next.kind == TimelineCards.Kind.notice.rawValue { return TimelineCards.Kind(rawValue: next.kind)?.title ?? "" }
         if let current = store.current, let chain = TimelineRules.chainID(next), chain == TimelineRules.chainID(current) { return "続き" }
         if next.origin == "rapid" || next.level <= 1 { return "\(next.estimatedSeconds)秒" }
         if let kind = TimelineCards.Kind(rawValue: next.kind), kind != .solve { return kind.title }
@@ -367,7 +387,8 @@ struct LearningTimelineView: View {
     }
 
     private func stripSymbol(_ next: TimelineCardRecord) -> String {
-        if next.origin == "easier" { return TimelineSymbol.past }
+        if next.origin == "easier" { return TimelineSymbol.back }
+        if next.origin == "variant" { return TimelineSymbol.variant }
         if next.origin == "rapid" || next.level <= 1 { return TimelineSymbol.clock }
         return TimelineSymbol.chain
     }

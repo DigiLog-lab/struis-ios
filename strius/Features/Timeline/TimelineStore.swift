@@ -130,8 +130,11 @@ final class TimelineStore {
         return machine.chainMembers(chainID).filter { member in machine.attempts(cardID: member.id).contains { $0.verdict == "correct" } }.count
     }
 
-    /// 結果の画面で「入試の形」を明かすか。
-    var reveals: Bool { decided?.reveal == true && lastAttempt?.verdict == "correct" }
+    /// 結果の画面で難しさを明かす言葉(モデルが生徒に合わせて書いたもの)。正解の時だけ。
+    var revealText: String? {
+        guard lastAttempt?.verdict == "correct", let text = current?.payload["reveal"]?.stringValue, !text.isEmpty else { return nil }
+        return text
+    }
 
     /// 単元の進み(「4 / 5」と、あと 1 のとき「階段 あと 1」)。単元ホームの進みの数字をそのまま出す。
     func unitProgress(for card: TimelineCardRecord) -> (title: String, passed: Int, total: Int)? {
@@ -222,7 +225,7 @@ final class TimelineStore {
         }
         // タイムラインを開いた時: グラフを頼むか決める。
         await ensureGraphWork()
-        await requestBatch(notes: notesForNextBatch(paused: nil))
+        await requestBatch()
     }
 
     /// 単元ホームで前に解けた問題(新しい順に3つ)。
@@ -249,7 +252,7 @@ final class TimelineStore {
         guard let id, let card = machine.cards[id] else {
             currentID = nil
             phase = workbook.units.isEmpty && machine.cards.isEmpty ? .guide : .waiting
-            Task { await requestBatch(notes: notesForNextBatch(paused: nil)) }
+            Task { await requestBatch() }
             return
         }
         if card.origin != "rapid" || phase != .rapidDone { if badge != nil, currentID != nil, currentID != id { badge = nil } }
@@ -262,7 +265,7 @@ final class TimelineStore {
         Task {
             await commit { machine in machine.markShown(id) }
             // グラフは頼まない(開いた時・単元ができた時・採点結果を反映した時だけ)。5枚は4枚目で頼む。
-            await requestBatch(notes: notesForNextBatch(paused: nil))
+            await requestBatch()
         }
     }
 
@@ -290,6 +293,24 @@ final class TimelineStore {
             timelineLog.error("timeline capture failed: \(String(describing: error), privacy: .public)")
             actionError = "答案を保存できませんでした。もう一度送ってください。"
         }
+    }
+
+    /// 見直しが入れた問い・お知らせに答えた(正誤は無い)。問いの答えは、すぐ見直しに回す。
+    func respond(choice: Int?) async {
+        guard let card = current else { return }
+        let seconds = elapsed
+        let id = await commitValue { machine in machine.recordResponse(cardID: card.id, choice: choice, seconds: seconds) }
+        if card.kind == TimelineCards.Kind.ask.rawValue, let id { await turns.startTimeline(kind: .timelineReview, targetID: id, prefetch: true) }
+        decided = nil
+        show(machine.queue.first?.id ?? machine.rapidCards.first?.id)
+    }
+
+    /// 結果の画面の「質問」から、判定に納得できないと伝える。その答案を見直しに回す。
+    func dispute(_ text: String) async {
+        guard let attempt = lastAttempt else { return }
+        let attemptID = attempt.id
+        await commit { machine in machine.recordDispute(attemptID: attemptID, text: text) }
+        await turns.startTimeline(kind: .timelineReview, targetID: attemptID, prefetch: true)
     }
 
     /// タップ・ドラッグ・払うのカード(端末の中で採点する)。
@@ -337,7 +358,8 @@ final class TimelineStore {
         }
     }
 
-    /// 採点の結果が出た後、次の 1 枚を決める(AI を待たない)。
+    /// 採点の結果が出た後、次の 1 枚を決める(AI を待たない)。カードの種類(並べ替え・間違い探しなど)は、今日の答案の一覧を
+    /// 読んだモデルが5枚の中で決める(アプリの決まりで差し込まない)。
     private func decide() async {
         guard let card = current, let attempt = lastAttempt else { return }
         let outcome: TimelineRules.Outcome
@@ -346,43 +368,16 @@ final class TimelineStore {
         case "wrong": outcome = .wrong
         default: return
         }
+        let base = card.easierOf.flatMap { machine.cards[$0] }
         let initial = TimelineRules.next(after: card, outcome: outcome, queue: machine.queue.filter { $0.id != card.id }, rapid: machine.rapidCards,
-                                         wrongBefore: card.origin == "easier")
+                                         wrongBefore: card.origin == "easier", base: base)
         let returnTo = returnToID
-        let firstCause = machine.attempts(cardID: card.easierOf ?? "").first?.cause
         let next = await commitValue { machine -> TimelineRules.Next in
             var next = initial
-            // 1回目の × では下りない: 同じ点を数値だけ変えた問題があればそれを次に出す。
-            if let base = next.makeEasierOf { next.cardID = machine.makeEasier(of: base, preferVariant: card.origin == "batch") }
-            if outcome == .correct {
-                if card.origin == "easier", let returnTo {
-                    // やり方の確認の後の「同じ形」を解いた: 元の問題に戻る。
-                    next.cardID = returnTo
-                } else if card.origin == "easier", let base = card.easierOf, let firstCause {
-                    // やさしい版で ○: 最初の × の答案から原因を見分けて、流れを分ける。
-                    switch firstCause {
-                    case "connection":
-                        // 繋がりを理解していない: 左右に仕分け → 次の一手(作れるものだけ)。
-                        let nextStep = machine.insertDerived(.nextStep, from: base)
-                        let sort = machine.insertDerived(.sort, from: base)
-                        next.cardID = sort ?? nextStep ?? next.cardID
-                    case "unknown":
-                        // 原因が分からない: 理由を選ぶカードを 1 枚挟む。
-                        next.cardID = machine.insertDerived(.reason, from: base) ?? next.cardID
-                    default:
-                        break
-                    }
-                } else if card.kind == "solve", card.origin == "batch", card.payload["reason"]?.objectValue != nil, machine.answeredToday % 3 == 0 {
-                    // 正解の後に「なぜ？」を3択で(時々)。
-                    next.cardID = machine.insertDerived(.reason, from: card.id) ?? next.cardID
-                } else if card.kind == "solve", card.origin == "batch", machine.answeredToday % 7 == 5 {
-                    // 間違い探しは好感度が下がるので、たまに混ぜる程度にする。
-                    next.cardID = machine.insertDerived(.findError, from: card.id) ?? next.cardID
-                }
-            } else if card.origin == "easier", let base = card.easierOf {
-                // やさしい版も ×: 並べ替えで手順を確かめてから、その前提の段1へ。
-                if let order = machine.insertDerived(.order, from: base) { next.cardID = order }
-            }
+            // 1回目の × では下りない: 同じ点を数値だけ変えた問題があればそれを次に出す。数値を変えた問題も × なら、やさしくした問題。
+            if let baseID = next.makeEasierOf { next.cardID = machine.makeEasier(of: baseID, preferVariant: card.origin == "batch") }
+            // やり方の確認の後の「同じ形」を解いた: 元の問題に戻る。
+            if outcome == .correct, card.origin == "easier", let returnTo { next.cardID = returnTo }
             if !next.discardIDs.isEmpty { machine.discard(ids: next.discardIDs) }
             return next
         } ?? initial
@@ -408,7 +403,7 @@ final class TimelineStore {
             }
         }
         if next?.requestBatch == true || TimelineRules.twoWrongInARow(machine.orderedAttempts) {
-            await requestBatch(force: next?.requestBatch == true, notes: notesForNextBatch(paused: next?.pausedChain))
+            await requestBatch(force: next?.requestBatch == true)
         }
         show(next?.cardID ?? machine.queue.first?.id ?? machine.rapidCards.first?.id)
     }
@@ -550,30 +545,14 @@ final class TimelineStore {
 
     // MARK: - 裏で頼むもの
 
-    private func notesForNextBatch(paused: String?) -> [String] {
-        var notes: [String] = []
-        if paused != nil { notes.append("やさしい版も × だったので、さっきの続きは保留した。前提の段1から上げ直す。") }
-        if TimelineRules.twoWrongInARow(machine.orderedAttempts) { notes.append("× が2回続いた。次は定着済みの前提の段1を挟む。") }
-        if let last = machine.orderedAttempts.last(where: { $0.verdict == "wrong" }), last.cause == "practice" {
-            notes.append("練習不足の間違い(考え方の確認点は ○、計算だけ ×)。展開と代入を段1〜2で数問反復し、翌日同じ形に戻る。")
-        }
-        if let last = machine.orderedAttempts.last(where: { $0.verdict == "wrong" }), last.cause == "connection" {
-            notes.append("繋がりを理解していない間違い。やり方の確認→仕分け→次の一手→段3 を経てから、早くても翌日に元の段へ戻る。")
-        }
-        if let last = machine.orderedAttempts.last(where: { $0.skipReason != nil }), last.skipReason == "too_hard" {
-            notes.append("前に「難しそう」で飛ばした。保留した続きは、やさしい版から始める。")
-        }
-        return notes
-    }
-
     /// 5枚を頼む。手元の未使用が1枚以下(5枚のうち4枚目を出した時点)で、頼んでいる最中でなければ。
-    func requestBatch(force: Bool = false, notes: [String] = []) async {
+    func requestBatch(force: Bool = false) async {
         guard !workbook.units.isEmpty || machine.hasGraph else { return }
         let pending = machine.pendingBatch(purpose: "cards") != nil
         guard force ? !pending : TimelineRules.shouldRequestBatch(unusedCount: machine.queue.filter { $0.id != currentID }.count, pending: pending) else { return }
         let accuracy = machine.accuracy
         let cap = TimelineRules.levelCap(accuracy: accuracy, currentLevel: machine.currentLevel)
-        let request: LedgerJSON = .object(["notes": .array(notes.map(LedgerJSON.string))])
+        let request: LedgerJSON = .emptyObject
         guard let id = await commitValue({ machine in machine.insertBatchRequest(purpose: "cards", request: request, accuracy: accuracy, levelCap: cap) }) else { return }
         await turns.startTimeline(kind: .timelineBatch, targetID: id, prefetch: true)
     }
@@ -636,7 +615,7 @@ final class TimelineStore {
         }
         if phase == .guide, !workbook.units.isEmpty {
             phase = .waiting
-            await requestBatch(notes: notesForNextBatch(paused: nil))
+            await requestBatch()
         }
     }
 

@@ -52,7 +52,7 @@ nonisolated struct TimelineMachine {
 
     /// 手元の、まだ出していないカード(出す順)。速攻用とやさしい版は別に持つ。
     var queue: [TimelineCardRecord] {
-        cards.values.filter { $0.status == "unused" && ($0.origin == "batch" || $0.origin == "derived") }
+        cards.values.filter { $0.status == "unused" && ($0.origin == "batch" || $0.origin == "derived" || $0.origin == "review") }
             .sorted { ($0.position, $0.createdAt) < ($1.position, $1.createdAt) }
     }
 
@@ -95,6 +95,14 @@ nonisolated struct TimelineMachine {
         orderedAttempts.last { $0.countsForAccuracy }.flatMap { cards[$0.cardId]?.level } ?? 1
     }
 
+    /// 答案ごとのスキルの ○×。採点で決めた印(`skill_marks`)があればそれ。新しい採点で印が無い(スキルが 0 個、または
+    /// 見直し待ち)なら無し。前の版の答案は、カードの skills に答案全体の正誤を付けたものとして読む。
+    func skillMarks(_ attempt: TimelineAttemptRecord) -> [(skill: String, correct: Bool)] {
+        if let marks = attempt.skillMarks { return marks.keys.sorted().map { (skill: $0, correct: marks[$0] == "correct") } }
+        guard attempt.grade == nil, attempt.verdict == "correct" || attempt.verdict == "wrong", let card = cards[attempt.cardId] else { return [] }
+        return card.skills.map { (skill: $0, correct: attempt.verdict == "correct") }
+    }
+
     /// 同じ段の解答にかかった秒数(2択カードの「いつも」)。
     var secondsHistory: [(level: Int, seconds: Double)] {
         orderedAttempts.compactMap { attempt in
@@ -112,9 +120,8 @@ nonisolated struct TimelineMachine {
     /// 点ごとの結果(誤りの記録・止まり防止に使う)。
     var skillResults: [(skill: String, correct: Bool, day: String)] {
         orderedAttempts.flatMap { attempt -> [(skill: String, correct: Bool, day: String)] in
-            guard attempt.verdict == "correct" || attempt.verdict == "wrong", let card = cards[attempt.cardId] else { return [] }
             let day = TimelineRules.day(attempt.createdAt, calendar: calendar) ?? ""
-            return card.skills.map { (skill: $0, correct: attempt.verdict == "correct", day: day) }
+            return skillMarks(attempt).map { (skill: $0.skill, correct: $0.correct, day: day) }
         }
     }
 
@@ -122,7 +129,7 @@ nonisolated struct TimelineMachine {
     func solvedToday(skill: String) -> Int {
         let today = today
         return orderedAttempts.filter { attempt in
-            attempt.verdict == "correct" && TimelineRules.day(attempt.createdAt, calendar: calendar) == today && cards[attempt.cardId]?.skills.contains(skill) == true
+            TimelineRules.day(attempt.createdAt, calendar: calendar) == today && skillMarks(attempt).contains { $0.skill == skill && $0.correct }
         }.count
     }
 
@@ -298,6 +305,7 @@ nonisolated struct TimelineMachine {
             payload["facts"] = .object(object)
         }
         if let easier = draft.easier { payload["easier"] = LedgerEvent.encode(easier) }
+        if !draft.reveal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { payload["reveal"] = .string(draft.reveal) }
         if let variant = draft.variant, !(variant.prompt.isEmpty && variant.math.isEmpty) { payload["variant"] = LedgerEvent.encode(variant) }
         for (key, value) in [("compare", draft.compare), ("reason", draft.reason), ("howto", draft.howto), ("diagnostic", draft.diagnostic)] {
             if let value, value != .null { payload[key] = value }
@@ -340,13 +348,15 @@ nonisolated struct TimelineMachine {
     }
 
     /// 間違えた時に出すやさしい版(AI を待たない)。元のカードの `easier` から作る。`preferVariant` なら、同じ点を数値だけ
-    /// 変えた問題(`variant`)があればそちら(1回目の × では下りず、同じ形をもう 1 問)。
+    /// 変えた問題(`variant`)があればそちら(1回目の × では下りず、同じ形をもう 1 問)。数値だけ変えた問題は origin を
+    /// variant、やさしくした問題は easier にして分けて記録する(「一段戻す」は easier だけ)。
     @discardableResult
     mutating func makeEasier(of cardID: String, preferVariant: Bool = false) -> String? {
         guard let base = cards[cardID] else { return nil }
         let variant = preferVariant ? base.payload["variant"]?.objectValue : nil
         guard let easier = variant ?? base.payload["easier"]?.objectValue else { return nil }
-        if let existing = cards.values.first(where: { $0.easierOf == cardID }) { return existing.id }
+        let origin = variant != nil ? "variant" : "easier"
+        if let existing = cards.values.first(where: { $0.easierOf == cardID && $0.origin == origin }) { return existing.id }
         let first = queue.first?.position ?? nextPosition
         let card = TimelineCardRecord(
             id: newID(), batchId: base.batchId, position: first - 1, kind: "solve", level: max(1, easier["level"]?.intValue ?? (variant != nil ? base.level : base.level - 1)),
@@ -354,7 +364,7 @@ nonisolated struct TimelineMachine {
             question: easier["question"]?.stringValue ?? "", answerKey: easier["answer_key"]?.stringValue ?? "",
             answerExpr: easier["answer_expr"]?.stringValue ?? "", checkpoints: easier["checkpoints"]?.arrayValue?.compactMap(\.stringValue) ?? [],
             commonMistakes: base.commonMistakes, estimatedSeconds: max(20, base.estimatedSeconds / 2), chain: base.chain, easierOf: base.id,
-            subunitId: nil, unitId: base.unitId, payload: .object(["steps": base.payload["steps"] ?? .emptyArray, "variant": .bool(variant != nil)]), origin: "easier", status: "unused",
+            subunitId: nil, unitId: base.unitId, payload: .object(["steps": base.payload["steps"] ?? .emptyArray, "variant": .bool(variant != nil)]), origin: origin, status: "unused",
             createdAt: now(), updatedAt: now()
         )
         put("timeline.card_easier", card)
@@ -459,6 +469,8 @@ nonisolated struct TimelineMachine {
 
     // MARK: - 採点
 
+    /// 採点の答え(2026-10-25)。決まった形で出させるのは、正誤(correct・partial・wrong)、生徒の答え、関係するスキルの ID。
+    /// メモと書き起こしは今日の答案の一覧に載せる(中身の書き方は決めない)。前の版の答え(verdict・checkpoints・errors)も読める。
     nonisolated struct Grading: Codable, Sendable {
         nonisolated struct Checkpoint: Codable, Sendable { var text: String; var result: String }
         nonisolated struct Error: Codable, Sendable {
@@ -469,34 +481,71 @@ nonisolated struct TimelineMachine {
             var detail: String
         }
         var readable: Bool
-        var solvedAnswer: String
+        var grade: String
         var learnerAnswer: String
-        var learnerExpr: String
-        var verdict: String
+        var skillIds: [String]?
+        var transcript: String
+        var notes: String
+        var comment: String
         var keySuspect: Bool
+        var solvedAnswer: String
+        var learnerExpr: String
         var checkpoints: [Checkpoint]
         var errors: [Error]
         var cause: String
-        var feedback: String
         enum CodingKeys: String, CodingKey {
-            case readable, verdict, checkpoints, errors, cause, feedback
-            case solvedAnswer = "solved_answer"
+            case readable, grade, verdict, transcript, notes, comment, checkpoints, errors, cause, feedback
             case learnerAnswer = "learner_answer"
-            case learnerExpr = "learner_expr"
+            case skillIds = "skill_ids"
             case keySuspect = "key_suspect"
+            case solvedAnswer = "solved_answer"
+            case learnerExpr = "learner_expr"
+        }
+        init(readable: Bool = true, grade: String, learnerAnswer: String = "", skillIds: [String]? = [], transcript: String = "", notes: String = "",
+             comment: String = "", keySuspect: Bool = false) {
+            self.readable = readable
+            self.grade = grade
+            self.learnerAnswer = learnerAnswer
+            self.skillIds = skillIds
+            self.transcript = transcript
+            self.notes = notes
+            self.comment = comment
+            self.keySuspect = keySuspect
+            solvedAnswer = ""
+            learnerExpr = ""
+            checkpoints = []
+            errors = []
+            cause = "unknown"
         }
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             readable = try c.decodeIfPresent(Bool.self, forKey: .readable) ?? true
-            solvedAnswer = try c.decodeIfPresent(String.self, forKey: .solvedAnswer) ?? ""
+            let legacy = try c.decodeIfPresent(String.self, forKey: .verdict)
+            let grade = try c.decodeIfPresent(String.self, forKey: .grade) ?? legacy ?? "wrong"
+            self.grade = ["correct", "partial", "wrong"].contains(grade) ? grade : "wrong"
             learnerAnswer = try c.decodeIfPresent(String.self, forKey: .learnerAnswer) ?? ""
-            learnerExpr = try c.decodeIfPresent(String.self, forKey: .learnerExpr) ?? ""
-            verdict = try c.decodeIfPresent(String.self, forKey: .verdict) ?? "wrong"
+            // 前の版の答え(skill_ids が無い)は、カードの skills に正誤を付ける。
+            skillIds = try c.decodeIfPresent([String].self, forKey: .skillIds)
+            transcript = try c.decodeIfPresent(String.self, forKey: .transcript) ?? ""
+            notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
+            comment = try c.decodeIfPresent(String.self, forKey: .comment) ?? c.decodeIfPresent(String.self, forKey: .feedback) ?? ""
             keySuspect = try c.decodeIfPresent(Bool.self, forKey: .keySuspect) ?? false
+            solvedAnswer = try c.decodeIfPresent(String.self, forKey: .solvedAnswer) ?? ""
+            learnerExpr = try c.decodeIfPresent(String.self, forKey: .learnerExpr) ?? ""
             checkpoints = try c.decodeIfPresent([Checkpoint].self, forKey: .checkpoints) ?? []
             errors = try c.decodeIfPresent([Error].self, forKey: .errors) ?? []
             cause = try c.decodeIfPresent(String.self, forKey: .cause) ?? "unknown"
-            feedback = try c.decodeIfPresent(String.self, forKey: .feedback) ?? ""
+        }
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(readable, forKey: .readable)
+            try c.encode(grade, forKey: .grade)
+            try c.encode(learnerAnswer, forKey: .learnerAnswer)
+            try c.encodeIfPresent(skillIds, forKey: .skillIds)
+            try c.encode(transcript, forKey: .transcript)
+            try c.encode(notes, forKey: .notes)
+            try c.encode(comment, forKey: .comment)
+            try c.encode(keySuspect, forKey: .keySuspect)
         }
         static func parse(_ text: String) throws -> Grading {
             try JSONDecoder().decode(Grading.self, from: Data(text.utf8))
@@ -511,24 +560,29 @@ nonisolated struct TimelineMachine {
         var countsForUnitHome = false
     }
 
-    /// 採点の結果を綴じる。answer_key と食い違い、解き直した答えが学習者と一致したら、壊れていたのは問題の方(学習者は ○)。
+    /// 採点の結果を綴じる。正誤は correct・partial(答えは合うが途中に誤り)・wrong の 3 つで、partial は切り替え・正答率・
+    /// 定着では × として数える。スキルの ○× は、採点したモデルが挙げた ID で付ける: 1 つならその点に、2 つ以上なら付けずに
+    /// 置いて見直しで決める。答えが間違っていた疑い(key_suspect)で、学習者が正解なら、壊れていたのは問題の方。
     mutating func applyGrading(attemptID: String, grading: Grading) -> GradingOutcome {
         guard var row = attempts[attemptID], let card = cards[row.cardId] else { return GradingOutcome(verdict: "failed") }
         row.gradedAt = now()
         guard grading.readable else {
             row.verdict = "unreadable"
             row.countsForAccuracy = false
-            row.feedback = "字が読めませんでした。撮り直してください。"
+            row.feedback = grading.comment.isEmpty ? "字が読めませんでした。撮り直してください。" : grading.comment
+            row.transcript = grading.transcript
+            row.notes = grading.notes
             put("timeline.attempt_unreadable", row)
             reopen(card.id)
             return GradingOutcome(verdict: "unreadable")
         }
-        var verdict = grading.verdict == "correct" ? "correct" : "wrong"
-        // 04・09 は読み取った式を数式で判定する(何通りもある答えも、頂点を計算すれば判定できる)。
+        var grade = grading.grade
+        // 04・09 は読み取った式を数式で判定する(何通りもある答えも、頂点を計算すれば判定できる)。読めなければモデルの判定のまま。
         if let kind = TimelineCards.Kind(rawValue: card.kind), kind == .fillLine || kind == .inverse,
-           let written = TimelineCards.gradeWritten(card, learnerExpr: grading.learnerExpr) {
-            verdict = written ? "correct" : "wrong"
+           let written = TimelineCards.gradeWritten(card, learnerExpr: grading.learnerExpr.isEmpty ? grading.learnerAnswer : grading.learnerExpr) {
+            grade = written ? (grade == "partial" ? "partial" : "correct") : "wrong"
         }
+        let verdict = grade == "correct" ? "correct" : "wrong"
         var broken = false
         if grading.keySuspect, verdict == "correct", card.kind == "solve" {
             broken = true
@@ -537,28 +591,41 @@ nonisolated struct TimelineMachine {
             bad.updatedAt = now()
             put("timeline.card_broken", bad)
             recordChange(kind: "broken_problem", detail: .object(["card_id": .string(card.id), "type_name": .string(card.typeName),
-                                                                   "answer_key": .string(card.answerKey), "solved_answer": .string(grading.solvedAnswer)]),
+                                                                   "answer_key": .string(card.answerKey), "learner_answer": .string(grading.learnerAnswer)]),
                          attemptIDs: [attemptID], source: "app", reviewed: true)
             // 同じ元のやさしい版も使わない。
             discard(ids: cards.values.filter { $0.easierOf == card.id }.map(\.id))
         }
         row.verdict = verdict
+        row.grade = grade
         row.learnerAnswer = grading.learnerAnswer
+        row.transcript = grading.transcript
+        row.notes = grading.notes
         row.checkpointResults = .array(grading.checkpoints.map { .object(["text": .string($0.text), "result": .string($0.result)]) })
         row.errors = .array(grading.errors.map { LedgerEvent.encode($0) })
         row.cause = ["practice", "connection"].contains(grading.cause) ? grading.cause : "unknown"
         row.keySuspect = grading.keySuspect
-        row.feedback = String(grading.feedback.prefix(80))
+        row.feedback = grading.comment
         if broken { row.countsForAccuracy = false }
+        // 関係するスキル: グラフにある点だけ(ID が実在するかの確認)。前の版の答え(skill_ids が無い)はカードの skills。
+        let known = Set(activeSkills.map(\.id))
+        let named = grading.skillIds.map { ids in ids.map(TimelineGraph.normalizedID).filter { known.isEmpty || known.contains($0) } }
+        var ids = named ?? card.skills
+        var seen: Set<String> = []
+        ids = ids.filter { !$0.isEmpty && seen.insert($0).inserted }
+        row.skillIds = ids
+        row.skillsPending = ids.count >= 2
+        if ids.count == 1, !broken || verdict == "correct" { row.skillMarks = [ids[0]: verdict] }
         put("timeline.attempt_graded", row)
         let withinTime = row.seconds <= Double(card.estimatedSeconds)
-        if !broken || verdict == "correct" {
-            applySkills(card: card, correct: verdict == "correct", assisted: row.assisted, withinTime: withinTime, firstTry: row.firstTry, attemptID: attemptID)
+        if let marks = row.skillMarks {
+            for (id, mark) in marks.sorted(by: { $0.key < $1.key }) {
+                applySkill(id: id, card: card, correct: mark == "correct", assisted: row.assisted, withinTime: withinTime, firstTry: row.firstTry, attemptID: attemptID)
+            }
         }
         if verdict == "wrong" { applyWrongFixes(card: card, grading: grading, attemptID: attemptID) }
-        let counts = verdict == "correct" || verdict == "wrong"
         return GradingOutcome(verdict: verdict, broken: broken,
-                              countsForUnitHome: counts && !broken && TimelineRules.countsForUnitHome(card: card, firstTry: row.firstTry, assisted: row.assisted))
+                              countsForUnitHome: !broken && TimelineRules.countsForUnitHome(card: card, firstTry: row.firstTry, assisted: row.assisted))
     }
 
     mutating func failGrading(attemptID: String) {
@@ -581,41 +648,43 @@ nonisolated struct TimelineMachine {
 
     // MARK: - 「できること」と知識グラフ
 
-    /// 解答をそのカードの「できること」に反映する。グラフにない ID(グラフを作る前)は、仮の点として足す。
+    /// 端末の中で採点したカード(タップ・ドラッグ・払う)の解答を、カードの「できること」全部に反映する。
     private mutating func applySkills(card: TimelineCardRecord, correct: Bool, assisted: Bool, withinTime: Bool, firstTry: Bool, attemptID: String) {
         for id in card.skills where !id.isEmpty {
-            let skill = skills[id] ?? TimelineSkillRecord(
-                id: id, name: id.split(separator: ".").last.map(String.init) ?? id, kind: "procedure", unitId: card.unitId, status: "practicing",
-                correctDates: [], masteryThreshold: TimelineRules.masteryThreshold, attempts: 0, lastCorrectAt: nil, nextReviewAt: nil, reviewCount: 0,
-                replacedBy: [], source: "batch", createdAt: now(), updatedAt: now()
-            )
-            let wasMastered = skill.status == "mastered"
-            let updated = TimelineRules.record(skill, correct: correct, assisted: assisted, withinTime: withinTime, at: now(), calendar: calendar)
-            put(correct ? "timeline.skill_correct" : "timeline.skill_wrong", updated)
-            if wasMastered, !correct {
-                recordChange(kind: "back_to_practice", detail: .object(["skill_id": .string(id), "mastery_threshold": .number(Double(updated.masteryThreshold))]), attemptIDs: [attemptID], source: "app")
-            }
+            applySkill(id: id, card: card, correct: correct, assisted: assisted, withinTime: withinTime, firstTry: firstTry, attemptID: attemptID)
+        }
+    }
+
+    /// 1 つの「できること」に ○× を付ける。グラフにない ID(グラフを作る前)は、仮の点として足す。
+    mutating func applySkill(id: String, card: TimelineCardRecord, correct: Bool, assisted: Bool, withinTime: Bool, firstTry: Bool, attemptID: String) {
+        guard !id.isEmpty else { return }
+        let skill = skills[id] ?? TimelineSkillRecord(
+            id: id, name: id.split(separator: ".").last.map(String.init) ?? id, kind: "procedure", unitId: card.unitId, status: "practicing",
+            correctDates: [], masteryThreshold: TimelineRules.masteryThreshold, attempts: 0, lastCorrectAt: nil, nextReviewAt: nil, reviewCount: 0,
+            replacedBy: [], source: "batch", createdAt: now(), updatedAt: now()
+        )
+        let wasMastered = skill.status == "mastered"
+        let updated = TimelineRules.record(skill, correct: correct, assisted: assisted, withinTime: withinTime, at: now(), calendar: calendar)
+        put(correct ? "timeline.skill_correct" : "timeline.skill_wrong", updated)
+        if wasMastered, !correct {
+            recordChange(kind: "back_to_practice", detail: .object(["skill_id": .string(id), "mastery_threshold": .number(Double(updated.masteryThreshold))]), attemptIDs: [attemptID], source: "app")
         }
         // 前提が未定着なのに、上の問題が一発で ○: 前提を「できると推定」にする(後日、30秒問題と混ぜて確かめる)。
         if correct, firstTry, !assisted, card.kind == "solve", card.level >= 2 {
-            for id in card.skills {
-                for prerequisite in allPrerequisites(of: id) {
-                    guard let skill = skills[prerequisite], let assumed = TimelineRules.assume(skill, at: now()) else { continue }
-                    put("timeline.skill_assumed", assumed)
-                    recordChange(kind: "assume", detail: .object(["skill_id": .string(prerequisite), "because": .string(id)]), attemptIDs: [attemptID], source: "app")
-                }
+            for prerequisite in allPrerequisites(of: id) {
+                guard let skill = skills[prerequisite], let assumed = TimelineRules.assume(skill, at: now()) else { continue }
+                put("timeline.skill_assumed", assumed)
+                recordChange(kind: "assume", detail: .object(["skill_id": .string(prerequisite), "because": .string(id)]), attemptIDs: [attemptID], source: "app")
             }
         }
         // 同じ点の中で、問題の形によって ○ と × が分かれる: 2つに分けさせる(次の5枚の呼び出しで)。
-        for id in card.skills {
-            let results = orderedAttempts.compactMap { attempt -> (typeName: String, correct: Bool)? in
-                guard attempt.verdict == "correct" || attempt.verdict == "wrong", let c = cards[attempt.cardId], c.skills.contains(id) else { return nil }
-                return (c.typeName, attempt.verdict == "correct")
-            }
-            if let split = TimelineRules.splitCandidate(results: results),
-               !changes.values.contains(where: { $0.kind == "split_requested" && $0.detail["skill_id"]?.stringValue == id }) {
-                recordChange(kind: "split_requested", detail: .object(["skill_id": .string(id), "good_type": .string(split.good), "bad_type": .string(split.bad)]), attemptIDs: [attemptID], source: "app")
-            }
+        let results = orderedAttempts.compactMap { attempt -> (typeName: String, correct: Bool)? in
+            guard let mark = skillMarks(attempt).first(where: { $0.skill == id }), let c = cards[attempt.cardId] else { return nil }
+            return (c.typeName, mark.correct)
+        }
+        if let split = TimelineRules.splitCandidate(results: results),
+           !changes.values.contains(where: { $0.kind == "split_requested" && $0.detail["skill_id"]?.stringValue == id }) {
+            recordChange(kind: "split_requested", detail: .object(["skill_id": .string(id), "good_type": .string(split.good), "bad_type": .string(split.bad)]), attemptIDs: [attemptID], source: "app")
         }
     }
 
@@ -873,9 +942,9 @@ nonisolated struct TimelineMachine {
     /// その点の解答(古い順)。
     func answers(skill id: String) -> [TimelineRules.SkillAnswer] {
         orderedAttempts.compactMap { attempt in
-            guard attempt.verdict == "correct" || attempt.verdict == "wrong", let card = cards[attempt.cardId], card.skills.contains(id) else { return nil }
+            guard let mark = skillMarks(attempt).first(where: { $0.skill == id }) else { return nil }
             let kinds = attempt.errors.arrayValue?.compactMap { $0["kind"]?.stringValue } ?? []
-            return TimelineRules.SkillAnswer(cardID: card.id, correct: attempt.verdict == "correct", kinds: kinds, cause: attempt.cause)
+            return TimelineRules.SkillAnswer(cardID: attempt.cardId, correct: mark.correct, kinds: kinds, cause: attempt.cause)
         }
     }
 
@@ -910,6 +979,165 @@ nonisolated struct TimelineMachine {
             change.reviewed = true
             put("timeline.map_reviewed", change)
         }
+    }
+
+    // MARK: - 見直し(2026-10-25)
+
+    /// 見直しが入れるカードの位置: 生徒が次に解く位置(今解いている問題の次)。
+    private var frontPosition: Int { (queue.first?.position ?? nextPosition) - 1 }
+
+    /// 確かめの 1 問を、生徒が次に解く位置に入れる。
+    @discardableResult
+    mutating func addReviewCard(prompt: String, math: String, question: String, answerKey: String, skillIDs: [String], level: Int, note: String) -> String {
+        let known = Set(activeSkills.map(\.id))
+        let card = TimelineCardRecord(
+            id: newID(), batchId: nil, position: frontPosition, kind: TimelineCards.Kind.solve.rawValue, level: min(4, max(1, level)),
+            skills: skillIDs.map(TimelineGraph.normalizedID).filter { known.isEmpty || known.contains($0) }, typeName: "確かめ", prompt: prompt, math: math,
+            question: question, answerKey: answerKey, answerExpr: "", checkpoints: [], commonMistakes: [], estimatedSeconds: 60, chain: nil, easierOf: nil,
+            subunitId: nil, unitId: nil, payload: .object(["note": .string(note)]), origin: "review", status: "unused", createdAt: now(), updatedAt: now()
+        )
+        put("timeline.card_review_added", card)
+        return card.id
+    }
+
+    /// 生徒に選ばせる問いを、次に出す位置に入れる(選んだものは今日の答案の一覧に載る)。
+    @discardableResult
+    mutating func addAsk(question: String, options: [String], aboutAttemptID: String?) -> String {
+        let card = TimelineCardRecord(
+            id: newID(), batchId: nil, position: frontPosition, kind: TimelineCards.Kind.ask.rawValue, level: 1, skills: [], typeName: "", prompt: question,
+            math: "", question: "", answerKey: "", answerExpr: "", checkpoints: [], commonMistakes: [], estimatedSeconds: 20, chain: nil, easierOf: nil,
+            subunitId: nil, unitId: nil, payload: .object(["options": .array(options.map(LedgerJSON.string)), "about_attempt_id": aboutAttemptID.map(LedgerJSON.string) ?? .null]),
+            origin: "review", status: "unused", createdAt: now(), updatedAt: now()
+        )
+        put("timeline.card_ask_added", card)
+        return card.id
+    }
+
+    /// 判定を直したことなどを生徒に伝えるカードを、次に出す位置に入れる。
+    @discardableResult
+    mutating func addNotice(text: String, aboutAttemptID: String?) -> String {
+        let card = TimelineCardRecord(
+            id: newID(), batchId: nil, position: frontPosition, kind: TimelineCards.Kind.notice.rawValue, level: 1, skills: [], typeName: "", prompt: text,
+            math: "", question: "", answerKey: "", answerExpr: "", checkpoints: [], commonMistakes: [], estimatedSeconds: 10, chain: nil, easierOf: nil,
+            subunitId: nil, unitId: nil, payload: .object(["about_attempt_id": aboutAttemptID.map(LedgerJSON.string) ?? .null]),
+            origin: "review", status: "unused", createdAt: now(), updatedAt: now()
+        )
+        put("timeline.card_notice_added", card)
+        return card.id
+    }
+
+    /// 問い・お知らせのカードに答えた(正誤は無い)。
+    @discardableResult
+    mutating func recordResponse(cardID: String, choice: Int?, seconds: Double) -> String {
+        let id = newID()
+        put("timeline.attempt_answered", TimelineAttemptRecord(
+            id: id, cardId: cardID, capturePath: nil, verdict: "answered", checkpointResults: .array(choice.map { [.number(Double($0))] } ?? []), errors: .emptyArray,
+            learnerAnswer: "", cause: "unknown", seconds: seconds, firstTry: true, assisted: false, skipReason: nil, keySuspect: false,
+            countsForAccuracy: false, feedback: "", createdAt: now(), gradedAt: now()
+        ))
+        markAnswered(cardID)
+        return id
+    }
+
+    /// 前の判定を取り消して直す。正誤を直し、スキルの印を付け直す(直した印の分だけ、その点に ○× を記録し直す)。
+    /// 問題が無ければ nil、あれば理由を返す。
+    mutating func revise(attemptID: String, grade: String, marks: [String: String]?, note: String) -> String? {
+        guard var row = attempts[attemptID], let card = cards[row.cardId] else { return "attempt not found: \(attemptID)" }
+        guard ["correct", "partial", "wrong"].contains(grade) else { return "grade must be correct, partial or wrong" }
+        let known = Set(activeSkills.map(\.id))
+        let before = row.skillMarks ?? [:]
+        var after = before
+        if let marks {
+            for (id, mark) in marks {
+                let id = TimelineGraph.normalizedID(id)
+                guard known.isEmpty || known.contains(id) else { return "unknown skill: \(id)" }
+                guard mark == "correct" || mark == "wrong" else { return "skill result must be correct or wrong" }
+                after[id] = mark
+            }
+        } else if row.skillsPending != true {
+            // 印を指定しなかった: 付いていた印を、直した正誤に合わせる。
+            for id in after.keys { after[id] = grade == "correct" ? "correct" : "wrong" }
+        }
+        let previous = row.grade ?? row.verdict
+        row.grade = grade
+        row.verdict = grade == "correct" ? "correct" : "wrong"
+        row.skillMarks = after.isEmpty ? row.skillMarks : after
+        if marks != nil, Set(after.keys).isSuperset(of: Set(row.skillIds ?? [])) { row.skillsPending = false }
+        row.reviewNotes = [row.reviewNotes, "判定を直した(\(previous) → \(grade)): " + note].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
+        row.reviewedAt = now()
+        put("timeline.attempt_revised", row)
+        let withinTime = row.seconds <= Double(card.estimatedSeconds)
+        for (id, mark) in after.sorted(by: { $0.key < $1.key }) where before[id] != mark {
+            applySkill(id: id, card: card, correct: mark == "correct", assisted: row.assisted, withinTime: withinTime, firstTry: row.firstTry, attemptID: attemptID)
+        }
+        recordChange(kind: "revise_grade", detail: .object(["attempt_id": .string(attemptID), "from": .string(previous), "to": .string(grade), "note": .string(note)]),
+                     attemptIDs: [attemptID], source: "review", reviewed: true)
+        return nil
+    }
+
+    nonisolated struct Review: Codable, Sendable {
+        nonisolated struct SkillResult: Codable, Sendable {
+            var attemptID: String
+            var skillID: String
+            var result: String
+            enum CodingKeys: String, CodingKey {
+                case result
+                case attemptID = "attempt_id"
+                case skillID = "skill_id"
+            }
+        }
+        var skillResults: [SkillResult]
+        var notes: String
+        enum CodingKeys: String, CodingKey {
+            case notes
+            case skillResults = "skill_results"
+        }
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            skillResults = try c.decodeIfPresent([SkillResult].self, forKey: .skillResults) ?? []
+            notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
+        }
+        static func parse(_ text: String) throws -> Review { try JSONDecoder().decode(Review.self, from: Data(text.utf8)) }
+    }
+
+    /// 見直しの結果を綴じる: 決めずに置いたスキルの ○×、見直しのメモ。見直した答案(対象と、それより前に採点した未見直しの答案)に印を付ける。
+    mutating func applyReview(targetID: String, review: Review) {
+        let known = Set(activeSkills.map(\.id))
+        var decided: [String: [String: String]] = [:]
+        for item in review.skillResults where item.result == "correct" || item.result == "wrong" {
+            let id = TimelineGraph.normalizedID(item.skillID)
+            guard known.isEmpty || known.contains(id), attempts[item.attemptID] != nil else { continue }
+            decided[item.attemptID, default: [:]][id] = item.result
+        }
+        for (attemptID, marks) in decided.sorted(by: { $0.key < $1.key }) {
+            guard var row = attempts[attemptID], let card = cards[row.cardId] else { continue }
+            let before = row.skillMarks ?? [:]
+            var after = before
+            for (id, mark) in marks { after[id] = mark }
+            row.skillMarks = after
+            if Set(after.keys).isSuperset(of: Set(row.skillIds ?? [])) { row.skillsPending = false }
+            put("timeline.attempt_skills_decided", row)
+            let withinTime = row.seconds <= Double(card.estimatedSeconds)
+            for (id, mark) in after.sorted(by: { $0.key < $1.key }) where before[id] != mark {
+                applySkill(id: id, card: card, correct: mark == "correct", assisted: row.assisted, withinTime: withinTime, firstTry: row.firstTry, attemptID: attemptID)
+            }
+        }
+        let cutoff = attempts[targetID]?.gradedAt ?? attempts[targetID]?.createdAt ?? now()
+        for var row in orderedAttempts where row.reviewedAt == nil && (row.id == targetID || (row.grade != nil && (row.gradedAt ?? row.createdAt) <= cutoff)) {
+            if row.id == targetID, !review.notes.isEmpty {
+                row.reviewNotes = [row.reviewNotes, review.notes].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
+            }
+            row.reviewedAt = now()
+            put("timeline.attempt_reviewed", row)
+        }
+    }
+
+    /// 生徒が判定に納得できないと伝えた(結果の画面の「質問」から)。見直しに回す。
+    mutating func recordDispute(attemptID: String, text: String) {
+        guard var row = attempts[attemptID] else { return }
+        row.dispute = text.isEmpty ? "判定に納得できない" : text
+        row.reviewedAt = nil
+        put("timeline.attempt_disputed", row)
     }
 
     // MARK: - 2択カード

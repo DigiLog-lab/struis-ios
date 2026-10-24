@@ -12,24 +12,26 @@ struct TimelineProblemView: View {
         VStack(alignment: .leading, spacing: compact ? 8 : 16) {
             if !compact { chips }
             if let problem = card.payload["problem"]?.stringValue, card.kind != "solve", card.kind != "predict" {
-                Text(problem).font(Typography.sans(size: 15, weight: .medium)).foregroundStyle(Theme.secondaryText)
+                TimelineRichText(text: problem, size: 15, color: Theme.secondaryText)
             }
             if !card.prompt.isEmpty {
-                Text(card.prompt)
-                    .font(Typography.sans(size: compact ? 15 : 22, weight: .bold))
-                    .foregroundStyle(Theme.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                TimelineQuestionText(text: card.prompt, changed: card.chain?["changed"]?.stringValue, size: compact ? 15 : 22)
                     .accessibilityIdentifier("timeline-prompt")
             }
             if !card.math.isEmpty, card.kind == "solve" || card.kind == "predict" {
-                TimelineMath(latex: card.math, size: compact ? 20 : 34)
+                TimelineMath(latex: card.math, size: compact ? 20 : 34, changed: card.chain?["changed"]?.stringValue)
             }
             if !card.question.isEmpty {
                 TimelineQuestionText(text: card.question, changed: card.chain?["changed"]?.stringValue, size: compact ? 15 : 20)
             }
             if !compact, let previous = card.chain?["previous"]?.stringValue, !previous.isEmpty {
-                Label("前は \(previous)", systemImage: TimelineSymbol.past)
-                    .font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: TimelineSymbol.past).font(.system(size: 12, weight: .semibold))
+                    Text("前は").font(Typography.sans(size: 13, weight: .medium))
+                    TimelineRichText(text: previous, size: 13, color: Theme.secondaryText)
+                }
+                .foregroundStyle(Theme.secondaryText)
+                .accessibilityIdentifier("timeline-previous")
             }
             if !compact, card.kind == "solve" {
                 if card.level >= 3, card.skills.count > 1 { TimelineProcedureList(card: card, store: store) }
@@ -48,7 +50,9 @@ struct TimelineProblemView: View {
             } else if let chain, chain.position > 1 {
                 TimelineChip(text: "続き", symbol: TimelineSymbol.chain, tinted: true)
             } else if card.origin == "easier" {
-                TimelineChip(text: "一段戻す", symbol: TimelineSymbol.past, tinted: true)
+                TimelineChip(text: "一段戻す", symbol: TimelineSymbol.back, tinted: true)
+            } else if card.origin == "variant" {
+                TimelineChip(text: "数値を変えて", symbol: TimelineSymbol.variant, tinted: true)
             } else if let unit = store.unitChip(for: card) {
                 TimelineChip(text: unit, tinted: true).accessibilityIdentifier("timeline-unit-chip")
             }
@@ -129,8 +133,10 @@ struct TimelineHowtoView: View {
                 .background(Theme.hairline, in: Capsule())
                 .accessibilityLabel("撮らなくてよい")
             }
-            Text([TimelineMath.plain(card.math), card.question].filter { !$0.isEmpty }.joined(separator: "  "))
-                .font(Typography.sans(size: 17, weight: .bold)).foregroundStyle(Theme.primaryText)
+            if !card.math.isEmpty { TimelineMath(latex: card.math, size: 22) }
+            if !card.question.isEmpty || card.math.isEmpty {
+                TimelineRichText(text: card.question.isEmpty ? card.prompt : card.question, size: 17, weight: .bold)
+            }
             ForEach(Array(card.skills.enumerated()), id: \.offset) { index, skill in
                 if store.isNewSkill(skill) {
                     VStack(alignment: .leading, spacing: 12) {
@@ -205,7 +211,10 @@ struct TimelineResultView: View {
     let store: TimelineStore
 
     private var correct: Bool { attempt.verdict == "correct" }
+    /// 答えは合うが途中に誤り。
+    private var partial: Bool { attempt.grade == "partial" }
     private var checkpoints: [LedgerJSON] { attempt.checkpointResults.arrayValue?.filter { $0["text"] != nil } ?? [] }
+    private var title: String { correct ? "正解" : partial ? "途中に誤り" : "誤答" }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -213,28 +222,30 @@ struct TimelineResultView: View {
             Divider()
             HStack(spacing: 10) {
                 TimelineMark(correct: correct, size: 22)
-                Text(correct ? "正解" : "誤答").font(Typography.sans(size: 24, weight: .bold))
+                Text(title).font(Typography.sans(size: 24, weight: .bold))
                 Text("\(Int(attempt.seconds.rounded()))秒").font(Typography.sans(size: 15, weight: .medium)).foregroundStyle(Theme.secondaryText)
             }
             .accessibilityElement(children: .combine)
-            .accessibilityIdentifier(correct ? "timeline-result-correct" : "timeline-result-wrong")
+            .accessibilityIdentifier(correct ? "timeline-result-correct" : partial ? "timeline-result-partial" : "timeline-result-wrong")
+            if partial {
+                Text("答えは合っていますが、途中に誤りがあります。")
+                    .font(Typography.sans(size: 14, weight: .medium)).foregroundStyle(Theme.secondaryText)
+            }
             if attempt.keySuspect {
                 Text("この問題の答えが間違っていました。正解にしました。")
                     .font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText)
             }
-            if !card.answerKey.isEmpty, TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? false {
-                Text(card.answerKey).font(Typography.sans(size: 18, weight: .bold)).foregroundStyle(Theme.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+            if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? false {
+                answers
             }
             if !correct, !checkpoints.isEmpty {
-                // どの場合が抜けたか(書けた場合に ○、抜けた場合に ×。地の色も変える)。
+                // どの場合が抜けたか(前の版の採点。書けた場合に ○、抜けた場合に ×。地の色も変える)。
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                     ForEach(Array(checkpoints.enumerated()), id: \.offset) { _, item in
                         let ok = item["result"]?.stringValue == "correct"
                         HStack(alignment: .top, spacing: 8) {
                             TimelineMark(correct: ok)
-                            Text(item["text"]?.stringValue ?? "").font(Typography.sans(size: 13, weight: .medium))
-                                .fixedSize(horizontal: false, vertical: true)
+                            TimelineRichText(text: item["text"]?.stringValue ?? "", size: 13)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(12)
@@ -242,10 +253,16 @@ struct TimelineResultView: View {
                     }
                 }
                 .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("timeline-checkpoints")
+                .accessibilityIdentifier("timeline-checkpoints")
             }
             if !attempt.feedback.isEmpty {
-                Text(attempt.feedback).font(Typography.sans(size: 14, weight: .medium)).foregroundStyle(Theme.secondaryText)
+                TimelineRichText(text: attempt.feedback, size: 14, color: Theme.secondaryText)
+                    .accessibilityIdentifier("timeline-comment")
+            }
+            if let dispute = attempt.dispute, !dispute.isEmpty {
+                Label(attempt.reviewedAt == nil ? "見直しを頼みました。" : "見直しました。", systemImage: TimelineSymbol.ask)
+                    .font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText)
+                    .accessibilityIdentifier("timeline-dispute-sent")
             }
             if let predicted = prediction {
                 HStack(spacing: 6) {
@@ -253,8 +270,31 @@ struct TimelineResultView: View {
                     TimelineMark(correct: predicted)
                 }
             }
-            if store.reveals { reveal }
+            if let text = store.revealText { reveal(text) }
         }
+    }
+
+    /// 「あなたの答え」と「正しい答え」をラベル付きで並べる(正解の時は答えだけ)。
+    @ViewBuilder
+    private var answers: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !correct, !attempt.learnerAnswer.isEmpty {
+                labeled("あなたの答え", attempt.learnerAnswer).accessibilityIdentifier("timeline-learner-answer")
+            }
+            if !card.answerKey.isEmpty {
+                labeled(correct ? "答え" : "正しい答え", card.answerKey).accessibilityIdentifier("timeline-answer-key")
+            }
+        }
+    }
+
+    private func labeled(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label).font(Typography.sans(size: 12, weight: .bold)).foregroundStyle(Theme.secondaryText)
+            TimelineRichText(text: value, size: 18, weight: .bold)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Theme.hairline.opacity(0.6), in: RoundedRectangle(cornerRadius: 12))
     }
 
     /// 08 解く前に予想: 解いた後に、予想と答え合わせ。
@@ -265,15 +305,12 @@ struct TimelineResultView: View {
         return answer.verdict == "correct"
     }
 
-    /// 解き終わったら、難しさを明かす: 角帽と「入試の形」、単元の進み(ゴールが近いときだけ「あと 1」)。
-    private var reveal: some View {
+    /// 解き終わったら、難しさを明かす: 角帽と、モデルがこの生徒の目標に合わせて書いた言葉、単元の進み(ゴールが近いときだけ「あと 1」)。
+    private func reveal(_ text: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Image(systemName: TimelineSymbol.exam).font(.system(size: 26, weight: .semibold)).foregroundStyle(Theme.accentColor)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("入試の形").font(Typography.sans(size: 20, weight: .bold))
-                    if !card.typeName.isEmpty { Text(card.typeName).font(Typography.sans(size: 14, weight: .medium)).foregroundStyle(Theme.secondaryText) }
-                }
+                TimelineRichText(text: text, size: 18, weight: .bold)
             }
             if let progress = store.unitProgress(for: card) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -316,11 +353,24 @@ struct TimelineInteractiveCard: View {
             case .findError: choices(lines: strings("lines"), header: nil)
             case .nextStep:
                 ForEach(Array(strings("shown").enumerated()), id: \.offset) { _, line in
-                    Text(line).font(Typography.sans(size: 16, weight: .medium)).foregroundStyle(Theme.secondaryText)
+                    TimelineRichText(text: line, size: 16, color: Theme.secondaryText)
                 }
                 choices(lines: strings("options"), header: nil)
             case .compare: compareCard
             case .reason, .predict: choices(lines: strings("options"), header: nil)
+            case .ask:
+                // 見直しが生徒に選ばせる問い(正誤は無い)。
+                choices(lines: strings("options"), header: nil) { index in await store.respond(choice: index) }
+            case .notice:
+                Button { Task { await store.respond(choice: nil) } } label: {
+                    Label("次へ", systemImage: TimelineSymbol.next)
+                        .font(Typography.sans(size: 16, weight: .bold))
+                        .padding(.horizontal, 22).padding(.vertical, 13)
+                        .foregroundStyle(Theme.onAccent)
+                        .background(Theme.accentColor, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("timeline-notice-next")
             case .sort: sortCard
             case .graphMatch: graphCard
             default: EmptyView()
@@ -335,15 +385,16 @@ struct TimelineInteractiveCard: View {
 
     private func strings(_ key: String) -> [String] { card.payload[key]?.arrayValue?.compactMap(\.stringValue) ?? [] }
 
-    private func choices(lines: [String], header: String?) -> some View {
+    private func choices(lines: [String], header: String?, onChoose: ((Int) async -> Void)? = nil) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
                 Button {
                     chosen = index
-                    Task { await store.answer(.number(Double(index))) }
+                    Task {
+                        if let onChoose { await onChoose(index) } else { await store.answer(.number(Double(index))) }
+                    }
                 } label: {
-                    Text(line)
-                        .font(Typography.sans(size: 16, weight: .medium))
+                    TimelineRichText(text: line, size: 16)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 16).padding(.vertical, 13)
                         .foregroundStyle(Theme.primaryText)
@@ -496,7 +547,7 @@ struct TimelineWritingPrompt: View {
                         RoundedRectangle(cornerRadius: 10).fill(Theme.accentColor.opacity(0.14)).frame(height: 40)
                             .overlay(Text("?").font(Typography.sans(size: 17, weight: .bold)))
                     } else {
-                        Text(line).font(Typography.sans(size: 17, weight: .medium))
+                        TimelineRichText(text: line, size: 17)
                     }
                 }
             } else if let note = card.payload["note"]?.stringValue {

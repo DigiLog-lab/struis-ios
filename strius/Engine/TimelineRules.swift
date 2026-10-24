@@ -63,7 +63,7 @@ nonisolated enum TimelineRules {
     /// 撮らないカード(並べ替えなど)と、答えが間違っていた問題も数えない。
     static func countsForAccuracy(card: TimelineCardRecord, isFirstOfDay: Bool, verdict: String) -> Bool {
         guard verdict == "correct" || verdict == "wrong" else { return false }
-        if isFirstOfDay || card.origin == "easier" || card.origin == "rapid" || card.status == "broken" { return false }
+        if isFirstOfDay || card.origin == "easier" || card.origin == "rapid" || card.origin == "review" || card.status == "broken" { return false }
         return card.kind == "solve"
     }
 
@@ -120,7 +120,7 @@ nonisolated enum TimelineRules {
     /// 正解・間違い・飛ばすの直後の 1 枚(本文の「カードの切り替え」の表)。`queue` は手元の未使用のカード(出す順)。
     static func next(
         after card: TimelineCardRecord, outcome: Outcome, queue: [TimelineCardRecord], rapid: [TimelineCardRecord],
-        wrongBefore: Bool
+        wrongBefore: Bool, base: TimelineCardRecord? = nil
     ) -> Next {
         let rest = queue.filter { $0.id != card.id }
         switch outcome {
@@ -130,7 +130,11 @@ nonisolated enum TimelineRules {
             if rest.isEmpty { next.cardID = rapid.first?.id; next.requestBatch = true }
             return next
         case .wrong:
-            if card.origin == "easier" || wrongBefore {
+            // 数値だけ変えた問題も ×: 元のカードのやさしくした問題へ(無ければ、やさしい版も × と同じ扱い)。
+            if card.origin == "variant", let base, base.id == card.easierOf, base.payload["easier"]?.objectValue != nil {
+                return Next(cardID: nil, makeEasierOf: base.id)
+            }
+            if card.origin == "easier" || card.origin == "variant" || wrongBefore {
                 // やさしい版も ×: その前提の段1(手元の速攻用)。続きは保留、残りは捨てて頼み直す。
                 var next = Next(cardID: rapid.first?.id ?? rest.first?.id)
                 next.discardIDs = rest.filter { $0.id != next.cardID }.map(\.id)

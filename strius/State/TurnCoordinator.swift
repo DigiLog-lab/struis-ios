@@ -62,6 +62,8 @@ actor TurnCoordinator {
     static let structuredLimit = 2
     static let chatLimit = 1
     static let prefetchLimit = 1
+    /// 枠を取った見直しのターン(先に譲る相手)。
+    private var reviewTurns: Set<String> = []
 
     /// 構造化ターンの上限(前面にいた時間だけを数える)。超えたら `run` の終わりを待たずに失敗として返す
     /// (2026-10-24: 返らないターンで採点・グラフ・会話が全部止まった)。会話と単元ホームの判定は今のまま(上限なし)。
@@ -69,6 +71,7 @@ actor TurnCoordinator {
         TurnPlan.Kind.timelineGrading.rawValue: .seconds(90),
         TurnPlan.Kind.timelineBatch.rawValue: .seconds(180),
         TurnPlan.Kind.timelineGraph.rawValue: .seconds(180),
+        TurnPlan.Kind.timelineReview.rawValue: .seconds(180),
         "graph_descend": .seconds(120),
     ]
     private var timeLimits = TurnCoordinator.defaultTimeLimits
@@ -305,12 +308,13 @@ actor TurnCoordinator {
             return (try await composer.set(planID: turnID, machine: machine, setID: targetID, avoidExpressions: avoid), nil)
         case .workbookUnit:
             return (try await composer.unit(planID: turnID, machine: machine, proposalID: targetID), nil)
-        case .timelineBatch, .timelineGrading, .timelineGraph:
+        case .timelineBatch, .timelineGrading, .timelineGraph, .timelineReview:
             let timeline = try await ledger.read { db in try TimelineMachine(loading: db) }
             let composer = self.composer
             switch kind {
             case .timelineBatch: return (try await TimelineTurns.batch(composer: composer, planID: turnID, batchID: targetID, workbook: machine, timeline: timeline), nil)
             case .timelineGrading: return (try await TimelineTurns.grading(composer: composer, planID: turnID, attemptID: targetID, workbook: machine, timeline: timeline), nil)
+            case .timelineReview: return (try await TimelineTurns.review(composer: composer, planID: turnID, attemptID: targetID, workbook: machine, timeline: timeline), nil)
             default: return (try await TimelineTurns.graph(composer: composer, planID: turnID, batchID: targetID, workbook: machine, timeline: timeline), nil)
             }
         default:
@@ -344,14 +348,18 @@ actor TurnCoordinator {
             if kind == .chat {
                 if chatActive < Self.chatLimit { chatActive += 1; return true }
             } else if prefetchTurns.contains(turnID) {
-                if structuredActive < Self.structuredLimit, runningPrefetches.count < Self.prefetchLimit, learnerWaiting == 0 {
+                // 見直しは次の5枚・グラフの先回りを待たせない(先回りの枠を 1 つ余分に使ってよい。学習者の処理には先に譲る)。
+                let limit = kind == .timelineReview ? Self.prefetchLimit + 1 : Self.prefetchLimit
+                if structuredActive < Self.structuredLimit, runningPrefetches.count < limit, learnerWaiting == 0 {
+                    if kind == .timelineReview { reviewTurns.insert(turnID) }
                     structuredActive += 1
                     runningPrefetches.insert(turnID)
                     return true
                 }
             } else {
                 if structuredActive < Self.structuredLimit { structuredActive += 1; return true }
-                if let victim = runningPrefetches.first(where: { prefetchTurns.contains($0) && !preemptedPrefetches.contains($0) }) {
+                let candidates = runningPrefetches.filter { prefetchTurns.contains($0) && !preemptedPrefetches.contains($0) }
+                if let victim = candidates.first(where: { reviewTurns.contains($0) }) ?? candidates.first {
                     turnLog.info("prefetch \(victim, privacy: .public) yields to \(turnID, privacy: .public)")
                     preemptedPrefetches.insert(victim)
                     let runner = self.runner
@@ -385,6 +393,7 @@ actor TurnCoordinator {
         progressHandlers[turnID] = nil
         stoppedBeforeStart.remove(turnID)
         runningPrefetches.remove(turnID)
+        reviewTurns.remove(turnID)
         prefetchTurns.remove(turnID)
         preemptedPrefetches.remove(turnID)
         for (target, id) in prefetchTargets where id == turnID { prefetchTargets[target] = nil }
@@ -527,7 +536,7 @@ actor TurnCoordinator {
                         turn.completedAt = LedgerClock.now()
                         events.append(.upsert("turn.\(outcome.status.rawValue)", turn))
                     }
-                    return (events, TurnApplier.FollowUp(retryTimeline: applied.followUp.retry, nextTimelineGraph: applied.followUp.nextGraph))
+                    return (events, TurnApplier.FollowUp(retryTimeline: applied.followUp.retry, nextTimelineGraph: applied.followUp.nextGraph, nextTimelineReview: applied.followUp.review))
                 }
                 var machine = try WorkbookMachine(loading: db)
                 switch plan.kind {
@@ -572,6 +581,8 @@ actor TurnCoordinator {
             if followUp.retryTimeline, let targetID { await start(kind: plan.kind, targetID: targetID, prefetch: wasPrefetch) }
             // 次の段・よくある勘違い・1段下りる: 学習者が待っていない先回りとして続けて頼む。
             if let next = followUp.nextTimelineGraph { await start(kind: .timelineGraph, targetID: next, prefetch: true) }
+            // 見直し: 生徒が次の問題を解いている間に、別の依頼で前の答案を見直す。
+            if let next = followUp.nextTimelineReview { await start(kind: .timelineReview, targetID: next, prefetch: true) }
             return acquired
         }
         if let setID = followUp.setIDToGenerate {

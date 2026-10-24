@@ -160,6 +160,8 @@ nonisolated enum TurnApplier {
         var retryTimeline = false
         /// 続けて頼む知識グラフの依頼(次の段・よくある勘違い・1段下りる)。
         var nextTimelineGraph: String?
+        /// 採点の後に続けて頼む見直し(タイムライン)。
+        var nextTimelineReview: String?
     }
 
     /// `apply_grading_result`. 次の一枚は学習者がリザルト画面で選ぶ。ただし類題 ○ で演習に進んだ時は、次に要る
