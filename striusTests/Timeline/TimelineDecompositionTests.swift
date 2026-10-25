@@ -61,24 +61,6 @@ final class TimelineDecompositionTests: XCTestCase {
         XCTAssertEqual(TimelineGraph.redundantEdges([(from: "a", to: "b"), (from: "b", to: "c"), (from: "a", to: "c")]).map { "\($0.from)\($0.to)" }, ["ac"])
     }
 
-    func testDescendNeedsASecondWrongOnAnotherProblemWithAConceptualError() {
-        typealias A = TimelineRules.SkillAnswer
-        let calc = A(cardID: "c1", correct: false, kinds: ["calculation"], cause: "unknown")
-        let sign = A(cardID: "c2", correct: false, kinds: ["sign"], cause: "unknown")
-        let concept = A(cardID: "c2", correct: false, kinds: ["concept"], cause: "unknown")
-        // 1回目の × では下りない。
-        XCTAssertFalse(TimelineRules.shouldDescend([concept]))
-        // 計算ミス 2 回は同じ形の反復を続ける。
-        XCTAssertFalse(TimelineRules.shouldDescend([calc, sign]))
-        // どちらか 1 回でも概念の誤りなら下りる。
-        XCTAssertTrue(TimelineRules.shouldDescend([calc, concept]))
-        // 練習不足(cause)なら下りない。
-        XCTAssertFalse(TimelineRules.shouldDescend([A(cardID: "c1", correct: false, kinds: ["concept"], cause: "practice"), A(cardID: "c2", correct: false, kinds: ["method"], cause: "practice")]))
-        // 同じ問題の × は 2 回目に数えない。× の後に ○ が入ったら数え直す。
-        XCTAssertFalse(TimelineRules.shouldDescend([A(cardID: "c2", correct: false, kinds: ["concept"], cause: "unknown"), concept]))
-        XCTAssertFalse(TimelineRules.shouldDescend([calc, A(cardID: "c3", correct: true, kinds: [], cause: "unknown"), concept]))
-    }
-
     /// 同じ点で 2 回 × を採点した後の、1段下りる依頼の行。
     private func gradeTwice(kinds: [String]) async throws -> [TimelineBatchRecord] {
         let ledger = try Ledger.inMemory()
@@ -107,14 +89,55 @@ final class TimelineDecompositionTests: XCTestCase {
         return try await ledger.read { db in try TimelineBatchRecord.fetchAll(db).filter { $0.purpose == "graph_descend" } }
     }
 
-    func testTwoCalculationSlipsDoNotDescendButAConceptualErrorDoes() async throws {
-        let slips = try await gradeTwice(kinds: ["calculation", "calculation"])
-        XCTAssertTrue(slips.isEmpty)
-        let gap = try await gradeTwice(kinds: ["calculation", "concept"])
-        XCTAssertEqual(gap.count, 1)
-        XCTAssertEqual(gap.first?.request["skill_id"]?.stringValue, "calc.product_rule")
-        XCTAssertEqual(gap.first?.request["only_direct_prerequisites"]?.boolValue, true)
-        XCTAssertEqual(gap.first?.request["nodes"]?.arrayValue?.compactMap { $0["id"]?.stringValue }, ["calc.product_rule"])
+    func testGradingNeverDescendsByItself() async throws {
+        // いつ下りるかは見直しのモデルに任せる: 採点の反映では、概念の誤りが 2 回続いても依頼を出さない。
+        let rows = try await gradeTwice(kinds: ["calculation", "concept"])
+        XCTAssertTrue(rows.isEmpty)
+    }
+
+    func testDescendToolAsksForDirectPrerequisitesAndRunsAfterTheTurn() async throws {
+        let ledger = try Ledger.inMemory()
+        try await ledger.commit { db in
+            var timeline = try TimelineMachine(loading: db)
+            timeline.put("test", self.skill("calc.product_rule", expansion: "unexplored", unitID: nil))
+            timeline.put("test", self.skill("calc.chain_rule", expansion: "done", unitID: nil))
+            return (timeline.events, ())
+        }
+        func call(_ skillID: String) async throws -> (success: Bool, text: String) {
+            try await ledger.commit { db in
+                var timeline = try TimelineMachine(loading: db)
+                let result = TimelineWriteTools.apply(name: "timeline_descend", arguments: ["skill_id": .string(skillID), "note": .string("積の微分で項を落とす")],
+                                                      machine: &timeline, workbook: try WorkbookMachine(loading: db))
+                return (timeline.events, result)
+            }
+        }
+        let first = try await call("calc.product_rule")
+        XCTAssertTrue(first.success, first.text)
+        let again = try await call("calc.product_rule")
+        XCTAssertFalse(again.success, "同じ点で二度は頼まない")
+        let dug = try await call("calc.chain_rule")
+        XCTAssertFalse(dug.success, "直前の前提を調べ済みの点")
+        let unknown = try await call("nope")
+        XCTAssertFalse(unknown.success, "グラフに無い点")
+        let rows = try await ledger.read { db in try TimelineBatchRecord.fetchAll(db).filter { $0.purpose == "graph_descend" } }
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.request["skill_id"]?.stringValue, "calc.product_rule")
+        XCTAssertEqual(rows.first?.request["reason"]?.stringValue, "積の微分で項を落とす")
+        XCTAssertEqual(rows.first?.request["only_direct_prerequisites"]?.boolValue, true)
+        // 道具を呼んだターン(見直し)が終わったら、その依頼を続けて頼む。
+        let failed = TurnOutcome(planID: "p", round: 1, status: .failed, codexThreadID: nil, codexTurnID: nil, finalText: "",
+                                 executions: [], rateLimits: nil, files: [], error: "x", elapsedMs: 0)
+        let attemptID: String = try await ledger.commit { db in
+            var timeline = try TimelineMachine(loading: db)
+            timeline.put("test", F.card("card0", skills: ["calc.product_rule"]))
+            let id = timeline.recordCapture(cardID: "card0", capturePath: "t.jpg", seconds: 20, assisted: false)
+            return (timeline.events, id)
+        }
+        let next: String? = try await ledger.commit { db in
+            let applied = try TimelineTurns.apply(kind: .timelineReview, targetID: attemptID, outcome: failed, model: "m", db: db)
+            return (applied.events, applied.followUp.nextGraph)
+        }
+        XCTAssertEqual(next, rows.first?.id)
     }
 
     func testFirstWrongShowsTheSameSkillWithOtherNumbers() throws {

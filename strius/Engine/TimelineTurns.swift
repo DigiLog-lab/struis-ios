@@ -387,12 +387,14 @@ nonisolated enum TimelineTurns {
         }
     }
 
-    /// 1段下りる依頼(対象の 1 点の直前の前提だけを聞く。モデルは上位モデル)。
-    static func insertDescend(skillID: String, timeline: inout TimelineMachine, workbook: WorkbookMachine) -> String? {
+    /// 1段下りる依頼(対象の 1 点の直前の前提だけを聞く。モデルは上位モデル)。見直しなどのモデルが
+    /// `struis.timeline_descend` で出す。いつ下りるかはモデルに任せ、アプリは条件を決めない。
+    static func insertDescend(skillID: String, timeline: inout TimelineMachine, workbook: WorkbookMachine, note: String = "") -> String? {
         guard let skill = timeline.skills[skillID], !TimelineGraphSchedule.descendRequested(timeline, skillID: skillID) else { return nil }
         var body = decomposeRequest(mode: "descend", nodes: [skill], units: [], depth: 1, workbook: workbook, timeline: timeline, profile: OnboardingProfile.load())
         if case .object(var object) = body {
             object["skill_id"] = .string(skillID)
+            if !note.isEmpty { object["reason"] = .string(note) }
             body = .object(object)
         }
         return timeline.insertBatchRequest(purpose: "graph_descend", request: body, accuracy: nil, levelCap: nil)
@@ -480,11 +482,6 @@ nonisolated enum TimelineTurns {
             }
             let result = timeline.applyGrading(attemptID: targetID, grading: grading)
             if result.verdict == "correct" || result.verdict == "wrong" { followUp.review = targetID }
-            // 同じ点で別の問題の 2 回目の × が、概念・前提・解き方の誤りを含む: 「まだ掘っていない」点なら 1段下りる。
-            // 待っている間はやさしい版のカードでつなぐ(× の後の切り替えはいつも通り)。
-            if result.verdict == "wrong", let card = timeline.cards[attempt.cardId], let skillID = timeline.descendTarget(card: card) {
-                followUp.nextGraph = insertDescend(skillID: skillID, timeline: &timeline, workbook: try WorkbookMachine(loading: db))
-            }
             if result.countsForUnitHome, let card = timeline.cards[attempt.cardId], let subunitID = card.subunitId {
                 var workbook = try WorkbookMachine(loading: db)
                 workbook.recordTimelineAttempt(subunitID: subunitID, prompt: [card.prompt, card.math].filter { !$0.isEmpty }.joined(separator: " "),
@@ -522,7 +519,18 @@ nonisolated enum TimelineTurns {
         default:
             break
         }
+        // このターンの中でモデルが `struis.timeline_descend` で出した依頼: ターンが終わった後に続けて頼む。
+        if followUp.nextGraph == nil { followUp.nextGraph = try unstartedDescend(timeline: timeline, excluding: targetID, db: db) }
         return (timeline.events + extra, followUp)
+    }
+
+    /// 1段下りる依頼のうち、まだターンを始めていないもの(古い順の最初)。
+    static func unstartedDescend(timeline: TimelineMachine, excluding targetID: String, db: Database) throws -> String? {
+        let waiting = timeline.batches.values.filter { $0.purpose == "graph_descend" && $0.status == "requested" && $0.id != targetID }.sorted { $0.createdAt < $1.createdAt }
+        for batch in waiting where try TurnRecord.filter(Column("target_id") == batch.id).fetchCount(db) == 0 {
+            return batch.id
+        }
+        return nil
     }
 
     private static func markGraphReady(_ id: String, reason: String, timeline: inout TimelineMachine) {

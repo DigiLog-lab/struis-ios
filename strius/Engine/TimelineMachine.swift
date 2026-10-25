@@ -939,24 +939,6 @@ nonisolated struct TimelineMachine {
         return count
     }
 
-    /// その点の解答(古い順)。
-    func answers(skill id: String) -> [TimelineRules.SkillAnswer] {
-        orderedAttempts.compactMap { attempt in
-            guard let mark = skillMarks(attempt).first(where: { $0.skill == id }) else { return nil }
-            let kinds = attempt.errors.arrayValue?.compactMap { $0["kind"]?.stringValue } ?? []
-            return TimelineRules.SkillAnswer(cardID: attempt.cardId, correct: mark.correct, kinds: kinds, cause: attempt.cause)
-        }
-    }
-
-    /// × の後に 1段下りる点(無ければ nil): 「まだ掘っていない」印のある点で、まだ下りる依頼を出していないもの。
-    func descendTarget(card: TimelineCardRecord) -> String? {
-        guard !batches.values.contains(where: { $0.purpose.hasPrefix("graph") && $0.status == "requested" }) else { return nil }
-        return card.skills.first { id in
-            guard let skill = skills[id], skill.isActive, !skill.isDug, !TimelineGraphSchedule.descendRequested(self, skillID: id) else { return false }
-            return TimelineRules.shouldDescend(answers(skill: id))
-        }
-    }
-
     /// 前の版で作った点に「まだ掘っていない」印を付ける(作り直さない)。前提の線が出ていない一番下の点が unexplored、
     /// 前提の線がある点は done。
     mutating func markLegacyExpansion() {

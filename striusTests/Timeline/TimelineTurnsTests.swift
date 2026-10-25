@@ -42,7 +42,7 @@ final class TimelineTurnsTests: XCTestCase {
         }
         XCTAssertEqual(try tools(batch.kind), try tools(grading.kind))
         XCTAssertEqual(try tools(review.kind), try tools(grading.kind))
-        for name in ["timeline_query", "timeline_add_card", "timeline_ask", "timeline_revise", "timeline_notice"] {
+        for name in ["timeline_query", "timeline_add_card", "timeline_ask", "timeline_revise", "timeline_descend", "timeline_notice"] {
             XCTAssertTrue(try tools(.timelineGrading).contains(name), name)
         }
         XCTAssertFalse(try tools(.chat).contains("timeline_query"))

@@ -516,6 +516,11 @@ nonisolated enum TimelineGraph {
                 ], "required": ["skill_id", "result"], "additionalProperties": false]],
                 "note": ["type": "string"],
              ], "required": ["attempt_id", "grade", "note"], "additionalProperties": false]],
+            ["type": "function", "name": "timeline_descend",
+             "description": "Ask the upper model for the direct prerequisites of one skill and add them to the learner's graph (runs in the background after this turn).",
+             "inputSchema": ["type": "object", "properties": [
+                "skill_id": ["type": "string"], "note": ["type": "string", "description": "Why (kept in the ledger)."],
+             ], "required": ["skill_id", "note"], "additionalProperties": false]],
             ["type": "function", "name": "timeline_notice",
              "description": "Show the learner a short message card next (for example that an earlier judgement was corrected).",
              "inputSchema": ["type": "object", "properties": [
@@ -624,16 +629,16 @@ nonisolated enum TimelineQueryHost {
         }
     }
 
-    static let writeToolNames: Set<String> = ["timeline_add_card", "timeline_ask", "timeline_revise", "timeline_notice"]
+    static let writeToolNames: Set<String> = ["timeline_add_card", "timeline_ask", "timeline_revise", "timeline_descend", "timeline_notice"]
 
-    /// 台帳に書く tool(確かめの 1 問・生徒に選ばせる問い・判定の取り消し・お知らせ)。結果は文にして返す。
+    /// 台帳に書く tool(確かめの 1 問・生徒に選ばせる問い・判定の取り消し・1段下りる・お知らせ)。結果は文にして返す。
     static func handleWrite(name: String, arguments: JSONObject) async -> (success: Bool, text: String) {
         guard let ledger = lock.withLock({ self.ledger }) else { return (false, "台帳に書けませんでした。") }
         let args = LedgerJSON(any: arguments).objectValue ?? [:]
         do {
             return try await ledger.commit { db in
                 var machine = try TimelineMachine(loading: db)
-                let result = TimelineWriteTools.apply(name: name, arguments: args, machine: &machine)
+                let result = TimelineWriteTools.apply(name: name, arguments: args, machine: &machine, workbook: try WorkbookMachine(loading: db))
                 return (machine.events, result)
             }
         } catch {
@@ -644,7 +649,7 @@ nonisolated enum TimelineQueryHost {
 
 /// 台帳に書く tool の中身(端末の台帳だけを変える。テストから直接呼べるように、台帳の読み書きから分けておく)。
 nonisolated enum TimelineWriteTools {
-    static func apply(name: String, arguments args: [String: LedgerJSON], machine: inout TimelineMachine) -> (success: Bool, text: String) {
+    static func apply(name: String, arguments args: [String: LedgerJSON], machine: inout TimelineMachine, workbook: WorkbookMachine = WorkbookMachine()) -> (success: Bool, text: String) {
         func text(_ key: String) -> String { args[key]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "" }
         switch name {
         case "timeline_add_card":
@@ -669,6 +674,15 @@ nonisolated enum TimelineWriteTools {
                 return (false, problem)
             }
             return (true, "答案 \(text("attempt_id")) の判定を直しました。")
+        case "timeline_descend":
+            // いつ下りるかはモデルに任せる。ここで確かめるのは、点が実在するか・もう調べたかだけ。
+            let id = text("skill_id")
+            guard let skill = machine.skills[id], skill.isActive else { return (false, "スキル \(id) はこの生徒の知識グラフにありません。") }
+            guard !skill.isDug else { return (false, "\(skill.name) の直前の前提はもう調べてあります。timeline_query の prerequisites で見られます。") }
+            guard let batchID = TimelineTurns.insertDescend(skillID: id, timeline: &machine, workbook: workbook, note: text("note")) else {
+                return (false, "\(skill.name) の 1段下りる依頼はもう出してあります。")
+            }
+            return (true, "\(skill.name) の直前の前提を調べる依頼 \(batchID) を出しました。このターンの後に裏で回り、足した点にも「まだ掘っていない」印が付きます。")
         case "timeline_notice":
             guard !text("text").isEmpty else { return (false, "text が要ります。") }
             let about = text("about_attempt_id")
