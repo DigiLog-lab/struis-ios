@@ -247,8 +247,11 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
 
     var json: LedgerJSON { LedgerEvent.encode(self) }
 
+    /// 台帳の行から戻す。`LedgerEvent.decode` は使わない: その `convertFromSnakeCase` は台帳の `turn_timeout_s` を
+    /// `turnTimeoutS` に直してから探すので、snake_case で書いた `CodingKeys` と合わず、どの plan も戻せなかった
+    /// (起動時の `resumeUnfinished` が黙って飛ばし、前のプロセスで返らなかった採点が「採点中」のまま残った)。
     static func from(_ json: LedgerJSON) throws -> TurnPlan {
-        try LedgerEvent.decode(TurnPlan.self, from: json)
+        try JSONDecoder().decode(TurnPlan.self, from: JSONEncoder().encode(json))
     }
 }
 

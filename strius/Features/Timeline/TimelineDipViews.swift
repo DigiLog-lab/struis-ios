@@ -34,7 +34,7 @@ struct TimelineDipChoiceView: View {
                             Label("10秒 × \(rapid.count)", systemImage: TimelineSymbol.clock).font(Typography.sans(size: 13, weight: .bold))
                         }
                         ForEach(Array(rapid.enumerated()), id: \.offset) { index, card in
-                            Text(card.math.isEmpty ? card.prompt : TimelineMath.plain(card.math))
+                            Text(card.math.isEmpty ? MathPlainText.preview(card.prompt) : TimelineMath.plain(card.math))
                                 .font(Typography.sans(size: 17, weight: .medium))
                                 .opacity(1 - Double(index) * 0.3)
                         }
@@ -59,7 +59,7 @@ struct TimelineDipChoiceView: View {
                         if let next, let chain = TimelineRules.chainPosition(next) { TimelineChainBar(position: chain.position, total: chain.total) }
                     }
                     if let next {
-                        Text([TimelineMath.plain(next.math), next.question].filter { !$0.isEmpty }.joined(separator: "  ").isEmpty ? next.prompt : [TimelineMath.plain(next.math), next.question].filter { !$0.isEmpty }.joined(separator: "  "))
+                        Text(TimelineMath.previewLine(next))
                             .font(Typography.sans(size: 16, weight: .medium)).lineLimit(2)
                         if next.level < 4, let chain = TimelineRules.chainPosition(next), chain.total - chain.position <= 1 {
                             Label("入試の形まで あと \(max(1, chain.total - chain.position))", systemImage: TimelineSymbol.exam).font(Typography.sans(size: 13, weight: .bold))
@@ -128,7 +128,7 @@ struct TimelineRapidDoneView: View {
                 if let card = store.machine.cards[id], let result = store.rapidVerdict(id) {
                     HStack {
                         if result.verdict == "grading" { ProgressView().controlSize(.small) } else { TimelineMark(correct: result.verdict == "correct") }
-                        Text(card.math.isEmpty ? card.prompt : TimelineMath.plain(card.math)).font(Typography.sans(size: 15, weight: .medium)).lineLimit(1)
+                        Text(card.math.isEmpty ? MathPlainText.preview(card.prompt) : TimelineMath.plain(card.math)).font(Typography.sans(size: 15, weight: .medium)).lineLimit(1)
                         Spacer()
                         Text(String(format: "%.1f秒", result.seconds)).font(Typography.sans(size: 15, weight: .bold)).monospacedDigit()
                     }

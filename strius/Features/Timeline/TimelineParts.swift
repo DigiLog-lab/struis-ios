@@ -119,6 +119,12 @@ struct TimelineMath: View {
     static func plain(_ latex: String) -> String {
         latex.isEmpty ? "" : MathPlainText.preview("\\(" + latex + "\\)")
     }
+
+    /// 「次の1問」の 1 行: 式と問い(問いの中の `$…$` も読める文字に)。どちらも無ければ問題文。
+    static func previewLine(_ card: TimelineCardRecord) -> String {
+        let line = [plain(card.math), MathPlainText.preview(card.question)].filter { !$0.isEmpty }.joined(separator: "  ")
+        return line.isEmpty ? MathPlainText.preview(card.prompt) : line
+    }
 }
 
 /// 本文と数式が混ざった文(結果の答え・「前は」・問題文など)。LaTeX を文字のまま出さずに数式として描く。
@@ -127,9 +133,11 @@ struct TimelineRichText: View {
     var size: CGFloat = 16
     var weight: Typography.SansFontName = .medium
     var color: Color = Theme.primaryText
+    /// 答えの欄: 計算機向けに書かれた式(`pi^2/8+1`・`1/3`)も数式に直して組む。
+    var plainMath = false
 
     var body: some View {
-        let source = TimelineRichText.source(text)
+        let source = plainMath ? TimelineRichText.answerSource(text) : TimelineRichText.source(text)
         if source.containsCatalogLaTeX {
             KaTeXMathText(source, foregroundColor: UIColor(color), fontSize: size, fontWeight: weight == .bold ? 700 : 500)
                 .fixedSize(horizontal: false, vertical: true)
@@ -153,6 +161,13 @@ struct TimelineRichText: View {
         }
         return WorkbookMathSource.withInlineMath(trimmed)
     }
+
+    /// 答えの欄の本文。式だけの答え(日本語を含まない)は、文字で書かれていても数式に直す(`pi` を斜体の p・i にしない)。
+    static func answerSource(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let latex = TimelinePlainMath.latex(trimmed) { return "$" + latex + "$" }
+        return source(trimmed)
+    }
 }
 
 /// 問いの文。前の問題から変えたところ(例: 範囲の a)は銅色の地にする。
@@ -162,11 +177,17 @@ struct TimelineQuestionText: View {
     var size: CGFloat = 20
 
     var body: some View {
-        Text(attributed)
-            .font(Typography.sans(size: size, weight: .bold))
-            .foregroundStyle(Theme.primaryText)
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityIdentifier("timeline-question")
+        if text.containsCatalogLaTeX {
+            // 文の中の式(`$\sin\frac{5\pi}{2}$`)は数式として組む。変えたところの色は付けない(式の中の位置を文字では指せない)。
+            TimelineRichText(text: text, size: size, weight: .bold)
+                .accessibilityIdentifier("timeline-question")
+        } else {
+            Text(attributed)
+                .font(Typography.sans(size: size, weight: .bold))
+                .foregroundStyle(Theme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("timeline-question")
+        }
     }
 
     private var attributed: AttributedString {

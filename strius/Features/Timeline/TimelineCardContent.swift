@@ -147,8 +147,7 @@ struct TimelineHowtoView: View {
                             Label("新しい", systemImage: TimelineSymbol.new).font(Typography.sans(size: 13, weight: .bold))
                         }
                         if cases.isEmpty {
-                            Text(card.payload["howto"]?["note"]?.stringValue ?? steps.joined(separator: "\n"))
-                                .font(Typography.sans(size: 15, weight: .medium)).foregroundStyle(Theme.secondaryText)
+                            TimelineRichText(text: card.payload["howto"]?["note"]?.stringValue ?? steps.joined(separator: "\n"), size: 15, color: Theme.secondaryText)
                         } else {
                             HStack(alignment: .top, spacing: 8) {
                                 ForEach(Array(cases.enumerated()), id: \.offset) { _, item in
@@ -256,7 +255,7 @@ struct TimelineResultView: View {
                 .accessibilityIdentifier("timeline-checkpoints")
             }
             if !attempt.feedback.isEmpty {
-                TimelineRichText(text: attempt.feedback, size: 14, color: Theme.secondaryText)
+                TimelineRichText(text: attempt.feedback, size: 15, color: Theme.secondaryText)
                     .accessibilityIdentifier("timeline-comment")
             }
             if let dispute = attempt.dispute, !dispute.isEmpty {
@@ -290,7 +289,7 @@ struct TimelineResultView: View {
     private func labeled(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label).font(Typography.sans(size: 12, weight: .bold)).foregroundStyle(Theme.secondaryText)
-            TimelineRichText(text: value, size: 18, weight: .bold)
+            TimelineRichText(text: value, size: 18, weight: .bold, plainMath: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
@@ -414,8 +413,7 @@ struct TimelineInteractiveCard: View {
         return VStack(alignment: .leading, spacing: 10) {
             List {
                 ForEach(order, id: \.self) { index in
-                    Text(steps.indices.contains(index) ? steps[index] : "")
-                        .font(Typography.sans(size: 15, weight: .medium))
+                    TimelineRichText(text: steps.indices.contains(index) ? steps[index] : "", size: 15)
                         .listRowBackground(Theme.card)
                 }
                 .onMove { from, to in order.move(fromOffsets: from, toOffset: to) }
@@ -439,7 +437,7 @@ struct TimelineInteractiveCard: View {
                 ForEach(["a", "b"], id: \.self) { side in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(card.payload["\(side)_title"]?.stringValue ?? "").font(Typography.sans(size: 12, weight: .bold))
-                        ForEach(strings("\(side)_lines"), id: \.self) { Text($0).font(Typography.sans(size: 14, weight: .medium)) }
+                        ForEach(strings("\(side)_lines"), id: \.self) { TimelineRichText(text: $0, size: 14) }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
@@ -456,8 +454,7 @@ struct TimelineInteractiveCard: View {
         let index = sorted.count
         return VStack(spacing: 16) {
             if index < items.count {
-                Text(items[index]["text"]?.stringValue ?? "")
-                    .font(Typography.sans(size: 26, weight: .medium))
+                TimelineRichText(text: items[index]["text"]?.stringValue ?? "", size: 26)
                     .frame(width: 240, height: 140)
                     .background(Theme.card, in: RoundedRectangle(cornerRadius: 18))
                     .shadow(color: .black.opacity(0.08), radius: 10, y: 6)

@@ -138,8 +138,9 @@ struct LearningTimelineView: View {
             if let card = store.current {
                 VStack(alignment: .leading, spacing: 18) {
                     TimelineRapidHeader(store: store, index: index)
-                    TimelineMath(latex: card.math.isEmpty ? card.prompt : card.math, size: 30)
-                    Text(card.prompt).font(Typography.sans(size: 17, weight: .bold))
+                    // 式が無い速攻は問題文だけ(問題文を式として組んで二度出さない)。
+                    if !card.math.isEmpty { TimelineMath(latex: card.math, size: 30) }
+                    TimelineRichText(text: card.prompt, size: card.math.isEmpty ? 24 : 17, weight: .bold)
                     Spacer(minLength: 0)
                 }
             }
@@ -348,9 +349,12 @@ struct LearningTimelineView: View {
                 Text("Next").font(Typography.ordinal).foregroundStyle(Theme.tertiaryText)
             }
             .foregroundStyle(Theme.secondaryText)
-            ProblemCatalogRichText(text: stripLine, font: Typography.sans(size: 16, weight: .medium), katexFontSize: 16,
-                                   color: UIColor(Theme.primaryText), lineLimit: 1, maxKatexHeight: 26)
+            // 高さは決めておく(上下に高い式で帯の高さが変わらないように)。積分の上下の端まで入る高さにする(前は 26pt で下が切れた)。
+            ProblemCatalogRichText(text: stripLine, font: Typography.sans(size: 16, weight: .medium), katexFontSize: 15,
+                                   color: UIColor(Theme.primaryText), lineLimit: 1, maxKatexHeight: 44)
                 .foregroundStyle(Theme.primaryText)
+                .frame(height: 44, alignment: .leading)
+                .clipped()
         }
         .padding(.horizontal, 22)
         .padding(.top, 16)
@@ -371,9 +375,10 @@ struct LearningTimelineView: View {
 
     private var stripLine: String {
         guard let next = store.upcoming else { return store.phase == .waiting ? "用意しています" : "" }
-        // 式は数式として描く(LaTeX を文字のまま出さない)。
-        let line = [next.math.isEmpty ? "" : "$" + next.math + "$", TimelineRichText.source(next.question)].filter { !$0.isEmpty }.joined(separator: "  ")
-        return next.kind == "solve" ? (line.isEmpty ? TimelineRichText.source(next.prompt) : line) : TimelineRichText.source(next.prompt)
+        // 式は数式として描く(LaTeX を文字のまま出さない)。式がある時は式だけ(問いの文まで並べると 1 行に入らず、2 行目が切れる)。
+        if next.kind == "solve", !next.math.isEmpty { return "$" + next.math + "$" }
+        let text = next.kind == "solve" && !next.question.isEmpty ? next.question : next.prompt
+        return TimelineRichText.source(text)
     }
 
     private func stripLabel(_ next: TimelineCardRecord) -> String {
@@ -497,7 +502,7 @@ struct TimelineStopSheet: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label(TimelineRules.chainPosition(next) != nil ? "続き" : "次の1問", systemImage: TimelineSymbol.chain).font(Typography.sans(size: 13, weight: .bold))
                         .foregroundStyle(Theme.secondaryText)
-                    Text([TimelineMath.plain(next.math), next.question].filter { !$0.isEmpty }.joined(separator: "  ").isEmpty ? next.prompt : [TimelineMath.plain(next.math), next.question].filter { !$0.isEmpty }.joined(separator: "  "))
+                    Text(TimelineMath.previewLine(next))
                         .font(Typography.sans(size: 16, weight: .medium)).lineLimit(2)
                     if summary.total > 0 {
                         HStack(spacing: 8) {

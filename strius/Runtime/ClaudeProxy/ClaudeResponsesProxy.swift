@@ -42,6 +42,9 @@ actor ClaudeResponsesProxy {
 
     private var listener: NWListener?
     private var endpoint: Endpoint?
+    private var port: UInt16 = 0
+    /// 用意している最中の待ち受け(同時に来た start が二重に作らない)。
+    private var preparing: Task<Endpoint, Error>?
     private let queue = DispatchQueue(label: "com.digiloglab.strius.claude-proxy")
     private let upstream: ClaudeUpstream
 
@@ -53,7 +56,21 @@ actor ClaudeResponsesProxy {
     static let listenerReadyTimeout: TimeInterval = 5
 
     func start() async throws -> Endpoint {
-        if let endpoint, let listener, listener.state == .ready { return endpoint }
+        if let preparing { return try await preparing.value }
+        let task = Task { try await self.prepare() }
+        preparing = task
+        defer { if preparing == task { preparing = nil } }
+        return try await task.value
+    }
+
+    private func prepare() async throws -> Endpoint {
+        if let endpoint, let listener, listener.state == .ready {
+            // iOS は止められていたアプリの待ち受けの socket を回収する。その後も `NWListener` は `.ready` のままのことがあり、
+            // Codex の要求は届かないまま止まる(実機: アプリを離れて戻ると、終了して開き直すまで採点・質問が返らない)。
+            // 使う前に、実際に 1 本つないで答えるかを確かめる(127.0.0.1 なので数ミリ秒)。
+            if await Self.answers(port: self.port, token: endpoint.token) { return endpoint }
+            proxyLog.error("listener on 127.0.0.1:\(self.port, privacy: .public) no longer answers; listening again on a new port")
+        }
         listener?.cancel()
         listener = nil
         let token = Self.randomToken()
@@ -98,6 +115,7 @@ actor ClaudeResponsesProxy {
         }
         guard port != 0 else { throw ProxyError.listenerFailed("no port") }
         listener = created
+        self.port = port
         let started = Endpoint(baseURL: "http://127.0.0.1:\(port)/v1", token: token)
         endpoint = started
         proxyLog.info("listening on 127.0.0.1:\(port, privacy: .public)")
@@ -108,6 +126,42 @@ actor ClaudeResponsesProxy {
         listener?.cancel()
         listener = nil
         endpoint = nil
+        port = 0
+    }
+
+    /// 待ち受けが本当に受け付けているか: 127.0.0.1 の `port` に `GET /v1/models` を送り、200 が返るか。
+    /// つながらない(`.waiting` は拒否)・返らない(回収された socket は受け付けたまま渡さないことがある)は false。
+    nonisolated static func answers(port: UInt16, token: String, timeout: TimeInterval = 2) async -> Bool {
+        guard port != 0, let nwPort = NWEndpoint.Port(rawValue: port) else { return false }
+        let connection = NWConnection(host: .ipv4(.loopback), port: nwPort, using: .tcp)
+        let probeQueue = DispatchQueue(label: "com.digiloglab.strius.claude-proxy.probe")
+        let request = Data("GET /v1/models HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer \(token)\r\nConnection: close\r\n\r\n".utf8)
+        return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            let once = OnceFlag()
+            let finish: @Sendable (Bool) -> Void = { ok in
+                guard once.take() else { return }
+                connection.cancel()
+                continuation.resume(returning: ok)
+            }
+            connection.stateUpdateHandler = { state in
+                switch state {
+                case .ready:
+                    connection.send(content: request, completion: .contentProcessed { error in
+                        guard error == nil else { finish(false); return }
+                        connection.receive(minimumIncompleteLength: 12, maximumLength: 4096) { data, _, _, error in
+                            let head = data.map { String(decoding: $0.prefix(12), as: UTF8.self) } ?? ""
+                            finish(error == nil && head == "HTTP/1.1 200")
+                        }
+                    })
+                case .waiting, .failed, .cancelled:
+                    finish(false)
+                default:
+                    break
+                }
+            }
+            connection.start(queue: probeQueue)
+            probeQueue.asyncAfter(deadline: .now() + timeout) { finish(false) }
+        }
     }
 
     nonisolated static func randomToken() -> String {

@@ -453,8 +453,21 @@ actor TurnCoordinator {
             let seconds = Int((limit ?? .zero).timeInterval)
             turnLog.error("turn \(turnID, privacy: .public) (\(plan.kind.rawValue, privacy: .public)) exceeded \(seconds, privacy: .public)s; giving up and rebuilding the connection")
             work.cancel()
-            await runner.interrupt(planID: plan.id)
-            await runner.resetConnection()
+            // 止める・接続を作り直すのが返らなくても、失敗は必ず台帳に書く(返らないターンを「採点中」のまま残さない)。
+            let cleanup = TurnRace<Bool>()
+            Task {
+                await runner.interrupt(planID: plan.id)
+                await runner.resetConnection()
+                cleanup.finish(true)
+            }
+            Task {
+                try? await Task.sleep(for: .seconds(5))
+                cleanup.finish(false)
+            }
+            let stopped = await cleanup.result
+            if !stopped {
+                turnLog.error("turn \(turnID, privacy: .public): stopping it did not finish in 5s; recording the failure anyway")
+            }
             return TurnOutcome(
                 planID: plan.id, round: plan.round, status: .failed, codexThreadID: plan.thread.codexThreadID, codexTurnID: nil,
                 finalText: "", executions: [.object(["type": .string("time_limit"), "seconds": .number(Double(seconds)), "at": .string(LedgerClock.now())])],
