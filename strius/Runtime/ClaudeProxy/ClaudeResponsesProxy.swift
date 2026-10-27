@@ -411,7 +411,7 @@ nonisolated private struct ClaudeRelay {
             compared = translation >= 2 && options.includeDiagnostics && options.previousResponseID != nil
             record = [
                 "reason": reason.rawValue, "requested_model": model, "translation": translation,
-                "cache_ttl": ["system": translation >= 3 ? tailTTL as Any : translation >= 2 ? "1h" as Any : NSNull() as Any, "tail": translation >= 2 ? tailTTL : "5m"],
+                "cache_ttl": ["system": ClaudeTranslation.systemCacheTTL(translation: translation, tail: tailTTL).map { $0 as Any } ?? NSNull(), "tail": translation >= 2 ? tailTTL : "5m"],
                 "thinking_stripped": options.stripThinking, "schema_in_instructions": options.schemaInInstructions,
                 "pricing_version": ClaudePricing.version, "started_at": LedgerClock.iso(Date()),
             ]
@@ -453,8 +453,10 @@ nonisolated private struct ClaudeRelay {
             }
             // 料金は応答で実際に使われたモデルで計算する。
             let model = translator?.model ?? record["requested_model"] as? String ?? ""
-            let tail = (record["cache_ttl"] as? [String: Any])?["tail"] as? String ?? "5m"
-            let tokens = ClaudePricing.Tokens(usage: usage, assumedWriteTTL: tail)
+            let ttl = record["cache_ttl"] as? [String: Any]
+            // 書き込みの内訳が無い時: 版 4 は書き込みの大半が system の 1 時間の印なので 1 時間として数える。
+            let assumed = (record["translation"] as? Int ?? 0) >= 4 ? ttl?["system"] as? String ?? "1h" : ttl?["tail"] as? String ?? "5m"
+            let tokens = ClaudePricing.Tokens(usage: usage, assumedWriteTTL: assumed)
             record["tokens"] = [
                 "input": tokens.input, "cache_read": tokens.cacheRead, "cache_write_5m": tokens.cacheWrite5m,
                 "cache_write_1h": tokens.cacheWrite1h, "output": tokens.output, "prompt_total": tokens.promptTotal,
@@ -488,9 +490,13 @@ nonisolated private struct ClaudeRelay {
         var options = ClaudeRequestTranslator.Options()
         options.translation = ThreadContextStore.claudeTranslation(entry)
         options.tailCacheTTL = entry?.profile?.cacheTTL ?? ClaudeTranslation.tailCacheTTL(kind: entry?.profile?.kind)
+        // 版 4 は出力の形を最初から指示文で渡す(拒まれてから送り直す往復をしない)。
+        if options.translation >= 4 { options.schemaInInstructions = true }
         // 一度署名の不整合で thinking を外した会話は、以後も外して送る(毎ターン拒まれて送り直さない)。
         options.stripThinking = entry?.thinkingStripped == true
-        options.previousResponseID = threadID.flatMap { log.previousResponseID(threadID: $0) } ?? entry?.lastClaudeMessageID
+        // タイムラインの採点・出題・見直しは毎回新しいスレッドなので、種類をまたいで直前のタイムラインの依頼と比べる。
+        let diagnosticsKey = threadID.map { ClaudeTranslation.diagnosticsKey(threadID: $0, kind: entry?.profile?.kind) }
+        options.previousResponseID = diagnosticsKey.flatMap { log.previousResponseID(threadID: $0) } ?? entry?.lastClaudeMessageID
         var reason = classified.reason
         var retriedToken = false
         for _ in 0..<5 {
@@ -589,7 +595,7 @@ nonisolated private struct ClaudeRelay {
                         log.append(attempt.finish(status: status, translator: streamTranslator, httpStatus: 200,
                                                   error: streamTranslator.errorType.map { ($0, "stream error") }), key: classified.key)
                         if let threadID, let id = streamTranslator.messageID {
-                            log.setPreviousResponseID(id, threadID: threadID)
+                            log.setPreviousResponseID(id, threadID: diagnosticsKey ?? threadID)
                             // 再起動の後も比べられるよう、控えのあるスレッドには残す(下調べの子などの控えは作らない)。
                             if entry != nil { contexts.update(threadID) { $0.lastClaudeMessageID = id } }
                         }

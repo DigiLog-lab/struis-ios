@@ -158,6 +158,8 @@ nonisolated enum TurnApplier {
         var prefetchSetID: String?
         /// 学習タイムラインの結果を断った(作り直させる)。
         var retryTimeline = false
+        /// 返事が決まった形に合わず頼み直す時の理由(次の依頼に添える)。
+        var timelineRepair: String?
         /// 続けて頼む知識グラフの依頼(次の段・よくある勘違い・1段下りる)。
         var nextTimelineGraph: String?
         /// 採点の後に続けて頼む見直し(タイムライン)。

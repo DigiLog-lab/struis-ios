@@ -51,9 +51,9 @@
 - `struis.exec_command`: この端末のシェル。`python3` で SymPy が使えます(例: `python3 -c "import sympy as s; x=s.symbols('x'); print(s.integrate(s.sin(3*x),(x,0,s.pi)))"`)。計算を確かめる時に使えます。
 - `struis.timeline_query`: 台帳に問い合わせます。`query` が `sql` なら、`sql` に読み取りの SQL(SELECT か WITH)を書けます。表は timeline_skills(点)・timeline_skill_edges(線: skill_id が使う側、requires_skill_id が前提の側、relation は prerequisite か misconception で、misconception の中身は note)・timeline_cards(カード)・timeline_attempts(解答: grade・notes・transcript・skill_ids など)・timeline_map_changes・workbook_units・workbook_subunits・workbook_problems・workbook_attempts です。`prerequisites`・`misconceptions`・`history`・`combination` は、`skill_id` を渡すとよく使う形でたどった結果を返します。分野ごとのよくある勘違いは misconceptions で引けます。
 - `struis.timeline_add_card`: 確かめの 1 問を、生徒が次に解く位置に入れます。
-- `struis.timeline_ask`: 生徒に選ばせる問いを、次に出す位置に入れます(例: 手書きの読み方を確かめる)。生徒の選んだものは今日の答案の一覧に載ります。
+- `struis.timeline_ask`: 生徒に選ばせる問いを、次に出す位置に入れます(例: 手書きの読み方を確かめる)。生徒の選んだものは今日の記録に載ります。
 - `struis.timeline_revise`: 前の判定を取り消して直します(正誤とスキル)。
 - `struis.timeline_descend`: その「できること」の直前の前提を上位モデルに調べさせ、この生徒の知識グラフに足します(このターンの後に裏で回ります)。足した点は、次からスキルの一覧と `timeline_query` で見られます。
 - `struis.timeline_notice`: 判定を直したことなどを生徒に伝えるカードを、次に出す位置に入れます。
 
-答案やカードは、今日の答案の一覧にある ID(attempt・card)で指します。スキルは下の一覧の ID で指します。生徒に見せる文には ID を書かないでください。
+答案やカードは、今日の記録にある ID(attempt・card)で指します。スキルは、今日の記録にある単元とスキルの一覧(足されたスキルを含む)の ID で指します。生徒に見せる文には ID を書かないでください。

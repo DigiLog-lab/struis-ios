@@ -11,6 +11,7 @@ nonisolated struct TimelineMachine {
     var cards: [String: TimelineCardRecord] = [:]
     var attempts: [String: TimelineAttemptRecord] = [:]
     var dips: [String: TimelineDipRecord] = [:]
+    var log: [String: TimelineLogRecord] = [:]
     private(set) var events: [LedgerEvent] = []
 
     var now: () -> String = { LedgerClock.now() }
@@ -27,6 +28,7 @@ nonisolated struct TimelineMachine {
         cards = Dictionary(uniqueKeysWithValues: try TimelineCardRecord.fetchAll(db).map { ($0.id, $0) })
         attempts = Dictionary(uniqueKeysWithValues: try TimelineAttemptRecord.fetchAll(db).map { ($0.id, $0) })
         dips = Dictionary(uniqueKeysWithValues: try TimelineDipRecord.fetchAll(db).map { ($0.id, $0) })
+        log = Dictionary(uniqueKeysWithValues: try TimelineLogRecord.fetchAll(db).map { ($0.id, $0) })
     }
 
     mutating func put(_ kind: String, _ row: TimelineSkillRecord) { skills[row.id] = row; events.append(.upsert(kind, row)) }
@@ -36,6 +38,7 @@ nonisolated struct TimelineMachine {
     mutating func put(_ kind: String, _ row: TimelineCardRecord) { cards[row.id] = row; events.append(.upsert(kind, row)) }
     mutating func put(_ kind: String, _ row: TimelineAttemptRecord) { attempts[row.id] = row; events.append(.upsert(kind, row)) }
     mutating func put(_ kind: String, _ row: TimelineDipRecord) { dips[row.id] = row; events.append(.upsert(kind, row)) }
+    mutating func put(_ kind: String, _ row: TimelineLogRecord) { log[row.id] = row; events.append(.upsert(kind, row)) }
 
     // MARK: - 読む
 
@@ -439,6 +442,7 @@ nonisolated struct TimelineMachine {
         ))
         markAnswered(cardID)
         if let card = cards[cardID] { applySkills(card: card, correct: correct, assisted: false, withinTime: true, firstTry: firstTry, attemptID: id) }
+        logAttempt(id)
         return id
     }
 
@@ -450,6 +454,7 @@ nonisolated struct TimelineMachine {
             countsForAccuracy: false, feedback: "", createdAt: now(), gradedAt: now()
         ))
         markAnswered(cardID)
+        logAttempt(id)
         return id
     }
 
@@ -458,6 +463,7 @@ nonisolated struct TimelineMachine {
         guard var row = attempts[attemptID], row.verdict == "skipped" else { return }
         row.skipReason = reason
         put("timeline.skip_reason", row)
+        appendLog(kind: "skip_reason", attemptID: attemptID, text: TimelineLogText.skipReason(row))
     }
 
     private mutating func markAnswered(_ cardID: String) {
@@ -470,7 +476,7 @@ nonisolated struct TimelineMachine {
     // MARK: - 採点
 
     /// 採点の答え(2026-10-25)。決まった形で出させるのは、正誤(correct・partial・wrong)、生徒の答え、関係するスキルの ID。
-    /// メモと書き起こしは今日の答案の一覧に載せる(中身の書き方は決めない)。前の版の答え(verdict・checkpoints・errors)も読める。
+    /// メモと書き起こしは今日の記録に載せる(中身の書き方は決めない)。前の版の答え(verdict・checkpoints・errors)も読める。
     nonisolated struct Grading: Codable, Sendable {
         nonisolated struct Checkpoint: Codable, Sendable { var text: String; var result: String }
         nonisolated struct Error: Codable, Sendable {
@@ -574,6 +580,7 @@ nonisolated struct TimelineMachine {
             row.notes = grading.notes
             put("timeline.attempt_unreadable", row)
             reopen(card.id)
+            logAttempt(attemptID)
             return GradingOutcome(verdict: "unreadable")
         }
         var grade = grading.grade
@@ -624,6 +631,7 @@ nonisolated struct TimelineMachine {
             }
         }
         if verdict == "wrong" { applyWrongFixes(card: card, grading: grading, attemptID: attemptID) }
+        logAttempt(attemptID)
         return GradingOutcome(verdict: verdict, broken: broken,
                               countsForUnitHome: !broken && TimelineRules.countsForUnitHome(card: card, firstTry: row.firstTry, assisted: row.assisted))
     }
@@ -636,6 +644,7 @@ nonisolated struct TimelineMachine {
         row.feedback = "採点できませんでした。もう一度撮ってください。"
         put("timeline.attempt_failed", row)
         reopen(row.cardId)
+        logAttempt(attemptID)
     }
 
     /// 撮り直せるように、カードを出した状態に戻す。
@@ -982,7 +991,7 @@ nonisolated struct TimelineMachine {
         return card.id
     }
 
-    /// 生徒に選ばせる問いを、次に出す位置に入れる(選んだものは今日の答案の一覧に載る)。
+    /// 生徒に選ばせる問いを、次に出す位置に入れる(選んだものは今日の記録に載る)。
     @discardableResult
     mutating func addAsk(question: String, options: [String], aboutAttemptID: String?) -> String {
         let card = TimelineCardRecord(
@@ -1018,6 +1027,7 @@ nonisolated struct TimelineMachine {
             countsForAccuracy: false, feedback: "", createdAt: now(), gradedAt: now()
         ))
         markAnswered(cardID)
+        logAttempt(id)
         return id
     }
 
@@ -1054,6 +1064,7 @@ nonisolated struct TimelineMachine {
         }
         recordChange(kind: "revise_grade", detail: .object(["attempt_id": .string(attemptID), "from": .string(previous), "to": .string(grade), "note": .string(note)]),
                      attemptIDs: [attemptID], source: "review", reviewed: true)
+        appendLog(kind: "revise", attemptID: attemptID, text: TimelineLogText.revise(row, from: previous, note: note, machine: self))
         return nil
     }
 
@@ -1112,6 +1123,9 @@ nonisolated struct TimelineMachine {
             row.reviewedAt = now()
             put("timeline.attempt_reviewed", row)
         }
+        if let text = TimelineLogText.review(targetID: targetID, notes: review.notes, decided: decided, machine: self) {
+            appendLog(kind: "review", attemptID: targetID, text: text)
+        }
     }
 
     /// 生徒が判定に納得できないと伝えた(結果の画面の「質問」から)。見直しに回す。
@@ -1119,7 +1133,46 @@ nonisolated struct TimelineMachine {
         guard var row = attempts[attemptID] else { return }
         row.dispute = text.isEmpty ? "判定に納得できない" : text
         row.reviewedAt = nil
+        row.disputedAt = now()
         put("timeline.attempt_disputed", row)
+        appendLog(kind: "dispute", attemptID: attemptID, text: TimelineLogText.dispute(row))
+    }
+
+    // MARK: - 今日の記録
+
+    /// 今日の記録(保存した順)。
+    var todayLog: [TimelineLogRecord] {
+        let today = today
+        return log.values.filter { $0.day == today }.sorted { ($0.seq, $0.createdAt, $0.id) < ($1.seq, $1.createdAt, $1.id) }
+    }
+
+    /// 1 件足す(書いた時点の文のまま残す)。`first` はその日の先頭に入れる(その日最初の「今の単元とスキルの一覧」。
+    /// その日まだ依頼を送っていない時だけ使う)。
+    @discardableResult
+    mutating func appendLog(kind: String, attemptID: String? = nil, unitID: String? = nil, skillIDs: [String] = [], text: String, first: Bool = false) -> String {
+        let entries = todayLog
+        let seq = first ? (entries.first?.seq ?? 1) - 1 : (entries.last?.seq ?? 0) + 1
+        let id = newID()
+        put("timeline.log_appended", TimelineLogRecord(id: id, day: today, seq: seq, kind: kind, attemptId: attemptID, unitId: unitID,
+                                                       skillIds: skillIDs, text: text, createdAt: now()))
+        return id
+    }
+
+    /// 答案の結果が出た(採点・端末の中の採点・飛ばした・答えた・読めなかった・採点できなかった)時の 1 件。
+    private mutating func logAttempt(_ attemptID: String) {
+        guard let attempt = attempts[attemptID], let card = cards[attempt.cardId] else { return }
+        appendLog(kind: "attempt", attemptID: attemptID, text: TimelineLogText.attempt(attempt, card: card, machine: self))
+    }
+
+    /// 今日の記録にまだ無い、結果の出た今日の答案(この版より前に解いた答案など)。
+    var unloggedAttemptsToday: [TimelineAttemptRecord] {
+        let today = today
+        let logged = Set(log.values.filter { $0.day == today && $0.kind == "attempt" }.compactMap(\.attemptId))
+        return orderedAttempts.filter { TimelineRules.day($0.createdAt, calendar: calendar) == today && $0.verdict != "grading" && !logged.contains($0.id) }
+    }
+
+    mutating func logMissedAttempts() {
+        for attempt in unloggedAttemptsToday { logAttempt(attempt.id) }
     }
 
     // MARK: - 2択カード

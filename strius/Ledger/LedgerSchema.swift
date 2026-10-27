@@ -36,6 +36,10 @@ nonisolated enum LedgerSchema {
         migrator.registerMigration("v4-timeline-review") { db in
             try addTimelineReview(db)
         }
+        // 今日の記録(2026-10-27): 出来事ごとに、その時点の文を 1 件ずつ保存する(キャッシュの先頭を後から書き換えない)。
+        migrator.registerMigration("v5-timeline-log") { db in
+            try addTimelineLog(db)
+        }
         return migrator
     }
 
@@ -45,6 +49,24 @@ nonisolated enum LedgerSchema {
         try createTimelineProjections(db)
         try addTimelineExpansion(db)
         try addTimelineReview(db)
+        try addTimelineLog(db)
+    }
+
+    static func addTimelineLog(_ db: Database) throws {
+        try db.alter(table: "timeline_attempts") { t in
+            t.add(column: "disputed_at", .text)
+        }
+        try db.create(table: "timeline_log") { t in
+            t.column("id", .text).primaryKey()
+            t.column("day", .text).notNull().indexed()
+            t.column("seq", .integer).notNull()
+            t.column("kind", .text).notNull()
+            t.column("attempt_id", .text)
+            t.column("unit_id", .text)
+            t.column("skill_ids", .text).notNull().defaults(to: "[]")
+            t.column("text", .text).notNull()
+            t.column("created_at", .text).notNull()
+        }
     }
 
     static func addTimelineReview(_ db: Database) throws {

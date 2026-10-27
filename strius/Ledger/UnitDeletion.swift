@@ -94,7 +94,7 @@ nonisolated enum UnitDeletion {
         try add(ThreadBranchRecord.self); try add(BranchForkAttemptRecord.self)
         try add(TimelineSkillRecord.self); try add(TimelineSkillEdgeRecord.self); try add(TimelineMapChangeRecord.self)
         try add(TimelineBatchRecord.self); try add(TimelineCardRecord.self); try add(TimelineAttemptRecord.self)
-        try add(TimelineDipRecord.self)
+        try add(TimelineDipRecord.self); try add(TimelineLogRecord.self)
         return result
     }
     static func scope(db: Database, unitID: String) throws -> Scope {
@@ -134,6 +134,10 @@ nonisolated enum UnitDeletion {
             if e.payload["subunit_id"]?.stringValue.map({ scope.contains(.workbookSubunits, $0) }) == true || e.payload["unit_id"]?.stringValue == unitID { scope.add(e.entity, e.entityID) }
         }
         for e in snapshots where e.entity == .timelineAttempts && e.payload["card_id"]?.stringValue.map({ scope.contains(.timelineCards, $0) }) == true { scope.add(e.entity, e.entityID) }
+        // 今日の記録: その単元の一覧と、その解答の文。
+        for e in snapshots where e.entity == .timelineLog {
+            if e.payload["unit_id"]?.stringValue == unitID || e.payload["attempt_id"]?.stringValue.map({ scope.contains(.timelineAttempts, $0) }) == true { scope.add(e.entity, e.entityID) }
+        }
         for e in snapshots where [.messages, .codexThreads, .branchForkAttempts].contains(e.entity) {
             let thread = e.payload["thread_id"]?.stringValue ?? e.payload["stem_thread_id"]?.stringValue
             if thread.map({ scope.contains(.threads, $0) }) == true { scope.add(e.entity, e.entityID) }

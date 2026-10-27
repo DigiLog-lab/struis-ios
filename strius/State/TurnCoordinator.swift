@@ -252,7 +252,7 @@ actor TurnCoordinator {
         await start(kind: kind, targetID: targetID, prefetch: prefetch)
     }
 
-    private func start(kind: TurnPlan.Kind, targetID: String, prefetch: Bool = false) async {
+    private func start(kind: TurnPlan.Kind, targetID: String, prefetch: Bool = false, repair: String? = nil) async {
         let turnID = LedgerID.make()
         if prefetch {
             prefetchTurns.insert(turnID)
@@ -260,7 +260,7 @@ actor TurnCoordinator {
         }
         composingTargets.insert(targetID)
         do {
-            let composed = try await compose(kind: kind, turnID: turnID, targetID: targetID)
+            let composed = try await compose(kind: kind, turnID: turnID, targetID: targetID, repair: repair)
             // 組んでいる間に「止める」が押された: 走らせずに、答案・一枚を「判定し直す」「作り直す」にする。
             if stoppedWhileComposing.remove(targetID) != nil { throw StoppedBeforeLaunch() }
             let (plan, context) = composed
@@ -297,7 +297,7 @@ actor TurnCoordinator {
         }
     }
 
-    private func compose(kind: TurnPlan.Kind, turnID: String, targetID: String) async throws -> (TurnPlan, WorkbookMachine.GradingContext?) {
+    private func compose(kind: TurnPlan.Kind, turnID: String, targetID: String, repair: String? = nil) async throws -> (TurnPlan, WorkbookMachine.GradingContext?) {
         let machine = try await ledger.read { db in try WorkbookMachine(loading: db) }
         switch kind {
         case .workbookGrading:
@@ -309,12 +309,19 @@ actor TurnCoordinator {
         case .workbookUnit:
             return (try await composer.unit(planID: turnID, machine: machine, proposalID: targetID), nil)
         case .timelineBatch, .timelineGrading, .timelineGraph, .timelineReview:
-            let timeline = try await ledger.read { db in try TimelineMachine(loading: db) }
+            // 採点・出題・見直しは、組む前に今日の記録の足りない分(その日最初の単元とスキルの一覧・変わった分)を書く。
+            let timeline: TimelineMachine = kind == .timelineGraph
+                ? try await ledger.read { db in try TimelineMachine(loading: db) }
+                : try await ledger.commit { db in
+                    var timeline = try TimelineMachine(loading: db)
+                    TimelineTurns.syncLog(workbook: try WorkbookMachine(loading: db), timeline: &timeline)
+                    return (timeline.events, timeline)
+                }
             let composer = self.composer
             switch kind {
-            case .timelineBatch: return (try await TimelineTurns.batch(composer: composer, planID: turnID, batchID: targetID, workbook: machine, timeline: timeline), nil)
-            case .timelineGrading: return (try await TimelineTurns.grading(composer: composer, planID: turnID, attemptID: targetID, workbook: machine, timeline: timeline), nil)
-            case .timelineReview: return (try await TimelineTurns.review(composer: composer, planID: turnID, attemptID: targetID, workbook: machine, timeline: timeline), nil)
+            case .timelineBatch: return (try await TimelineTurns.batch(composer: composer, planID: turnID, batchID: targetID, workbook: machine, timeline: timeline, repair: repair), nil)
+            case .timelineGrading: return (try await TimelineTurns.grading(composer: composer, planID: turnID, attemptID: targetID, workbook: machine, timeline: timeline, repair: repair), nil)
+            case .timelineReview: return (try await TimelineTurns.review(composer: composer, planID: turnID, attemptID: targetID, workbook: machine, timeline: timeline, repair: repair), nil)
             default: return (try await TimelineTurns.graph(composer: composer, planID: turnID, batchID: targetID, workbook: machine, timeline: timeline), nil)
             }
         default:
@@ -549,7 +556,7 @@ actor TurnCoordinator {
                         turn.completedAt = LedgerClock.now()
                         events.append(.upsert("turn.\(outcome.status.rawValue)", turn))
                     }
-                    return (events, TurnApplier.FollowUp(retryTimeline: applied.followUp.retry, nextTimelineGraph: applied.followUp.nextGraph, nextTimelineReview: applied.followUp.review))
+                    return (events, TurnApplier.FollowUp(retryTimeline: applied.followUp.retry, timelineRepair: applied.followUp.repair, nextTimelineGraph: applied.followUp.nextGraph, nextTimelineReview: applied.followUp.review))
                 }
                 var machine = try WorkbookMachine(loading: db)
                 switch plan.kind {
@@ -591,7 +598,8 @@ actor TurnCoordinator {
         notify(Notice(turnID: turnID, kind: plan.kind, targetID: targetID, status: outcome.status.rawValue))
         if TimelineTurns.isTimeline(plan.kind) {
             // 受け取りを断った(skills の ID・段の上限・検算・グラフの点検): 1 回だけ作り直させる。
-            if followUp.retryTimeline, let targetID { await start(kind: plan.kind, targetID: targetID, prefetch: wasPrefetch) }
+            // 返事が決まった形に合わなかった: 理由を添えて、同じ中身でもう 1 回だけ頼む(先頭はキャッシュの読み込みで済む)。
+            if followUp.retryTimeline, let targetID { await start(kind: plan.kind, targetID: targetID, prefetch: wasPrefetch, repair: followUp.timelineRepair) }
             // 次の段・よくある勘違い・1段下りる: 学習者が待っていない先回りとして続けて頼む。
             if let next = followUp.nextTimelineGraph { await start(kind: .timelineGraph, targetID: next, prefetch: true) }
             // 見直し: 生徒が次の問題を解いている間に、別の依頼で前の答案を見直す。

@@ -299,9 +299,15 @@ struct LearningTimelineView: View {
             case .rapid:
                 TimelineActionButton(symbol: TimelineSymbol.send, label: "送る", prominent: true, identifier: "timeline-send") { sendRapid() }
             case .grading:
-                VStack(spacing: 6) {
+                VStack(alignment: .trailing, spacing: 6) {
                     ProgressView().controlSize(.large).frame(width: 72, height: 72)
-                    Text("採点中").font(Typography.sans(size: 12, weight: .bold)).foregroundStyle(Theme.secondaryText)
+                    Text("採点中").font(Typography.sans(size: 12, weight: .bold)).foregroundStyle(Theme.secondaryText).frame(width: 72)
+                    // AI が今考えていることの見出し(チャットと同じ仕組み)。高さを決めておき、見出しの長さで上の印が動かないようにする。
+                    if let attemptID = store.lastAttemptID {
+                        TurnLiveLine(keys: [TurnActivityKey.target(attemptID)], font: Typography.micro)
+                            .multilineTextAlignment(.trailing)
+                            .frame(width: 168, height: 44, alignment: .topTrailing)
+                    }
                 }
                 .accessibilityIdentifier("timeline-grading")
             case .result:

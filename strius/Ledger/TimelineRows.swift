@@ -151,7 +151,7 @@ nonisolated struct TimelineAttemptRecord: LedgerRow {
     /// 採点したモデルの正誤: correct | partial(答えは合うが途中に誤り)| wrong。`verdict` は partial を wrong にした値
     /// (切り替え・正答率・定着は partial を × として数える)。前の版の行は空。
     var grade: String? = nil
-    /// 採点したモデルが自分の言葉で書いたメモ(次にこの生徒を教える人へ)。今日の答案の一覧に載せる。
+    /// 採点したモデルが自分の言葉で書いたメモ(次にこの生徒を教える人へ)。今日の記録に載せる。
     var notes: String? = nil
     /// 手書きの書き起こし。
     var transcript: String? = nil
@@ -167,6 +167,28 @@ nonisolated struct TimelineAttemptRecord: LedgerRow {
     /// 見直しのメモ(前の判定を直した時はその理由)。
     var reviewNotes: String? = nil
     var reviewedAt: String? = nil
+    /// 生徒が判定に納得できないと伝えた時刻。
+    var disputedAt: String? = nil
+    var entityID: String { id }
+}
+
+/// 今日の記録の 1 件(採点・出題・見直しのどの依頼にも付ける)。出来事(採点が終わった・見直しが終わった・申し出があった・
+/// スキルが足された・単元が変わった)ごとに、その時点の文を保存する。一度書いた文は書き換えない(依頼の先頭のキャッシュを
+/// 後から外さないため)。並びは保存した順(`seq`)。
+nonisolated struct TimelineLogRecord: LedgerRow {
+    static let entity = LedgerEntity.timelineLog
+    var id: String
+    /// yyyy-MM-dd(端末の暦)。
+    var day: String
+    /// その日の中の順。その日最初の「今の単元とスキルの一覧」は先頭に入る。
+    var seq: Int
+    var kind: String  // context | unit | skills | attempt | skip_reason | dispute | review | revise
+    var attemptId: String?
+    var unitId: String?
+    /// この件で一覧に載せたスキル(単元とスキルの一覧・足されたスキル)。
+    var skillIds: [String]
+    var text: String
+    var createdAt: String
     var entityID: String { id }
 }
 

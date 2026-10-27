@@ -402,7 +402,8 @@ actor CodexTurnRunner: TurnRunning {
         } else {
             developer = spec.developerText ?? "Answer only with one JSON object matching the supplied output schema."
         }
-        let fullDeveloper = developer + "\n\n" + NativeToolRouter.instructions
+        // タイムラインの採点・出題・見直しは、道具の説明を基本指示の側に入れてある(今日の記録の前。`TimelineTurns.tutorThread`)。
+        let fullDeveloper = ClaudeTranslation.tutorKinds.contains(plan.kind.rawValue) ? developer : developer + "\n\n" + NativeToolRouter.instructions
         var params: JSONObject = [
             "dynamicTools": NativeToolRouter.definitions(for: plan.kind),
             "model": spec.model, "approvalPolicy": "never", "sandbox": "danger-full-access",

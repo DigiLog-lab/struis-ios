@@ -23,7 +23,7 @@ final class TimelineTurnsTests: XCTestCase {
         let grading = try await TimelineTurns.grading(composer: composer, planID: "p2", attemptID: attemptID, workbook: workbook, timeline: timeline)
         let review = try await TimelineTurns.review(composer: composer, planID: "p3", attemptID: attemptID, workbook: workbook, timeline: timeline)
         XCTAssertEqual(batch.kind, .timelineBatch)
-        // 1 つ目(どの依頼にも同じもの)と 2 つ目(今日の答案の一覧)が 3 つで同じ。今回の仕事は会話の最初の発話に置く。
+        // 基本指示と今日の記録が 3 つで同じ。今回の仕事は会話の最初の発話に置く。
         XCTAssertEqual(batch.thread.baseInstructions, grading.thread.baseInstructions)
         XCTAssertEqual(review.thread.baseInstructions, grading.thread.baseInstructions)
         XCTAssertNil(grading.thread.developerInstructions)
@@ -34,9 +34,15 @@ final class TimelineTurnsTests: XCTestCase {
         XCTAssertTrue(grading.turn?.text.contains(attemptID) == true)
         XCTAssertTrue(grading.turn?.text.hasPrefix("# 今回の仕事: 採点") == true)
         XCTAssertTrue(batch.turn?.text.hasPrefix("# 今回の仕事: 次の5枚") == true)
-        // 見直しだけ考える深さを上げる。
-        XCTAssertEqual(review.thread.effort, TimelineTurns.reviewEffort)
-        XCTAssertNotEqual(review.thread.effort, grading.thread.effort)
+        // 考える深さは 3 つとも medium(深さが違うとキャッシュが分かれることがある)。
+        for plan in [batch, grading, review] {
+            XCTAssertEqual(plan.thread.effort, "medium")
+            XCTAssertEqual(plan.thread.config["model_reasoning_effort"]?.stringValue, "medium")
+        }
+        // 道具の説明は基本指示の側(今日の記録の前)。今の単元とスキルの一覧は基本指示に入れない(今日の記録の最初の 1 件)。
+        let base = try await composer.assets.text(grading.thread.baseInstructions)
+        XCTAssertTrue(base.hasSuffix(NativeToolRouter.instructions))
+        XCTAssertFalse(base.contains("## 今の単元"))
         func tools(_ kind: TurnPlan.Kind) throws -> String {
             String(decoding: try JSONSerialization.data(withJSONObject: NativeToolRouter.definitions(for: kind), options: [.sortedKeys]), as: UTF8.self)
         }
@@ -47,7 +53,10 @@ final class TimelineTurnsTests: XCTestCase {
         }
         XCTAssertFalse(try tools(.chat).contains("timeline_query"))
         XCTAssertEqual(ClaudeTranslation.tailCacheTTL(kind: "timeline_grading"), "5m")
-        XCTAssertEqual(ClaudeTranslation.version(kind: "timeline_grading"), 3)
+        XCTAssertEqual(ClaudeTranslation.version(kind: "timeline_grading"), 4)
+        XCTAssertEqual(ClaudeTranslation.version(kind: "timeline_review"), 4)
+        XCTAssertEqual(ClaudeTranslation.version(kind: "timeline_batch"), 4)
+        XCTAssertEqual(ClaudeTranslation.version(kind: "timeline_graph"), ClaudeTranslation.current)
         XCTAssertEqual(ClaudeTranslation.version(kind: "chat"), ClaudeTranslation.current)
         let marker = try XCTUnwrap(batch.turn?.text.range(of: "# 今回の材料"))
         let request = try XCTUnwrap(LedgerJSON.parse(String(batch.turn!.text[marker.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)))

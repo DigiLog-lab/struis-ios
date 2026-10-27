@@ -39,6 +39,7 @@ nonisolated enum LedgerEntity: String, Codable, Sendable, CaseIterable {
     case timelineCards = "timeline_cards"
     case timelineAttempts = "timeline_attempts"
     case timelineDips = "timeline_dips"
+    case timelineLog = "timeline_log"
 }
 
 // MARK: - Workbook

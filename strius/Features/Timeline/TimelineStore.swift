@@ -358,7 +358,7 @@ final class TimelineStore {
         }
     }
 
-    /// 採点の結果が出た後、次の 1 枚を決める(AI を待たない)。カードの種類(並べ替え・間違い探しなど)は、今日の答案の一覧を
+    /// 採点の結果が出た後、次の 1 枚を決める(AI を待たない)。カードの種類(並べ替え・間違い探しなど)は、今日の記録を
     /// 読んだモデルが5枚の中で決める(アプリの決まりで差し込まない)。
     private func decide() async {
         guard let card = current, let attempt = lastAttempt else { return }

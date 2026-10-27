@@ -72,22 +72,105 @@ final class TimelineReviewTests: XCTestCase {
         XCTAssertEqual(machine.attempts[attempt]?.verdict, "correct")
     }
 
-    // MARK: 今日の答案の一覧
+    // MARK: 今日の記録
 
-    func testTodaysLogCarriesNotesAndTranscriptAndOnlyGrowsAtTheEnd() throws {
+    private func workbook() -> WorkbookMachine {
+        var workbook = WorkbookMachine()
+        workbook.units["u1"] = WorkbookUnitRecord(id: "u1", title: "フーリエ級数", outcome: "", status: "active", source: "manual", position: 0,
+                                                  overview: .emptyObject, createdAt: F.now, updatedAt: F.now, passedAt: nil)
+        return workbook
+    }
+
+    /// 前回の今日の記録(終わりの印を除いた本文)が、今回の記録の先頭とバイト単位で一致し、その後ろに区切りが続く。
+    private func assertGrows(_ before: String, _ after: String, _ message: String, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(before.hasSuffix(ClaudeTranslation.logEnd), message, file: file, line: line)
+        let body = String(before.dropLast(ClaudeTranslation.logEnd.count))
+        XCTAssertTrue(after.utf8.starts(with: (body + ClaudeTranslation.blockSeparator).utf8), message, file: file, line: line)
+        XCTAssertNotEqual(before, after, message, file: file, line: line)
+    }
+
+    func testTodaysLogIsWrittenWhenThingsHappenAndOnlyGrowsAtTheEnd() throws {
         var machine = machine()
+        let workbook = workbook()
         machine.put("test", F.card("c2", level: 2, skills: ["fourier.antiderivative_trig"]))
+        // その日最初の依頼: 今の単元とスキルの一覧が最初の 1 件。
+        TimelineTurns.syncLog(workbook: workbook, timeline: &machine)
+        let start = TimelineTurns.answerLog(timeline: machine)
+        XCTAssertTrue(start.contains("## 今の単元\n- フーリエ級数(u1)"))
+        XCTAssertTrue(start.contains("fourier.trig_values"))
+
+        // 2 問続けて撮り、後に撮った方の採点が先に終わる: 記録は保存した順(撮った順ではない)。
         let first = machine.recordCapture(cardID: "c1", capturePath: "t.jpg", seconds: 40, assisted: false)
-        _ = machine.applyGrading(attemptID: first, grading: try grading("partial", skills: ["fourier.antiderivative_trig"], notes: "符号の誤り", transcript: "[-sin x]_0^π"))
-        let before = TimelineTurns.answerLog(timeline: machine)
-        XCTAssertTrue(before.contains("答えは合うが途中に誤り"))
-        XCTAssertTrue(before.contains("符号の誤り"))
-        XCTAssertTrue(before.contains("[-sin x]_0^π"))
-        XCTAssertTrue(before.contains(first))
         let second = machine.recordCapture(cardID: "c2", capturePath: "u.jpg", seconds: 50, assisted: false)
+        XCTAssertEqual(TimelineTurns.answerLog(timeline: machine), start, "採点中の答案は記録に載せない")
         _ = machine.applyGrading(attemptID: second, grading: try grading("correct", skills: ["fourier.antiderivative_trig"]))
-        let after = TimelineTurns.answerLog(timeline: machine)
-        XCTAssertTrue(after.hasPrefix(before), "前の依頼の一覧はそのまま残り、後ろに足すだけ(キャッシュが読める)")
+        let afterSecond = TimelineTurns.answerLog(timeline: machine)
+        assertGrows(start, afterSecond, "採点が終わった")
+        _ = machine.applyGrading(attemptID: first, grading: try grading("partial", skills: ["fourier.trig_values", "fourier.antiderivative_trig"],
+                                                                    notes: "符号の誤り", transcript: "[-sin x]_0^π"))
+        let afterFirst = TimelineTurns.answerLog(timeline: machine)
+        assertGrows(afterSecond, afterFirst, "前に撮った答案の採点が後から終わった")
+        XCTAssertLessThan(try XCTUnwrap(afterFirst.range(of: "答案 \(second)")).lowerBound, try XCTUnwrap(afterFirst.range(of: "答案 \(first)")).lowerBound)
+        XCTAssertTrue(afterFirst.contains("答えは合うが途中に誤り"))
+        XCTAssertTrue(afterFirst.contains("符号の誤り"))
+        XCTAssertTrue(afterFirst.contains("[-sin x]_0^π"))
+        XCTAssertTrue(afterFirst.contains("(○× は見直しで決める)"))
+
+        // 見直しの結果(メモと確定したスキルの ○×): 前の答案の項目は書き換えず、後ろに足す。
+        let review = try TimelineMachine.Review.parse(#"{"notes":"原始関数の係数を落としている","skill_results":[{"attempt_id":"\#(first)","skill_id":"fourier.antiderivative_trig","result":"wrong"},{"attempt_id":"\#(first)","skill_id":"fourier.trig_values","result":"correct"}]}"#)
+        machine.applyReview(targetID: first, review: review)
+        let afterReview = TimelineTurns.answerLog(timeline: machine)
+        assertGrows(afterFirst, afterReview, "見直しの結果")
+        XCTAssertTrue(afterReview.contains("原始関数の係数を落としている"))
+        XCTAssertTrue(afterReview.contains("fourier.antiderivative_trig(fourier.antiderivative_trig) ×"))
+
+        // 判定の取り消し。
+        XCTAssertNil(machine.revise(attemptID: second, grade: "wrong", marks: nil, note: "途中の符号が違っていた"))
+        let afterRevise = TimelineTurns.answerLog(timeline: machine)
+        assertGrows(afterReview, afterRevise, "判定の取り消し")
+        XCTAssertTrue(afterRevise.contains("判定を直した(答案 \(second): 正解 → 誤答)"))
+        XCTAssertTrue(afterRevise.contains("理由: 途中の符号が違っていた"))
+
+        // 生徒の申し出。
+        machine.recordDispute(attemptID: first, text: "途中も合っているはずです")
+        XCTAssertEqual(machine.attempts[first]?.disputedAt, F.now)
+        let afterDispute = TimelineTurns.answerLog(timeline: machine)
+        assertGrows(afterRevise, afterDispute, "申し出")
+        XCTAssertTrue(afterDispute.contains("途中も合っているはずです"))
+
+        // スキルが足された: 次の依頼の前に、足された分だけが後ろに入る(基本指示は変わらない)。
+        TimelineTurns.syncLog(workbook: workbook, timeline: &machine)
+        XCTAssertEqual(TimelineTurns.answerLog(timeline: machine), afterDispute, "変わった分が無ければ何も足さない")
+        machine.put("test", F.skill("fourier.sin_kpi"))
+        TimelineTurns.syncLog(workbook: workbook, timeline: &machine)
+        let afterSkill = TimelineTurns.answerLog(timeline: machine)
+        assertGrows(afterDispute, afterSkill, "スキルが足された")
+        XCTAssertTrue(afterSkill.hasSuffix("## スキルが足された\n- fourier.sin_kpi(fourier.sin_kpi)" + ClaudeTranslation.logEnd))
+
+        // 飛ばした答案と理由。
+        machine.put("test", F.card("c3", level: 2))
+        let skipped = machine.recordSkip(cardID: "c3", seconds: 5)
+        machine.setSkipReason(attemptID: skipped, reason: "too_hard")
+        let afterSkip = TimelineTurns.answerLog(timeline: machine)
+        assertGrows(afterSkill, afterSkip, "飛ばした")
+        XCTAssertTrue(afterSkip.contains("を飛ばした理由: 難しすぎる"))
+    }
+
+    func testFirstContextOfTheDayGoesBeforeAnswersLoggedBeforeTheFirstRequest() throws {
+        var machine = machine()
+        machine.put("test", F.card("c2", level: 2))
+        let skipped = machine.recordSkip(cardID: "c2", seconds: 3)
+        TimelineTurns.syncLog(workbook: workbook(), timeline: &machine)
+        let entries = machine.todayLog
+        XCTAssertEqual(entries.map(\.kind), ["context", "attempt"])
+        XCTAssertEqual(entries.last?.attemptId, skipped)
+        // この版より前の答案(記録が無い)は、次の依頼の前に足す。
+        machine.put("test", F.attempt("old", card: "c1", verdict: "correct"))
+        TimelineTurns.syncLog(workbook: workbook(), timeline: &machine)
+        XCTAssertEqual(machine.todayLog.last?.attemptId, "old")
+        // 別の日の記録は載せない。
+        machine.now = { "2026-10-24T06:00:00.000000Z" }
+        XCTAssertEqual(TimelineTurns.answerLog(timeline: machine), "# 今日の記録" + ClaudeTranslation.blockSeparator + "まだありません。" + ClaudeTranslation.logEnd)
     }
 
     // MARK: 台帳に書く tool
@@ -184,33 +267,117 @@ final class TimelineReviewTests: XCTestCase {
         ]
     }
 
-    func testVersionThreeKeepsTheSharedPrefixAndMarksTheSharedPartAndTheLog() throws {
+    private func schema(_ name: String) -> [String: Any] {
+        ["type": "object", "properties": [name: ["type": "string"]], "required": [name]]
+    }
+
+    private func codexRequest(planID: String, log: String, task: String, schema: [String: Any], effort: String = "medium") -> [String: Any] {
+        [
+            "model": "claude-sonnet-5-5", "instructions": "BASE\n\nSHARED\n\nTOOLS",
+            "tools": [["type": "namespace", "name": "struis", "tools": [["type": "function", "name": "timeline_query", "parameters": ["type": "object", "properties": [:]]]]]],
+            "reasoning": ["effort": effort], "text": ["format": ["type": "json_schema", "schema": schema]],
+            "input": [
+                ["type": "message", "role": "developer", "content": [["type": "input_text", "text": log + "\n\n<permissions instructions>Full access.</permissions instructions>"]]],
+                ["type": "message", "role": "user", "content": [["type": "input_text", "text": "<environment_context><cwd>/workspace/\(planID)</cwd></environment_context>"]]],
+                ["type": "message", "role": "user", "content": [["type": "input_text", "text": task]]],
+            ],
+        ]
+    }
+
+    func testVersionFourSendsEachLogEntryAsABlockAndKeepsTheSharedPartByteForByte() throws {
+        var machine = machine()
+        TimelineTurns.syncLog(workbook: workbook(), timeline: &machine)
+        let attempt = machine.recordCapture(cardID: "c1", capturePath: "t.jpg", seconds: 40, assisted: false)
+        _ = machine.applyGrading(attemptID: attempt, grading: try grading("correct", skills: ["fourier.antiderivative_trig"]))
+        let log1 = TimelineTurns.answerLog(timeline: machine)
+        machine.recordDispute(attemptID: attempt, text: "")
+        let log2 = TimelineTurns.answerLog(timeline: machine)
+
         var options = ClaudeRequestTranslator.Options()
-        options.translation = ClaudeTranslation.tutor
+        options.translation = ClaudeTranslation.version(kind: "timeline_grading")
         options.tailCacheTTL = ClaudeTranslation.tailCacheTTL(kind: "timeline_grading")
-        let log1 = "# 今日の答案\n\n## 21:25 答案 a1"
-        let log2 = log1 + "\n\n## 21:27 答案 a2"
-        let first = try ClaudeRequestTranslator.translate(codexGrading(planID: "plan-1", log: log1, problem: "{\"problem\":\"cos 2x\"}"), options: options).body
-        let second = try ClaudeRequestTranslator.translate(codexGrading(planID: "plan-2", log: log2, problem: "{\"problem\":\"cos x\"}"), options: options).body
-        let system1 = try XCTUnwrap(first["system"] as? [[String: Any]])
-        let system2 = try XCTUnwrap(second["system"] as? [[String: Any]])
-        XCTAssertEqual(system1.count, 2)
-        XCTAssertEqual(system1[0]["text"] as? String, "BASE\n\nSHARED\n\nUNIT")
-        XCTAssertEqual(system1[0]["cache_control"] as? [String: String], ["type": "ephemeral"], "寿命は 5 分")
-        XCTAssertEqual(system1[1]["cache_control"] as? [String: String], ["type": "ephemeral"])
-        // 1 つ目(どの依頼にも同じもの)は 2 回で 1 文字も違わない。作業フォルダの場所は先頭に入らない。
-        let block1 = try JSONSerialization.data(withJSONObject: system1[0], options: [.sortedKeys])
-        let block2 = try JSONSerialization.data(withJSONObject: system2[0], options: [.sortedKeys])
-        XCTAssertEqual(block1, block2)
+        options.schemaInInstructions = true
+        let grading = try ClaudeRequestTranslator.translate(codexRequest(planID: "plan-1", log: log1, task: "# 今回の仕事: 採点", schema: schema("grade")), options: options).body
+        let review = try ClaudeRequestTranslator.translate(codexRequest(planID: "plan-2", log: log2, task: "# 今回の仕事: 見直し", schema: schema("notes")), options: options).body
+        let batch = try ClaudeRequestTranslator.translate(codexRequest(planID: "plan-3", log: log2, task: "# 今回の仕事: 次の5枚", schema: schema("cards")), options: options).body
+        let system1 = try XCTUnwrap(grading["system"] as? [[String: Any]])
+        let system2 = try XCTUnwrap(review["system"] as? [[String: Any]])
+        let system3 = try XCTUnwrap(batch["system"] as? [[String: Any]])
+        // 基本指示 + 記録の見出し + 単元とスキル + 答案 1 件 + Codex の注記 + 出力の形。
+        XCTAssertEqual(system1.count, 6)
+        XCTAssertEqual(system2.count, 7, "申し出の 1 件が増えた")
+        XCTAssertEqual(system1[0]["text"] as? String, "BASE\n\nSHARED\n\nTOOLS")
+        let hour: [String: String] = ["type": "ephemeral", "ttl": "1h"]
+        XCTAssertEqual(system1[0]["cache_control"] as? [String: String], hour, "基本指示の最後に 1 時間の印")
+        XCTAssertEqual(system1[3]["cache_control"] as? [String: String], hour, "今日の記録の最後のブロックに 1 時間の印")
+        XCTAssertEqual(system2[4]["cache_control"] as? [String: String], hour)
+        XCTAssertEqual(system1.filter { $0["cache_control"] != nil }.count, 2)
+        XCTAssertEqual(system1[4]["text"] as? String, "<permissions instructions>Full access.</permissions instructions>")
+        XCTAssertTrue((system1[5]["text"] as? String)?.contains("JSON Schema") == true, "出力の形は文章で、記録の後ろ")
+        XCTAssertTrue((system1[3]["text"] as? String)?.hasPrefix("## ") == true)
+        XCTAssertNil((grading["output_config"] as? [String: Any])?["format"], "output_config.format は使わない")
+        XCTAssertEqual((grading["output_config"] as? [String: Any])?["effort"] as? String, "medium")
+        XCTAssertEqual(grading["cache_control"] as? [String: String], ["type": "ephemeral"], "末尾の自動の印は 5 分")
+
+        // 採点 → 見直し → 出題で、基本指示と今日の記録(前回の印まで)は 1 バイトも違わない。
+        func bytes(_ blocks: ArraySlice<[String: Any]>) throws -> Data { try JSONSerialization.data(withJSONObject: Array(blocks).map { $0.filter { $0.key != "cache_control" } }, options: [.sortedKeys]) }
+        XCTAssertEqual(try bytes(system1[0...3]), try bytes(system2[0...3]))
+        XCTAssertEqual(try bytes(system2[0...4]), try bytes(system3[0...4]))
+        XCTAssertEqual(try JSONSerialization.data(withJSONObject: system2[0...4].map { $0 }, options: [.sortedKeys]),
+                       try JSONSerialization.data(withJSONObject: system3[0...4].map { $0 }, options: [.sortedKeys]))
+        let tools1 = try JSONSerialization.data(withJSONObject: grading["tools"] ?? [], options: [.sortedKeys])
+        let tools3 = try JSONSerialization.data(withJSONObject: batch["tools"] ?? [], options: [.sortedKeys])
+        XCTAssertEqual(tools1, tools3)
         XCTAssertFalse(String(decoding: try JSONSerialization.data(withJSONObject: system1), as: UTF8.self).contains("plan-1"))
-        XCTAssertTrue((system2[1]["text"] as? String)?.hasPrefix(log1) == true)
-        let tools1 = try JSONSerialization.data(withJSONObject: first["tools"] ?? [], options: [.sortedKeys])
-        let tools2 = try JSONSerialization.data(withJSONObject: second["tools"] ?? [], options: [.sortedKeys])
-        XCTAssertEqual(tools1, tools2)
 
         // 版 2(会話・単元ホーム)の形は変えない。
         options.translation = 2
-        let legacy = try ClaudeRequestTranslator.translate(codexGrading(planID: "plan-1", log: log1, problem: "{}"), options: options).body
+        options.schemaInInstructions = false
+        let legacy = try ClaudeRequestTranslator.translate(codexRequest(planID: "plan-1", log: "LOG", task: "x", schema: schema("grade")), options: options).body
         XCTAssertEqual((legacy["system"] as? [[String: Any]])?.count, 1)
+        XCTAssertNotNil((legacy["output_config"] as? [String: Any])?["format"])
+    }
+
+    func testTimelineRequestsCompareCacheDiagnosticsAcrossKinds() {
+        XCTAssertEqual(ClaudeTranslation.diagnosticsKey(threadID: "t1", kind: "timeline_grading"), ClaudeTranslation.diagnosticsKey(threadID: "t2", kind: "timeline_review"))
+        XCTAssertEqual(ClaudeTranslation.diagnosticsKey(threadID: "t3", kind: "timeline_batch"), "timeline-tutor")
+        XCTAssertEqual(ClaudeTranslation.diagnosticsKey(threadID: "t4", kind: "chat"), "t4")
+        XCTAssertEqual(ClaudeTranslation.diagnosticsKey(threadID: "t5", kind: "timeline_graph"), "t5")
+        XCTAssertEqual(ClaudeTranslation.systemCacheTTL(translation: 4, tail: "5m"), "1h")
+    }
+
+    // MARK: 形に合わない返事
+
+    func testUnreadableReplyIsAskedAgainOnceWithTheReason() async throws {
+        let ledger = try Ledger.inMemory()
+        let attemptID: String = try await ledger.commit { db in
+            var timeline = try TimelineMachine(loading: db)
+            timeline.put("test", F.card("c1"))
+            let id = timeline.recordCapture(cardID: "c1", capturePath: "t.jpg", seconds: 3, assisted: false)
+            return (timeline.events, id)
+        }
+        func outcome(_ round: Int, _ text: String) -> TurnOutcome {
+            TurnOutcome(planID: "p", round: round, status: .completed, codexThreadID: nil, codexTurnID: nil, finalText: text, executions: [],
+                        rateLimits: nil, files: [], error: nil, elapsedMs: 1)
+        }
+        let first = try await ledger.commit { db in
+            let applied = try TimelineTurns.apply(kind: .timelineGrading, targetID: attemptID, outcome: outcome(1, "採点しました"), model: "m", db: db)
+            return (applied.events, applied.followUp)
+        }
+        XCTAssertTrue(first.retry)
+        XCTAssertTrue(first.repair?.contains("JSON") == true, first.repair ?? "")
+        var verdict = try await ledger.read { db in try TimelineAttemptRecord.fetchOne(db, key: attemptID)?.verdict }
+        XCTAssertEqual(verdict, "grading", "頼み直す間は採点中のまま")
+        let text = TimelineTurns.turnText(task: "# 今回の仕事: 採点", materials: .emptyObject, repair: first.repair)
+        XCTAssertTrue(text.hasPrefix("# 今回の仕事: 採点"), "今回の仕事と材料は同じ")
+        XCTAssertTrue(text.contains("# 前の返事について"))
+        let second = try await ledger.commit { db in
+            let applied = try TimelineTurns.apply(kind: .timelineGrading, targetID: attemptID, outcome: outcome(2, "{}x"), model: "m", db: db)
+            return (applied.events, applied.followUp)
+        }
+        XCTAssertFalse(second.retry, "頼み直すのは 1 回だけ")
+        verdict = try await ledger.read { db in try TimelineAttemptRecord.fetchOne(db, key: attemptID)?.verdict }
+        XCTAssertEqual(verdict, "failed")
+        XCTAssertEqual(TimelineTurns.parseProblem(DecodingError.keyNotFound(TimelineMachine.Grading.CodingKeys.grade, .init(codingPath: [], debugDescription: "")), text: "{}"), "項目 grade がありません")
     }
 }

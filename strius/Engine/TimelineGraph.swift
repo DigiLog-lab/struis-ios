@@ -662,7 +662,7 @@ nonisolated enum TimelineWriteTools {
             guard !text("question").isEmpty, options.count >= 2 else { return (false, "question と 2 つ以上の options が要ります。") }
             let about = text("about_attempt_id")
             let id = machine.addAsk(question: text("question"), options: options, aboutAttemptID: about.isEmpty ? nil : about)
-            return (true, "問い \(id) を、次に出す位置に入れました。生徒が選んだものは今日の答案の一覧に載ります。")
+            return (true, "問い \(id) を、次に出す位置に入れました。生徒が選んだものは今日の記録に載ります。")
         case "timeline_revise":
             let marks = args["skill_results"]?.arrayValue.map { items in
                 Dictionary(items.compactMap { item -> (String, String)? in

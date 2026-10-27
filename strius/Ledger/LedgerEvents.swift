@@ -75,6 +75,7 @@ nonisolated struct LedgerEvent: Codable, Hashable, Sendable {
         case .timelineCards: try Self.decode(TimelineCardRecord.self, from: payload).save(db)
         case .timelineAttempts: try Self.decode(TimelineAttemptRecord.self, from: payload).save(db)
         case .timelineDips: try Self.decode(TimelineDipRecord.self, from: payload).save(db)
+        case .timelineLog: try Self.decode(TimelineLogRecord.self, from: payload).save(db)
         }
     }
 

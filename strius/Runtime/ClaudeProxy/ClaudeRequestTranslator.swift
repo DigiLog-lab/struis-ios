@@ -13,6 +13,8 @@ nonisolated enum ClaudeRequestTranslator {
         /// 署名の合わない thinking を外してもう一度送る時に使う。
         var stripThinking = false
         /// schema が大きすぎて structured outputs に拒まれた時は、schema を指示文で渡す(結果は Engine が検証する)。
+        /// 版 4 は最初から指示文で渡す(`output_config.format` は API の側で system に説明を差し込み、依頼の種類ごとに
+        /// 先頭が変わる。出題の schema は文法が大きすぎて毎回 400 で拒まれてもいた。2026-10-27)。
         var schemaInInstructions = false
         /// 変換方式の版(`ClaudeTranslation`)。スレッドを始めた時の版で続ける(送信済みの履歴の形を変えない)。
         var translation = ClaudeTranslation.current
@@ -103,7 +105,29 @@ nonisolated enum ClaudeRequestTranslator {
             structured = true
         }
         if !outputConfig.isEmpty { body["output_config"] = outputConfig }
-        if options.translation >= 3, !systemParts.isEmpty {
+        if options.translation >= 4, !systemParts.isEmpty {
+            // 1 つ目(基本指示)と、その後の developer 指示(今日の記録)を `blockSeparator` で分けて 1 件 1 ブロックにする。
+            // 1 時間の印は基本指示の最後と、今日の記録の最後のブロックに置く(後ろに足すだけの記録は、前の印から 20 ブロック
+            // 以内なら前回の分を読める)。記録の終わり(`logEnd`)より後ろ(Codex が足す権限の注記など)は別のブロックにし、
+            // 印は置かない。出力の形はその後ろ。末尾の自動の印(5 分)はさらに後ろに来る。
+            var blocks: [[String: Any]] = [["type": "text", "text": systemParts[0], "cache_control": ClaudeTranslation.cacheControl(ttl: "1h")]]
+            var logMark: Int?
+            for part in systemParts.dropFirst() {
+                let end = part.range(of: ClaudeTranslation.logEnd)
+                let log = end.map { String(part[..<$0.lowerBound]) } ?? part
+                for piece in log.components(separatedBy: ClaudeTranslation.blockSeparator) where !piece.isEmpty {
+                    blocks.append(["type": "text", "text": piece])
+                    logMark = blocks.count - 1
+                }
+                if let end {
+                    let rest = part[end.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !rest.isEmpty { blocks.append(["type": "text", "text": rest]) }
+                }
+            }
+            if let logMark { blocks[logMark]["cache_control"] = ClaudeTranslation.cacheControl(ttl: "1h") }
+            if let schemaPart { blocks.append(["type": "text", "text": schemaPart]) }
+            body["system"] = blocks
+        } else if options.translation >= 3, !systemParts.isEmpty {
             // 指示(base)と、会話の前の developer 指示を別のブロックにし、それぞれの後ろに breakpoint を置く(最初と最後)。
             // タイムラインでは 1 つ目が「どの依頼にも同じもの」、2 つ目が「今日の答案の一覧」(後ろに足していく)。
             var blocks: [[String: Any]] = systemParts.enumerated().map { index, text in
@@ -426,9 +450,15 @@ nonisolated struct ClaudeToolNames: Sendable {
 /// - 2: キーの順・tools の順を固定し、固定の指示に 1 時間の breakpoint、会話の末尾は処理群ごとの TTL。cache diagnostics。
 /// - 3: 2 に加えて、system を指示と developer 指示の別々のブロックにし、それぞれの後ろに末尾と同じ TTL の breakpoint を置く。
 ///   タイムラインの採点・出題・見直し(`tutorKinds`)だけが使う(2026-10-25)。
+/// - 4: 3 に代わるタイムラインの版(2026-10-27)。developer 指示(今日の記録)を `blockSeparator` で分けて 1 件 1 ブロックにし、
+///   基本指示の最後と今日の記録の最後に 1 時間の breakpoint を置く。出力の形は最初から指示文で渡す。
 nonisolated enum ClaudeTranslation {
     static let current = 2
-    static let tutor = 3
+    static let tutor = 4
+    /// 今日の記録の 1 件ごとの区切り(版 4 で system のブロックに分ける)。
+    static let blockSeparator = "\n\n<!-- struis:block -->\n\n"
+    /// 今日の記録の終わり(この後ろに Codex が足す注記は記録のブロックに混ぜない)。
+    static let logEnd = "\n\n<!-- struis:log-end -->"
     static let tutorKinds: Set<String> = ["timeline_batch", "timeline_grading", "timeline_review"]
 
     /// スレッドを始める時の版。
@@ -440,14 +470,29 @@ nonisolated enum ClaudeTranslation {
     }
 
     /// 末尾の TTL。解答を考えて撮影する継続会話は 1 時間、一度で終わる処理(単元の構成・出題・採点・下調べ)は 5 分
-    /// (固有の入力まで 1 時間の倍の書き込み料金を払わない)。
+    /// (固有の入力まで 1 時間の倍の書き込み料金を払わない)。タイムラインの採点・出題・見直しの末尾は 1 回の依頼の中で
+    /// 道具を使った時の続きの要求のための 5 分で、依頼をまたいで残す先頭は system の 1 時間の印(版 4)が受け持つ。
     static func tailCacheTTL(kind: String?) -> String {
         switch kind {
         case "chat", "thread_fork", "thread_inject": "1h"
-        // タイムラインの採点・出題・見直しは、1 問ごとに続けて頼むので 5 分(2026-10-25 の依頼)。
-        case "timeline_batch", "timeline_grading", "timeline_review", "timeline_graph": "5m"
         default: "5m"
         }
+    }
+
+    /// system の breakpoint の TTL(実行監査の記録用)。版 4 は 1 時間、版 3 は末尾と同じ、版 2 は 1 時間。
+    static func systemCacheTTL(translation: Int, tail: String) -> String? {
+        switch translation {
+        case 4...: "1h"
+        case 3: tail
+        case 2: "1h"
+        default: nil
+        }
+    }
+
+    /// cache diagnostics で比べる直前の応答の控えのキー。タイムラインの採点・出題・見直しは毎回新しいスレッドなので、
+    /// 種類をまたいで直前のタイムラインの依頼と比べる。
+    static func diagnosticsKey(threadID: String, kind: String?) -> String {
+        kind.map(tutorKinds.contains) == true ? "timeline-tutor" : threadID
     }
 }
 

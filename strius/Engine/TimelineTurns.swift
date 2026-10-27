@@ -7,18 +7,20 @@ private let timelineTurnLog = Logger(subsystem: "com.digiloglab.strius", categor
 /// 学習タイムラインの AI のターン(Issue #46「5枚をまとめて作る呼び出し」「採点」「知識グラフ」)。今の構造化ターン
 /// (`TurnPlan` → 端末の Codex → OpenAI / `ClaudeResponsesProxy`)に種類を足して回す。
 ///
-/// 採点・出題・見直しは、キャッシュに乗せるため同じ順に並べる(2026-10-25):
-/// 1. どの依頼にも同じもの(基本指示・理想の動き・起こり得ること・道具の使い方・単元とスキルの一覧)= Claude の system の 1 つ目
-/// 2. 今日の答案の一覧 = system の 2 つ目(Codex の developer 指示)
-/// 3. 今回の仕事(1〜2 行)と、今回の材料 = 会話の最初の発話
-/// 1 と 2 の後ろにそれぞれキャッシュの印を置く(`ClaudeRequestTranslator` の版 3)。作業フォルダの場所(処理ごとに違う)は
+/// 採点・出題・見直しは、キャッシュに乗せるため同じ順に並べる(2026-10-27):
+/// 1. 基本指示(`prompt:base`・理想の動き・起こり得ること・道具の説明)= Claude の system の 1 つ目。3 つで 1 バイトも違わない
+/// 2. 今日の記録(その日最初の単元とスキルの一覧、採点・見直し・申し出・足されたスキル)= system の 2 つ目以降、1 件 1 ブロック。
+///    出来事ごとに書いた時点の文を台帳に保存し、後ろに足すだけ(`TimelineLogRecord`)
+/// 3. 出力の形(JSON Schema の文)= 記録の後ろ
+/// 4. 今回の仕事(1〜2 行)と、今回の材料 = 会話の最初の発話
+/// 1 と 2 の最後に 1 時間のキャッシュの印を置く(`ClaudeRequestTranslator` の版 4)。作業フォルダの場所(処理ごとに違う)は
 /// 先頭に入れない: 前の版は Skill を作業フォルダに置いていて、その場所が Codex の Skill の一覧として system に入り、毎回外れていた。
 nonisolated enum TimelineTurns {
     static let batchFailure = "次の問題を作れませんでした。"
     static let gradingFailure = "採点できませんでした。もう一度撮ってください。"
 
-    /// 見直しだけ考える深さを上げる(採点・出題は配信の別名のまま)。
-    static let reviewEffort = "high"
+    /// 採点・出題・見直しの考える深さ(3 つで揃える。深さが違うとキャッシュが分かれることがある。2026-10-27)。
+    static let tutorEffort = "medium"
 
     // MARK: - 先頭(採点・出題・見直しで共通)
 
@@ -30,107 +32,60 @@ nonisolated enum TimelineTurns {
         return recentUnit.flatMap { workbook.units[$0] } ?? workbook.orderedUnits().first
     }
 
-    /// 先頭の終わり: 今の単元と小単元、その単元の「できること」(スキル)の名前と ID(依存関係は含めない)。
+    /// 今の単元と小単元、その単元の「できること」(スキル)の名前と ID(依存関係は含めない)。今日の記録の最初の 1 件に入れる。
     static func sharedContext(workbook: WorkbookMachine, timeline: TimelineMachine) -> String {
-        var lines: [String] = []
-        if let unit = currentUnit(workbook: workbook, timeline: timeline) {
-            lines.append("## 今の単元")
-            lines.append("- \(unit.title)(\(unit.id))")
-            for subunit in workbook.orderedSubunits(unitID: unit.id) {
-                lines.append("  - 小単元: \(subunit.title)(\(subunit.id))")
-            }
-            let names = timeline.activeSkills.filter { skill in skill.unitId == nil || TimelineGraphSchedule.unitID(of: skill, workbook: workbook) == unit.id }.map { "- \($0.name)(\($0.id))" }
-            if !names.isEmpty {
-                lines.append("## この単元のスキル")
-                lines.append(contentsOf: names)
-            }
-        }
-        return lines.joined(separator: "\n")
+        guard let unit = currentUnit(workbook: workbook, timeline: timeline) else { return "" }
+        let skills = unitSkills(unit.id, workbook: workbook, timeline: timeline)
+        return TimelineLogText.context(unit: unit, subunits: workbook.orderedSubunits(unitID: unit.id), skills: skills, changed: false)
     }
 
-    /// 今日の答案の一覧(採点・出題・見直しのどの依頼にも付ける)。採点したモデルのメモと書き起こしを 1 問ずつ足していく。
-    /// 中身の書き方は決めない(メモはモデルが自分の言葉で書いたもの)。後ろに足すだけなので、前の依頼の先頭はそのまま残る。
+    static func unitSkills(_ unitID: String, workbook: WorkbookMachine, timeline: TimelineMachine) -> [TimelineSkillRecord] {
+        timeline.activeSkills.filter { skill in skill.unitId == nil || TimelineGraphSchedule.unitID(of: skill, workbook: workbook) == unitID }
+    }
+
+    /// 依頼を組む前に、今日の記録に足りない分を足す(台帳に書く同じ書き込みの中で)。
+    /// - その日最初の依頼: 今の単元とスキルの一覧(その日の先頭に入れる)
+    /// - 単元が変わった: 新しい単元とスキルの一覧
+    /// - 今の単元にスキルが足された: 足された分だけ
+    /// - まだ記録に無い、結果の出た今日の答案(この版より前に解いた答案)
+    static func syncLog(workbook: WorkbookMachine, timeline: inout TimelineMachine) {
+        timeline.logMissedAttempts()
+        guard let unit = currentUnit(workbook: workbook, timeline: timeline) else { return }
+        let entries = timeline.todayLog
+        let skills = unitSkills(unit.id, workbook: workbook, timeline: timeline)
+        let lastUnit = entries.last { $0.kind == "context" || $0.kind == "unit" }?.unitId
+        if !entries.contains(where: { $0.kind == "context" }) {
+            timeline.appendLog(kind: "context", unitID: unit.id, skillIDs: skills.map(\.id),
+                               text: TimelineLogText.context(unit: unit, subunits: workbook.orderedSubunits(unitID: unit.id), skills: skills, changed: false), first: true)
+        } else if lastUnit != unit.id {
+            timeline.appendLog(kind: "unit", unitID: unit.id, skillIDs: skills.map(\.id),
+                               text: TimelineLogText.context(unit: unit, subunits: workbook.orderedSubunits(unitID: unit.id), skills: skills, changed: true))
+        } else {
+            let listed = Set(entries.flatMap(\.skillIds))
+            let added = skills.filter { !listed.contains($0.id) }
+            if !added.isEmpty {
+                timeline.appendLog(kind: "skills", unitID: unit.id, skillIDs: added.map(\.id), text: TimelineLogText.skillsAdded(added))
+            }
+        }
+    }
+
+    /// 今日の記録(採点・出題・見直しのどの依頼にも付ける)。保存済みの文を保存した順に並べるだけで、答案の今の状態から
+    /// 作り直さない(前に送った分が 1 バイトも変わらず先頭に残る)。1 件ごとに `ClaudeTranslation.blockSeparator` で区切り、
+    /// 終わりに `ClaudeTranslation.logEnd` を置く。Claude への変換(版 4)で 1 件 1 ブロックにする。
     static func answerLog(timeline: TimelineMachine) -> String {
-        let today = timeline.today
-        // 採点中の答案は載せない(結果が出ると行が変わり、一覧が後ろに足すだけでなくなる。採点中の答案は今回の材料にある)。
-        let attempts = timeline.orderedAttempts.filter { TimelineRules.day($0.createdAt, calendar: timeline.calendar) == today && $0.verdict != "grading" }
-        guard !attempts.isEmpty else { return "# 今日の答案\n\nまだありません。" }
-        var blocks: [String] = ["# 今日の答案"]
-        for attempt in attempts {
-            guard let card = timeline.cards[attempt.cardId] else { continue }
-            var lines = ["## \(clock(attempt.createdAt)) 答案 \(attempt.id)(カード \(card.id))"]
-            let problem = [card.payload["problem"]?.stringValue ?? card.prompt, card.math.isEmpty ? "" : "$\(card.math)$", card.question].filter { !$0.isEmpty }.joined(separator: " ")
-            lines.append("問題: " + problem + "(\(TimelineCards.Kind(rawValue: card.kind)?.title ?? card.kind)・段 \(card.level)\(originNote(card)))")
-            if !card.answerKey.isEmpty { lines.append("正しい答え: " + card.answerKey) }
-            lines.append("結果: " + resultLine(attempt) + "・\(Int(attempt.seconds.rounded()))秒")
-            if !attempt.learnerAnswer.isEmpty { lines.append("生徒の答え: " + attempt.learnerAnswer) }
-            if let choice = attempt.checkpointResults.arrayValue?.first, card.kind == TimelineCards.Kind.ask.rawValue,
-               let index = choice.intValue, let options = card.payload["options"]?.arrayValue?.compactMap(\.stringValue), options.indices.contains(index) {
-                lines.append("問い: " + card.prompt + " → 生徒が選んだもの: " + options[index])
-            }
-            let skills = skillLine(attempt: attempt, card: card, timeline: timeline)
-            if !skills.isEmpty { lines.append("スキル: " + skills) }
-            if let transcript = attempt.transcript, !transcript.isEmpty { lines.append("書き起こし:\n" + transcript) }
-            if let notes = attempt.notes, !notes.isEmpty { lines.append("メモ:\n" + notes) }
-            if !attempt.feedback.isEmpty, attempt.grade != nil { lines.append("生徒に見せた言葉: " + attempt.feedback) }
-            if let dispute = attempt.dispute, !dispute.isEmpty { lines.append("生徒からの申し出(判定に納得できない): " + dispute) }
-            if let review = attempt.reviewNotes, !review.isEmpty { lines.append("見直し:\n" + review) }
-            blocks.append(lines.joined(separator: "\n"))
-        }
-        return blocks.joined(separator: "\n\n")
+        let entries = timeline.todayLog
+        let parts = ["# 今日の記録"] + (entries.isEmpty ? ["まだありません。"] : entries.map(\.text))
+        return parts.joined(separator: ClaudeTranslation.blockSeparator) + ClaudeTranslation.logEnd
     }
 
-    private static func clock(_ iso: String) -> String {
-        guard let date = LedgerClock.parse(iso) else { return "" }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
-    }
-
-    private static func originNote(_ card: TimelineCardRecord) -> String {
-        switch card.origin {
-        case "variant": "・数値だけ変えた問題"
-        case "easier": "・やさしくした問題"
-        case "rapid": "・速攻"
-        case "review": "・見直しで入れた問題"
-        case "history": "・前に解けた問題"
-        default: TimelineRules.chainPosition(card).map { "・続きの \($0.position)/\($0.total)" } ?? ""
-        }
-    }
-
-    private static func resultLine(_ attempt: TimelineAttemptRecord) -> String {
-        switch attempt.grade ?? attempt.verdict {
-        case "correct": "正解"
-        case "partial": "答えは合うが途中に誤り"
-        case "wrong": "誤答"
-        case "skipped": "飛ばした" + (attempt.skipReason.map { $0 == "too_hard" ? "(難しすぎる)" : $0 == "too_easy" ? "(簡単すぎる)" : "" } ?? "")
-        case "grading": "採点中"
-        case "unreadable": "字が読めなかった"
-        case "failed": "採点できなかった"
-        case "answered": "答えた"
-        default: attempt.verdict
-        }
-    }
-
-    private static func skillLine(attempt: TimelineAttemptRecord, card: TimelineCardRecord, timeline: TimelineMachine) -> String {
-        let name = { (id: String) in "\(timeline.skills[id]?.name ?? id)(\(id))" }
-        if let marks = attempt.skillMarks, !marks.isEmpty {
-            return marks.keys.sorted().map { name($0) + (marks[$0] == "correct" ? " ○" : " ×") }.joined(separator: "、")
-        }
-        if let ids = attempt.skillIds, !ids.isEmpty {
-            return ids.map(name).joined(separator: "、") + (attempt.skillsPending == true ? "(○× は見直しで決める)" : "")
-        }
-        return card.skills.map(name).joined(separator: "、")
-    }
-
-    /// 採点・出題・見直しのスレッド。先頭(system の 1 つ目)は 3 つで 1 文字も違わない。今日の答案の一覧は Codex の
-    /// developer 指示に入れる(system の 2 つ目)。
-    static func tutorThread(composer: TurnComposer, planID: String, workbook: WorkbookMachine, timeline: TimelineMachine, effort: String? = nil) async throws -> TurnPlan.ThreadSpec {
+    /// 採点・出題・見直しのスレッド。基本指示(system の 1 つ目: `prompt:base`・`timeline_shared`・道具の説明)は 3 つで
+    /// 1 バイトも違わない。今日の記録は Codex の developer 指示に入れる(system の 2 つ目以降、1 件 1 ブロック)。
+    static func tutorThread(composer: TurnComposer, planID: String, workbook: WorkbookMachine, timeline: TimelineMachine) async throws -> TurnPlan.ThreadSpec {
         let model = await composer.assets.model(TimelineModels.role)
-        let effort = effort ?? model.effort
+        let effort = tutorEffort
         let shared = try await composer.assets.text("prompt:timeline_shared")
-        let base = try await composer.assets.ref("prompt:base", append: shared + "\n\n" + sharedContext(workbook: workbook, timeline: timeline))
+        // 道具の説明は今日の記録の前に置く(`CodexTurnRunner.configureThread` は採点・出題・見直しでは developer 指示に足さない)。
+        let base = try await composer.assets.ref("prompt:base", append: shared + "\n\n" + NativeToolRouter.instructions)
         return TurnPlan.ThreadSpec(
             codexThreadID: nil, mode: .start, cwd: TurnPlan.guestWorkspace(id: planID), model: model.model, effort: effort,
             ephemeral: true, baseInstructions: base, developerInstructions: nil,
@@ -155,14 +110,33 @@ nonisolated enum TimelineTurns {
     /// 作業フォルダには何も置かない(Skill の本文は先頭の「道具」に書き、tool は直接呼ぶ)。
     static let workspace = TurnPlan.WorkspaceSpec(files: [], dirs: [])
 
-    /// 会話の最初の発話: 今回の仕事と、今回の材料。
-    static func turnText(task: String, materials: LedgerJSON) -> String {
-        task.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n# 今回の材料\n\n" + TurnComposer.dump(materials)
+    /// 会話の最初の発話: 今回の仕事と、今回の材料。`repair` は前の返事が決まった形に合わなかった理由(1 回だけ頼み直す時)。
+    static func turnText(task: String, materials: LedgerJSON, repair: String? = nil) -> String {
+        var text = task.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n# 今回の材料\n\n" + TurnComposer.dump(materials)
+        if let repair, !repair.isEmpty {
+            text += "\n\n# 前の返事について\n\n同じ仕事の前の返事は、決まった形として読めませんでした(\(repair))。同じ仕事を、決まった形の JSON 1 つだけでもう一度答えてください。"
+        }
+        return text
+    }
+
+    /// 返事が決まった形として読めなかった理由(頼み直す時に添える)。
+    static func parseProblem(_ error: Error, text: String) -> String {
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "返事が空でした" }
+        switch error {
+        case DecodingError.dataCorrupted(let context):
+            return "JSON として読めません: " + context.debugDescription
+        case DecodingError.keyNotFound(let key, let context):
+            return "項目 " + (context.codingPath.map(\.stringValue) + [key.stringValue]).joined(separator: ".") + " がありません"
+        case DecodingError.typeMismatch(_, let context), DecodingError.valueNotFound(_, let context):
+            return "項目 " + context.codingPath.map(\.stringValue).joined(separator: ".") + " の型が違います: " + context.debugDescription
+        default:
+            return String(String(describing: error).prefix(300))
+        }
     }
 
     // MARK: - 5枚
 
-    /// 5枚を頼む時に渡す材料。直近の結果は今日の答案の一覧(先頭の 2 つ目)にあるので、ここには入れない。
+    /// 5枚を頼む時に渡す材料。直近の結果は今日の記録にあるので、ここには入れない。
     static func batchRequest(workbook: WorkbookMachine, timeline: TimelineMachine, batch: TimelineBatchRecord) -> LedgerJSON {
         let attempts = timeline.orderedAttempts
         let usedSkills = Set(attempts.suffix(10).compactMap { timeline.cards[$0.cardId] }.flatMap(\.skills))
@@ -212,13 +186,13 @@ nonisolated enum TimelineTurns {
         return "\(name)(\(skillID))で × が2回続いた。" + (kinds.isEmpty ? "" : "誤答の種類は " + kinds.joined(separator: "・"))
     }
 
-    static func batch(composer: TurnComposer, planID: String, batchID: String, workbook: WorkbookMachine, timeline: TimelineMachine) async throws -> TurnPlan {
+    static func batch(composer: TurnComposer, planID: String, batchID: String, workbook: WorkbookMachine, timeline: TimelineMachine, repair: String? = nil) async throws -> TurnPlan {
         guard let batch = timeline.batches[batchID] else { throw LedgerError.notFound("timeline batch") }
         let request = batchRequest(workbook: workbook, timeline: timeline, batch: batch)
         return TurnPlan(
-            id: planID, kind: .timelineBatch, round: 1,
+            id: planID, kind: .timelineBatch, round: repair == nil ? 1 : 2,
             thread: try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline),
-            turn: TurnPlan.TurnSpec(text: turnText(task: try await composer.assets.text("prompt:timeline_instructions"), materials: request), images: [],
+            turn: TurnPlan.TurnSpec(text: turnText(task: try await composer.assets.text("prompt:timeline_instructions"), materials: request, repair: repair), images: [],
                                     outputSchema: try await composer.assets.json("schema:timeline_batch"), sandboxPolicy: "dangerFullAccess"),
             workspace: workspace, delegation: nil, collect: [], limits: .structured, items: nil
         )
@@ -247,16 +221,16 @@ nonisolated enum TimelineTurns {
         return .object(request)
     }
 
-    static func grading(composer: TurnComposer, planID: String, attemptID: String, workbook: WorkbookMachine, timeline: TimelineMachine) async throws -> TurnPlan {
+    static func grading(composer: TurnComposer, planID: String, attemptID: String, workbook: WorkbookMachine, timeline: TimelineMachine, repair: String? = nil) async throws -> TurnPlan {
         guard let attempt = timeline.attempts[attemptID], let card = timeline.cards[attempt.cardId], let path = attempt.capturePath else {
             throw LedgerError.notFound("timeline attempt")
         }
         let ext = (path as NSString).pathExtension.isEmpty ? "jpg" : (path as NSString).pathExtension
         let image = TurnPlan.ImageRef(path: "tutor_desk/inbox/timeline/\(attemptID).\(ext)", hostPath: StruisPaths.captures.appendingPathComponent(path).path)
         return TurnPlan(
-            id: planID, kind: .timelineGrading, round: 1,
+            id: planID, kind: .timelineGrading, round: repair == nil ? 1 : 2,
             thread: try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline),
-            turn: TurnPlan.TurnSpec(text: turnText(task: try await composer.assets.text("prompt:timeline_grading_instructions"), materials: gradingRequest(attempt: attempt, card: card)),
+            turn: TurnPlan.TurnSpec(text: turnText(task: try await composer.assets.text("prompt:timeline_grading_instructions"), materials: gradingRequest(attempt: attempt, card: card), repair: repair),
                                     images: [image], outputSchema: try await composer.assets.json("schema:timeline_grading"), sandboxPolicy: "dangerFullAccess"),
             workspace: workspace, delegation: nil, collect: [], limits: .structured, items: nil
         )
@@ -281,7 +255,7 @@ nonisolated enum TimelineTurns {
         ])
     }
 
-    static func review(composer: TurnComposer, planID: String, attemptID: String, workbook: WorkbookMachine, timeline: TimelineMachine) async throws -> TurnPlan {
+    static func review(composer: TurnComposer, planID: String, attemptID: String, workbook: WorkbookMachine, timeline: TimelineMachine, repair: String? = nil) async throws -> TurnPlan {
         guard timeline.attempts[attemptID] != nil else { throw LedgerError.notFound("timeline attempt") }
         var images: [TurnPlan.ImageRef] = []
         if let attempt = timeline.attempts[attemptID], let path = attempt.capturePath {
@@ -289,9 +263,9 @@ nonisolated enum TimelineTurns {
             images.append(TurnPlan.ImageRef(path: "tutor_desk/inbox/timeline/\(attemptID).\(ext)", hostPath: StruisPaths.captures.appendingPathComponent(path).path))
         }
         return TurnPlan(
-            id: planID, kind: .timelineReview, round: 1,
-            thread: try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline, effort: reviewEffort),
-            turn: TurnPlan.TurnSpec(text: turnText(task: try await composer.assets.text("prompt:timeline_review_instructions"), materials: reviewRequest(targetID: attemptID, timeline: timeline)),
+            id: planID, kind: .timelineReview, round: repair == nil ? 1 : 2,
+            thread: try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline),
+            turn: TurnPlan.TurnSpec(text: turnText(task: try await composer.assets.text("prompt:timeline_review_instructions"), materials: reviewRequest(targetID: attemptID, timeline: timeline), repair: repair),
                                     images: images, outputSchema: try await composer.assets.json("schema:timeline_review"), sandboxPolicy: "dangerFullAccess"),
             workspace: workspace, delegation: nil, collect: [], limits: .structured, items: nil
         )
@@ -447,6 +421,8 @@ nonisolated enum TimelineTurns {
     nonisolated struct FollowUp: Sendable, Equatable {
         /// 同じ対象でターンを組み直す(受け取りを断って作り直させる)。
         var retry = false
+        /// 返事が決まった形に合わなかった理由。あれば同じ中身に理由を添えて 1 回だけ頼み直す(`retry` と一緒に立つ)。
+        var repair: String?
         /// 続けて頼むグラフの依頼(次の段・よくある勘違い・1段下りる)。
         var nextGraph: String?
         /// 結果を出した後に、生徒が次の問題を解いている間に見直す答案。
@@ -471,13 +447,33 @@ nonisolated enum TimelineTurns {
                 if timeline.applyBatch(id: targetID, batch: parsed) == .retry { followUp.retry = true }
             } catch {
                 timelineTurnLog.error("timeline batch unreadable: \(String(describing: error), privacy: .public)")
-                timeline.failBatch(id: targetID, error: "unreadable batch")
+                // 形に合わなかった: 理由を添えて 1 回だけ頼み直す(頼み直した返事も読めなければ失敗)。
+                if outcome.round <= 1 {
+                    followUp.retry = true
+                    followUp.repair = parseProblem(error, text: outcome.finalText)
+                } else {
+                    timeline.failBatch(id: targetID, error: "unreadable batch")
+                }
             }
         case .timelineGrading:
             guard let attempt = timeline.attempts[targetID], attempt.verdict == "grading" else { return ([], followUp) }
-            guard outcome.status == .completed, let grading = try? TimelineMachine.Grading.parse(outcome.finalText) else {
-                timelineTurnLog.error("timeline grading failed: \(outcome.error ?? "unreadable", privacy: .public)")
+            guard outcome.status == .completed else {
+                timelineTurnLog.error("timeline grading failed: \(outcome.error ?? "-", privacy: .public)")
                 timeline.failGrading(attemptID: targetID)
+                break
+            }
+            let grading: TimelineMachine.Grading
+            do {
+                grading = try TimelineMachine.Grading.parse(outcome.finalText)
+            } catch {
+                timelineTurnLog.error("timeline grading unreadable: \(String(describing: error), privacy: .public)")
+                // 形に合わなかった: 答案は採点中のまま、理由を添えて 1 回だけ頼み直す。
+                if outcome.round <= 1 {
+                    followUp.retry = true
+                    followUp.repair = parseProblem(error, text: outcome.finalText)
+                } else {
+                    timeline.failGrading(attemptID: targetID)
+                }
                 break
             }
             let result = timeline.applyGrading(attemptID: targetID, grading: grading)
@@ -490,9 +486,20 @@ nonisolated enum TimelineTurns {
             }
         case .timelineReview:
             guard timeline.attempts[targetID] != nil else { return ([], followUp) }
-            guard outcome.status == .completed, let review = try? TimelineMachine.Review.parse(outcome.finalText) else {
+            guard outcome.status == .completed else {
                 // 見直しに失敗しても、生徒の流れは止めない(次の見直しで、まだ見ていない答案を一緒に見る)。
-                timelineTurnLog.error("timeline review failed: \(outcome.error ?? "unreadable", privacy: .public)")
+                timelineTurnLog.error("timeline review failed: \(outcome.error ?? "-", privacy: .public)")
+                break
+            }
+            let review: TimelineMachine.Review
+            do {
+                review = try TimelineMachine.Review.parse(outcome.finalText)
+            } catch {
+                timelineTurnLog.error("timeline review unreadable: \(String(describing: error), privacy: .public)")
+                if outcome.round <= 1 {
+                    followUp.retry = true
+                    followUp.repair = parseProblem(error, text: outcome.finalText)
+                }
                 break
             }
             timeline.applyReview(targetID: targetID, review: review)
@@ -607,5 +614,129 @@ nonisolated enum TimelineTurns {
 
     static func isTimeline(_ kind: TurnPlan.Kind) -> Bool {
         kind == .timelineBatch || kind == .timelineGrading || kind == .timelineGraph || kind == .timelineReview
+    }
+}
+
+/// 今日の記録の 1 件の文(書いた時点の文のまま保存する。書式はモデルに決めさせないが、ここで並べる項目は固定)。
+nonisolated enum TimelineLogText {
+    static func clock(_ iso: String) -> String {
+        guard let date = LedgerClock.parse(iso) else { return "" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+
+    /// 今の単元と小単元、その単元のスキル(その日最初の依頼の時点。単元が変わった時はその単元の分)。
+    static func context(unit: WorkbookUnitRecord, subunits: [WorkbookSubunitRecord], skills: [TimelineSkillRecord], changed: Bool) -> String {
+        var lines = [changed ? "## 単元が変わった" : "## 今の単元", "- \(unit.title)(\(unit.id))"]
+        for subunit in subunits { lines.append("  - 小単元: \(subunit.title)(\(subunit.id))") }
+        if !skills.isEmpty {
+            lines.append("## この単元のスキル")
+            lines.append(contentsOf: skills.map { "- \($0.name)(\($0.id))" })
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    static func skillsAdded(_ skills: [TimelineSkillRecord]) -> String {
+        (["## スキルが足された"] + skills.map { "- \($0.name)(\($0.id))" }).joined(separator: "\n")
+    }
+
+    /// 答案の結果が出た時の 1 件: 問題、正しい答え、正誤、生徒の答え、書き起こし、採点メモ、生徒に見せた言葉、スキル。
+    static func attempt(_ attempt: TimelineAttemptRecord, card: TimelineCardRecord, machine: TimelineMachine) -> String {
+        var lines = ["## \(clock(attempt.createdAt)) 答案 \(attempt.id)(カード \(card.id))"]
+        let problem = [card.payload["problem"]?.stringValue ?? card.prompt, card.math.isEmpty ? "" : "$\(card.math)$", card.question].filter { !$0.isEmpty }.joined(separator: " ")
+        lines.append("問題: " + problem + "(\(TimelineCards.Kind(rawValue: card.kind)?.title ?? card.kind)・段 \(card.level)\(originNote(card)))")
+        if !card.answerKey.isEmpty { lines.append("正しい答え: " + card.answerKey) }
+        lines.append("結果: " + resultLine(attempt) + "・\(Int(attempt.seconds.rounded()))秒")
+        if !attempt.learnerAnswer.isEmpty { lines.append("生徒の答え: " + attempt.learnerAnswer) }
+        if let choice = attempt.checkpointResults.arrayValue?.first, card.kind == TimelineCards.Kind.ask.rawValue,
+           let index = choice.intValue, let options = card.payload["options"]?.arrayValue?.compactMap(\.stringValue), options.indices.contains(index) {
+            lines.append("問い: " + card.prompt + " → 生徒が選んだもの: " + options[index])
+        }
+        let skills = skillLine(attempt: attempt, card: card, machine: machine)
+        if !skills.isEmpty { lines.append("スキル: " + skills) }
+        if let transcript = attempt.transcript, !transcript.isEmpty { lines.append("書き起こし:\n" + transcript) }
+        if let notes = attempt.notes, !notes.isEmpty { lines.append("メモ:\n" + notes) }
+        if !attempt.feedback.isEmpty, attempt.grade != nil { lines.append("生徒に見せた言葉: " + attempt.feedback) }
+        return lines.joined(separator: "\n")
+    }
+
+    static func skipReason(_ attempt: TimelineAttemptRecord) -> String {
+        "## 答案 \(attempt.id) を飛ばした理由: " + (attempt.skipReason == "too_hard" ? "難しすぎる" : attempt.skipReason == "too_easy" ? "簡単すぎる" : attempt.skipReason ?? "")
+    }
+
+    static func dispute(_ attempt: TimelineAttemptRecord) -> String {
+        "## \(clock(attempt.disputedAt ?? attempt.createdAt)) 生徒からの申し出(答案 \(attempt.id)、判定に納得できない)\n" + (attempt.dispute ?? "")
+    }
+
+    /// 見直しの結果: 見直しメモと、確定したスキルの ○×。何も決めず、メモも無ければ書かない。
+    static func review(targetID: String, notes: String, decided: [String: [String: String]], machine: TimelineMachine) -> String? {
+        guard !notes.isEmpty || !decided.isEmpty else { return nil }
+        var lines = ["## \(clock(machine.now())) 見直し(答案 \(targetID))"]
+        if !notes.isEmpty { lines.append("見直しメモ:\n" + notes) }
+        if !decided.isEmpty {
+            lines.append("確定したスキル:")
+            for (attemptID, marks) in decided.sorted(by: { $0.key < $1.key }) {
+                lines.append("- 答案 \(attemptID): " + marks.keys.sorted().map { skillName($0, machine: machine) + (marks[$0] == "correct" ? " ○" : " ×") }.joined(separator: "、"))
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// 前の判定を取り消して直した時の 1 件(取り消した判定とその理由)。
+    static func revise(_ attempt: TimelineAttemptRecord, from previous: String, note: String, machine: TimelineMachine) -> String {
+        var lines = ["## \(clock(machine.now())) 判定を直した(答案 \(attempt.id): \(gradeLabel(previous)) → \(gradeLabel(attempt.grade ?? attempt.verdict)))"]
+        if !note.isEmpty { lines.append("理由: " + note) }
+        if let marks = attempt.skillMarks, !marks.isEmpty {
+            lines.append("スキル: " + marks.keys.sorted().map { skillName($0, machine: machine) + (marks[$0] == "correct" ? " ○" : " ×") }.joined(separator: "、"))
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func skillName(_ id: String, machine: TimelineMachine) -> String { "\(machine.skills[id]?.name ?? id)(\(id))" }
+
+    private static func gradeLabel(_ grade: String) -> String {
+        switch grade {
+        case "correct": "正解"
+        case "partial": "答えは合うが途中に誤り"
+        case "wrong": "誤答"
+        default: grade
+        }
+    }
+
+    private static func originNote(_ card: TimelineCardRecord) -> String {
+        switch card.origin {
+        case "variant": "・数値だけ変えた問題"
+        case "easier": "・やさしくした問題"
+        case "rapid": "・速攻"
+        case "review": "・見直しで入れた問題"
+        case "history": "・前に解けた問題"
+        default: TimelineRules.chainPosition(card).map { "・続きの \($0.position)/\($0.total)" } ?? ""
+        }
+    }
+
+    private static func resultLine(_ attempt: TimelineAttemptRecord) -> String {
+        switch attempt.grade ?? attempt.verdict {
+        case "correct": "正解"
+        case "partial": "答えは合うが途中に誤り"
+        case "wrong": "誤答"
+        case "skipped": "飛ばした" + (attempt.skipReason.map { $0 == "too_hard" ? "(難しすぎる)" : $0 == "too_easy" ? "(簡単すぎる)" : "" } ?? "")
+        case "grading": "採点中"
+        case "unreadable": "字が読めなかった"
+        case "failed": "採点できなかった"
+        case "answered": "答えた"
+        default: attempt.verdict
+        }
+    }
+
+    private static func skillLine(attempt: TimelineAttemptRecord, card: TimelineCardRecord, machine: TimelineMachine) -> String {
+        if let marks = attempt.skillMarks, !marks.isEmpty {
+            return marks.keys.sorted().map { skillName($0, machine: machine) + (marks[$0] == "correct" ? " ○" : " ×") }.joined(separator: "、")
+        }
+        if let ids = attempt.skillIds, !ids.isEmpty {
+            return ids.map { skillName($0, machine: machine) }.joined(separator: "、") + (attempt.skillsPending == true ? "(○× は見直しで決める)" : "")
+        }
+        return card.skills.map { skillName($0, machine: machine) }.joined(separator: "、")
     }
 }
