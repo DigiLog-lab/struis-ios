@@ -391,12 +391,15 @@ extension Ledger {
                 }
                 let target = root.appendingPathComponent(file.path)
                 let row = try Row.fetchOne(db, sql: "SELECT * FROM sync_files WHERE path = ?", arguments: [file.path])
+                // The file as it is now: changed since the last scan counts with its own time and contents.
                 var local: (modifiedAt: String, sha: String)?
-                if let row, row["deleted"] == false {
-                    local = (row["modified_at"], row["sha256"])
-                } else if row == nil, FileManager.default.fileExists(atPath: target.path) {
-                    let modified = (try? target.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? Date(timeIntervalSince1970: 0)
-                    local = (LedgerClock.iso(modified), SyncNames.sha256(try Data(contentsOf: target)))
+                if let values = try? target.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]), values.isRegularFile == true {
+                    let mtime = values.contentModificationDate?.timeIntervalSince1970 ?? 0
+                    if let row, row["deleted"] == false, row["size"] == Int64(values.fileSize ?? -1), row["mtime"] == mtime {
+                        local = (row["modified_at"], row["sha256"])
+                    } else {
+                        local = (LedgerClock.iso(Date(timeIntervalSince1970: mtime)), SyncNames.sha256(try Data(contentsOf: target)))
+                    }
                 }
                 if let local, local.sha == file.sha256 || (local.modifiedAt, local.sha) > (file.modifiedAt, file.sha256) {
                     // Same contents, or this device's version is newer: keep it, and send it over theirs if newer.

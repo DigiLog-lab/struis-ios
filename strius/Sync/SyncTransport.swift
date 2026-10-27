@@ -15,7 +15,7 @@ nonisolated protocol SyncTransport: Sendable {
     func decodeArchived(_ data: Data) -> SyncRecord?
 }
 
-extension SyncTransport {
+nonisolated extension SyncTransport {
     func decodeArchived(_ data: Data) -> SyncRecord? { nil }
 }
 
