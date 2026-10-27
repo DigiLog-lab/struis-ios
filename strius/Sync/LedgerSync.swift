@@ -312,42 +312,49 @@ extension Ledger {
     // MARK: - Files
 
     /// Compare `captures/`・`attachments/`・`memory/` with what was last sent and return the changes.
-    func scanSyncFiles() throws -> FileOutbox {
-        try ensureDeletionReady()
+    /// Files are hashed outside the actor and outside any transaction, so the screens keep reading the ledger.
+    nonisolated func scanSyncFiles() throws -> FileOutbox {
         UnitDeletion.gate.lock(); defer { UnitDeletion.gate.unlock() }
         let root = deletionRoot.standardizedFileURL
+        var known: [String: Row] = [:]
+        for row in try queue.read({ db in try Row.fetchAll(db, sql: "SELECT * FROM sync_files") }) { known[row["path"]] = row }
+        var seen = Set<String>()
+        var changed: [(path: String, sha: String?, size: Int64, mtime: Double)] = []
+        let keys: [URLResourceKey] = [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey, .contentModificationDateKey]
+        for name in SyncNames.fileRoots {
+            let base = root.appendingPathComponent(name, isDirectory: true)
+            guard let enumerator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]) else { continue }
+            for case let url as URL in enumerator {
+                let values = try url.resourceValues(forKeys: Set(keys))
+                guard values.isRegularFile == true, values.isSymbolicLink != true else { continue }
+                let path = name + "/" + url.standardizedFileURL.path.dropFirst(base.path.count + 1)
+                guard SyncNames.isSyncedPath(path) else { continue }
+                seen.insert(path)
+                let size = Int64(values.fileSize ?? 0)
+                let mtime = values.contentModificationDate?.timeIntervalSince1970 ?? 0
+                let row = known[path]
+                if let row, row["deleted"] == false, row["size"] == size, row["mtime"] == mtime { continue }
+                let sha = SyncNames.sha256(try Data(contentsOf: url))
+                // Touched but the same contents: remember the new size and time only (`sha` nil).
+                let same = row.map { $0["deleted"] == false && $0["sha256"] == sha } ?? false
+                changed.append((path, same ? nil : sha, size, mtime))
+            }
+        }
+        let removed = known.filter { !seen.contains($0.key) && $0.value["deleted"] == false }.map(\.key)
         return try queue.write { db in
-            var known: [String: Row] = [:]
-            for row in try Row.fetchAll(db, sql: "SELECT * FROM sync_files") { known[row["path"]] = row }
-            var seen = Set<String>()
-            let keys: [URLResourceKey] = [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey, .contentModificationDateKey]
-            for name in SyncNames.fileRoots {
-                let base = root.appendingPathComponent(name, isDirectory: true)
-                guard let enumerator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]) else { continue }
-                for case let url as URL in enumerator {
-                    let values = try url.resourceValues(forKeys: Set(keys))
-                    guard values.isRegularFile == true, values.isSymbolicLink != true else { continue }
-                    let path = name + "/" + url.standardizedFileURL.path.dropFirst(base.path.count + 1)
-                    guard SyncNames.isSyncedPath(path) else { continue }
-                    seen.insert(path)
-                    let size = Int64(values.fileSize ?? 0)
-                    let mtime = values.contentModificationDate?.timeIntervalSince1970 ?? 0
-                    let row = known[path]
-                    if let row, row["deleted"] == false, row["size"] == size, row["mtime"] == mtime { continue }
-                    let sha = SyncNames.sha256(try Data(contentsOf: url))
-                    if let row, row["deleted"] == false, row["sha256"] == sha {
-                        try db.execute(sql: "UPDATE sync_files SET size = ?, mtime = ? WHERE path = ?", arguments: [size, mtime, path])
-                        continue
-                    }
+            for file in changed {
+                if let sha = file.sha {
                     try db.execute(sql: """
                         INSERT INTO sync_files (path, record_name, sha256, size, mtime, modified_at, dirty, deleted)
                         VALUES (?, ?, ?, ?, ?, ?, 1, 0)
                         ON CONFLICT(path) DO UPDATE SET sha256 = excluded.sha256, size = excluded.size, mtime = excluded.mtime,
                             modified_at = excluded.modified_at, dirty = 1, deleted = 0
-                        """, arguments: [path, SyncNames.file(path), sha, size, mtime, LedgerClock.iso(Date(timeIntervalSince1970: mtime))])
+                        """, arguments: [file.path, SyncNames.file(file.path), sha, file.size, file.mtime, LedgerClock.iso(Date(timeIntervalSince1970: file.mtime))])
+                } else {
+                    try db.execute(sql: "UPDATE sync_files SET size = ?, mtime = ? WHERE path = ?", arguments: [file.size, file.mtime, file.path])
                 }
             }
-            for (path, row) in known where !seen.contains(path) && row["deleted"] == false {
+            for path in removed {
                 try db.execute(sql: "UPDATE sync_files SET deleted = 1, dirty = 1 WHERE path = ?", arguments: [path])
             }
             var outbox = FileOutbox()

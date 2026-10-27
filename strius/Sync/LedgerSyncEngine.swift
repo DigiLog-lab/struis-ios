@@ -115,7 +115,7 @@ actor LedgerSyncEngine {
             sent += result.saved.count + result.deleted.count
             if !result.failures.isEmpty || result.saved.count + result.deleted.count == 0 { return sent }
         }
-        let files = try await ledger.scanSyncFiles()
+        let files = try ledger.scanSyncFiles()
         var saves = files.saves[...]
         var deletions = files.deletions
         while !saves.isEmpty || !deletions.isEmpty {
