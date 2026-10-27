@@ -317,7 +317,7 @@ final class TimelineReviewTests: XCTestCase {
         XCTAssertTrue((system1[3]["text"] as? String)?.hasPrefix("## ") == true)
         XCTAssertNil((grading["output_config"] as? [String: Any])?["format"], "output_config.format は使わない")
         XCTAssertEqual((grading["output_config"] as? [String: Any])?["effort"] as? String, "medium")
-        XCTAssertEqual(grading["cache_control"] as? [String: String], ["type": "ephemeral"], "末尾の自動の印は 5 分")
+        XCTAssertNil(grading["cache_control"], "最初の要求の末尾(今回の仕事・材料)には印を置かない")
 
         // 採点 → 見直し → 出題で、基本指示と今日の記録(前回の印まで)は 1 バイトも違わない。
         func bytes(_ blocks: ArraySlice<[String: Any]>) throws -> Data { try JSONSerialization.data(withJSONObject: Array(blocks).map { $0.filter { $0.key != "cache_control" } }, options: [.sortedKeys]) }
@@ -336,6 +336,71 @@ final class TimelineReviewTests: XCTestCase {
         let legacy = try ClaudeRequestTranslator.translate(codexRequest(planID: "plan-1", log: "LOG", task: "x", schema: schema("grade")), options: options).body
         XCTAssertEqual((legacy["system"] as? [[String: Any]])?.count, 1)
         XCTAssertNotNil((legacy["output_config"] as? [String: Any])?["format"])
+    }
+
+    func testVersionFourMarksTheTailOnlyForContinuationsAfterATool() throws {
+        var options = ClaudeRequestTranslator.Options()
+        options.translation = ClaudeTranslation.version(kind: "timeline_review")
+        options.tailCacheTTL = ClaudeTranslation.tailCacheTTL(kind: "timeline_review")
+        options.schemaInInstructions = true
+        let log = "# 今日の記録" + ClaudeTranslation.blockSeparator + "まだありません。" + ClaudeTranslation.logEnd
+        var request = codexRequest(planID: "plan-1", log: log, task: "# 今回の仕事: 見直し", schema: schema("notes"))
+        let start = try ClaudeRequestTranslator.translate(request, options: options).body
+        XCTAssertNil(start["cache_control"], "turn_start")
+
+        // 頼み直し(validation_repair): 前の返事の後ろに、理由を添えた同じ仕事が来る。
+        var repair = request
+        repair["input"] = (request["input"] as! [[String: Any]]) + [
+            ["type": "message", "role": "assistant", "content": [["type": "output_text", "text": "読めない返事"]]],
+            ["type": "message", "role": "user", "content": [["type": "input_text", "text": "# 前の返事について"]]],
+        ]
+        XCTAssertNil(try ClaudeRequestTranslator.translate(repair, options: options).body["cache_control"], "validation_repair")
+
+        // 道具を使った後の続き(continuation)だけ、末尾に 5 分の印。
+        request["input"] = (request["input"] as! [[String: Any]]) + [
+            ["type": "function_call", "call_id": "call_1", "namespace": "struis", "name": "timeline_query", "arguments": "{}"],
+            ["type": "function_call_output", "call_id": "call_1", "output": "rows"],
+        ]
+        let continuation = try ClaudeRequestTranslator.translate(request, options: options).body
+        XCTAssertEqual(continuation["cache_control"] as? [String: String], ["type": "ephemeral"])
+        XCTAssertEqual((start["system"] as? [[String: Any]])?.filter { $0["cache_control"] != nil }.count, 2, "1 時間の印は今のまま")
+
+        // 版 2(会話・単元ホーム)は最初の要求にも付ける。
+        options.translation = 2
+        XCTAssertNotNil(try ClaudeRequestTranslator.translate(codexRequest(planID: "p", log: "LOG", task: "x", schema: schema("grade")), options: options).body["cache_control"])
+    }
+
+    func testRepliesWithProseBeforeTheJSONAreRead() throws {
+        // 10/27 15:51 の採点と同じ形: 日本語の文 → JSON(文字列の中に {・}・\\frac)。
+        let gradingReply = #"""
+        画像の手書きは次のように読めます。
+
+        - 1行目: ∫_0^{π/2} sin2x dx = [-\frac{1}{2}cos2x]_0^{π/2}
+        - 2行目: 1/2 + 1/2 = 1 }
+
+        {"readable":true,"grade":"correct","learner_answer":"1","skill_ids":["fourier.antiderivative_trig"],"transcript":"$[-\\frac{1}{2}\\cos 2x]_0^{\\pi/2}$","notes":"原始関数 {符号} も正しく、$\\frac{1}{2}+\\frac{1}{2}=1$ と計算できています。","comment":"よくできました。","key_suspect":false}
+        """#
+        let grading = try TimelineMachine.Grading.parse(gradingReply)
+        XCTAssertEqual(grading.grade, "correct")
+        XCTAssertEqual(grading.skillIds, ["fourier.antiderivative_trig"])
+        XCTAssertEqual(grading.notes, #"原始関数 {符号} も正しく、$\frac{1}{2}+\frac{1}{2}=1$ と計算できています。"#)
+
+        // 10/27 15:45 の見直しと同じ形(入れ子のオブジェクトと、文字列の中のエスケープした引用符)。
+        let reviewReply = #"""
+        handwriting を確認すると、次のように計算しています。{ 途中の括弧
+        {"skill_results":[{"attempt_id":"a1","skill_id":"fourier.antiderivative_trig","result":"correct"}],"notes":"\"\\frac{1}{2}\" の {係数} は正しい。かなり慎重または中断があった可能性がある。"}
+        """#
+        let review = try TimelineMachine.Review.parse(reviewReply)
+        XCTAssertEqual(review.notes, #""\frac{1}{2}" の {係数} は正しい。かなり慎重または中断があった可能性がある。"#)
+        XCTAssertEqual(review.skillResults.count, 1)
+
+        let batch = try TimelineCards.Batch.parse("次の 5 枚です。\n```json\n{\"reason\":\"符号 {−} を確かめる\",\"cards\":[]}\n```")
+        XCTAssertEqual(batch.reason, "符号 {−} を確かめる")
+
+        // 取り出したものも読めない時だけ、頼み直しに回す。
+        XCTAssertThrowsError(try TimelineMachine.Grading.parse("読めました。{\"grade\": "))
+        XCTAssertThrowsError(try TimelineMachine.Review.parse("JSON はありません"))
+        XCTAssertEqual(TimelineReply.lastObject(in: #"前 {"a":"}{\\"} 後"#), #"{"a":"}{\\"}"#)
     }
 
     func testTimelineRequestsCompareCacheDiagnosticsAcrossKinds() {
@@ -372,7 +437,7 @@ final class TimelineReviewTests: XCTestCase {
         XCTAssertTrue(text.hasPrefix("# 今回の仕事: 採点"), "今回の仕事と材料は同じ")
         XCTAssertTrue(text.contains("# 前の返事について"))
         let second = try await ledger.commit { db in
-            let applied = try TimelineTurns.apply(kind: .timelineGrading, targetID: attemptID, outcome: outcome(2, "{}x"), model: "m", db: db)
+            let applied = try TimelineTurns.apply(kind: .timelineGrading, targetID: attemptID, outcome: outcome(2, "やはり読めませんでした"), model: "m", db: db)
             return (applied.events, applied.followUp)
         }
         XCTAssertFalse(second.retry, "頼み直すのは 1 回だけ")

@@ -73,9 +73,13 @@ nonisolated enum ClaudeRequestTranslator {
             "max_tokens": options.maxTokens,
             "stream": true,
             "messages": messages,
-            // 変わらない先頭(tools・system・それまでの履歴)を毎回読み直さないよう、自動の prompt caching を使う。
-            "cache_control": ClaudeTranslation.cacheControl(ttl: options.translation >= 2 ? options.tailCacheTTL : nil),
         ]
+        // 変わらない先頭(tools・system・それまでの履歴)を毎回読み直さないよう、自動の prompt caching を使う。
+        // 版 4 は、道具を使った後の続きの要求(最後の発話が tool_result)にだけ付ける。最初の要求(turn_start・
+        // validation_repair)の末尾は今回の仕事・材料・答案の画像で、依頼ごとに変わり読まれない(2026-10-27)。
+        if ClaudeTranslation.marksTail(translation: options.translation, messages: messages) {
+            body["cache_control"] = ClaudeTranslation.cacheControl(ttl: options.translation >= 2 ? options.tailCacheTTL : nil)
+        }
         if options.translation >= 2, options.includeDiagnostics {
             // cache diagnostics: 直前の要求と比べて、どこで先頭が変わったか(指示・tools・履歴・設定)を返してもらう。
             body["diagnostics"] = ["previous_message_id": options.previousResponseID.map { $0 as Any } ?? NSNull()]
@@ -109,7 +113,7 @@ nonisolated enum ClaudeRequestTranslator {
             // 1 つ目(基本指示)と、その後の developer 指示(今日の記録)を `blockSeparator` で分けて 1 件 1 ブロックにする。
             // 1 時間の印は基本指示の最後と、今日の記録の最後のブロックに置く(後ろに足すだけの記録は、前の印から 20 ブロック
             // 以内なら前回の分を読める)。記録の終わり(`logEnd`)より後ろ(Codex が足す権限の注記など)は別のブロックにし、
-            // 印は置かない。出力の形はその後ろ。末尾の自動の印(5 分)はさらに後ろに来る。
+            // 印は置かない。出力の形はその後ろ。末尾の自動の印(5 分)は続きの要求だけで、さらに後ろに来る。
             var blocks: [[String: Any]] = [["type": "text", "text": systemParts[0], "cache_control": ClaudeTranslation.cacheControl(ttl: "1h")]]
             var logMark: Int?
             for part in systemParts.dropFirst() {
@@ -463,6 +467,14 @@ nonisolated enum ClaudeTranslation {
 
     /// スレッドを始める時の版。
     static func version(kind: String) -> Int { tutorKinds.contains(kind) ? tutor : current }
+
+    /// 末尾の自動の印を付けるか。版 4 は最後の発話に tool_result がある(1 回の依頼の中の続きの要求)時だけ。
+    static func marksTail(translation: Int, messages: [[String: Any]]) -> Bool {
+        guard translation >= 4 else { return true }
+        guard let last = messages.last, last["role"] as? String == "user",
+              let content = last["content"] as? [[String: Any]] else { return false }
+        return content.contains { $0["type"] as? String == "tool_result" }
+    }
 
     static func cacheControl(ttl: String?) -> [String: Any] {
         guard let ttl, ttl != "5m" else { return ["type": "ephemeral"] }

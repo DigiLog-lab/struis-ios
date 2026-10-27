@@ -511,6 +511,11 @@ nonisolated private struct ClaudeRelay {
             }
             ClaudeProxyDiagnostics.dump(request: request, translated: translation.body)
             var attempt = Attempt(reason: reason, model: model, translation: options.translation, tailTTL: options.tailCacheTTL, options: options)
+            if translation.body["cache_control"] == nil, var ttl = attempt.record["cache_ttl"] as? [String: Any] {
+                // 版 4 の最初の要求は末尾に印を置かない(実行監査にもそのとおり残す)。
+                ttl["tail"] = NSNull()
+                attempt.record["cache_ttl"] = ttl
+            }
             if ClaudeResponsesProxy.requestTooLarge(data.count) {
                 let message = "request body \(data.count) bytes exceeds \(ClaudeResponsesProxy.maxRequestBytes)"
                 proxyLog.error("\(message, privacy: .public); not sent")
