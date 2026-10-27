@@ -14,6 +14,7 @@ struct AppRootView: View {
     @Environment(WorkbookCoordinator.self) private var coordinator
     @Environment(LearningFeedRuntimeServices.self) private var learningFeedRuntime
     @Environment(TimelineStore.self) private var timeline
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     /// オンボーディングは Release でも出す(§7.2)。完了は端末に保存し、2 回目の起動からは出さない。
     @State private var isShowingOnboarding = Self.initiallyShowsOnboarding
@@ -25,6 +26,8 @@ struct AppRootView: View {
     @State private var isSettingsPresented = false
     /// 単元ホームをタイムラインの上に重ねている。
     @State private var isUnitsPresented = Self.startsOnUnits
+    /// 画面全体の大きさ(iPad の横向き・縦向きを、右の質問の欄を含めた幅で決める)。
+    @State private var screenSize: CGSize = .zero
 
     /// 起動した時に単元ホームを重ねた状態から始めるか(DEBUG: 単元ホームから操作する UI テストの起動に使う)。
     private static var startsOnUnits: Bool {
@@ -160,11 +163,39 @@ struct AppRootView: View {
         }
     }
 
+    private var timelineLayout: TimelineLayout { TimelineLayout.resolve(sizeClass: sizeClass, size: screenSize) }
+
+    /// iPad でタイムラインの右に開く質問(問題と書いた答案は左に見えたまま)。単元づくりはシートのまま出す。
+    private var sideQuestion: WorkbookQuestionContext? {
+        guard timelineLayout.isPad, !isUnitsPresented, let question = coordinator.question, question.purpose == .question else { return nil }
+        return question
+    }
+
+    private var timelineWithQuestionPanel: some View {
+        HStack(spacing: 0) {
+            LearningTimelineView(store: timeline, onOpenUnits: { isUnitsPresented = true }, layout: timelineLayout)
+                // 欄の入力でキーボードが出ても、タイムライン(書いた答案)の大きさは変えない。
+                .ignoresSafeArea(.keyboard)
+            if let context = sideQuestion {
+                WorkbookQuestionScreen(context: context, onClose: { coordinator.question = nil })
+                    .id(context.id)
+                    .frame(width: TimelineLayout.questionPanelWidth)
+                    .background(Theme.ground.ignoresSafeArea())
+                    .overlay(alignment: .leading) { Rectangle().fill(Theme.hairline).frame(width: 1).ignoresSafeArea() }
+                    .transition(.move(edge: .trailing))
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("timeline-question-panel")
+            }
+        }
+        .animation(.easeInOut(duration: Theme.Duration.standard), value: sideQuestion?.id)
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { screenSize = $0 }
+    }
+
     @ViewBuilder
     private var authenticatedContent: some View {
         Group {
             if auth.canUseApp {
-                LearningTimelineView(store: timeline, onOpenUnits: { isUnitsPresented = true })
+                timelineWithQuestionPanel
                     // 単元ホームは中身を変えずに、全画面で重ねる(画面の移り方・撮る・質問をそのまま持つ)。
                     .fullScreenCover(isPresented: $isUnitsPresented) {
                         WorkbookHomeView(onOpenSettings: { isSettingsPresented = true }, onCloseTimeline: { isUnitsPresented = false })
@@ -180,7 +211,8 @@ struct AppRootView: View {
                             }
                     }
                     // タイムラインの「質問」と、単元づくり(オンボーディングの後・案内の1枚)。単元ホームを重ねている間は、単元ホームが出す。
-                    .sheet(item: Binding(get: { isUnitsPresented ? nil : coordinator.question }, set: { coordinator.question = $0 })) { context in
+                    // iPad では、タイムラインの「質問」はシートにせず右の欄で開く(timelineWithQuestionPanel)。
+                    .sheet(item: Binding(get: { isUnitsPresented || sideQuestion != nil ? nil : coordinator.question }, set: { coordinator.question = $0 })) { context in
                         WorkbookQuestionScreen(context: context)
                     }
                     // 単元づくりの「はじめる」など、単元ホームの中の画面へ移る時は、単元ホームを重ねてから移る。

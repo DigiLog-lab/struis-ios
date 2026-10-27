@@ -3,9 +3,12 @@ import SwiftUI
 /// 起動したら最初に出る、1問ずつの全画面の「タイムライン」(Issue #46)。ブランド名は出さない。
 /// 操作は右下の縦並び(上から 質問・飛ばす・撮る)、下の帯に次の問題の1行目を常に見せ、上に送ると次へ進む。
 /// 上の帯と下の帯の間は、問題文の上も含めて画面の端から端まで指で書ける。次へ進むのは、下の帯を上に送ったときだけ。
+/// iPad で横幅が広い時(Issue #55)は、書く道具を右上に、「送る」を右下に常に置き(書くまで押せない)、結果でも送った手書きを残す。
+/// 横向きは問題を左の列に置いて右を全部紙にし、下の帯を問題の列の下だけにして右下まで書けるようにする。
 struct LearningTimelineView: View {
     let store: TimelineStore
     let onOpenUnits: () -> Void
+    var layout: TimelineLayout = .compact
     @Environment(WorkbookCoordinator.self) private var coordinator
     @Environment(\.scenePhase) private var scenePhase
     @State private var hasInk = false
@@ -25,24 +28,36 @@ struct LearningTimelineView: View {
             LinearGradient(colors: [Theme.card, Theme.ground], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
             VStack(spacing: 0) {
                 topBar
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, layout.isPad ? 24 : 20)
                     .padding(.top, 8)
                 ZStack(alignment: .bottomTrailing) {
                     content
-                        .padding(.horizontal, 24)
+                        .padding(.leading, layout.isPad ? TimelineLayout.columnLeading : 24)
+                        .padding(.trailing, layout == .padLandscape ? 0 : 24)
                         .padding(.top, 16)
+                        // 横向きは下の帯が問題の列の下に重なるので、その分を空ける。
+                        .padding(.bottom, layout == .padLandscape ? 132 : 0)
+                        .frame(width: layout == .padLandscape ? TimelineLayout.columnLeading + TimelineLayout.columnWidth : nil)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    if showsInkHint { inkHint }
                     if showsInk { inkLayer }
                     actions
-                        .padding(.trailing, 20)
-                        .padding(.bottom, 16)
+                        .padding(.trailing, layout.isPad ? 28 : 20)
+                        .padding(.bottom, layout == .padLandscape ? 32 : 16)
                         // 書いている間はボタンを薄くして、下に書いた字を透かす。
                         .opacity(isDrawing ? 0.35 : 1)
                 }
                 .coordinateSpace(name: TimelineInkSpace.name)
                 .onPreferenceChange(TimelineInkPassThroughKey.self) { inkPassThrough = $0 }
                 .offset(y: min(0, dragOffset) * 0.35)
-                nextStrip
+                .overlay(alignment: .bottomLeading) {
+                    if layout == .padLandscape {
+                        nextStrip
+                            .frame(width: TimelineLayout.stripWidth)
+                            .padding(.leading, TimelineLayout.stripLeading)
+                    }
+                }
+                if layout != .padLandscape { nextStrip }
             }
             if store.skipBannerAttemptID != nil { skipBanner.transition(.move(edge: .top).combined(with: .opacity)) }
             if let error = store.actionError {
@@ -88,18 +103,102 @@ struct LearningTimelineView: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("timeline-units-button")
-            Spacer()
-            Button { store.isStopSheetPresented = true } label: {
-                Text("今日 \(store.answeredToday)問").font(Typography.sans(size: 15, weight: .medium)).foregroundStyle(Theme.secondaryText).monospacedDigit()
+            if layout.isPad {
+                // iPad: 「今日」は「単元」の隣に置き、右上は書く道具にする。
+                todayCount.padding(.leading, 16)
+                Spacer()
+                if showsInkTools { inkTools }
+            } else {
+                Spacer()
+                todayCount
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("timeline-today-count")
         }
+        // iPad: 書く道具(44pt)が出入りしても、上の帯の高さを変えない。
+        .frame(minHeight: layout.isPad ? 44 : nil)
+        .padding(.top, layout.isPad ? 8 : 0)
         // 下に引いたら、やめようとしたとみなしてシートを出す。
         .contentShape(Rectangle())
         .gesture(DragGesture(minimumDistance: 30).onEnded { value in
             if value.translation.height > 80 { store.isStopSheetPresented = true }
         })
+    }
+
+    private var todayCount: some View {
+        Button { store.isStopSheetPresented = true } label: {
+            Text("今日 \(store.answeredToday)問").font(Typography.sans(size: 15, weight: .medium)).foregroundStyle(Theme.secondaryText).monospacedDigit()
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("timeline-today-count")
+    }
+
+    /// iPad の右上の書く道具は、書ける間だけ出す(採点中・結果では書き足せない)。
+    private var showsInkTools: Bool {
+        guard showsInk else { return false }
+        return store.phase == .solving || isRapid
+    }
+
+    /// iPad の右上の書く道具: ペンの印・「1つ戻す」・「全部消す」(書くまでは薄く押せない)。縮めた時は「元の大きさ」。
+    private var inkTools: some View {
+        HStack(spacing: 10) {
+            if isInkZoomed {
+                Button("元の大きさ") { ink.resetZoom() }
+                    .font(Typography.sans(size: 13, weight: .bold))
+                    .foregroundStyle(Theme.secondaryText)
+                    .padding(.horizontal, 14).frame(height: 44)
+                    .background(Theme.card, in: Capsule())
+                    .overlay(Capsule().stroke(Theme.hairline, lineWidth: 1))
+                    .accessibilityIdentifier("timeline-ink-zoom-reset")
+            }
+            Image(systemName: TimelineSymbol.pencil)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Theme.accentColor)
+                .frame(width: 44, height: 44)
+                .background(Theme.accentColor.opacity(0.16), in: Circle())
+                .accessibilityLabel("ペン")
+            inkToolButton(symbol: TimelineSymbol.undo, label: "1つ戻す", identifier: "timeline-ink-undo") { ink.undo() }
+            inkToolButton(symbol: TimelineSymbol.clear, label: "全部消す", identifier: "timeline-ink-clear") { ink.clear() }
+        }
+        .buttonStyle(.plain)
+        .opacity(isDrawing ? 0.35 : 1)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("timeline-ink-tools")
+    }
+
+    private func inkToolButton(symbol: String, label: String, identifier: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Theme.primaryText)
+                .frame(width: 44, height: 44)
+                .background(Theme.card, in: Circle())
+                .overlay(Circle().stroke(Theme.hairline, lineWidth: 1))
+                .opacity(hasInk ? 1 : 0.4)
+        }
+        .disabled(!hasInk)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
+    }
+
+    /// iPad: まだ何も書いていない時、紙の真ん中に ✎「どこにでも書けます」(押せない飾り)。
+    private var showsInkHint: Bool {
+        layout.isPad && showsInkTools && !hasInk && !isInkZoomed
+    }
+
+    private var inkHint: some View {
+        let hint = VStack(spacing: 8) {
+            Image(systemName: TimelineSymbol.pencil).font(.system(size: 26, weight: .medium))
+            Text("どこにでも書けます").font(Typography.sans(size: 15, weight: .medium))
+        }
+        .foregroundStyle(Theme.tertiaryText)
+        return VStack(spacing: 0) {
+            // 縦向きは問題の下の紙(下半分)の真ん中、横向きは問題の列の右の紙の真ん中。
+            if layout == .padPortrait { Color.clear }
+            hint.frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .padding(.leading, layout == .padLandscape ? TimelineLayout.columnLeading + TimelineLayout.columnWidth : 0)
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("timeline-ink-hint")
     }
 
     // MARK: 中身
@@ -162,7 +261,7 @@ struct LearningTimelineView: View {
                             .accessibilityIdentifier("timeline-stuck-ask")
                         }
                     }
-                    .padding(.trailing, 60).padding(.bottom, 24)
+                    .padding(.trailing, layout == .padLandscape ? 0 : 60).padding(.bottom, 24)
                 }
                 .scrollIndicators(.hidden)
             }
@@ -175,7 +274,7 @@ struct LearningTimelineView: View {
                         Spacer(minLength: 0)
                         footnote(card)
                     } else {
-                        TimelineInteractiveCard(card: card, store: store).padding(.trailing, 64)
+                        TimelineInteractiveCard(card: card, store: store).padding(.trailing, layout == .padLandscape ? 0 : 64)
                         Spacer(minLength: 0)
                     }
                 }
@@ -207,9 +306,9 @@ struct LearningTimelineView: View {
         .font(Typography.sans(size: 14, weight: .medium))
         .foregroundStyle(Theme.secondaryText)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.trailing, 90)
-        // 書いた後は、同じ場所に「1つ戻す」「全部消す」を出す。
-        .opacity(hasInk || isInkZoomed ? 0 : 1)
+        .padding(.trailing, layout == .padLandscape ? 0 : 90)
+        // 書いた後は、同じ場所に「1つ戻す」「全部消す」を出す(iPad は右上に出すので消さない)。
+        .opacity(!layout.isPad && (hasInk || isInkZoomed) ? 0 : 1)
     }
 
     /// 指で書く面を出すか(読み取りで採点するカードを解いている間と、速攻)。
@@ -220,6 +319,10 @@ struct LearningTimelineView: View {
             return TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true
         case .rapid:
             return store.current != nil
+        case .result:
+            // iPad は、送った手書きを結果の右にそのまま残す(書き足しはできない)。撮って送った時は書いた線が無いので出さない。
+            guard layout.isPad, hasInk, let card = store.current else { return false }
+            return TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true
         default:
             return false
         }
@@ -231,8 +334,8 @@ struct LearningTimelineView: View {
             TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isInkZoomed, controller: ink, passThrough: inkPassThrough)
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .allowsHitTesting(!isGrading)
-            if hasInk || isInkZoomed {
+                .allowsHitTesting(!isGrading && !isResult)
+            if !layout.isPad, hasInk || isInkZoomed {
                 HStack(spacing: 14) {
                     Image(systemName: TimelineSymbol.pencil).foregroundStyle(Theme.tertiaryText)
                     if hasInk {
@@ -283,8 +386,17 @@ struct LearningTimelineView: View {
             switch store.phase {
             case .solving:
                 if let card = store.current {
-                    TimelineActionButton(symbol: TimelineSymbol.ask, label: "質問", identifier: "timeline-ask") { ask(card) }
-                    if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true {
+                    if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true, layout.isPad {
+                        // iPad は書くのが先: 「送る」を同じ場所に置いておき、書くまでは押せない。書いた後は 撮る・送る。
+                        if !hasInk {
+                            TimelineActionButton(symbol: TimelineSymbol.ask, label: "質問", identifier: "timeline-ask") { ask(card) }
+                            TimelineActionButton(symbol: TimelineSymbol.skip, label: "飛ばす", identifier: "timeline-skip") { Task { await store.skip() } }
+                        }
+                        TimelineActionButton(symbol: TimelineSymbol.camera, label: "撮る", identifier: "timeline-capture") { isCameraPresented = true }
+                        TimelineActionButton(symbol: TimelineSymbol.send, label: "送る", prominent: true, isEnabled: hasInk,
+                                             diameter: TimelineLayout.sendDiameter, identifier: "timeline-send") { sendInk() }
+                    } else if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true {
+                        TimelineActionButton(symbol: TimelineSymbol.ask, label: "質問", identifier: "timeline-ask") { ask(card) }
                         if hasInk {
                             TimelineActionButton(symbol: TimelineSymbol.camera, label: "撮る", identifier: "timeline-capture") { isCameraPresented = true }
                             TimelineActionButton(symbol: TimelineSymbol.send, label: "送る", prominent: true, identifier: "timeline-send") { sendInk() }
@@ -293,11 +405,17 @@ struct LearningTimelineView: View {
                             TimelineActionButton(symbol: TimelineSymbol.camera, label: "撮る", prominent: true, identifier: "timeline-capture") { isCameraPresented = true }
                         }
                     } else {
+                        TimelineActionButton(symbol: TimelineSymbol.ask, label: "質問", identifier: "timeline-ask") { ask(card) }
                         TimelineActionButton(symbol: TimelineSymbol.skip, label: "飛ばす", identifier: "timeline-skip") { Task { await store.skip() } }
                     }
                 }
             case .rapid:
-                TimelineActionButton(symbol: TimelineSymbol.send, label: "送る", prominent: true, identifier: "timeline-send") { sendRapid() }
+                if layout.isPad {
+                    TimelineActionButton(symbol: TimelineSymbol.send, label: "送る", prominent: true, isEnabled: hasInk,
+                                         diameter: TimelineLayout.sendDiameter, identifier: "timeline-send") { sendRapid() }
+                } else {
+                    TimelineActionButton(symbol: TimelineSymbol.send, label: "送る", prominent: true, identifier: "timeline-send") { sendRapid() }
+                }
             case .grading:
                 VStack(alignment: .trailing, spacing: 6) {
                     ProgressView().controlSize(.large).frame(width: 72, height: 72)
@@ -378,6 +496,7 @@ struct LearningTimelineView: View {
 
     private var isRapid: Bool { if case .rapid = store.phase { true } else { false } }
     private var isGrading: Bool { if case .grading = store.phase { true } else { false } }
+    private var isResult: Bool { if case .result = store.phase { true } else { false } }
 
     private var stripLine: String {
         guard let next = store.upcoming else { return store.phase == .waiting ? "用意しています" : "" }

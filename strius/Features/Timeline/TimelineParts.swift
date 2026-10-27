@@ -37,6 +37,43 @@ enum TimelineSymbol {
     static let back = "arrow.turn.left.down"
     /// 数値だけ変えた同じ形の問題
     static let variant = "arrow.left.arrow.right"
+    /// 書いた線を1つ戻す・全部消す(iPad の右上の書く道具)
+    static let undo = "arrow.uturn.backward"
+    static let clear = "trash"
+}
+
+/// iPad の並び(問題は左の列、右は全部紙。書く道具は右上、質問は右に開く)。iPad で横幅が広い時だけ使う。
+/// iPhone と、Split View で狭くした iPad は `.compact`(今の並び)のまま。
+enum TimelineLayout: Equatable {
+    case compact
+    /// iPad 横向き: 問題は左の列、下の帯は問題の列の下だけ。
+    case padLandscape
+    /// iPad 縦向き: 問題は上に全幅、下の帯も全幅。
+    case padPortrait
+
+    /// 画面全体(右に開いた質問の欄も含む)の大きさから決める。欄を開いてタイムラインが細くなっても、横向きのまま。
+    @MainActor
+    static func resolve(sizeClass: UserInterfaceSizeClass?, size: CGSize) -> TimelineLayout {
+        guard isPad(sizeClass) else { return .compact }
+        return size.width > size.height ? .padLandscape : .padPortrait
+    }
+
+    @MainActor
+    static func isPad(_ sizeClass: UserInterfaceSizeClass?) -> Bool {
+        sizeClass == .regular && UIDevice.current.userInterfaceIdiom == .pad
+    }
+
+    var isPad: Bool { self != .compact }
+
+    /// 横向きの問題の列(左 40pt・幅 384pt)と、その下の帯(左 16pt・幅 432pt)。
+    static let columnLeading: CGFloat = 40
+    static let columnWidth: CGFloat = 384
+    static let stripLeading: CGFloat = 16
+    static let stripWidth: CGFloat = 432
+    /// 右に開く質問の欄の幅。
+    static let questionPanelWidth: CGFloat = 380
+    /// iPad の「送る」の大きさ。
+    static let sendDiameter: CGFloat = 64
 }
 
 /// ○ ×(正誤。色だけに頼らない)。
@@ -205,23 +242,30 @@ struct TimelineActionButton: View {
     let symbol: String
     let label: String
     var prominent = false
+    /// 押せない間は、大きいボタンを薄い銅色の地に銅色の印にする(iPad の「送る」は書くまで押せない)。
+    var isEnabled = true
+    /// 大きいボタンの直径(iPad の「送る」は 64pt)。
+    var diameter: CGFloat? = nil
     var identifier: String
     let action: () -> Void
 
     var body: some View {
+        let size = diameter ?? (prominent ? 72 : 52)
+        let raised = prominent && isEnabled
         Button(action: action) {
             VStack(spacing: 6) {
                 Image(systemName: symbol)
                     .font(.system(size: prominent ? 26 : 20, weight: .semibold))
-                    .foregroundStyle(prominent ? Theme.onAccent : Theme.primaryText)
-                    .frame(width: prominent ? 72 : 52, height: prominent ? 72 : 52)
-                    .background(prominent ? AnyShapeStyle(Theme.accentColor) : AnyShapeStyle(Theme.card), in: Circle())
+                    .foregroundStyle(prominent ? (isEnabled ? Theme.onAccent : Theme.accentColor) : Theme.primaryText)
+                    .frame(width: size, height: size)
+                    .background(prominent ? AnyShapeStyle(isEnabled ? Theme.accentColor : Theme.accentColor.opacity(0.16)) : AnyShapeStyle(Theme.card), in: Circle())
                     .overlay { if !prominent { Circle().stroke(Theme.hairline, lineWidth: 1) } }
-                    .shadow(color: .black.opacity(prominent ? 0.18 : 0.06), radius: prominent ? 10 : 4, y: 3)
+                    .shadow(color: .black.opacity(raised ? 0.18 : 0.06), radius: raised ? 10 : 4, y: 3)
                 Text(label).font(Typography.sans(size: 12, weight: .bold)).foregroundStyle(Theme.secondaryText)
             }
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
         .accessibilityLabel(label)
         .accessibilityIdentifier(identifier)
     }
@@ -307,6 +351,10 @@ struct TimelineInkCanvas: UIViewRepresentable {
             let value = abs(scrollView.zoomScale - 1) > 0.01
             if isZoomed.wrappedValue != value { isZoomed.wrappedValue = value }
         }
+        func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with view: UIView?) {
+            // 自分でつまんだら、欄を閉じた時にも倍率を戻さない。
+            (scrollView as? TimelinePassThroughCanvas)?.forgetAutoFit()
+        }
         func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
             (scrollView as? TimelinePassThroughCanvas)?.fitPaper()
         }
@@ -314,19 +362,45 @@ struct TimelineInkCanvas: UIViewRepresentable {
 }
 
 /// 書く面。紙は画面の縦横2倍の大きさで持ち、等倍では左上の1画面分を見せる。指を通す区画では触れても書かない。
+/// 書く面が狭くなった時(iPad で右に質問の欄を開いた時など)は、書いた線の全体が見える倍率まで縮め、広がったら戻す。
 final class TimelinePassThroughCanvas: PKCanvasView {
     var passThrough: [CGRect] = []
     private var paperBase: CGSize = .zero
+    /// 狭くなって自動で縮めている(広がったら等倍に戻す)。
+    private var isAutoFitted = false
 
     override func layoutSubviews() {
         super.layoutSubviews()
         // layoutSubviews はつまんでいる間も毎回呼ばれる。そこで大きさを入れ直すと、指の間を中心に縮まず左上へ跳ぶので、
         // 紙の大きさは画面の大きさが変わった時だけ決め直す。
         guard bounds.width > 0, bounds.height > 0, bounds.size != paperBase, !isZooming, !isZoomBouncing else { return }
+        let previous = paperBase
         paperBase = bounds.size
         fitPaper()
         updateAccessibilityCenter()
+        guard previous.width > 0 else { return }
+        // 倍率を変えると delegate から SwiftUI の状態(isZoomed)が変わるので、レイアウトが終わってから変える。
+        DispatchQueue.main.async { [weak self] in self?.keepInkVisible() }
     }
+
+    /// 書いた線が見える範囲からはみ出したら縮め、自動で縮めた後に広がったら等倍に戻す。自分でつまんだ倍率は変えない。
+    private func keepInkVisible() {
+        guard !isZooming, !isZoomBouncing, bounds.width > 0, bounds.height > 0 else { return }
+        let ink = drawing.strokes.isEmpty ? CGRect.null : drawing.bounds
+        let margin: CGFloat = 16
+        let needed = ink.isNull ? 1 : min(1, bounds.width / (ink.maxX + margin), bounds.height / (ink.maxY + margin))
+        if isAutoFitted || abs(zoomScale - 1) <= 0.01 {
+            let target = max(minimumZoomScale, needed)
+            guard abs(target - zoomScale) > 0.01 else { return }
+            isAutoFitted = target < 1
+            setZoomScale(target, animated: false)
+            contentOffset = .zero
+            fitPaper()
+            updateAccessibilityCenter()
+        }
+    }
+
+    func forgetAutoFit() { isAutoFitted = false }
 
     /// 紙(等倍の画面の2倍)を、今の倍率の大きさにする。
     func fitPaper() {
@@ -391,6 +465,7 @@ final class TimelineInkController {
 
     func resetZoom() {
         guard let canvas else { return }
+        (canvas as? TimelinePassThroughCanvas)?.forgetAutoFit()
         canvas.setZoomScale(1, animated: true)
         canvas.setContentOffset(.zero, animated: true)
     }
