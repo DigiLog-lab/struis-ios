@@ -67,9 +67,32 @@ struct MathRenderingTests {
         #expect(MathSourceNormalizer.prepare("\\begin{equation}E=mc^2\\end{equation}") == "E=mc^2")
         #expect(MathSourceNormalizer.prepare("\\tag{1}x=1") == "x=1")
         #expect(MathSourceNormalizer.prepare("\\therefore x=1") == "\\text{∴} x=1")
-        #expect(MathSourceNormalizer.prepare("\\log_{10}2\\fallingdotseq 0.3010") == "\\log_{10}2\\text{≒} 0.3010")
+        #expect(MathSourceNormalizer.prepare("\\log_{10}2\\fallingdotseq 0.3010") == "\\log_{10}\\,2\\text{≒} 0.3010")
         #expect(MathSourceNormalizer.prepare("\\not\\in") == "\\notin ")
         #expect(MathSourceNormalizer.prepare("a\\ ") == "a\\ ")
+    }
+
+    /// SwiftMath は関数名と文字の間を詰める(実機で「sin3x」「3xcosx」)。TeX と同じ所にだけ細い空きを入れる。
+    @Test func operatorNamesGetTeXSpacing() {
+        #expect(MathSourceNormalizer.prepare("\\sin 3x") == "\\sin\\, 3x")
+        #expect(MathSourceNormalizer.prepare("\\sin 3x\\cos x") == "\\sin\\, 3x\\,\\cos\\, x")
+        #expect(MathSourceNormalizer.prepare("\\int_0^{\\pi/2} \\sin 3x\\,dx") == "\\int_0^{\\pi/2}\\, \\sin\\, 3x\\,dx")
+        #expect(MathSourceNormalizer.prepare("\\frac{d}{dx}\\cos x") == "\\frac{d}{dx}\\,\\cos\\, x")
+        #expect(MathSourceNormalizer.prepare("\\sin^2 x+\\cos^2 x=1") == "\\sin^2\\, x+\\cos^2\\, x=1")
+        #expect(MathSourceNormalizer.prepare("2\\sin x") == "2\\,\\sin\\, x")
+        // 括弧・演算子・関係の記号の隣と、すでに空きがある所には入れない。
+        #expect(MathSourceNormalizer.prepare("\\sin(x)") == "\\sin(x)")
+        #expect(MathSourceNormalizer.prepare("-\\sin x") == "-\\sin\\, x")
+        #expect(MathSourceNormalizer.prepare("(\\sin x)") == "(\\sin\\, x)")
+        #expect(MathSourceNormalizer.prepare("a\\cdot\\sin x") == "a\\cdot\\sin\\, x")
+        #expect(MathSourceNormalizer.prepare("\\sin\\left(x\\right)") == "\\sin\\left(x\\right)")
+        #expect(MathSourceNormalizer.prepare("\\max\\{a,b\\}") == "\\max\\{a,b\\}")
+        #expect(MathSourceNormalizer.prepare("\\text{sin x}") == "\\text{sin x}")
+        #expect(MathSourceNormalizer.prepare("\\begin{aligned}\\sin x&=1\\end{aligned}") == "\\begin{aligned}\\sin\\, x&=1\\end{aligned}")
+        // 何度通しても同じ。
+        let once = MathSourceNormalizer.prepare("\\int \\cos 2x\\,dx,\\quad \\int \\sin 2x\\,dx")
+        #expect(once == "\\int\\, \\cos\\, 2x\\,dx,\\quad \\int\\, \\sin\\, 2x\\,dx")
+        #expect(MathSourceNormalizer.prepare(once) == once)
     }
 
     @Test func charactersOutsideASCIIBecomeCommandsOrText() {

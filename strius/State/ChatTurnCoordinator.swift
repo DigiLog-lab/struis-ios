@@ -155,8 +155,11 @@ extension TurnCoordinator {
         registerChat(turnID: state.turnID, threadID: state.threadID)
         let task = Task { [weak self] in
             guard let self else { return }
+            // 返事の記録(ledger.commit)を書き終えるまで裏で動く許可を持つ(run の中だけでは保存の前に返してしまう)。
+            BackgroundTurnActivity.begin()
             let status = await self.runChat(state: state, after: predecessor)
             await self.finishChatAndNotify(state: state, status: status)
+            BackgroundTurnActivity.end()
             // 段階 1 の会話が止まった: 「先に進む」の後の例題を先回りで作る(§3.1)。
             await self.prefetchExampleIfSubunitThread(threadID: state.threadID)
         }
@@ -218,8 +221,13 @@ extension TurnCoordinator {
             let turnID = state.turnID
             let readyState = state
             let outcome: TurnOutcome
+            let ledger = self.ledger
+            let stageSink: @Sendable (String) -> Void = { stage in
+                let at = LedgerClock.now()
+                Task { await TurnCoordinator.recordStage(ledger: ledger, turnID: turnID, stage: stage, at: at) }
+            }
             do {
-                outcome = try await runner.run(current) { [weak self] event in
+                outcome = try await TurnStage.$sink.withValue(stageSink) { try await runner.run(current) { [weak self] event in
                     activity.send(event)
                     guard let self else { return }
                     if case .replyDelta(let itemID, let text) = event.kind {
@@ -231,7 +239,7 @@ extension TurnCoordinator {
                         }
                     }
                     Task { await self.forwardChatProgress(turnID: turnID, event: event) }
-                }
+                } }
             } catch let runError {
                 error = runError.localizedDescription
                 errorDetail = CodexTurnRunner.describe(runError)
@@ -317,7 +325,8 @@ extension TurnCoordinator {
             turn.status = status
             turn.codexThreadId = codexThreadID ?? turn.codexThreadId
             turn.codexTurnId = codexTurnID ?? turn.codexTurnId
-            if let executions { turn.executions = .array(executions) }
+            // 段階の記録(`turn.stage`)は上書きで消さない。
+            if let executions { turn.executions = TurnCoordinator.mergedExecutions(turn.executions, executions) }
             turn.error = error
             if status == "running" { turn.startedAt = LedgerClock.now() } else { turn.completedAt = LedgerClock.now() }
             return ([.upsert("turn.\(status)", turn)], ())

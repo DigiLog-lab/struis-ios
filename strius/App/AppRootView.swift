@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// Top-level shell for the app. The root is the workbook home 「単元」; the
-/// chat is the 「質問」 child screen opened from the top-right pill or embedded
-/// in a subunit's stage 1/2. Sign-in is delegated to AuthStore + SignInEntryView.
+/// Top-level shell for the app. The root is the learning timeline 「タイムライン」(Issue #46): it is
+/// the first screen after launch. The workbook home 「単元」 is kept as it is and covers the timeline
+/// full screen from the timeline's top-left 「単元」; its top-left 「タイムライン」 closes it again. The chat
+/// is the 「質問」 child screen. Sign-in is delegated to AuthStore + SignInEntryView.
 struct AppRootView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(BootstrapStore.self) private var bootstrap
@@ -12,6 +13,7 @@ struct AppRootView: View {
     @Environment(WorkbookStore.self) private var workbook
     @Environment(WorkbookCoordinator.self) private var coordinator
     @Environment(LearningFeedRuntimeServices.self) private var learningFeedRuntime
+    @Environment(TimelineStore.self) private var timeline
 
     /// オンボーディングは Release でも出す(§7.2)。完了は端末に保存し、2 回目の起動からは出さない。
     @State private var isShowingOnboarding = Self.initiallyShowsOnboarding
@@ -21,6 +23,17 @@ struct AppRootView: View {
     /// オンボーディングで選んだ教材を保存できなかった(オンボーディングは閉じずに、もう一度押してもらう)。
     @State private var onboardingSaveFailed = false
     @State private var isSettingsPresented = false
+    /// 単元ホームをタイムラインの上に重ねている。
+    @State private var isUnitsPresented = Self.startsOnUnits
+
+    /// 起動した時に単元ホームを重ねた状態から始めるか(DEBUG: 単元ホームから操作する UI テストの起動に使う)。
+    private static var startsOnUnits: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.environment["STRUIS_START_SCREEN"] == "units"
+        #else
+        return false
+        #endif
+    }
 
     private static var initiallyShowsOnboarding: Bool {
         #if DEBUG
@@ -151,15 +164,33 @@ struct AppRootView: View {
     private var authenticatedContent: some View {
         Group {
             if auth.canUseApp {
-                WorkbookHomeView(onOpenSettings: { isSettingsPresented = true })
-                    .sheet(isPresented: $isSettingsPresented) {
-                        RootSettingsSheet(onReplayOnboarding: {
-                            withAnimation(.easeInOut(duration: Theme.Duration.standard)) {
-                                onboardingSessionID += 1
-                                isShowingOnboarding = true
+                LearningTimelineView(store: timeline, onOpenUnits: { isUnitsPresented = true })
+                    // 単元ホームは中身を変えずに、全画面で重ねる(画面の移り方・撮る・質問をそのまま持つ)。
+                    .fullScreenCover(isPresented: $isUnitsPresented) {
+                        WorkbookHomeView(onOpenSettings: { isSettingsPresented = true }, onCloseTimeline: { isUnitsPresented = false })
+                            .sheet(isPresented: $isSettingsPresented) {
+                                RootSettingsSheet(onReplayOnboarding: {
+                                    isUnitsPresented = false
+                                    withAnimation(.easeInOut(duration: Theme.Duration.standard)) {
+                                        onboardingSessionID += 1
+                                        isShowingOnboarding = true
+                                    }
+                                })
+                                .presentationDetents([.large])
                             }
-                        })
-                        .presentationDetents([.large])
+                    }
+                    // タイムラインの「質問」と、単元づくり(オンボーディングの後・案内の1枚)。単元ホームを重ねている間は、単元ホームが出す。
+                    .sheet(item: Binding(get: { isUnitsPresented ? nil : coordinator.question }, set: { coordinator.question = $0 })) { context in
+                        WorkbookQuestionScreen(context: context)
+                    }
+                    // 単元づくりの「はじめる」など、単元ホームの中の画面へ移る時は、単元ホームを重ねてから移る。
+                    .onChange(of: coordinator.path) { _, path in
+                        guard !path.isEmpty, !isUnitsPresented else { return }
+                        // 質問のシートを閉じている途中に重ねると出ないことがあるので、閉じ終わるのを待つ。
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(450))
+                            isUnitsPresented = true
+                        }
                     }
                     .onAppear { chat.start() }
                     .task {
@@ -228,5 +259,6 @@ private struct RootSettingsSheet: View {
         .environment(learningFeedRuntime)
         .environment(workbook)
         .environment(WorkbookCoordinator())
+        .environment(TimelineStore(ledger: learnerData.ledger, turns: learnerData.turns))
 }
 #endif

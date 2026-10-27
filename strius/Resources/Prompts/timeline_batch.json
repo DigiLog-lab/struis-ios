@@ -1,0 +1,665 @@
+{
+  "type": "object",
+  "properties": {
+    "reason": {
+      "type": "string"
+    },
+    "cards": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "solve",
+              "order",
+              "find_error",
+              "compare",
+              "fill_line",
+              "next_step",
+              "graph_match",
+              "sort",
+              "predict",
+              "inverse",
+              "reason"
+            ]
+          },
+          "level": {
+            "type": "integer"
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "type_name": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "math": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "answer_key": {
+            "type": "string"
+          },
+          "answer_expr": {
+            "type": "string"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "left": {
+                  "type": "string"
+                },
+                "right": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "left",
+                "right"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "common_mistakes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mistake_steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "step": {
+                  "type": "integer"
+                },
+                "wrong": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "step",
+                "wrong"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "estimated_seconds": {
+            "type": "integer"
+          },
+          "chain": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "position": {
+                "type": "integer"
+              },
+              "total": {
+                "type": "integer"
+              },
+              "changed": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "previous": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "position",
+              "total",
+              "changed",
+              "previous"
+            ],
+            "additionalProperties": false
+          },
+          "easier": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "level": {
+                "type": "integer"
+              },
+              "prompt": {
+                "type": "string"
+              },
+              "math": {
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              },
+              "answer_key": {
+                "type": "string"
+              },
+              "answer_expr": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "level",
+              "prompt",
+              "math",
+              "question",
+              "answer_key",
+              "answer_expr"
+            ],
+            "additionalProperties": false
+          },
+          "variant": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "level": {
+                "type": "integer"
+              },
+              "prompt": {
+                "type": "string"
+              },
+              "math": {
+                "type": "string"
+              },
+              "question": {
+                "type": "string"
+              },
+              "answer_key": {
+                "type": "string"
+              },
+              "answer_expr": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "level",
+              "prompt",
+              "math",
+              "question",
+              "answer_key",
+              "answer_expr"
+            ],
+            "additionalProperties": false
+          },
+          "subunit_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "facts": {
+            "type": "object",
+            "properties": {
+              "answer_value": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "vertex": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "number"
+                }
+              },
+              "axis": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "answer_value",
+              "vertex",
+              "axis"
+            ],
+            "additionalProperties": false
+          },
+          "compare": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "a_title": {
+                "type": "string"
+              },
+              "a_lines": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "b_title": {
+                "type": "string"
+              },
+              "b_lines": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "question": {
+                "type": "string"
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "answer_index": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "a_title",
+              "a_lines",
+              "b_title",
+              "b_lines",
+              "question",
+              "options",
+              "answer_index"
+            ],
+            "additionalProperties": false
+          },
+          "reason": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "question": {
+                "type": "string"
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "answer_index": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "question",
+              "options",
+              "answer_index"
+            ],
+            "additionalProperties": false
+          },
+          "howto": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "skill": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              },
+              "diagram": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "range_vs_axis"
+                    ]
+                  },
+                  "cases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "position": {
+                          "type": "string",
+                          "enum": [
+                            "left",
+                            "straddle",
+                            "right"
+                          ]
+                        },
+                        "min_at": {
+                          "type": "string",
+                          "enum": [
+                            "right_end",
+                            "vertex",
+                            "left_end"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "label",
+                        "position",
+                        "min_at"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "kind",
+                  "cases"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "skill",
+              "note",
+              "diagram"
+            ],
+            "additionalProperties": false
+          },
+          "diagnostic": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "skill_id": {
+                "type": "string"
+              },
+              "skill_name": {
+                "type": "string"
+              },
+              "skill_kind": {
+                "type": "string"
+              },
+              "required_by": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "skill_id",
+              "skill_name",
+              "skill_kind",
+              "required_by"
+            ],
+            "additionalProperties": false
+          },
+          "reveal": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "level",
+          "skills",
+          "type_name",
+          "prompt",
+          "math",
+          "question",
+          "answer_key",
+          "answer_expr",
+          "checks",
+          "common_mistakes",
+          "steps",
+          "mistake_steps",
+          "estimated_seconds",
+          "chain",
+          "easier",
+          "variant",
+          "subunit_id",
+          "facts",
+          "compare",
+          "reason",
+          "howto",
+          "diagnostic",
+          "reveal"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "rapid": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "skill": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "math": {
+            "type": "string"
+          },
+          "answer_key": {
+            "type": "string"
+          },
+          "answer_expr": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "skill",
+          "prompt",
+          "math",
+          "answer_key",
+          "answer_expr"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "wanted_prerequisites": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "required_by": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "required_by"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "graph_ops": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "add_node",
+              "remove_node",
+              "split_node",
+              "merge_nodes",
+              "add_edge",
+              "remove_edge"
+            ]
+          },
+          "node": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "procedure",
+                  "concept",
+                  "combination",
+                  "memorized"
+                ]
+              },
+              "unit_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "kind",
+              "unit_id"
+            ],
+            "additionalProperties": false
+          },
+          "node_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "into": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "procedure",
+                    "concept",
+                    "combination",
+                    "memorized"
+                  ]
+                },
+                "unit_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "kind",
+                "unit_id"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "edge": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "relation": {
+                "type": "string",
+                "enum": [
+                  "prerequisite",
+                  "misconception"
+                ]
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "relation",
+              "note"
+            ],
+            "additionalProperties": false
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "node",
+          "node_ids",
+          "into",
+          "edge",
+          "evidence",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "reason",
+    "cards",
+    "rapid",
+    "wanted_prerequisites",
+    "graph_ops"
+  ],
+  "additionalProperties": false
+}

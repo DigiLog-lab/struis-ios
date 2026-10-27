@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "properties": {
+    "skill_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "attempt_id": {"type": "string"},
+          "skill_id": {"type": "string"},
+          "result": {"type": "string", "enum": ["correct", "wrong"]}
+        },
+        "required": ["attempt_id", "skill_id", "result"],
+        "additionalProperties": false
+      }
+    },
+    "notes": {"type": "string"}
+  },
+  "required": ["skill_results", "notes"],
+  "additionalProperties": false
+}

@@ -230,6 +230,19 @@
 		F7E9128C22CCD0084818A055 /* UnitCreationDecomposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8E9128C22CCD0084818A055 /* UnitCreationDecomposer.swift */; };
 		FD261933644D618087CF5359 /* text-native.xcframework in Embed Native Frameworks */ = {isa = PBXBuildFile; fileRef = 6501D2306BFF134780428A95 /* text-native.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		F8A1C0E00000000000000002 /* engine-vectors in Resources */ = {isa = PBXBuildFile; fileRef = F8A1C0E00000000000000001 /* engine-vectors */; };
+		E514CEE8E85559824C96A52E /* Prompts in Resources */ = {isa = PBXBuildFile; fileRef = 84586C66B08BCD849F2783CE /* Prompts */; };
+		3A89FB606BB76E53890A1F9D /* TimelineRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E0302BEB4AE02B1638D2E0A /* TimelineRows.swift */; };
+		9300634436D74C4BBE35699D /* TimelineExpression.swift in Sources */ = {isa = PBXBuildFile; fileRef = 807F62CB64FE8239B5C8353B /* TimelineExpression.swift */; };
+		F9CD06CA0E3B89397D2BA8D0 /* TimelineRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB05E17118FB7AF5CDA81A6F /* TimelineRules.swift */; };
+		FC31020B54D6F11FAD2E36D4 /* TimelineGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CCDF6B0A0C3EA7362D61C81 /* TimelineGraph.swift */; };
+		54CB1AC84DB7F05328E777C9 /* TimelineCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 804E6CA24FAD8D46755DF731 /* TimelineCards.swift */; };
+		17C8266FA86E6432F1F0C8C5 /* TimelineMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FEBAE568FDA5E20EBE7967 /* TimelineMachine.swift */; };
+		7F2137BB93FD6387FE8AC370 /* TimelineTurns.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9BAEF74E6FF625CB4C478F3 /* TimelineTurns.swift */; };
+		EF55AF6D8620EE4ECF28C485 /* TimelineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E65AE9A79C0EBE31438EA058 /* TimelineStore.swift */; };
+		28A97A05E707E328626BB54C /* TimelineParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 833CCE513E78354E7FE8CB3E /* TimelineParts.swift */; };
+		2B7ECE02890F0AF50AA91B1A /* TimelineCardContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34208B315DFCB1CD386D3343 /* TimelineCardContent.swift */; };
+		DF7417F7B2FBE312887DEABA /* TimelineDipViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F0CE00FDFB0E6441B2DC5E /* TimelineDipViews.swift */; };
+		BDA40009050301B7C0246D93 /* LearningTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E8C890FA310BDE40DFF28DE /* LearningTimelineView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -502,6 +515,19 @@
 		FA2917590ADD8BD7064A00B7 /* NativeOperations.xcframework */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = wrapper.xcframework; name = NativeOperations.xcframework; path = Vendor/NativeOperations.xcframework; sourceTree = "<group>"; };
 		FA3411766DF329BEF05F1053 /* StruisExec.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StruisExec.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		F8A1C0E00000000000000001 /* engine-vectors */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = "engine-vectors"; path = "striusTests/Fixtures/engine-vectors"; sourceTree = SOURCE_ROOT; };
+		84586C66B08BCD849F2783CE /* Prompts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Prompts; sourceTree = "<group>"; };
+		6E0302BEB4AE02B1638D2E0A /* TimelineRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineRows.swift; sourceTree = "<group>"; };
+		807F62CB64FE8239B5C8353B /* TimelineExpression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineExpression.swift; sourceTree = "<group>"; };
+		BB05E17118FB7AF5CDA81A6F /* TimelineRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineRules.swift; sourceTree = "<group>"; };
+		3CCDF6B0A0C3EA7362D61C81 /* TimelineGraph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineGraph.swift; sourceTree = "<group>"; };
+		804E6CA24FAD8D46755DF731 /* TimelineCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineCards.swift; sourceTree = "<group>"; };
+		63FEBAE568FDA5E20EBE7967 /* TimelineMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineMachine.swift; sourceTree = "<group>"; };
+		A9BAEF74E6FF625CB4C478F3 /* TimelineTurns.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineTurns.swift; sourceTree = "<group>"; };
+		E65AE9A79C0EBE31438EA058 /* TimelineStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineStore.swift; sourceTree = "<group>"; };
+		833CCE513E78354E7FE8CB3E /* TimelineParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineParts.swift; sourceTree = "<group>"; };
+		34208B315DFCB1CD386D3343 /* TimelineCardContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineCardContent.swift; sourceTree = "<group>"; };
+		A3F0CE00FDFB0E6441B2DC5E /* TimelineDipViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineDipViews.swift; sourceTree = "<group>"; };
+		7E8C890FA310BDE40DFF28DE /* LearningTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningTimelineView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -731,6 +757,7 @@
 		A30000000000000000000005 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				7B9F41B2C3D6F8CBB6B47286 /* Timeline */,
 				A30000000000000000000006 /* Chat */,
 				C30000000000000000000001 /* ImmersionLab */,
 				A3000000000000000000000C /* Onboarding */,
@@ -804,6 +831,7 @@
 		A3000000000000000000000A /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				84586C66B08BCD849F2783CE /* Prompts */,
 				A2000000000000000000002A /* KaTeX */,
 				A3000000000000000000000B /* Fonts */,
 			);
@@ -924,6 +952,7 @@
 		E808D880E3F0720DB3DD2D9F /* Ledger */ = {
 			isa = PBXGroup;
 			children = (
+				6E0302BEB4AE02B1638D2E0A /* TimelineRows.swift */,
 				E886438606454527D4DD463C /* Ledger.swift */,
 				E8AE201EA0D519FE16B607CA /* LedgerEvents.swift */,
 				E8DE42321A7D3F680E6B8B27 /* LedgerRows.swift */,
@@ -1066,6 +1095,12 @@
 		E88D869D0CD3754EED0470FA /* Engine */ = {
 			isa = PBXGroup;
 			children = (
+				A9BAEF74E6FF625CB4C478F3 /* TimelineTurns.swift */,
+				63FEBAE568FDA5E20EBE7967 /* TimelineMachine.swift */,
+				804E6CA24FAD8D46755DF731 /* TimelineCards.swift */,
+				3CCDF6B0A0C3EA7362D61C81 /* TimelineGraph.swift */,
+				BB05E17118FB7AF5CDA81A6F /* TimelineRules.swift */,
+				807F62CB64FE8239B5C8353B /* TimelineExpression.swift */,
 				E8142AA1A6A4E8CC68342E91 /* EngineJSON.swift */,
 				E8915C459B984FB12D695D8E /* LearnerText.swift */,
 				E8B38629B54E9F836AA83DEB /* LearningProgress.swift */,
@@ -1148,6 +1183,18 @@
 			children = (
 			);
 			path = Settings;
+			sourceTree = "<group>";
+		};
+		7B9F41B2C3D6F8CBB6B47286 /* Timeline */ = {
+			isa = PBXGroup;
+			children = (
+				7E8C890FA310BDE40DFF28DE /* LearningTimelineView.swift */,
+				A3F0CE00FDFB0E6441B2DC5E /* TimelineDipViews.swift */,
+				34208B315DFCB1CD386D3343 /* TimelineCardContent.swift */,
+				833CCE513E78354E7FE8CB3E /* TimelineParts.swift */,
+				E65AE9A79C0EBE31438EA058 /* TimelineStore.swift */,
+			);
+			path = Timeline;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1324,6 +1371,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E514CEE8E85559824C96A52E /* Prompts in Resources */,
 				A10000000000000000000023 /* Assets.xcassets in Resources */,
 				A10000000000000000000027 /* CormorantGaramond.ttf in Resources */,
 				A10000000000000000000028 /* CormorantGaramond-Italic.ttf in Resources */,
@@ -1416,6 +1464,18 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BDA40009050301B7C0246D93 /* LearningTimelineView.swift in Sources */,
+				DF7417F7B2FBE312887DEABA /* TimelineDipViews.swift in Sources */,
+				2B7ECE02890F0AF50AA91B1A /* TimelineCardContent.swift in Sources */,
+				28A97A05E707E328626BB54C /* TimelineParts.swift in Sources */,
+				EF55AF6D8620EE4ECF28C485 /* TimelineStore.swift in Sources */,
+				7F2137BB93FD6387FE8AC370 /* TimelineTurns.swift in Sources */,
+				17C8266FA86E6432F1F0C8C5 /* TimelineMachine.swift in Sources */,
+				54CB1AC84DB7F05328E777C9 /* TimelineCards.swift in Sources */,
+				FC31020B54D6F11FAD2E36D4 /* TimelineGraph.swift in Sources */,
+				F9CD06CA0E3B89397D2BA8D0 /* TimelineRules.swift in Sources */,
+				9300634436D74C4BBE35699D /* TimelineExpression.swift in Sources */,
+				3A89FB606BB76E53890A1F9D /* TimelineRows.swift in Sources */,
 				D10000000000000000000001 /* WorkspaceBrowserDTO.swift in Sources */,
 				D10000000000000000000002 /* WorkspaceBrowserEndpoints.swift in Sources */,
 				E710000000000000000000001 /* WorkbookStore.swift in Sources */,

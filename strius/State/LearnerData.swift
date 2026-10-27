@@ -54,6 +54,7 @@ final class LearnerData {
         #endif
         requiresDelivery = !useMock
         turns = TurnCoordinator(ledger: ledger, assets: assets, runner: runner)
+        TimelineQueryHost.install(ledger)
     }
 
     private var usageReporter: UsageReporter?

@@ -1,0 +1,236 @@
+{
+  "type": "object",
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "procedure",
+              "concept",
+              "combination",
+              "memorized"
+            ]
+          },
+          "unit_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "unit_id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "prerequisite",
+              "misconception"
+            ]
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "relation",
+          "note"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "ops": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "add_node",
+              "remove_node",
+              "split_node",
+              "merge_nodes",
+              "add_edge",
+              "remove_edge"
+            ]
+          },
+          "node": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "procedure",
+                  "concept",
+                  "combination",
+                  "memorized"
+                ]
+              },
+              "unit_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "kind",
+              "unit_id"
+            ],
+            "additionalProperties": false
+          },
+          "node_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "into": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "procedure",
+                    "concept",
+                    "combination",
+                    "memorized"
+                  ]
+                },
+                "unit_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "kind",
+                "unit_id"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "edge": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "relation": {
+                "type": "string",
+                "enum": [
+                  "prerequisite",
+                  "misconception"
+                ]
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to",
+              "relation",
+              "note"
+            ],
+            "additionalProperties": false
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "op",
+          "node",
+          "node_ids",
+          "into",
+          "edge",
+          "evidence",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "start_node_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "nodes",
+    "edges",
+    "ops",
+    "start_node_id",
+    "notes"
+  ],
+  "additionalProperties": false
+}

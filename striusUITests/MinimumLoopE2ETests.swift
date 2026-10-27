@@ -15,7 +15,7 @@ final class MinimumLoopE2ETests: XCTestCase {
         guard let token = ProcessInfo.processInfo.environment["STRUIS_E2E_ACCESS_TOKEN"] else {
             throw XCTSkip("STRUIS_E2E_ACCESS_TOKEN is required for the deployed-backend E2E")
         }
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments += ["-e2e", "-reset-auth", "-skip-onboarding"]
         app.launchEnvironment["STRUIS_IOS_USE_FIXTURES"] = "0"
         app.launchEnvironment["STRUIS_DEV_ACCESS_TOKEN"] = token

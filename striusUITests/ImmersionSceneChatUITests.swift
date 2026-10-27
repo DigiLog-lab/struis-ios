@@ -21,7 +21,7 @@ final class ImmersionSceneChatUITests: XCTestCase {
 
     @MainActor
     func testAskFromSceneThenReturnToSameCanvas() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         // オンボーディングプロトタイプをスキップして chat 画面へ直行する
         // (シミュレータは auth バイパス + fixtures)。
         // TEST_RUNNER_STRUIS_API_BASE_URL を渡すと fixtures を切り、
@@ -96,7 +96,7 @@ final class ImmersionSceneChatUITests: XCTestCase {
     /// 固定文言「別のものにする」が閉じるだけで終わらず、候補選択を開く。
     @MainActor
     func testChangeCandidateOpensCandidatePicker() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         // 没頭シーンの入口は保留中の機能で、`-immersion-entry` のときだけ質問シートに出る。
         app.launchArguments = ["-learning-feed-e2e", "-immersion-entry"]
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
@@ -122,7 +122,7 @@ final class ImmersionSceneChatUITests: XCTestCase {
     /// 差 → 圧縮 (再試行) → 転移 → 境界 → 終了。
     @MainActor
     func testJourneyWalkthroughForRecording() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         // 没頭シーンの入口は保留中の機能で、`-immersion-entry` のときだけ質問シートに出る。
         app.launchArguments = ["-learning-feed-e2e", "-immersion-entry"]
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
@@ -207,7 +207,7 @@ final class ImmersionSceneChatUITests: XCTestCase {
     /// 認知循環の完走を実画面で検証する。
     @MainActor
     func testExploreRequiresManipulationThenFullCycleCompletes() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments = ["-immersion-lab", "-immersion-scene", "web.iced-tea-dilution.explore"]
         app.launch()
 
