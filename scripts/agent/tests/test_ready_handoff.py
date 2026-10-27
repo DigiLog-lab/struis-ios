@@ -96,6 +96,15 @@ class ReadyHandoffTests(unittest.TestCase):
         self.assertEqual(self.store.get_json('sessions/4/gate-request.json')['request'], request['request'])
         self.assertEqual(self.controller.start(8, request['request'])['attempts'], 1)
 
+    def test_ready_is_not_paused_when_the_counter_reset_after_a_pass_was_lost(self):
+        # The pass was saved but the counter write failed: it still holds the closed window.
+        self.store.put_json('sessions/gates/issue-4.json', {'attempts': 3, 'since': '2026-01-01T00:00:01Z'})
+        self.controller.save({'pr': 8, 'issue': 4, 'head': 'b' * 40, 'phase': 'complete', 'success': True,
+                              'attempts': 3, 'since': '2026-01-01T00:00:01Z'})
+        request = delivery.ready()
+        self.assertFalse(delivery.read('delivery-blocked.json', {}))
+        self.assertEqual(self.store.get_json('sessions/4/gate-request.json')['request'], request['request'])
+
     def test_ready_is_paused_when_failures_since_the_last_pass_reach_the_limit(self):
         self.store.put_json('sessions/gates/issue-4.json', {'attempts': 3, 'since': '2026-01-01T00:00:01Z'})
         self.assertIsNone(delivery.ready())

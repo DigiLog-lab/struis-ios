@@ -385,11 +385,13 @@ def ready():
     # Attempts since the last passed gate. gate.attempt_window decides at start from the
     # statuses; this only avoids requesting a gate the controller would refuse. A counter
     # from before windows (no `since`) cannot tell, so the controller decides alone.
-    if 'since' in counter:
-        passed = previous.get('phase') == 'complete' and previous.get('success')
+    passed = previous.get('phase') == 'complete' and previous.get('success')
+    if 'since' in counter and not (passed and counter['since'] == previous.get('since', '')):
         earlier = 0 if passed or previous.get('since', '') != counter['since'] else int(previous.get('attempts', 0))
         attempts = max(earlier, int(counter.get('attempts', 0)))
     else:
+        # No window yet, or the counter still holds the window this passed gate closed
+        # (its reset was not written): the controller decides alone.
         attempts = 0
     if attempts >= int(limit):
         if not pr['draft']:

@@ -300,6 +300,22 @@ class GateTests(unittest.TestCase):
             self.controller.start(8)
         self.assertEqual(self.dispatches(), [])
 
+    def test_rewritten_history_does_not_reopen_a_window_after_failures(self):
+        # A pass, then three failed gates; a force-push drops every commit that
+        # carried those statuses. The signed record still holds the window.
+        self.controller.save({'pr': 8, 'issue': 4, 'head': 'b' * 40, 'phase': 'complete', 'success': False,
+                              'attempts': 3, 'since': '2026-01-01T00:00:05Z'})
+        with self.assertRaisesRegex(RuntimeError, 'limit'):
+            self.controller.start(8)
+        self.assertEqual(self.dispatches(), [])
+
+    def test_a_signed_pass_survives_rewritten_history(self):
+        # The passed commit is gone from the PR; its signed record still opens the window.
+        self.store.put_json('sessions/gates/issue-4.json', {'attempts': 3, 'since': ''})
+        self.controller.save({'pr': 8, 'issue': 4, 'head': 'b' * 40, 'phase': 'complete', 'success': True,
+                              'attempts': 3, 'since': '', 'finishedAt': '2026-01-01T00:00:05Z'})
+        self.assertEqual(self.controller.start(8)['attempts'], 1)
+
     def test_counted_attempts_ignore_passed_and_earlier_window_entries(self):
         since = '2026-01-01T00:00:09Z'
         self.assertEqual(gate.counted_attempts({'attempts': 2, 'since': since}, since), 2)

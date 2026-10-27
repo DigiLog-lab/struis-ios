@@ -110,14 +110,16 @@ def gate_status(gh, head):
     return None
 
 
-def attempt_window(gh, issue, branch):
+def attempt_window(gh, issue, branch, floor=''):
     """Gate starts since the last passed gate, from statuses on this Issue's PR commits.
 
     The limit stops a run of failing gates, so a pass opens a new window: the
     count is the number of starts written after the newest success, and `since`
     is that success's time ('' when no gate has passed yet). Statuses cannot be
     deleted and the worker cannot write them, so the limit holds even if the
-    store's counter were reset or a PR recreated.
+    store's counter were reset or a PR recreated. `floor` is a pass time the
+    controller signed (trusted_since): a rewritten branch can drop the passed
+    commit from the PR, and the window must not fall back to an earlier one.
     """
     owner = gh.repository.split('/')[0]
     query = urllib.parse.urlencode({'head': f'{owner}:{branch}', 'state': 'all'})
@@ -135,12 +137,20 @@ def attempt_window(gh, issue, branch):
                 starts.append(created)
             elif item.get('state') == 'success':
                 passes.append(created)
-    since = max(passes, default='')
+    since = max(passes + [floor])
     return {'attempts': sum(1 for created in starts if created > since), 'since': since}
 
 
 def status_attempts(gh, issue, branch):
     return attempt_window(gh, issue, branch)['attempts']
+
+
+def trusted_since(record):
+    """The window a signed gate record belongs to; a passed gate opened a new one."""
+    record = record or {}
+    if record.get('phase') == 'complete' and record.get('success'):
+        return record.get('finishedAt', '')
+    return record.get('since', '')
 
 
 def counted_attempts(entry, since):
@@ -422,7 +432,7 @@ class Controller:
             self.invalidate(old, pr, 'A newer Ready request replaced this gate', redraft=False)
         limit = max_attempts()
         counter = store.get_json(f'sessions/gates/issue-{request["issue"]}.json') or {}
-        window = attempt_window(gh, request['issue'], request['branch'])
+        window = attempt_window(gh, request['issue'], request['branch'], floor=trusted_since(old))
         since = window['since']
         attempts = max(counted_attempts(counter, since), counted_attempts(old, since), window['attempts'])
         if attempts >= limit:
@@ -477,7 +487,7 @@ class Controller:
         if record.get('head') != pr['head']['sha'] or (record.get('phase') in TERMINAL and record.get('request') != attempted):
             passed = record.get('phase') == 'complete' and record.get('success')
             record = {'pr': number, 'issue': issue_for(pr), 'head': pr['head']['sha'],
-                      'attempts': 0 if passed else record.get('attempts', 0), 'since': record.get('since', '')}
+                      'attempts': 0 if passed else record.get('attempts', 0), 'since': trusted_since(record)}
         record.update(phase='blocked', error=str(error), finishedAt=iso())
         self.save(record)
         delivery.draft(self.gh, pr)
