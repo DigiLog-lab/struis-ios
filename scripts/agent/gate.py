@@ -110,11 +110,14 @@ def gate_status(gh, head):
     return None
 
 
-def status_attempts(gh, issue, branch):
-    """Gate starts recorded as statuses on this Issue's PR commits.
+def attempt_window(gh, issue, branch):
+    """Gate starts since the last passed gate, from statuses on this Issue's PR commits.
 
-    Statuses cannot be deleted and the worker cannot write them, so the limit
-    holds even if the store's counter were reset or a PR recreated.
+    The limit stops a run of failing gates, so a pass opens a new window: the
+    count is the number of starts written after the newest success, and `since`
+    is that success's time ('' when no gate has passed yet). Statuses cannot be
+    deleted and the worker cannot write them, so the limit holds even if the
+    store's counter were reset or a PR recreated.
     """
     owner = gh.repository.split('/')[0]
     query = urllib.parse.urlencode({'head': f'{owner}:{branch}', 'state': 'all'})
@@ -122,13 +125,34 @@ def status_attempts(gh, issue, branch):
     for pr in gh.paginate(f'/repos/{gh.repository}/pulls?{query}'):
         if issue_for(pr) == issue:
             shas.update(commit['sha'] for commit in gh.paginate(f'/repos/{gh.repository}/pulls/{pr["number"]}/commits'))
-    count = 0
+    starts, passes = [], []
     for sha in sorted(shas):
         for item in gh.paginate(f'/repos/{gh.repository}/commits/{sha}/statuses'):
-            if (item.get('context') == CONTEXT and (item.get('creator') or {}).get('login') == CONTROLLER_LOGIN
-                    and item.get('state') == 'pending' and (item.get('description') or '').startswith(ATTEMPT_PREFIX)):
-                count += 1
-    return count
+            if item.get('context') != CONTEXT or (item.get('creator') or {}).get('login') != CONTROLLER_LOGIN:
+                continue
+            created = item.get('created_at') or ''
+            if item.get('state') == 'pending' and (item.get('description') or '').startswith(ATTEMPT_PREFIX):
+                starts.append(created)
+            elif item.get('state') == 'success':
+                passes.append(created)
+    since = max(passes, default='')
+    return {'attempts': sum(1 for created in starts if created > since), 'since': since}
+
+
+def status_attempts(gh, issue, branch):
+    return attempt_window(gh, issue, branch)['attempts']
+
+
+def counted_attempts(entry, since):
+    """Attempts a stored counter or gate record contributes to the current window.
+
+    Entries written before the newest pass (or before windows existed) belong to
+    an earlier window; a passed gate itself never counts against the next one.
+    """
+    entry = entry or {}
+    if entry.get('phase') == 'complete' and entry.get('success'):
+        return 0
+    return int(entry.get('attempts', 0)) if entry.get('since', '') == since else 0
 
 
 def resolve_branch(client, workflow, branch):
@@ -398,16 +422,18 @@ class Controller:
             self.invalidate(old, pr, 'A newer Ready request replaced this gate', redraft=False)
         limit = max_attempts()
         counter = store.get_json(f'sessions/gates/issue-{request["issue"]}.json') or {}
-        attempts = max(int(counter.get('attempts', 0)), int(old.get('attempts', 0)),
-                       status_attempts(gh, request['issue'], request['branch']))
+        window = attempt_window(gh, request['issue'], request['branch'])
+        since = window['since']
+        attempts = max(counted_attempts(counter, since), counted_attempts(old, since), window['attempts'])
         if attempts >= limit:
             raise RuntimeError('Gate attempt limit reached; leave Draft for Issue instructions')
         selected = backend()
         workflow = cloud_workflow(cloud_client()) if selected == 'xcode-cloud' else None
-        record = dict(request, backend=selected, attempts=attempts + 1,
+        record = dict(request, backend=selected, attempts=attempts + 1, since=since,
                       phase='starting', startedAt=iso(), dispatched=[])
         store.update_json(f'sessions/gates/issue-{request["issue"]}.json',
-                          lambda current: {'attempts': attempts + 1, 'lastRequest': request['request'], 'at': iso()}, default={})
+                          lambda current: {'attempts': attempts + 1, 'since': since,
+                                           'lastRequest': request['request'], 'at': iso()}, default={})
         if workflow:
             record['workflow'] = workflow['id']
         self.save(record)
@@ -449,8 +475,9 @@ class Controller:
             print(f'Start failed without affecting the running gate {record["request"]}: {error}')
             return
         if record.get('head') != pr['head']['sha'] or (record.get('phase') in TERMINAL and record.get('request') != attempted):
+            passed = record.get('phase') == 'complete' and record.get('success')
             record = {'pr': number, 'issue': issue_for(pr), 'head': pr['head']['sha'],
-                      'attempts': record.get('attempts', 0)}
+                      'attempts': 0 if passed else record.get('attempts', 0), 'since': record.get('since', '')}
         record.update(phase='blocked', error=str(error), finishedAt=iso())
         self.save(record)
         delivery.draft(self.gh, pr)
@@ -609,6 +636,11 @@ class Controller:
             return self.invalidate(record, fresh, 'HEAD changed while collecting gate results')
         record.update(phase='complete', success=not failed, finishedAt=iso())
         self.save(record)
+        if not failed and record.get('issue'):
+            # A pass opens a new window; the next start re-reads `since` from the statuses.
+            self.store.update_json(f'sessions/gates/issue-{record["issue"]}.json',
+                              lambda current: dict(current or {}, attempts=0, since='passed', passedRequest=record['request']),
+                              default={})
         self.publish(record, fresh)
         self.wake(record)
         return record

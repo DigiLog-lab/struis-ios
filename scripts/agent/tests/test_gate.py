@@ -266,6 +266,47 @@ class GateTests(unittest.TestCase):
             self.controller.start(8)
         self.assertEqual(self.dispatches(), [])
 
+    def post_attempt(self, number, state='pending'):
+        if state == 'pending':
+            body = {'state': 'pending', 'context': gate.CONTEXT,
+                    'description': f'{gate.ATTEMPT_PREFIX}{number}/3: starting github'}
+        else:
+            body = {'state': state, 'context': gate.CONTEXT, 'description': 'result'}
+        self.gh.statuses.post('a' * 40, body)
+
+    def test_a_passed_gate_opens_a_new_attempt_window(self):
+        # Fail, pass, pass: the limit counts only starts after the newest pass.
+        self.post_attempt(1)
+        self.post_attempt(1, 'failure')
+        self.post_attempt(2)
+        self.post_attempt(2, 'success')
+        self.post_attempt(3)
+        self.post_attempt(3, 'success')
+        # A counter and a passed record from before the change still say 3.
+        self.store.put_json('sessions/gates/issue-4.json', {'attempts': 3})
+        self.controller.save({'pr': 8, 'issue': 4, 'head': 'a' * 40, 'phase': 'blocked', 'attempts': 3})
+        record = self.controller.start(8)
+        self.assertEqual(record['attempts'], 1)
+        self.assertEqual(self.store.get_json('sessions/gates/issue-4.json')['attempts'], 1)
+        self.assertEqual(len(self.dispatches()), 2)
+
+    def test_failures_after_a_pass_still_reach_the_limit(self):
+        self.post_attempt(1)
+        self.post_attempt(1, 'success')
+        for number in range(1, 4):
+            self.post_attempt(number)
+            self.post_attempt(number, 'failure')
+        with self.assertRaisesRegex(RuntimeError, 'limit'):
+            self.controller.start(8)
+        self.assertEqual(self.dispatches(), [])
+
+    def test_counted_attempts_ignore_passed_and_earlier_window_entries(self):
+        since = '2026-01-01T00:00:09Z'
+        self.assertEqual(gate.counted_attempts({'attempts': 2, 'since': since}, since), 2)
+        self.assertEqual(gate.counted_attempts({'attempts': 2, 'since': ''}, since), 0)
+        self.assertEqual(gate.counted_attempts({'attempts': 2}, ''), 2)
+        self.assertEqual(gate.counted_attempts({'attempts': 3, 'since': since, 'phase': 'complete', 'success': True}, since), 0)
+
     def test_watch_polls_until_the_gate_completes_and_respects_the_deadline(self):
         record = self.controller.start(8)
         now = [0.0]
