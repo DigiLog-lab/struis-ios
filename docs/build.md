@@ -16,7 +16,7 @@ GitHub Actionsの`.github/workflows/ios.yml`は標準の`xcode-27` runnerを使�
 
 `.github/workflows/ios-cold.yml`は週1回（日曜12:00 JST）または手動実行で公開リポジトリを認証なしで新規cloneし、`GITHUB_SHA`のcommitと空の依存cacheを確認してからREADMEのbootstrap・arm64 Simulator build・単体テストを実行します。こちらはNative RuntimeのActions cacheを使用しません。公開ソースの完全クリーンビルドを配布前に確認する場合は、このWorkflowを`main`で手動実行してください。
 
-署名用のSecretsは`BUILD_CERTIFICATE_BASE64`、`P12_PASSWORD`、`BUILD_PROVISION_PROFILE_APP_BASE64`、`BUILD_PROVISION_PROFILE_RUNTIME_BASE64`、`BUILD_PROVISION_PROFILE_EXEC_BASE64`です。配信サービス設定は`STRUIS_DELIVERY_APP_KEY`、任意の配布には`APP_STORE_CONNECT_PRIVATE_KEY`、`APP_STORE_CONNECT_KEY_ID`、`APP_STORE_CONNECT_ISSUER_ID`を使用します。値はコードへ記載しません。
+署名用のSecretsは`BUILD_CERTIFICATE_BASE64`、`P12_PASSWORD`と、App Store Connect APIの`APP_STORE_CONNECT_PRIVATE_KEY`、`APP_STORE_CONNECT_KEY_ID`、`APP_STORE_CONNECT_ISSUER_ID`です。3つのApp Store配布用プロファイルは`scripts/ci_archive.py`がAPIで取得し、配布証明書が一致して`ACTIVE`で期限まで7日以上あり、App Group(本体はiCloudコンテナ`iCloud.com.digiloglab.strius`も)が入っているものを再利用し、無ければ作ります。App IDに機能を足してプロファイルが無効になっても、Secretsの差し替えは要りません。配信サービス設定は`STRUIS_DELIVERY_APP_KEY`を使用します。値はコードへ記載しません。
 
 通常のCIはarchiveまでです。次の配布時は`main`を対象に手動実行し、`upload`を有効にして未使用の`build_number`を指定します。`scripts/ci_archive.py`が同じcheckoutから署名とアップロードを行い、元commit・version・buildを記録します。アップロード成功後はApp Store Connectで処理完了と内部配布先を確認し、公開ソースの対応表を更新してください。審査提出は自動実行しません。
 
