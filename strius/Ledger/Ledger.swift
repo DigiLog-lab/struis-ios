@@ -51,10 +51,13 @@ actor Ledger {
     nonisolated let deviceID: String
     nonisolated let deletionRoot: URL
     nonisolated let deletionRuntimeRoots: [URL]
-    private var deletionFailure: String?
-    private var observers: [UUID: @Sendable ([LedgerEvent]) -> Void] = [:]
+    var deletionFailure: String?
+    private var observers: [UUID: (localOnly: Bool, handler: @Sendable ([LedgerEvent]) -> Void)] = [:]
 
-    init(path: URL) throws {
+    /// - Parameter installationID: identifies this install on this device (`identifierForVendor`). A ledger
+    ///   restored from a device backup onto another device gets a new `device_id`, so the two devices never
+    ///   write the same `(origin_device_id, origin_seq)` (Issue #51).
+    init(path: URL, installationID: String? = nil) throws {
         try FileManager.default.createDirectory(at: path.deletingLastPathComponent(), withIntermediateDirectories: true)
         var configuration = Configuration()
         configuration.busyMode = .timeout(5)
@@ -65,6 +68,11 @@ actor Ledger {
         self.deletionRuntimeRoots = path.standardizedFileURL == StruisPaths.ledger.standardizedFileURL ? [HyotanBoot.codexHome, HyotanBoot.sharedCodexHome, HyotanBoot.workspaceRoot, HyotanBoot.legacyRoot, HyotanBoot.legacyRoot.deletingLastPathComponent().appendingPathComponent("agentcase")] : []
         self.queue = queue
         self.deviceID = try queue.write { db in
+            let installation = try String.fetchOne(db, sql: "SELECT value FROM ledger_meta WHERE key = 'installation_id'")
+            if let installationID, installation != installationID {
+                try db.execute(sql: "INSERT OR REPLACE INTO ledger_meta (key, value) VALUES ('installation_id', ?)", arguments: [installationID])
+                if installation != nil { try db.execute(sql: "DELETE FROM ledger_meta WHERE key = 'device_id'") }
+            }
             if let existing = try String.fetchOne(db, sql: "SELECT value FROM ledger_meta WHERE key = 'device_id'") {
                 return existing
             }
@@ -123,15 +131,7 @@ actor Ledger {
             for change in journal.changes { try UnitDeletion.write(change) }
             try queue.write { db in
                 try db.execute(sql: "PRAGMA secure_delete=ON")
-                for stored in try StoredLedgerEvent.fetchAll(db) {
-                    guard let old = stored.event else { continue }
-                    if journal.fact.scope.contains(old.entity, old.entityID) || !UnitDeletion.references(old.payload).isDisjoint(with: journal.fact.scope.all) {
-                        try db.execute(sql: "DELETE FROM ledger_events WHERE seq=?", arguments: [stored.seq])
-                    }
-                }
-                for event in journal.events {
-                    try db.execute(sql: "DELETE FROM ledger_events WHERE entity=? AND entity_id=?", arguments: [event.entity.rawValue, event.entityID])
-                }
+                try Self.eraseHistory(of: journal, from: db)
                 try Self.append(journal.events, deviceID: deviceID, to: db)
             }
             try UnitDeletion.recover(queue: queue, root: deletionRoot, runtimeRoots: deletionRuntimeRoots)
@@ -192,6 +192,26 @@ actor Ledger {
 
     nonisolated static func append(_ events: [LedgerEvent], deviceID: String, to db: Database) throws {
         let now = LedgerClock.now()
+        let removed = try removedIDs(db)
+        for event in events {
+            if !event.isDeletion && (removed.contains(event.entityID) || !UnitDeletion.references(event.payload).isDisjoint(with: removed)) {
+                throw LedgerError.conflict("削除した単元の結果は保存できません")
+            }
+            // Last writer wins per row across devices (Issue #51): a local write is the newest version of its
+            // row even when an event from a device whose clock ran ahead is already here.
+            var createdAt = now
+            if let latest = try String.fetchOne(db, sql: "SELECT MAX(created_at) FROM ledger_events WHERE entity = ? AND entity_id = ?", arguments: [event.entity.rawValue, event.entityID]),
+               latest >= createdAt {
+                createdAt = LedgerClock.after(latest)
+            }
+            let stored = StoredLedgerEvent(deviceId: deviceID, event: event, createdAt: createdAt)
+            try stored.insert(db)
+            try event.apply(to: db)
+        }
+    }
+
+    /// IDs covered by every `unit.deleted` fact. Results for them are not written again.
+    nonisolated static func removedIDs(_ db: Database) throws -> Set<String> {
         let facts = try StoredLedgerEvent.filter(Column("kind") == "unit.deleted").fetchAll(db)
         var removed = Set<String>()
         for fact in facts {
@@ -199,13 +219,29 @@ actor Ledger {
                 for value in scope.values { removed.formUnion(value.arrayValue?.compactMap(\.stringValue) ?? []) }
             }
         }
-        for event in events {
-            if !event.isDeletion && (removed.contains(event.entityID) || !UnitDeletion.references(event.payload).isDisjoint(with: removed)) {
-                throw LedgerError.conflict("削除した単元の結果は保存できません")
+        return removed
+    }
+
+    /// Physically delete the history a unit deletion erases. Records already sent to CloudKit are
+    /// remembered so the sync removes them there too (Issue #51).
+    nonisolated static func eraseHistory(of journal: UnitDeletion.Journal, from db: Database) throws {
+        var seqs: [Int64] = []
+        for stored in try StoredLedgerEvent.fetchAll(db) {
+            guard let old = stored.event, let seq = stored.seq else { continue }
+            if journal.fact.scope.contains(old.entity, old.entityID) || !UnitDeletion.references(old.payload).isDisjoint(with: journal.fact.scope.all) {
+                seqs.append(seq)
             }
-            let stored = StoredLedgerEvent(deviceId: deviceID, event: event, createdAt: now)
-            try stored.insert(db)
-            try event.apply(to: db)
+        }
+        for event in journal.events {
+            seqs += try Int64.fetchAll(db, sql: "SELECT seq FROM ledger_events WHERE entity=? AND entity_id=?", arguments: [event.entity.rawValue, event.entityID])
+        }
+        for seq in Set(seqs) {
+            try db.execute(sql: """
+                INSERT OR IGNORE INTO sync_tombstones (record_name)
+                SELECT origin_device_id || '.' || origin_seq FROM ledger_events
+                WHERE seq = ? AND synced_seq IS NOT NULL AND entity != 'codex_account'
+                """, arguments: [seq])
+            try db.execute(sql: "DELETE FROM ledger_events WHERE seq=?", arguments: [seq])
         }
     }
 
@@ -223,7 +259,9 @@ actor Ledger {
         try queue.write { db in
             try LedgerSchema.dropProjections(db)
             try LedgerSchema.createProjections(db)
-            let rows = try StoredLedgerEvent.order(Column("seq")).fetchAll(db)
+            // Each event writes only its own row, so replaying in last-writer-wins order rebuilds what
+            // the sync applied: an older event that arrived from another device later stays unapplied.
+            let rows = try StoredLedgerEvent.fetchAll(db, sql: "SELECT * FROM ledger_events ORDER BY created_at, origin_device_id, origin_seq")
             for row in rows {
                 guard let event = row.event else { continue }
                 try event.apply(to: db)
@@ -295,9 +333,10 @@ actor Ledger {
 
     // MARK: - Observation
 
-    func observe(_ handler: @escaping @Sendable ([LedgerEvent]) -> Void) -> UUID {
+    /// - Parameter localOnly: only this device's writes, not events taken in from another device (Issue #51).
+    func observe(localOnly: Bool = false, _ handler: @escaping @Sendable ([LedgerEvent]) -> Void) -> UUID {
         let id = UUID()
-        observers[id] = handler
+        observers[id] = (localOnly, handler)
         return id
     }
 
@@ -305,7 +344,7 @@ actor Ledger {
         observers[id] = nil
     }
 
-    private func notify(_ events: [LedgerEvent]) {
-        for handler in observers.values { handler(events) }
+    func notify(_ events: [LedgerEvent], remote: Bool = false) {
+        for observer in observers.values where !(remote && observer.localOnly) { observer.handler(events) }
     }
 }

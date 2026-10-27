@@ -37,7 +37,8 @@ final class UsageReporter {
 
     func start() async {
         guard observer == nil else { return }
-        observer = await ledger.observe { [weak self] events in
+        // Turns from another device (iCloud sync) were reported there.
+        observer = await ledger.observe(localOnly: true) { [weak self] events in
             let finished = events.filter { $0.entity == .turns && Self.finishedStatuses.contains($0.payload["status"]?.stringValue ?? "") }
             guard !finished.isEmpty else { return }
             Task { @MainActor [weak self] in

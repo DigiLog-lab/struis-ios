@@ -1,5 +1,6 @@
 import Foundation
 import OSLog
+import UIKit
 
 private let dataLog = Logger(subsystem: "com.digiloglab.strius", category: "learner-data")
 
@@ -12,6 +13,7 @@ final class LearnerData {
     let assets: AssetCache
     let turns: TurnCoordinator
     let runner: any TurnRunning
+    let iCloud: ICloudSync
     let isEphemeral: Bool
     let requiresDelivery: Bool
     private(set) var deliveryState: DeliveryState = .idle
@@ -34,10 +36,19 @@ final class LearnerData {
         isEphemeral = ephemeral
         do {
             try StruisPaths.prepare()
-            ledger = ephemeral ? try Ledger.inMemory() : try Ledger(path: StruisPaths.ledger)
+            ledger = ephemeral ? try Ledger.inMemory() : try Ledger(path: StruisPaths.ledger, installationID: UIDevice.current.identifierForVendor?.uuidString)
         } catch {
             fatalError("ledger unavailable: \(error)")
         }
+        // iCloud sync (Issue #51) only for the real ledger, never under unit tests or fixtures.
+        var syncs = !ephemeral && ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil
+        #if DEBUG
+        syncs = syncs && !SimulatorFixtures.isEnabled && ProcessInfo.processInfo.environment["STRUIS_ICLOUD_SYNC"] != "off"
+        #endif
+        iCloud = ICloudSync(ledger: ledger, cloud: syncs ? CloudKitSyncTransport(
+            stateURL: StruisPaths.root.appendingPathComponent("sync/engine-state.json"),
+            temporary: FileManager.default.temporaryDirectory.appendingPathComponent("struis-sync", isDirectory: true)
+        ) : nil)
         var useMock = false
         #if DEBUG
         useMock = MockTurnRunner.isEnabled || runtime == nil || (SimulatorFixtures.isEnabled && !DeviceRuntime.isForcedInFixtures)
