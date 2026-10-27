@@ -554,7 +554,7 @@ nonisolated struct TimelineMachine {
             try c.encode(keySuspect, forKey: .keySuspect)
         }
         static func parse(_ text: String) throws -> Grading {
-            try JSONDecoder().decode(Grading.self, from: Data(text.utf8))
+            try TimelineReply.decode(Grading.self, from: text)
         }
     }
 
@@ -1090,7 +1090,7 @@ nonisolated struct TimelineMachine {
             skillResults = try c.decodeIfPresent([SkillResult].self, forKey: .skillResults) ?? []
             notes = try c.decodeIfPresent(String.self, forKey: .notes) ?? ""
         }
-        static func parse(_ text: String) throws -> Review { try JSONDecoder().decode(Review.self, from: Data(text.utf8)) }
+        static func parse(_ text: String) throws -> Review { try TimelineReply.decode(Review.self, from: text) }
     }
 
     /// 見直しの結果を綴じる: 決めずに置いたスキルの ○×、見直しのメモ。見直した答案(対象と、それより前に採点した未見直しの答案)に印を付ける。

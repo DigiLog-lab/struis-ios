@@ -220,7 +220,7 @@ nonisolated enum TimelineCards {
         }
 
         static func parse(_ text: String) throws -> Batch {
-            try JSONDecoder().decode(Batch.self, from: Data(text.utf8))
+            try TimelineReply.decode(Batch.self, from: text)
         }
     }
 
@@ -444,5 +444,50 @@ extension LedgerJSON {
     nonisolated subscript(index: Int) -> LedgerJSON? {
         guard let array = arrayValue, array.indices.contains(index) else { return nil }
         return array[index]
+    }
+}
+
+/// 採点・見直し・出題の返事の読み方。モデルが JSON の前に説明の文を書くことがある(2026-10-27 の 55 回中 2 回)ので、
+/// 返事全体が JSON として読めない時は、返事の最後にある JSON オブジェクトを取り出して読む。前の文は捨てる
+/// (台帳の `final_text` には元の返事が残る)。取り出したものも読めない時だけ、頼み直しに回す。
+nonisolated enum TimelineReply {
+    static func decode<T: Decodable>(_ type: T.Type, from text: String) throws -> T {
+        do {
+            return try JSONDecoder().decode(type, from: Data(text.utf8))
+        } catch {
+            guard let object = lastObject(in: text), object != text else { throw error }
+            return try JSONDecoder().decode(type, from: Data(object.utf8))
+        }
+    }
+
+    /// 返事の最後の `}` と、それに対応する `{` の間。文字列の中の括弧は数えない。JSON の外に `\` は出ないので、
+    /// 後ろから読んで、直前の `\` が偶数個の `"` を文字列の境目とみなせる。
+    static func lastObject(in text: String) -> String? {
+        let chars = Array(text.unicodeScalars)
+        guard let end = chars.lastIndex(of: "}") else { return nil }
+        var depth = 0
+        var inString = false
+        var index = end
+        while index >= 0 {
+            let c = chars[index]
+            if c == "\"" {
+                var slashes = 0
+                var back = index - 1
+                while back >= 0, chars[back] == "\\" { slashes += 1; back -= 1 }
+                if slashes % 2 == 0 { inString.toggle() }
+            } else if !inString {
+                if c == "}" { depth += 1 }
+                if c == "{" {
+                    depth -= 1
+                    if depth == 0 {
+                        var view = String.UnicodeScalarView()
+                        view.append(contentsOf: chars[index...end])
+                        return String(view)
+                    }
+                }
+            }
+            index -= 1
+        }
+        return nil
     }
 }
