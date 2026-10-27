@@ -5,7 +5,9 @@ Each prototype (Issue number + variant) owns one identifier slot: an app
 Bundle ID with `.runtime` and `.exec` extension IDs and a dedicated App Group.
 App Store Connect API keys cannot create App Groups or attach them to App IDs
 (the Xcode provisioning endpoint `appGroups` answers 401 for API keys), so the
-App Groups of a slot are registered once on the developer portal. Everything
+App Groups of a slot are registered once on the developer portal. The same holds
+for the iCloud container of the app ID (iCloud sync, Issue #51): the API enables
+the iCloud capability, and the container is assigned on the portal. Everything
 else - App IDs, capabilities, devices, Ad Hoc profiles, signing, IPA, upload and
 install links - is automated here.
 
@@ -52,6 +54,8 @@ ENTITLEMENTS = {
 WORKER_SOURCE = 'NativeRuntime/Worker/RuntimeWorker.swift'
 WORKER_LITERAL = 'AppExtensionPoint.Identifier(host: "com.digiloglab.strius", name: "Runtime")'
 ICON = 'strius/Assets.xcassets/AppIcon.appiconset/app-icon-1024.png'
+ICLOUD_CONTAINER = 'iCloud.com.digiloglab.strius'
+CONTAINERS_KEY = 'com.apple.developer.icloud-container-identifiers'
 TOOLS = Path(__file__).resolve().parent
 
 
@@ -110,6 +114,8 @@ def cmd_register_slots(args):
                 label = f"Struis Preview {name.upper()} {product.replace('Struis', '') or 'App'}"
                 bundle, new = asc.ensure_bundle_id(identifier, label)
                 asc.ensure_capability(bundle, 'APP_GROUPS')
+                if not suffix:
+                    asc.ensure_capability(bundle, 'ICLOUD')
                 if new:
                     created.append(identifier)
 
@@ -124,10 +130,12 @@ def cmd_register_slots(args):
     lines = ['### Prototype slots',
              f'- App IDs created: {len(created)}',
              f"- slots: {', '.join(sorted(registry['slots']))}",
-             '- Developer portal (once per slot): register each App Group below and enable it on the three App IDs.']
+             '- Developer portal (once per slot): register each App Group below and enable it on the three App IDs.',
+             f'  Also assign the iCloud container `{ICLOUD_CONTAINER}` to the app App ID (iCloud is enabled by this job).']
     for name in pending or names:
         record = registry['slots'][name]
         lines.append(f"  - `{record['appGroup']}` → `{record['bundleBase']}`, `.runtime`, `.exec`")
+        lines.append(f"  - `{ICLOUD_CONTAINER}` → `{record['bundleBase']}`")
     append_summary('\n'.join(lines))
     print('\n'.join(lines))
 
@@ -301,7 +309,11 @@ def ensure_profiles(asc, meta, serial, private):
         def decode(profile):
             path.write_bytes(base64.b64decode(profile['attributes']['profileContent']))
             document = plistlib.loads(run(['security', 'cms', '-D', '-i', path]))
-            return document, meta['appGroup'] in document['Entitlements'].get('com.apple.security.application-groups', [])
+            entitlements = document['Entitlements']
+            has_group = meta['appGroup'] in entitlements.get('com.apple.security.application-groups', [])
+            # The app syncs through iCloud; the extensions do not.
+            has_container = bool(suffix) or ICLOUD_CONTAINER in entitlements.get(CONTAINERS_KEY, [])
+            return document, has_group, has_container
 
         reusable = None
         horizon = (utc_now() + datetime.timedelta(days=7)).isoformat()
@@ -309,19 +321,23 @@ def ensure_profiles(asc, meta, serial, private):
             attributes = profile['attributes']
             if ((attributes.get('name') or '').startswith(name) and attributes.get('profileState') == 'ACTIVE'
                     and attributes.get('profileType') == 'IOS_APP_ADHOC' and (attributes.get('expirationDate') or '') > horizon):
-                decoded, has_group = decode(profile)
-                if has_group:
+                decoded, has_group, has_container = decode(profile)
+                if has_group and has_container:
                     reusable = profile
                     break
         if not reusable:
             created = asc.create_adhoc_profile(f"{name} {utc_now():%y%m%d%H%M%S}", bundle, [certificate_id], device_ids)
-            decoded, has_group = decode(created)
+            decoded, has_group, has_container = decode(created)
             if not has_group:
                 raise BuildError('provisioning',
                                  f"App ID {identifier} に App Group {meta['appGroup']} が割り当てられていません。"
                                  'Developer ポータルで App Groups を設定してから再実行してください。')
+            if not has_container:
+                raise BuildError('provisioning',
+                                 f"App ID {identifier} に iCloud コンテナ {ICLOUD_CONTAINER} が割り当てられていません。"
+                                 'Developer ポータルで iCloud (CloudKit) のコンテナを設定してから再実行してください。')
         else:
-            decoded, _ = decode(reusable)
+            decoded, _, _ = decode(reusable)
         requested = plistlib.loads((workspace() / ENTITLEMENTS[product]).read_bytes())
         hardened = sorted(key for key in requested if key.startswith('com.apple.security.hardened-process'))
         if hardened and not any(key.startswith('com.apple.security.hardened-process') for key in decoded['Entitlements']):
@@ -454,6 +470,8 @@ def cmd_build(args):
                 raise BuildError('verify', f'{bundle.name} の Bundle ID が {identifier} ではありません。')
             if entitlements.get('com.apple.security.application-groups') != [meta['appGroup']]:
                 raise BuildError('verify', f'{bundle.name} の App Group が想定と異なります。')
+            if bundle is app and ICLOUD_CONTAINER not in entitlements.get(CONTAINERS_KEY, []):
+                raise BuildError('verify', f'{bundle.name} に iCloud コンテナ {ICLOUD_CONTAINER} が入っていません。')
             if embedded['UUID'] != profiles[product]['uuid'] or entitlements.get('get-task-allow'):
                 raise BuildError('verify', f'{bundle.name} の provisioning profile が想定と異なります。')
             point = (bundle_info.get('EXAppExtensionAttributes') or {}).get('EXExtensionPointIdentifier')
