@@ -76,6 +76,7 @@ struct WorkbookHomeView: View {
     @Environment(WorkbookStore.self) private var store
     @Environment(WorkbookCoordinator.self) private var coordinator
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.horizontalSizeClass) private var sizeClass
     let onOpenSettings: () -> Void
     /// タイムラインの上に重ねている時、左上の「タイムライン」で閉じて戻る(Issue #46)。中身は変えない。
     var onCloseTimeline: (() -> Void)? = nil
@@ -249,6 +250,18 @@ struct WorkbookHomeView: View {
                 }
                 if !store.hasAnyUnit, store.recentCaptures.isEmpty, store.uploadingCaptures.isEmpty {
                     createUnitHero
+                } else if TimelineLayout.isWide(sizeClass) {
+                    // iPad: 左に いま・最近、右に すべて。
+                    HStack(alignment: .top, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 28) {
+                            nowSection
+                            recentSection
+                        }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        unitsSection
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                    }
+                    .padding(.horizontal, 20)
                 } else {
                     nowSection
                     recentSection

@@ -10,13 +10,15 @@ struct WorkbookQuestionScreen: View {
     @Environment(LearnerData.self) private var learnerData
     @Environment(AuthStore.self) private var auth
     let context: WorkbookQuestionContext
+    /// シートで出さない時(iPad のタイムラインの右に開く質問)の閉じ方。無ければシートを閉じる。
+    var onClose: (() -> Void)? = nil
 
     var body: some View {
         NavigationStack {
             ChatView(
                 workbookContext: context.viewRef == nil && context.purpose == .question ? nil : context,
                 embedded: false,
-                onClose: { dismiss() },
+                onClose: { if let onClose { onClose() } else { dismiss() } },
                 threadBootstrap: unitCreationBootstrap,
                 onProposalStarted: { started in openFirstSubunit(started) }
             )

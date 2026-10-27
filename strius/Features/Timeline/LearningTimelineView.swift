@@ -3,11 +3,14 @@ import SwiftUI
 /// 起動したら最初に出る、1問ずつの全画面の「タイムライン」(Issue #46)。ブランド名は出さない。
 /// 操作は右下の縦並び(上から 質問・飛ばす・撮る)、下の帯に次の問題の1行目を常に見せ、上に送ると次へ進む。
 /// 上の帯と下の帯の間は、問題文の上も含めて画面の端から端まで指で書ける。次へ進むのは、下の帯を上に送ったときだけ。
+/// iPad(横幅が広い時)は、問題を左の列に置いて右を全部紙にし、書く道具を右上に、「送る」を右下に常に置く。
+/// 横向きでは下の帯を問題の列の下だけにして、右下まで書けるようにする。
 struct LearningTimelineView: View {
     let store: TimelineStore
     let onOpenUnits: () -> Void
     @Environment(WorkbookCoordinator.self) private var coordinator
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var hasInk = false
     @State private var ink = TimelineInkController()
     @State private var inkGeneration = 0
@@ -19,6 +22,7 @@ struct LearningTimelineView: View {
     @State private var isResultAskPresented = false
     @State private var isDisputePresented = false
     @State private var disputeDraft = ""
+    @State private var screenSize: CGSize = .zero
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -31,7 +35,11 @@ struct LearningTimelineView: View {
                     content
                         .padding(.horizontal, 24)
                         .padding(.top, 16)
+                        // iPad 横向きは、下の帯が問題の列の下に重なるので、その分を空ける。
+                        .padding(.bottom, isWideLandscape ? 112 : 0)
+                        .frame(maxWidth: contentMaxWidth, maxHeight: .infinity, alignment: .topLeading)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    if showsInkHint { inkHint }
                     if showsInk { inkLayer }
                     actions
                         .padding(.trailing, 20)
@@ -39,10 +47,17 @@ struct LearningTimelineView: View {
                         // 書いている間はボタンを薄くして、下に書いた字を透かす。
                         .opacity(isDrawing ? 0.35 : 1)
                 }
+                .overlay(alignment: .bottomLeading) {
+                    if isWideLandscape {
+                        nextStrip
+                            .frame(width: TimelineLayout.columnWidth(for: screenSize.width))
+                            .padding(.leading, 16)
+                    }
+                }
                 .coordinateSpace(name: TimelineInkSpace.name)
                 .onPreferenceChange(TimelineInkPassThroughKey.self) { inkPassThrough = $0 }
                 .offset(y: min(0, dragOffset) * 0.35)
-                nextStrip
+                if !isWideLandscape { nextStrip }
             }
             if store.skipBannerAttemptID != nil { skipBanner.transition(.move(edge: .top).combined(with: .opacity)) }
             if let error = store.actionError {
@@ -55,6 +70,7 @@ struct LearningTimelineView: View {
                     .accessibilityIdentifier("timeline-error")
             }
         }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { screenSize = $0 }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("timeline-screen")
         .animation(.easeInOut(duration: Theme.Duration.standard), value: store.phase)
@@ -88,18 +104,68 @@ struct LearningTimelineView: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("timeline-units-button")
-            Spacer()
-            Button { store.isStopSheetPresented = true } label: {
-                Text("今日 \(store.answeredToday)問").font(Typography.sans(size: 15, weight: .medium)).foregroundStyle(Theme.secondaryText).monospacedDigit()
+            if isWide {
+                // iPad: 「今日」は「単元」の隣に置き、右上は書く道具にする。
+                todayCount.padding(.leading, 16)
+                Spacer()
+                if showsInk, !isResult, !isGrading { inkTools }
+            } else {
+                Spacer()
+                todayCount
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("timeline-today-count")
         }
         // 下に引いたら、やめようとしたとみなしてシートを出す。
         .contentShape(Rectangle())
         .gesture(DragGesture(minimumDistance: 30).onEnded { value in
             if value.translation.height > 80 { store.isStopSheetPresented = true }
         })
+    }
+
+    private var todayCount: some View {
+        Button { store.isStopSheetPresented = true } label: {
+            Text("今日 \(store.answeredToday)問").font(Typography.sans(size: 15, weight: .medium)).foregroundStyle(Theme.secondaryText).monospacedDigit()
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("timeline-today-count")
+    }
+
+    /// iPad の右上の書く道具: ペンの印・「1つ戻す」・「全部消す」(書くまでは薄く)、縮めた時は「元の大きさ」。
+    private var inkTools: some View {
+        HStack(spacing: 8) {
+            if isInkZoomed {
+                Button("元の大きさ") { ink.resetZoom() }
+                    .font(Typography.sans(size: 13, weight: .bold))
+                    .foregroundStyle(Theme.secondaryText)
+                    .padding(.horizontal, 14).frame(height: 44)
+                    .background(Theme.card, in: Capsule())
+                    .overlay(Capsule().stroke(Theme.hairline, lineWidth: 1))
+                    .accessibilityIdentifier("timeline-ink-zoom-reset")
+            }
+            Image(systemName: TimelineSymbol.pencil)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Theme.primaryText)
+                .frame(width: 44, height: 44)
+                .background(Theme.accentColor.opacity(0.16), in: Circle())
+                .accessibilityLabel("ペン")
+            inkToolButton(symbol: "arrow.uturn.backward", label: "1つ戻す", identifier: "timeline-ink-undo") { ink.undo() }
+            inkToolButton(symbol: "trash", label: "全部消す", identifier: "timeline-ink-clear") { ink.clear() }
+        }
+        .buttonStyle(.plain)
+        .opacity(isDrawing ? 0.35 : 1)
+    }
+
+    private func inkToolButton(symbol: String, label: String, identifier: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(hasInk ? Theme.primaryText : Theme.tertiaryText)
+                .frame(width: 44, height: 44)
+                .background(Theme.card, in: Circle())
+                .overlay(Circle().stroke(Theme.hairline, lineWidth: 1))
+        }
+        .disabled(!hasInk)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
     }
 
     // MARK: 中身
@@ -208,8 +274,8 @@ struct LearningTimelineView: View {
         .foregroundStyle(Theme.secondaryText)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.trailing, 90)
-        // 書いた後は、同じ場所に「1つ戻す」「全部消す」を出す。
-        .opacity(hasInk || isInkZoomed ? 0 : 1)
+        // 書いた後は、同じ場所に「1つ戻す」「全部消す」を出す(iPad は右上に出すので消さない)。
+        .opacity(!isWide && (hasInk || isInkZoomed) ? 0 : 1)
     }
 
     /// 指で書く面を出すか(読み取りで採点するカードを解いている間と、速攻)。
@@ -220,10 +286,44 @@ struct LearningTimelineView: View {
             return TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true
         case .rapid:
             return store.current != nil
+        case .result:
+            // iPad は、送った手書きを結果の右にそのまま残す(書き足しはできない)。
+            guard isWide, hasInk, let card = store.current else { return false }
+            return TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? false
         default:
             return false
         }
     }
+
+    /// iPad: 問題の列の幅(横向きで書く・結果を見る間)。それ以外の画面は読みやすい幅にとどめる。
+    private var contentMaxWidth: CGFloat {
+        guard isWide else { return .infinity }
+        if isWideLandscape, showsInk || isResult { return TimelineLayout.columnWidth(for: screenSize.width) }
+        return 720
+    }
+
+    /// iPad: まだ何も書いていない時、紙の真ん中に「どこにでも書けます」。
+    private var showsInkHint: Bool {
+        guard isWide, !hasInk, store.phase == .solving, let card = store.current else { return false }
+        return TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true
+    }
+
+    private var inkHint: some View {
+        VStack(spacing: 8) {
+            Image(systemName: TimelineSymbol.pencil).font(.system(size: 26, weight: .medium))
+            Text("どこにでも書けます").font(Typography.sans(size: 15, weight: .medium))
+        }
+        .foregroundStyle(Theme.secondaryText)
+        // 横向きは問題の列の右、縦向きは問題の下の真ん中。
+        .padding(.leading, isWideLandscape ? TimelineLayout.columnWidth(for: screenSize.width) : 0)
+        .padding(.top, isWideLandscape ? 0 : screenSize.height * 0.25)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private var isWide: Bool { TimelineLayout.isWide(sizeClass) }
+    private var isWideLandscape: Bool { isWide && screenSize.width > screenSize.height }
 
     /// 書く面(枠は置かない)。上の帯と下の帯の間を、端から端まで覆う。左下に鉛筆と「1つ戻す」「全部消す」。
     private var inkLayer: some View {
@@ -231,8 +331,8 @@ struct LearningTimelineView: View {
             TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isInkZoomed, controller: ink, passThrough: inkPassThrough)
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .allowsHitTesting(!isGrading)
-            if hasInk || isInkZoomed {
+                .allowsHitTesting(!isGrading && !isResult)
+            if !isWide, hasInk || isInkZoomed {
                 HStack(spacing: 14) {
                     Image(systemName: TimelineSymbol.pencil).foregroundStyle(Theme.tertiaryText)
                     if hasInk {
@@ -288,6 +388,11 @@ struct LearningTimelineView: View {
                         if hasInk {
                             TimelineActionButton(symbol: TimelineSymbol.camera, label: "撮る", identifier: "timeline-capture") { isCameraPresented = true }
                             TimelineActionButton(symbol: TimelineSymbol.send, label: "送る", prominent: true, identifier: "timeline-send") { sendInk() }
+                        } else if isWide {
+                            // iPad は書くのが先: 「送る」を同じ場所に置いておき、書いたら押せるようにする。
+                            TimelineActionButton(symbol: TimelineSymbol.skip, label: "飛ばす", identifier: "timeline-skip") { Task { await store.skip() } }
+                            TimelineActionButton(symbol: TimelineSymbol.camera, label: "撮る", identifier: "timeline-capture") { isCameraPresented = true }
+                            TimelineActionButton(symbol: TimelineSymbol.send, label: "送る", prominent: true, isEnabled: false, identifier: "timeline-send") { sendInk() }
                         } else {
                             TimelineActionButton(symbol: TimelineSymbol.skip, label: "飛ばす", identifier: "timeline-skip") { Task { await store.skip() } }
                             TimelineActionButton(symbol: TimelineSymbol.camera, label: "撮る", prominent: true, identifier: "timeline-capture") { isCameraPresented = true }
@@ -378,6 +483,7 @@ struct LearningTimelineView: View {
 
     private var isRapid: Bool { if case .rapid = store.phase { true } else { false } }
     private var isGrading: Bool { if case .grading = store.phase { true } else { false } }
+    private var isResult: Bool { if case .result = store.phase { true } else { false } }
 
     private var stripLine: String {
         guard let next = store.upcoming else { return store.phase == .waiting ? "用意しています" : "" }

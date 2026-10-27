@@ -39,6 +39,23 @@ enum TimelineSymbol {
     static let variant = "arrow.left.arrow.right"
 }
 
+/// iPad の並び(問題は左の列、右は全部紙。書く道具は右上、質問は右に開く)を使うか。
+/// iPad で横幅が広い時だけ。Split View で狭くした時と iPhone は今の並びのまま。
+enum TimelineLayout {
+    @MainActor
+    static func isWide(_ sizeClass: UserInterfaceSizeClass?) -> Bool {
+        sizeClass == .regular && UIDevice.current.userInterfaceIdiom == .pad
+    }
+
+    /// 横向きの時の問題の列の幅。
+    static func columnWidth(for width: CGFloat) -> CGFloat {
+        min(480, max(360, width * 0.38))
+    }
+
+    /// 右に開く質問の幅。
+    static let questionPanelWidth: CGFloat = 380
+}
+
 /// ○ ×(正誤。色だけに頼らない)。
 struct TimelineMark: View {
     let correct: Bool
@@ -205,6 +222,8 @@ struct TimelineActionButton: View {
     let symbol: String
     let label: String
     var prominent = false
+    /// 押せない間は、大きいボタンを薄い銅色にする(iPad の「送る」は書くまで押せない)。
+    var isEnabled = true
     var identifier: String
     let action: () -> Void
 
@@ -213,15 +232,16 @@ struct TimelineActionButton: View {
             VStack(spacing: 6) {
                 Image(systemName: symbol)
                     .font(.system(size: prominent ? 26 : 20, weight: .semibold))
-                    .foregroundStyle(prominent ? Theme.onAccent : Theme.primaryText)
+                    .foregroundStyle(prominent ? (isEnabled ? Theme.onAccent : Theme.accentColor) : Theme.primaryText)
                     .frame(width: prominent ? 72 : 52, height: prominent ? 72 : 52)
-                    .background(prominent ? AnyShapeStyle(Theme.accentColor) : AnyShapeStyle(Theme.card), in: Circle())
+                    .background(prominent ? AnyShapeStyle(isEnabled ? Theme.accentColor : Theme.accentColor.opacity(0.16)) : AnyShapeStyle(Theme.card), in: Circle())
                     .overlay { if !prominent { Circle().stroke(Theme.hairline, lineWidth: 1) } }
-                    .shadow(color: .black.opacity(prominent ? 0.18 : 0.06), radius: prominent ? 10 : 4, y: 3)
+                    .shadow(color: .black.opacity(prominent && isEnabled ? 0.18 : 0.06), radius: prominent && isEnabled ? 10 : 4, y: 3)
                 Text(label).font(Typography.sans(size: 12, weight: .bold)).foregroundStyle(Theme.secondaryText)
             }
         }
         .buttonStyle(.plain)
+        .disabled(!isEnabled)
         .accessibilityLabel(label)
         .accessibilityIdentifier(identifier)
     }
