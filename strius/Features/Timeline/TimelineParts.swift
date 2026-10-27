@@ -387,7 +387,7 @@ final class TimelinePassThroughCanvas: PKCanvasView {
     private func keepInkVisible() {
         guard !isZooming, !isZoomBouncing, bounds.width > 0, bounds.height > 0 else { return }
         let ink = drawing.strokes.isEmpty ? CGRect.null : drawing.bounds
-        let margin: CGFloat = 16
+        let margin: CGFloat = 32
         let needed = ink.isNull ? 1 : min(1, bounds.width / (ink.maxX + margin), bounds.height / (ink.maxY + margin))
         if isAutoFitted || abs(zoomScale - 1) <= 0.01 {
             let target = max(minimumZoomScale, needed)
