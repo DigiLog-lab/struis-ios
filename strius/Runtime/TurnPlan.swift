@@ -67,9 +67,12 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
         var path: String
         /// Host file to copy from.
         var hostPath: String
+        /// 長い辺の上限。あれば、それを超える画像だけ縮めた JPEG にして置く(タイムラインの答案の写真)。
+        var maxDimension: Int? = nil
         enum CodingKeys: String, CodingKey {
             case path
             case hostPath = "host_path"
+            case maxDimension = "max_dimension"
         }
     }
 

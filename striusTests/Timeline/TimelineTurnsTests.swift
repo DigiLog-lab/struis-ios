@@ -48,10 +48,14 @@ final class TimelineTurnsTests: XCTestCase {
         }
         XCTAssertEqual(try tools(batch.kind), try tools(grading.kind))
         XCTAssertEqual(try tools(review.kind), try tools(grading.kind))
-        for name in ["timeline_query", "timeline_add_card", "timeline_ask", "timeline_revise", "timeline_descend", "timeline_notice"] {
+        for name in ["timeline_query", "timeline_add_card", "timeline_ask", "timeline_revise", "timeline_descend", "timeline_notice", "timeline_view_capture"] {
             XCTAssertTrue(try tools(.timelineGrading).contains(name), name)
         }
         XCTAssertFalse(try tools(.chat).contains("timeline_query"))
+        XCTAssertFalse(try tools(.chat).contains("timeline_view_capture"))
+        // 採点と見直しに付ける答案の写真は、長い辺 1,092 ピクセルに縮めて置く(元の写真は captures のまま)。
+        XCTAssertEqual(grading.turn?.images.map(\.maxDimension), [1_092])
+        XCTAssertEqual(review.turn?.images.map(\.maxDimension), [1_092])
         XCTAssertEqual(ClaudeTranslation.tailCacheTTL(kind: "timeline_grading"), "5m")
         XCTAssertEqual(ClaudeTranslation.version(kind: "timeline_grading"), 4)
         XCTAssertEqual(ClaudeTranslation.version(kind: "timeline_review"), 4)
