@@ -61,6 +61,10 @@ final class SettingsStore {
     var modelProvider: ModelProvider = ModelProviderPreference.current {
         didSet { ModelProviderPreference.current = modelProvider }
     }
+    /// タイムライン(出題・採点・見直し)の Claude のモデル。次の依頼から切り替わる(今日の記録・正誤・難しさは台帳にあるので引き継ぐ)。
+    var timelineClaudeModel: String = TimelineModelPreference.current {
+        didSet { TimelineModelPreference.current = timelineClaudeModel }
+    }
     /// この端末で Claude を使えるか(App Attest が使える端末)。Anthropic の API キーは端末に置かない。
     let claudeAvailable = ClaudeAccess.isAvailable
 
@@ -83,6 +87,8 @@ final class SettingsStore {
 
     /// 今月のトークン使用量(台帳の `turns.executions` の `turn_tokens` をモデルごとに合計)。
     private(set) var monthlyTokenUsage: TokenUsageSummary?
+    /// 今月のタイムラインの 1 問あたりの Claude の料金(モデルごと)。
+    private(set) var monthlyTimelineCost: TimelineCostSummary?
 
     func loadLedgerSummary() async {
         guard let ledger else { return }
@@ -91,10 +97,11 @@ final class SettingsStore {
         calendar.timeZone = .current
         let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: Date())) ?? Date()
         let since = LedgerClock.iso(monthStart)
-        let executions = try? await ledger.read { db in
-            try TurnRecord.filter(Column("created_at") >= since).fetchAll(db).map(\.executions)
+        let turns = try? await ledger.read { db in
+            try TurnRecord.filter(Column("created_at") >= since).fetchAll(db)
         }
-        monthlyTokenUsage = executions.map(TokenUsageSummary.summarize)
+        monthlyTokenUsage = turns.map { TokenUsageSummary.summarize($0.map(\.executions)) }
+        monthlyTimelineCost = turns.map { TimelineCostSummary.summarize($0.map { TimelineCostSummary.Turn(kind: $0.kind, targetID: $0.targetId, status: $0.status, executions: $0.executions) }) }
     }
 
     func exportLedger() async {

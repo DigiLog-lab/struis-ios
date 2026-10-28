@@ -495,7 +495,7 @@ nonisolated private struct ClaudeRelay {
         // 一度署名の不整合で thinking を外した会話は、以後も外して送る(毎ターン拒まれて送り直さない)。
         options.stripThinking = entry?.thinkingStripped == true
         // タイムラインの採点・出題・見直しは毎回新しいスレッドなので、種類をまたいで直前のタイムラインの依頼と比べる。
-        let diagnosticsKey = threadID.map { ClaudeTranslation.diagnosticsKey(threadID: $0, kind: entry?.profile?.kind) }
+        let diagnosticsKey = threadID.map { ClaudeTranslation.diagnosticsKey(threadID: $0, kind: entry?.profile?.kind, model: model) }
         options.previousResponseID = diagnosticsKey.flatMap { log.previousResponseID(threadID: $0) } ?? entry?.lastClaudeMessageID
         var reason = classified.reason
         var retriedToken = false

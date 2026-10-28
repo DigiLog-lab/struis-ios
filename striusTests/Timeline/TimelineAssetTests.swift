@@ -77,11 +77,32 @@ final class TimelineAssetTests: XCTestCase {
         let root = emptyRoot()
         let manifest = DeliveryManifest(codexVersion: "0", rootfsMinVersion: 1, models: [
             "claude:timeline": DeliveryManifest.Model(model: "claude-opus-5-5", effort: "medium"),
+            "timeline": DeliveryManifest.Model(model: "gpt-6.2", effort: "low"),
         ], assets: [:], fetchedAt: nil)
         try AssetCache.encoder.encode(manifest).write(to: root.appendingPathComponent("manifest.json"))
         let cache = AssetCache(root: root)
-        let model = await cache.model(TimelineModels.role, provider: .anthropic)
-        XCTAssertEqual(model.model, "claude-opus-5-5")
+        // OpenAI は配信の別名のまま。
+        let openai = await cache.model(TimelineModels.role, provider: .openai)
+        XCTAssertEqual(openai.model, "gpt-6.2")
+        // Claude は設定で選んだモデル(既定は Sonnet 5.5)が manifest の `claude:timeline` より優先する。
+        let haiku = AssetCache(root: root, timelineClaudeModel: { "claude-haiku-5-5" })
+        let model = await haiku.model(TimelineModels.role, provider: .anthropic)
+        XCTAssertEqual(model.model, "claude-haiku-5-5")
         XCTAssertEqual(model.provider, .anthropic)
+        // 知識グラフは設定の対象外。
+        let graph = await haiku.model(TimelineModels.graphRole, provider: .anthropic)
+        XCTAssertEqual(graph.model, "claude-opus-5-5")
+    }
+
+    func testTimelineModelPreferenceDefaultsToSonnetAndIgnoresUnknownValues() {
+        let defaults = UserDefaults.standard
+        let saved = defaults.object(forKey: TimelineModelPreference.defaultsKey)
+        defer { defaults.set(saved, forKey: TimelineModelPreference.defaultsKey) }
+        defaults.removeObject(forKey: TimelineModelPreference.defaultsKey)
+        XCTAssertEqual(TimelineModelPreference.current, "claude-sonnet-5-5")
+        TimelineModelPreference.current = "claude-haiku-5-5"
+        XCTAssertEqual(TimelineModelPreference.current, "claude-haiku-5-5")
+        defaults.set("claude-opus-5-5", forKey: TimelineModelPreference.defaultsKey)
+        XCTAssertEqual(TimelineModelPreference.current, "claude-sonnet-5-5")
     }
 }

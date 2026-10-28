@@ -74,6 +74,44 @@ final class TimelineTurnsTests: XCTestCase {
         XCTAssertTrue(grading.workspace.files.isEmpty)
     }
 
+    /// 設定でタイムラインのモデルを切り替えても、今日の記録・今回の仕事(直近の正誤・難しさ・繰り返す間違い)は同じものを渡し、
+    /// 変わるのはモデルだけ(考える深さもそのまま)。
+    func testSwitchingTheTimelineModelKeepsTheSameRecordAndWork() async throws {
+        let ledger = try Ledger.inMemory()
+        try await ledger.commit { db in
+            var timeline = try TimelineMachine(loading: db)
+            _ = timeline.insertBatchRequest(purpose: "cards", request: .emptyObject, accuracy: 0.8, levelCap: 2)
+            timeline.put("test", F.card("c1"))
+            _ = timeline.recordCapture(cardID: "c1", capturePath: "t.jpg", seconds: 3, assisted: false)
+            return (timeline.events, ())
+        }
+        let (workbook, timeline) = try await ledger.read { db in (try WorkbookMachine(loading: db), try TimelineMachine(loading: db)) }
+        let saved = UserDefaults.standard.object(forKey: ModelProviderPreference.defaultsKey)
+        defer { UserDefaults.standard.set(saved, forKey: ModelProviderPreference.defaultsKey) }
+        ModelProviderPreference.current = .anthropic
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("timeline-model-\(UUID().uuidString)")
+        let sonnet = TurnComposer(assets: AssetCache(root: root, lenient: true, timelineClaudeModel: { "claude-sonnet-5-5" }))
+        let haiku = TurnComposer(assets: AssetCache(root: root, lenient: true, timelineClaudeModel: { "claude-haiku-5-5" }))
+        let batchID = timeline.batches.keys.first!
+        let attemptID = timeline.attempts.keys.first!
+        for (before, after) in [
+            (try await TimelineTurns.batch(composer: sonnet, planID: "p", batchID: batchID, workbook: workbook, timeline: timeline),
+             try await TimelineTurns.batch(composer: haiku, planID: "p", batchID: batchID, workbook: workbook, timeline: timeline)),
+            (try await TimelineTurns.grading(composer: sonnet, planID: "p", attemptID: attemptID, workbook: workbook, timeline: timeline),
+             try await TimelineTurns.grading(composer: haiku, planID: "p", attemptID: attemptID, workbook: workbook, timeline: timeline)),
+            (try await TimelineTurns.review(composer: sonnet, planID: "p", attemptID: attemptID, workbook: workbook, timeline: timeline),
+             try await TimelineTurns.review(composer: haiku, planID: "p", attemptID: attemptID, workbook: workbook, timeline: timeline)),
+        ] {
+            XCTAssertEqual(before.thread.model, "claude-sonnet-5-5")
+            XCTAssertEqual(after.thread.model, "claude-haiku-5-5")
+            XCTAssertEqual(after.thread.provider, .anthropic)
+            XCTAssertEqual(after.thread.effort, before.thread.effort)
+            XCTAssertEqual(after.thread.baseInstructions, before.thread.baseInstructions)
+            XCTAssertEqual(after.thread.developerText, before.thread.developerText)
+            XCTAssertEqual(after.turn?.text, before.turn?.text)
+        }
+    }
+
     func testMockBatchAndGraphPassTheirOwnChecks() throws {
         var machine = F.machine()
         let graph = MockTurnRunner.timelineGraph(["task": "build"])

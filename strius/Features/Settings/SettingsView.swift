@@ -238,6 +238,21 @@ private struct ModelProviderSettingsDetail: View {
                 }
                 .settingsCard()
 
+                if settings.modelProvider == .anthropic {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("タイムラインのモデル")
+                            .font(Typography.heading2)
+                        Text("タイムラインの出題・採点・見直しに使います。次の依頼から切り替わり、今日の記録・正誤・難しさはそのまま引き継ぎます。知識グラフは \(ClaudeModels.displayName(TimelineModels.fallback(role: TimelineModels.graphRole, provider: .anthropic)?.model ?? "")) のままです。")
+                            .font(Typography.bodyCompact)
+                            .foregroundStyle(Theme.textSecondary(scheme))
+                    }
+                    VStack(spacing: 0) {
+                        TimelineModelSegmented(selection: $settings.timelineClaudeModel)
+                            .padding(16)
+                    }
+                    .settingsCard()
+                }
+
                 if settings.modelProvider == .anthropic, !settings.claudeAvailable {
                     Text(ModelProviderError.claudeUnavailable.localizedDescription)
                         .font(Typography.caption)
@@ -281,6 +296,34 @@ private struct ProviderSegmented: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("settings-model-\(provider.rawValue)")
                 .accessibilityAddTraits(selection == provider ? .isSelected : [])
+            }
+        }
+        .padding(4)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: Capsule())
+    }
+}
+
+/// タイムラインの Claude のモデル(Sonnet 5.5 / Haiku 5.5)。
+private struct TimelineModelSegmented: View {
+    @Binding var selection: String
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(TimelineModelPreference.choices, id: \.self) { model in
+                Button {
+                    selection = model
+                } label: {
+                    Text(ClaudeModels.displayName(model))
+                        .font(Typography.bodyEmphasized)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .foregroundStyle(selection == model ? Color(uiColor: .systemBackground) : Theme.textSecondary(scheme))
+                        .background(selection == model ? Theme.textPrimary(scheme) : Color.clear, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings-timeline-model-\(model)")
+                .accessibilityAddTraits(selection == model ? .isSelected : [])
             }
         }
         .padding(4)
@@ -689,8 +732,19 @@ private struct AdvancedSettingsDetail: View {
                 SettingsInfoRow(title: "Claude の概算料金", detail: String(format: "約 $%.2f", cost))
                     .accessibilityIdentifier("settings-token-usage-cost")
             }
+            ForEach(settings.monthlyTimelineCost?.models.filter { $0.answers > 0 } ?? []) { usage in
+                SettingsDivider()
+                SettingsInfoRow(title: "タイムライン 1問あたり(\(ClaudeModels.displayName(usage.model)))", detail: Self.timelineCostDetail(usage))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("settings-timeline-cost-\(usage.model)")
+            }
         }
         .settingsCard()
+    }
+
+    private static func timelineCostDetail(_ usage: TimelineCostSummary.Model) -> String {
+        let per = usage.perAnswerUSD.map { String(format: usage.costIncomplete ? "約 $%.3f 以上" : "約 $%.3f", $0) } ?? "-"
+        return "\(per) / \(usage.answers) 問(出題・採点・見直しの合計 約 $\(String(format: "%.2f", usage.estimatedCostUSD)))"
     }
 
     private static func tokenDetail(_ usage: TokenUsageSummary.Model) -> String {
