@@ -7,7 +7,7 @@ final class ChatPhysicalImageSendUITests: XCTestCase {
     func testPhysicalCameraImmediateSend() throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["STRUIS_PHYSICAL_CAMERA_TEST"] == "1",
                           "実機の撮影・本番送信を明示的に許可した検証でのみ実行")
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments = ["-skip-onboarding"]
         app.launchEnvironment["OS_ACTIVITY_DT_MODE"] = "YES"
         app.launch()

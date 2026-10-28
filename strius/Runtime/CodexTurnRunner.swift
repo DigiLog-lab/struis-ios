@@ -100,11 +100,13 @@ actor CodexTurnRunner: TurnRunning {
         let started = Date()
         let session = self.session
         let ensureRuntime = self.ensureRuntime
+        TurnStage.report("startup")
         do {
             try await awaitStartup(planID: plan.id) {
                 try await ensureRuntime()
                 try await session.ensureHealthy()
             }
+            TurnStage.report("runtime_ready")
         } catch CodexAppServerError.interrupted {
             return (TurnOutcome(planID: plan.id, round: plan.round, status: .interrupted, codexThreadID: plan.thread.codexThreadID, codexTurnID: nil, finalText: "", executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: Self.elapsed(started)), broken: false)
         } catch {
@@ -126,6 +128,7 @@ actor CodexTurnRunner: TurnRunning {
         do {
             let configured = try await configureThread(plan, session: session)
             threadID = configured.threadID
+            TurnStage.report("thread_configured")
             switch plan.kind {
             case .threadFork:
                 return (TurnOutcome(planID: plan.id, round: plan.round, status: .completed, codexThreadID: threadID, codexTurnID: nil, finalText: "", executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: Self.elapsed(started)), broken: false)
@@ -200,7 +203,7 @@ actor CodexTurnRunner: TurnRunning {
     }
 
     nonisolated static func isStructured(_ kind: TurnPlan.Kind) -> Bool {
-        kind == .workbookUnit || kind == .workbookSet || kind == .workbookGrading
+        kind == .workbookUnit || kind == .workbookSet || kind == .workbookGrading || TimelineTurns.isTimeline(kind)
     }
 
     private func readRateLimitsLater() {
@@ -295,6 +298,11 @@ actor CodexTurnRunner: TurnRunning {
     /// 停止 (design §3.6 / E2E H1): the local wait ends at once so the reply becomes 「停止しました」
     /// and the composer is usable; `turn/interrupt` is still sent to the guest. If the guest never
     /// reports the turn as finished, the next turn rebuilds the app-server first.
+    /// 時間切れの後: Codex との接続を作り直させる(次のターンが新しい接続で起動する)。
+    func resetConnection() async {
+        await session.close()
+    }
+
     func interrupt(planID: String) async {
         // 起動を待っている間(まだ Codex のターンが無い): 起動は続けたまま、このターンの待ちだけを外す。
         startupWaits.removeValue(forKey: planID)?.resume(throwing: CodexAppServerError.interrupted)
@@ -367,14 +375,14 @@ actor CodexTurnRunner: TurnRunning {
     /// スレッドを始めた時の設定の版(`ThreadContextStore.Profile`)。
     nonisolated static func threadProfile(_ plan: TurnPlan, base: String, developer: String) -> ThreadContextStore.Profile {
         let claude = plan.thread.provider == .anthropic
-        let tools = (try? JSONSerialization.data(withJSONObject: NativeToolRouter.definitions, options: [.sortedKeys]))
+        let tools = (try? JSONSerialization.data(withJSONObject: NativeToolRouter.definitions(for: plan.kind), options: [.sortedKeys]))
             .map { String(decoding: $0, as: UTF8.self) } ?? ""
         let schema = plan.turn?.outputSchema.flatMap { try? JSONSerialization.data(withJSONObject: $0.any, options: [.sortedKeys]) }
             .map { ThreadContextStore.hash(String(decoding: $0, as: UTF8.self)) }
         return ThreadContextStore.Profile(
             kind: plan.kind.rawValue, model: plan.thread.model, effort: plan.thread.effort,
             instructions: ThreadContextStore.hash(base, developer), tools: ThreadContextStore.hash(tools), schema: schema,
-            thinking: claude ? "adaptive/summarized" : "codex", translation: claude ? ClaudeTranslation.current : nil,
+            thinking: claude ? "adaptive/summarized" : "codex", translation: claude ? ClaudeTranslation.version(kind: plan.kind.rawValue) : nil,
             cacheTTL: claude ? ClaudeTranslation.tailCacheTTL(kind: plan.kind.rawValue) : nil, startedAt: Date()
         )
     }
@@ -394,9 +402,10 @@ actor CodexTurnRunner: TurnRunning {
         } else {
             developer = spec.developerText ?? "Answer only with one JSON object matching the supplied output schema."
         }
-        let fullDeveloper = developer + "\n\n" + NativeToolRouter.instructions
+        // タイムラインの採点・出題・見直しは、道具の説明を基本指示の側に入れてある(今日の記録の前。`TimelineTurns.tutorThread`)。
+        let fullDeveloper = ClaudeTranslation.tutorKinds.contains(plan.kind.rawValue) ? developer : developer + "\n\n" + NativeToolRouter.instructions
         var params: JSONObject = [
-            "dynamicTools": NativeToolRouter.definitions,
+            "dynamicTools": NativeToolRouter.definitions(for: plan.kind),
             "model": spec.model, "approvalPolicy": "never", "sandbox": "danger-full-access",
             "allowProviderModelFallback": false, "baseInstructions": base, "developerInstructions": fullDeveloper,
             "config": NativeToolRouter.configuration(spec.config.any as? JSONObject ?? [:]),
@@ -428,7 +437,8 @@ actor CodexTurnRunner: TurnRunning {
             let threadID = (response["thread"] as? JSONObject)?["id"] as? String
             guard let threadID, !threadID.isEmpty else { throw CodexAppServerError.malformed("thread/start returned no thread id") }
             loadedThreads[threadID] = (generation, instructions, response)
-            if !spec.ephemeral {
+            // タイムラインの採点・出題・見直しは 1 回で終わるスレッドでも、Claude への変換の版と TTL を決めるために記録する。
+            if !spec.ephemeral || ClaudeTranslation.tutorKinds.contains(plan.kind.rawValue) {
                 let profile = Self.threadProfile(plan, base: base, developer: fullDeveloper)
                 contextStore.update(threadID) {
                     $0.developer = developerHash
@@ -592,6 +602,7 @@ actor CodexTurnRunner: TurnRunning {
         var finalText = ""
         var reroutes: [Any] = []
         var lookupCommands: [Any] = []
+        var captureViews: [Any] = []
         // このターンで最初に届いたトークン数の通知(ターン前の累計を求めるため)。
         var firstTokenUsage: JSONObject?
         // Chat turns keep the full wait: Codex reconnects a dropped stream by itself, and a chat turn
@@ -637,6 +648,7 @@ actor CodexTurnRunner: TurnRunning {
                 audit["recovered_turn_start"] = true
             }
             guard !turnID.isEmpty else { throw CodexAppServerError.malformed("turn/start returned no turn id") }
+            TurnStage.report("turn_started")
             await session.watch(turnID: turnID, threadID: threadID)
             await watcher?.bindParent(threadID: threadID, turnID: turnID)
             await session.nativeTools.setTurn(threadID: threadID, turnID: turnID, registration: registration)
@@ -701,6 +713,7 @@ actor CodexTurnRunner: TurnRunning {
                 if firstEventAt == nil {
                     firstEventAt = lastProgress
                     audit["first_event_ms"] = Self.elapsed(started)
+                    TurnStage.report("first_event")
                 }
                 switch method {
                 case "item/agentMessage/delta":
@@ -766,6 +779,13 @@ actor CodexTurnRunner: TurnRunning {
                         }
                         compactions.append(entry)
                         audit["compactions"] = compactions
+                    }
+                    if item["type"] as? String == "captureView" {
+                        // `struis.timeline_view_capture` で見せた画像(範囲・大きさ・captures に残した場所)。
+                        var view = item
+                        view["type"] = nil
+                        captureViews.append(view)
+                        audit["capture_views"] = captureViews
                     }
                     if parentThreadID != nil, item["type"] as? String == "commandExecution" {
                         lookupCommands.append(["command": item["command"] ?? NSNull(), "cwd": item["cwd"] ?? NSNull(), "exitCode": item["exitCode"] ?? NSNull(), "durationMs": item["durationMs"] ?? NSNull()])
@@ -1043,7 +1063,11 @@ nonisolated enum WorkspaceStager {
             let target = root.appendingPathComponent(image.path)
             try manager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
             if manager.fileExists(atPath: target.path) { try manager.removeItem(at: target) }
-            try stageModelImage(from: TurnPlan.stageableHostURL(image.hostPath), to: target)
+            if let limit = image.maxDimension {
+                try TimelineCaptureImage.stageReduced(from: TurnPlan.stageableHostURL(image.hostPath), to: target, limit: limit)
+            } else {
+                try stageModelImage(from: TurnPlan.stageableHostURL(image.hostPath), to: target)
+            }
         }
     }
 

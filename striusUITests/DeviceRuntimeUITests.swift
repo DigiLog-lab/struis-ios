@@ -12,7 +12,7 @@ final class DeviceRuntimeUITests: XCTestCase {
 
     @MainActor
     func testRuntimeBootsAndDeviceCodeLoginStarts() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments += ["-skip-onboarding"]
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "1"
         app.launch()

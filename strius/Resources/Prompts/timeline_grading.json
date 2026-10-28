@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "properties": {
+    "readable": {"type": "boolean"},
+    "grade": {"type": "string", "enum": ["correct", "partial", "wrong"]},
+    "learner_answer": {"type": "string"},
+    "skill_ids": {"type": "array", "items": {"type": "string"}},
+    "transcript": {"type": "string"},
+    "notes": {"type": "string"},
+    "comment": {"type": "string"},
+    "key_suspect": {"type": "boolean"}
+  },
+  "required": ["readable", "grade", "learner_answer", "skill_ids", "transcript", "notes", "comment", "key_suspect"],
+  "additionalProperties": false
+}

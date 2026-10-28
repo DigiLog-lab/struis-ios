@@ -12,6 +12,7 @@ struct striusApp: App {
     @State private var workbookCoordinator = WorkbookCoordinator()
     @State private var deviceRuntime: DeviceRuntime?
     @State private var learnerData: LearnerData
+    @State private var timeline: TimelineStore
 
     init() {
         #if DEBUG
@@ -35,10 +36,12 @@ struct striusApp: App {
         let bootstrap = BootstrapStore(client: client, ledger: learnerData.ledger)
         let chat = ChatStore(ledger: learnerData.ledger, turns: learnerData.turns)
         let workbook = WorkbookStore(ledger: learnerData.ledger, turns: learnerData.turns)
+        let timeline = TimelineStore(ledger: learnerData.ledger, turns: learnerData.turns)
         auth.onSessionEnded = {
             bootstrap.reset()
             chat.reset()
             workbook.reset()
+            timeline.reset()
             client.clearResourceCache()
             KaTeXLayoutCache.clear()
         }
@@ -51,6 +54,7 @@ struct striusApp: App {
         _workbook = State(initialValue: workbook)
         _deviceRuntime = State(initialValue: deviceRuntime)
         _learnerData = State(initialValue: learnerData)
+        _timeline = State(initialValue: timeline)
         #if DEBUG
         UITestDiagnostics.launch("init-end")
         #endif
@@ -68,6 +72,7 @@ struct striusApp: App {
                 .environment(workbook)
                 .environment(workbookCoordinator)
                 .environment(learnerData)
+                .environment(timeline)
                 .tint(Theme.Palette.accentLight)
                 .progressViewStyle(StruisProgressViewStyle())
                 .task {

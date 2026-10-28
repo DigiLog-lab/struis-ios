@@ -11,7 +11,7 @@ final class DeviceLedgerSettingsUITests: XCTestCase {
 
     @MainActor
     func testExportLedgerAndUsageToggleDefaultOff() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments += ["-skip-onboarding"]
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"

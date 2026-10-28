@@ -7,9 +7,10 @@ final class ChatTypingExperienceUITests: XCTestCase {
     func testJapaneseMultilineAndSend() throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["STRUIS_TYPING_UI_TEST"] == "1",
                           "ローカル検証サーバーを使う入力UIテスト")
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments = ["-skip-onboarding"]
         app.launchEnvironment = [
+            "STRUIS_START_SCREEN": "units",
             "STRUIS_API_BASE_URL": "http://127.0.0.1:18765",
             "STRUIS_IOS_USE_FIXTURES": "0",
             "STRUIS_DEV_ACCESS_TOKEN": "local-typing-verification-token"
@@ -59,9 +60,9 @@ final class ChatTypingExperienceUITests: XCTestCase {
     @MainActor
     func testJapaneseCandidateSelection() throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["STRUIS_TYPING_UI_TEST"] == "1")
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments = ["-skip-onboarding"]
-        app.launchEnvironment = ["STRUIS_API_BASE_URL": "http://127.0.0.1:18765", "STRUIS_IOS_USE_FIXTURES": "0", "STRUIS_DEV_ACCESS_TOKEN": "local-typing-verification-token"]
+        app.launchEnvironment = ["STRUIS_START_SCREEN": "units", "STRUIS_API_BASE_URL": "http://127.0.0.1:18765", "STRUIS_IOS_USE_FIXTURES": "0", "STRUIS_DEV_ACCESS_TOKEN": "local-typing-verification-token"]
         app.launch()
         let field = app.textViews.matching(identifier: "chat-page").firstMatch
         XCTAssertTrue(field.appears(timeout: 20))

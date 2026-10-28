@@ -11,7 +11,7 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
 
     @MainActor
     private func launch(_ arguments: [String]) -> XCUIApplication {
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments += arguments
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
@@ -299,7 +299,7 @@ final class WorkbookSubunitLayoutUITests: XCTestCase {
 
     @MainActor
     func testUnitCardShowsCorrectOverNAndNothingForUntouched() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments += ["-skip-onboarding", "-texture-demo"]
         app.launchEnvironment["STRUIS_LEDGER"] = "memory"
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"

@@ -190,6 +190,25 @@
         "strius/Features/Workbook/UnitCreationSieve.swift",
         "strius/Features/Workbook/WorkbookProposalCard.swift"
       ]
+    },
+    "timeline": {
+      "property": "学習タイムライン: 起動したらタイムラインが出る、単元ホームを重ねて戻る、撮る・指で書く・飛ばす・2択カード・やめどき、誤答の画面の2つの答えと判定への申し出",
+      "tests": [
+        "TimelineUITests/testLaunchShowsTimelineAndUnitsHomeCoversIt",
+        "TimelineUITests/testCaptureGradesAndMovesToTheNextProblem",
+        "TimelineUITests/testWritingInTheMarginTurnsTheBigButtonIntoSend",
+        "TimelineUITests/testInkCoversTheWholeWidthAndTheProblemTextAndZoomsAroundThePinch",
+        "TimelineUITests/testSkippingShowsReasonsAndTwoSkipsOfferTheDipCard",
+        "TimelineUITests/testStopSheetOffersOneMoreOrStop",
+        "TimelineUITests/testWrongAnswerShowsBothAnswersAndOffersADisputeFromAsk"
+      ],
+      "paths": [
+        "strius/Features/Timeline/**",
+        "strius/Engine/Timeline*.swift",
+        "strius/Ledger/TimelineRows.swift",
+        "strius/Features/Workbook/WorkbookHomeView.swift",
+        "strius/Features/Chat/ChatCamera.swift"
+      ]
     }
   },
   "everything": [
@@ -257,6 +276,9 @@
     "NativeRuntime/**/*.md": [],
     "NativeRuntime/**": [
       "settings-runtime-export"
+    ],
+    "strius/Features/Timeline/**": [
+      "timeline"
     ]
   },
   "guarded": [
@@ -344,6 +366,13 @@
     "striusUITests/testExample": 10,
     "striusUITests/testHorizontalSwipesKeepTheSingleChatPage": 23,
     "striusUITests/testLaunchPerformance": 77,
-    "striusUITestsLaunchTests/testLaunch": 15
+    "striusUITestsLaunchTests/testLaunch": 15,
+    "TimelineUITests/testLaunchShowsTimelineAndUnitsHomeCoversIt": 40,
+    "TimelineUITests/testCaptureGradesAndMovesToTheNextProblem": 40,
+    "TimelineUITests/testWritingInTheMarginTurnsTheBigButtonIntoSend": 40,
+    "TimelineUITests/testInkCoversTheWholeWidthAndTheProblemTextAndZoomsAroundThePinch": 45,
+    "TimelineUITests/testSkippingShowsReasonsAndTwoSkipsOfferTheDipCard": 40,
+    "TimelineUITests/testStopSheetOffersOneMoreOrStop": 40,
+    "TimelineUITests/testWrongAnswerShowsBothAnswersAndOffersADisputeFromAsk": 40
   }
 }

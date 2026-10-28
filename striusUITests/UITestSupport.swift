@@ -23,7 +23,7 @@ enum UITestSupport {
     static func deviceApp(arguments: [String] = ["-skip-onboarding"]) -> XCUIApplication {
         // A previous rotation test can leave the simulator in landscape.
         XCUIDevice.shared.orientation = .portrait
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments = arguments
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
@@ -50,6 +50,15 @@ enum UITestSupport {
 }
 
 extension XCUIApplication {
+    /// 単元ホームから操作するテストの起動。アプリは起動するとタイムライン(Issue #46)を出すので、単元ホームを重ねた
+    /// 状態から始める(`STRUIS_START_SCREEN=units`、DEBUG のみ)。重ねた単元ホームの中身は、根元にあった時と同じ。
+    @MainActor
+    static func struisUnits() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["STRUIS_START_SCREEN"] = "units"
+        return app
+    }
+
     /// ホームの「質問」を押して質問シート (ChatView) を開き、入力欄が出るまで待つ。
     @MainActor
     @discardableResult

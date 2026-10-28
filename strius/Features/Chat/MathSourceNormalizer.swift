@@ -148,7 +148,176 @@ nonisolated enum MathSourceNormalizer {
         text = text.replacingOccurrences(of: "\\:", with: "\\;")
         text = dropCommandsWithArgument(text)
         text = rewriteEnvironments(text)
-        return wrapForeignCharacters(text)
+        return spaceOperatorNames(wrapForeignCharacters(text))
+    }
+
+    // MARK: - 関数名の前後の空き
+
+    /// 関数名・大きな演算子(`\sin`・`\log`・`\int` など)。
+    static let operatorNames: Set<String> = [
+        "sin", "cos", "tan", "cot", "sec", "csc", "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh", "coth",
+        "log", "ln", "lg", "exp", "lim", "limsup", "liminf", "max", "min", "sup", "inf", "det", "deg", "dim",
+        "gcd", "arg", "ker", "hom", "Pr", "int", "iint", "iiint", "oint", "sum", "prod",
+    ]
+
+    /// 文字と同じ扱いの命令(ギリシャ文字など)と、分数・根号・書体の命令(後ろに `{…}` が続く)。
+    static let ordinaryCommands: Set<String> = [
+        "alpha", "beta", "gamma", "delta", "epsilon", "varepsilon", "zeta", "eta", "theta", "vartheta", "iota", "kappa", "lambda",
+        "mu", "nu", "xi", "pi", "varpi", "rho", "varrho", "sigma", "varsigma", "tau", "upsilon", "phi", "varphi", "chi", "psi", "omega",
+        "Gamma", "Delta", "Theta", "Lambda", "Xi", "Pi", "Sigma", "Upsilon", "Phi", "Psi", "Omega",
+        "infty", "partial", "ell", "hbar", "nabla", "aleph", "emptyset",
+        "frac", "dfrac", "tfrac", "sqrt", "binom", "mathrm", "mathbf", "mathit", "mathbb", "mathcal", "boldsymbol",
+        "text", "textbf", "textit", "textrm", "textsf", "texttt", "bar", "hat", "vec", "dot", "ddot", "tilde", "overline",
+    ]
+
+    /// 関数名と前後の文字の間に細い空き(`\,`)を入れる。TeX は `\sin 3x` を「sin 3x」と組むが、SwiftMath(固定の版の
+    /// 改行用の組み方)は種類の違う要素の間の空きを入れず「sin3x」「3xcosx」と詰めてしまう。TeX と同じ所(関数名と文字・数字・
+    /// 分数の間)にだけ入れる。括弧・演算子・関係の記号の隣、すでに空きを入れた所には入れない。
+    static func spaceOperatorNames(_ text: String) -> String {
+        let chars = Array(text)
+        var out: [Character] = []
+        var index = 0
+        while index < chars.count {
+            guard chars[index] == "\\", index + 1 < chars.count, chars[index + 1].isLetter else {
+                out.append(chars[index])
+                index += 1
+                continue
+            }
+            var end = index + 1
+            while end < chars.count, chars[end].isLetter { end += 1 }
+            let name = String(chars[(index + 1)..<end])
+            if textCommands.contains(name) || name == "mathrm" || name == "begin" || name == "end" {
+                // 中身(文字・環境の名前)はそのまま写す。
+                var next = end
+                while next < chars.count, chars[next] == " " { next += 1 }
+                if next < chars.count, chars[next] == "{", let close = matchingBrace(chars, open: next) {
+                    out.append(contentsOf: chars[index...close])
+                    index = close + 1
+                } else {
+                    out.append(contentsOf: chars[index..<end])
+                    index = end
+                }
+                continue
+            }
+            let isOperator = operatorNames.contains(name) || name == "operatorname"
+            guard isOperator else {
+                out.append(contentsOf: chars[index..<end])
+                index = end
+                continue
+            }
+            if endsWithOrdinary(out) { out.append(contentsOf: "\\,") }
+            out.append(contentsOf: chars[index..<end])
+            index = end
+            // `\operatorname{…}` の名前、上下の添字(`_{0}^{\pi}`・`^2`)、`\limits` はそのまま写す。
+            if name == "operatorname" {
+                var next = index
+                while next < chars.count, chars[next] == " " { next += 1 }
+                if next < chars.count, chars[next] == "{", let close = matchingBrace(chars, open: next) {
+                    out.append(contentsOf: chars[index...close])
+                    index = close + 1
+                }
+            }
+            index = copyScripts(chars, from: index, into: &out)
+            var next = index
+            while next < chars.count, chars[next] == " " { next += 1 }
+            if startsOrdinary(chars, at: next) { out.append(contentsOf: "\\,") }
+        }
+        return String(out)
+    }
+
+    /// 添字(`_x`・`^{…}`・`^\pi`)と `\limits`・`\nolimits` を写し、その後ろの位置を返す。
+    private static func copyScripts(_ chars: [Character], from start: Int, into out: inout [Character]) -> Int {
+        var index = start
+        while true {
+            var next = index
+            while next < chars.count, chars[next] == " " { next += 1 }
+            guard next < chars.count else { return index }
+            if chars[next] == "\\" {
+                var end = next + 1
+                while end < chars.count, chars[end].isLetter { end += 1 }
+                let name = String(chars[(next + 1)..<end])
+                guard name == "limits" || name == "nolimits" else { return index }
+                out.append(contentsOf: chars[index..<end])
+                index = end
+                continue
+            }
+            guard chars[next] == "_" || chars[next] == "^" else { return index }
+            var argument = next + 1
+            while argument < chars.count, chars[argument] == " " { argument += 1 }
+            guard argument < chars.count else {
+                out.append(contentsOf: chars[index..<chars.count])
+                return chars.count
+            }
+            var end: Int
+            if chars[argument] == "{", let close = matchingBrace(chars, open: argument) {
+                end = close + 1
+            } else if chars[argument] == "\\" {
+                end = argument + 1
+                if end < chars.count, chars[end].isLetter {
+                    while end < chars.count, chars[end].isLetter { end += 1 }
+                } else {
+                    end = min(chars.count, end + 1)
+                }
+            } else {
+                end = argument + 1
+            }
+            out.append(contentsOf: chars[index..<end])
+            index = end
+        }
+    }
+
+    /// ここまでに書いたものが、文字と同じ扱いのもの(文字・数字・閉じ括弧・`}`・ギリシャ文字など)で終わるか。
+    private static func endsWithOrdinary(_ out: [Character]) -> Bool {
+        var index = out.count - 1
+        while index >= 0, out[index] == " " { index -= 1 }
+        guard index >= 0 else { return false }
+        let last = out[index]
+        if last.isNumber || last == ")" || last == "]" || last == "|" || last == "!" || last == "'" { return true }
+        if last == "}" {
+            // `\begin{aligned}` の後ろ(行の始まり)は空けない。`\}`(閉じ波括弧)は閉じ括弧。
+            if index > 0, out[index - 1] == "\\" { return true }
+            guard let open = matchingOpenBrace(out, close: index) else { return true }
+            let before = String(out[..<open])
+            return !(before.hasSuffix("\\begin") || before.hasSuffix("\\end"))
+        }
+        if last.isLetter {
+            var start = index
+            while start > 0, out[start - 1].isLetter { start -= 1 }
+            guard start > 0, out[start - 1] == "\\" else { return true }
+            let name = String(out[start...index])
+            return ordinaryCommands.contains(name) || operatorNames.contains(name)
+        }
+        return false
+    }
+
+    /// `chars[index]` から、文字と同じ扱いのもの(文字・数字・`{…}`・ギリシャ文字・分数・別の関数名)が始まるか。
+    private static func startsOrdinary(_ chars: [Character], at index: Int) -> Bool {
+        guard index < chars.count else { return false }
+        let char = chars[index]
+        if char.isLetter || char.isNumber || char == "{" { return true }
+        guard char == "\\", index + 1 < chars.count, chars[index + 1].isLetter else { return false }
+        var end = index + 1
+        while end < chars.count, chars[end].isLetter { end += 1 }
+        let name = String(chars[(index + 1)..<end])
+        return ordinaryCommands.contains(name) || operatorNames.contains(name) || name == "operatorname"
+    }
+
+    /// `chars[close]` が `}` の時、対応する `{` の位置。
+    private static func matchingOpenBrace(_ chars: [Character], close: Int) -> Int? {
+        var depth = 0
+        var index = close
+        while index >= 0 {
+            let escaped = index > 0 && chars[index - 1] == "\\"
+            if !escaped {
+                if chars[index] == "}" { depth += 1 }
+                if chars[index] == "{" {
+                    depth -= 1
+                    if depth == 0 { return index }
+                }
+            }
+            index -= 1
+        }
+        return nil
     }
 
     /// 前後の空白を落とす。末尾の `\ `(命令の空白)は残す。

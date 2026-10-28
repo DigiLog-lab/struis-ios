@@ -25,7 +25,7 @@ final class striusUITests: XCTestCase {
     @MainActor
     func testExample() throws {
         // UI tests must launch the application that they test.
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launch()
 
         // Use XCTAssert and related functions to verify your tests produce the correct results.
@@ -36,7 +36,7 @@ final class striusUITests: XCTestCase {
     /// 質問の会話は 1 ページだけ。左右にスワイプしても、別のページ(旧・分岐や答案のページ)へ動かない。
     @MainActor
     func testHorizontalSwipesKeepTheSingleChatPage() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments.append("-skip-onboarding")
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
@@ -66,7 +66,7 @@ final class striusUITests: XCTestCase {
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
+            XCUIApplication.struisUnits().launch()
         }
     }
 
