@@ -37,7 +37,7 @@ enum TimelineSymbol {
     static let back = "arrow.turn.left.down"
     /// 数値だけ変えた同じ形の問題
     static let variant = "arrow.left.arrow.right"
-    /// 書いた線を1つ戻す・全部消す(iPad の右上の書く道具)
+    /// 書いた線を1つ戻す・全部消す(iPad の右上の書く道具。ペンと消しゴムは標準の道具パレット)
     static let undo = "arrow.uturn.backward"
     static let clear = "trash"
 }
@@ -273,7 +273,8 @@ struct TimelineActionButton: View {
 
 /// 余白に指で書く(枠を置かない: 答えの形が分かってしまうため)。上の帯と下の帯の間を、画面の端から端まで覆う。
 /// 問題文の上にも書ける。下に置いたボタン(使う手順の「見る」など)の上だけは、指をボタンへ通す。
-/// 2本指でつまむと、指の間を中心に縮小・拡大できる。縮小すると、紙を足したように右と下へ書き足せる(最大で縦横2倍)。
+/// 2本指でつまむと、指の間を中心に縮小・拡大できる。紙は最初に見せる1画面の上と左にも続いているので、どこでつまんでもその場で縮む。
+/// 右と下へは、書いた分だけ紙が伸びる。iPad では標準の道具パレット(ペン1本と消しゴムだけ)を出し、太さを選べる。
 struct TimelineInkCanvas: UIViewRepresentable {
     @Binding var hasInk: Bool
     @Binding var isDrawing: Bool
@@ -281,18 +282,20 @@ struct TimelineInkCanvas: UIViewRepresentable {
     let controller: TimelineInkController
     /// 指を通す区画(このビューの座標)。
     var passThrough: [CGRect] = []
+    /// 標準の道具パレットを出すか(iPad で書ける間だけ)。
+    var showsToolPicker: Bool = false
 
-    /// 書いた線の色と太さ。細さは前のペン(幅3)のまま、濃い一定幅の線にする。
-    static let inkColor = UIColor(red: 0.08, green: 0.07, blue: 0.06, alpha: 1)
+    /// 書いた線の色と太さ(iPad は道具パレットで太さを変えられる。最初はこの太さ)。
+    static let inkColor: UIColor = UIColor(red: 0.08, green: 0.07, blue: 0.06, alpha: 1)
     static let inkWidth: CGFloat = 3
     /// 指が触れただけの点は、書いたものに数えない(pt)。
     static let minimumStrokeExtent: CGFloat = 6
-    /// 縮小の下限(縦横2倍の紙を画面に収める)と、拡大の上限。
-    static let minimumZoom: CGFloat = 0.5
+    /// 縮小の下限と拡大の上限。紙の余白は、下限まで縮めても画面より小さくならない長さにしている(`TimelinePassThroughCanvas`)。
+    static let minimumZoom: CGFloat = 0.25
     static let maximumZoom: CGFloat = 3
 
     func makeUIView(context: Context) -> TimelinePassThroughCanvas {
-        let canvas = TimelinePassThroughCanvas()
+        let canvas: TimelinePassThroughCanvas = TimelinePassThroughCanvas()
         canvas.drawingPolicy = .anyInput
         canvas.backgroundColor = .clear
         canvas.isOpaque = false
@@ -311,14 +314,25 @@ struct TimelineInkCanvas: UIViewRepresentable {
 
     func updateUIView(_ canvas: TimelinePassThroughCanvas, context: Context) {
         canvas.passThrough = passThrough
+        // 出す・隠すが変わった時だけ触る。毎回呼ぶと、質問の欄で文字を打っている間に書く面が入力を奪い返す。
+        if context.coordinator.isToolPickerShown != showsToolPicker {
+            context.coordinator.isToolPickerShown = showsToolPicker
+            controller.setToolPickerVisible(showsToolPicker, for: canvas)
+        }
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isZoomed) }
+    static func dismantleUIView(_ canvas: TimelinePassThroughCanvas, coordinator: Coordinator) {
+        coordinator.controller.detachToolPicker(from: canvas)
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isZoomed, controller: controller)
+    }
 
     /// 指が触れただけの点(ごく短い線)を除いて、書いた線があるか。
     static func hasMeaningfulInk(_ drawing: PKDrawing) -> Bool {
         drawing.strokes.contains { stroke in
-            let points = stroke.path.map(\.location)
+            let points: [CGPoint] = stroke.path.map(\.location)
             guard let first = points.first else { return false }
             return points.contains { abs($0.x - first.x) >= minimumStrokeExtent || abs($0.y - first.y) >= minimumStrokeExtent }
         }
@@ -328,17 +342,26 @@ struct TimelineInkCanvas: UIViewRepresentable {
         let hasInk: Binding<Bool>
         let isDrawing: Binding<Bool>
         let isZoomed: Binding<Bool>
-        init(hasInk: Binding<Bool>, isDrawing: Binding<Bool>, isZoomed: Binding<Bool>) {
+        let controller: TimelineInkController
+        /// 最後に道具パレットへ伝えた出す・隠す。
+        var isToolPickerShown: Bool = false
+
+        init(hasInk: Binding<Bool>, isDrawing: Binding<Bool>, isZoomed: Binding<Bool>, controller: TimelineInkController) {
             self.hasInk = hasInk
             self.isDrawing = isDrawing
             self.isZoomed = isZoomed
+            self.controller = controller
         }
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
-            let value = TimelineInkCanvas.hasMeaningfulInk(canvasView.drawing)
+            let value: Bool = TimelineInkCanvas.hasMeaningfulInk(canvasView.drawing)
             if hasInk.wrappedValue != value { hasInk.wrappedValue = value }
+            // 右や下の端に近づいたら紙を伸ばす。
+            (canvasView as? TimelinePassThroughCanvas)?.growPaperIfNeeded()
         }
         func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) {
             if !isDrawing.wrappedValue { isDrawing.wrappedValue = true }
+            // 質問の欄で文字を打った後などに道具パレットが隠れていたら、書き始めた時に戻す。
+            (canvasView as? TimelinePassThroughCanvas)?.restoreToolPickerFocus()
         }
         func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) {
             if isDrawing.wrappedValue { isDrawing.wrappedValue = false }
@@ -348,7 +371,7 @@ struct TimelineInkCanvas: UIViewRepresentable {
         }
         func scrollViewDidZoom(_ scrollView: UIScrollView) {
             (scrollView as? TimelinePassThroughCanvas)?.updateAccessibilityCenter()
-            let value = abs(scrollView.zoomScale - 1) > 0.01
+            let value: Bool = abs(scrollView.zoomScale - 1) > 0.01
             if isZoomed.wrappedValue != value { isZoomed.wrappedValue = value }
         }
         func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with view: UIView?) {
@@ -361,67 +384,125 @@ struct TimelineInkCanvas: UIViewRepresentable {
     }
 }
 
-/// 書く面。紙は画面の縦横2倍の大きさで持ち、等倍では左上の1画面分を見せる。指を通す区画では触れても書かない。
+/// 書く面。紙の座標の `home` から1画面分を、等倍で最初に見せる。
+///
+/// 前は紙の左上をそのまま最初の1画面の左上にしていたので、紙は右と下にしか無かった。`UIScrollView` は表示位置を
+/// 紙の外(マイナス)にできないため、縮める時につまんだ点を指の下に留められず、左上へ吸い寄せられていた。
+/// 今は `home` の上と左にも、下限の倍率まで縮めても画面を埋める長さの紙を置く。送る画像は書いた線の範囲から作るので、紙の原点は関係ない。
 /// 書く面が狭くなった時(iPad で右に質問の欄を開いた時など)は、書いた線の全体が見える倍率まで縮め、広がったら戻す。
 final class TimelinePassThroughCanvas: PKCanvasView {
     var passThrough: [CGRect] = []
-    private var paperBase: CGSize = .zero
+    /// 標準の道具パレットを出している間は、書く面を入力の中心(first responder)にする。
+    var wantsToolPicker: Bool = false {
+        didSet { if wantsToolPicker { becomeFirstResponderWhenPossible() } }
+    }
+    /// 等倍で最初に見せる1画面の左上(紙の座標)。
+    private(set) var home: CGPoint = .zero
+    /// `home` の上と左の紙の長さ。最初の大きさから1度だけ決める(後で変えると、書いた線と画面の位置がずれる)。
+    private var margin: CGFloat = 0
+    /// 紙の大きさ(紙の座標)。書いた分だけ伸び、縮めない(縮めると表示位置が押し戻されて跳ぶ)。
+    private var paper: CGSize = .zero
+    /// 今の書く面の大きさ。変わった時だけ紙を決め直す。
+    private var viewport: CGSize = .zero
     /// 狭くなって自動で縮めている(広がったら等倍に戻す)。
-    private var isAutoFitted = false
+    private var isAutoFitted: Bool = false
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        // layoutSubviews はつまんでいる間も毎回呼ばれる。そこで大きさを入れ直すと、指の間を中心に縮まず左上へ跳ぶので、
-        // 紙の大きさは画面の大きさが変わった時だけ決め直す。
-        guard bounds.width > 0, bounds.height > 0, bounds.size != paperBase, !isZooming, !isZoomBouncing else { return }
-        let previous = paperBase
-        paperBase = bounds.size
-        fitPaper()
+        // layoutSubviews はつまんでいる間も毎回呼ばれる。そこで大きさを入れ直すと指の間を中心に縮まないので、
+        // 紙は書く面の大きさが変わった時だけ決め直す。
+        guard bounds.width > 0, bounds.height > 0, bounds.size != viewport, !isZooming, !isZoomBouncing else { return }
+        let previous: CGSize = viewport
+        viewport = bounds.size
+        if margin == 0 {
+            // 下限(0.25倍)まで縮めても紙が画面より小さくならないよう、上と左に長い辺の2倍、右と下にも同じだけ取る(計4倍)。
+            margin = max(bounds.width, bounds.height) * 2
+            home = CGPoint(x: margin, y: margin)
+            paper = CGSize(width: margin * 2, height: margin * 2)
+            fitPaper()
+            contentOffset = CGPoint(x: home.x * zoomScale, y: home.y * zoomScale)
+        } else {
+            fitPaper()
+        }
         updateAccessibilityCenter()
         guard previous.width > 0 else { return }
         // 倍率を変えると delegate から SwiftUI の状態(isZoomed)が変わるので、レイアウトが終わってから変える。
         DispatchQueue.main.async { [weak self] in self?.keepInkVisible() }
     }
 
-    /// 書いた線が見える範囲からはみ出したら縮め、自動で縮めた後に広がったら等倍に戻す。自分でつまんだ倍率は変えない。
-    private func keepInkVisible() {
-        guard !isZooming, !isZoomBouncing, bounds.width > 0, bounds.height > 0 else { return }
-        let ink = drawing.strokes.isEmpty ? CGRect.null : drawing.bounds
-        let margin: CGFloat = 32
-        let needed = ink.isNull ? 1 : min(1, bounds.width / (ink.maxX + margin), bounds.height / (ink.maxY + margin))
-        if isAutoFitted || abs(zoomScale - 1) <= 0.01 {
-            let target = max(minimumZoomScale, needed)
-            guard abs(target - zoomScale) > 0.01 else { return }
-            isAutoFitted = target < 1
-            setZoomScale(target, animated: false)
-            contentOffset = .zero
-            fitPaper()
-            updateAccessibilityCenter()
-        }
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if wantsToolPicker { becomeFirstResponderWhenPossible() }
     }
 
-    func forgetAutoFit() { isAutoFitted = false }
+    /// 書いた線の右端・下端の先に1画面分の紙が残るよう伸ばす。
+    func growPaperIfNeeded() {
+        guard margin > 0, !isZooming, !isZoomBouncing, !drawing.strokes.isEmpty else { return }
+        let extra: CGFloat = max(viewport.width, viewport.height)
+        let ink: CGRect = drawing.bounds
+        let width: CGFloat = max(paper.width, ink.maxX + extra)
+        let height: CGFloat = max(paper.height, ink.maxY + extra)
+        guard width > paper.width || height > paper.height else { return }
+        paper = CGSize(width: width, height: height)
+        fitPaper()
+    }
 
-    /// 紙(等倍の画面の2倍)を、今の倍率の大きさにする。
+    /// 紙を、今の倍率の大きさにする。
     func fitPaper() {
-        guard paperBase.width > 0 else { return }
-        let scaled = CGSize(width: paperBase.width * 2 * zoomScale, height: paperBase.height * 2 * zoomScale)
+        guard margin > 0 else { return }
+        let scaled: CGSize = CGSize(width: paper.width * zoomScale, height: paper.height * zoomScale)
         if abs(contentSize.width - scaled.width) > 0.5 || abs(contentSize.height - scaled.height) > 0.5 {
             contentSize = scaled
         }
     }
 
-    /// 画面の真ん中に見えている紙の位置(等倍の座標)。つまんだ所を中心に縮むかを UI テストで確かめる。
+    /// 倍率を変え、`home` の1画面の左上を書く面の左上に合わせる(「元の大きさ」と自動で縮める時)。
+    func show(zoom: CGFloat) {
+        setZoomScale(zoom, animated: false)
+        fitPaper()
+        contentOffset = CGPoint(x: home.x * zoomScale, y: home.y * zoomScale)
+        updateAccessibilityCenter()
+    }
+
+    /// 書いた線が見える範囲からはみ出したら縮め、自動で縮めた後に広がったら等倍に戻す。自分でつまんだ倍率は変えない。
+    private func keepInkVisible() {
+        guard !isZooming, !isZoomBouncing, bounds.width > 0, bounds.height > 0 else { return }
+        let ink: CGRect = drawing.strokes.isEmpty ? CGRect.null : drawing.bounds
+        let edge: CGFloat = 32
+        let needed: CGFloat = ink.isNull ? 1 : min(1,
+                                                  bounds.width / max(1, ink.maxX - home.x + edge),
+                                                  bounds.height / max(1, ink.maxY - home.y + edge))
+        if isAutoFitted || abs(zoomScale - 1) <= 0.01 {
+            let target: CGFloat = max(minimumZoomScale, needed)
+            guard abs(target - zoomScale) > 0.01 else { return }
+            isAutoFitted = target < 1
+            show(zoom: target)
+        }
+    }
+
+    func forgetAutoFit() { isAutoFitted = false }
+
+    /// 道具パレットを出す間に入力の中心が他へ移っていたら(質問の欄で文字を打った等)、書き始めた時に戻す。
+    func restoreToolPickerFocus() {
+        if wantsToolPicker, !isFirstResponder { becomeFirstResponderWhenPossible() }
+    }
+
+    private func becomeFirstResponderWhenPossible() {
+        guard window != nil, !isFirstResponder else { return }
+        becomeFirstResponder()
+    }
+
+    /// 画面の真ん中に見えている紙の位置(紙の座標)。つまんだ所を中心に拡大・縮小するかを UI テストで確かめる。
     func updateAccessibilityCenter() {
         guard zoomScale > 0 else { return }
-        let x = (contentOffset.x + bounds.width / 2) / zoomScale
-        let y = (contentOffset.y + bounds.height / 2) / zoomScale
+        let x: CGFloat = (contentOffset.x + bounds.width / 2) / zoomScale
+        let y: CGFloat = (contentOffset.y + bounds.height / 2) / zoomScale
         accessibilityValue = "\(Int(x.rounded())),\(Int(y.rounded()))"
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         // passThrough はこのビューの枠の座標。スクロールした分を引いて比べる。
-        let local = CGPoint(x: point.x - contentOffset.x, y: point.y - contentOffset.y)
+        let local: CGPoint = CGPoint(x: point.x - contentOffset.x, y: point.y - contentOffset.y)
         if passThrough.contains(where: { $0.contains(local) }) { return nil }
         return super.hitTest(point, with: event)
     }
@@ -448,14 +529,61 @@ extension View {
     }
 }
 
-/// 書いた線の「1つ戻す」「全部消す」「元の大きさ」と、送る画像づくり。
+/// 書いた線の「1つ戻す」「全部消す」「元の大きさ」、iPad の道具パレット、送る画像づくり。
 @MainActor
 final class TimelineInkController {
     weak var canvas: PKCanvasView?
+    /// 道具パレットにつないでいる書く面(問題ごとに作り直すので、つなぎ替える)。
+    private weak var observedCanvas: TimelinePassThroughCanvas?
 
+    /// iPad の標準の道具パレット。ペン1本(色は選ばせない)と消しゴムだけ。
+    /// 問題ごとに書く面を作り直しても選んだ太さと道具を引き継ぐよう、ここで1つだけ持ち、アプリを閉じても覚えておく。
+    private lazy var toolPicker: PKToolPicker = {
+        let pen: PKToolPickerInkingItem = PKToolPickerInkingItem(type: .monoline, color: TimelineInkCanvas.inkColor,
+                                                                 width: TimelineInkCanvas.inkWidth, identifier: "timeline-pen")
+        pen.allowsColorSelection = false
+        let eraser: PKToolPickerEraserItem = PKToolPickerEraserItem(type: .vector)
+        let picker: PKToolPicker = PKToolPicker(toolItems: [pen, eraser])
+        // 指でも書く(枠を置かず余白に書く作り)ので、「指で描画」の切り替えは出さない。
+        picker.showsDrawingPolicyControls = false
+        picker.stateAutosaveName = "timeline-ink-tools"
+        return picker
+    }()
+
+    func setToolPickerVisible(_ visible: Bool, for canvas: TimelinePassThroughCanvas) {
+        if observedCanvas !== canvas {
+            if let old = observedCanvas { detachToolPicker(from: old) }
+            toolPicker.addObserver(canvas)
+            observedCanvas = canvas
+            // 前の問題で選んだ道具(太さ・消しゴム)を、新しい書く面にも渡す。
+            if let pen = toolPicker.selectedToolItem as? PKToolPickerInkingItem {
+                canvas.tool = pen.inkingTool
+            } else if let eraser = toolPicker.selectedToolItem as? PKToolPickerEraserItem {
+                canvas.tool = eraser.eraserTool
+            }
+        }
+        toolPicker.setVisible(visible, forFirstResponder: canvas)
+        canvas.wantsToolPicker = visible
+        if !visible, canvas.isFirstResponder { canvas.resignFirstResponder() }
+    }
+
+    func detachToolPicker(from canvas: TimelinePassThroughCanvas) {
+        guard observedCanvas === canvas else { return }
+        toolPicker.setVisible(false, forFirstResponder: canvas)
+        toolPicker.removeObserver(canvas)
+        canvas.wantsToolPicker = false
+        if canvas.isFirstResponder { canvas.resignFirstResponder() }
+        observedCanvas = nil
+    }
+
+    /// 1つ戻す。消しゴムで消した分も戻せるよう、書く面の取り消し(PencilKit が書く・消すを積んでいる)を使う。
     func undo() {
         guard let canvas else { return }
-        var drawing = canvas.drawing
+        if let manager = canvas.undoManager, manager.canUndo {
+            manager.undo()
+            return
+        }
+        var drawing: PKDrawing = canvas.drawing
         guard !drawing.strokes.isEmpty else { return }
         drawing.strokes.removeLast()
         canvas.drawing = drawing
@@ -464,24 +592,23 @@ final class TimelineInkController {
     func clear() { canvas?.drawing = PKDrawing() }
 
     func resetZoom() {
-        guard let canvas else { return }
-        (canvas as? TimelinePassThroughCanvas)?.forgetAutoFit()
-        canvas.setZoomScale(1, animated: true)
-        canvas.setContentOffset(.zero, animated: true)
+        guard let canvas = canvas as? TimelinePassThroughCanvas else { return }
+        canvas.forgetAutoFit()
+        UIView.animate(withDuration: 0.25) { canvas.show(zoom: 1) }
     }
 
     /// 白地に書いた線(JPEG)。何も書いていなければ nil。
     /// ダークモードでは PencilKit が線を明るい色に反転して描くため、白地に重ねる画像はライトモードの色で描く。
     func image() -> Data? {
         guard let canvas, TimelineInkCanvas.hasMeaningfulInk(canvas.drawing) else { return nil }
-        let drawing = canvas.drawing
-        let bounds = drawing.bounds.insetBy(dx: -24, dy: -24)
-        var ink = UIImage()
+        let drawing: PKDrawing = canvas.drawing
+        let bounds: CGRect = drawing.bounds.insetBy(dx: -24, dy: -24)
+        var ink: UIImage = UIImage()
         UITraitCollection(userInterfaceStyle: .light).performAsCurrent {
             ink = drawing.image(from: bounds, scale: 2)
         }
-        let renderer = UIGraphicsImageRenderer(size: ink.size)
-        let composed = renderer.image { context in
+        let renderer: UIGraphicsImageRenderer = UIGraphicsImageRenderer(size: ink.size)
+        let composed: UIImage = renderer.image { context in
             UIColor.white.setFill()
             context.fill(CGRect(origin: .zero, size: ink.size))
             ink.draw(at: .zero)

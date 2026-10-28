@@ -4,6 +4,7 @@ import SwiftUI
 /// 操作は右下の縦並び(上から 質問・飛ばす・撮る)、下の帯に次の問題の1行目を常に見せ、上に送ると次へ進む。
 /// 上の帯と下の帯の間は、問題文の上も含めて画面の端から端まで指で書ける。次へ進むのは、下の帯を上に送ったときだけ。
 /// iPad で横幅が広い時(Issue #55)は、書く道具を右上に、「送る」を右下に常に置き(書くまで押せない)、結果でも送った手書きを残す。
+/// ペンの太さと消しゴムは、書ける間だけ出す標準の道具パレット(ペン1本と消しゴムだけ)で選ぶ。
 /// 横向きは問題を左の列に置いて右を全部紙にし、下の帯を問題の列の下だけにして右下まで書けるようにする。
 struct LearningTimelineView: View {
     let store: TimelineStore
@@ -137,7 +138,8 @@ struct LearningTimelineView: View {
         return store.phase == .solving || isRapid
     }
 
-    /// iPad の右上の書く道具: ペンの印・「1つ戻す」・「全部消す」(書くまでは薄く押せない)。縮めた時は「元の大きさ」。
+    /// iPad の右上の書く道具: 「1つ戻す」・「全部消す」(書くまでは薄く押せない)。縮めた時は「元の大きさ」。
+    /// ペンの太さと消しゴムは、標準の道具パレット(`TimelineInkCanvas` の `showsToolPicker`)で選ぶ。
     private var inkTools: some View {
         HStack(spacing: 10) {
             if isInkZoomed {
@@ -149,12 +151,6 @@ struct LearningTimelineView: View {
                     .overlay(Capsule().stroke(Theme.hairline, lineWidth: 1))
                     .accessibilityIdentifier("timeline-ink-zoom-reset")
             }
-            Image(systemName: TimelineSymbol.pencil)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Theme.accentColor)
-                .frame(width: 44, height: 44)
-                .background(Theme.accentColor.opacity(0.16), in: Circle())
-                .accessibilityLabel("ペン")
             inkToolButton(symbol: TimelineSymbol.undo, label: "1つ戻す", identifier: "timeline-ink-undo") { ink.undo() }
             inkToolButton(symbol: TimelineSymbol.clear, label: "全部消す", identifier: "timeline-ink-clear") { ink.clear() }
         }
@@ -331,7 +327,8 @@ struct LearningTimelineView: View {
     /// 書く面(枠は置かない)。上の帯と下の帯の間を、端から端まで覆う。左下に鉛筆と「1つ戻す」「全部消す」。
     private var inkLayer: some View {
         ZStack(alignment: .bottomLeading) {
-            TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isInkZoomed, controller: ink, passThrough: inkPassThrough)
+            TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isInkZoomed, controller: ink, passThrough: inkPassThrough,
+                              showsToolPicker: layout.isPad && showsInkTools)
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .allowsHitTesting(!isGrading && !isResult)
