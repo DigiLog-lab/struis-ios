@@ -20,8 +20,10 @@ extension TurnCoordinator {
     func recoverAbandonedChats(_ turns: [TurnRecord]) async {
         // 返事ごとに見る(同じ会話で新しく送った・送り直した返事があっても、前のプロセスが残した返事は後始末する)。
         // ここで読んだ返事だけを対象にする: 読んだ後にこのプロセスが作った・送り直した返事には触れない。
+        let deviceID = ledger.deviceID
         let pendingIDs = (try? await ledger.read { db in
             try MessageRecord.filter(Column("role") == "assistant").filter(Column("status") == "pending").fetchAll(db).map(\.id)
+                .filter { try Ledger.isLocal(.messages, $0, deviceID: deviceID, db) }
         }) ?? []
         let abandonedReplies = Set(pendingIDs.filter { !isChatReplyLive($0) })
         let abandonedTurnIDs = Set(turns.map(\.id))

@@ -40,6 +40,54 @@ nonisolated enum LedgerSchema {
         migrator.registerMigration("v5-timeline-log") { db in
             try addTimelineLog(db)
         }
+        // iCloud 同期 (Issue #51)。イベントは元の端末と連番 `(origin_device_id, origin_seq)` で一意にし、
+        // 外から来たイベントを二重に足さない。自端末のイベントは挿入時に `device_id` と `seq` で埋める。
+        migrator.registerMigration("sync-v1") { db in
+            try db.alter(table: "ledger_events") { t in
+                t.add(column: "origin_device_id", .text)
+                t.add(column: "origin_seq", .integer)
+            }
+            try db.execute(sql: "UPDATE ledger_events SET origin_device_id = device_id, origin_seq = seq")
+            try db.create(index: "idx_ledger_events_origin", on: "ledger_events", columns: ["origin_device_id", "origin_seq"], unique: true)
+            try db.execute(sql: """
+                CREATE TRIGGER ledger_events_local_origin AFTER INSERT ON ledger_events
+                WHEN NEW.origin_seq IS NULL
+                BEGIN
+                    UPDATE ledger_events SET origin_device_id = NEW.device_id, origin_seq = NEW.seq WHERE seq = NEW.seq;
+                END
+                """)
+            // 読めなかった外のイベント(知らない表・復号やデコードの失敗)。版が上がったら適用し直す。
+            try db.create(table: "sync_pending") { t in
+                t.column("record_name", .text).primaryKey()
+                t.column("origin_device_id", .text)
+                t.column("origin_seq", .integer)
+                t.column("kind", .text)
+                t.column("entity", .text)
+                t.column("entity_id", .text)
+                t.column("payload", .text)
+                t.column("created_at", .text)
+                t.column("record", .blob)
+                t.column("reason", .text).notNull()
+                t.column("app_build", .text).notNull()
+                t.column("received_at", .text).notNull()
+            }
+            // 同期する `captures/`・`attachments/`・`memory/` のファイル。`dirty` は未送信(`deleted` なら消したことを未送信)。
+            try db.create(table: "sync_files") { t in
+                t.column("path", .text).primaryKey()
+                t.column("record_name", .text).notNull().unique()
+                t.column("sha256", .text).notNull()
+                t.column("size", .integer).notNull()
+                t.column("mtime", .double).notNull()
+                t.column("modified_at", .text).notNull()
+                t.column("dirty", .boolean).notNull().defaults(to: true)
+                t.column("deleted", .boolean).notNull().defaults(to: false)
+                t.column("system_fields", .blob)
+            }
+            // 手元で消した(単元の削除で物理削除した)イベントのうち、CloudKit からも消すもの。
+            try db.create(table: "sync_tombstones") { t in
+                t.column("record_name", .text).primaryKey()
+            }
+        }
         return migrator
     }
 
