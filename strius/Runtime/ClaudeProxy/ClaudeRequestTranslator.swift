@@ -502,9 +502,11 @@ nonisolated enum ClaudeTranslation {
     }
 
     /// cache diagnostics で比べる直前の応答の控えのキー。タイムラインの採点・出題・見直しは毎回新しいスレッドなので、
-    /// 種類をまたいで直前のタイムラインの依頼と比べる。
-    static func diagnosticsKey(threadID: String, kind: String?) -> String {
-        kind.map(tutorKinds.contains) == true ? "timeline-tutor" : threadID
+    /// 種類をまたいで直前のタイムラインの依頼と比べる。キャッシュはモデルごとなので、設定でモデルを切り替えた後は
+    /// 同じモデルの直前の依頼と比べる(別のモデルの応答と比べて外れたと記録しない)。
+    static func diagnosticsKey(threadID: String, kind: String?, model: String = "") -> String {
+        guard kind.map(tutorKinds.contains) == true else { return threadID }
+        return model.isEmpty ? "timeline-tutor" : "timeline-tutor:" + model
     }
 }
 

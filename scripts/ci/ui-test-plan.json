@@ -257,6 +257,9 @@
       "home-deletion",
       "settings-runtime-export"
     ],
+    "strius/Sync/**": [
+      "settings-runtime-export"
+    ],
     "strius/Runtime/**": [
       "chat-wiring",
       "settings-runtime-export"

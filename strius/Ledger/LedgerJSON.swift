@@ -178,4 +178,15 @@ nonisolated enum LedgerClock {
     }
 
     static func now() -> String { iso(Date()) }
+
+    /// The `iso` text one microsecond after `text` (also `iso` form). Keeps a local write the newest
+    /// version of its row when another device's clock ran ahead (Issue #51).
+    static func after(_ text: String) -> String {
+        guard let dot = text.firstIndex(of: "."), let whole = plainFormatter.date(from: String(text[..<dot]) + "Z"),
+              let fraction = Int(text[text.index(after: dot)...].prefix(6)) else { return iso(Date()) }
+        var seconds = whole
+        var micros = fraction + 1
+        if micros >= 1_000_000 { micros -= 1_000_000; seconds = seconds.addingTimeInterval(1) }
+        return String(format: "%@.%06d+00:00", String(plainFormatter.string(from: seconds).dropLast()), micros)
+    }
 }

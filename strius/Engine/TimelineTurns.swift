@@ -226,7 +226,8 @@ nonisolated enum TimelineTurns {
             throw LedgerError.notFound("timeline attempt")
         }
         let ext = (path as NSString).pathExtension.isEmpty ? "jpg" : (path as NSString).pathExtension
-        let image = TurnPlan.ImageRef(path: "tutor_desk/inbox/timeline/\(attemptID).\(ext)", hostPath: StruisPaths.captures.appendingPathComponent(path).path)
+        let image = TurnPlan.ImageRef(path: "tutor_desk/inbox/timeline/\(attemptID).\(ext)", hostPath: StruisPaths.captures.appendingPathComponent(path).path,
+                                      maxDimension: TimelineCaptureImage.requestMaxDimension)
         return TurnPlan(
             id: planID, kind: .timelineGrading, round: repair == nil ? 1 : 2,
             thread: try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline),
@@ -260,7 +261,8 @@ nonisolated enum TimelineTurns {
         var images: [TurnPlan.ImageRef] = []
         if let attempt = timeline.attempts[attemptID], let path = attempt.capturePath {
             let ext = (path as NSString).pathExtension.isEmpty ? "jpg" : (path as NSString).pathExtension
-            images.append(TurnPlan.ImageRef(path: "tutor_desk/inbox/timeline/\(attemptID).\(ext)", hostPath: StruisPaths.captures.appendingPathComponent(path).path))
+            images.append(TurnPlan.ImageRef(path: "tutor_desk/inbox/timeline/\(attemptID).\(ext)", hostPath: StruisPaths.captures.appendingPathComponent(path).path,
+                                            maxDimension: TimelineCaptureImage.requestMaxDimension))
         }
         return TurnPlan(
             id: planID, kind: .timelineReview, round: repair == nil ? 1 : 2,

@@ -662,8 +662,11 @@ actor TurnCoordinator {
 
     /// Re-run turns left `queued`/`running` by a previous process (design §3.6).
     func resumeUnfinished() async {
+        let deviceID = ledger.deviceID
+        // A turn another device is running arrives here through iCloud sync (Issue #51); only that device resumes it.
         let unfinished = (try? await ledger.read { db in
             try TurnRecord.filter(sql: "status IN ('queued', 'running')").fetchAll(db)
+                .filter { try Ledger.isLocal(.turns, $0.id, deviceID: deviceID, db) }
         }) ?? []
         var abandonedChats: [TurnRecord] = []
         for turn in unfinished {

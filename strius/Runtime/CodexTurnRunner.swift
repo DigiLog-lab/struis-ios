@@ -602,6 +602,7 @@ actor CodexTurnRunner: TurnRunning {
         var finalText = ""
         var reroutes: [Any] = []
         var lookupCommands: [Any] = []
+        var captureViews: [Any] = []
         // このターンで最初に届いたトークン数の通知(ターン前の累計を求めるため)。
         var firstTokenUsage: JSONObject?
         // Chat turns keep the full wait: Codex reconnects a dropped stream by itself, and a chat turn
@@ -778,6 +779,13 @@ actor CodexTurnRunner: TurnRunning {
                         }
                         compactions.append(entry)
                         audit["compactions"] = compactions
+                    }
+                    if item["type"] as? String == "captureView" {
+                        // `struis.timeline_view_capture` で見せた画像(範囲・大きさ・captures に残した場所)。
+                        var view = item
+                        view["type"] = nil
+                        captureViews.append(view)
+                        audit["capture_views"] = captureViews
                     }
                     if parentThreadID != nil, item["type"] as? String == "commandExecution" {
                         lookupCommands.append(["command": item["command"] ?? NSNull(), "cwd": item["cwd"] ?? NSNull(), "exitCode": item["exitCode"] ?? NSNull(), "durationMs": item["durationMs"] ?? NSNull()])
@@ -1055,7 +1063,11 @@ nonisolated enum WorkspaceStager {
             let target = root.appendingPathComponent(image.path)
             try manager.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
             if manager.fileExists(atPath: target.path) { try manager.removeItem(at: target) }
-            try stageModelImage(from: TurnPlan.stageableHostURL(image.hostPath), to: target)
+            if let limit = image.maxDimension {
+                try TimelineCaptureImage.stageReduced(from: TurnPlan.stageableHostURL(image.hostPath), to: target, limit: limit)
+            } else {
+                try stageModelImage(from: TurnPlan.stageableHostURL(image.hostPath), to: target)
+            }
         }
     }
 

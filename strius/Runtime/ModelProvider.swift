@@ -58,6 +58,24 @@ nonisolated enum ModelProviderPreference {
     }
 }
 
+/// 設定で選んだタイムライン(出題・採点・見直し)の Claude のモデル。検証のための設定なので、配信 manifest の
+/// `claude:timeline` より優先する(2026-10-28 の指示)。知識グラフ(`timeline_graph`)は対象外。
+nonisolated enum TimelineModelPreference {
+    static let defaultsKey = "settings.timelineClaudeModel"
+    static let choices = ["claude-sonnet-5-5", "claude-haiku-5-5"]
+    static let defaultModel = "claude-sonnet-5-5"
+
+    static var current: String {
+        get {
+            #if DEBUG
+            if let forced = ProcessInfo.processInfo.environment["STRUIS_TIMELINE_CLAUDE_MODEL"], choices.contains(forced) { return forced }
+            #endif
+            return UserDefaults.standard.string(forKey: defaultsKey).flatMap { choices.contains($0) ? $0 : nil } ?? defaultModel
+        }
+        set { UserDefaults.standard.set(newValue, forKey: defaultsKey) }
+    }
+}
+
 /// Claude の既定のモデル。配信 manifest に `claude:astra` / `claude:luna` があればそちらを使う。
 nonisolated enum ClaudeModels {
     static let astraModel = "claude-opus-5-5"

@@ -15,6 +15,7 @@ struct AppRootView: View {
     @Environment(LearningFeedRuntimeServices.self) private var learningFeedRuntime
     @Environment(TimelineStore.self) private var timeline
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.scenePhase) private var scenePhase
 
     /// オンボーディングは Release でも出す(§7.2)。完了は端末に保存し、2 回目の起動からは出さない。
     @State private var isShowingOnboarding = Self.initiallyShowsOnboarding
@@ -150,6 +151,10 @@ struct AppRootView: View {
             // Fixtures may have just seeded the ledger; re-read the thread list.
             await bootstrap.refreshThreads()
             await learnerData.turns.resumeUnfinished()
+            await learnerData.iCloud.start()
+        }
+        .onChange(of: scenePhase) {
+            if scenePhase == .active { learnerData.iCloud.sceneBecameActive() } else { learnerData.iCloud.sceneLeftForeground() }
         }
         .font(Typography.body)
         .animation(.easeInOut(duration: Theme.Duration.standard), value: auth.canUseApp)

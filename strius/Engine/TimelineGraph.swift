@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 import GRDB
 
 /// 学習者ごとの知識グラフ(Issue #46「知識グラフ」)。点は「できること」、線は「○○を解くには××が要る」(前提)か
@@ -585,7 +586,8 @@ nonisolated enum TimelineGraphSchedule {
     }
 
     /// 次に頼むもの(無ければ nil)。タイムラインを開いた時・単元ができた時・採点結果を反映した時だけ呼ぶ。
-    static func next(timeline: TimelineMachine, workbook: WorkbookMachine) -> Request? {
+    /// `units` を渡すと、単元の分を頼むのはその単元だけにする(この端末で作った単元。Issue #57)。
+    static func next(timeline: TimelineMachine, workbook: WorkbookMachine, units allowed: Set<String>? = nil) -> Request? {
         let units = workbook.orderedUnits()
         guard !units.isEmpty else { return nil }
         // 頼んでいる最中のグラフの依頼があれば、終わるまで次を頼まない。
@@ -598,7 +600,7 @@ nonisolated enum TimelineGraphSchedule {
         }
         let requested = requestedUnits(timeline)
         let covered = Set(graphSkills.compactMap { unitID(of: $0, workbook: workbook) })
-        if let unit = units.first(where: { !requested.contains($0.id) && !covered.contains($0.id) }) {
+        if let unit = units.first(where: { !requested.contains($0.id) && !covered.contains($0.id) && allowed?.contains($0.id) != false }) {
             return .extend(unitID: unit.id)
         }
         if timeline.needsReview {
@@ -627,6 +629,51 @@ nonisolated enum TimelineQueryHost {
         } catch {
             return "台帳を読めませんでした。"
         }
+    }
+
+    /// `struis.timeline_view_capture`: 答案の元の写真(またはその一部)を元の解像度で返し、見せた画像を
+    /// `captures/timeline_views` に残す。`record` はターンの実行記録(`capture_views`)に入れる。
+    static func viewCapture(_ arguments: JSONObject) async -> (success: Bool, items: [JSONObject], record: JSONObject?) {
+        func failure(_ text: String) -> (Bool, [JSONObject], JSONObject?) { (false, [["type": "inputText", "text": text]], nil) }
+        guard let ledger = lock.withLock({ self.ledger }) else { return failure("台帳を読めませんでした。") }
+        guard let attemptID = (arguments["attempt_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !attemptID.isEmpty else {
+            return failure("attempt_id が要ります。")
+        }
+        let stored: String?
+        do {
+            stored = try await ledger.read { db in
+                try String.fetchOne(db, sql: "SELECT capture_path FROM timeline_attempts WHERE id = ?", arguments: [attemptID])
+            }
+        } catch {
+            return failure("台帳を読めませんでした。")
+        }
+        guard let stored, !stored.isEmpty else { return failure("答案 \(attemptID) には写真がありません。") }
+        var region: CGRect?
+        if let value = arguments["region"] as? JSONObject {
+            let numbers = ["x", "y", "width", "height"].map { (value[$0] as? NSNumber)?.doubleValue }
+            guard let x = numbers[0], let y = numbers[1], let width = numbers[2], let height = numbers[3], width > 0, height > 0 else {
+                return failure("region には x・y・width・height(正の数)が要ります。")
+            }
+            region = CGRect(x: x, y: y, width: width, height: height)
+        }
+        let view: TimelineCaptureImage.View
+        do {
+            let url = try TurnPlan.stageableHostURL(StruisPaths.captures.appendingPathComponent(stored).path)
+            view = try TimelineCaptureImage.view(url: url, region: region)
+        } catch {
+            return failure("写真を開けませんでした: \(error)")
+        }
+        let saved = "\(TimelineCaptureImage.viewDirectory)/\(attemptID)-\(UUID().uuidString.prefix(8)).jpg"
+        let target = StruisPaths.captures.appendingPathComponent(saved)
+        let written = (try? FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)) != nil
+            && (try? view.jpeg.write(to: target, options: .atomic)) != nil
+        let rect: JSONObject = ["x": Int(view.rect.minX), "y": Int(view.rect.minY), "width": Int(view.rect.width), "height": Int(view.rect.height)]
+        let caption = "答案 \(attemptID) の写真(元は \(view.originalWidth)×\(view.originalHeight) px)" + (region == nil ? "の全体" : "の x \(rect["x"]!), y \(rect["y"]!), 幅 \(rect["width"]!), 高さ \(rect["height"]!) の部分")
+            + "を \(view.width)×\(view.height) px で返します。"
+        var record: JSONObject = ["attempt_id": attemptID, "original_rect": rect, "width": view.width, "height": view.height, "bytes": view.jpeg.count,
+                                  "saved_path": written ? saved : NSNull()]
+        if let region { record["region"] = ["x": region.minX, "y": region.minY, "width": region.width, "height": region.height] }
+        return (true, [["type": "inputText", "text": caption], ["type": "inputImage", "imageUrl": "data:image/jpeg;base64," + view.jpeg.base64EncodedString()]], record)
     }
 
     static let writeToolNames: Set<String> = ["timeline_add_card", "timeline_ask", "timeline_revise", "timeline_descend", "timeline_notice"]

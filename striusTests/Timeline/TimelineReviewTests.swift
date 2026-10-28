@@ -408,6 +408,12 @@ final class TimelineReviewTests: XCTestCase {
         XCTAssertEqual(ClaudeTranslation.diagnosticsKey(threadID: "t3", kind: "timeline_batch"), "timeline-tutor")
         XCTAssertEqual(ClaudeTranslation.diagnosticsKey(threadID: "t4", kind: "chat"), "t4")
         XCTAssertEqual(ClaudeTranslation.diagnosticsKey(threadID: "t5", kind: "timeline_graph"), "t5")
+        // 設定でモデルを切り替えた後は、同じモデルの直前の依頼と比べる。
+        XCTAssertEqual(ClaudeTranslation.diagnosticsKey(threadID: "t6", kind: "timeline_grading", model: "claude-haiku-5-5"),
+                       ClaudeTranslation.diagnosticsKey(threadID: "t7", kind: "timeline_batch", model: "claude-haiku-5-5"))
+        XCTAssertNotEqual(ClaudeTranslation.diagnosticsKey(threadID: "t6", kind: "timeline_grading", model: "claude-haiku-5-5"),
+                          ClaudeTranslation.diagnosticsKey(threadID: "t6", kind: "timeline_grading", model: "claude-sonnet-5-5"))
+        XCTAssertEqual(ClaudeTranslation.diagnosticsKey(threadID: "t8", kind: "chat", model: "claude-haiku-5-5"), "t8")
         XCTAssertEqual(ClaudeTranslation.systemCacheTTL(translation: 4, tail: "5m"), "1h")
     }
 

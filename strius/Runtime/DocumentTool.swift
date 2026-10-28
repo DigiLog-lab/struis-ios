@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import ImageIO
 import PDFKit
 import UniformTypeIdentifiers
 
@@ -312,5 +313,145 @@ actor DocumentToolGate {
 
     func release() {
         if waiters.isEmpty { busy = false } else { waiters.removeFirst().resume() }
+    }
+}
+
+/// タイムラインの答案の写真(2026-10-27 の依頼)。採点・見直しには長い辺 1,092 ピクセルに縮めた写しを付け、
+/// 読みきれない時はモデルが `struis.timeline_view_capture` で元の写真(またはその一部)を元の解像度で見る。
+/// 元の写真は `captures` にそのまま残す。座標はどれも向き(EXIF)を直した後の画像の上のピクセル。
+nonisolated enum TimelineCaptureImage {
+    static let toolName = "timeline_view_capture"
+    /// 依頼に付ける写真の長い辺。
+    static let requestMaxDimension = 1_092
+    /// 道具で返す画像の長い辺の上限(今のモデルが高解像度で受け取る大きさ)。
+    static let viewMaxDimension = 2_576
+    /// 道具で見た画像を残す場所(`captures` の下)。
+    static let viewDirectory = "timeline_views"
+
+    static var toolDefinition: JSONObject {
+        ["type": "function", "name": toolName,
+         "description": "Look at the learner's answer photo at its original resolution. Without region, returns the whole photo; with region, only that part. Region coordinates are pixels on the photo attached to the request.",
+         "inputSchema": ["type": "object", "properties": [
+            "attempt_id": ["type": "string"],
+            "region": ["type": "object", "properties": [
+                "x": ["type": "number"], "y": ["type": "number"], "width": ["type": "number"], "height": ["type": "number"],
+            ], "required": ["x", "y", "width", "height"], "additionalProperties": false],
+         ], "required": ["attempt_id"], "additionalProperties": false]]
+    }
+
+    struct ViewError: Error, CustomStringConvertible { let description: String }
+
+    /// 長い辺を `limit` 以下にした大きさ(もともと収まる時はそのまま)。
+    static func fitted(width: Int, height: Int, limit: Int) -> (width: Int, height: Int) {
+        let longest = max(width, height)
+        guard longest > limit, longest > 0 else { return (width, height) }
+        let scale = Double(limit) / Double(longest)
+        return (max(1, Int((Double(width) * scale).rounded())), max(1, Int((Double(height) * scale).rounded())))
+    }
+
+    /// 依頼に付いた写真の上の範囲を、元の写真の上の範囲に直す。はみ出した分は切り、写真と重ならなければ nil。
+    static func originalRect(region: CGRect, width: Int, height: Int) -> CGRect? {
+        let shown = fitted(width: width, height: height, limit: requestMaxDimension)
+        let sx = Double(width) / Double(shown.width), sy = Double(height) / Double(shown.height)
+        let mapped = CGRect(x: region.minX * sx, y: region.minY * sy, width: region.width * sx, height: region.height * sy).standardized
+        let rect = mapped.intersection(CGRect(x: 0, y: 0, width: width, height: height)).integral
+        guard !rect.isNull, rect.width >= 1, rect.height >= 1 else { return nil }
+        return rect
+    }
+
+    /// 向きを直した後の大きさ。
+    static func orientedSize(_ source: CGImageSource) -> (width: Int, height: Int)? {
+        guard CGImageSourceGetCount(source) > 0,
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+              let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue,
+              width > 0, height > 0 else { return nil }
+        let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.intValue ?? 1
+        return orientation >= 5 ? (height, width) : (width, height)
+    }
+
+    /// 向きを直した画像を、長い辺 `maxPixel` で取り出す(元より大きくはしない)。
+    static func decode(_ source: CGImageSource, maxPixel: Int) -> CGImage? {
+        CGImageSourceCreateThumbnailAtIndex(source, 0, [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+            kCGImageSourceShouldCacheImmediately: true,
+        ] as CFDictionary)
+    }
+
+    /// ちょうどその大きさに描き直す(白地。JPEG にするので透明は持たない)。
+    static func resized(_ image: CGImage, width: Int, height: Int) -> CGImage? {
+        if image.width == width, image.height == height { return image }
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+        context.interpolationQuality = .high
+        context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return context.makeImage()
+    }
+
+    /// 依頼に付ける写しを作る。長い辺が `limit` を超える時だけ縮めた JPEG にし、収まる時は今までどおり
+    /// (`WorkspaceStager.stageModelImage`) にする。
+    static func stageReduced(from source: URL, to target: URL, limit: Int) throws {
+        guard let image = CGImageSourceCreateWithURL(source as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+              let size = orientedSize(image), max(size.width, size.height) > limit else {
+            try WorkspaceStager.stageModelImage(from: source, to: target)
+            return
+        }
+        let wanted = fitted(width: size.width, height: size.height, limit: limit)
+        guard let decoded = decode(image, maxPixel: max(wanted.width, wanted.height)),
+              let reduced = resized(decoded, width: wanted.width, height: wanted.height),
+              let jpeg = DocumentReader.jpeg(reduced, quality: 0.85) else {
+            try WorkspaceStager.stageModelImage(from: source, to: target)
+            return
+        }
+        try jpeg.write(to: target, options: .atomic)
+    }
+
+    struct View {
+        let jpeg: Data
+        let width: Int
+        let height: Int
+        /// 元の写真の上で見せた範囲。
+        let rect: CGRect
+        let originalWidth: Int
+        let originalHeight: Int
+    }
+
+    /// 元の写真(またはその一部)を元の解像度で取り出す。長い辺が `viewMaxDimension` を超える時だけ縮める。
+    static func view(url: URL, region: CGRect?) throws -> View {
+        guard let image = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary),
+              let size = orientedSize(image) else { throw ViewError(description: "The photo could not be decoded.") }
+        let whole = CGRect(x: 0, y: 0, width: size.width, height: size.height)
+        var rect = whole
+        if let region {
+            guard let mapped = originalRect(region: region, width: size.width, height: size.height) else {
+                throw ViewError(description: "The region is outside the photo. The attached photo is \(fitted(width: size.width, height: size.height, limit: requestMaxDimension).width)×\(fitted(width: size.width, height: size.height, limit: requestMaxDimension).height) px.")
+            }
+            rect = mapped
+        }
+        let picture: CGImage
+        if rect == whole {
+            // 全体なら、デコードの時に縮める(原寸を持たない)。
+            guard let decoded = decode(image, maxPixel: min(max(size.width, size.height), viewMaxDimension)) else {
+                throw ViewError(description: "The photo could not be decoded.")
+            }
+            picture = decoded
+        } else {
+            guard let full = decode(image, maxPixel: max(size.width, size.height)),
+                  let cropped = full.cropping(to: rect.applying(CGAffineTransform(scaleX: Double(full.width) / Double(size.width), y: Double(full.height) / Double(size.height))).integral) else {
+                throw ViewError(description: "The photo could not be decoded.")
+            }
+            picture = cropped
+        }
+        let out = fitted(width: picture.width, height: picture.height, limit: viewMaxDimension)
+        guard let final = resized(picture, width: out.width, height: out.height) else { throw ViewError(description: "The photo could not be decoded.") }
+        var jpeg = DocumentReader.jpeg(final, quality: 0.85)
+        // Claude に渡せる画像は 5 MB まで(`ClaudeRequestTranslator.Options.maxImageBytes`)。
+        if let data = jpeg, data.count > 3_500_000 { jpeg = DocumentReader.jpeg(final, quality: 0.6) }
+        guard let jpeg else { throw ViewError(description: "The photo could not be encoded.") }
+        return View(jpeg: jpeg, width: final.width, height: final.height, rect: rect, originalWidth: size.width, originalHeight: size.height)
     }
 }

@@ -12,6 +12,9 @@ nonisolated struct TimelineMachine {
     var attempts: [String: TimelineAttemptRecord] = [:]
     var dips: [String: TimelineDipRecord] = [:]
     var log: [String: TimelineLogRecord] = [:]
+    /// 今日の記録の各行が、この端末の台帳に入った順(`ledger_events.seq`)と、この端末で書いた行か (Issue #57)。
+    /// 他の端末から届いた行は、この端末の記録の最後に足す(`todayLog`)。
+    var logArrival: [String: (order: Int64, local: Bool)] = [:]
     private(set) var events: [LedgerEvent] = []
 
     var now: () -> String = { LedgerClock.now() }
@@ -29,6 +32,13 @@ nonisolated struct TimelineMachine {
         attempts = Dictionary(uniqueKeysWithValues: try TimelineAttemptRecord.fetchAll(db).map { ($0.id, $0) })
         dips = Dictionary(uniqueKeysWithValues: try TimelineDipRecord.fetchAll(db).map { ($0.id, $0) })
         log = Dictionary(uniqueKeysWithValues: try TimelineLogRecord.fetchAll(db).map { ($0.id, $0) })
+        let deviceID = try String.fetchOne(db, sql: "SELECT value FROM ledger_meta WHERE key = 'device_id'")
+        for row in try Row.fetchAll(db, sql: """
+            SELECT entity_id, MIN(seq) AS arrival, origin_device_id FROM ledger_events WHERE entity = ? GROUP BY entity_id
+            """, arguments: [LedgerEntity.timelineLog.rawValue]) {
+            let origin: String? = row["origin_device_id"]
+            logArrival[row["entity_id"]] = (row["arrival"], origin == nil || origin == deviceID)
+        }
     }
 
     mutating func put(_ kind: String, _ row: TimelineSkillRecord) { skills[row.id] = row; events.append(.upsert(kind, row)) }
@@ -1140,18 +1150,32 @@ nonisolated struct TimelineMachine {
 
     // MARK: - 今日の記録
 
-    /// 今日の記録(保存した順)。
+    /// 今日の記録(この端末で保存した・受け取った順)。この端末で書いた行は `seq` の位置(最後、またはその日の先頭)に入り、
+    /// 他の端末から届いた行は届いた時点の最後に足す。届いた行が、この端末が前に送った依頼の先頭を書き換えない (Issue #57)。
     var todayLog: [TimelineLogRecord] {
         let today = today
-        return log.values.filter { $0.day == today }.sorted { ($0.seq, $0.createdAt, $0.id) < ($1.seq, $1.createdAt, $1.id) }
+        let entries = log.values.filter { $0.day == today }.sorted { a, b in
+            let (x, y) = (logArrival[a.id]?.order ?? .max, logArrival[b.id]?.order ?? .max)
+            return (x, a.seq, a.createdAt, a.id) < (y, b.seq, b.createdAt, b.id)
+        }
+        var ordered: [TimelineLogRecord] = []
+        for entry in entries {
+            if logArrival[entry.id]?.local ?? true, let lowest = ordered.map(\.seq).min(), entry.seq < lowest {
+                ordered.insert(entry, at: 0)
+            } else {
+                ordered.append(entry)
+            }
+        }
+        return ordered
     }
 
     /// 1 件足す(書いた時点の文のまま残す)。`first` はその日の先頭に入れる(その日最初の「今の単元とスキルの一覧」。
     /// その日まだ依頼を送っていない時だけ使う)。
     @discardableResult
     mutating func appendLog(kind: String, attemptID: String? = nil, unitID: String? = nil, skillIDs: [String] = [], text: String, first: Bool = false) -> String {
-        let entries = todayLog
-        let seq = first ? (entries.first?.seq ?? 1) - 1 : (entries.last?.seq ?? 0) + 1
+        // その日の全部の行(他の端末の行も)より後・前にする。
+        let seqs = log.values.filter { $0.day == today }.map(\.seq)
+        let seq = first ? (seqs.min() ?? 1) - 1 : (seqs.max() ?? 0) + 1
         let id = newID()
         put("timeline.log_appended", TimelineLogRecord(id: id, day: today, seq: seq, kind: kind, attemptId: attemptID, unitId: unitID,
                                                        skillIds: skillIDs, text: text, createdAt: now()))

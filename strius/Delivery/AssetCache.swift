@@ -65,11 +65,15 @@ actor AssetCache {
     nonisolated let bundled: BundledAssets
     private var manifest: DeliveryManifest?
     private var memory: [String: String] = [:]
+    /// 設定で選んだタイムラインの Claude のモデル(`TimelineModelPreference`)。テストでは差し替える。
+    nonisolated let timelineClaudeModel: @Sendable () -> String
 
-    init(root: URL = StruisPaths.assets, lenient: Bool = false, bundled: BundledAssets = .main) {
+    init(root: URL = StruisPaths.assets, lenient: Bool = false, bundled: BundledAssets = .main,
+         timelineClaudeModel: @escaping @Sendable () -> String = { TimelineModelPreference.current }) {
         self.root = root
         self.lenient = lenient
         self.bundled = bundled
+        self.timelineClaudeModel = timelineClaudeModel
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         if let data = try? Data(contentsOf: root.appendingPathComponent("manifest.json")) {
             manifest = try? Self.decoder.decode(DeliveryManifest.self, from: data)
@@ -102,6 +106,8 @@ actor AssetCache {
             // タイムラインは別名で指す(配信の manifest に別名があればそれ、無ければ同梱の既定)。
             var model = manifest?.models[provider.manifestKey(role: role)] ?? fallback
             model.provider = provider == .anthropic ? .anthropic : nil
+            // 出題・採点・見直しの Claude は、設定で選んだモデルを manifest より優先する(考える深さは `TimelineTurns.tutorEffort`)。
+            if role == TimelineModels.role, provider == .anthropic { model.model = timelineClaudeModel() }
             return model
         }
         switch provider {

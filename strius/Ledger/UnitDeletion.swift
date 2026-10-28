@@ -223,6 +223,20 @@ nonisolated enum UnitDeletion {
                         }
                     }
                 }
+                // タイムラインの答案の写真と、モデルに見せた部分(`timeline_views/<答案>-*.jpg`)も消す (Issue #57)。
+                if event.entity == .timelineAttempts {
+                    let captures = root.appendingPathComponent("captures").standardizedFileURL
+                    if let path = event.payload["capture_path"]?.stringValue, !path.isEmpty,
+                       !snapshots.contains(where: { $0.entity == .timelineAttempts && !scope.contains($0.entity, $0.entityID) && $0.payload["capture_path"]?.stringValue == path }) {
+                        let file = captures.appendingPathComponent(path).standardizedFileURL
+                        guard file.path.hasPrefix(captures.path + "/") else { throw LedgerError.invalid("答案の保存先が不正です") }
+                        files.append(file.path)
+                    }
+                    let views = captures.appendingPathComponent(TimelineCaptureImage.viewDirectory, isDirectory: true)
+                    for url in (try? FileManager.default.contentsOfDirectory(at: views, includingPropertiesForKeys: nil)) ?? [] where url.lastPathComponent.hasPrefix(event.entityID + "-") {
+                        files.append(url.standardizedFileURL.path)
+                    }
+                }
             } else if !references(event.payload).isDisjoint(with: ids) || affectedKeys.contains(event.entity.rawValue + ":" + event.entityID) {
                 var payload = scrub(event.payload, ids: ids)
                 if event.entity == .workbookCaptures, var object = payload.objectValue {

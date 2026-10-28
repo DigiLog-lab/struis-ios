@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
-"""Build a signed archive from the checked-out commit using private CI inputs."""
+"""Build a signed archive from the checked-out commit using private CI inputs.
+
+The App Store profiles of the three bundles come from the App Store Connect API
+(as in scripts/agent/prototype.py): an active profile with the distribution
+certificate, at least a week of validity and the required entitlements is reused,
+otherwise one is created. Adding a capability to an App ID (iCloud for sync,
+Issue #51) invalidates the old profiles; they are replaced here without new secrets.
+"""
 import argparse
 import base64
+import datetime
 import json
 import os
 from pathlib import Path
@@ -16,11 +24,94 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-PROFILE_INPUTS = {
-    'strius': ('APP', 'com.digiloglab.strius'),
-    'StruisRuntime': ('RUNTIME', 'com.digiloglab.strius.runtime'),
-    'StruisExec': ('EXEC', 'com.digiloglab.strius.exec'),
+sys.path.insert(0, str(ROOT / 'scripts/agent'))
+from appstoreconnect import AppStoreConnect  # noqa: E402
+
+PROFILE_BUNDLES = {  # Xcode product name -> bundle ID
+    'strius': 'com.digiloglab.strius',
+    'StruisRuntime': 'com.digiloglab.strius.runtime',
+    'StruisExec': 'com.digiloglab.strius.exec',
 }
+APP_GROUP = 'group.com.digiloglab.struis.runtime'
+ICLOUD_CONTAINER = 'iCloud.com.digiloglab.strius'
+CONTAINERS_KEY = 'com.apple.developer.icloud-container-identifiers'
+PROFILE_MIN_DAYS = 7
+
+
+def profile_problem(document, product, certificate_der):
+    """Why an App Store profile cannot sign `product`, or None."""
+    entitlements = document.get('Entitlements', {})
+    team = (document.get('TeamIdentifier') or [''])[0]
+    if entitlements.get('application-identifier') != f'{team}.{PROFILE_BUNDLES[product]}' or entitlements.get('get-task-allow'):
+        return 'bundle'
+    if document.get('ProvisionedDevices'):
+        return 'devices'
+    if certificate_der not in document.get('DeveloperCertificates', []):
+        return 'certificate'
+    if APP_GROUP not in entitlements.get('com.apple.security.application-groups', []):
+        return 'app-group'
+    if product == 'strius' and ICLOUD_CONTAINER not in entitlements.get(CONTAINERS_KEY, []):
+        return 'icloud'
+    return None
+
+
+def ensure_store_profiles(asc, certificate_der, serial, decode, now=None):
+    """App Store profiles for the three bundles: product -> (profile bytes, decoded profile)."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    horizon = (now + datetime.timedelta(days=PROFILE_MIN_DAYS)).strftime('%Y-%m-%dT%H:%M:%S')
+    certificates = [cert for cert in asc.distribution_certificates()
+                    if (cert['attributes'].get('serialNumber') or '').upper().lstrip('0') == serial]
+    if not certificates:
+        raise RuntimeError('The distribution certificate is not registered in App Store Connect')
+    profiles = {}
+    for product, identifier in PROFILE_BUNDLES.items():
+        bundle = asc.find_bundle_id(identifier)
+        if not bundle:
+            raise RuntimeError(f'App ID {identifier} is missing')
+        chosen = None
+        candidates = sorted(asc.profiles_for(bundle), key=lambda item: item['attributes'].get('expirationDate') or '', reverse=True)
+        for profile in candidates:
+            attributes = profile['attributes']
+            # An App ID change (a new capability) makes its profiles INVALID; they are never reused.
+            if (attributes.get('profileType') != 'IOS_APP_STORE' or attributes.get('profileState') != 'ACTIVE'
+                    or (attributes.get('expirationDate') or '')[:19] <= horizon):
+                continue
+            data = base64.b64decode(attributes['profileContent'])
+            document = decode(data)
+            if profile_problem(document, product, certificate_der) is None:
+                chosen = (data, document)
+                break
+        if not chosen:
+            created = asc.create_profile(f'Struis App Store {product} {now:%y%m%d%H%M%S}', bundle,
+                                         [certificates[0]['id']], 'IOS_APP_STORE')
+            data = base64.b64decode(created['attributes']['profileContent'])
+            document = decode(data)
+            problem = profile_problem(document, product, certificate_der)
+            if problem == 'icloud':
+                raise RuntimeError(f'App ID {identifier} has no iCloud container {ICLOUD_CONTAINER}. '
+                                   'Assign it on the Developer portal and run again.')
+            if problem == 'app-group':
+                raise RuntimeError(f'App ID {identifier} has no App Group {APP_GROUP}. '
+                                   'Assign it on the Developer portal and run again.')
+            if problem:
+                raise RuntimeError(f'The new App Store profile for {product} does not match ({problem})')
+            chosen = (data, document)
+        profiles[product] = chosen
+    return profiles
+
+
+def certificate_identity(p12_path, password):
+    """DER bytes and serial number (uppercase hex, no leading zeros) of the signing certificate."""
+    environment = {**os.environ, 'P12_PASSWORD': password}
+    command = ['openssl', 'pkcs12', '-in', str(p12_path), '-clcerts', '-nokeys', '-passin', 'env:P12_PASSWORD']
+    pem = subprocess.run(command, capture_output=True, env=environment)
+    if pem.returncode:
+        pem = subprocess.run(command[:2] + ['-legacy'] + command[2:], capture_output=True, env=environment)
+    der = subprocess.run(['openssl', 'x509', '-outform', 'DER'], input=pem.stdout, capture_output=True)
+    serial = subprocess.run(['openssl', 'x509', '-noout', '-serial'], input=pem.stdout, capture_output=True)
+    if pem.returncode or der.returncode or serial.returncode:
+        raise RuntimeError('The distribution certificate cannot be read')
+    return der.stdout, serial.stdout.decode().strip().split('=', 1)[1].upper().lstrip('0')
 
 
 def run(command, log=None):
@@ -60,11 +151,8 @@ def main():
     if args.upload and (not args.build_number or not os.environ.get('STRUIS_DELIVERY_APP_KEY')):
         raise RuntimeError('Upload requires an explicit build number and service configuration')
     auth_names = ('APP_STORE_CONNECT_PRIVATE_KEY', 'APP_STORE_CONNECT_KEY_ID', 'APP_STORE_CONNECT_ISSUER_ID')
-    auth_present = [bool(os.environ.get(name)) for name in auth_names]
-    if any(auth_present) and not all(auth_present):
-        raise RuntimeError('App Store Connect authentication requires all three inputs')
-    if args.upload and not all(auth_present):
-        raise RuntimeError('Upload requires App Store Connect authentication')
+    if not all(os.environ.get(name) for name in auth_names):
+        raise RuntimeError('App Store Connect authentication (all three inputs) is required for the signing profiles')
     os.umask(0o077)
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -98,21 +186,23 @@ def main():
         identity = re.findall(r'\b[0-9A-F]{40}\b', identities)
         if len(identity) != 1:
             raise RuntimeError('Expected one valid distribution identity')
+        api_key = private / f'AuthKey_{os.environ["APP_STORE_CONNECT_KEY_ID"].strip()}.p8'
+        api_key.write_text(os.environ['APP_STORE_CONNECT_PRIVATE_KEY'].replace('\r', '').strip() + '\n')
+        asc = AppStoreConnect(str(api_key), os.environ['APP_STORE_CONNECT_KEY_ID'].strip(),
+                              os.environ['APP_STORE_CONNECT_ISSUER_ID'].strip())
+        certificate_der, serial = certificate_identity(certificate, os.environ['P12_PASSWORD'])
+        scratch = private / 'decode.mobileprovision'
+
+        def decode(data):
+            scratch.write_bytes(data)
+            return plistlib.loads(run(['security', 'cms', '-D', '-i', str(scratch)]))
+
         profiles = {}
         teams = set()
         settings = []
-        for product, (label, bundle) in PROFILE_INPUTS.items():
-            data = base64.b64decode(os.environ[f'BUILD_PROVISION_PROFILE_{label}_BASE64'], validate=True)
-            path = private / f'{label}.mobileprovision'
-            path.write_bytes(data)
-            profile = plistlib.loads(run(['security', 'cms', '-D', '-i', str(path)]))
-            entitlements = profile['Entitlements']
-            team = profile['TeamIdentifier'][0]
-            if entitlements['application-identifier'] != f'{team}.{bundle}' or entitlements.get('get-task-allow'):
-                raise RuntimeError(f'Distribution profile mismatch for {product}')
-            if 'group.com.digiloglab.struis.runtime' not in entitlements.get('com.apple.security.application-groups', []):
-                raise RuntimeError(f'App Group missing for {product}')
-            teams.add(team)
+        for product, (data, profile) in ensure_store_profiles(asc, certificate_der, serial, decode).items():
+            bundle = PROFILE_BUNDLES[product]
+            teams.add(profile['TeamIdentifier'][0])
             profiles[bundle] = profile['UUID']
             settings.append(f'STRUIS_CI_PROFILE_{product}={profile["UUID"]}')
             for directory in (Path.home() / 'Library/MobileDevice/Provisioning Profiles',
@@ -160,10 +250,8 @@ def main():
             options.write_bytes(plistlib.dumps({'method': 'app-store-connect', 'destination': 'upload',
                 'teamID': team, 'signingStyle': 'manual', 'provisioningProfiles': profiles,
                 'manageAppVersionAndBuildNumber': False}))
-            key = private / f'AuthKey_{os.environ["APP_STORE_CONNECT_KEY_ID"]}.p8'
-            key.write_text(os.environ['APP_STORE_CONNECT_PRIVATE_KEY'])
             run(['xcodebuild', '-exportArchive', '-archivePath', str(archive), '-exportPath', str(output / 'Export'),
-                 '-exportOptionsPlist', str(options), '-authenticationKeyPath', str(key),
+                 '-exportOptionsPlist', str(options), '-authenticationKeyPath', str(api_key),
                  '-authenticationKeyID', os.environ['APP_STORE_CONNECT_KEY_ID'],
                  '-authenticationKeyIssuerID', os.environ['APP_STORE_CONNECT_ISSUER_ID']], output / 'upload-private.log')
             record['uploaded'] = True
