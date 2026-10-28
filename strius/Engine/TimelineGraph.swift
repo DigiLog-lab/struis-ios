@@ -586,7 +586,8 @@ nonisolated enum TimelineGraphSchedule {
     }
 
     /// 次に頼むもの(無ければ nil)。タイムラインを開いた時・単元ができた時・採点結果を反映した時だけ呼ぶ。
-    static func next(timeline: TimelineMachine, workbook: WorkbookMachine) -> Request? {
+    /// `units` を渡すと、単元の分を頼むのはその単元だけにする(この端末で作った単元。Issue #57)。
+    static func next(timeline: TimelineMachine, workbook: WorkbookMachine, units allowed: Set<String>? = nil) -> Request? {
         let units = workbook.orderedUnits()
         guard !units.isEmpty else { return nil }
         // 頼んでいる最中のグラフの依頼があれば、終わるまで次を頼まない。
@@ -599,7 +600,7 @@ nonisolated enum TimelineGraphSchedule {
         }
         let requested = requestedUnits(timeline)
         let covered = Set(graphSkills.compactMap { unitID(of: $0, workbook: workbook) })
-        if let unit = units.first(where: { !requested.contains($0.id) && !covered.contains($0.id) }) {
+        if let unit = units.first(where: { !requested.contains($0.id) && !covered.contains($0.id) && allowed?.contains($0.id) != false }) {
             return .extend(unitID: unit.id)
         }
         if timeline.needsReview {

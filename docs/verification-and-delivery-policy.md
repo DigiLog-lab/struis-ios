@@ -1,6 +1,6 @@
 # struis-ios 検証と配信の方針
 
-- 作成: 2026-10-20、改訂: 2026-10-22(門を GitHub に移し、UIテストを契約で選ぶ。`docs/testing.md`)
+- 作成: 2026-10-20、改訂: 2026-10-22(門を GitHub に移し、UIテストを契約で選ぶ。`docs/testing.md`)、2026-10-24(配信も GitHub Actions を本線にし、Xcode Cloud は手動で起動する予備にする)
 - 状態: PR #39 で実装。マージは Tomochika が行う
 - 対象: DigiLog-lab/struis-ios の Issue エージェント、GitHub Actions、Xcode Cloud
 
@@ -23,7 +23,7 @@
 | セッション | Claude Code の会話の続き。`--resume` で再開する単位です |
 | main | リポジトリの既定のブランチ |
 | マージ | PR の変更を main に取り込むこと。行うのは Tomochika で、エージェントは行いません |
-| リリースブランチ | 未決。決まるまでは、Release を main から依頼に応じて起動します(5節) |
+| リリースブランチ | 未決。決まるまでは、配信は main で `ios.yml` を手動で起動して行います(5節) |
 
 ### 1.2 PR と commit
 
@@ -100,7 +100,7 @@
 2. マージしてよいかは、門で決めます。手元検証が緑でも門は省略しません。門が緑でも、手元検証の記録がない変更はマージしません。
 3. 門は Ready の HEAD に対して流します。Draft の間は流しません。
 4. runner はエージェントの作業に使います。エージェント以外で使うのは、bootstrap のキャッシュ作成、prototype、門、の3つに限ります。
-5. 門は GitHub、リリースは Xcode Cloud で流します。Xcode Cloud の TEST action は、テストを0件にしてもビルド・受け渡し・後処理だけで毎回11〜19分かかり、門の目標(狭い変更で約10分)に届かないためです(`docs/xcode-cloud.md`)。
+5. 門も配信も GitHub Actions で流します。Xcode Cloud の TEST action は、テストを0件にしてもビルド・受け渡し・後処理だけで毎回11〜19分かかり、門の目標(狭い変更で約10分)に届かないためです(`docs/xcode-cloud.md`)。Xcode Cloud の PR Gate と Release は、GitHub の runner が使えない時に手で起動する予備として残します。自動では切り替えません。
 6. 使わなかったチェックポイントと cache は、削除します。削除を忘れても期限で消える仕組み(Artifact の保存期間14日)を、最後の段に置きます。
 7. 仕組みを動かすのに、リポジトリの変数・Secrets の追加、Worker のデプロイ、R2 の設定変更を要しません。設定はリポジトリのファイルに置きます。
 
@@ -189,7 +189,8 @@ Ready は、マージの承認でも、依頼の完了でもありません。
 | 完了前の手元検証 | エージェントの runner | Ready にする前に毎回 |
 | 門 | GitHub(`ios.yml` の `verify`) | Ready になるたびに |
 | 門の結果を待つ | 制御ジョブ(Linux) | 門の実行中 |
-| リリース(全件の UI テストを直列で、TestFlight 内部配布用の archive) | Xcode Cloud(Release) | 依頼された時だけ。`repository_dispatch`(`xcode-cloud`)で、main から |
+| 配信(全件の UI テストと、TestFlight 内部配布用の署名付き archive) | GitHub(`ios.yml` の `build`・`ui-tests`・`signed-archive`) | 依頼された時だけ。main で `ios.yml` を手動で起動し、アップロードする時は `upload` を有効にして未使用の `build_number` を指定する(`docs/build.md`) |
+| 予備(GitHub の runner が使えない時) | Xcode Cloud(PR Gate・Release) | 手で切り替えた時だけ。門は `gate-config.json` の `backend` を `xcode-cloud` にする。Release は `repository_dispatch`(`xcode-cloud`)で、main から |
 | bootstrap のキャッシュ作成と、Xcode Cloud 用の native の生成物の公開 | GitHub(`agent-native-cache.yml`) | `NativeRuntime/` が変わった時 |
 | prototype | GitHub(`agent-prototype.yml`) | 依頼された時 |
 
@@ -199,8 +200,8 @@ Draft への push と main への push では、macOS の検証を起動しま�
 
 | やめたもの | 理由 |
 |---|---|
-| 毎晩の全件 UI テスト(`ios.yml` の `schedule`) | Release(Xcode Cloud)で全件が通ることを確かめた(Release 154・155)。全件は依頼に応じて Release で流す |
-| main への push ごとの `signed-archive` | TestFlight 配信を Xcode Cloud の Release で確かめた(Release 155) |
+| 毎晩の全件 UI テスト(`ios.yml` の `schedule`) | 全件は配信の時に、main での `ios.yml` の手動実行で流す。保険として毎晩流すことはしない |
+| main への push ごとの `signed-archive` | 配信は依頼された時だけ、main での `ios.yml` の手動実行で行う |
 | Xcode Cloud の PR Gate での門 | テスト以外の段階だけで毎回11〜19分かかる(PR Gate 158〜163)。GitHub の1台で、ビルド1回とテスト1回で流す方が速い(UI 0件で平均9分30秒、2026-10-22)。PR Gate の workflow と生成するテストプランは残しているが、門は起動しない(`gate-config.json` の `backend: github`) |
 | どの変更でも必ず流す E2E のクラス | 毎回の待ち時間を増やすだけで、変更と関係のない UI テストを流していた。各 UI テストは、守る性質に関係する変更の時だけ流す |
 

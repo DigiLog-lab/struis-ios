@@ -144,16 +144,21 @@ class AppStoreConnect:
     def profiles_for(self, bundle_id):
         return self.paginate(f"/v1/bundleIds/{bundle_id['id']}/profiles")
 
-    def create_adhoc_profile(self, name, bundle_id, certificate_ids, device_ids):
+    def create_profile(self, name, bundle_id, certificate_ids, profile_type, device_ids=()):
+        relationships = {
+            'bundleId': {'data': {'type': 'bundleIds', 'id': bundle_id['id']}},
+            'certificates': {'data': [{'type': 'certificates', 'id': identifier} for identifier in certificate_ids]},
+        }
+        if device_ids:
+            relationships['devices'] = {'data': [{'type': 'devices', 'id': identifier} for identifier in device_ids]}
         created = self.request('POST', '/v1/profiles', {'data': {
             'type': 'profiles',
-            'attributes': {'name': name, 'profileType': 'IOS_APP_ADHOC'},
-            'relationships': {
-                'bundleId': {'data': {'type': 'bundleIds', 'id': bundle_id['id']}},
-                'certificates': {'data': [{'type': 'certificates', 'id': identifier} for identifier in certificate_ids]},
-                'devices': {'data': [{'type': 'devices', 'id': identifier} for identifier in device_ids]},
-            }}})
+            'attributes': {'name': name, 'profileType': profile_type},
+            'relationships': relationships}})
         return created['data']
+
+    def create_adhoc_profile(self, name, bundle_id, certificate_ids, device_ids):
+        return self.create_profile(name, bundle_id, certificate_ids, 'IOS_APP_ADHOC', device_ids)
 
 
 def from_environment(key_path):

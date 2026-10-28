@@ -121,7 +121,9 @@ nonisolated enum LedgerArchive {
             throw LedgerError.invalid("台帳の記録件数または順序が壊れています")
         }
         var events: [LedgerEvent] = []
-        for row in exported {
+        // Re-append in last-writer-wins order (Issue #51): an event taken in from another device can be
+        // older than a local event stored before it.
+        for row in exported.sorted(by: { ($0.createdAt, $0.deviceID, $0.seq) < ($1.createdAt, $1.deviceID, $1.seq) }) {
             guard let entity = LedgerEntity(rawValue: row.entity), let payload = LedgerJSON.parse(row.payload) else {
                 throw LedgerError.invalid("読めないイベントがあります (seq \(row.seq))")
             }
