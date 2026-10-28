@@ -27,6 +27,7 @@ actor CloudKitSyncTransport: SyncTransport, CKSyncEngineDelegate {
     private var staged: [CKRecord.ID: SyncRecord] = [:]
     private var fetched = SyncFetch()
     private var sent = SyncSendResult()
+    private var state = SyncStateKeeper()
 
     /// - Parameters:
     ///   - stateURL: where the engine's state (change tokens) is kept between launches.
@@ -67,15 +68,29 @@ actor CloudKitSyncTransport: SyncTransport, CKSyncEngineDelegate {
     // MARK: - SyncTransport
 
     func fetchChanges() async throws -> SyncFetch {
-        // Assets of the previous fetch were taken in by now.
+        // Assets of the previous fetch were taken in, or will be fetched again.
         try? FileManager.default.removeItem(at: incoming)
-        try await syncEngine().fetchChanges()
+        if state.begin(fetch: true) { reloadFromKeptState() }
+        // What a failed fetch delivered is fetched again from the kept state.
+        fetched = SyncFetch()
+        do {
+            try await syncEngine().fetchChanges()
+        } catch {
+            fetched = SyncFetch()
+            throw error
+        }
         let result = fetched
         fetched = SyncFetch()
         return result
     }
 
+    func commitFetch() async throws {
+        if let data = state.commit() { try keep(data) }
+    }
+
     func send(_ batch: SyncBatch) async throws -> SyncSendResult {
+        // A fetch that was not taken in must not be kept with the state the send moves on.
+        if state.begin(fetch: false) { reloadFromKeptState() }
         let engine = syncEngine()
         engine.state.remove(pendingRecordZoneChanges: engine.state.pendingRecordZoneChanges)
         staged = [:]
@@ -109,7 +124,19 @@ actor CloudKitSyncTransport: SyncTransport, CKSyncEngineDelegate {
         _ = try await database.save(CKRecordZone(zoneID: zoneID))
         // A fresh engine state: this device must not take its own deletion for another device's.
         engine = nil
+        state.reset()
         try? FileManager.default.removeItem(at: stateURL)
+    }
+
+    /// Drop the engine whose state moved past changes that are not in the ledger; the next use loads the kept state.
+    private func reloadFromKeptState() {
+        engine = nil
+        cloudLog.notice("fetched changes were not taken in; fetching them again")
+    }
+
+    private func keep(_ data: Data) throws {
+        try FileManager.default.createDirectory(at: stateURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: stateURL, options: .atomic)
     }
 
     nonisolated func decodeArchived(_ data: Data) -> SyncRecord? {
@@ -122,9 +149,9 @@ actor CloudKitSyncTransport: SyncTransport, CKSyncEngineDelegate {
     func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) async {
         switch event {
         case .stateUpdate(let update):
+            // During a fetch the state is kept by `commitFetch()`, after the changes are in the ledger.
             do {
-                try FileManager.default.createDirectory(at: stateURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-                try JSONEncoder().encode(update.stateSerialization).write(to: stateURL, options: .atomic)
+                if let data = state.update(try JSONEncoder().encode(update.stateSerialization)) { try keep(data) }
             } catch {
                 cloudLog.error("sync state not saved: \(String(describing: error), privacy: .public)")
             }
@@ -134,6 +161,7 @@ actor CloudKitSyncTransport: SyncTransport, CKSyncEngineDelegate {
             default:
                 // Another Apple ID (or none): its zone is not this one; start over with a fresh state.
                 engine = nil
+                state.reset()
                 try? FileManager.default.removeItem(at: stateURL)
             }
         case .fetchedDatabaseChanges(let changes):

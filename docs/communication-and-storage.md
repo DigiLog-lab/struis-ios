@@ -50,10 +50,11 @@ StruisのAPI base URLは`STRUIS_API_BASE_URL`で上書きできます。Codexの
 
 ### 台帳への取り込み
 
+- 取ってきた変更は、台帳とファイルに入れ終えてから`CKSyncEngine`の状態(変更token)を`sync/engine-state.json`に保存します。取り込む前にアプリが終わった時や取り込みに失敗した時は、保存してある状態から同じ変更を取り直します。
 - 外から来たイベントは`Ledger.append`を通さず、元の端末のIDと連番(`origin_device_id`, `origin_seq`。一意制約あり)を保ったまま足し、`LedgerEvent.apply`で射影に反映します。同じイベントが2回届いても結果は変わりません。自端末のイベントは`origin_device_id = device_id`、`origin_seq = seq`です(移行`sync-v1`)。`synced_seq`はCloudKitへ送り終えた印です。
-- 同じ行(`entity`, `entity_id`)を2台で変えた時は、`created_at`の新しいイベントが勝ちます。同じなら`origin_device_id`の大きい方です。古いイベントは`ledger_events`に残し、射影には反映しません。自端末で書くイベントは、その行の既存のどのイベントよりも後の`created_at`にします。`memory/`等のファイルもファイル単位で`modifiedAt`の新しい方が勝ちます。
+- 同じ行(`entity`, `entity_id`)を2台で変えた時は、`created_at`の新しいイベントが勝ちます。同じなら`origin_device_id`の大きい方です。古いイベントは`ledger_events`に残し、射影には反映しません。自端末で書くイベントは、その行の既存のどのイベントよりも後の`created_at`にします。`memory/`等のファイルもファイル単位で`modifiedAt`の新しい方が勝ちます。他の端末がファイルを消しても、この端末で前回送った後に直したファイル(大きさ・更新時刻・SHA-256が`sync_files`の記録と違う)は消さずに送り直します。
 - 知らない`entity`、復号・デコードに失敗したイベントは`sync_pending`に保留してログに残し、アプリの版が変わった時に適用し直します。
-- 単元の削除は、削除した端末で物理削除したイベントとファイルのレコードをCloudKitからも消し、`unit.deleted`の事実を同期します。届いた端末でも`UnitDeletion`と同じ処理で範囲のイベントとファイルを消します。削除のあとに届いた古いイベントは落とします。
+- 単元の削除は、削除した端末で物理削除したイベントとファイルのレコードをCloudKitからも消し、`unit.deleted`の事実を同期します。届いた端末でも`UnitDeletion`と同じ処理で範囲のイベントとファイルを消します。届いた端末だけが知っていた行(送る前のカードや答案など)も範囲に足して消し、足したIDは`ledger_meta`(`unit_deletion_scope.<operation_id>`)に残します。届いた`unit.deleted`の事実はそのまま保存し、送り返しません。削除のあとに届いた古いイベントは、事実の範囲と足したIDのどちらに当たっても落とします。
 - 「上げ直す」はゾーン`Ledger`を消して作り直し、その端末の台帳とファイルを全部上げ直します。ほかの端末はゾーンが消されたことを検知すると、確認なしで台帳をクラウドの内容で置き換えます。置き換える前の台帳は`Application Support/Struis/backups/`にZIP(書き出しと同じ形式)で1つだけ残します。
 - iCloudキーチェーンのリセット(`encryptedDataReset`、または`zoneNotFound`に`CKErrorUserDidResetEncryptedDataKey`)ではゾーンを作り直して手元の台帳を上げ直します。利用者が「設定」からデータを消した場合(`purged`)は手元を消さず、同期をオフにして状態に出します。もう一度オンにすると手元を上げ直します。
 - 初回は、クラウドが空なら手元を全部上げ、手元が空ならクラウドを全部取り込み、両方にあれば上のルールで合わせます。

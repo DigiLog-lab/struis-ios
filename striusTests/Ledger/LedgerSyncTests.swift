@@ -176,6 +176,109 @@ final class LedgerSyncTests: XCTestCase {
         XCTAssertEqual(read("memory/tutor_desk/plans/current.yaml", in: b), "B の後の版")
     }
 
+    // MARK: - 取ってきた変更は、台帳に入れ終えるまで「取った」ことにしない (Issue #57, PR #58 の指摘 P1)
+
+    func testChangesFetchedButNotTakenInBecauseTheAppEndedArriveOnTheNextLaunch() async throws {
+        let cloud = FakeCloud()
+        let a = try device(cloud), b = try device(cloud)
+        let (thread, created) = ChatRepository.createThread(title: "取り込む前にアプリが終わった")
+        try await a.ledger.append([created])
+        try write("jpeg", to: "captures/before-ingest.jpg", in: a)
+        try await a.engine.sync()
+
+        // B が取ってきた直後、台帳に入れる前にアプリが終わる。
+        let transportB = try XCTUnwrap(b.engine.transport as? FakeTransport)
+        let lost = try await transportB.fetchChanges()
+        XCTAssertFalse(lost.records.isEmpty)
+        let saved = await transportB.savedCursor
+        // 次の起動: 保存してあった同期の状態から始める。
+        let relaunched = LedgerSyncEngine(ledger: b.ledger, transport: FakeTransport(cloud: cloud, cursor: saved), build: "1 (1)", eventBatch: 7, fileBatch: 2)
+        try await relaunched.sync()
+
+        let title = try await b.ledger.read { db in try ThreadRecord.fetchOne(db, key: thread.id)?.title }
+        XCTAssertEqual(title, "取り込む前にアプリが終わった")
+        XCTAssertEqual(read("captures/before-ingest.jpg", in: b), "jpeg")
+    }
+
+    func testChangesThatFailedToBeTakenInArriveOnTheNextSync() async throws {
+        let cloud = FakeCloud()
+        let a = try device(cloud), b = try device(cloud)
+        let (thread, created) = ChatRepository.createThread(title: "取り込みで失敗した")
+        try await a.ledger.append([created])
+        try write("jpeg", to: "captures/blocked.jpg", in: a)
+        try await a.engine.sync()
+
+        // B では同じ場所にフォルダがあり、ファイルを書けない(書き込みの失敗の代わり)。
+        let blocked = b.root.appendingPathComponent("captures/blocked.jpg", isDirectory: true)
+        try FileManager.default.createDirectory(at: blocked, withIntermediateDirectories: true)
+        do {
+            try await b.engine.sync()
+            XCTFail("ファイルを書けないので、取り込みは失敗する")
+        } catch {}
+        try FileManager.default.removeItem(at: blocked)
+
+        try await b.engine.sync()
+        XCTAssertEqual(read("captures/blocked.jpg", in: b), "jpeg", "失敗した分を次の同期で取り込み直す")
+        let title = try await b.ledger.read { db in try ThreadRecord.fetchOne(db, key: thread.id)?.title }
+        XCTAssertEqual(title, "取り込みで失敗した")
+        let digestA = try await a.ledger.projectionDigest()
+        let digestB = try await b.ledger.projectionDigest()
+        XCTAssertEqual(digestA, digestB)
+    }
+
+    /// `CloudKitSyncTransport` が同期の状態をいつ保存するか(CloudKit なしで確かめられる部分)。
+    func testSyncStateMovedByAFetchIsKeptOnlyAfterItIsTakenIn() {
+        var keeper = SyncStateKeeper()
+        let before = Data("before".utf8), fetched = Data("fetched".utf8), sent = Data("sent".utf8)
+        XCTAssertEqual(keeper.update(before), before, "取り込みの外ではすぐ保存する")
+        XCTAssertFalse(keeper.begin(fetch: true))
+        XCTAssertNil(keeper.update(fetched), "取ってきた間は保存しない")
+        XCTAssertEqual(keeper.commit(), fetched, "台帳に入れ終えたら保存する")
+        XCTAssertNil(keeper.commit())
+
+        // 取り込みに失敗した(commit が来ない): 次の取得・送信では、保存してある状態から読み直す。
+        XCTAssertFalse(keeper.begin(fetch: true))
+        XCTAssertNil(keeper.update(fetched))
+        XCTAssertTrue(keeper.begin(fetch: false), "送信の前に読み直す")
+        XCTAssertEqual(keeper.update(sent), sent)
+        XCTAssertFalse(keeper.begin(fetch: true))
+        XCTAssertNil(keeper.update(fetched))
+        XCTAssertTrue(keeper.begin(fetch: true), "次の取得の前に読み直す")
+        XCTAssertNil(keeper.update(fetched))
+        keeper.reset()
+        XCTAssertNil(keeper.commit(), "状態を捨てたら、待っていた状態も捨てる")
+    }
+
+    // MARK: - 手元で直したファイルは、他端末の削除が先に届いても消さずに送り直す (Issue #57, PR #58 の指摘 P2)
+
+    func testFileEditedHereSurvivesADeletionFromTheOtherDeviceAndGoesUpAgain() async throws {
+        let cloud = FakeCloud()
+        let a = try device(cloud), b = try device(cloud)
+        let path = "memory/tutor_desk/plans/current.yaml"
+        try write("v0", to: path, in: a, modified: Date(timeIntervalSince1970: 1_800_000_000))
+        try await a.engine.sync()
+        try await b.engine.sync()
+        XCTAssertEqual(read(path, in: b), "v0")
+
+        // A が消して送る。B はその前に手元で直していた(まだ scan していない)。
+        try FileManager.default.removeItem(at: a.root.appendingPathComponent(path))
+        try await a.engine.sync()
+        try write("B で直した版", to: path, in: b, modified: Date(timeIntervalSince1970: 1_800_000_100))
+        try await b.engine.sync()
+        XCTAssertEqual(read(path, in: b), "B で直した版", "手元で直したファイルは、他端末の削除で消さない")
+
+        try await a.engine.sync()
+        XCTAssertEqual(read(path, in: a), "B で直した版", "直した版が送り直される")
+        let counts = try await b.ledger.syncCounts()
+        XCTAssertEqual(counts.unsent, 0)
+
+        // 直していなければ、他端末の削除でこの端末からも消える(今までどおり)。
+        try FileManager.default.removeItem(at: a.root.appendingPathComponent(path))
+        try await a.engine.sync()
+        try await b.engine.sync()
+        XCTAssertNil(read(path, in: b))
+    }
+
     // MARK: - 4. 単元の削除が、もう片方でも範囲のイベント・射影・ファイルを消す
 
     func testUnitDeletionErasesTheRangeOnTheOtherDeviceAndLateEventsStayOut() async throws {
@@ -536,14 +639,25 @@ func fakeSyncEngine(ledger: Ledger, cloud: FakeCloud, build: String, eventBatch:
 
 actor FakeTransport: SyncTransport {
     let cloud: FakeCloud
-    private var cursor: (generation: Int, serial: Int) = (0, 0)
+    /// The state kept between launches (`CloudKitSyncTransport` writes it to `stateURL`).
+    private(set) var savedCursor: (generation: Int, serial: Int)
+    /// Where the last fetch reached; kept by `commitFetch()` only (`SyncStateKeeper`).
+    private var fetchedCursor: (generation: Int, serial: Int)?
 
-    init(cloud: FakeCloud) { self.cloud = cloud }
+    init(cloud: FakeCloud, cursor: (generation: Int, serial: Int) = (0, 0)) {
+        self.cloud = cloud
+        self.savedCursor = cursor
+    }
 
     func fetchChanges() async throws -> SyncFetch {
-        let (fetch, next) = await cloud.changes(since: cursor)
-        cursor = next
+        let (fetch, next) = await cloud.changes(since: savedCursor)
+        fetchedCursor = next
         return fetch
+    }
+
+    func commitFetch() async throws {
+        if let fetchedCursor { savedCursor = fetchedCursor }
+        fetchedCursor = nil
     }
 
     func send(_ batch: SyncBatch) async throws -> SyncSendResult {
@@ -553,6 +667,7 @@ actor FakeTransport: SyncTransport {
     func resetZone() async throws {
         await cloud.reset()
         // A fresh state here: this device does not see its own deletion.
-        cursor = (await cloud.generation, 0)
+        savedCursor = (await cloud.generation, 0)
+        fetchedCursor = nil
     }
 }

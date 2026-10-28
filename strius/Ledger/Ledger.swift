@@ -210,10 +210,11 @@ actor Ledger {
         }
     }
 
-    /// IDs covered by every `unit.deleted` fact. Results for them are not written again.
+    /// IDs covered by every `unit.deleted` fact, and those a deletion from another device erased here beyond
+    /// its fact (`widenedScopes`, Issue #57). Results for them are not written again.
     nonisolated static func removedIDs(_ db: Database) throws -> Set<String> {
         let facts = try StoredLedgerEvent.filter(Column("kind") == "unit.deleted").fetchAll(db)
-        var removed = Set<String>()
+        var removed = try widenedScopes(db)
         for fact in facts {
             if let scope = fact.event?.payload["scope"]?["ids"]?.objectValue {
                 for value in scope.values { removed.formUnion(value.arrayValue?.compactMap(\.stringValue) ?? []) }

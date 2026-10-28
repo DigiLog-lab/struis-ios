@@ -148,6 +148,64 @@ final class TimelineSyncTests: XCTestCase {
         XCTAssertEqual(digestA, digestB)
     }
 
+    // MARK: - 端末Bだけが知る子の行は、端末Aの単元削除で消えた後、古い更新が届いても戻らない (PR #58 の指摘 P2)
+
+    func testRowsOnlyThisDeviceKnewStayErasedWhenStaleUpdatesArriveAfterAnotherDevicesUnitDeletion() async throws {
+        let cloud = FakeCloud()
+        let a = try device(cloud), b = try device(cloud)
+        let (unitID, subunitID) = try await createUnit(a.ledger, title: "二次関数")
+        try await a.engine.sync()
+        try await b.engine.sync()
+        func rows(_ ledger: Ledger) async throws -> Int {
+            try await ledger.read { db in
+                try Int.fetchOne(db, sql: "SELECT (SELECT COUNT(*) FROM timeline_cards WHERE id = 'card-only-b') + (SELECT COUNT(*) FROM timeline_attempts WHERE id = 'attempt-only-b')") ?? 0
+            }
+        }
+        // B だけが知るカードと答案(まだ送っていない)。
+        try await b.ledger.commit { db in
+            var timeline = try TimelineMachine(loading: db)
+            timeline.put("test", F.card("card-only-b", subunitID: subunitID))
+            timeline.put("test", F.attempt("attempt-only-b", card: "card-only-b", verdict: "wrong"))
+            return (timeline.events, ())
+        }
+        let written = try await rows(b.ledger)
+        XCTAssertEqual(written, 2)
+        let staleCard = F.card("card-only-b", subunitID: nil)
+        let staleAttempt = F.attempt("attempt-only-b", card: "card-only-b", verdict: "correct")
+
+        _ = try await a.ledger.deleteUnit(id: unitID)
+        try await a.engine.sync()
+        try await b.engine.sync()
+        let before = try await rows(a.ledger) + rows(b.ledger)
+        XCTAssertEqual(before, 0, "B だけが知る行も、A の単元削除で消える")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: UnitDeletion.journalURL(b.root).path), "journal は片付いている")
+
+        // 削除の前に書かれた古い更新(この行だけを指す)が後から届く。
+        var seq: Int64 = 0
+        func stale() -> [SyncEventRecord] {
+            [LedgerEvent.upsert("timeline.card", staleCard), LedgerEvent.upsert("timeline.attempt", staleAttempt)].map { event in
+                seq += 1
+                return SyncEventRecord(originDeviceID: "third-device", originSeq: seq, kind: event.kind, entity: event.entity.rawValue, entityID: event.entityID,
+                                       payload: event.payload.canonicalText, createdAt: LedgerClock.iso(Date(timeIntervalSinceNow: -60)))
+            }
+        }
+        let afterJournal = try await b.ledger.ingest(stale(), build: "1 (1)")
+        XCTAssertEqual(afterJournal.dropped, 2, "journal を片付けた後も、広げた範囲の行は入れない")
+        let back = try await rows(b.ledger)
+        XCTAssertEqual(back, 0, "カードと答案の行が戻った")
+
+        try await b.ledger.rebuild()
+        let afterRebuild = try await b.ledger.ingest(stale(), build: "1 (1)")
+        XCTAssertEqual(afterRebuild.dropped, 2, "rebuild の後も同じ")
+        let rebuilt = try await rows(b.ledger)
+        XCTAssertEqual(rebuilt, 0, "カードと答案の行が戻った")
+        // この端末で書こうとしても入らない(`append` も同じ範囲を見る)。
+        do {
+            try await b.ledger.append([LedgerEvent.upsert("timeline.attempt", staleAttempt)])
+            XCTFail("消した単元の行は書けない")
+        } catch {}
+    }
+
     // MARK: - 仮説1: 他端末で作った単元が届いても、こちらで知識グラフを重ねて頼まない
 
     @MainActor func testUnitFromAnotherDeviceDoesNotMakeThisDeviceAskForTheGraph() async throws {

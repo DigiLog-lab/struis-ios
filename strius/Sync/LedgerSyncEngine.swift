@@ -89,6 +89,8 @@ actor LedgerSyncEngine {
         let result = try await ledger.ingest(events, build: build)
         let changedFiles = try await ledger.ingestFiles(files, deletions: changes.deletions.filter { SyncNames.eventOrigin($0) == nil })
         try await ledger.parkUnreadable(changes.unreadable, build: build)
+        // Only now the transport keeps its state past these changes; a crash or a throw above fetches them again.
+        try await transport.commitFetch()
         outcome.received += result.applied + result.stored + result.deletedUnits + changedFiles
     }
 

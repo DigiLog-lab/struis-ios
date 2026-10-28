@@ -5,8 +5,11 @@ import Foundation
 /// 単体テストでは2つのインメモリ台帳をつなぐ偽の transport がこの protocol を実装する。
 /// 記録の形は `docs/communication-and-storage.md` の「iCloud 同期」が正。
 nonisolated protocol SyncTransport: Sendable {
-    /// Changes in the zone `Ledger` since the previous fetch.
+    /// Changes in the zone `Ledger` since the previous fetch that was committed.
     func fetchChanges() async throws -> SyncFetch
+    /// The changes of the last `fetchChanges()` are in the ledger: keep the state (change tokens) past them.
+    /// Until then they are fetched again, on the next fetch or after the app was ended (Issue #57).
+    func commitFetch() async throws
     /// Save and delete records. A record missing from both `saved` and `failures` was not attempted.
     func send(_ batch: SyncBatch) async throws -> SyncSendResult
     /// Delete the zone `Ledger` and create it again, empty.
@@ -17,6 +20,44 @@ nonisolated protocol SyncTransport: Sendable {
 
 nonisolated extension SyncTransport {
     func decodeArchived(_ data: Data) -> SyncRecord? { nil }
+}
+
+/// When the sync state (change tokens) may be kept (Issue #57). A state that moved past fetched changes is kept
+/// only after those changes are in the ledger; otherwise a crash or a failed take-in would lose them for good.
+nonisolated struct SyncStateKeeper: Sendable {
+    /// The latest state not kept yet.
+    private(set) var unsaved: Data?
+    /// A fetch whose changes are not in the ledger yet.
+    private(set) var fetching = false
+
+    /// A new state from the engine. Returns the state to keep now, or nil to wait for `commit()`.
+    mutating func update(_ state: Data) -> Data? {
+        guard fetching else { unsaved = nil; return state }
+        unsaved = state
+        return nil
+    }
+
+    /// Before a fetch or a send. Returns true when the previous fetch was never committed: the engine must be
+    /// loaded again from the kept state, so those changes are fetched again.
+    mutating func begin(fetch: Bool) -> Bool {
+        let abandoned = fetching
+        if abandoned { unsaved = nil }
+        fetching = fetch
+        return abandoned
+    }
+
+    /// The fetched changes are in the ledger. Returns the state to keep, if one is waiting.
+    mutating func commit() -> Data? {
+        fetching = false
+        defer { unsaved = nil }
+        return unsaved
+    }
+
+    /// The state was thrown away (a new zone, another account).
+    mutating func reset() {
+        fetching = false
+        unsaved = nil
+    }
 }
 
 /// One `LedgerEvent` record: a `ledger_events` row with the device and sequence it was written with.

@@ -293,6 +293,8 @@ extension Ledger {
                 let stored = StoredLedgerEvent(remote: record)
                 try stored.insert(db)
                 try factEvent.apply(to: db)
+                // The other device's fact stays as it came; what only this device knew is kept beside it (Issue #57).
+                try Self.keepWidenedScope(prepared.fact.scope.all.subtracting(remoteFact.scope.all), operationID: remoteFact.operationID, db)
             }
             try UnitDeletion.recover(queue: queue, root: root, runtimeRoots: runtimeRoots)
         } catch {
@@ -307,6 +309,23 @@ extension Ledger {
         if !prepared.events.isEmpty { notify(prepared.events) }
         notify([factEvent], remote: true)
         return true
+    }
+
+    /// `ledger_meta` keys holding the IDs a unit deletion from another device erased here beyond its own fact.
+    nonisolated static let widenedScopePrefix = "unit_deletion_scope."
+
+    nonisolated static func keepWidenedScope(_ ids: Set<String>, operationID: String, _ db: Database) throws {
+        guard !ids.isEmpty else { return }
+        let value = String(decoding: try JSONEncoder().encode(ids.sorted()), as: UTF8.self)
+        try db.execute(sql: "INSERT OR REPLACE INTO ledger_meta (key, value) VALUES (?, ?)", arguments: [widenedScopePrefix + operationID, value])
+    }
+
+    nonisolated static func widenedScopes(_ db: Database) throws -> Set<String> {
+        var ids = Set<String>()
+        for value in try String.fetchAll(db, sql: "SELECT value FROM ledger_meta WHERE key GLOB ?", arguments: [widenedScopePrefix + "*"]) {
+            ids.formUnion((try? JSONDecoder().decode([String].self, from: Data(value.utf8))) ?? [])
+        }
+        return ids
     }
 
     // MARK: - Files
@@ -442,6 +461,21 @@ extension Ledger {
                     continue
                 }
                 let target = root.appendingPathComponent(path)
+                // Changed here since the last scan (the scan runs after taking in): keep it and send it again (Issue #57).
+                if row["deleted"] == false,
+                   let values = try? target.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]), values.isRegularFile == true {
+                    let size = Int64(values.fileSize ?? -1)
+                    let mtime = values.contentModificationDate?.timeIntervalSince1970 ?? 0
+                    if row["size"] != size || row["mtime"] != mtime {
+                        let sha = SyncNames.sha256(try Data(contentsOf: target))
+                        if sha != row["sha256"] {
+                            try db.execute(sql: """
+                                UPDATE sync_files SET sha256 = ?, size = ?, mtime = ?, modified_at = ?, dirty = 1, system_fields = NULL WHERE path = ?
+                                """, arguments: [sha, size, mtime, LedgerClock.iso(Date(timeIntervalSince1970: mtime)), path])
+                            continue
+                        }
+                    }
+                }
                 if FileManager.default.fileExists(atPath: target.path) { try FileManager.default.removeItem(at: target) }
                 try db.execute(sql: "DELETE FROM sync_files WHERE path = ?", arguments: [path])
                 changed += 1
