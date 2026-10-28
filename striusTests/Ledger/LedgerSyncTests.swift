@@ -528,6 +528,12 @@ actor FakeCloud {
     }
 }
 
+/// `FakeCloud` につないだ engine。他のテストファイルからはこれを使う(`FakeTransport` を他のファイルから直接書くと、
+/// Xcode 27 のコンパイラが `nonisolated protocol` に従う actor に nonisolated を付けようとしてビルドが止まる。Issue #57)。
+func fakeSyncEngine(ledger: Ledger, cloud: FakeCloud, build: String, eventBatch: Int = 300, fileBatch: Int = 20) -> LedgerSyncEngine {
+    LedgerSyncEngine(ledger: ledger, transport: FakeTransport(cloud: cloud), build: build, eventBatch: eventBatch, fileBatch: fileBatch)
+}
+
 actor FakeTransport: SyncTransport {
     let cloud: FakeCloud
     private var cursor: (generation: Int, serial: Int) = (0, 0)

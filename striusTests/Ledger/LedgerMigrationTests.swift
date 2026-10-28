@@ -80,10 +80,10 @@ final class LedgerMigrationTests: XCTestCase {
 
         // 上げた台帳から、別の端末へそのまま届く。
         let cloud = FakeCloud()
-        let engine = LedgerSyncEngine(ledger: ledger, transport: FakeTransport(cloud: cloud), build: "2 (1)")
+        let engine = fakeSyncEngine(ledger: ledger, cloud: cloud, build: "2 (1)")
         let other = try Ledger.inMemory()
         try await engine.sync()
-        try await LedgerSyncEngine(ledger: other, transport: FakeTransport(cloud: cloud), build: "2 (1)").sync()
+        try await fakeSyncEngine(ledger: other, cloud: cloud, build: "2 (1)").sync()
         let otherDigest = try await other.projectionDigest()
         XCTAssertEqual(otherDigest, expected)
         // 新しく書いても連番は重ならない。

@@ -15,7 +15,7 @@ final class TimelineSyncTests: XCTestCase {
 
     private func device(_ cloud: FakeCloud) throws -> Device {
         let ledger = try Ledger.inMemory()
-        return Device(ledger: ledger, engine: LedgerSyncEngine(ledger: ledger, transport: FakeTransport(cloud: cloud), build: "1 (1)", eventBatch: 7, fileBatch: 2))
+        return Device(ledger: ledger, engine: fakeSyncEngine(ledger: ledger, cloud: cloud, build: "1 (1)", eventBatch: 7, fileBatch: 2))
     }
 
     private func read(_ path: String, in device: Device) -> String? {
