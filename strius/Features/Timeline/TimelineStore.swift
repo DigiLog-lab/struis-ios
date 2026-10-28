@@ -545,10 +545,10 @@ final class TimelineStore {
 
     // MARK: - 裏で頼むもの
 
-    /// 5枚を頼む。手元の未使用が1枚以下(5枚のうち4枚目を出した時点)で、頼んでいる最中でなければ。
+    /// 5枚を頼む。手元の未使用が1枚以下(5枚のうち4枚目を出した時点)で、この端末が頼んでいる最中でなければ。
     func requestBatch(force: Bool = false) async {
         guard !workbook.units.isEmpty || machine.hasGraph else { return }
-        let pending = machine.pendingBatch(purpose: "cards") != nil
+        let pending = await hasOwnPendingBatch(purpose: "cards")
         guard force ? !pending : TimelineRules.shouldRequestBatch(unusedCount: machine.queue.filter { $0.id != currentID }.count, pending: pending) else { return }
         let accuracy = machine.accuracy
         let cap = TimelineRules.levelCap(accuracy: accuracy, currentLevel: machine.currentLevel)
@@ -557,10 +557,20 @@ final class TimelineStore {
         await turns.startTimeline(kind: .timelineBatch, targetID: id, prefetch: true)
     }
 
+    /// この端末が頼んで、まだ返事が来ていない依頼があるか。iCloud 同期で届いた他の端末の `requested` は数えない
+    /// (その端末が閉じたままだと、こちらがいつまでも待つことになる。Issue #57)。
+    private func hasOwnPendingBatch(purpose: String) async -> Bool {
+        let ids = machine.batches.values.filter { $0.purpose == purpose && $0.status == "requested" }.map(\.id)
+        guard !ids.isEmpty else { return false }
+        let deviceID = ledger.deviceID
+        return (try? await ledger.read { db in try ids.contains { try Ledger.isLocal(.timelineBatches, $0, deviceID: deviceID, db) } }) ?? true
+    }
+
     /// 知識グラフを作る(初めて開いた時・新しい単元ができた時)・丸ごと見直す(きっかけが起きた時)。頼んだかは台帳の行で見る。
     /// 1段下りる依頼は、採点結果を反映する時に `TimelineTurns.apply` が出す。
-    private func ensureGraphWork() async {
-        guard let request = TimelineGraphSchedule.next(timeline: machine, workbook: workbook) else { return }
+    /// - Parameter units: 単元の分を頼むのを、この単元だけにする(nil なら全部の単元)。
+    private func ensureGraphWork(units: Set<String>? = nil) async {
+        guard let request = TimelineGraphSchedule.next(timeline: machine, workbook: workbook, units: units) else { return }
         let profile = OnboardingProfile.load()
         let workbook = self.workbook
         // 判定から行を書くまでの間に、別の判定が同じものを頼んでいないか(書き込みの中で確かめ直す)。
@@ -590,11 +600,16 @@ final class TimelineStore {
             timelineLog.error("timeline reload failed: \(String(describing: error), privacy: .public)")
             return
         }
-        // 単元ができた: その単元の分のグラフを頼むか決める。
+        // この端末で単元ができた: その単元の分のグラフを頼むか決める。iCloud 同期で他の端末の単元が届いただけなら頼まない
+        // (作った端末が頼む。2台で同じ依頼を重ねない。Issue #57)。
         let unitIDs = Set(workbook.units.keys)
-        let newUnit = knownUnitIDs.map { !unitIDs.subtracting($0).isEmpty } ?? false
+        let added = knownUnitIDs.map { unitIDs.subtracting($0) } ?? []
         knownUnitIDs = unitIDs
-        if newUnit, started { await ensureGraphWork() }
+        if started, !added.isEmpty {
+            let deviceID = ledger.deviceID
+            let own = Set((try? await ledger.read { db in try added.filter { try Ledger.isLocal(.workbookUnits, $0, deviceID: deviceID, db) } }) ?? [])
+            if !own.isEmpty { await ensureGraphWork(units: own) }
+        }
         // 採点の結果が届いた。
         if case .grading(let attemptID) = phase, let attempt = machine.attempts[attemptID], attempt.verdict != "grading" {
             if attempt.verdict == "correct" || attempt.verdict == "wrong" {

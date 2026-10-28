@@ -4,91 +4,103 @@ import GRDB
 /// SQLite schema for the device ledger (design §4). `ledger_events` is the
 /// source of truth; every other table is a projection rebuilt from it.
 nonisolated enum LedgerSchema {
-    static var migrator: DatabaseMigrator {
-        var migrator = DatabaseMigrator()
-        migrator.registerMigration("v1") { db in
-            try db.create(table: "ledger_meta") { t in
-                t.column("key", .text).primaryKey()
-                t.column("value", .text).notNull()
-            }
-            try db.create(table: "ledger_events") { t in
-                t.autoIncrementedPrimaryKey("seq")
-                t.column("device_id", .text).notNull()
-                t.column("kind", .text).notNull()
-                t.column("entity", .text).notNull()
-                t.column("entity_id", .text).notNull()
-                t.column("payload", .text).notNull()
-                t.column("created_at", .text).notNull()
-                t.column("synced_seq", .integer)
-            }
-            try db.create(index: "idx_ledger_events_entity", on: "ledger_events", columns: ["entity", "entity_id"])
-            try createV1Projections(db)
-        }
+    /// 移行の登録順(Issue #57)。タイムライン (#46) の `v2`〜`v5` と iCloud 同期 (#51) の `sync-v1` は、どちらも
+    /// `v1` の上に表・列を足すだけで互いに触らない。GRDB は済んでいない移行を登録順に流すので、どちらが先に済んだ台帳
+    /// (`v1`〜`v5` / `v1`+`sync-v1`)からでも、残りを流せば同じ形になる(`LedgerMigrationTests`)。
+    static let migrations: [(id: String, migrate: @Sendable (Database) throws -> Void)] = [
+        ("v1", createV1),
         // 学習タイムライン(Issue #46)。v1 の台帳に表を足すだけで、既存の行は変えない。
-        migrator.registerMigration("v2-timeline") { db in
-            try createTimelineProjections(db)
-        }
+        ("v2-timeline", createTimelineProjections),
         // 知識グラフの点の「まだ掘っていない」印(2026-10-24)。列を足すだけで、既存の行は空(タイムラインが開いた時に付ける)。
-        migrator.registerMigration("v3-timeline-expansion") { db in
-            try addTimelineExpansion(db)
-        }
+        ("v3-timeline-expansion", addTimelineExpansion),
         // 採点の見直し(2026-10-25): 3つの正誤・採点したモデルのメモと書き起こし・関係するスキル・見直し。列を足すだけ。
-        migrator.registerMigration("v4-timeline-review") { db in
-            try addTimelineReview(db)
-        }
+        ("v4-timeline-review", addTimelineReview),
         // 今日の記録(2026-10-27): 出来事ごとに、その時点の文を 1 件ずつ保存する(キャッシュの先頭を後から書き換えない)。
-        migrator.registerMigration("v5-timeline-log") { db in
-            try addTimelineLog(db)
-        }
-        // iCloud 同期 (Issue #51)。イベントは元の端末と連番 `(origin_device_id, origin_seq)` で一意にし、
-        // 外から来たイベントを二重に足さない。自端末のイベントは挿入時に `device_id` と `seq` で埋める。
-        migrator.registerMigration("sync-v1") { db in
-            try db.alter(table: "ledger_events") { t in
-                t.add(column: "origin_device_id", .text)
-                t.add(column: "origin_seq", .integer)
-            }
-            try db.execute(sql: "UPDATE ledger_events SET origin_device_id = device_id, origin_seq = seq")
-            try db.create(index: "idx_ledger_events_origin", on: "ledger_events", columns: ["origin_device_id", "origin_seq"], unique: true)
-            try db.execute(sql: """
-                CREATE TRIGGER ledger_events_local_origin AFTER INSERT ON ledger_events
-                WHEN NEW.origin_seq IS NULL
-                BEGIN
-                    UPDATE ledger_events SET origin_device_id = NEW.device_id, origin_seq = NEW.seq WHERE seq = NEW.seq;
-                END
-                """)
-            // 読めなかった外のイベント(知らない表・復号やデコードの失敗)。版が上がったら適用し直す。
-            try db.create(table: "sync_pending") { t in
-                t.column("record_name", .text).primaryKey()
-                t.column("origin_device_id", .text)
-                t.column("origin_seq", .integer)
-                t.column("kind", .text)
-                t.column("entity", .text)
-                t.column("entity_id", .text)
-                t.column("payload", .text)
-                t.column("created_at", .text)
-                t.column("record", .blob)
-                t.column("reason", .text).notNull()
-                t.column("app_build", .text).notNull()
-                t.column("received_at", .text).notNull()
-            }
-            // 同期する `captures/`・`attachments/`・`memory/` のファイル。`dirty` は未送信(`deleted` なら消したことを未送信)。
-            try db.create(table: "sync_files") { t in
-                t.column("path", .text).primaryKey()
-                t.column("record_name", .text).notNull().unique()
-                t.column("sha256", .text).notNull()
-                t.column("size", .integer).notNull()
-                t.column("mtime", .double).notNull()
-                t.column("modified_at", .text).notNull()
-                t.column("dirty", .boolean).notNull().defaults(to: true)
-                t.column("deleted", .boolean).notNull().defaults(to: false)
-                t.column("system_fields", .blob)
-            }
-            // 手元で消した(単元の削除で物理削除した)イベントのうち、CloudKit からも消すもの。
-            try db.create(table: "sync_tombstones") { t in
-                t.column("record_name", .text).primaryKey()
-            }
+        ("v5-timeline-log", addTimelineLog),
+        // iCloud 同期 (Issue #51)。
+        ("sync-v1", addSync),
+    ]
+
+    static var migrator: DatabaseMigrator {
+        migrator(migrations.map(\.id))
+    }
+
+    /// 指定した移行だけを、その順で登録する(テストで前の版の台帳を作る)。
+    static func migrator(_ ids: [String]) -> DatabaseMigrator {
+        var migrator = DatabaseMigrator()
+        for id in ids {
+            guard let migration = migrations.first(where: { $0.id == id }) else { preconditionFailure("unknown migration \(id)") }
+            migrator.registerMigration(id, migrate: migration.migrate)
         }
         return migrator
+    }
+
+    static func createV1(_ db: Database) throws {
+        try db.create(table: "ledger_meta") { t in
+            t.column("key", .text).primaryKey()
+            t.column("value", .text).notNull()
+        }
+        try db.create(table: "ledger_events") { t in
+            t.autoIncrementedPrimaryKey("seq")
+            t.column("device_id", .text).notNull()
+            t.column("kind", .text).notNull()
+            t.column("entity", .text).notNull()
+            t.column("entity_id", .text).notNull()
+            t.column("payload", .text).notNull()
+            t.column("created_at", .text).notNull()
+            t.column("synced_seq", .integer)
+        }
+        try db.create(index: "idx_ledger_events_entity", on: "ledger_events", columns: ["entity", "entity_id"])
+        try createV1Projections(db)
+    }
+
+    /// iCloud 同期 (Issue #51)。イベントは元の端末と連番 `(origin_device_id, origin_seq)` で一意にし、
+    /// 外から来たイベントを二重に足さない。自端末のイベントは挿入時に `device_id` と `seq` で埋める。
+    static func addSync(_ db: Database) throws {
+        try db.alter(table: "ledger_events") { t in
+            t.add(column: "origin_device_id", .text)
+            t.add(column: "origin_seq", .integer)
+        }
+        try db.execute(sql: "UPDATE ledger_events SET origin_device_id = device_id, origin_seq = seq")
+        try db.create(index: "idx_ledger_events_origin", on: "ledger_events", columns: ["origin_device_id", "origin_seq"], unique: true)
+        try db.execute(sql: """
+            CREATE TRIGGER ledger_events_local_origin AFTER INSERT ON ledger_events
+            WHEN NEW.origin_seq IS NULL
+            BEGIN
+                UPDATE ledger_events SET origin_device_id = NEW.device_id, origin_seq = NEW.seq WHERE seq = NEW.seq;
+            END
+            """)
+        // 読めなかった外のイベント(知らない表・復号やデコードの失敗)。版が上がったら適用し直す。
+        try db.create(table: "sync_pending") { t in
+            t.column("record_name", .text).primaryKey()
+            t.column("origin_device_id", .text)
+            t.column("origin_seq", .integer)
+            t.column("kind", .text)
+            t.column("entity", .text)
+            t.column("entity_id", .text)
+            t.column("payload", .text)
+            t.column("created_at", .text)
+            t.column("record", .blob)
+            t.column("reason", .text).notNull()
+            t.column("app_build", .text).notNull()
+            t.column("received_at", .text).notNull()
+        }
+        // 同期する `captures/`・`attachments/`・`memory/` のファイル。`dirty` は未送信(`deleted` なら消したことを未送信)。
+        try db.create(table: "sync_files") { t in
+            t.column("path", .text).primaryKey()
+            t.column("record_name", .text).notNull().unique()
+            t.column("sha256", .text).notNull()
+            t.column("size", .integer).notNull()
+            t.column("mtime", .double).notNull()
+            t.column("modified_at", .text).notNull()
+            t.column("dirty", .boolean).notNull().defaults(to: true)
+            t.column("deleted", .boolean).notNull().defaults(to: false)
+            t.column("system_fields", .blob)
+        }
+        // 手元で消した(単元の削除で物理削除した)イベントのうち、CloudKit からも消すもの。
+        try db.create(table: "sync_tombstones") { t in
+            t.column("record_name", .text).primaryKey()
+        }
     }
 
     /// 作り直し(`Ledger.rebuild`)で使う、今の全部の射影。
