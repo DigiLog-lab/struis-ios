@@ -86,6 +86,30 @@ class ReadyHandoffTests(unittest.TestCase):
         # Running validate again does not start a second Ready.
         self.assertIsNone(delivery.perform_requested_ready(self.run))
 
+    def test_ready_after_a_passed_gate_is_not_paused_by_the_earlier_attempts(self):
+        # The previous window ended with a pass; the next Ready starts attempt 1.
+        self.store.put_json('sessions/gates/issue-4.json', {'attempts': 0, 'since': 'passed'})
+        self.controller.save({'pr': 8, 'issue': 4, 'head': 'b' * 40, 'phase': 'complete',
+                              'success': True, 'attempts': 3, 'since': ''})
+        request = delivery.ready()
+        self.assertFalse(delivery.read('delivery-blocked.json', {}))
+        self.assertEqual(self.store.get_json('sessions/4/gate-request.json')['request'], request['request'])
+        self.assertEqual(self.controller.start(8, request['request'])['attempts'], 1)
+
+    def test_ready_is_not_paused_when_the_counter_reset_after_a_pass_was_lost(self):
+        # The pass was saved but the counter write failed: it still holds the closed window.
+        self.store.put_json('sessions/gates/issue-4.json', {'attempts': 3, 'since': '2026-01-01T00:00:01Z'})
+        self.controller.save({'pr': 8, 'issue': 4, 'head': 'b' * 40, 'phase': 'complete', 'success': True,
+                              'attempts': 3, 'since': '2026-01-01T00:00:01Z'})
+        request = delivery.ready()
+        self.assertFalse(delivery.read('delivery-blocked.json', {}))
+        self.assertEqual(self.store.get_json('sessions/4/gate-request.json')['request'], request['request'])
+
+    def test_ready_is_paused_when_failures_since_the_last_pass_reach_the_limit(self):
+        self.store.put_json('sessions/gates/issue-4.json', {'attempts': 3, 'since': '2026-01-01T00:00:01Z'})
+        self.assertIsNone(delivery.ready())
+        self.assertIn('上限', delivery.read('delivery-blocked.json')['reason'])
+
     def test_a_ready_request_for_an_older_head_is_ignored(self):
         delivery.write(delivery.READY_REQUEST, {'head': 'f' * 40, 'pr': 8, 'at': 'x'})
         self.assertIsNone(delivery.perform_requested_ready(self.run))

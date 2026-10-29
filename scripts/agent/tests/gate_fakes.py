@@ -103,9 +103,13 @@ class FakeStatuses:
 
     def __init__(self):
         self.by_sha = {}
+        self.posted = 0
 
     def post(self, sha, body, login='github-actions[bot]'):
-        self.by_sha.setdefault(sha, []).insert(0, dict(body, creator={'login': login}))
+        # GitHub stamps each status; later posts sort after earlier ones.
+        self.posted += 1
+        created = f'2026-01-01T00:{self.posted // 60:02d}:{self.posted % 60:02d}Z'
+        self.by_sha.setdefault(sha, []).insert(0, dict(body, creator={'login': login}, created_at=created))
 
     def list(self, sha):
         return copy.deepcopy(self.by_sha.get(sha, []))

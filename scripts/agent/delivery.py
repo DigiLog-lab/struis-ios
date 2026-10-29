@@ -382,7 +382,18 @@ def ready():
         print('This HEAD already has a pending gate; end this session without waiting')
         return pending
     limit = gate_config()['gateMaxAttempts']
-    if max(int(previous.get('attempts', 0)), int(counter.get('attempts', 0))) >= int(limit):
+    # Attempts since the last passed gate. gate.attempt_window decides at start from the
+    # statuses; this only avoids requesting a gate the controller would refuse. A counter
+    # from before windows (no `since`) cannot tell, so the controller decides alone.
+    passed = previous.get('phase') == 'complete' and previous.get('success')
+    if 'since' in counter and not (passed and counter['since'] == previous.get('since', '')):
+        earlier = 0 if passed or previous.get('since', '') != counter['since'] else int(previous.get('attempts', 0))
+        attempts = max(earlier, int(counter.get('attempts', 0)))
+    else:
+        # No window yet, or the counter still holds the window this passed gate closed
+        # (its reset was not written): the controller decides alone.
+        attempts = 0
+    if attempts >= int(limit):
         if not pr['draft']:
             draft(gh, pr)
         return pause(run, head, '門の起動回数が上限に達しました。次の進め方をIssueで指示してください')

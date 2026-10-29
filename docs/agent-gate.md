@@ -33,7 +33,7 @@ Xcode Cloud／予備iOSの開始が応答の不明な通信エラーで終わっ
 
 - workerは `actions: write` を持たないので、門を決める実行のRe-run・取消・Artifactの削除ができない。
 - workerは `statuses: write` を持たないので、門の結果のcommit status `Struis / Ready gate` を書けない。依頼の完了・修正の開始は、保存先の記録とこのstatusの両方が一致した時だけ行う(保存先は、どの `agent.yml` のジョブからも書けるため)。
-- 門の起動回数は、保存先のカウンタと、そのIssueのPRのcommitに付いた起動のstatusの数の大きい方で数える。statusは消せない。
+- 門の起動回数は、そのIssueのPRのcommitに付いた門の最後の合格(`success`)より後の起動だけを数える。上限は「合格しないまま門を起動し続けること」を止めるためのもので、合格した回や、合格より前の失敗は次の上限に入れない。数は、保存先のカウンタと、起動のstatusの数の大きい方を使う。カウンタと門の記録は、どの合格の後の数かを `since` に持ち、今の `since` と違う古い数は使わない。force-pushなどで合格したcommitがPRから消えても数え直しにならないよう、制御ジョブが署名した門の記録の `since`(合格した記録なら終了時刻)より前には戻さない。statusは消せない。
 - Appleのキーは `control` だけに渡す。制御ジョブは、門の記録(`sessions/gates/pr-N.json`。store の Worker は `sessions/`・`prototypes/`・`media/`・`usage/` のキーしか受け付けないため `sessions/` の下に置く)に、このキーから作った鍵で署名する。保存先はどの `agent.yml` のジョブからも書けるので、署名の合わない記録は使わず、Draftに戻して止める(エージェントが記録を書き換えて、別の成功したビルドを指させることを防ぐ)。
 - 制御ジョブは、フォークからのPRには反応しない。
 - 配信するビルドには、エージェントが書き換えられるものを使わない。Xcode CloudのReleaseと、`ios.yml` の手動の署名archive(TestFlightへの手動アップロード)は、nativeの生成物を必ずソースから作る(GitHubのReleaseのasset・Actions cacheは `contents: write` やrunnerの資格情報で置き換えられるため)。PR Gateはassetを使うので、エージェントが意図して置き換えた場合、門のテストに使うnativeが変わりうる。これは残るリスクとして扱う。
@@ -61,7 +61,7 @@ DerivedData cacheは `agent-derived-v1-{branch SHA256先頭16文字}-...` です
 | `xcodeCloudPrGateWorkflowId` | `FD7B155C-3973-4DA5-A0A1-A6886411C5D3` | PR Gate |
 | `xcodeCloudReleaseWorkflowId` | `32273285-7cf2-44cf-8e31-cc0385650439` | Release |
 | `appStoreConnectAppId` | `6771995650` | Cloudの実行へのリンク |
-| `gateMaxAttempts` | 3 | 1つのIssueで門を起動できる回数 |
+| `gateMaxAttempts` | 3 | 1つのIssueで、最後に門が合格してから門を起動できる回数 |
 | `gateWatchMinutes` | 95 | 制御ジョブが門の結果を待つ最長時間 |
 | `checkpointSeconds` | 900 | 定期バックアップの間隔 |
 | `checkpointRetentionDays` | 14 | チェックポイントのArtifactの保存期間 |
