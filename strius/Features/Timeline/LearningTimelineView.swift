@@ -213,6 +213,14 @@ struct LearningTimelineView: View {
             }
             .accessibilityElement(children: .contain)
         .accessibilityIdentifier("timeline-waiting")
+        case .batchFailed(let reason):
+            VStack(alignment: .leading, spacing: 12) {
+                Text(TimelineTurns.batchFailure).font(Typography.sans(size: 17, weight: .bold)).foregroundStyle(Theme.primaryText)
+                if !reason.isEmpty { Text(reason).font(Typography.micro).foregroundStyle(Theme.secondaryText).lineLimit(3) }
+                Button("もう一度") { Task { await store.retryBatch() } }.buttonStyle(.bordered).accessibilityIdentifier("timeline-batch-retry")
+            }
+            .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("timeline-batch-failed")
         case .finished:
             VStack(alignment: .leading, spacing: 16) {
                 Text("今日はここまで").font(Typography.sans(size: 26, weight: .bold))
@@ -270,7 +278,7 @@ struct LearningTimelineView: View {
                         Spacer(minLength: 0)
                         footnote(card)
                     } else {
-                        TimelineInteractiveCard(card: card, store: store).padding(.trailing, layout == .padLandscape ? 0 : 64)
+                        TimelineInteractiveCard(card: card, store: store).id(card.id).padding(.trailing, layout == .padLandscape ? 0 : 64)
                         Spacer(minLength: 0)
                     }
                 }

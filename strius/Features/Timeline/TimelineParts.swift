@@ -667,21 +667,26 @@ struct TimelineRangeDiagram: View {
 struct TimelineFunctionPlot: View {
     let expression: String
     var highlighted = false
+    /// 組の3つのグラフで同じ範囲(無ければ前の版の −5〜5・−10〜10)。
+    var window: TimelineCards.PlotWindow?
 
     var body: some View {
         Canvas { context, size in
             guard let f = try? TimelineExpression.parse(expression) else { return }
             let name = f.variables.first ?? "x"
-            let xs = stride(from: -5.0, through: 5.0, by: 0.1).map { $0 }
+            let window = self.window ?? TimelineCards.PlotWindow(x: -5...5, y: -10...10)
+            let xRange = window.x, yRange = window.y
+            let width = xRange.upperBound - xRange.lowerBound, height = yRange.upperBound - yRange.lowerBound
+            let xs = stride(from: xRange.lowerBound, through: xRange.upperBound, by: width / 100).map { $0 }
             let points = xs.compactMap { x -> (Double, Double)? in f.evaluate([name: x]).map { (x, $0) } }
             guard !points.isEmpty else { return }
-            let yRange = (-10.0)...(10.0)
             func map(_ p: (Double, Double)) -> CGPoint {
-                CGPoint(x: (p.0 + 5) / 10 * size.width, y: size.height - (min(max(p.1, yRange.lowerBound), yRange.upperBound) - yRange.lowerBound) / 20 * size.height)
+                CGPoint(x: (p.0 - xRange.lowerBound) / width * size.width,
+                        y: size.height - (min(max(p.1, yRange.lowerBound), yRange.upperBound) - yRange.lowerBound) / height * size.height)
             }
             var axes = Path()
-            axes.move(to: CGPoint(x: 0, y: size.height / 2)); axes.addLine(to: CGPoint(x: size.width, y: size.height / 2))
-            axes.move(to: CGPoint(x: size.width / 2, y: 0)); axes.addLine(to: CGPoint(x: size.width / 2, y: size.height))
+            if yRange.contains(0) { let y = map((xRange.lowerBound, 0)).y; axes.move(to: CGPoint(x: 0, y: y)); axes.addLine(to: CGPoint(x: size.width, y: y)) }
+            if xRange.contains(0) { let x = map((0, yRange.lowerBound)).x; axes.move(to: CGPoint(x: x, y: 0)); axes.addLine(to: CGPoint(x: x, y: size.height)) }
             context.stroke(axes, with: .color(Theme.hairline), lineWidth: 1)
             var path = Path()
             for (index, point) in points.enumerated() { index == 0 ? path.move(to: map(point)) : path.addLine(to: map(point)) }

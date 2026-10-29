@@ -707,6 +707,45 @@ nonisolated struct TimelineMachine {
         }
     }
 
+    /// 答案の印を付ける。前に印があった(判定を直した)なら、前の印の分を足したままにせず、その点の状態を答案の印から計算し直す。
+    private mutating func remark(id: String, previous: String?, card: TimelineCardRecord, correct: Bool, assisted: Bool, withinTime: Bool, firstTry: Bool, attemptID: String) {
+        guard previous != nil, skills[id] != nil else {
+            applySkill(id: id, card: card, correct: correct, assisted: assisted, withinTime: withinTime, firstTry: firstTry, attemptID: attemptID)
+            return
+        }
+        recomputeSkill(id)
+    }
+
+    /// その点の ○× の記録(回数・○の日・定着・復習の予定)を、答案の印を古い順にたどって作り直す。
+    /// 答案から来ていない ○ の日(分けた・まとめた元から引き継いだ分など)は残す。
+    mutating func recomputeSkill(_ id: String) {
+        guard let current = skills[id] else { return }
+        let marked = orderedAttempts.compactMap { attempt -> (attempt: TimelineAttemptRecord, card: TimelineCardRecord, correct: Bool)? in
+            guard let mark = skillMarks(attempt).first(where: { $0.skill == id }), let card = cards[attempt.cardId] else { return nil }
+            return (attempt, card, mark.correct)
+        }
+        // 前に ○ だった印の日も外す(今は × に直した答案の分)。
+        let fromAttempts = Set(marked.compactMap { item -> String? in
+            TimelineRules.day(item.attempt.gradedAt ?? item.attempt.createdAt, calendar: calendar)
+        })
+        var row = current
+        row.correctDates = current.correctDates.filter { !fromAttempts.contains($0) }
+        row.attempts = 0
+        row.status = current.status == "assumed" && marked.isEmpty ? "assumed" : "practicing"
+        row.masteryThreshold = TimelineRules.masteryThreshold
+        row.lastCorrectAt = nil
+        row.nextReviewAt = nil
+        row.reviewCount = 0
+        if row.correctDays >= row.masteryThreshold { row.status = "mastered" }
+        for item in marked {
+            row = TimelineRules.record(row, correct: item.correct, assisted: item.attempt.assisted,
+                                       withinTime: item.attempt.capturePath == nil || item.attempt.seconds <= Double(item.card.estimatedSeconds),
+                                       at: item.attempt.gradedAt ?? item.attempt.createdAt, calendar: calendar)
+        }
+        row.updatedAt = now()
+        put("timeline.skill_recomputed", row)
+    }
+
     /// × のときにアプリがその場で直すこと: 組み合わせのミス・原因の候補の 30秒問題。
     private mutating func applyWrongFixes(card: TimelineCardRecord, grading: Grading, attemptID: String) {
         // 原因の候補の 30秒問題を × → グラフにない前提を足してそこへ下りる。
@@ -1070,7 +1109,7 @@ nonisolated struct TimelineMachine {
         put("timeline.attempt_revised", row)
         let withinTime = row.seconds <= Double(card.estimatedSeconds)
         for (id, mark) in after.sorted(by: { $0.key < $1.key }) where before[id] != mark {
-            applySkill(id: id, card: card, correct: mark == "correct", assisted: row.assisted, withinTime: withinTime, firstTry: row.firstTry, attemptID: attemptID)
+            remark(id: id, previous: before[id], card: card, correct: mark == "correct", assisted: row.assisted, withinTime: withinTime, firstTry: row.firstTry, attemptID: attemptID)
         }
         recordChange(kind: "revise_grade", detail: .object(["attempt_id": .string(attemptID), "from": .string(previous), "to": .string(grade), "note": .string(note)]),
                      attemptIDs: [attemptID], source: "review", reviewed: true)
@@ -1122,7 +1161,7 @@ nonisolated struct TimelineMachine {
             put("timeline.attempt_skills_decided", row)
             let withinTime = row.seconds <= Double(card.estimatedSeconds)
             for (id, mark) in after.sorted(by: { $0.key < $1.key }) where before[id] != mark {
-                applySkill(id: id, card: card, correct: mark == "correct", assisted: row.assisted, withinTime: withinTime, firstTry: row.firstTry, attemptID: attemptID)
+                remark(id: id, previous: before[id], card: card, correct: mark == "correct", assisted: row.assisted, withinTime: withinTime, firstTry: row.firstTry, attemptID: attemptID)
             }
         }
         let cutoff = attempts[targetID]?.gradedAt ?? attempts[targetID]?.createdAt ?? now()

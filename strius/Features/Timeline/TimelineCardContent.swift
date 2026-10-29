@@ -336,12 +336,8 @@ struct TimelineResultView: View {
 struct TimelineInteractiveCard: View {
     let card: TimelineCardRecord
     let store: TimelineStore
-    @State private var order: [Int] = []
-    @State private var sorted: [Bool] = []
-    @State private var sortOffset: CGFloat = 0
-    @State private var pairs: [Int: Int] = [:]
-    @State private var pickedGraph: Int?
-    @State private var chosen: Int?
+    /// 選んだもの・並べた順。カードが変わったら初めに戻す(前のカードの選択を次のカードに残さない)。
+    @State private var state = TimelineChoiceState()
 
     private var kind: TimelineCards.Kind? { TimelineCards.Kind(rawValue: card.kind) }
 
@@ -377,9 +373,7 @@ struct TimelineInteractiveCard: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("timeline-card-\(card.kind)")
-        .onAppear {
-            order = card.payload["shuffled"]?.arrayValue?.compactMap(\.intValue) ?? []
-        }
+        .onChange(of: card.id, initial: true) { state.follow(card) }
     }
 
     private func strings(_ key: String) -> [String] { card.payload[key]?.arrayValue?.compactMap(\.stringValue) ?? [] }
@@ -388,7 +382,7 @@ struct TimelineInteractiveCard: View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
                 Button {
-                    chosen = index
+                    state.chosen = index
                     Task {
                         if let onChoose { await onChoose(index) } else { await store.answer(.number(Double(index))) }
                     }
@@ -397,11 +391,11 @@ struct TimelineInteractiveCard: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 16).padding(.vertical, 13)
                         .foregroundStyle(Theme.primaryText)
-                        .background(chosen == index ? Theme.accentColor.opacity(0.18) : Theme.card, in: RoundedRectangle(cornerRadius: 14))
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(chosen == index ? Theme.accentColor : Theme.hairline, lineWidth: 1))
+                        .background(state.chosen == index ? Theme.accentColor.opacity(0.18) : Theme.card, in: RoundedRectangle(cornerRadius: 14))
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(state.chosen == index ? Theme.accentColor : Theme.hairline, lineWidth: 1))
                 }
                 .buttonStyle(.plain)
-                .disabled(chosen != nil)
+                .disabled(state.chosen != nil)
                 .accessibilityIdentifier("timeline-choice-\(index)")
             }
         }
@@ -412,18 +406,18 @@ struct TimelineInteractiveCard: View {
         let steps = strings("steps")
         return VStack(alignment: .leading, spacing: 10) {
             List {
-                ForEach(order, id: \.self) { index in
+                ForEach(state.order, id: \.self) { index in
                     TimelineRichText(text: steps.indices.contains(index) ? steps[index] : "", size: 15)
                         .listRowBackground(Theme.card)
                 }
-                .onMove { from, to in order.move(fromOffsets: from, toOffset: to) }
+                .onMove { from, to in state.order.move(fromOffsets: from, toOffset: to) }
             }
             .environment(\.editMode, .constant(.active))
             .scrollContentBackground(.hidden)
             .frame(height: CGFloat(max(1, steps.count)) * 52)
             .accessibilityIdentifier("timeline-order-list")
             Button("この順で決める") {
-                Task { await store.answer(.array(order.map { .number(Double($0)) })) }
+                Task { await store.answer(.array(state.order.map { .number(Double($0)) })) }
             }
             .buttonStyle(.borderedProminent)
             .accessibilityIdentifier("timeline-order-submit")
@@ -451,18 +445,18 @@ struct TimelineInteractiveCard: View {
     /// 07 左右に仕分け(左右に払う)。
     private var sortCard: some View {
         let items = card.payload["items"]?.arrayValue ?? []
-        let index = sorted.count
+        let index = state.sorted.count
         return VStack(spacing: 16) {
             if index < items.count {
                 TimelineRichText(text: items[index]["text"]?.stringValue ?? "", size: 26)
                     .frame(width: 240, height: 140)
                     .background(Theme.card, in: RoundedRectangle(cornerRadius: 18))
                     .shadow(color: .black.opacity(0.08), radius: 10, y: 6)
-                    .rotationEffect(.degrees(Double(sortOffset / 20)))
-                    .offset(x: sortOffset)
-                    .gesture(DragGesture().onChanged { sortOffset = $0.translation.width }.onEnded { value in
+                    .rotationEffect(.degrees(Double(state.sortOffset / 20)))
+                    .offset(x: state.sortOffset)
+                    .gesture(DragGesture().onChanged { state.sortOffset = $0.translation.width }.onEnded { value in
                         if abs(value.translation.width) > 80 { place(value.translation.width > 0, count: items.count) }
-                        withAnimation { sortOffset = 0 }
+                        withAnimation { state.sortOffset = 0 }
                     })
                     .accessibilityIdentifier("timeline-sort-item")
                 HStack {
@@ -481,24 +475,25 @@ struct TimelineInteractiveCard: View {
     }
 
     private func place(_ right: Bool, count: Int) {
-        sorted.append(right)
-        if sorted.count == count { Task { await store.answer(.array(sorted.map(LedgerJSON.bool))) } }
+        state.sorted.append(right)
+        if state.sorted.count == count { Task { await store.answer(.array(state.sorted.map(LedgerJSON.bool))) } }
     }
 
     /// 06 グラフと式を結ぶ(グラフを押してから式を押す)。
     private var graphCard: some View {
         let exprs = strings("exprs")
         let graphs = card.payload["graph_order"]?.arrayValue?.compactMap(\.intValue) ?? []
+        let window = TimelineCards.PlotWindow(card.payload["plot"]) ?? TimelineCards.plotWindow(exprs)
         return VStack(spacing: 12) {
             HStack(spacing: 8) {
                 ForEach(Array(graphs.enumerated()), id: \.offset) { slot, expression in
-                    Button { pickedGraph = slot } label: {
+                    Button { state.pickedGraph = slot } label: {
                         VStack {
-                            TimelineFunctionPlot(expression: exprs.indices.contains(expression) ? exprs[expression] : "", highlighted: pickedGraph == slot)
-                            Text(pairs[slot].map { "式 \($0 + 1)" } ?? "?").font(Typography.caption)
+                            TimelineFunctionPlot(expression: exprs.indices.contains(expression) ? exprs[expression] : "", highlighted: state.pickedGraph == slot, window: window)
+                            Text(state.pairs[slot].map { "式 \($0 + 1)" } ?? "?").font(Typography.caption)
                         }
                         .padding(6)
-                        .background(pickedGraph == slot ? Theme.accentColor.opacity(0.12) : Theme.card, in: RoundedRectangle(cornerRadius: 12))
+                        .background(state.pickedGraph == slot ? Theme.accentColor.opacity(0.12) : Theme.card, in: RoundedRectangle(cornerRadius: 12))
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("timeline-graph-\(slot)")
@@ -506,10 +501,10 @@ struct TimelineInteractiveCard: View {
             }
             ForEach(Array(exprs.enumerated()), id: \.offset) { index, expression in
                 Button {
-                    guard let slot = pickedGraph else { return }
-                    pairs[slot] = index
-                    pickedGraph = nil
-                    if pairs.count == graphs.count { Task { await store.answer(.array((0..<graphs.count).map { .number(Double(pairs[$0] ?? -1)) })) } }
+                    guard let slot = state.pickedGraph else { return }
+                    state.pairs[slot] = index
+                    state.pickedGraph = nil
+                    if state.pairs.count == graphs.count { Task { await store.answer(.array((0..<graphs.count).map { .number(Double(state.pairs[$0] ?? -1)) })) } }
                 } label: {
                     Text("式 \(index + 1):  y = \(expression)")
                         .font(Typography.sans(size: 15, weight: .medium))
@@ -521,6 +516,29 @@ struct TimelineInteractiveCard: View {
                 .accessibilityIdentifier("timeline-expr-\(index)")
             }
         }
+    }
+}
+
+/// 端末の中で採点するカードの、選んだもの・並べた順。どのカードの分かを持ち、別のカードでは初めに戻す。
+nonisolated struct TimelineChoiceState: Equatable {
+    var cardID: String?
+    var order: [Int] = []
+    var sorted: [Bool] = []
+    var sortOffset: CGFloat = 0
+    var pairs: [Int: Int] = [:]
+    var pickedGraph: Int?
+    var chosen: Int?
+
+    init() {}
+
+    init(card: TimelineCardRecord) {
+        cardID = card.id
+        order = card.payload["shuffled"]?.arrayValue?.compactMap(\.intValue) ?? []
+    }
+
+    /// 出ているカードに合わせる。別のカードなら初めに戻す。
+    mutating func follow(_ card: TimelineCardRecord) {
+        if cardID != card.id { self = TimelineChoiceState(card: card) }
     }
 }
 

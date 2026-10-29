@@ -15,6 +15,8 @@ final class TimelineStore {
         case guide
         /// 手元にカードが無い(初めて開いた時に5枚を待っている)。
         case waiting
+        /// 待っていた5枚の依頼が失敗した(理由とやり直しのボタンを出す)。
+        case batchFailed(String)
         case solving
         case grading(String)
         case result
@@ -59,6 +61,10 @@ final class TimelineStore {
     /// (2026-10-24 の実機では 2287 秒と記録された)。
     private var cardStartedAt = ActiveClock.shared.now
     private var assisted = false
+    /// やり方の確認を開いたカード(「同じ形」を挟んで戻っても、ヒントありのまま)。
+    private var assistedIDs: Set<String> = []
+    /// 手元にカードが無い間に待っている5枚の依頼。
+    private var awaitedBatchID: String?
     /// やり方の確認の後に解く「同じ形」の後で戻る、元のカード。
     private var returnToID: String?
     private var awayStartedAt: Date?
@@ -93,11 +99,15 @@ final class TimelineStore {
         badge = nil
         started = false
         knownUnitIDs = nil
+        assistedIDs = []
+        awaitedBatchID = nil
     }
 
     // MARK: - 読む
 
     var current: TimelineCardRecord? { currentID.flatMap { machine.cards[$0] } }
+    /// 今のカードをヒントありとして記録するか(やり方の確認を開いた)。
+    var isAssisted: Bool { assisted }
     var lastAttempt: TimelineAttemptRecord? { lastAttemptID.flatMap { machine.attempts[$0] } }
     var answeredToday: Int { machine.answeredToday }
 
@@ -259,7 +269,7 @@ final class TimelineStore {
         currentID = id
         lastAttemptID = nil
         decided = nil
-        assisted = false
+        assisted = assistedIDs.contains(id)
         cardStartedAt = ActiveClock.shared.now
         phase = .solving
         Task {
@@ -334,6 +344,10 @@ final class TimelineStore {
         showSkipBanner(attemptID)
         var next = TimelineRules.next(after: card, outcome: .skipped, queue: machine.queue, rapid: machine.rapidCards, wrongBefore: false)
         if next.cardID == nil, card.origin == "rapid" { next.cardID = machine.rapidCards.first?.id }
+        if !next.discardIDs.isEmpty {
+            let ids = next.discardIDs
+            await commit { machine in machine.discard(ids: ids) }
+        }
         decided = next
         if let trigger = TimelineRules.dipAfterAnswer(seconds: seconds, usual: nil, outcome: .skipped, previousWasSkip: previousWasSkip, sinceLastDip: machine.cardsSinceLastDip) {
             await openDip(trigger)
@@ -411,6 +425,7 @@ final class TimelineStore {
     /// 新しい手順を押した: やり方の確認(ヒントありの扱いになる)。
     func openHowto() {
         assisted = true
+        if let id = currentID { assistedIDs.insert(id) }
         phase = .howto
     }
 
@@ -420,6 +435,8 @@ final class TimelineStore {
         let cardID = card.id
         guard let easier = await commitValue({ machine in machine.makeEasier(of: cardID) }) ?? nil else { phase = .solving; return }
         returnToID = card.id
+        // やり方を見た直後に解く「同じ形」も、ヒントありとして数える。
+        assistedIDs.insert(easier)
         show(easier)
     }
 
@@ -549,11 +566,15 @@ final class TimelineStore {
     func requestBatch(force: Bool = false) async {
         guard !workbook.units.isEmpty || machine.hasGraph else { return }
         let pending = await hasOwnPendingBatch(purpose: "cards")
+        if pending, currentID == nil {
+            awaitedBatchID = machine.batches.values.filter { $0.purpose == "cards" && $0.status == "requested" }.max { $0.createdAt < $1.createdAt }?.id
+        }
         guard force ? !pending : TimelineRules.shouldRequestBatch(unusedCount: machine.queue.filter { $0.id != currentID }.count, pending: pending) else { return }
         let accuracy = machine.accuracy
         let cap = TimelineRules.levelCap(accuracy: accuracy, currentLevel: machine.currentLevel)
         let request: LedgerJSON = .emptyObject
         guard let id = await commitValue({ machine in machine.insertBatchRequest(purpose: "cards", request: request, accuracy: accuracy, levelCap: cap) }) else { return }
+        if currentID == nil { awaitedBatchID = id }
         await turns.startTimeline(kind: .timelineBatch, targetID: id, prefetch: true)
     }
 
@@ -625,8 +646,18 @@ final class TimelineStore {
             }
         }
         // 5枚が届いた。
-        if phase == .waiting, let next = machine.queue.first ?? machine.rapidCards.first {
+        let waiting: Bool
+        switch phase {
+        case .waiting, .batchFailed: waiting = true
+        default: waiting = false
+        }
+        if waiting, let next = machine.queue.first ?? machine.rapidCards.first {
+            awaitedBatchID = nil
             show(next.id)
+        } else if phase == .waiting, let id = awaitedBatchID, let batch = machine.batches[id], batch.status == "failed" {
+            // 待っていた5枚の依頼が失敗した: 待ちを抜けて、理由とやり直しのボタンを出す。
+            awaitedBatchID = nil
+            phase = .batchFailed(batch.error ?? "")
         }
         if phase == .guide, !workbook.units.isEmpty {
             phase = .waiting
@@ -635,6 +666,13 @@ final class TimelineStore {
     }
 
     func dismissError() { actionError = nil }
+
+    /// 5枚の依頼が失敗した画面の「もう一度」。
+    func retryBatch() async {
+        guard case .batchFailed = phase else { return }
+        phase = .waiting
+        await requestBatch(force: true)
+    }
 
     private func commit(_ block: @escaping @Sendable (inout TimelineMachine) -> Void) async {
         do {

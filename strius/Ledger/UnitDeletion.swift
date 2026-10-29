@@ -126,7 +126,10 @@ nonisolated enum UnitDeletion {
         }
         for e in snapshots where e.entity == .workbookProposals && e.payload["unit_id"]?.stringValue == unitID { scope.add(e.entity, e.entityID) }
         // タイムライン: その単元の「できること」と線、その小単元に数えるカードとその解答。
-        for e in snapshots where e.entity == .timelineSkills && e.payload["unit_id"]?.stringValue == unitID { scope.add(e.entity, e.entityID) }
+        // 小単元の目標の点は unit_id に小単元の ID を持つ。
+        for e in snapshots where e.entity == .timelineSkills {
+            if let owner = e.payload["unit_id"]?.stringValue, owner == unitID || scope.contains(.workbookSubunits, owner) { scope.add(e.entity, e.entityID) }
+        }
         for e in snapshots where e.entity == .timelineSkillEdges {
             if [e.payload["skill_id"]?.stringValue, e.payload["requires_skill_id"]?.stringValue].contains(where: { $0.map { scope.contains(.timelineSkills, $0) } == true }) { scope.add(e.entity, e.entityID) }
         }

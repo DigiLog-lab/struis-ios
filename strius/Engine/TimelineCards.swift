@@ -349,8 +349,11 @@ nonisolated enum TimelineCards {
             var unique: [String] = []
             for candidate in candidates where !unique.contains(where: { TimelineExpression.equivalent($0, candidate) == true }) { unique.append(candidate) }
             guard unique.count == 3 else { return nil }
+            // 3つのグラフが見分けられる表示範囲が無ければ作らない(`x^2+20` と `x^2+23` が同じ上の端の線に見えないように)。
+            guard let window = plotWindow(unique) else { return nil }
             let graphs = shuffle.shuffled(Array(unique.indices))
-            return ("グラフと式を組にしなさい。", ["exprs": .array(unique.map(LedgerJSON.string)), "graph_order": .array(graphs.map { .number(Double($0)) }), "variable": .string(variable)])
+            return ("グラフと式を組にしなさい。", ["exprs": .array(unique.map(LedgerJSON.string)), "graph_order": .array(graphs.map { .number(Double($0)) }), "variable": .string(variable),
+                                       "plot": window.json])
         case .sort:
             guard let axis = base.payload["facts"]?["axis"]?.doubleValue else { return nil }
             var items: [LedgerJSON] = []
@@ -487,6 +490,62 @@ nonisolated enum TimelineReply {
                 }
             }
             index -= 1
+        }
+        return nil
+    }
+}
+
+// MARK: - 06 グラフと式を結ぶ: 表示範囲
+
+extension TimelineCards {
+    /// グラフを描く範囲。3つのグラフで同じ範囲を使う(違いが形と位置で見えるように)。
+    nonisolated struct PlotWindow: Equatable, Sendable {
+        var x: ClosedRange<Double>
+        var y: ClosedRange<Double>
+
+        var json: LedgerJSON {
+            .object(["x": .array([.number(x.lowerBound), .number(x.upperBound)]), "y": .array([.number(y.lowerBound), .number(y.upperBound)])])
+        }
+
+        init(x: ClosedRange<Double>, y: ClosedRange<Double>) { self.x = x; self.y = y }
+
+        init?(_ json: LedgerJSON?) {
+            guard let x = json?["x"]?.arrayValue?.compactMap(\.doubleValue), let y = json?["y"]?.arrayValue?.compactMap(\.doubleValue),
+                  x.count == 2, y.count == 2, x[0] < x[1], y[0] < y[1] else { return nil }
+            self.x = x[0]...x[1]
+            self.y = y[0]...y[1]
+        }
+    }
+
+    /// 違いが見えるとみなす、2つのグラフの縦のずれ(表示する高さに対する割合)。
+    static let plotSeparation = 0.08
+
+    /// 式の組が見分けられる表示範囲。頂点(無ければ 0)を中心に横の幅を狭めながら探し、縦はどの線も切れない高さにする。
+    /// どの2つのグラフも、どこかで高さの `plotSeparation` 以上ずれる範囲が無ければ nil。
+    static func plotWindow(_ expressions: [String]) -> PlotWindow? {
+        let parsed = expressions.compactMap { try? TimelineExpression.parse($0) }
+        guard parsed.count == expressions.count, !parsed.isEmpty else { return nil }
+        let center = expressions.lazy.compactMap { TimelineExpression.vertex(of: $0)?.x }.first ?? 0
+        for half in [5.0, 3.0, 2.0, 1.5, 1.0] {
+            let xs = stride(from: center - half, through: center + half, by: half / 30).map { $0 }
+            let curves = parsed.map { f -> [Double]? in
+                let name = f.variables.first ?? "x"
+                let values = xs.compactMap { f.evaluate([name: $0]) }.filter(\.isFinite)
+                return values.count == xs.count ? values : nil
+            }
+            guard curves.allSatisfy({ $0 != nil }) else { continue }
+            let values = curves.compactMap { $0 }
+            let all = values.flatMap { $0 }
+            guard let low = all.min(), let high = all.max(), high > low else { continue }
+            let span = high - low
+            var separated = true
+            for i in values.indices { for j in values.indices where j > i {
+                let gap = zip(values[i], values[j]).map { abs($0 - $1) }.max() ?? 0
+                if gap < span * plotSeparation { separated = false }
+            } }
+            guard separated else { continue }
+            let pad = span * 0.08
+            return PlotWindow(x: (center - half)...(center + half), y: (low - pad)...(high + pad))
         }
         return nil
     }
