@@ -182,7 +182,7 @@ nonisolated enum TimelineTurns {
         let shared = Set(cards.first?.skills ?? []).intersection(cards.last?.skills ?? [])
         guard let skillID = shared.sorted().first else { return "× が2回続いた" }
         let name = timeline.skills[skillID]?.name ?? skillID
-        let kinds = graded.last?.errors.arrayValue?.compactMap { $0["kind"]?.stringValue } ?? []
+        let kinds = graded.last.map { TimelineMachine.errorEntries($0).compactMap { $0["kind"]?.stringValue } } ?? []
         return "\(name)(\(skillID))で × が2回続いた。" + (kinds.isEmpty ? "" : "誤答の種類は " + kinds.joined(separator: "・"))
     }
 
@@ -235,6 +235,47 @@ nonisolated enum TimelineTurns {
                                     images: [image], outputSchema: try await composer.assets.json("schema:timeline_grading"), sandboxPolicy: "dangerFullAccess"),
             workspace: workspace, delegation: nil, collect: [], limits: .structured, items: nil
         )
+    }
+
+    // MARK: - 赤ペン
+
+    /// 赤ペンを入れる答案か: 書く面に書いた答案で、誤答か答えは合うが途中に誤り(2026-10-29。紙を撮った答案には付けない)。
+    static func wantsMarks(_ attempt: TimelineAttemptRecord) -> Bool {
+        attempt.capturePath != nil && (attempt.grade == "wrong" || attempt.grade == "partial")
+    }
+
+    /// 赤ペンの材料: 問題・正しい答えと、採点の書き起こし・メモ・生徒に見せた言葉。
+    static func marksRequest(attempt: TimelineAttemptRecord, card: TimelineCardRecord) -> LedgerJSON {
+        .object([
+            "attempt_id": .string(attempt.id),
+            "problem": .string(card.payload["problem"]?.stringValue ?? card.prompt), "math": .string(card.math), "question": .string(card.question),
+            "answer_key": .string(card.answerKey), "grade": .string(attempt.grade ?? attempt.verdict), "learner_answer": .string(attempt.learnerAnswer),
+            "transcript": .string(attempt.transcript ?? ""), "notes": .string(attempt.notes ?? ""), "comment": .string(attempt.feedback),
+        ])
+    }
+
+    /// 赤ペンのターン。先頭(基本指示・今日の記録)は採点・出題・見直しと同じなので、キャッシュの読み込みで済む。
+    static func marks(composer: TurnComposer, planID: String, attemptID: String, workbook: WorkbookMachine, timeline: TimelineMachine, repair: String? = nil) async throws -> TurnPlan {
+        guard let attempt = timeline.attempts[attemptID], let card = timeline.cards[attempt.cardId], let path = attempt.capturePath else {
+            throw LedgerError.notFound("timeline attempt")
+        }
+        let ext = (path as NSString).pathExtension.isEmpty ? "jpg" : (path as NSString).pathExtension
+        let image = TurnPlan.ImageRef(path: "tutor_desk/inbox/timeline/\(attemptID).\(ext)", hostPath: StruisPaths.captures.appendingPathComponent(path).path,
+                                      maxDimension: TimelineCaptureImage.requestMaxDimension)
+        return TurnPlan(
+            id: planID, kind: .timelineMarks, round: repair == nil ? 1 : 2,
+            thread: try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline),
+            turn: TurnPlan.TurnSpec(text: turnText(task: try await composer.assets.text("prompt:timeline_marks_instructions"), materials: marksRequest(attempt: attempt, card: card), repair: repair),
+                                    images: [image], outputSchema: try await composer.assets.json("schema:timeline_marks"), sandboxPolicy: "dangerFullAccess"),
+            workspace: workspace, delegation: nil, collect: [], limits: .structured, items: nil
+        )
+    }
+
+    /// このターンで、モデルがその答案を `struis.timeline_view_capture` で取り込んだか(実行記録の `capture_views`)。
+    static func viewedCapture(_ executions: [LedgerJSON], attemptID: String) -> Bool {
+        executions.contains { execution in
+            (execution["capture_views"]?.arrayValue ?? []).contains { $0["attempt_id"]?.stringValue == attemptID }
+        }
     }
 
     // MARK: - 見直し
@@ -505,6 +546,33 @@ nonisolated enum TimelineTurns {
                 break
             }
             timeline.applyReview(targetID: targetID, review: review)
+        case .timelineMarks:
+            guard timeline.attempts[targetID] != nil else { return ([], followUp) }
+            guard outcome.status == .completed else {
+                // 赤ペンが入らなくても、結果の画面は止めない(表示を消すだけ)。
+                timelineTurnLog.error("timeline marks failed: \(outcome.error ?? "-", privacy: .public)")
+                break
+            }
+            let parsed: TimelineMachine.Marks
+            do {
+                parsed = try TimelineMachine.Marks.parse(outcome.finalText)
+            } catch {
+                timelineTurnLog.error("timeline marks unreadable: \(String(describing: error), privacy: .public)")
+                if outcome.round <= 1 {
+                    followUp.retry = true
+                    followUp.repair = parseProblem(error, text: outcome.finalText)
+                }
+                break
+            }
+            // 取り込んで確かめずに返した場所は使わない(1 回だけ頼み直し、それでも取り込まなければ出さない)。
+            if !parsed.marks.isEmpty, !viewedCapture(outcome.executions, attemptID: targetID) {
+                if outcome.round <= 1 {
+                    followUp.retry = true
+                    followUp.repair = "struis.timeline_view_capture で答案を取り込み、間違えた行を region で拡大して確かめずに場所を返していました"
+                }
+                break
+            }
+            timeline.applyMarks(attemptID: targetID, marks: parsed.marks)
         case .timelineGraph:
             guard let batch = timeline.batches[targetID], batch.status == "requested" else { return ([], followUp) }
             timeline.noteUsage(batchID: targetID, model: model, executions: outcome.executions)
@@ -615,7 +683,7 @@ nonisolated enum TimelineTurns {
     }
 
     static func isTimeline(_ kind: TurnPlan.Kind) -> Bool {
-        kind == .timelineBatch || kind == .timelineGrading || kind == .timelineGraph || kind == .timelineReview
+        kind == .timelineBatch || kind == .timelineGrading || kind == .timelineGraph || kind == .timelineReview || kind == .timelineMarks
     }
 }
 

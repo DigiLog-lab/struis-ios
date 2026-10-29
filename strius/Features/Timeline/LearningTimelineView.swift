@@ -252,6 +252,12 @@ struct LearningTimelineView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         TimelineResultView(card: card, attempt: attempt, store: store)
+                        // iPhone は結果の画面で書く面を出さないので、送った手書きに赤ペンを重ねてここに出す。
+                        if !layout.isPad, let answer = store.inkAnswer(attempt.id) {
+                            if store.isMarking(attempt.id) { TimelineMarkingStatus(attemptID: attempt.id) }
+                            let marks = store.redPen(attempt.id)
+                            if !marks.isEmpty { TimelineRedPenPaper(answer: answer, marks: marks) }
+                        }
                         if attempt.verdict == "wrong", store.isStuck(card) {
                             // 2日続けて同じ所で止まった: 直近の答案をすべて渡して、質問(チューターとの会話)で一緒に考える。
                             Button { askWithHistory(card) } label: {
@@ -340,6 +346,10 @@ struct LearningTimelineView: View {
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .allowsHitTesting(!isGrading && !isResult)
+            // 結果の画面: 書く面の上に赤ペンの層(生徒の線とは別の層)。
+            if isResult, let attempt = store.lastAttempt {
+                TimelineRedPenLayer(marks: store.redPen(attempt.id), viewport: ink.viewport)
+            }
             if !layout.isPad, hasInk || isInkZoomed {
                 HStack(spacing: 14) {
                     Image(systemName: TimelineSymbol.pencil).foregroundStyle(Theme.tertiaryText)
@@ -357,6 +367,11 @@ struct LearningTimelineView: View {
                 .background(Theme.card.opacity(0.92), in: Capsule())
                 .padding(.leading, 16).padding(.bottom, 16)
                 .opacity(isDrawing ? 0.35 : 1)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if isResult, let attempt = store.lastAttempt, store.isMarking(attempt.id) {
+                TimelineMarkingStatus(attemptID: attempt.id).padding(.top, 8).padding(.trailing, 20)
             }
         }
     }
@@ -557,8 +572,8 @@ struct LearningTimelineView: View {
     }
 
     private func sendInk() {
-        guard let data = ink.image() else { return }
-        Task { await store.submit(image: data) }
+        guard let answer = ink.answer() else { return }
+        Task { await store.submit(image: answer.data, ink: answer) }
     }
 
     private func sendRapid() {

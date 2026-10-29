@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "properties": {
+    "marks": {
+      "type": "array",
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "properties": {
+          "x": {"type": "number"},
+          "y": {"type": "number"},
+          "width": {"type": "number"},
+          "height": {"type": "number"},
+          "correction": {"type": "string"}
+        },
+        "required": ["x", "y", "width", "height", "correction"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["marks"],
+  "additionalProperties": false
+}

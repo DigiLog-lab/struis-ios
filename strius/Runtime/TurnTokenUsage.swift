@@ -129,7 +129,7 @@ nonisolated struct TokenUsageSummary: Equatable, Sendable {
     }
 }
 
-/// 設定の「タイムラインの 1 問あたり」: 出題・採点・見直しの Claude の料金を、応答で実際に使われたモデルごとに足し、
+/// 設定の「タイムラインの 1 問あたり」: 出題・採点・見直し・赤ペンの Claude の料金を、応答で実際に使われたモデルごとに足し、
 /// そのモデルで採点した答案の数で割る(設定でタイムラインのモデルを切り替えた時に、Sonnet と Haiku を比べるため)。
 nonisolated struct TimelineCostSummary: Equatable, Sendable {
     nonisolated struct Model: Equatable, Sendable, Identifiable {

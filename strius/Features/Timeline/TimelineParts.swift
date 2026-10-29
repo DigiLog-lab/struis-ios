@@ -309,6 +309,7 @@ struct TimelineInkCanvas: UIViewRepresentable {
         canvas.delegate = context.coordinator
         canvas.accessibilityIdentifier = "timeline-ink"
         controller.canvas = canvas
+        controller.viewport.update(canvas)
         return canvas
     }
 
@@ -368,9 +369,11 @@ struct TimelineInkCanvas: UIViewRepresentable {
         }
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
             (scrollView as? TimelinePassThroughCanvas)?.updateAccessibilityCenter()
+            controller.viewport.update(scrollView)
         }
         func scrollViewDidZoom(_ scrollView: UIScrollView) {
             (scrollView as? TimelinePassThroughCanvas)?.updateAccessibilityCenter()
+            controller.viewport.update(scrollView)
             let value: Bool = abs(scrollView.zoomScale - 1) > 0.01
             if isZoomed.wrappedValue != value { isZoomed.wrappedValue = value }
         }
@@ -597,9 +600,15 @@ final class TimelineInkController {
         UIView.animate(withDuration: 0.25) { canvas.show(zoom: 1) }
     }
 
+    /// 書く面の今の倍率と表示位置(赤ペンの層を生徒の線に合わせて動かす)。
+    let viewport: TimelineInkViewport = TimelineInkViewport()
+
     /// 白地に書いた線(JPEG)。何も書いていなければ nil。
+    func image() -> Data? { answer()?.data }
+
+    /// 送る答案: 白地に書いた線(JPEG)と、その画像を作った紙の範囲・画像の大きさ・線(赤ペンを書く面に戻すため)。
     /// ダークモードでは PencilKit が線を明るい色に反転して描くため、白地に重ねる画像はライトモードの色で描く。
-    func image() -> Data? {
+    func answer() -> TimelineInkAnswer? {
         guard let canvas, TimelineInkCanvas.hasMeaningfulInk(canvas.drawing) else { return nil }
         let drawing: PKDrawing = canvas.drawing
         let bounds: CGRect = drawing.bounds.insetBy(dx: -24, dy: -24)
@@ -613,7 +622,109 @@ final class TimelineInkController {
             context.fill(CGRect(origin: .zero, size: ink.size))
             ink.draw(at: .zero)
         }
-        return composed.jpegData(compressionQuality: 0.85)
+        guard let data = composed.jpegData(compressionQuality: 0.85), let pixels = composed.cgImage else { return nil }
+        let strokes: [[CGPoint]] = drawing.strokes.map { stroke in stroke.path.map { $0.location.applying(stroke.transform) } }
+        return TimelineInkAnswer(data: data, frame: TimelineRedPen.InkFrame(bounds: bounds, pixelWidth: pixels.width, pixelHeight: pixels.height), strokes: strokes)
+    }
+}
+
+/// 書く面の倍率と表示位置(`TimelinePassThroughCanvas` が動くたびに入れる)。
+@Observable
+@MainActor
+final class TimelineInkViewport {
+    var zoom: CGFloat = 1
+    var offset: CGPoint = .zero
+
+    func update(_ scrollView: UIScrollView) {
+        if abs(zoom - scrollView.zoomScale) > 0.0001 { zoom = scrollView.zoomScale }
+        if offset != scrollView.contentOffset { offset = scrollView.contentOffset }
+    }
+
+    /// 紙の座標 → 書く面のビューの座標。
+    func viewRect(_ paper: CGRect) -> CGRect {
+        CGRect(x: paper.minX * zoom - offset.x, y: paper.minY * zoom - offset.y, width: paper.width * zoom, height: paper.height * zoom)
+    }
+}
+
+/// 書く面から送った答案(端末のメモリにだけ持つ。結果の画面で赤ペンを生徒の線に重ねるため)。
+nonisolated struct TimelineInkAnswer: Sendable {
+    var data: Data
+    var frame: TimelineRedPen.InkFrame
+    /// 線ごとの点(紙の座標)。
+    var strokes: [[CGPoint]]
+}
+
+/// 赤ペンの位置の計算(2026-10-29)。モデルは依頼に付いた写真の上のピクセルで範囲を返す。アプリはそれを元の画像の
+/// ピクセル(`TimelineCaptureImage.originalRect`)→ 書く面の紙の座標に戻し、範囲に重なる生徒の線の外枠に寄せてから囲む
+/// (モデルの座標が多少ずれても、実際の字をきっちり囲むため)。
+nonisolated enum TimelineRedPen {
+    /// 送った画像を作った時の紙の範囲(`TimelineInkController.answer()` の `bounds`)と、画像のピクセルの大きさ。
+    struct InkFrame: Equatable, Sendable {
+        var bounds: CGRect
+        var pixelWidth: Int
+        var pixelHeight: Int
+    }
+
+    /// 書く面に置く 1 か所(紙の座標の範囲と訂正)。
+    struct Placed: Equatable, Sendable {
+        var rect: CGRect
+        var correction: String
+    }
+
+    /// 依頼に付いた写真のピクセルの範囲 → 紙の座標の範囲。画像と重ならなければ nil。
+    static func inkRect(region: CGRect, frame: InkFrame) -> CGRect? {
+        guard frame.bounds.width > 0, frame.bounds.height > 0,
+              let original = TimelineCaptureImage.originalRect(region: region, width: frame.pixelWidth, height: frame.pixelHeight) else { return nil }
+        let sx = CGFloat(frame.pixelWidth) / frame.bounds.width, sy = CGFloat(frame.pixelHeight) / frame.bounds.height
+        return CGRect(x: frame.bounds.minX + original.minX / sx, y: frame.bounds.minY + original.minY / sy,
+                      width: original.width / sx, height: original.height / sy)
+    }
+
+    /// 範囲に重なる生徒の線の外枠に寄せる。外枠の真ん中が範囲に入る線はその線全体を、そうでない線は範囲の中の点だけを数える。
+    /// 範囲に線が 1 本も無ければ nil(その印は出さない)。
+    static func snap(_ rect: CGRect, strokes: [[CGPoint]], tolerance: CGFloat = 4) -> CGRect? {
+        let area = rect.insetBy(dx: -tolerance, dy: -tolerance)
+        var union = CGRect.null
+        for points in strokes where !points.isEmpty {
+            let box = bounding(points)
+            if area.contains(CGPoint(x: box.midX, y: box.midY)) {
+                union = union.union(box)
+            } else {
+                let inside = points.filter(area.contains)
+                if !inside.isEmpty { union = union.union(bounding(inside)) }
+            }
+        }
+        return union.isNull ? nil : union
+    }
+
+    /// 答案の赤ペンを、書く面の紙の座標に置く(線に重ならない印は落とす)。
+    static func place(_ marks: [TimelineMachine.RedPenMark], answer: TimelineInkAnswer) -> [Placed] {
+        marks.compactMap { mark in
+            guard let rect = inkRect(region: mark.region, frame: answer.frame), let snapped = snap(rect, strokes: answer.strokes) else { return nil }
+            return Placed(rect: snapped, correction: mark.correction)
+        }
+    }
+
+    private static func bounding(_ points: [CGPoint]) -> CGRect {
+        let xs = points.map(\.x), ys = points.map(\.y)
+        return CGRect(x: xs.min()!, y: ys.min()!, width: xs.max()! - xs.min()!, height: ys.max()! - ys.min()!)
+    }
+
+    /// 手書き風の楕円(少し傾け、半径を揺らし、描き終わりを描き始めに少し重ねる)。
+    static func loop(around rect: CGRect, padding: CGFloat) -> Path {
+        let box = rect.insetBy(dx: -padding, dy: -padding * 0.8)
+        let cx = box.midX, cy = box.midY, rx = max(box.width / 2, 6), ry = max(box.height / 2, 6)
+        let tilt: CGFloat = -0.06
+        var path = Path()
+        let steps = 64
+        for step in 0...steps {
+            let t = -0.5 + (2 * .pi + 0.55) * CGFloat(step) / CGFloat(steps)
+            let wobble = 1 + 0.035 * sin(3 * t + 0.7) + 0.02 * CGFloat(step) / CGFloat(steps)
+            let x = rx * wobble * cos(t), y = ry * wobble * sin(t)
+            let point = CGPoint(x: cx + x * cos(tilt) - y * sin(tilt), y: cy + x * sin(tilt) + y * cos(tilt))
+            step == 0 ? path.move(to: point) : path.addLine(to: point)
+        }
+        return path
     }
 }
 
@@ -1104,5 +1215,105 @@ nonisolated enum TimelinePlainMath {
             }
             return base
         }
+    }
+}
+
+/// 書く面の上の赤ペンの層。紙の座標の印を、書く面の今の倍率と表示位置で描く(拡大・スクロールしても生徒の線と一緒に動く)。
+/// 生徒の線・取り消し・消しゴムには混ぜない別の層で、押せない。
+struct TimelineRedPenLayer: View {
+    let marks: [TimelineRedPen.Placed]
+    let viewport: TimelineInkViewport
+
+    var body: some View {
+        let zoom = viewport.zoom
+        ZStack(alignment: .topLeading) {
+            ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
+                let rect = viewport.viewRect(mark.rect)
+                TimelineRedPenMark(rect: rect, correction: mark.correction, scale: zoom, color: Theme.redPen)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("timeline-red-pen")
+    }
+}
+
+/// 赤ペンの 1 か所: 手書き風の楕円と、その下の短い訂正(式は数式として組む)。`rect` は描く面の座標。
+struct TimelineRedPenMark: View {
+    let rect: CGRect
+    let correction: String
+    var scale: CGFloat = 1
+    let color: Color
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            TimelineRedPen.loop(around: rect, padding: 6 * scale)
+                .stroke(color, style: StrokeStyle(lineWidth: max(1.5, 2.4 * scale), lineCap: .round, lineJoin: .round))
+            if !correction.isEmpty {
+                TimelineRichText(text: correction, size: min(28, max(11, 15 * scale)), weight: .bold, color: color)
+                    .frame(maxWidth: max(140, 260 * scale), alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .offset(x: max(0, rect.minX - 4 * scale), y: rect.maxY + 8 * scale)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("赤ペン: " + correction)
+    }
+}
+
+/// iPhone の結果の画面: 送った手書き(白地の画像)に赤ペンを重ねて出す(結果の画面では書く面を出さないため)。
+struct TimelineRedPenPaper: View {
+    let answer: TimelineInkAnswer
+    let marks: [TimelineRedPen.Placed]
+
+    var body: some View {
+        if let image = UIImage(data: answer.data) {
+            let bounds = answer.frame.bounds
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.hairline, lineWidth: 1))
+                .overlay(alignment: .topLeading) {
+                    GeometryReader { proxy in
+                        let scale = bounds.width > 0 ? proxy.size.width / bounds.width : 1
+                        ZStack(alignment: .topLeading) {
+                            ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
+                                let rect = CGRect(x: (mark.rect.minX - bounds.minX) * scale, y: (mark.rect.minY - bounds.minY) * scale,
+                                                  width: mark.rect.width * scale, height: mark.rect.height * scale)
+                                TimelineRedPenMark(rect: rect, correction: mark.correction, scale: max(0.6, scale), color: Theme.redPenOnPaper)
+                            }
+                        }
+                        .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+                    }
+                    .allowsHitTesting(false)
+                }
+                // 下の端の印の訂正が、次の行に重ならないように空ける。
+                .padding(.bottom, 32)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("timeline-red-pen")
+        }
+    }
+}
+
+/// 赤ペンのターンが走っている間の表示(モデルが今していることの見出しを添える)。
+struct TimelineMarkingStatus: View {
+    let attemptID: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small).tint(Theme.redPen)
+                Text("赤ペンを入れています").font(Typography.sans(size: 13, weight: .bold)).foregroundStyle(Theme.redPen)
+            }
+            TurnLiveLine(keys: [TurnActivityKey.marks(attemptID)], font: Typography.micro)
+                .frame(maxWidth: 240, alignment: .leading)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(Theme.card.opacity(0.94), in: RoundedRectangle(cornerRadius: 14))
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("timeline-marking")
     }
 }

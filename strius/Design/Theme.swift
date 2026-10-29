@@ -56,6 +56,11 @@ enum Theme {
     static let accentColor = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(Palette.accentDark) : UIColor(Palette.accentLight) })
     static let growthColor = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(Palette.growthDark) : UIColor(Palette.growthLight) })
     static let regressColor = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(Palette.regressDark) : UIColor(Palette.regressLight) })
+    /// 赤ペン(誤答の答案に先生が入れる赤)。暗い地では明るくし、どちらでも生徒の線と見分けられる濃さにする。
+    static let redPenUIColor = UIColor { $0.userInterfaceStyle == .dark ? UIColor(red: 1.0, green: 0.42, blue: 0.40, alpha: 1) : UIColor(red: 0.84, green: 0.09, blue: 0.10, alpha: 1) }
+    static let redPen = Color(uiColor: redPenUIColor)
+    /// 白地の答案の画像に重ねる赤(画像はライトモードの色で描くので、こちらも明るい地の赤)。
+    static let redPenOnPaper = Color(red: 0.84, green: 0.09, blue: 0.10)
     static let onAccent = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(Palette.textOnAccentDark) : UIColor(Palette.textOnAccentLight) })
     static let hairline = Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(Palette.separatorDark) : UIColor(Palette.separatorLight) })
 

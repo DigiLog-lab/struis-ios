@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 import OSLog
 import SwiftUI
 
@@ -56,6 +57,11 @@ final class TimelineStore {
     private(set) var rapidStartedAt = Date()
     private(set) var rapidResults: [String: Double] = [:]
     private(set) var actionError: String?
+    /// 書く面から送った答案(端末のメモリにだけ持つ。赤ペンを生徒の線に重ねるため。直近の 1 つだけ)。
+    private(set) var inkAnswers: [String: TimelineInkAnswer] = [:]
+    /// 赤ペンを入れている答案(ターンが終わるまで「赤ペンを入れています」を出す)。
+    private(set) var markingIDs: Set<String> = []
+    private var noticeObserver: UUID?
 
     /// カードを出した時刻(前面にいた時間だけを数える時計)。アプリを離れていた時間は解答時間に入れない
     /// (2026-10-24 の実機では 2287 秒と記録された)。
@@ -85,6 +91,11 @@ final class TimelineStore {
                 Task { @MainActor [weak self] in self?.scheduleReload() }
             }
             self.observer = id
+            // 赤ペンのターンの終わり(頼み直しの行は終わりを知らせる前に書かれる)。
+            self.noticeObserver = await turns.observe { [weak self] notice in
+                guard notice.kind == .timelineMarks, let target = notice.targetID, notice.status != "running" else { return }
+                Task { @MainActor [weak self] in await self?.markingSettled(target) }
+            }
         }
     }
 
@@ -101,6 +112,8 @@ final class TimelineStore {
         knownUnitIDs = nil
         assistedIDs = []
         awaitedBatchID = nil
+        inkAnswers = [:]
+        markingIDs = []
     }
 
     // MARK: - 読む
@@ -166,6 +179,40 @@ final class TimelineStore {
 
     var rapidBest: Double? { machine.rapidBest }
 
+    // MARK: - 赤ペン
+
+    /// 赤ペンを入れている最中か。
+    func isMarking(_ attemptID: String) -> Bool { markingIDs.contains(attemptID) }
+
+    /// 書く面から送った答案(この端末で書いたものだけ)。
+    func inkAnswer(_ attemptID: String) -> TimelineInkAnswer? { inkAnswers[attemptID] }
+
+    /// 答案の赤ペンを、書く面の紙の座標に置いたもの。書く面から送っていない答案・赤ペンの無い答案は空。
+    func redPen(_ attemptID: String) -> [TimelineRedPen.Placed] {
+        guard let answer = inkAnswers[attemptID], let attempt = machine.attempts[attemptID] else { return [] }
+        return TimelineRedPen.place(TimelineMachine.redPenMarks(attempt), answer: answer)
+    }
+
+    /// 採点の結果を出した後に、書く面の答案(誤答・途中に誤り)へ赤ペンを入れるターンを走らせる。
+    private func startMarksIfNeeded(_ attempt: TimelineAttemptRecord) async {
+        guard inkAnswers[attempt.id] != nil, TimelineTurns.wantsMarks(attempt), TimelineMachine.redPenMarks(attempt).isEmpty,
+              !markingIDs.contains(attempt.id) else { return }
+        markingIDs.insert(attempt.id)
+        await turns.startTimeline(kind: .timelineMarks, targetID: attempt.id)
+    }
+
+    /// 赤ペンのターンが 1 つ終わった: 頼み直しが残っていなければ「入れています」を消す。
+    private func markingSettled(_ attemptID: String) async {
+        let open = (try? await ledger.read { db in
+            try TurnRecord.filter(Column("kind") == TurnPlan.Kind.timelineMarks.rawValue && Column("target_id") == attemptID
+                                  && ["queued", "running"].contains(Column("status"))).fetchCount(db)
+        }) ?? 0
+        guard open == 0 else { return }
+        // 読み直してから消す(「入れています」が消えた時に、赤ペンがもう出ているように)。
+        await reload()
+        markingIDs.remove(attemptID)
+    }
+
     /// 通し番号(左下の「No. 21」)。
     var problemNumber: Int { machine.attempts.values.filter { $0.verdict != "skipped" }.count + (phase == .result ? 0 : 1) }
 
@@ -181,10 +228,10 @@ final class TimelineStore {
         }.suffix(6)
         return attempts.compactMap { attempt -> String? in
             guard let past = machine.cards[attempt.cardId] else { return nil }
-            let errors = attempt.errors.arrayValue?.compactMap { error -> String? in
+            let errors = TimelineMachine.errorEntries(attempt).compactMap { error -> String? in
                 let wrote = error["wrote"]?.stringValue ?? "", correct = error["correct"]?.stringValue ?? "", detail = error["detail"]?.stringValue ?? ""
                 return [wrote.isEmpty ? nil : "書いたもの: \(wrote)", correct.isEmpty ? nil : "正しくは: \(correct)", detail.isEmpty ? nil : detail].compactMap { $0 }.joined(separator: " / ")
-            } ?? []
+            }
             let day = TimelineRules.day(attempt.createdAt) ?? ""
             return "- \(day) \(TimelineCards.problemLine(prompt: past.prompt, math: past.math)) \(past.question) → \(attempt.verdict == "correct" ? "○" : "×")" + (errors.isEmpty ? "" : "(" + errors.joined(separator: "; ") + ")")
         }.joined(separator: "\n")
@@ -282,7 +329,7 @@ final class TimelineStore {
     private var elapsed: Double { max(0, ActiveClock.shared.now - cardStartedAt) }
 
     /// 撮った・指で書いた答案を送る(採点は裏で走る)。
-    func submit(image data: Data) async {
+    func submit(image data: Data, ink: TimelineInkAnswer? = nil) async {
         guard let card = current else { return }
         let seconds = elapsed
         do {
@@ -296,6 +343,7 @@ final class TimelineStore {
                 return (machine.events, id)
             }
             lastAttemptID = attemptID
+            inkAnswers = ink.map { [attemptID: $0] } ?? [:]
             phase = .grading(attemptID)
             await reload()
             await turns.startTimeline(kind: .timelineGrading, targetID: attemptID)
@@ -635,6 +683,8 @@ final class TimelineStore {
         if case .grading(let attemptID) = phase, let attempt = machine.attempts[attemptID], attempt.verdict != "grading" {
             if attempt.verdict == "correct" || attempt.verdict == "wrong" {
                 phase = .result
+                // 結果はすぐ出し、その後ろで赤ペンを入れる。
+                Task { await startMarksIfNeeded(attempt) }
                 await decide()
                 // 採点結果を反映した: 見直し・1段下りるのきっかけを見る。
                 await ensureGraphWork()

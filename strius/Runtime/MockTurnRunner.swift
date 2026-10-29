@@ -64,12 +64,13 @@ actor MockTurnRunner: TurnRunning {
         case .timelineGrading: text = Self.json(Self.timelineGrading(request))
         case .timelineGraph: text = Self.json(Self.timelineGraph(request))
         case .timelineReview: text = Self.json(["skill_results": [], "notes": ""])
+        case .timelineMarks: text = Self.json(Self.timelineMarks(request))
         }
         let threadID = plan.thread.codexThreadID ?? "thr_mock_\(UUID().uuidString.prefix(16).lowercased())"
         return TurnOutcome(
             planID: plan.id, round: plan.round, status: .completed, codexThreadID: threadID,
             codexTurnID: "turn_mock_\(counter)", finalText: text,
-            executions: [.object(["execution_id": .string(UUID().uuidString), "task_type": .string(plan.kind.rawValue), "status": .string("completed"), "requested_model": .string(plan.thread.model), "billing_source": .string("byo_chatgpt")])],
+            executions: [.object(Self.execution(plan: plan, request: request))],
             rateLimits: nil, files: [], error: nil, elapsedMs: 250
         )
     }
@@ -364,6 +365,21 @@ actor MockTurnRunner: TurnRunning {
             return ["skill": ids.contains("quad.vertex_form") ? "quad.vertex_form" : "", "prompt": "頂点は？", "math": "y = 2(x - \(h))^2 + \(v)", "answer_key": "(\(h), \(v))", "answer_expr": "(\(h), \(v))"]
         }
         return ["reason": "平方完成が定着しているので、範囲つきの最大最小を続きで上げる", "cards": cards, "rapid": rapid, "wanted_prerequisites": [], "graph_ops": []]
+    }
+
+    /// 実行記録。赤ペンは答案を取り込んで確かめた記録(`capture_views`)も残す。
+    nonisolated static func execution(plan: TurnPlan, request: JSONObject) -> [String: LedgerJSON] {
+        var execution: [String: LedgerJSON] = ["execution_id": .string(UUID().uuidString), "task_type": .string(plan.kind.rawValue), "status": .string("completed"),
+                                               "requested_model": .string(plan.thread.model), "billing_source": .string("byo_chatgpt")]
+        if plan.kind == .timelineMarks, let attemptID = request["attempt_id"] as? String {
+            execution["capture_views"] = .array([.object(["attempt_id": .string(attemptID)])])
+        }
+        return execution
+    }
+
+    /// 赤ペン: 依頼に付いた画像の左上寄りに 1 か所(アプリが実際の線の外枠に寄せる)。
+    nonisolated static func timelineMarks(_ request: JSONObject) -> JSONObject {
+        ["marks": [["x": 0, "y": 0, "width": 400, "height": 200, "correction": "$-\\frac{1}{2}$($\\cos 2\\pi = 1$)"]]]
     }
 
     nonisolated static func timelineGrading(_ request: JSONObject) -> JSONObject {

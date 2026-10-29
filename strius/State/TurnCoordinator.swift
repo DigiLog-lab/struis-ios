@@ -72,6 +72,7 @@ actor TurnCoordinator {
         TurnPlan.Kind.timelineBatch.rawValue: .seconds(180),
         TurnPlan.Kind.timelineGraph.rawValue: .seconds(180),
         TurnPlan.Kind.timelineReview.rawValue: .seconds(180),
+        TurnPlan.Kind.timelineMarks.rawValue: .seconds(120),
         "graph_descend": .seconds(120),
     ]
     private var timeLimits = TurnCoordinator.defaultTimeLimits
@@ -308,7 +309,7 @@ actor TurnCoordinator {
             return (try await composer.set(planID: turnID, machine: machine, setID: targetID, avoidExpressions: avoid), nil)
         case .workbookUnit:
             return (try await composer.unit(planID: turnID, machine: machine, proposalID: targetID), nil)
-        case .timelineBatch, .timelineGrading, .timelineGraph, .timelineReview:
+        case .timelineBatch, .timelineGrading, .timelineGraph, .timelineReview, .timelineMarks:
             // 採点・出題・見直しは、組む前に今日の記録の足りない分(その日最初の単元とスキルの一覧・変わった分)を書く。
             let timeline: TimelineMachine = kind == .timelineGraph
                 ? try await ledger.read { db in try TimelineMachine(loading: db) }
@@ -322,6 +323,7 @@ actor TurnCoordinator {
             case .timelineBatch: return (try await TimelineTurns.batch(composer: composer, planID: turnID, batchID: targetID, workbook: machine, timeline: timeline, repair: repair), nil)
             case .timelineGrading: return (try await TimelineTurns.grading(composer: composer, planID: turnID, attemptID: targetID, workbook: machine, timeline: timeline, repair: repair), nil)
             case .timelineReview: return (try await TimelineTurns.review(composer: composer, planID: turnID, attemptID: targetID, workbook: machine, timeline: timeline, repair: repair), nil)
+            case .timelineMarks: return (try await TimelineTurns.marks(composer: composer, planID: turnID, attemptID: targetID, workbook: machine, timeline: timeline, repair: repair), nil)
             default: return (try await TimelineTurns.graph(composer: composer, planID: turnID, batchID: targetID, workbook: machine, timeline: timeline), nil)
             }
         default:
@@ -504,7 +506,8 @@ actor TurnCoordinator {
         BackgroundTurnActivity.begin()
         defer { BackgroundTurnActivity.end() }
         // 待ちの画面へ、このターンで実際に起きた出来事を流す(信頼性計画 P2)。対象(答案・一枚・全体像)ごとに 1 本。
-        let activity = await targetID(of: turnID).map { TurnActivityBoard.sink(TurnActivityKey.target($0)) }
+        // 赤ペンは見直しと同じ答案を対象に並んで走るので、別の key に流す(見出しが混ざらないように)。
+        let activity = await targetID(of: turnID).map { TurnActivityBoard.sink(plan.kind == .timelineMarks ? TurnActivityKey.marks($0) : TurnActivityKey.target($0)) }
         defer { activity?.finish() }
         let acquired = await acquire(kind: plan.kind, turnID: turnID)
         var outcome: TurnOutcome
@@ -595,17 +598,19 @@ actor TurnCoordinator {
             turnLog.error("apply \(plan.kind.rawValue, privacy: .public) failed: \(String(describing: error), privacy: .public)")
         }
         WorkspaceStager.cleanup(plan: plan)
-        notify(Notice(turnID: turnID, kind: plan.kind, targetID: targetID, status: outcome.status.rawValue))
         if TimelineTurns.isTimeline(plan.kind) {
             // 受け取りを断った(skills の ID・段の上限・検算・グラフの点検): 1 回だけ作り直させる。
             // 返事が決まった形に合わなかった: 理由を添えて、同じ中身でもう 1 回だけ頼む(先頭はキャッシュの読み込みで済む)。
+            // 頼み直しの行を書いてから終わりを知らせる(赤ペンの「入れています」が頼み直しの間に消えないように)。
             if followUp.retryTimeline, let targetID { await start(kind: plan.kind, targetID: targetID, prefetch: wasPrefetch, repair: followUp.timelineRepair) }
+            notify(Notice(turnID: turnID, kind: plan.kind, targetID: targetID, status: outcome.status.rawValue))
             // 次の段・よくある勘違い・1段下りる: 学習者が待っていない先回りとして続けて頼む。
             if let next = followUp.nextTimelineGraph { await start(kind: .timelineGraph, targetID: next, prefetch: true) }
             // 見直し: 生徒が次の問題を解いている間に、別の依頼で前の答案を見直す。
             if let next = followUp.nextTimelineReview { await start(kind: .timelineReview, targetID: next, prefetch: true) }
             return acquired
         }
+        notify(Notice(turnID: turnID, kind: plan.kind, targetID: targetID, status: outcome.status.rawValue))
         if let setID = followUp.setIDToGenerate {
             // 一枚の残り(§3.2)。先回りで組んでいた一枚は、学習者が求めるまで先回りのまま。
             await start(kind: .workbookSet, targetID: setID, prefetch: wasPrefetch && plan.kind == .workbookSet && prefetchTargets[setID] == turnID)

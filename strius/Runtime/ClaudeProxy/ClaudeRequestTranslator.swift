@@ -463,7 +463,7 @@ nonisolated enum ClaudeTranslation {
     static let blockSeparator = "\n\n<!-- struis:block -->\n\n"
     /// 今日の記録の終わり(この後ろに Codex が足す注記は記録のブロックに混ぜない)。
     static let logEnd = "\n\n<!-- struis:log-end -->"
-    static let tutorKinds: Set<String> = ["timeline_batch", "timeline_grading", "timeline_review"]
+    static let tutorKinds: Set<String> = ["timeline_batch", "timeline_grading", "timeline_review", "timeline_marks"]
 
     /// スレッドを始める時の版。
     static func version(kind: String) -> Int { tutorKinds.contains(kind) ? tutor : current }

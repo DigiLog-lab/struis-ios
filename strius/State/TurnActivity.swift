@@ -15,6 +15,8 @@ nonisolated enum TurnActivityKey {
     static func reply(_ messageID: UUID) -> String { reply(messageID.uuidString) }
     /// 構造化ターンの対象(答案・一枚・全体像の id)。
     static func target(_ targetID: String) -> String { "target:" + targetID.lowercased() }
+    /// 答案に赤ペンを入れるターン(同じ答案の見直しと並んで走るので、対象とは別の key)。
+    static func marks(_ attemptID: String) -> String { "marks:" + attemptID.lowercased() }
     /// 先回りで作っている例題(小単元)。
     static func examplePrefetch(subunitID: String) -> String { "prefetch-example:" + subunitID.lowercased() }
     /// 返事の中の提案から先に組み始めた全体像(A12)。返事の assistant メッセージで引く。

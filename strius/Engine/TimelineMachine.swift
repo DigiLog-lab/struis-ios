@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import GRDB
 
@@ -1115,6 +1116,74 @@ nonisolated struct TimelineMachine {
                      attemptIDs: [attemptID], source: "review", reviewed: true)
         appendLog(kind: "revise", attemptID: attemptID, text: TimelineLogText.revise(row, from: previous, note: note, machine: self))
         return nil
+    }
+
+    // MARK: - 赤ペン
+
+    /// 赤ペンの 1 か所(2026-10-29)。範囲は依頼に付いた写真の上のピクセル。答案の `errors` に `kind = "red_pen"` で残す
+    /// (列は増やさない。前の版の間違いの組と並べて置ける)。
+    nonisolated struct RedPenMark: Codable, Sendable, Equatable {
+        static let kind = "red_pen"
+        var x: Double
+        var y: Double
+        var width: Double
+        var height: Double
+        var correction: String
+        var region: CGRect { CGRect(x: x, y: y, width: width, height: height) }
+
+        init(x: Double, y: Double, width: Double, height: Double, correction: String) {
+            self.x = x
+            self.y = y
+            self.width = width
+            self.height = height
+            self.correction = correction
+        }
+
+        var json: LedgerJSON {
+            .object(["kind": .string(Self.kind), "correction": .string(correction),
+                     "region": .object(["x": .number(x), "y": .number(y), "width": .number(width), "height": .number(height)])])
+        }
+
+        init?(json: LedgerJSON) {
+            guard json["kind"]?.stringValue == Self.kind, let region = json["region"],
+                  let x = region["x"]?.doubleValue, let y = region["y"]?.doubleValue,
+                  let width = region["width"]?.doubleValue, let height = region["height"]?.doubleValue else { return nil }
+            self.init(x: x, y: y, width: width, height: height, correction: json["correction"]?.stringValue ?? "")
+        }
+    }
+
+    /// 赤ペンのターンの答え: `marks`(0〜2 個)。
+    nonisolated struct Marks: Decodable, Sendable {
+        var marks: [RedPenMark]
+        enum CodingKeys: String, CodingKey { case marks }
+        init(marks: [RedPenMark]) { self.marks = marks }
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            marks = try c.decode([RedPenMark].self, forKey: .marks)
+        }
+        static func parse(_ text: String) throws -> Marks { try TimelineReply.decode(Marks.self, from: text) }
+    }
+
+    /// 1 つの答案に入れる赤ペンの数の上限。
+    static let redPenLimit = 2
+
+    /// 答案の赤ペン(`errors` の `red_pen`)。
+    static func redPenMarks(_ attempt: TimelineAttemptRecord) -> [RedPenMark] {
+        (attempt.errors.arrayValue ?? []).compactMap(RedPenMark.init(json:))
+    }
+
+    /// 赤ペンを答案に残す。前の赤ペンは差し替え、前の版の間違いの組はそのまま残す。大きさの無い範囲は捨てる。
+    mutating func applyMarks(attemptID: String, marks: [RedPenMark]) {
+        guard var row = attempts[attemptID] else { return }
+        let kept = marks.filter { $0.width > 0 && $0.height > 0 && $0.x.isFinite && $0.y.isFinite }.prefix(Self.redPenLimit)
+        let others = (row.errors.arrayValue ?? []).filter { $0["kind"]?.stringValue != RedPenMark.kind }
+        row.errors = .array(others + kept.map(\.json))
+        put("timeline.attempt_marked", row)
+    }
+
+    /// 間違いの組のうち、赤ペンを除いたもの(誤答の種類を数える所で使う)。
+    static func errorEntries(_ attempt: TimelineAttemptRecord) -> [LedgerJSON] {
+        (attempt.errors.arrayValue ?? []).filter { $0["kind"]?.stringValue != RedPenMark.kind }
     }
 
     nonisolated struct Review: Codable, Sendable {
