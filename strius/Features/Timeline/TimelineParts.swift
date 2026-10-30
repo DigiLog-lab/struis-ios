@@ -1,0 +1,1319 @@
+import Foundation
+import PencilKit
+import SwiftUI
+
+/// タイムラインの周りの情報は、文字より記号で出す。記号の意味は1つに固定する(Issue #46 の対応表)。
+enum TimelineSymbol {
+    /// さっきの続き
+    static let chain = "link"
+    /// 前に解いた(昨日・5日前など)
+    static let past = "arrow.counterclockwise"
+    /// 目安の時間
+    static let clock = "timer"
+    /// 余白に指で書ける
+    static let pencil = "pencil"
+    /// 新しい手順
+    static let new = "sparkle"
+    /// 入試の形
+    static let exam = "graduationcap"
+    /// 次の段まで
+    static let stairs = "stairs"
+    /// やり方の確認
+    static let book = "book.closed"
+    /// 速攻
+    static let bolt = "bolt"
+    /// 自己ベスト
+    static let trophy = "trophy"
+    /// さわるだけ
+    static let hand = "hand.point.up"
+    static let units = "book"
+    static let ask = "bubble.left"
+    static let skip = "arrow.down"
+    static let camera = "camera"
+    static let send = "arrow.up"
+    static let next = "arrow.down"
+    static let explain = "text.book.closed"
+    /// 一段戻す(やさしくした問題)。↺(前に解いた)とは別の記号にする。
+    static let back = "arrow.turn.left.down"
+    /// 数値だけ変えた同じ形の問題
+    static let variant = "arrow.left.arrow.right"
+    /// 書いた線を1つ戻す・全部消す(iPad の右上の書く道具。ペンと消しゴムは標準の道具パレット)
+    static let undo = "arrow.uturn.backward"
+    static let clear = "trash"
+}
+
+/// iPad の並び(問題は左の列、右は全部紙。書く道具は右上、質問は右に開く)。iPad で横幅が広い時だけ使う。
+/// iPhone と、Split View で狭くした iPad は `.compact`(今の並び)のまま。
+enum TimelineLayout: Equatable {
+    case compact
+    /// iPad 横向き: 問題は左の列、下の帯は問題の列の下だけ。
+    case padLandscape
+    /// iPad 縦向き: 問題は上に全幅、下の帯も全幅。
+    case padPortrait
+
+    /// 画面全体(右に開いた質問の欄も含む)の大きさから決める。欄を開いてタイムラインが細くなっても、横向きのまま。
+    @MainActor
+    static func resolve(sizeClass: UserInterfaceSizeClass?, size: CGSize) -> TimelineLayout {
+        guard isPad(sizeClass) else { return .compact }
+        return size.width > size.height ? .padLandscape : .padPortrait
+    }
+
+    @MainActor
+    static func isPad(_ sizeClass: UserInterfaceSizeClass?) -> Bool {
+        sizeClass == .regular && UIDevice.current.userInterfaceIdiom == .pad
+    }
+
+    var isPad: Bool { self != .compact }
+
+    /// 横向きの問題の列(左 40pt・幅 384pt)と、その下の帯(左 16pt・幅 432pt)。
+    static let columnLeading: CGFloat = 40
+    static let columnWidth: CGFloat = 384
+    static let stripLeading: CGFloat = 16
+    static let stripWidth: CGFloat = 432
+    /// 右に開く質問の欄の幅。
+    static let questionPanelWidth: CGFloat = 380
+    /// iPad の「送る」の大きさ。
+    static let sendDiameter: CGFloat = 64
+}
+
+/// ○ ×(正誤。色だけに頼らない)。
+struct TimelineMark: View {
+    let correct: Bool
+    var size: CGFloat = 12
+
+    var body: some View {
+        Group {
+            if correct {
+                Circle().stroke(Theme.growthColor, lineWidth: max(1.5, size / 7)).frame(width: size, height: size)
+            } else {
+                Image(systemName: "xmark").font(.system(size: size, weight: .bold)).foregroundStyle(Theme.regressColor)
+            }
+        }
+        .accessibilityLabel(correct ? "正解" : "誤答")
+    }
+}
+
+/// 上の段のチップ(単元・時計・鎖・↺)。
+struct TimelineChip: View {
+    let text: String?
+    var symbol: String? = nil
+    var tinted = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let symbol { Image(systemName: symbol).font(.system(size: 13, weight: .semibold)) }
+            if let text { Text(text).font(Typography.sans(size: 13, weight: .bold)).lineLimit(1) }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .foregroundStyle(Theme.primaryText)
+        .background(tinted ? Theme.accentColor.opacity(0.16) : Theme.hairline, in: Capsule())
+    }
+}
+
+/// 系列のバー(2 / 3)。
+struct TimelineChainBar: View {
+    let position: Int
+    let total: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(1...max(1, total), id: \.self) { index in
+                Capsule().fill(index <= position ? Theme.accentColor : Theme.hairline).frame(width: 18, height: 4)
+            }
+            Text("\(position) / \(total)").font(Typography.sans(size: 13, weight: .bold)).foregroundStyle(Theme.secondaryText).monospacedDigit()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("続きの \(position) 問目、全 \(total) 問")
+        .accessibilityIdentifier("timeline-chain-bar")
+    }
+}
+
+/// 数式(SwiftMath)。読めなければ文字で出す。
+struct TimelineMath: View {
+    let latex: String
+    var size: CGFloat = 34
+    /// 前の問題から変えたところ(式の中にあれば銅色の地にする)。
+    var changed: String? = nil
+
+    var body: some View {
+        // 長い式は小さくして、画面の幅に収める(横にはみ出させない)。
+        KaTeXMathText(TimelineMath.highlighting(latex, changed: changed), display: true, foregroundColor: UIColor(Theme.primaryText), fontSize: fitted, fontWeight: 500)
+            .accessibilityIdentifier("timeline-math")
+    }
+
+    /// 変えたところを銅色の地にした式(見つからなければそのまま)。
+    static func highlighting(_ latex: String, changed: String?) -> String {
+        guard let changed = changed?.trimmingCharacters(in: .whitespaces), !changed.isEmpty, let range = latex.range(of: changed) else { return latex }
+        return latex.replacingCharacters(in: range, with: "\\colorbox{#E9C8A6}{$\\color{#1F1A17}{" + changed + "}$}")
+    }
+
+    private var fitted: CGFloat {
+        let length = TimelineMath.plain(latex).count
+        return length > 14 ? max(18, size * 14 / CGFloat(length) * 1.25) : size
+    }
+
+    /// 下の帯・選択肢に 1 行で出す、読める文字。
+    static func plain(_ latex: String) -> String {
+        latex.isEmpty ? "" : MathPlainText.preview("\\(" + latex + "\\)")
+    }
+
+    /// 「次の1問」の 1 行: 式と問い(問いの中の `$…$` も読める文字に)。どちらも無ければ問題文。
+    static func previewLine(_ card: TimelineCardRecord) -> String {
+        let line = [plain(card.math), MathPlainText.preview(card.question)].filter { !$0.isEmpty }.joined(separator: "  ")
+        return line.isEmpty ? MathPlainText.preview(card.prompt) : line
+    }
+}
+
+/// 本文と数式が混ざった文(結果の答え・「前は」・問題文など)。LaTeX を文字のまま出さずに数式として描く。
+struct TimelineRichText: View {
+    let text: String
+    var size: CGFloat = 16
+    var weight: Typography.SansFontName = .medium
+    var color: Color = Theme.primaryText
+    /// 答えの欄: 計算機向けに書かれた式(`pi^2/8+1`・`1/3`)も数式に直して組む。
+    var plainMath = false
+
+    var body: some View {
+        let source = plainMath ? TimelineRichText.answerSource(text) : TimelineRichText.source(text)
+        if source.containsCatalogLaTeX {
+            KaTeXMathText(source, foregroundColor: UIColor(color), fontSize: size, fontWeight: weight == .bold ? 700 : 500)
+                .fixedSize(horizontal: false, vertical: true)
+                .allowsHitTesting(false)
+        } else {
+            Text(text).font(Typography.sans(size: size, weight: weight)).foregroundStyle(color).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// 数式区切りが無い LaTeX(`\frac{\pi}{2}+1` など、日本語を含まない式だけの文)は `$…$` で囲む。日本語の文の中の式は、
+    /// 単元ホームと同じ見分け方で区切る。
+    static func source(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.containsCatalogLaTeX else { return trimmed }
+        let japanese = trimmed.unicodeScalars.contains { (0x3040...0x30FF).contains($0.value) || (0x4E00...0x9FFF).contains($0.value) || (0xFF00...0xFFEF).contains($0.value) }
+        let latexLike = trimmed.contains("\\") || trimmed.contains("^") || trimmed.contains("_{")
+        if !japanese, latexLike { return "$" + trimmed + "$" }
+        if japanese, trimmed.contains("\\") {
+            // 日本語の中にある `\` から始まる式の塊を区切る。
+            return trimmed.replacingOccurrences(of: #"([A-Za-z0-9 ()+\-=^_{}.,\\]*\\[A-Za-z]+[A-Za-z0-9 ()+\-=^_{}.,\\]*)"#, with: "\\$$1\\$", options: .regularExpression)
+        }
+        return WorkbookMathSource.withInlineMath(trimmed)
+    }
+
+    /// 答えの欄の本文。式だけの答え(日本語を含まない)は、文字で書かれていても数式に直す(`pi` を斜体の p・i にしない)。
+    static func answerSource(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let latex = TimelinePlainMath.latex(trimmed) { return "$" + latex + "$" }
+        return source(trimmed)
+    }
+}
+
+/// 問いの文。前の問題から変えたところ(例: 範囲の a)は銅色の地にする。
+struct TimelineQuestionText: View {
+    let text: String
+    var changed: String?
+    var size: CGFloat = 20
+
+    var body: some View {
+        if text.containsCatalogLaTeX {
+            // 文の中の式(`$\sin\frac{5\pi}{2}$`)は数式として組む。変えたところの色は付けない(式の中の位置を文字では指せない)。
+            TimelineRichText(text: text, size: size, weight: .bold)
+                .accessibilityIdentifier("timeline-question")
+        } else {
+            Text(attributed)
+                .font(Typography.sans(size: size, weight: .bold))
+                .foregroundStyle(Theme.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("timeline-question")
+        }
+    }
+
+    private var attributed: AttributedString {
+        var value = AttributedString(text)
+        if let changed, !changed.isEmpty, let range = value.range(of: changed) {
+            value[range].backgroundColor = Theme.accentColor.opacity(0.22)
+        }
+        return value
+    }
+}
+
+/// 右下の縦並びのボタン(ラベルは残す)。
+struct TimelineActionButton: View {
+    let symbol: String
+    let label: String
+    var prominent = false
+    /// 押せない間は、大きいボタンを薄い銅色の地に銅色の印にする(iPad の「送る」は書くまで押せない)。
+    var isEnabled = true
+    /// 大きいボタンの直径(iPad の「送る」は 64pt)。
+    var diameter: CGFloat? = nil
+    var identifier: String
+    let action: () -> Void
+
+    var body: some View {
+        let size = diameter ?? (prominent ? 72 : 52)
+        let raised = prominent && isEnabled
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Image(systemName: symbol)
+                    .font(.system(size: prominent ? 26 : 20, weight: .semibold))
+                    .foregroundStyle(prominent ? (isEnabled ? Theme.onAccent : Theme.accentColor) : Theme.primaryText)
+                    .frame(width: size, height: size)
+                    .background(prominent ? AnyShapeStyle(isEnabled ? Theme.accentColor : Theme.accentColor.opacity(0.16)) : AnyShapeStyle(Theme.card), in: Circle())
+                    .overlay { if !prominent { Circle().stroke(Theme.hairline, lineWidth: 1) } }
+                    .shadow(color: .black.opacity(raised ? 0.18 : 0.06), radius: raised ? 10 : 4, y: 3)
+                Text(label).font(Typography.sans(size: 12, weight: .bold)).foregroundStyle(Theme.secondaryText)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(identifier)
+    }
+}
+
+/// 余白に指で書く(枠を置かない: 答えの形が分かってしまうため)。上の帯と下の帯の間を、画面の端から端まで覆う。
+/// 問題文の上にも書ける。下に置いたボタン(使う手順の「見る」など)の上だけは、指をボタンへ通す。
+/// 2本指でつまむと、指の間を中心に縮小・拡大できる。紙は最初に見せる1画面の上と左にも続いているので、どこでつまんでもその場で縮む。
+/// 右と下へは、書いた分だけ紙が伸びる。iPad では標準の道具パレット(ペン1本と消しゴムだけ)を出し、太さを選べる。
+struct TimelineInkCanvas: UIViewRepresentable {
+    @Binding var hasInk: Bool
+    @Binding var isDrawing: Bool
+    @Binding var isZoomed: Bool
+    let controller: TimelineInkController
+    /// 指を通す区画(このビューの座標)。
+    var passThrough: [CGRect] = []
+    /// 標準の道具パレットを出すか(iPad で書ける間だけ)。
+    var showsToolPicker: Bool = false
+
+    /// 書いた線の色と太さ(iPad は道具パレットで太さを変えられる。最初はこの太さ)。
+    static let inkColor: UIColor = UIColor(red: 0.08, green: 0.07, blue: 0.06, alpha: 1)
+    static let inkWidth: CGFloat = 3
+    /// 指が触れただけの点は、書いたものに数えない(pt)。
+    static let minimumStrokeExtent: CGFloat = 6
+    /// 縮小の下限と拡大の上限。紙の余白は、下限まで縮めても画面より小さくならない長さにしている(`TimelinePassThroughCanvas`)。
+    static let minimumZoom: CGFloat = 0.25
+    static let maximumZoom: CGFloat = 3
+
+    func makeUIView(context: Context) -> TimelinePassThroughCanvas {
+        let canvas: TimelinePassThroughCanvas = TimelinePassThroughCanvas()
+        canvas.drawingPolicy = .anyInput
+        canvas.backgroundColor = .clear
+        canvas.isOpaque = false
+        canvas.tool = PKInkingTool(.monoline, color: Self.inkColor, width: Self.inkWidth)
+        canvas.minimumZoomScale = Self.minimumZoom
+        canvas.maximumZoomScale = Self.maximumZoom
+        canvas.bouncesZoom = false
+        canvas.showsVerticalScrollIndicator = false
+        canvas.showsHorizontalScrollIndicator = false
+        canvas.contentInsetAdjustmentBehavior = .never
+        canvas.delegate = context.coordinator
+        canvas.accessibilityIdentifier = "timeline-ink"
+        controller.canvas = canvas
+        controller.viewport.update(canvas)
+        return canvas
+    }
+
+    func updateUIView(_ canvas: TimelinePassThroughCanvas, context: Context) {
+        canvas.passThrough = passThrough
+        // 出す・隠すが変わった時だけ触る。毎回呼ぶと、質問の欄で文字を打っている間に書く面が入力を奪い返す。
+        if context.coordinator.isToolPickerShown != showsToolPicker {
+            context.coordinator.isToolPickerShown = showsToolPicker
+            controller.setToolPickerVisible(showsToolPicker, for: canvas)
+        }
+    }
+
+    static func dismantleUIView(_ canvas: TimelinePassThroughCanvas, coordinator: Coordinator) {
+        coordinator.controller.detachToolPicker(from: canvas)
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isZoomed, controller: controller)
+    }
+
+    /// 指が触れただけの点(ごく短い線)を除いて、書いた線があるか。
+    static func hasMeaningfulInk(_ drawing: PKDrawing) -> Bool {
+        drawing.strokes.contains { stroke in
+            let points: [CGPoint] = stroke.path.map(\.location)
+            guard let first = points.first else { return false }
+            return points.contains { abs($0.x - first.x) >= minimumStrokeExtent || abs($0.y - first.y) >= minimumStrokeExtent }
+        }
+    }
+
+    final class Coordinator: NSObject, PKCanvasViewDelegate {
+        let hasInk: Binding<Bool>
+        let isDrawing: Binding<Bool>
+        let isZoomed: Binding<Bool>
+        let controller: TimelineInkController
+        /// 最後に道具パレットへ伝えた出す・隠す。
+        var isToolPickerShown: Bool = false
+
+        init(hasInk: Binding<Bool>, isDrawing: Binding<Bool>, isZoomed: Binding<Bool>, controller: TimelineInkController) {
+            self.hasInk = hasInk
+            self.isDrawing = isDrawing
+            self.isZoomed = isZoomed
+            self.controller = controller
+        }
+        func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
+            let value: Bool = TimelineInkCanvas.hasMeaningfulInk(canvasView.drawing)
+            if hasInk.wrappedValue != value { hasInk.wrappedValue = value }
+            // 右や下の端に近づいたら紙を伸ばす。
+            (canvasView as? TimelinePassThroughCanvas)?.growPaperIfNeeded()
+        }
+        func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) {
+            if !isDrawing.wrappedValue { isDrawing.wrappedValue = true }
+            // 質問の欄で文字を打った後などに道具パレットが隠れていたら、書き始めた時に戻す。
+            (canvasView as? TimelinePassThroughCanvas)?.restoreToolPickerFocus()
+        }
+        func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) {
+            if isDrawing.wrappedValue { isDrawing.wrappedValue = false }
+        }
+        func scrollViewDidScroll(_ scrollView: UIScrollView) {
+            (scrollView as? TimelinePassThroughCanvas)?.updateAccessibilityCenter()
+            controller.viewport.update(scrollView)
+        }
+        func scrollViewDidZoom(_ scrollView: UIScrollView) {
+            (scrollView as? TimelinePassThroughCanvas)?.updateAccessibilityCenter()
+            controller.viewport.update(scrollView)
+            let value: Bool = abs(scrollView.zoomScale - 1) > 0.01
+            if isZoomed.wrappedValue != value { isZoomed.wrappedValue = value }
+        }
+        func scrollViewWillBeginZooming(_ scrollView: UIScrollView, with view: UIView?) {
+            // 自分でつまんだら、欄を閉じた時にも倍率を戻さない。
+            (scrollView as? TimelinePassThroughCanvas)?.forgetAutoFit()
+        }
+        func scrollViewDidEndZooming(_ scrollView: UIScrollView, with view: UIView?, atScale scale: CGFloat) {
+            (scrollView as? TimelinePassThroughCanvas)?.fitPaper()
+        }
+    }
+}
+
+/// 書く面。紙の座標の `home` から1画面分を、等倍で最初に見せる。
+///
+/// 前は紙の左上をそのまま最初の1画面の左上にしていたので、紙は右と下にしか無かった。`UIScrollView` は表示位置を
+/// 紙の外(マイナス)にできないため、縮める時につまんだ点を指の下に留められず、左上へ吸い寄せられていた。
+/// 今は `home` の上と左にも、下限の倍率まで縮めても画面を埋める長さの紙を置く。送る画像は書いた線の範囲から作るので、紙の原点は関係ない。
+/// 書く面が狭くなった時(iPad で右に質問の欄を開いた時など)は、書いた線の全体が見える倍率まで縮め、広がったら戻す。
+final class TimelinePassThroughCanvas: PKCanvasView {
+    var passThrough: [CGRect] = []
+    /// 標準の道具パレットを出している間は、書く面を入力の中心(first responder)にする。
+    var wantsToolPicker: Bool = false {
+        didSet { if wantsToolPicker { becomeFirstResponderWhenPossible() } }
+    }
+    /// 等倍で最初に見せる1画面の左上(紙の座標)。
+    private(set) var home: CGPoint = .zero
+    /// `home` の上と左の紙の長さ。最初の大きさから1度だけ決める(後で変えると、書いた線と画面の位置がずれる)。
+    private var margin: CGFloat = 0
+    /// 紙の大きさ(紙の座標)。書いた分だけ伸び、縮めない(縮めると表示位置が押し戻されて跳ぶ)。
+    private var paper: CGSize = .zero
+    /// 今の書く面の大きさ。変わった時だけ紙を決め直す。
+    private var viewport: CGSize = .zero
+    /// 狭くなって自動で縮めている(広がったら等倍に戻す)。
+    private var isAutoFitted: Bool = false
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        // layoutSubviews はつまんでいる間も毎回呼ばれる。そこで大きさを入れ直すと指の間を中心に縮まないので、
+        // 紙は書く面の大きさが変わった時だけ決め直す。
+        guard bounds.width > 0, bounds.height > 0, bounds.size != viewport, !isZooming, !isZoomBouncing else { return }
+        let previous: CGSize = viewport
+        viewport = bounds.size
+        if margin == 0 {
+            // 下限(0.25倍)まで縮めても紙が画面より小さくならないよう、上と左に長い辺の2倍、右と下にも同じだけ取る(計4倍)。
+            margin = max(bounds.width, bounds.height) * 2
+            home = CGPoint(x: margin, y: margin)
+            paper = CGSize(width: margin * 2, height: margin * 2)
+            fitPaper()
+            contentOffset = CGPoint(x: home.x * zoomScale, y: home.y * zoomScale)
+        } else {
+            fitPaper()
+        }
+        updateAccessibilityCenter()
+        guard previous.width > 0 else { return }
+        // 倍率を変えると delegate から SwiftUI の状態(isZoomed)が変わるので、レイアウトが終わってから変える。
+        DispatchQueue.main.async { [weak self] in self?.keepInkVisible() }
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if wantsToolPicker { becomeFirstResponderWhenPossible() }
+    }
+
+    /// 書いた線の右端・下端の先に1画面分の紙が残るよう伸ばす。
+    func growPaperIfNeeded() {
+        guard margin > 0, !isZooming, !isZoomBouncing, !drawing.strokes.isEmpty else { return }
+        let extra: CGFloat = max(viewport.width, viewport.height)
+        let ink: CGRect = drawing.bounds
+        let width: CGFloat = max(paper.width, ink.maxX + extra)
+        let height: CGFloat = max(paper.height, ink.maxY + extra)
+        guard width > paper.width || height > paper.height else { return }
+        paper = CGSize(width: width, height: height)
+        fitPaper()
+    }
+
+    /// 紙を、今の倍率の大きさにする。
+    func fitPaper() {
+        guard margin > 0 else { return }
+        let scaled: CGSize = CGSize(width: paper.width * zoomScale, height: paper.height * zoomScale)
+        if abs(contentSize.width - scaled.width) > 0.5 || abs(contentSize.height - scaled.height) > 0.5 {
+            contentSize = scaled
+        }
+    }
+
+    /// 倍率を変え、`home` の1画面の左上を書く面の左上に合わせる(「元の大きさ」と自動で縮める時)。
+    func show(zoom: CGFloat) {
+        setZoomScale(zoom, animated: false)
+        fitPaper()
+        contentOffset = CGPoint(x: home.x * zoomScale, y: home.y * zoomScale)
+        updateAccessibilityCenter()
+    }
+
+    /// 書いた線が見える範囲からはみ出したら縮め、自動で縮めた後に広がったら等倍に戻す。自分でつまんだ倍率は変えない。
+    private func keepInkVisible() {
+        guard !isZooming, !isZoomBouncing, bounds.width > 0, bounds.height > 0 else { return }
+        let ink: CGRect = drawing.strokes.isEmpty ? CGRect.null : drawing.bounds
+        let edge: CGFloat = 32
+        let needed: CGFloat = ink.isNull ? 1 : min(1,
+                                                  bounds.width / max(1, ink.maxX - home.x + edge),
+                                                  bounds.height / max(1, ink.maxY - home.y + edge))
+        if isAutoFitted || abs(zoomScale - 1) <= 0.01 {
+            let target: CGFloat = max(minimumZoomScale, needed)
+            guard abs(target - zoomScale) > 0.01 else { return }
+            isAutoFitted = target < 1
+            show(zoom: target)
+        }
+    }
+
+    func forgetAutoFit() { isAutoFitted = false }
+
+    /// 道具パレットを出す間に入力の中心が他へ移っていたら(質問の欄で文字を打った等)、書き始めた時に戻す。
+    func restoreToolPickerFocus() {
+        if wantsToolPicker, !isFirstResponder { becomeFirstResponderWhenPossible() }
+    }
+
+    private func becomeFirstResponderWhenPossible() {
+        guard window != nil, !isFirstResponder else { return }
+        becomeFirstResponder()
+    }
+
+    /// 画面の真ん中に見えている紙の位置(紙の座標)。つまんだ所を中心に拡大・縮小するかを UI テストで確かめる。
+    func updateAccessibilityCenter() {
+        guard zoomScale > 0 else { return }
+        let x: CGFloat = (contentOffset.x + bounds.width / 2) / zoomScale
+        let y: CGFloat = (contentOffset.y + bounds.height / 2) / zoomScale
+        accessibilityValue = "\(Int(x.rounded())),\(Int(y.rounded()))"
+    }
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        // passThrough はこのビューの枠の座標。スクロールした分を引いて比べる。
+        let local: CGPoint = CGPoint(x: point.x - contentOffset.x, y: point.y - contentOffset.y)
+        if passThrough.contains(where: { $0.contains(local) }) { return nil }
+        return super.hitTest(point, with: event)
+    }
+}
+
+/// 指を通す区画(書く面の座標空間 `TimelineInkSpace.name` での枠)を集める。
+struct TimelineInkPassThroughKey: PreferenceKey {
+    static let defaultValue: [CGRect] = []
+    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) { value.append(contentsOf: nextValue()) }
+}
+
+enum TimelineInkSpace {
+    static let name = "timeline-ink-space"
+}
+
+extension View {
+    /// 書く面の上にあっても、このビューには指を通す(押せるボタン)。
+    func timelineInkPassThrough() -> some View {
+        background {
+            GeometryReader { proxy in
+                Color.clear.preference(key: TimelineInkPassThroughKey.self, value: [proxy.frame(in: .named(TimelineInkSpace.name))])
+            }
+        }
+    }
+}
+
+/// 書いた線の「1つ戻す」「全部消す」「元の大きさ」、iPad の道具パレット、送る画像づくり。
+@MainActor
+final class TimelineInkController {
+    weak var canvas: PKCanvasView?
+    /// 道具パレットにつないでいる書く面(問題ごとに作り直すので、つなぎ替える)。
+    private weak var observedCanvas: TimelinePassThroughCanvas?
+
+    /// iPad の標準の道具パレット。ペン1本(色は選ばせない)と消しゴムだけ。
+    /// 問題ごとに書く面を作り直しても選んだ太さと道具を引き継ぐよう、ここで1つだけ持ち、アプリを閉じても覚えておく。
+    private lazy var toolPicker: PKToolPicker = {
+        let pen: PKToolPickerInkingItem = PKToolPickerInkingItem(type: .monoline, color: TimelineInkCanvas.inkColor,
+                                                                 width: TimelineInkCanvas.inkWidth, identifier: "timeline-pen")
+        pen.allowsColorSelection = false
+        let eraser: PKToolPickerEraserItem = PKToolPickerEraserItem(type: .vector)
+        let picker: PKToolPicker = PKToolPicker(toolItems: [pen, eraser])
+        // 指でも書く(枠を置かず余白に書く作り)ので、「指で描画」の切り替えは出さない。
+        picker.showsDrawingPolicyControls = false
+        picker.stateAutosaveName = "timeline-ink-tools"
+        return picker
+    }()
+
+    func setToolPickerVisible(_ visible: Bool, for canvas: TimelinePassThroughCanvas) {
+        if observedCanvas !== canvas {
+            if let old = observedCanvas { detachToolPicker(from: old) }
+            toolPicker.addObserver(canvas)
+            observedCanvas = canvas
+            // 前の問題で選んだ道具(太さ・消しゴム)を、新しい書く面にも渡す。
+            if let pen = toolPicker.selectedToolItem as? PKToolPickerInkingItem {
+                canvas.tool = pen.inkingTool
+            } else if let eraser = toolPicker.selectedToolItem as? PKToolPickerEraserItem {
+                canvas.tool = eraser.eraserTool
+            }
+        }
+        toolPicker.setVisible(visible, forFirstResponder: canvas)
+        canvas.wantsToolPicker = visible
+        if !visible, canvas.isFirstResponder { canvas.resignFirstResponder() }
+    }
+
+    func detachToolPicker(from canvas: TimelinePassThroughCanvas) {
+        guard observedCanvas === canvas else { return }
+        toolPicker.setVisible(false, forFirstResponder: canvas)
+        toolPicker.removeObserver(canvas)
+        canvas.wantsToolPicker = false
+        if canvas.isFirstResponder { canvas.resignFirstResponder() }
+        observedCanvas = nil
+    }
+
+    /// 1つ戻す。消しゴムで消した分も戻せるよう、書く面の取り消し(PencilKit が書く・消すを積んでいる)を使う。
+    func undo() {
+        guard let canvas else { return }
+        if let manager = canvas.undoManager, manager.canUndo {
+            manager.undo()
+            return
+        }
+        var drawing: PKDrawing = canvas.drawing
+        guard !drawing.strokes.isEmpty else { return }
+        drawing.strokes.removeLast()
+        canvas.drawing = drawing
+    }
+
+    func clear() { canvas?.drawing = PKDrawing() }
+
+    func resetZoom() {
+        guard let canvas = canvas as? TimelinePassThroughCanvas else { return }
+        canvas.forgetAutoFit()
+        UIView.animate(withDuration: 0.25) { canvas.show(zoom: 1) }
+    }
+
+    /// 書く面の今の倍率と表示位置(赤ペンの層を生徒の線に合わせて動かす)。
+    let viewport: TimelineInkViewport = TimelineInkViewport()
+
+    /// 白地に書いた線(JPEG)。何も書いていなければ nil。
+    func image() -> Data? { answer()?.data }
+
+    /// 送る答案: 白地に書いた線(JPEG)と、その画像を作った紙の範囲・画像の大きさ・線(赤ペンを書く面に戻すため)。
+    /// ダークモードでは PencilKit が線を明るい色に反転して描くため、白地に重ねる画像はライトモードの色で描く。
+    func answer() -> TimelineInkAnswer? {
+        guard let canvas, TimelineInkCanvas.hasMeaningfulInk(canvas.drawing) else { return nil }
+        let drawing: PKDrawing = canvas.drawing
+        let bounds: CGRect = drawing.bounds.insetBy(dx: -24, dy: -24)
+        var ink: UIImage = UIImage()
+        UITraitCollection(userInterfaceStyle: .light).performAsCurrent {
+            ink = drawing.image(from: bounds, scale: 2)
+        }
+        let renderer: UIGraphicsImageRenderer = UIGraphicsImageRenderer(size: ink.size)
+        let composed: UIImage = renderer.image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: ink.size))
+            ink.draw(at: .zero)
+        }
+        guard let data = composed.jpegData(compressionQuality: 0.85), let pixels = composed.cgImage else { return nil }
+        let strokes: [[CGPoint]] = drawing.strokes.map { stroke in stroke.path.map { $0.location.applying(stroke.transform) } }
+        return TimelineInkAnswer(data: data, frame: TimelineRedPen.InkFrame(bounds: bounds, pixelWidth: pixels.width, pixelHeight: pixels.height), strokes: strokes)
+    }
+}
+
+/// 書く面の倍率と表示位置(`TimelinePassThroughCanvas` が動くたびに入れる)。
+@Observable
+@MainActor
+final class TimelineInkViewport {
+    var zoom: CGFloat = 1
+    var offset: CGPoint = .zero
+
+    func update(_ scrollView: UIScrollView) {
+        if abs(zoom - scrollView.zoomScale) > 0.0001 { zoom = scrollView.zoomScale }
+        if offset != scrollView.contentOffset { offset = scrollView.contentOffset }
+    }
+
+    /// 紙の座標 → 書く面のビューの座標。
+    func viewRect(_ paper: CGRect) -> CGRect {
+        CGRect(x: paper.minX * zoom - offset.x, y: paper.minY * zoom - offset.y, width: paper.width * zoom, height: paper.height * zoom)
+    }
+}
+
+/// 書く面から送った答案(端末のメモリにだけ持つ。結果の画面で赤ペンを生徒の線に重ねるため)。
+nonisolated struct TimelineInkAnswer: Sendable {
+    var data: Data
+    var frame: TimelineRedPen.InkFrame
+    /// 線ごとの点(紙の座標)。
+    var strokes: [[CGPoint]]
+}
+
+/// 赤ペンの位置の計算(2026-10-29)。モデルは依頼に付いた写真の上のピクセルで範囲を返す。アプリはそれを元の画像の
+/// ピクセル(`TimelineCaptureImage.originalRect`)→ 書く面の紙の座標に戻し、範囲に重なる生徒の線の外枠に寄せてから囲む
+/// (モデルの座標が多少ずれても、実際の字をきっちり囲むため)。
+nonisolated enum TimelineRedPen {
+    /// 送った画像を作った時の紙の範囲(`TimelineInkController.answer()` の `bounds`)と、画像のピクセルの大きさ。
+    struct InkFrame: Equatable, Sendable {
+        var bounds: CGRect
+        var pixelWidth: Int
+        var pixelHeight: Int
+    }
+
+    /// 書く面に置く 1 か所(紙の座標の範囲と訂正)。
+    struct Placed: Equatable, Sendable {
+        var rect: CGRect
+        var correction: String
+    }
+
+    /// 依頼に付いた写真のピクセルの範囲 → 紙の座標の範囲。画像と重ならなければ nil。
+    static func inkRect(region: CGRect, frame: InkFrame) -> CGRect? {
+        guard frame.bounds.width > 0, frame.bounds.height > 0,
+              let original = TimelineCaptureImage.originalRect(region: region, width: frame.pixelWidth, height: frame.pixelHeight) else { return nil }
+        let sx = CGFloat(frame.pixelWidth) / frame.bounds.width, sy = CGFloat(frame.pixelHeight) / frame.bounds.height
+        return CGRect(x: frame.bounds.minX + original.minX / sx, y: frame.bounds.minY + original.minY / sy,
+                      width: original.width / sx, height: original.height / sy)
+    }
+
+    /// 範囲に重なる生徒の線の外枠に寄せる。外枠の真ん中が範囲に入る線はその線全体を、そうでない線は範囲の中の点だけを数える。
+    /// 範囲に線が 1 本も無ければ nil(その印は出さない)。
+    static func snap(_ rect: CGRect, strokes: [[CGPoint]], tolerance: CGFloat = 4) -> CGRect? {
+        let area = rect.insetBy(dx: -tolerance, dy: -tolerance)
+        var union = CGRect.null
+        for points in strokes where !points.isEmpty {
+            let box = bounding(points)
+            if area.contains(CGPoint(x: box.midX, y: box.midY)) {
+                union = union.union(box)
+            } else {
+                let inside = points.filter(area.contains)
+                if !inside.isEmpty { union = union.union(bounding(inside)) }
+            }
+        }
+        return union.isNull ? nil : union
+    }
+
+    /// 答案の赤ペンを、書く面の紙の座標に置く(線に重ならない印は落とす)。
+    static func place(_ marks: [TimelineMachine.RedPenMark], answer: TimelineInkAnswer) -> [Placed] {
+        marks.compactMap { mark in
+            guard let rect = inkRect(region: mark.region, frame: answer.frame), let snapped = snap(rect, strokes: answer.strokes) else { return nil }
+            return Placed(rect: snapped, correction: mark.correction)
+        }
+    }
+
+    private static func bounding(_ points: [CGPoint]) -> CGRect {
+        let xs = points.map(\.x), ys = points.map(\.y)
+        return CGRect(x: xs.min()!, y: ys.min()!, width: xs.max()! - xs.min()!, height: ys.max()! - ys.min()!)
+    }
+
+    /// 手書き風の楕円(少し傾け、半径を揺らし、描き終わりを描き始めに少し重ねる)。
+    static func loop(around rect: CGRect, padding: CGFloat) -> Path {
+        let box = rect.insetBy(dx: -padding, dy: -padding * 0.8)
+        let cx = box.midX, cy = box.midY, rx = max(box.width / 2, 6), ry = max(box.height / 2, 6)
+        let tilt: CGFloat = -0.06
+        var path = Path()
+        let steps = 64
+        for step in 0...steps {
+            let t = -0.5 + (2 * .pi + 0.55) * CGFloat(step) / CGFloat(steps)
+            let wobble = 1 + 0.035 * sin(3 * t + 0.7) + 0.02 * CGFloat(step) / CGFloat(steps)
+            let x = rx * wobble * cos(t), y = ry * wobble * sin(t)
+            let point = CGPoint(x: cx + x * cos(tilt) - y * sin(tilt), y: cy + x * sin(tilt) + y * cos(tilt))
+            step == 0 ? path.move(to: point) : path.addLine(to: point)
+        }
+        return path
+    }
+}
+
+/// やり方の確認の図: 範囲が軸の左・またぐ・右で、最小になる点(●)が右端・頂点・左端に動く。
+struct TimelineRangeDiagram: View {
+    let position: String
+    let minAt: String
+
+    var body: some View {
+        Canvas { context, size in
+            let w = size.width, h = size.height
+            // 下に凸の放物線(頂点が下)。画面の y は下向きに増える。
+            func y(_ x: CGFloat) -> CGFloat { h * 0.85 - (h * 0.7) * pow((x - 0.5) * 2, 2) }
+            var parabola = Path()
+            for step in 0...40 {
+                let t = CGFloat(step) / 40
+                let point = CGPoint(x: t * w, y: y(t))
+                step == 0 ? parabola.move(to: point) : parabola.addLine(to: point)
+            }
+            context.stroke(parabola, with: .color(Theme.secondaryText), lineWidth: 1.5)
+            var axis = Path()
+            axis.move(to: CGPoint(x: w / 2, y: 0))
+            axis.addLine(to: CGPoint(x: w / 2, y: h))
+            context.stroke(axis, with: .color(Theme.hairline), lineWidth: 1)
+            let range: ClosedRange<CGFloat> = switch position {
+            case "left": 0.05...0.32
+            case "right": 0.68...0.95
+            default: 0.38...0.62
+            }
+            var band = Path()
+            for step in 0...20 {
+                let t = range.lowerBound + (range.upperBound - range.lowerBound) * CGFloat(step) / 20
+                let point = CGPoint(x: t * w, y: y(t))
+                step == 0 ? band.move(to: point) : band.addLine(to: point)
+            }
+            context.stroke(band, with: .color(Theme.accentColor), style: StrokeStyle(lineWidth: 5, lineCap: .round))
+            let x: CGFloat = switch minAt {
+            case "right_end": range.upperBound
+            case "left_end": range.lowerBound
+            default: 0.5
+            }
+            let dot = CGRect(x: x * w - 6, y: y(x) - 6, width: 12, height: 12)
+            context.fill(Path(ellipseIn: dot), with: .color(Theme.primaryText))
+        }
+        .frame(height: 96)
+        .accessibilityHidden(true)
+    }
+}
+
+/// 06 グラフと式を結ぶ: 式のグラフを小さく描く。
+struct TimelineFunctionPlot: View {
+    let expression: String
+    var highlighted = false
+    /// 組の3つのグラフで同じ範囲(無ければ前の版の −5〜5・−10〜10)。
+    var window: TimelineCards.PlotWindow?
+
+    var body: some View {
+        Canvas { context, size in
+            guard let f = try? TimelineExpression.parse(expression) else { return }
+            let name = f.variables.first ?? "x"
+            let window = self.window ?? TimelineCards.PlotWindow(x: -5...5, y: -10...10)
+            let xRange = window.x, yRange = window.y
+            let width = xRange.upperBound - xRange.lowerBound, height = yRange.upperBound - yRange.lowerBound
+            let xs = stride(from: xRange.lowerBound, through: xRange.upperBound, by: width / 100).map { $0 }
+            let points = xs.compactMap { x -> (Double, Double)? in f.evaluate([name: x]).map { (x, $0) } }
+            guard !points.isEmpty else { return }
+            func map(_ p: (Double, Double)) -> CGPoint {
+                CGPoint(x: (p.0 - xRange.lowerBound) / width * size.width,
+                        y: size.height - (min(max(p.1, yRange.lowerBound), yRange.upperBound) - yRange.lowerBound) / height * size.height)
+            }
+            var axes = Path()
+            if yRange.contains(0) { let y = map((xRange.lowerBound, 0)).y; axes.move(to: CGPoint(x: 0, y: y)); axes.addLine(to: CGPoint(x: size.width, y: y)) }
+            if xRange.contains(0) { let x = map((0, yRange.lowerBound)).x; axes.move(to: CGPoint(x: x, y: 0)); axes.addLine(to: CGPoint(x: x, y: size.height)) }
+            context.stroke(axes, with: .color(Theme.hairline), lineWidth: 1)
+            var path = Path()
+            for (index, point) in points.enumerated() { index == 0 ? path.move(to: map(point)) : path.addLine(to: map(point)) }
+            context.stroke(path, with: .color(highlighted ? Theme.accentColor : Theme.secondaryText), lineWidth: 2)
+        }
+        .frame(height: 80)
+        .accessibilityHidden(true)
+    }
+}
+
+/// 文字で書かれた式(`pi^2/8+1`・`-cos(5x)/5`・`(1/2){sin 8x + sin(-2x)}`)を LaTeX に直す。
+///
+/// 答え(`answer_key`)と生徒の答え(`learner_answer`)は、モデルが計算機向けの書き方で返すことがある。そのまま数式として
+/// 組むと `pi` が斜体の p・i になり(実機 2026-10-26)、文字のまま出すと `1/3` が分数に見えない。日本語を含む文や、
+/// 読めない記号を含む文は直さない(`nil`)。
+nonisolated enum TimelinePlainMath {
+    /// 直した LaTeX(区切りなし)。直すところが無い(`0`・`x` だけ)か、読めなければ nil。
+    static func latex(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.contains("\\"), !trimmed.contains("$") else { return nil }
+        guard let tokens = tokenize(trimmed) else { return nil }
+        var parser = Parser(tokens: tokens)
+        guard let piece = parser.parseList(), parser.atEnd else { return nil }
+        let latex = piece.latex
+        // 数字・文字・符号だけ(`0`・`-1`・`x`)は文字のままでよい。
+        guard latex.contains("\\") || latex.contains("^") || latex.contains("{") else { return nil }
+        return latex
+    }
+
+    // MARK: - 字句
+
+    enum Token: Equatable {
+        case number(String)
+        case word(String)
+        /// すでに LaTeX の命令になったもの(π → `\pi`)。
+        case symbol(String)
+        /// `+ - * / ^ = , < >` と `\le` などの関係。
+        case op(String)
+        case open(Character)
+        case close(Character)
+        /// 上付きの数字(`²`)。
+        case superscript(String)
+        case space
+    }
+
+    static let functions: [String] = [
+        "arcsin", "arccos", "arctan", "sinh", "cosh", "tanh", "sqrt", "sin", "cos", "tan", "cot", "sec", "csc", "log", "exp", "abs", "ln",
+    ]
+
+    private static let unicodeSymbols: [Character: Token] = [
+        "π": .symbol("\\pi"), "∞": .symbol("\\infty"), "θ": .symbol("\\theta"), "α": .symbol("\\alpha"), "β": .symbol("\\beta"),
+        "−": .op("-"), "–": .op("-"), "×": .op("*"), "·": .op("*"), "⋅": .op("*"), "÷": .op("/"),
+        "≤": .op("\\le"), "≦": .op("\\le"), "≥": .op("\\ge"), "≧": .op("\\ge"), "≠": .op("\\ne"), "±": .op("\\pm"),
+        "（": .open("("), "）": .close(")"), "，": .op(","), "、": .op(","), "　": .space,
+    ]
+
+    private static let superscripts: [Character: Character] = [
+        "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4", "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9", "⁻": "-",
+    ]
+
+    static func tokenize(_ text: String) -> [Token]? {
+        let chars = Array(text)
+        var tokens: [Token] = []
+        var index = 0
+        while index < chars.count {
+            let char = chars[index]
+            if char == " " || char == "\t" {
+                if tokens.last != .space { tokens.append(.space) }
+                index += 1
+            } else if char.isASCII, char.isNumber || char == "." {
+                var end = index
+                while end < chars.count, chars[end].isASCII, chars[end].isNumber || chars[end] == "." { end += 1 }
+                tokens.append(.number(String(chars[index..<end])))
+                index = end
+            } else if char.isASCII, char.isLetter {
+                var end = index
+                while end < chars.count, chars[end].isASCII, chars[end].isLetter { end += 1 }
+                tokens.append(contentsOf: words(String(chars[index..<end])))
+                index = end
+            } else if superscripts[char] != nil {
+                var end = index
+                var value = ""
+                while end < chars.count, let next = superscripts[chars[end]] { value.append(next); end += 1 }
+                tokens.append(.superscript(value))
+                index = end
+            } else if let token = unicodeSymbols[char] {
+                if token == .space { if tokens.last != .space { tokens.append(.space) } } else { tokens.append(token) }
+                index += 1
+            } else if "+-*/^=,<>".contains(char) {
+                // `<=`・`>=`・`!=` は関係の記号。
+                if index + 1 < chars.count, chars[index + 1] == "=", char == "<" || char == ">" {
+                    tokens.append(.op(char == "<" ? "\\le" : "\\ge"))
+                    index += 2
+                } else {
+                    tokens.append(.op(String(char)))
+                    index += 1
+                }
+            } else if char == "!", index + 1 < chars.count, chars[index + 1] == "=" {
+                tokens.append(.op("\\ne"))
+                index += 2
+            } else if "([{".contains(char) {
+                tokens.append(.open(char))
+                index += 1
+            } else if ")]}".contains(char) {
+                tokens.append(.close(char))
+                index += 1
+            } else {
+                // 日本語・読めない記号: 直さない。
+                return nil
+            }
+        }
+        return tokens
+    }
+
+    /// 英字の並びを、関数名・`pi`・ただの文字に分ける(`sinx` → sin と x、`2pi` の pi → π)。
+    private static func words(_ run: String) -> [Token] {
+        var tokens: [Token] = []
+        var rest = Substring(run)
+        while !rest.isEmpty {
+            if let name = functions.first(where: { rest.hasPrefix($0) }) {
+                tokens.append(.word(name))
+                rest = rest.dropFirst(name.count)
+            } else if rest.hasPrefix("pi") {
+                tokens.append(.symbol("\\pi"))
+                rest = rest.dropFirst(2)
+            } else if rest.hasPrefix("theta") {
+                tokens.append(.symbol("\\theta"))
+                rest = rest.dropFirst(5)
+            } else if rest.hasPrefix("inf") && rest.count == 3 {
+                tokens.append(.symbol("\\infty"))
+                rest = rest.dropFirst(3)
+            } else {
+                tokens.append(.word(String(rest.first!)))
+                rest = rest.dropFirst()
+            }
+        }
+        return tokens
+    }
+
+    // MARK: - 組み立て
+
+    struct Piece {
+        var latex: String
+        /// `( … )` で囲んだ式なら中身(分数の分子・分母、べきの指数では括弧を外す)。
+        var inner: String? = nil
+        var containsFraction: Bool { latex.contains("\\frac") }
+    }
+
+    struct Parser {
+        let tokens: [Token]
+        var index = 0
+
+        init(tokens: [Token]) { self.tokens = tokens }
+
+        var atEnd: Bool {
+            var probe = index
+            while probe < tokens.count, tokens[probe] == .space { probe += 1 }
+            return probe >= tokens.count
+        }
+
+        private mutating func skipSpaces() {
+            while index < tokens.count, tokens[index] == .space { index += 1 }
+        }
+
+        private func peek() -> Token? {
+            var probe = index
+            while probe < tokens.count, tokens[probe] == .space { probe += 1 }
+            return probe < tokens.count ? tokens[probe] : nil
+        }
+
+        /// `a, b` の並び。
+        mutating func parseList() -> Piece? {
+            guard var result = parseRelation() else { return nil }
+            while peek() == .op(",") {
+                skipSpaces()
+                index += 1
+                guard let next = parseRelation() else { return nil }
+                result = Piece(latex: result.latex + ",\\ " + next.latex)
+            }
+            return result
+        }
+
+        private mutating func parseRelation() -> Piece? {
+            guard var result = parseSum() else { return nil }
+            while case .op(let op)? = peek(), ["=", "<", ">", "\\le", "\\ge", "\\ne"].contains(op) {
+                skipSpaces()
+                index += 1
+                guard let next = parseSum() else { return nil }
+                result = Piece(latex: result.latex + " " + op + " " + next.latex)
+            }
+            return result
+        }
+
+        private mutating func parseSum() -> Piece? {
+            var latex = ""
+            if case .op(let sign)? = peek(), sign == "-" || sign == "+" || sign == "\\pm" {
+                skipSpaces()
+                index += 1
+                latex = sign == "\\pm" ? "\\pm " : sign
+            }
+            guard let first = parseTerm() else { return nil }
+            // 単項の符号が付かない 1 つだけの項は、括弧の中身を保つ(分数の分子などで外せるように)。
+            if latex.isEmpty, !isSumOperator(peek()) { return first }
+            latex += first.latex
+            while case .op(let op)? = peek(), op == "+" || op == "-" || op == "\\pm" {
+                skipSpaces()
+                index += 1
+                guard let next = parseTerm() else { return nil }
+                latex += (op == "\\pm" ? " \\pm " : op) + next.latex
+            }
+            return Piece(latex: latex)
+        }
+
+        private func isSumOperator(_ token: Token?) -> Bool {
+            guard case .op(let op)? = token else { return false }
+            return op == "+" || op == "-" || op == "\\pm"
+        }
+
+        /// 掛け算・割り算(書かれていない掛け算を含む)。`a/b` は分数にする。
+        private mutating func parseTerm() -> Piece? {
+            guard var result = parsePower() else { return nil }
+            while true {
+                let token = peek()
+                if token == .op("/") {
+                    skipSpaces()
+                    index += 1
+                    guard let denominator = parsePower() else { return nil }
+                    result = Piece(latex: "\\frac{" + (result.inner ?? result.latex) + "}{" + (denominator.inner ?? denominator.latex) + "}")
+                } else if token == .op("*") {
+                    skipSpaces()
+                    index += 1
+                    guard let next = parsePower() else { return nil }
+                    result = Piece(latex: Self.multiply(result.latex, next.latex))
+                } else if startsFactor(token) {
+                    guard let next = parsePower() else { return nil }
+                    // `(1/2)π` の括弧は分数だけなら外す。
+                    let left = result.inner.flatMap { Self.isSingleFraction($0) ? $0 : nil } ?? result.latex
+                    result = Piece(latex: Self.multiply(left, next.latex))
+                } else {
+                    return result
+                }
+            }
+        }
+
+        private func startsFactor(_ token: Token?) -> Bool {
+            switch token {
+            case .number?, .word?, .symbol?, .open?: true
+            default: false
+            }
+        }
+
+        static func multiply(_ left: String, _ right: String) -> String {
+            let leftDigit = left.last?.isNumber ?? false
+            let rightDigit = right.first?.isNumber ?? false
+            if leftDigit && rightDigit { return left + " \\cdot " + right }
+            return left + " " + right
+        }
+
+        static func isSingleFraction(_ latex: String) -> Bool {
+            guard latex.hasPrefix("\\frac{") else { return false }
+            // `\frac{…}{…}` だけで終わっているか(後ろに続きが無い)。
+            var depth = 0
+            var groups = 0
+            var index = latex.index(latex.startIndex, offsetBy: 5)
+            while index < latex.endIndex {
+                let char = latex[index]
+                if char == "{" { depth += 1 }
+                if char == "}" {
+                    depth -= 1
+                    if depth == 0 {
+                        groups += 1
+                        if groups == 2 { return latex.index(after: index) == latex.endIndex }
+                    }
+                }
+                index = latex.index(after: index)
+            }
+            return false
+        }
+
+        /// べき(`x^2`・`π²`・`e^(2x)`)と単項の符号。
+        private mutating func parsePower() -> Piece? {
+            if case .op(let sign)? = peek(), sign == "-" {
+                skipSpaces()
+                index += 1
+                guard let next = parsePower() else { return nil }
+                return Piece(latex: "-" + next.latex)
+            }
+            guard var base = parsePrimary() else { return nil }
+            while true {
+                // 指数は空白を挟まずに続く時だけ(`x ^2` も読むが、空白の後の数字は掛け算)。
+                if index < tokens.count, case .superscript(let value) = tokens[index] {
+                    index += 1
+                    base = Piece(latex: base.latex + "^{" + value + "}")
+                } else if peek() == .op("^") {
+                    skipSpaces()
+                    index += 1
+                    skipSpaces()
+                    var sign = ""
+                    if peek() == .op("-") { index += 1; sign = "-" }
+                    guard let exponent = parsePrimary() else { return nil }
+                    base = Piece(latex: base.latex + "^{" + sign + (exponent.inner ?? exponent.latex) + "}")
+                } else {
+                    return base
+                }
+            }
+        }
+
+        private mutating func parsePrimary() -> Piece? {
+            skipSpaces()
+            guard index < tokens.count else { return nil }
+            let token = tokens[index]
+            index += 1
+            switch token {
+            case .number(let value): return Piece(latex: value)
+            case .symbol(let value): return Piece(latex: value)
+            case .word(let name) where TimelinePlainMath.functions.contains(name): return parseFunction(name)
+            case .word(let name): return Piece(latex: name)
+            case .open(let char): return parseGroup(opening: char)
+            default: return nil
+            }
+        }
+
+        private mutating func parseGroup(opening: Character) -> Piece? {
+            let closing: Character = opening == "(" ? ")" : opening == "[" ? "]" : "}"
+            guard let inner = parseList() else { return nil }
+            skipSpaces()
+            guard index < tokens.count, tokens[index] == .close(closing) else { return nil }
+            index += 1
+            switch opening {
+            case "(":
+                let sized = inner.containsFraction
+                return Piece(latex: (sized ? "\\left(" : "(") + inner.latex + (sized ? "\\right)" : ")"), inner: inner.latex)
+            case "[":
+                return Piece(latex: (inner.containsFraction ? "\\left[" : "[") + inner.latex + (inner.containsFraction ? "\\right]" : "]"))
+            default:
+                return Piece(latex: (inner.containsFraction ? "\\left\\{" : "\\{") + inner.latex + (inner.containsFraction ? "\\right\\}" : "\\}"))
+            }
+        }
+
+        /// 関数(`sin 4x`・`cos(5x)`・`sin^2 x`・`sqrt(2)`・`abs(x)`)。括弧の無い引数は、次の演算子までの数字・文字・べき。
+        private mutating func parseFunction(_ name: String) -> Piece? {
+            var head = "\\" + name
+            if peek() == .op("^"), name != "sqrt", name != "abs" {
+                skipSpaces()
+                index += 1
+                guard let exponent = parsePrimary() else { return nil }
+                head += "^{" + (exponent.inner ?? exponent.latex) + "}"
+            }
+            if case .open("(")? = peek() {
+                skipSpaces()
+                index += 1
+                guard let group = parseGroup(opening: "("), let inner = group.inner else { return nil }
+                switch name {
+                case "sqrt": return Piece(latex: "\\sqrt{" + inner + "}")
+                case "abs": return Piece(latex: "\\left|" + inner + "\\right|")
+                default: return Piece(latex: head + group.latex)
+                }
+            }
+            // 括弧の無い引数: `4x`・`x`・`2π`(掛け算でつながる数字・文字・べき)。
+            guard var argument = parseArgumentFactor() else { return nil }
+            while index < tokens.count, startsArgument(tokens[index]) {
+                guard let next = parseArgumentFactor() else { return nil }
+                argument = Piece(latex: Self.multiply(argument.latex, next.latex))
+            }
+            switch name {
+            case "sqrt": return Piece(latex: "\\sqrt{" + argument.latex + "}")
+            case "abs": return Piece(latex: "\\left|" + argument.latex + "\\right|")
+            default: return Piece(latex: head + " " + argument.latex)
+            }
+        }
+
+        /// 引数の続き: 空白を挟まない数字・文字・π(`4x`)。
+        private func startsArgument(_ token: Token) -> Bool {
+            switch token {
+            case .number, .symbol: true
+            case .word(let name): !TimelinePlainMath.functions.contains(name)
+            default: false
+            }
+        }
+
+        private mutating func parseArgumentFactor() -> Piece? {
+            skipSpaces()
+            guard index < tokens.count else { return nil }
+            switch tokens[index] {
+            case .number(let value):
+                index += 1
+                return withScripts(Piece(latex: value))
+            case .symbol(let value):
+                index += 1
+                return withScripts(Piece(latex: value))
+            case .word(let name) where !TimelinePlainMath.functions.contains(name):
+                index += 1
+                return withScripts(Piece(latex: name))
+            case .op("-"):
+                index += 1
+                return parseArgumentFactor().map { Piece(latex: "-" + $0.latex) }
+            default:
+                return nil
+            }
+        }
+
+        private mutating func withScripts(_ base: Piece) -> Piece? {
+            var base = base
+            while index < tokens.count {
+                if case .superscript(let value) = tokens[index] {
+                    index += 1
+                    base = Piece(latex: base.latex + "^{" + value + "}")
+                } else if tokens[index] == .op("^") {
+                    index += 1
+                    guard let exponent = parsePrimary() else { return nil }
+                    base = Piece(latex: base.latex + "^{" + (exponent.inner ?? exponent.latex) + "}")
+                } else {
+                    break
+                }
+            }
+            return base
+        }
+    }
+}
+
+/// 書く面の上の赤ペンの層。紙の座標の印を、書く面の今の倍率と表示位置で描く(拡大・スクロールしても生徒の線と一緒に動く)。
+/// 生徒の線・取り消し・消しゴムには混ぜない別の層で、押せない。
+struct TimelineRedPenLayer: View {
+    let marks: [TimelineRedPen.Placed]
+    let viewport: TimelineInkViewport
+
+    var body: some View {
+        let zoom = viewport.zoom
+        ZStack(alignment: .topLeading) {
+            ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
+                let rect = viewport.viewRect(mark.rect)
+                TimelineRedPenMark(rect: rect, correction: mark.correction, scale: zoom, color: Theme.redPen)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("timeline-red-pen")
+    }
+}
+
+/// 赤ペンの 1 か所: 手書き風の楕円と、その下の短い訂正(式は数式として組む)。`rect` は描く面の座標。
+struct TimelineRedPenMark: View {
+    let rect: CGRect
+    let correction: String
+    var scale: CGFloat = 1
+    let color: Color
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            TimelineRedPen.loop(around: rect, padding: 6 * scale)
+                .stroke(color, style: StrokeStyle(lineWidth: max(1.5, 2.4 * scale), lineCap: .round, lineJoin: .round))
+            if !correction.isEmpty {
+                TimelineRichText(text: correction, size: min(28, max(11, 15 * scale)), weight: .bold, color: color)
+                    .frame(maxWidth: max(140, 260 * scale), alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .offset(x: max(0, rect.minX - 4 * scale), y: rect.maxY + 8 * scale)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("赤ペン: " + correction)
+    }
+}
+
+/// iPhone の結果の画面: 送った手書き(白地の画像)に赤ペンを重ねて出す(結果の画面では書く面を出さないため)。
+struct TimelineRedPenPaper: View {
+    let answer: TimelineInkAnswer
+    let marks: [TimelineRedPen.Placed]
+
+    var body: some View {
+        if let image = UIImage(data: answer.data) {
+            let bounds = answer.frame.bounds
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.hairline, lineWidth: 1))
+                .overlay(alignment: .topLeading) {
+                    GeometryReader { proxy in
+                        let scale = bounds.width > 0 ? proxy.size.width / bounds.width : 1
+                        ZStack(alignment: .topLeading) {
+                            ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
+                                let rect = CGRect(x: (mark.rect.minX - bounds.minX) * scale, y: (mark.rect.minY - bounds.minY) * scale,
+                                                  width: mark.rect.width * scale, height: mark.rect.height * scale)
+                                TimelineRedPenMark(rect: rect, correction: mark.correction, scale: max(0.6, scale), color: Theme.redPenOnPaper)
+                            }
+                        }
+                        .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+                    }
+                    .allowsHitTesting(false)
+                }
+                // 下の端の印の訂正が、次の行に重ならないように空ける。
+                .padding(.bottom, 32)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("timeline-red-pen")
+        }
+    }
+}
+
+/// 赤ペンのターンが走っている間の表示(モデルが今していることの見出しを添える)。
+struct TimelineMarkingStatus: View {
+    let attemptID: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small).tint(Theme.redPen)
+                Text("赤ペンを入れています").font(Typography.sans(size: 13, weight: .bold)).foregroundStyle(Theme.redPen)
+            }
+            TurnLiveLine(keys: [TurnActivityKey.marks(attemptID)], font: Typography.micro)
+                .frame(maxWidth: 240, alignment: .leading)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(Theme.card.opacity(0.94), in: RoundedRectangle(cornerRadius: 14))
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("timeline-marking")
+    }
+}

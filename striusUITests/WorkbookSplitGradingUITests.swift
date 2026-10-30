@@ -14,7 +14,7 @@ class WorkbookSplitGradingUITestCase: XCTestCase {
 
     @MainActor
     fileprivate func launch() -> XCUIApplication {
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments += ["-skip-onboarding"]
         // 演習の一枚を開いた状態から始める(類題に合格して演習を作るまでは台帳に本物の規則で入れる。
         // その準備が正しいことは単体テスト WorkbookPracticeFixtureTests が確かめる)。

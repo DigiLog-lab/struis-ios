@@ -10,19 +10,25 @@ struct WorkbookQuestionScreen: View {
     @Environment(LearnerData.self) private var learnerData
     @Environment(AuthStore.self) private var auth
     let context: WorkbookQuestionContext
+    /// シートで出さない時(iPad のタイムラインの右に開く欄)の閉じ方。無ければシートを閉じる。
+    var onClose: (() -> Void)? = nil
 
     var body: some View {
         NavigationStack {
             ChatView(
                 workbookContext: context.viewRef == nil && context.purpose == .question ? nil : context,
                 embedded: false,
-                onClose: { dismiss() },
+                onClose: { close() },
                 threadBootstrap: unitCreationBootstrap,
                 onProposalStarted: { started in openFirstSubunit(started) }
             )
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+    }
+
+    private func close() {
+        if let onClose { onClose() } else { dismiss() }
     }
 
     /// 単元づくりの時だけ、学習者が打つ前にモデルのターンを起こす。
@@ -83,7 +89,7 @@ struct WorkbookQuestionScreen: View {
             let unit = await store.loadUnit(id: unitID)
             // 待っている間に学習者がこの画面を閉じた(か別の質問を開いた)なら、画面を移さない。単元はホームに出ている。
             guard origin != nil, coordinator.question == origin else { return }
-            dismiss()
+            close()
             coordinator.question = nil
             if let first = unit?.subunits.first(where: { $0.status == .active }) ?? unit?.subunits.first {
                 coordinator.path = [.subunit(first.id)]

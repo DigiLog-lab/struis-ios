@@ -76,7 +76,10 @@ struct WorkbookHomeView: View {
     @Environment(WorkbookStore.self) private var store
     @Environment(WorkbookCoordinator.self) private var coordinator
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.horizontalSizeClass) private var sizeClass
     let onOpenSettings: () -> Void
+    /// タイムラインの上に重ねている時、左上の「タイムライン」で閉じて戻る(Issue #46)。中身は変えない。
+    var onCloseTimeline: (() -> Void)? = nil
     @State private var deletionTarget: WorkbookUnitDTO?
 
     private func remove(_ id: String) {
@@ -106,13 +109,33 @@ struct WorkbookHomeView: View {
                 .navigationTitle("単元")
                 .navigationBarTitleDisplayMode(.large)
                 .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            onOpenSettings()
-                        } label: {
-                            Label("設定", systemImage: "gearshape")
+                    if let onCloseTimeline {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button(action: onCloseTimeline) {
+                                Label("タイムライン", systemImage: "chevron.down")
+                                    .labelStyle(.titleAndIcon)
+                                    .font(Typography.bodyEmphasized)
+                                    .fixedSize()
+                            }
+                            .accessibilityIdentifier("workbook-close-timeline")
                         }
-                        .accessibilityIdentifier("workbook-open-settings")
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                onOpenSettings()
+                            } label: {
+                                Label("設定", systemImage: "gearshape")
+                            }
+                            .accessibilityIdentifier("workbook-open-settings")
+                        }
+                    } else {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button {
+                                onOpenSettings()
+                            } label: {
+                                Label("設定", systemImage: "gearshape")
+                            }
+                            .accessibilityIdentifier("workbook-open-settings")
+                        }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         WorkbookQuestionPill { coordinator.ask() }
@@ -227,6 +250,17 @@ struct WorkbookHomeView: View {
                 }
                 if !store.hasAnyUnit, store.recentCaptures.isEmpty, store.uploadingCaptures.isEmpty {
                     createUnitHero
+                } else if TimelineLayout.isPad(sizeClass) {
+                    // iPad(横幅が広い時): 左の列に いま・最近、右の列に すべて(中身は変えない)。
+                    HStack(alignment: .top, spacing: 0) {
+                        VStack(alignment: .leading, spacing: 28) {
+                            nowSection
+                            recentSection
+                        }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        unitsSection
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                    }
                 } else {
                     nowSection
                     recentSection

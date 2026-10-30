@@ -755,6 +755,24 @@ nonisolated struct WorkbookMachine {
         return recorded
     }
 
+    /// 学習タイムラインの解答を、その小単元の演習の 1 問として数える(Issue #46「タイムラインの結果を、単元ホームの合格に数える」)。
+    /// 数えるのは段3以上・その問題の初回・ヒントなしの解答だけ(呼ぶ側が決める)。問題は `source: "timeline"` で綴じ、
+    /// 演習と同じ「直近 n 問で8割」の判定に入れる。合格したら true。
+    @discardableResult
+    mutating func recordTimelineAttempt(subunitID: String, prompt: String, answerKey: String, checkpoints: [String], verdict: String, attemptID: String) -> Bool {
+        guard let subunit = subunits[subunitID], subunit.status != "passed" else { return false }
+        guard let problemID = addProblems(subunitID: subunitID, problems: [ProblemSpec(prompt: prompt, answerKey: answerKey, checkpoints: checkpoints)], source: "timeline").first else { return false }
+        let recordedVerdict = Self.verdictScore[verdict] == nil ? "unknown" : verdict
+        put("attempt.recorded", WorkbookAttemptRecord(
+            id: newID(), subunitId: subunitID, problemId: problemID, captureId: attemptID, setId: nil,
+            sequence: (attemptsOf(subunitID: subunitID).map(\.sequence).max() ?? 0) + 1, verdict: recordedVerdict,
+            score: Self.verdictScore[recordedVerdict] ?? 0, assisted: false, errorTag: "", note: "timeline", createdAt: now()
+        ))
+        guard subunit.status == "active", passWindow(subunitID: subunitID).passed, let current = subunits[subunitID] else { return false }
+        _ = passSubunit(current)
+        return true
+    }
+
     nonisolated struct GradingOutcome: Sendable {
         var stageBefore: Int
         var stageAfter: Int

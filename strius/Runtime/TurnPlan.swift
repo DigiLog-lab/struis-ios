@@ -12,6 +12,13 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
         case threadFork = "thread_fork"
         case threadInject = "thread_inject"
         case lunaLookup = "luna_lookup"
+        /// 学習タイムライン(Issue #46): 次の5枚、採点、知識グラフを作る・見直す。
+        case timelineBatch = "timeline_batch"
+        case timelineGrading = "timeline_grading"
+        case timelineGraph = "timeline_graph"
+        case timelineReview = "timeline_review"
+        /// 誤答の結果の画面で、書く面に書いた答案に赤ペンを入れる(2026-10-29)。
+        case timelineMarks = "timeline_marks"
     }
 
     nonisolated struct AssetRef: Codable, Hashable, Sendable {
@@ -62,9 +69,12 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
         var path: String
         /// Host file to copy from.
         var hostPath: String
+        /// 長い辺の上限。あれば、それを超える画像だけ縮めた JPEG にして置く(タイムラインの答案の写真)。
+        var maxDimension: Int? = nil
         enum CodingKeys: String, CodingKey {
             case path
             case hostPath = "host_path"
+            case maxDimension = "max_dimension"
         }
     }
 
@@ -242,8 +252,11 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
 
     var json: LedgerJSON { LedgerEvent.encode(self) }
 
+    /// 台帳の行から戻す。`LedgerEvent.decode` は使わない: その `convertFromSnakeCase` は台帳の `turn_timeout_s` を
+    /// `turnTimeoutS` に直してから探すので、snake_case で書いた `CodingKeys` と合わず、どの plan も戻せなかった
+    /// (起動時の `resumeUnfinished` が黙って飛ばし、前のプロセスで返らなかった採点が「採点中」のまま残った)。
     static func from(_ json: LedgerJSON) throws -> TurnPlan {
-        try LedgerEvent.decode(TurnPlan.self, from: json)
+        try JSONDecoder().decode(TurnPlan.self, from: JSONEncoder().encode(json))
     }
 }
 
@@ -335,9 +348,12 @@ protocol TurnRunning: Sendable {
     /// ゲストと app-server を先に起こしておく(待ち時間の体験 §3.3: 学習者が答えている間に起動を進める)。
     func warmUp() async
     func forgetThreads(_ ids: Set<String>) async throws
+    /// 時間切れのターンを置いて先へ進んだ後、接続を作り直させる(返らない接続を次のターンが使わない)。
+    func resetConnection() async
 }
 
 extension TurnRunning {
     func warmUp() async {}
     func forgetThreads(_ ids: Set<String>) async throws {}
+    func resetConnection() async {}
 }

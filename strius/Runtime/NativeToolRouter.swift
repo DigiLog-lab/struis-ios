@@ -45,6 +45,16 @@ actor NativeToolRouter {
             DocumentTool.definition,
         ]]]
     }
+    /// ターンの種類ごとの native tool。タイムラインのターンだけ、台帳に問い合わせる `timeline_query`・台帳に書く tool・
+    /// 答案の写真を元の解像度で見る `timeline_view_capture` を足す
+    /// (採点・出題・見直しで同じ定義にして、キャッシュの先頭を揃える)。
+    nonisolated static func definitions(for kind: TurnPlan.Kind) -> [JSONObject] {
+        guard TimelineTurns.isTimeline(kind) else { return definitions }
+        var namespace = definitions[0]
+        namespace["tools"] = (namespace["tools"] as? [JSONObject] ?? []) + [TimelineGraph.toolDefinition] + TimelineGraph.writeToolDefinitions + [TimelineCaptureImage.toolDefinition]
+        return [namespace]
+    }
+
     func register(threadID: String, planID: String, cwd: String, delegate: (@Sendable (JSONObject) async throws -> JSONObject)?) -> UUID {
         let registration = UUID()
         contexts[threadID] = Context(registration: registration, planID: planID, cwd: cwd, delegate: delegate)
@@ -99,6 +109,24 @@ actor NativeToolRouter {
             guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw CodexAppServerError.interrupted }
             result = ["output": reply.output, "exit_code": reply.exitCode, "cwd": resolved.path, "truncated": reply.truncated]
             execution = ["threadId": threadID, "turnId": turnID, "item": ["type": "commandExecution", "id": params["callId"] ?? UUID().uuidString, "command": command, "cwd": resolved.path, "exitCode": reply.exitCode, "durationMs": Int(Date().timeIntervalSince(start) * 1000), "aggregatedOutput": reply.output, "truncated": reply.truncated, "status": "completed"]]
+        } else if name == "timeline_query" {
+            // 学習者の知識グラフと解答の台帳(ホスト側。前提は WITH RECURSIVE でたどり、結果だけを文にして返す)。
+            let text = await TimelineQueryHost.handle(arguments)
+            guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw CodexAppServerError.interrupted }
+            return (["success": true, "contentItems": [["type": "inputText", "text": text]]], nil)
+        } else if TimelineQueryHost.writeToolNames.contains(name) {
+            // 見直しなどが台帳に書く(確かめの 1 問・問い・判定の取り消し・お知らせ)。
+            let reply = await TimelineQueryHost.handleWrite(name: name, arguments: arguments)
+            guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw CodexAppServerError.interrupted }
+            return (["success": reply.success, "contentItems": [["type": "inputText", "text": reply.text]]], nil)
+        } else if name == TimelineCaptureImage.toolName {
+            // 答案の写真を元の解像度で見る(依頼に付けたのは縮めた写し)。見せた画像は captures に残し、実行記録に載せる。
+            let reply = await TimelineQueryHost.viewCapture(arguments)
+            guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw CodexAppServerError.interrupted }
+            let execution: JSONObject? = reply.record.map { record in
+                ["threadId": threadID, "turnId": turnID, "item": record.merging(["type": "captureView", "id": params["callId"] ?? UUID().uuidString]) { _, new in new }]
+            }
+            return (["success": reply.success, "contentItems": reply.items], execution)
         } else if name == DocumentTool.name {
             // 添付の PDF・画像を読む(ホスト側。主スレッドの外で、一度に 1 つ)。
             let reply = await DocumentTool.handle(arguments, root: context.cwd)

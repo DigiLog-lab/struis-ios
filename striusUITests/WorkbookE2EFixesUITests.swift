@@ -14,7 +14,7 @@ class WorkbookE2EUITestCase: XCTestCase {
 
     @MainActor
     fileprivate func launch(_ arguments: [String], environment: [String: String] = [:]) -> XCUIApplication {
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments += arguments
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment.merge(environment) { $1 }

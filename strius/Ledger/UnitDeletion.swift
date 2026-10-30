@@ -92,6 +92,9 @@ nonisolated enum UnitDeletion {
         try add(WorkbookProposalRecord.self); try add(ThreadRecord.self); try add(MessageRecord.self)
         try add(ProgressRevisionRecord.self); try add(TurnRecord.self); try add(CodexThreadRecord.self)
         try add(ThreadBranchRecord.self); try add(BranchForkAttemptRecord.self)
+        try add(TimelineSkillRecord.self); try add(TimelineSkillEdgeRecord.self); try add(TimelineMapChangeRecord.self)
+        try add(TimelineBatchRecord.self); try add(TimelineCardRecord.self); try add(TimelineAttemptRecord.self)
+        try add(TimelineDipRecord.self); try add(TimelineLogRecord.self)
         return result
     }
     static func scope(db: Database, unitID: String) throws -> Scope {
@@ -122,6 +125,22 @@ nonisolated enum UnitDeletion {
             changed = before != scope.all
         }
         for e in snapshots where e.entity == .workbookProposals && e.payload["unit_id"]?.stringValue == unitID { scope.add(e.entity, e.entityID) }
+        // タイムライン: その単元の「できること」と線、その小単元に数えるカードとその解答。
+        // 小単元の目標の点は unit_id に小単元の ID を持つ。
+        for e in snapshots where e.entity == .timelineSkills {
+            if let owner = e.payload["unit_id"]?.stringValue, owner == unitID || scope.contains(.workbookSubunits, owner) { scope.add(e.entity, e.entityID) }
+        }
+        for e in snapshots where e.entity == .timelineSkillEdges {
+            if [e.payload["skill_id"]?.stringValue, e.payload["requires_skill_id"]?.stringValue].contains(where: { $0.map { scope.contains(.timelineSkills, $0) } == true }) { scope.add(e.entity, e.entityID) }
+        }
+        for e in snapshots where e.entity == .timelineCards {
+            if e.payload["subunit_id"]?.stringValue.map({ scope.contains(.workbookSubunits, $0) }) == true || e.payload["unit_id"]?.stringValue == unitID { scope.add(e.entity, e.entityID) }
+        }
+        for e in snapshots where e.entity == .timelineAttempts && e.payload["card_id"]?.stringValue.map({ scope.contains(.timelineCards, $0) }) == true { scope.add(e.entity, e.entityID) }
+        // 今日の記録: その単元の一覧と、その解答の文。
+        for e in snapshots where e.entity == .timelineLog {
+            if e.payload["unit_id"]?.stringValue == unitID || e.payload["attempt_id"]?.stringValue.map({ scope.contains(.timelineAttempts, $0) }) == true { scope.add(e.entity, e.entityID) }
+        }
         for e in snapshots where [.messages, .codexThreads, .branchForkAttempts].contains(e.entity) {
             let thread = e.payload["thread_id"]?.stringValue ?? e.payload["stem_thread_id"]?.stringValue
             if thread.map({ scope.contains(.threads, $0) }) == true { scope.add(e.entity, e.entityID) }
@@ -205,6 +224,20 @@ nonisolated enum UnitDeletion {
                             guard file.path.hasPrefix(root.standardizedFileURL.path + "/captures/") else { throw LedgerError.invalid("答案の保存先が不正です") }
                             files.append(file.path)
                         }
+                    }
+                }
+                // タイムラインの答案の写真と、モデルに見せた部分(`timeline_views/<答案>-*.jpg`)も消す (Issue #57)。
+                if event.entity == .timelineAttempts {
+                    let captures = root.appendingPathComponent("captures").standardizedFileURL
+                    if let path = event.payload["capture_path"]?.stringValue, !path.isEmpty,
+                       !snapshots.contains(where: { $0.entity == .timelineAttempts && !scope.contains($0.entity, $0.entityID) && $0.payload["capture_path"]?.stringValue == path }) {
+                        let file = captures.appendingPathComponent(path).standardizedFileURL
+                        guard file.path.hasPrefix(captures.path + "/") else { throw LedgerError.invalid("答案の保存先が不正です") }
+                        files.append(file.path)
+                    }
+                    let views = captures.appendingPathComponent(TimelineCaptureImage.viewDirectory, isDirectory: true)
+                    for url in (try? FileManager.default.contentsOfDirectory(at: views, includingPropertiesForKeys: nil)) ?? [] where url.lastPathComponent.hasPrefix(event.entityID + "-") {
+                        files.append(url.standardizedFileURL.path)
                     }
                 }
             } else if !references(event.payload).isDisjoint(with: ids) || affectedKeys.contains(event.entity.rawValue + ":" + event.entityID) {

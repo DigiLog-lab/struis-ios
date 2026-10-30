@@ -68,6 +68,14 @@ nonisolated struct LedgerEvent: Codable, Hashable, Sendable {
         case .codexAccount: try Self.decode(CodexAccountRecord.self, from: payload).save(db)
         case .threadBranches: try Self.decode(ThreadBranchRecord.self, from: payload).save(db)
         case .branchForkAttempts: try Self.decode(BranchForkAttemptRecord.self, from: payload).save(db)
+        case .timelineSkills: try Self.decode(TimelineSkillRecord.self, from: payload).save(db)
+        case .timelineSkillEdges: try Self.decode(TimelineSkillEdgeRecord.self, from: payload).save(db)
+        case .timelineMapChanges: try Self.decode(TimelineMapChangeRecord.self, from: payload).save(db)
+        case .timelineBatches: try Self.decode(TimelineBatchRecord.self, from: payload).save(db)
+        case .timelineCards: try Self.decode(TimelineCardRecord.self, from: payload).save(db)
+        case .timelineAttempts: try Self.decode(TimelineAttemptRecord.self, from: payload).save(db)
+        case .timelineDips: try Self.decode(TimelineDipRecord.self, from: payload).save(db)
+        case .timelineLog: try Self.decode(TimelineLogRecord.self, from: payload).save(db)
         }
     }
 
@@ -93,7 +101,18 @@ nonisolated struct StoredLedgerEvent: Codable, FetchableRecord, PersistableRecor
     var entityId: String
     var payload: String
     var createdAt: String
+    /// CloudKit へ送り終えた印。外から来たイベントは届いた時点で送り終えている。
     var syncedSeq: Int64?
+    /// The device that wrote the event and its sequence there (Issue #51). Filled from `device_id`
+    /// and `seq` on insert for local events; kept as received for events from another device.
+    var originDeviceId: String?
+    var originSeq: Int64?
+
+    /// CloudKit の `LedgerEvent` レコード名 `<origin_device_id>.<origin_seq>`。
+    var recordName: String? {
+        guard let originDeviceId, let originSeq else { return nil }
+        return "\(originDeviceId).\(originSeq)"
+    }
 
     var event: LedgerEvent? {
         guard let entity = LedgerEntity(rawValue: entity), let payload = LedgerJSON.parse(payload) else { return nil }
@@ -109,6 +128,19 @@ nonisolated struct StoredLedgerEvent: Codable, FetchableRecord, PersistableRecor
         self.payload = event.payload.canonicalText
         self.createdAt = createdAt
         self.syncedSeq = syncedSeq
+    }
+
+    init(remote: SyncEventRecord) {
+        self.seq = nil
+        self.deviceId = remote.originDeviceID
+        self.kind = remote.kind
+        self.entity = remote.entity
+        self.entityId = remote.entityID
+        self.payload = remote.payload
+        self.createdAt = remote.createdAt
+        self.syncedSeq = remote.originSeq
+        self.originDeviceId = remote.originDeviceID
+        self.originSeq = remote.originSeq
     }
 
     mutating func didInsert(_ inserted: InsertionSuccess) {

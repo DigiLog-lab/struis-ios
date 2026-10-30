@@ -10,7 +10,7 @@ final class LearningProgressUITests: XCTestCase {
             throw XCTSkip("実バックエンドURL・検証用認証・対象返信IDが必要です")
         }
         continueAfterFailure = false
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments = ["-skip-onboarding", "-reset-auth"]
         app.launchEnvironment["STRUIS_IOS_USE_FIXTURES"] = "0"
         app.launchEnvironment["STRUIS_API_BASE_URL"] = baseURL

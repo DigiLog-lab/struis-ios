@@ -61,12 +61,19 @@ actor AssetCache {
     nonisolated let root: URL
     /// DEBUG: placeholders instead of errors when nothing was delivered (mock turns).
     nonisolated let lenient: Bool
+    /// アプリに同梱した prompt・schema(配信の manifest に無い時に使う)。
+    nonisolated let bundled: BundledAssets
     private var manifest: DeliveryManifest?
     private var memory: [String: String] = [:]
+    /// 設定で選んだタイムラインの Claude のモデル(`TimelineModelPreference`)。テストでは差し替える。
+    nonisolated let timelineClaudeModel: @Sendable () -> String
 
-    init(root: URL = StruisPaths.assets, lenient: Bool = false) {
+    init(root: URL = StruisPaths.assets, lenient: Bool = false, bundled: BundledAssets = .main,
+         timelineClaudeModel: @escaping @Sendable () -> String = { TimelineModelPreference.current }) {
         self.root = root
         self.lenient = lenient
+        self.bundled = bundled
+        self.timelineClaudeModel = timelineClaudeModel
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         if let data = try? Data(contentsOf: root.appendingPathComponent("manifest.json")) {
             manifest = try? Self.decoder.decode(DeliveryManifest.self, from: data)
@@ -93,8 +100,16 @@ actor AssetCache {
         return hasAllRequiredAssets(manifest)
     }
 
-    /// 役割(`astra` / `luna`)のモデル。`provider` を省くと設定画面で選んだ実行先を使う。
+    /// 役割(`astra` / `luna` / `timeline` / `timeline_graph`)のモデル。`provider` を省くと設定画面で選んだ実行先を使う。
     func model(_ role: String, provider: ModelProvider = ModelProviderPreference.current) -> DeliveryManifest.Model {
+        if let fallback = TimelineModels.fallback(role: role, provider: provider) {
+            // タイムラインは別名で指す(配信の manifest に別名があればそれ、無ければ同梱の既定)。
+            var model = manifest?.models[provider.manifestKey(role: role)] ?? fallback
+            model.provider = provider == .anthropic ? .anthropic : nil
+            // 出題・採点・見直しの Claude は、設定で選んだモデルを manifest より優先する(考える深さは `TimelineTurns.tutorEffort`)。
+            if role == TimelineModels.role, provider == .anthropic { model.model = timelineClaudeModel() }
+            return model
+        }
         switch provider {
         case .openai:
             if var model = manifest?.models[role] {
@@ -113,9 +128,10 @@ actor AssetCache {
         }
     }
 
-    /// Reference for a plan: the current sha256 of a named asset.
+    /// Reference for a plan: the current sha256 of a named asset. 配信に無い名前は同梱版を使う(sha256 は同梱ファイルから計算)。
     func ref(_ name: String, append: String? = nil) throws -> TurnPlan.AssetRef {
         guard let entry = manifest?.assets[name] else {
+            if let bundled = bundled.data(name) { return TurnPlan.AssetRef(asset: name, sha256: Self.sha256Hex(bundled), append: append) }
             if lenient { return TurnPlan.AssetRef(asset: name, sha256: "unavailable", append: append) }
             throw DeliveryError.notCached(name)
         }
@@ -125,6 +141,11 @@ actor AssetCache {
     func text(_ name: String) throws -> String {
         if let cached = memory[name] { return cached }
         guard let entry = manifest?.assets[name] else {
+            // 配信の manifest に無ければ同梱版。サーバーへ移す時は同じファイルを配信に載せれば、配信版が優先される。
+            if let bundled = bundled.data(name), let text = String(data: bundled, encoding: .utf8) {
+                memory[name] = text
+                return text
+            }
             if lenient { return "" }
             throw DeliveryError.notCached(name)
         }
@@ -198,6 +219,67 @@ actor AssetCache {
 
     nonisolated static func sha256Hex(_ data: Data) -> String {
         SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+/// アプリに同梱した prompt・schema・Skill(Issue #46)。配信と同じ名前(`prompt:` / `schema:` / `skill:`)で引く。
+/// 同梱分は `DeliveryManifest.assetNames`(必須の一覧)に入れない: 入れるとサーバーが対応するまで `refresh` が
+/// `manifestMissing` で失敗し、配信の更新が全部止まる。
+nonisolated struct BundledAssets: Sendable {
+    /// 同梱ファイルの置き場(アプリの `Prompts/`)。
+    let root: URL?
+
+    static let main = BundledAssets(root: Bundle.main.url(forResource: "Prompts", withExtension: nil))
+
+    /// 名前と同梱ファイルの対応表。
+    static let files: [String: String] = [
+        "prompt:timeline_shared": "timeline_shared.md",
+        "prompt:timeline_instructions": "timeline_instructions.md",
+        "prompt:timeline_grading_instructions": "timeline_grading_instructions.md",
+        "prompt:timeline_graph_instructions": "timeline_graph_instructions.md",
+        "prompt:timeline_decompose_instructions": "timeline_decompose_instructions.md",
+        "prompt:timeline_misconceptions_instructions": "timeline_misconceptions_instructions.md",
+        "prompt:timeline_review_instructions": "timeline_review_instructions.md",
+        "prompt:timeline_marks_instructions": "timeline_marks_instructions.md",
+        "schema:timeline_batch": "timeline_batch.json",
+        "schema:timeline_grading": "timeline_grading.json",
+        "schema:timeline_graph": "timeline_graph.json",
+        "schema:timeline_decompose": "timeline_decompose.json",
+        "schema:timeline_misconceptions": "timeline_misconceptions.json",
+        "schema:timeline_review": "timeline_review.json",
+        "schema:timeline_marks": "timeline_marks.json",
+        "skill:timeline_query": "skills/timeline-query/SKILL.md",
+    ]
+
+    static var names: [String] { files.keys.sorted() }
+
+    func url(_ name: String) -> URL? {
+        guard let root, let relative = Self.files[name] else { return nil }
+        return root.appendingPathComponent(relative)
+    }
+
+    func data(_ name: String) -> Data? {
+        url(name).flatMap { try? Data(contentsOf: $0) }
+    }
+}
+
+/// タイムラインのモデルの別名(Issue #46)。配信の manifest に別名(`timeline` / `claude:timeline` など)があればそちら。
+/// 実行先が OpenAI の時は astra の別名ではなく GPT-6.1 Sol を使う(2026-10-23 の指示)。
+nonisolated enum TimelineModels {
+    /// 次の5枚と採点。
+    static let role = "timeline"
+    /// 知識グラフを作る・見直す上位モデル。
+    static let graphRole = "timeline_graph"
+    static let openAIModel = "gpt-6.1-sol"
+
+    static func fallback(role: String, provider: ModelProvider) -> DeliveryManifest.Model? {
+        switch (role, provider) {
+        case (Self.role, .anthropic): DeliveryManifest.Model(model: "claude-sonnet-5-5", effort: "low")
+        case (Self.graphRole, .anthropic): DeliveryManifest.Model(model: "claude-opus-5-5", effort: "medium")
+        case (Self.role, .openai): DeliveryManifest.Model(model: openAIModel, effort: "low")
+        case (Self.graphRole, .openai): DeliveryManifest.Model(model: openAIModel, effort: "medium")
+        default: nil
+        }
     }
 }
 

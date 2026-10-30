@@ -11,7 +11,7 @@ final class ChatScrollStabilityUITests: XCTestCase {
 
     @MainActor
     private func launchLongChat(environment: [String: String] = [:]) -> XCUIApplication {
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments += ["-skip-onboarding", "-workbook-long-chat", "-workbook-model-stage", "-katex-fresh"]
         app.launchEnvironment.merge(environment) { $1 }
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
@@ -239,7 +239,7 @@ final class ChatScrollStabilityUITests: XCTestCase {
     /// その見た目が変わる(中身が横に動く)ものがあることを確かめる。
     @MainActor
     func testOverflowingDisplayMathStillScrollsSideways() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.struisUnits()
         app.launchArguments += ["-skip-onboarding", "-screens-fixture", "-workbook-model-stage", "-katex-fresh"]
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"

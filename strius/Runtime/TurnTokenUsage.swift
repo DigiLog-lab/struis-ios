@@ -128,3 +128,62 @@ nonisolated struct TokenUsageSummary: Equatable, Sendable {
         return TokenUsageSummary(models: byModel.values.sorted { $0.inputTokens + $0.outputTokens > $1.inputTokens + $1.outputTokens })
     }
 }
+
+/// 設定の「タイムラインの 1 問あたり」: 出題・採点・見直し・赤ペンの Claude の料金を、応答で実際に使われたモデルごとに足し、
+/// そのモデルで採点した答案の数で割る(設定でタイムラインのモデルを切り替えた時に、Sonnet と Haiku を比べるため)。
+nonisolated struct TimelineCostSummary: Equatable, Sendable {
+    nonisolated struct Model: Equatable, Sendable, Identifiable {
+        var model: String
+        /// このモデルで採点し終えた答案の数。
+        var answers = 0
+        var estimatedCostUSD: Double = 0
+        /// 料金を出せなかった要求がある(合計は少なめに出ている)。
+        var costIncomplete = false
+        var id: String { model }
+        var perAnswerUSD: Double? { answers > 0 ? estimatedCostUSD / Double(answers) : nil }
+    }
+
+    nonisolated struct Turn: Sendable {
+        var kind: String
+        var targetID: String?
+        var status: String
+        var executions: LedgerJSON
+    }
+
+    var models: [Model]
+
+    static func summarize(_ turns: [Turn]) -> TimelineCostSummary {
+        var byModel: [String: Model] = [:]
+        var answered: [String: Set<String>] = [:]
+        for turn in turns where ClaudeTranslation.tutorKinds.contains(turn.kind) {
+            // 同じ実行は進行中・完了の順に記録される。実行ごとに最後の記録だけを数える。
+            var latest: [String: LedgerJSON] = [:]
+            var order: [String] = []
+            for (index, execution) in (turn.executions.arrayValue ?? []).enumerated() {
+                let id = execution["execution_id"]?.stringValue ?? "#\(index)"
+                if latest[id] == nil { order.append(id) }
+                latest[id] = execution
+            }
+            var turnModel: String?
+            for execution in order.compactMap({ latest[$0] }) {
+                for request in execution["requests"]?.arrayValue ?? [] {
+                    let name = request["actual_model"]?.stringValue ?? request["requested_model"]?.stringValue ?? "unknown"
+                    var model = byModel[name] ?? Model(model: name)
+                    if case .number(let cost)? = request["estimated_cost_usd"] {
+                        model.estimatedCostUSD += cost
+                    } else if request["cost_status"]?.stringValue != "not_billed" {
+                        model.costIncomplete = true
+                    }
+                    byModel[name] = model
+                }
+                if let name = execution["actual_model"]?.stringValue ?? execution["requested_model"]?.stringValue { turnModel = name }
+            }
+            if turn.kind == TurnPlan.Kind.timelineGrading.rawValue, turn.status == "completed", let target = turn.targetID, let name = turnModel {
+                answered[name, default: []].insert(target)
+                if byModel[name] == nil { byModel[name] = Model(model: name) }
+            }
+        }
+        for (name, targets) in answered { byModel[name]?.answers = targets.count }
+        return TimelineCostSummary(models: byModel.values.sorted { $0.model < $1.model })
+    }
+}

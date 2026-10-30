@@ -100,6 +100,16 @@ struct SettingsView: View {
             }
             divider
             SettingsHomeRow(
+                icon: "icloud",
+                title: "iCloud 同期",
+                detail: learnerData.iCloud.statusText,
+                value: learnerData.iCloud.isEnabled && learnerData.iCloud.isSupported ? "オン" : "オフ"
+            ) {
+                ICloudSyncSettingsDetail()
+            }
+            .accessibilityIdentifier("settings-row-icloud")
+            divider
+            SettingsHomeRow(
                 icon: "externaldrive",
                 title: "詳細設定",
                 detail: "端末データ",
@@ -238,6 +248,21 @@ private struct ModelProviderSettingsDetail: View {
                 }
                 .settingsCard()
 
+                if settings.modelProvider == .anthropic {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("タイムラインのモデル")
+                            .font(Typography.heading2)
+                        Text("タイムラインの出題・採点・見直しに使います。次の依頼から切り替わり、今日の記録・正誤・難しさはそのまま引き継ぎます。知識グラフは \(ClaudeModels.displayName(TimelineModels.fallback(role: TimelineModels.graphRole, provider: .anthropic)?.model ?? "")) のままです。")
+                            .font(Typography.bodyCompact)
+                            .foregroundStyle(Theme.textSecondary(scheme))
+                    }
+                    VStack(spacing: 0) {
+                        TimelineModelSegmented(selection: $settings.timelineClaudeModel)
+                            .padding(16)
+                    }
+                    .settingsCard()
+                }
+
                 if settings.modelProvider == .anthropic, !settings.claudeAvailable {
                     Text(ModelProviderError.claudeUnavailable.localizedDescription)
                         .font(Typography.caption)
@@ -281,6 +306,34 @@ private struct ProviderSegmented: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("settings-model-\(provider.rawValue)")
                 .accessibilityAddTraits(selection == provider ? .isSelected : [])
+            }
+        }
+        .padding(4)
+        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: Capsule())
+    }
+}
+
+/// タイムラインの Claude のモデル(Sonnet 5.5 / Haiku 5.5)。
+private struct TimelineModelSegmented: View {
+    @Binding var selection: String
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(TimelineModelPreference.choices, id: \.self) { model in
+                Button {
+                    selection = model
+                } label: {
+                    Text(ClaudeModels.displayName(model))
+                        .font(Typography.bodyEmphasized)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .foregroundStyle(selection == model ? Color(uiColor: .systemBackground) : Theme.textSecondary(scheme))
+                        .background(selection == model ? Theme.textPrimary(scheme) : Color.clear, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings-timeline-model-\(model)")
+                .accessibilityAddTraits(selection == model ? .isSelected : [])
             }
         }
         .padding(4)
@@ -604,6 +657,81 @@ private struct DisplaySettingsDetail: View {
     }
 }
 
+/// iCloud 同期 (Issue #51)。同じ Apple ID の端末どうしで、学習記録と画像・記憶を利用者の iCloud だけで同期する。
+private struct ICloudSyncSettingsDetail: View {
+    @Environment(LearnerData.self) private var learnerData
+    @Environment(\.colorScheme) private var scheme
+    @State private var isConfirmingUploadAgain = false
+
+    var body: some View {
+        let sync = learnerData.iCloud
+        SettingsDetailScaffold(eyebrow: "ICLOUD", title: "iCloud 同期") {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("同じ Apple ID の端末と同期")
+                        .font(Typography.heading2)
+                    Text("単元・問題・採点・会話・進み具合と、答案の写真・添付・記憶を、あなたの iCloud だけに保存します。中身は暗号化され、開発者は読めません")
+                        .font(Typography.bodyCompact)
+                        .foregroundStyle(Theme.textSecondary(scheme))
+                }
+                VStack(spacing: 0) {
+                    Toggle(isOn: Binding(get: { sync.isEnabled }, set: { sync.setEnabled($0) })) {
+                        Text("iCloud 同期")
+                            .font(Typography.bodyEmphasized)
+                    }
+                    .disabled(!sync.isSupported)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .accessibilityIdentifier("settings-icloud-toggle")
+                    SettingsDivider()
+                    SettingsInfoRow(title: "状態", detail: sync.statusText)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("settings-icloud-status")
+                    SettingsDivider()
+                    SettingsInfoRow(title: "未送信", detail: "\(sync.counts.unsent) 件")
+                        .accessibilityElement(children: .combine)
+                    SettingsDivider()
+                    SettingsInfoRow(title: "保留中", detail: sync.counts.pending == 0 ? "0 件" : "\(sync.counts.pending) 件(アプリを更新すると取り込みます)")
+                        .accessibilityElement(children: .combine)
+                    if let message = sync.message {
+                        SettingsDivider()
+                        Text(message)
+                            .font(Typography.caption)
+                            .foregroundStyle(Theme.textSecondary(scheme))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .accessibilityIdentifier("settings-icloud-message")
+                    }
+                }
+                .settingsCard()
+                VStack(spacing: 0) {
+                    SettingsActionRow(
+                        title: "iCloud のデータを消して、この端末の内容で上げ直す",
+                        detail: "ほかの端末の記録は、次に開いた時にこの内容で置き換わります(置き換える前の記録は、その端末に1つ残ります)",
+                        actionTitle: sync.isUploadingAgain ? "処理中" : "上げ直す",
+                        destructive: true,
+                        disabled: !sync.isSupported || !sync.isEnabled || sync.isUploadingAgain
+                    ) {
+                        isConfirmingUploadAgain = true
+                    }
+                    .accessibilityIdentifier("settings-icloud-upload-again")
+                }
+                .settingsCard()
+            }
+        }
+        .task { await sync.refreshCounts() }
+        .confirmationDialog("iCloud のデータを上げ直しますか？", isPresented: $isConfirmingUploadAgain, titleVisibility: .visible) {
+            Button("消して上げ直す", role: .destructive) {
+                Task { await sync.uploadAgain() }
+            }
+            Button("やめる", role: .cancel) {}
+        } message: {
+            Text("iCloud にある記録を消して、この端末の記録と画像・記憶を上げ直します。ほかの端末の記録は、この内容に置き換わります")
+        }
+    }
+}
+
 private struct AdvancedSettingsDetail: View {
     @Environment(SettingsStore.self) private var settings
     @Environment(\.colorScheme) private var scheme
@@ -628,7 +756,7 @@ private struct AdvancedSettingsDetail: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("学習記録")
                         .font(Typography.heading2)
-                    Text("記録はこの端末だけにあります。書き出したファイルで別の端末に移せます")
+                    Text("iCloud 同期のほかに、書き出したファイルでも別の端末に移せます")
                         .font(Typography.bodyCompact)
                         .foregroundStyle(Theme.textSecondary(scheme))
                 }
@@ -689,8 +817,19 @@ private struct AdvancedSettingsDetail: View {
                 SettingsInfoRow(title: "Claude の概算料金", detail: String(format: "約 $%.2f", cost))
                     .accessibilityIdentifier("settings-token-usage-cost")
             }
+            ForEach(settings.monthlyTimelineCost?.models.filter { $0.answers > 0 } ?? []) { usage in
+                SettingsDivider()
+                SettingsInfoRow(title: "タイムライン 1問あたり(\(ClaudeModels.displayName(usage.model)))", detail: Self.timelineCostDetail(usage))
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("settings-timeline-cost-\(usage.model)")
+            }
         }
         .settingsCard()
+    }
+
+    private static func timelineCostDetail(_ usage: TimelineCostSummary.Model) -> String {
+        let per = usage.perAnswerUSD.map { String(format: usage.costIncomplete ? "約 $%.3f 以上" : "約 $%.3f", $0) } ?? "-"
+        return "\(per) / \(usage.answers) 問(出題・採点・見直しの合計 約 $\(String(format: "%.2f", usage.estimatedCostUSD)))"
     }
 
     private static func tokenDetail(_ usage: TokenUsageSummary.Model) -> String {

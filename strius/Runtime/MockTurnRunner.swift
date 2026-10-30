@@ -60,12 +60,17 @@ actor MockTurnRunner: TurnRunning {
             }
         case .lunaLookup: text = Self.json(["findings": [], "missing_information": [], "uncertainties": [], "failure_reasons": []])
         case .threadFork, .threadInject: text = ""
+        case .timelineBatch: text = Self.json(Self.timelineBatch(request, round: counter))
+        case .timelineGrading: text = Self.json(Self.timelineGrading(request))
+        case .timelineGraph: text = Self.json(Self.timelineGraph(request))
+        case .timelineReview: text = Self.json(["skill_results": [], "notes": ""])
+        case .timelineMarks: text = Self.json(Self.timelineMarks(request))
         }
         let threadID = plan.thread.codexThreadID ?? "thr_mock_\(UUID().uuidString.prefix(16).lowercased())"
         return TurnOutcome(
             planID: plan.id, round: plan.round, status: .completed, codexThreadID: threadID,
             codexTurnID: "turn_mock_\(counter)", finalText: text,
-            executions: [.object(["execution_id": .string(UUID().uuidString), "task_type": .string(plan.kind.rawValue), "status": .string("completed"), "requested_model": .string(plan.thread.model), "billing_source": .string("byo_chatgpt")])],
+            executions: [.object(Self.execution(plan: plan, request: request))],
             rateLimits: nil, files: [], error: nil, elapsedMs: 250
         )
     }
@@ -105,7 +110,10 @@ actor MockTurnRunner: TurnRunning {
     // MARK: - Canned answers
 
     nonisolated private static func request(from text: String) -> JSONObject {
-        guard let data = text.data(using: .utf8), let value = try? JSONSerialization.jsonObject(with: data) as? JSONObject else { return [:] }
+        // タイムラインの発話は「今回の仕事」の後ろに「# 今回の材料」と JSON を置く。
+        let body = text.range(of: "# 今回の材料").map { String(text[$0.upperBound...]) } ?? text
+        guard let data = body.trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8),
+              let value = try? JSONSerialization.jsonObject(with: data) as? JSONObject else { return [:] }
         return value
     }
 
@@ -256,6 +264,135 @@ actor MockTurnRunner: TurnRunning {
         if let viewEnd = body.range(of: "</struis_current_view>\n") { body = String(body[viewEnd.upperBound...]) }
         return body.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    // MARK: - 学習タイムライン(Issue #46)
+
+    /// 固定の知識グラフ(数学I・二次関数の最大と最小)。
+    nonisolated static let timelineSkillIDs = ["quad.expand", "quad.vertex_form", "quad.axis_vs_range", "quad.case_split", "quad.min_moving_range"]
+
+    nonisolated static func timelineGraph(_ request: JSONObject) -> JSONObject {
+        let task = request["task"] as? String ?? "build"
+        if task == "decompose" { return timelineDecomposition(request) }
+        if task == "misconceptions" {
+            let nodes = (request["nodes"] as? [JSONObject] ?? []).compactMap { $0["id"] as? String }
+            return ["items": nodes.prefix(1).map { ["node_id": $0, "misconceptions": ["範囲の端だけを比べて、頂点を見落とす"]] }, "notes": ""]
+        }
+        if task == "review" {
+            return ["nodes": [], "edges": [], "ops": [], "start_node_id": NSNull(), "notes": "見直し: 変更なし"]
+        }
+        let existing = Set((request["existing_nodes"] as? [JSONObject] ?? []).compactMap { $0["id"] as? String })
+        let unitID = (request["unit"] as? JSONObject)?["id"] as? String
+        let nodes: [JSONObject] = [
+            ["id": "quad.expand", "name": "展開", "kind": "procedure", "unit_id": unitID ?? NSNull()],
+            ["id": "quad.vertex_form", "name": "平方完成", "kind": "procedure", "unit_id": unitID ?? NSNull()],
+            ["id": "quad.axis_vs_range", "name": "軸と範囲の位置", "kind": "concept", "unit_id": unitID ?? NSNull()],
+            ["id": "quad.case_split", "name": "場合分け", "kind": "procedure", "unit_id": unitID ?? NSNull()],
+            ["id": "quad.min_moving_range", "name": "範囲が動くときの最小値", "kind": "combination", "unit_id": unitID ?? NSNull()],
+        ].filter { !existing.contains($0["id"] as! String) }
+        let edges: [JSONObject] = [
+            ["from": "quad.expand", "to": "quad.vertex_form", "relation": "prerequisite", "note": ""],
+            ["from": "quad.vertex_form", "to": "quad.min_moving_range", "relation": "prerequisite", "note": ""],
+            ["from": "quad.axis_vs_range", "to": "quad.min_moving_range", "relation": "prerequisite", "note": ""],
+            ["from": "quad.case_split", "to": "quad.min_moving_range", "relation": "prerequisite", "note": ""],
+            ["from": "quad.axis_vs_range", "to": "quad.axis_vs_range", "relation": "misconception", "note": "範囲の端だけを比べて頂点を見落とす"],
+        ].filter { edge in nodes.contains { node in node["id"] as? String == (edge["to"] as? String) } }
+        return ["nodes": nodes, "edges": edges, "ops": [], "start_node_id": nodes.isEmpty ? NSNull() : "quad.vertex_form", "notes": "固定のグラフ"]
+    }
+
+    /// 1段ずつ分解する(固定の答え)。一番上の点は二次関数の最大最小に、その下は前に習う内容として置くだけにする。
+    nonisolated static func timelineDecomposition(_ request: JSONObject) -> JSONObject {
+        let nodes = (request["nodes"] as? [JSONObject] ?? []).compactMap { $0["id"] as? String }
+        let descend = request["mode"] as? String == "descend"
+        let items: [JSONObject] = nodes.map { id in
+            let uses: [JSONObject]
+            if descend {
+                uses = [["id": "\(id).basis", "name": "基礎の計算", "kind": "procedure", "in_unit": false]]
+            } else if id.hasPrefix("goal.") {
+                uses = [["id": "quad.vertex_form", "name": "平方完成", "kind": "procedure", "in_unit": true],
+                        ["id": "quad.axis_vs_range", "name": "軸と範囲の位置", "kind": "concept", "in_unit": true]]
+            } else if id == "quad.vertex_form" {
+                uses = [["id": "quad.expand", "name": "展開", "kind": "procedure", "in_unit": false]]
+            } else {
+                uses = [["id": "quad.graph_axis", "name": "グラフの軸と頂点", "kind": "concept", "in_unit": false]]
+            }
+            return ["node_id": id, "problem": "y = 2x^2 - 8x + 3(0 ≤ x ≤ 3)の最小値", "steps": [["text": "平方完成して軸を出す", "uses": uses]]]
+        }
+        return ["items": items, "notes": ""]
+    }
+
+    nonisolated static func timelineBatch(_ request: JSONObject, round: Int) -> JSONObject {
+        let allowed = Set(request["allowed_skill_ids"] as? [String] ?? [])
+        let ids = timelineSkillIDs.filter { allowed.isEmpty || allowed.contains($0) }
+        func skills(_ wanted: [String]) -> [String] { wanted.filter { ids.contains($0) } }
+        let k = round % 4 + 2
+        let steps = ["y = 2x^2 - 8x + 3", "= 2(x^2 - 4x) + 3", "= 2(x - 2)^2 - 5", "軸は x = 2", "最小値 -5(x = 2)"]
+        let mistakes: [JSONObject] = [["step": 3, "wrong": "= 2(x - 2)^2 + 5"], ["step": 4, "wrong": "軸は x = -2"]]
+        func card(_ kind: String, level: Int, skillIDs: [String], prompt: String, math: String, question: String, answer: String, answerExpr: String,
+                  checks: [JSONObject], chain: Any, easier: Any, howto: Any = NSNull(), facts: JSONObject = ["answer_value": -5, "vertex": [2, -5], "axis": 2], seconds: Int = 60,
+                  reason: Any = NSNull()) -> JSONObject {
+            ["kind": kind, "level": level, "skills": skills(skillIDs), "type_name": "二次関数の最大最小", "prompt": prompt, "math": math, "question": question,
+             "answer_key": answer, "answer_expr": answerExpr, "checks": checks, "checkpoints": ["平方完成 y = 2(x - 2)^2 - 5", "軸 x = 2 は範囲の中", "最小値 -5(x = 2)"],
+             "common_mistakes": ["範囲の端だけを比べて、頂点を見落とす"], "steps": steps, "mistake_steps": mistakes, "estimated_seconds": seconds,
+             "chain": chain, "easier": easier, "subunit_id": NSNull(), "facts": facts, "compare": NSNull(), "reason": reason, "howto": howto, "diagnostic": NSNull(),
+             "reveal": (chain as? JSONObject)?["position"] as? Int == 3 ? "入試でよく出る形です。" : ""]
+        }
+        let easier: JSONObject = ["level": 1, "prompt": "次の放物線の最小値を求めなさい。", "math": "y = 2(x - 2)^2 - 5", "question": "最小値は？", "answer_key": "-5(x = 2)", "answer_expr": "-5", "checkpoints": ["最小値 -5"]]
+        let howto: JSONObject = ["skill": "場合分け", "note": "軸が範囲のどこにあるかで、最小になる点が変わる", "diagram": [
+            "kind": "range_vs_axis", "cases": [
+                ["label": "a + 1 < 2", "position": "left", "min_at": "right_end"],
+                ["label": "a ≤ 2 ≤ a + 1", "position": "straddle", "min_at": "vertex"],
+                ["label": "2 < a", "position": "right", "min_at": "left_end"],
+            ]]]
+        let reason: JSONObject = ["question": "なぜ x = 0 で最大？", "options": ["軸から遠い端だから", "範囲の左端だから", "y 切片だから"], "answer_index": 0]
+        let cards: [JSONObject] = [
+            card("solve", level: 2, skillIDs: ["quad.vertex_form", "quad.axis_vs_range"], prompt: "次の関数の最大値と最小値を求めなさい。", math: "y = 2x^2 - 8x + 3 \\quad (0 \\le x \\le \(k + 1))",
+                 question: "最大値と最小値は？", answer: "最小値 -5(x = 2)", answerExpr: "-5", checks: [["left": "2*x^2-8*x+3", "right": "2*(x-2)^2-5"]],
+                 chain: ["position": 1, "total": 3, "changed": NSNull(), "previous": NSNull()], easier: easier, seconds: 120, reason: reason),
+            card("solve", level: 3, skillIDs: ["quad.vertex_form", "quad.axis_vs_range"], prompt: "", math: "y = 2x^2 - 8x + 3",
+                 question: "0 ≤ x ≤ a（a > 0）のとき、最小値は？", answer: "0 < a < 2 のとき 2a^2 - 8a + 3、2 ≤ a のとき -5", answerExpr: "",
+                 checks: [["left": "2*2^2-8*2+3", "right": "-5"]], chain: ["position": 2, "total": 3, "changed": "a", "previous": "0 ≤ x ≤ \(k + 1)"], easier: easier, seconds: 180),
+            card("sort", level: 2, skillIDs: ["quad.axis_vs_range"], prompt: "", math: "", question: "", answer: "", answerExpr: "", checks: [],
+                 chain: NSNull(), easier: NSNull(), seconds: 20),
+            card("solve", level: 4, skillIDs: ["quad.vertex_form", "quad.axis_vs_range", "quad.case_split"], prompt: "", math: "y = 2x^2 - 8x + 3",
+                 question: "a ≤ x ≤ a + 1 のとき、最小値は？（a の式で）", answer: "a < 1 のとき 2a^2 - 4a - 3、1 ≤ a ≤ 2 のとき -5、2 < a のとき 2a^2 - 8a + 3", answerExpr: "",
+                 checks: [["left": "2*(1+1)^2-8*(1+1)+3", "right": "-5"]], chain: ["position": 3, "total": 3, "changed": "a ≤ x ≤ a + 1", "previous": "0 ≤ x ≤ a"],
+                 easier: easier, howto: howto, seconds: 300),
+            card("order", level: 2, skillIDs: ["quad.vertex_form"], prompt: "y = 2x^2 - 8x + 3 の最小値", math: "", question: "", answer: "", answerExpr: "", checks: [],
+                 chain: NSNull(), easier: NSNull(), seconds: 30),
+        ]
+        let rapid: [JSONObject] = (0..<3).map { i in
+            let h = i + 1, v = (i + 2) * (i % 2 == 0 ? 1 : -1)
+            return ["skill": ids.contains("quad.vertex_form") ? "quad.vertex_form" : "", "prompt": "頂点は？", "math": "y = 2(x - \(h))^2 + \(v)", "answer_key": "(\(h), \(v))", "answer_expr": "(\(h), \(v))"]
+        }
+        return ["reason": "平方完成が定着しているので、範囲つきの最大最小を続きで上げる", "cards": cards, "rapid": rapid, "wanted_prerequisites": [], "graph_ops": []]
+    }
+
+    /// 実行記録。赤ペンは答案を取り込んで確かめた記録(`capture_views`)も残す。
+    nonisolated static func execution(plan: TurnPlan, request: JSONObject) -> [String: LedgerJSON] {
+        var execution: [String: LedgerJSON] = ["execution_id": .string(UUID().uuidString), "task_type": .string(plan.kind.rawValue), "status": .string("completed"),
+                                               "requested_model": .string(plan.thread.model), "billing_source": .string("byo_chatgpt")]
+        if plan.kind == .timelineMarks, let attemptID = request["attempt_id"] as? String {
+            execution["capture_views"] = .array([.object(["attempt_id": .string(attemptID)])])
+        }
+        return execution
+    }
+
+    /// 赤ペン: 依頼に付いた画像の左上寄りに 1 か所(アプリが実際の線の外枠に寄せる)。
+    nonisolated static func timelineMarks(_ request: JSONObject) -> JSONObject {
+        ["marks": [["x": 0, "y": 0, "width": 400, "height": 200, "correction": "$-\\frac{1}{2}$($\\cos 2\\pi = 1$)"]]]
+    }
+
+    nonisolated static func timelineGrading(_ request: JSONObject) -> JSONObject {
+        let wrong = ProcessInfo.processInfo.environment["STRUIS_MOCK_TIMELINE_WRONG"] == "1"
+        let key = request["answer_key"] as? String ?? ""
+        return [
+            "readable": true, "grade": wrong ? "wrong" : "correct",
+            "learner_answer": request["target_vertex"] != nil ? "2(x-2)^2-5" : (wrong ? "-3" : key),
+            "skill_ids": [], "transcript": wrong ? "y = 2(x-2)^2 - 5\n最小値 -3" : key, "notes": wrong ? "a ≥ 2 の場合を書いていません。" : "",
+            "comment": wrong ? "a ≥ 2 の場合が抜けています。" : "", "key_suspect": false,
+        ]
+    }
+
 }
 
 /// XCTest からアプリへ、画面を変えずに届く合図(Darwin 通知)。最初の本文を流す前に登録し、
@@ -281,5 +418,6 @@ nonisolated private final class CIBenchmarkTailGate: @unchecked Sendable {
         CFNotificationCenterRemoveObserver(CFNotificationCenterGetDarwinNotifyCenter(),
             Unmanaged.passUnretained(self).toOpaque(), CFNotificationName(rawValue: name as CFString), nil)
     }
+
 }
 #endif

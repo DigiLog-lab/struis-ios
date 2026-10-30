@@ -48,4 +48,34 @@ final class TurnTokenUsageTests: XCTestCase {
         XCTAssertNil(summary.models[1].estimatedCostUSD)
         XCTAssertEqual(summary.estimatedCostUSD!, 0.0031, accuracy: 1e-9)
     }
+
+    /// タイムラインの出題・採点・見直しの料金を、実際に使われたモデルごとに足して、そのモデルで採点した答案の数で割る。
+    func testTimelineCostIsComparedPerAnswerForEachModel() {
+        func request(_ model: String, _ cost: Double?) -> [String: Any] {
+            ["requested_model": model, "actual_model": model, "estimated_cost_usd": cost.map { $0 as Any } ?? NSNull(), "cost_status": cost == nil ? "unknown_model" : "estimated"]
+        }
+        func execution(_ model: String, _ requests: [[String: Any]]) -> LedgerJSON {
+            LedgerJSON(any: [["execution_id": "x", "requested_model": model, "actual_model": model, "requests": requests]])
+        }
+        let sonnet = "claude-sonnet-5-5", haiku = "claude-haiku-5-5"
+        let turns: [TimelineCostSummary.Turn] = [
+            .init(kind: "timeline_batch", targetID: "b1", status: "completed", executions: execution(sonnet, [request(sonnet, 0.02)])),
+            .init(kind: "timeline_grading", targetID: "a1", status: "completed", executions: execution(sonnet, [request(sonnet, 0.03), request(sonnet, 0.01)])),
+            .init(kind: "timeline_review", targetID: "a1", status: "completed", executions: execution(sonnet, [request(sonnet, 0.04)])),
+            .init(kind: "timeline_grading", targetID: "a2", status: "completed", executions: execution(sonnet, [request(sonnet, 0.02)])),
+            // 切り替えた後の答案。失敗した採点は答案に数えない(料金は数える)。
+            .init(kind: "timeline_grading", targetID: "a3", status: "completed", executions: execution(haiku, [request(haiku, 0.002)])),
+            .init(kind: "timeline_grading", targetID: "a4", status: "failed", executions: execution(haiku, [request(haiku, 0.001)])),
+            // 知識グラフと会話は入れない。
+            .init(kind: "timeline_graph", targetID: "g1", status: "completed", executions: execution("claude-opus-5-5", [request("claude-opus-5-5", 0.5)])),
+            .init(kind: "chat", targetID: "c1", status: "completed", executions: execution(sonnet, [request(sonnet, 0.5)])),
+        ]
+        let summary = TimelineCostSummary.summarize(turns)
+        XCTAssertEqual(summary.models.map(\.model), [haiku, sonnet])
+        XCTAssertEqual(summary.models[1].answers, 2)
+        XCTAssertEqual(summary.models[1].perAnswerUSD!, 0.12 / 2, accuracy: 1e-9)
+        XCTAssertEqual(summary.models[0].answers, 1)
+        XCTAssertEqual(summary.models[0].perAnswerUSD!, 0.003, accuracy: 1e-9)
+        XCTAssertFalse(summary.models[0].costIncomplete)
+    }
 }
