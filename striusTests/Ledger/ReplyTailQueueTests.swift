@@ -162,6 +162,46 @@ final class ReplyTailQueueTests: XCTestCase {
         }
     }
 
+    /// 返事を書いている途中で新しい会話を始める(質問を開き直した時): 新しい会話はすぐ送れ、前の返事は止めずにその会話で書き終わる。
+    func testNewThreadDuringReplySendsWithoutStoppingThePreviousReply() async throws {
+        let ledger = try Ledger.inMemory()
+        let runner = TailGateRunner { text in text.contains("最初の質問") ? .beforeTail : .none }
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let threadID = try await makeThread(ledger)
+        let store = ChatStore(ledger: ledger, turns: turns)
+        await store.adoptThread(id: try XCTUnwrap(UUID(uuidString: threadID)))
+        let firstAccepted = await store.send(text: "最初の質問")
+        XCTAssertTrue(firstAccepted)
+        try await waitUntil("first reply writes its visible text") { !(runner.waiting.isEmpty) }
+        XCTAssertTrue(store.isSending)
+
+        await store.adoptThread(nil)
+        XCTAssertNil(store.threadID)
+        XCTAssertTrue(store.messages.isEmpty)
+        XCTAssertFalse(store.isSending, "新しい会話は前の会話の返事を待たない")
+        let newAccepted = await store.send(text: "新しい会話の質問")
+        XCTAssertTrue(newAccepted, "新しい会話はすぐ送れる")
+        let newThreadID = try XCTUnwrap(store.threadID).uuidString.lowercased()
+        XCTAssertNotEqual(newThreadID, threadID)
+        XCTAssertTrue(store.isSending, "新しい会話の返事を待つ")
+
+        // 会話のターンは端末で一度に 1 つ(TurnCoordinator)。新しい会話の返事は、前の返事が書き終わってから始まる。
+        runner.release(try XCTUnwrap(runner.waiting.first))
+        try await waitUntil("previous reply finishes in its own thread") {
+            let replies = try await self.rows(ledger, threadID).filter { $0.role == "assistant" }
+            let running = await turns.isChatRunning(threadID: threadID)
+            return replies.count == 1 && replies.allSatisfy { $0.status == "completed" } && !running
+        }
+        try await waitUntil("new thread reply finishes") {
+            let replies = try await self.rows(ledger, newThreadID).filter { $0.role == "assistant" }
+            let running = await turns.isChatRunning(threadID: newThreadID)
+            return replies.count == 1 && replies.allSatisfy { $0.status == "completed" } && !running
+        }
+        XCTAssertEqual(runner.interrupts, [], "前の会話の返事は止めない")
+        let previousQuestions = try await rows(ledger, threadID).filter { $0.role == "user" }.map(\.plainText)
+        XCTAssertEqual(previousQuestions, ["最初の質問"])
+    }
+
     /// 並べた質問だけを止める: 前の返事の記録は止まらず、並べた質問の返事は「停止しました」。
     func testStoppingQueuedSendLeavesTheRecordRunning() async throws {
         let ledger = try Ledger.inMemory()

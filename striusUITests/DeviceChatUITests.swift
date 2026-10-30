@@ -120,7 +120,10 @@ final class DeviceChatUITests: XCTestCase {
         snapshot(app, "chat-real-codex-after-interrupt")
         app.terminate()
         app.launch()
-        let resumed = try ask(app, "直前に求めた積はいくつでしたか？数字だけで答えてください。", timeout: 240)
+        // 質問は空の新しい会話で開くので、さっきの会話を履歴から選んで続ける。
+        XCTAssertTrue(app.openQuestionSheet())
+        app.openHistoryThread()
+        let resumed = try ask(app, "直前に求めた積はいくつでしたか？数字だけで答えてください。", timeout: 240, openSheet: false)
         assertTurnSucceeded(resumed, "アプリ再起動後の継続")
         XCTAssertTrue(resumed.contains("221"), resumed)
         snapshot(app, "chat-real-codex-after-relaunch")

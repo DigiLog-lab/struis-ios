@@ -9,6 +9,8 @@ final class ConversationExportUITests: XCTestCase {
         // 前のテストや手動の操作で横向きが残っていると、入力欄や送信ボタンが画面外に出て落ちる。
         XCUIDevice.shared.orientation = .portrait
         app.openQuestionSheet()
+        // 質問は空の新しい会話で開くので、端末フィクスチャの会話 (LedgerFixtures.seedChatIfEmpty) を履歴から開く。
+        app.openHistoryThread(containing: "二次関数の途中式")
         XCTAssertTrue(app.staticTexts["写真で送ります。"].appears(timeout: 30))
         let export = app.buttons["会話を書き出す"]
         XCTAssertTrue(export.appears(timeout: 30))

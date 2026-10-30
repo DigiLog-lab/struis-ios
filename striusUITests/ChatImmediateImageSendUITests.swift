@@ -76,10 +76,11 @@ final class ChatImmediateImageSendUITests: XCTestCase {
         }
         capture("two-images-sent")
 
-        // 再起動: 最新の会話 (いま送ったもの) を質問シートで開く。
+        // 再起動: 質問は空の新しい会話で開くので、最新の会話 (いま送ったもの) を履歴から開く。
         app.terminate()
         app.launch()
         app.openQuestionSheet()
+        app.openHistoryThread()
         for name in ["photo-1.jpg", "photo-2.jpg"] {
             XCTAssertTrue(app.buttons.matching(NSPredicate(format:
                 "label CONTAINS %@ AND NOT label CONTAINS 'を解除'", name)).firstMatch.appears(timeout: 30),
