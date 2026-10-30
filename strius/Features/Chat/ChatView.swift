@@ -47,7 +47,6 @@ struct ChatView: View {
     @State private var didAdoptThread = false
     @State private var isHistoryPresented = false
     @State private var isSettingsPresented = false
-    @State private var startsWithOnboardingContext: Bool
     @State private var activeLearningSessionID: UUID?
     @State private var learningContextEnabled = true
     @State private var sceneCandidates: [ScenePackage] = []
@@ -89,7 +88,6 @@ struct ChatView: View {
         self.floatingAccessory = floatingAccessory
         self.followToken = followToken
         self.onLearnerActivity = onLearnerActivity
-        _startsWithOnboardingContext = State(initialValue: false)
     }
 
     private var isCreatingUnit: Bool { workbookContext?.purpose == .createUnit }
@@ -330,11 +328,9 @@ struct ChatView: View {
         guard !Task.isCancelled else { return }
         // 会話は台帳と端末の Codex だけで動く。サーバーの bootstrap が通らない(圏外・認証切れ)ときも台帳の会話一覧で開く。
         if bootstrap.user == nil { await bootstrap.refreshThreads() }
-        if chat.pendingComposerDraft != nil || !chat.pendingComposerAttachments.isEmpty {
-            await chat.adoptThread(nil)
-        } else if chat.threadID == nil {
-            await chat.adoptThread(bootstrap.threads.first)
-        }
+        // 質問は開くたびに空の新しい会話で始める(前に開いていた会話・いちばん新しい会話は出さない)。
+        // 前の会話は消さず、左上の履歴から開ける。
+        await chat.adoptThread(nil)
         didAdoptThread = true
     }
 
@@ -616,8 +612,11 @@ struct ChatView: View {
                 Task {
                     if !didAdoptThread {
                         await prepareInitialThread()
+                    } else if threadBootstrap == nil {
+                        // 質問の「再試行」も、開いた時と同じく空の新しい会話で始める。
+                        await chat.adoptThread(nil)
                     } else {
-                        await chat.adoptThread(startsWithOnboardingContext ? nil : bootstrap.threads.first)
+                        await chat.adoptThread(bootstrap.threads.first)
                     }
                 }
             }

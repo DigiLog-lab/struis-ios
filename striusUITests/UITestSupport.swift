@@ -76,6 +76,34 @@ extension XCUIApplication {
         }
         return true
     }
+
+    /// 質問は開くたびに空の新しい会話で始まる。前の会話は左上の「履歴」から選んで開く。
+    /// `title` を渡せば、その文字を含む会話を、無ければ一覧のいちばん上(いちばん新しい会話)を開く。
+    @MainActor
+    @discardableResult
+    func openHistoryThread(containing title: String? = nil, timeout: TimeInterval = 10, file: StaticString = #filePath, line: UInt = #line) -> Bool {
+        buttons["履歴"].firstMatch.tap()
+        let header = staticTexts["会話履歴"].firstMatch
+        guard header.appears(timeout: timeout) else {
+            XCTFail("履歴が開かない", file: file, line: line)
+            return false
+        }
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let floor = header.frame.maxY
+            let rows = buttons.allElementsBoundByIndex
+                .filter { $0.isHittable && $0.frame.minY >= floor && $0.frame.minX >= 0 && $0.frame.minX < header.frame.maxX }
+                .filter { row in title.map { row.label.contains($0) } ?? true }
+                .sorted { $0.frame.minY < $1.frame.minY }
+            if let row = rows.first {
+                row.tap()
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        XCTFail("履歴に会話が無い: \(title ?? "いちばん新しい会話")", file: file, line: line)
+        return false
+    }
 }
 
 extension XCUIApplication {

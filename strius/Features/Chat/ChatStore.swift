@@ -181,6 +181,11 @@ final class ChatStore {
             threadID = nil
             messages = []
             allMessages = []
+            // 前の会話で返事を書いている途中でも、新しい会話はすぐ送れる(前の返事は止めず、その会話の中で書き終わる)。
+            isSending = false
+            sendError = nil
+            progressLabel = nil
+            sendStateRevision = UUID()
             loadState = .loaded
         }
     }
