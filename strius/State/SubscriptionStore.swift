@@ -139,13 +139,20 @@ final class SubscriptionStore {
 
 extension View {
     /// 今の契約を受け取り続ける(アプリの一番外側に付ける)。
+    /// 単体テストのホストとして起動した時は付けない。テストが `SKTestSession` を作る前に storekitd へ繋ぐと、
+    /// 起動時の Sandbox の問い合わせにテストの契約・商品の読み込みが合流し、設定ファイルの契約が読めない。
+    @ViewBuilder
     func struisSubscriptionStatus(_ store: SubscriptionStore) -> some View {
-        subscriptionStatusTask(for: store.activeGroupID) { state in
-            if let statuses = state.value { store.update(statuses: statuses) }
-        }
-        .task {
-            store.start()
-            await store.loadProducts()
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            self
+        } else {
+            subscriptionStatusTask(for: store.activeGroupID) { state in
+                if let statuses = state.value { store.update(statuses: statuses) }
+            }
+            .task {
+                store.start()
+                await store.loadProducts()
+            }
         }
     }
 }
