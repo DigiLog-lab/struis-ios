@@ -246,10 +246,20 @@ actor Ledger {
         }
     }
 
-    func exportArchive(root: URL, to directory: URL) throws -> URL {
+    func exportArchive(root: URL, to directory: URL, scope: LedgerArchive.Scope = .everything, suffix: String? = nil) throws -> URL {
         try ensureDeletionReady()
         UnitDeletion.gate.lock(); defer { UnitDeletion.gate.unlock() }
-        return try LedgerArchive.exportSnapshot(stored: events(), deviceID: deviceID, root: root, directory: directory)
+        let stored: [StoredLedgerEvent]
+        if let since = scope.since {
+            // 期間を指定した時は、その期間の出来事だけを読む(全件を読んでから捨てない)。
+            let start: String = LedgerClock.iso(since)
+            stored = try queue.read { db in
+                try StoredLedgerEvent.filter(Column("created_at") >= start).order(Column("seq")).fetchAll(db)
+            }
+        } else {
+            stored = try events()
+        }
+        return try LedgerArchive.exportSnapshot(stored: stored, deviceID: deviceID, root: root, directory: directory, scope: scope, suffix: suffix)
     }
 
     // MARK: - Rebuild / export

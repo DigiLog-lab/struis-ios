@@ -79,6 +79,10 @@ final class SettingsStore {
     private(set) var exportedArchive: URL?
     private(set) var ledgerBusy = false
     private(set) var ledgerMessage: String?
+    /// 書き出す期間(既定は今日。調べる用の書き出しを軽くする)。
+    var exportPeriod: LedgerArchive.Period = .today
+    /// 書き出しに答案の写真・質問の添付・記憶を入れるか(「すべて」の時はいつも入れる)。
+    var exportIncludesFiles = false
 
     /// 既定オフ。オンのときだけ終わったターンの統計を送る (`UsageReporter`)。
     var usageReportingEnabled: Bool = UsageReporter.isEnabled {
@@ -109,8 +113,13 @@ final class SettingsStore {
         ledgerBusy = true
         defer { ledgerBusy = false }
         do {
-            exportedArchive = try await LedgerArchive.export(ledger: ledger)
-            ledgerMessage = "書き出しました。共有から Files に保存できます"
+            let period: LedgerArchive.Period = exportPeriod
+            // 「すべて」は端末の乗り換えに使うので、写真・添付・記憶も必ず入れる。
+            let scope = LedgerArchive.Scope(since: period.since(), includesFiles: period == .all || exportIncludesFiles)
+            exportedArchive = try await LedgerArchive.export(ledger: ledger, scope: scope, suffix: period.fileSuffix)
+            ledgerMessage = scope.isPartial
+                ? "\(period.title)・\(scope.includesFiles ? "写真あり" : "写真なし")で書き出しました。調べる用なので、取り込みには使えません"
+                : "書き出しました。共有から Files に保存できます"
         } catch {
             settingsLog.error("ledger export failed: \(String(describing: error), privacy: .public)")
             ledgerMessage = "書き出せませんでした: \(error.localizedDescription)"
