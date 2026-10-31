@@ -13,12 +13,78 @@ nonisolated enum LedgerArchive {
         var deviceID: String
         var createdAt: String
         var eventCount: Int
+        /// 期間を指定した・写真を除いた書き出し(調べる用)。true のファイルは取り込めない(途中からの記録では台帳を作り直せない)。
+        /// 「すべて」の書き出しでは書かない(前の版のファイルと同じ形)。
+        var partial: Bool? = nil
+        /// 期間の始まり(この時刻以降に記録された出来事だけを入れた)。
+        var since: String? = nil
+        /// 答案の写真・質問の添付・記憶を入れたか。
+        var includesFiles: Bool? = nil
 
         enum CodingKeys: String, CodingKey {
             case formatVersion = "format_version"
             case deviceID = "device_id"
             case createdAt = "created_at"
             case eventCount = "event_count"
+            case partial
+            case since
+            case includesFiles = "includes_files"
+        }
+    }
+
+    /// 書き出す範囲(設定の「書き出す」で選ぶ)。
+    struct Scope: Sendable, Equatable {
+        /// この時刻以降に記録された出来事だけ(nil はすべて)。
+        var since: Date?
+        /// 答案の写真・質問の添付・記憶を入れる(`diagnostics` はいつも入れる)。
+        var includesFiles: Bool
+
+        /// 端末の乗り換えに使える、すべての書き出し。
+        static let everything = Scope(since: nil, includesFiles: true)
+
+        /// 取り込みに使えない(調べる用の)書き出しか。
+        var isPartial: Bool { since != nil || !includesFiles }
+    }
+
+    /// 設定で選べる期間。
+    enum Period: String, CaseIterable, Identifiable, Sendable {
+        case today
+        case threeDays
+        case sevenDays
+        case all
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .today: return "今日"
+            case .threeDays: return "直近3日"
+            case .sevenDays: return "直近7日"
+            case .all: return "すべて"
+            }
+        }
+
+        /// 期間の始まり(端末の暦で、今日を含めて数えた日の 0 時)。「すべて」は nil。
+        func since(now: Date = Date(), calendar: Calendar = .current) -> Date? {
+            let days: Int
+            switch self {
+            case .today: days = 1
+            case .threeDays: days = 3
+            case .sevenDays: days = 7
+            case .all: return nil
+            }
+            let today: Date = calendar.startOfDay(for: now)
+            return calendar.date(byAdding: .day, value: -(days - 1), to: today) ?? today
+        }
+
+        /// ファイル名に付ける印(「すべて」は付けない)。
+        var fileSuffix: String? {
+            switch self {
+            case .today: return "today"
+            case .threeDays: return "3days"
+            case .sevenDays: return "7days"
+            case .all: return nil
+            }
         }
     }
 
@@ -45,43 +111,88 @@ nonisolated enum LedgerArchive {
     /// (`math_fallback.jsonl`: formulas SwiftMath could not parse, Issue #28) so an exported ledger shows them.
     static let fileRoots = ["captures", "attachments", "memory", "diagnostics"]
 
-    static func fileName(date: Date = Date()) -> String {
+    static func fileName(date: Date = Date(), suffix: String? = nil) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
-        return "struis-ledger-\(formatter.string(from: date)).zip"
+        let tail: String = suffix.map { "-" + $0 } ?? ""
+        return "struis-ledger-\(formatter.string(from: date))\(tail).zip"
     }
 
     /// Write the archive to a temporary file and return its URL.
-    static func export(ledger: Ledger, root: URL = StruisPaths.root, to directory: URL = FileManager.default.temporaryDirectory) async throws -> URL {
-        return try await ledger.exportArchive(root: root, to: directory)
+    /// - Parameters:
+    ///   - scope: 書き出す範囲。既定はすべて(取り込みに使える)。
+    ///   - suffix: ファイル名に付ける印(期間の名前)。
+    static func export(ledger: Ledger, root: URL = StruisPaths.root, to directory: URL = FileManager.default.temporaryDirectory,
+                       scope: Scope = .everything, suffix: String? = nil) async throws -> URL {
+        return try await ledger.exportArchive(root: root, to: directory, scope: scope, suffix: suffix)
     }
 
-    static func exportSnapshot(stored: [StoredLedgerEvent], deviceID: String, root: URL, directory: URL) throws -> URL {
-        let events = stored.compactMap { row -> ExportedEvent? in
+    /// 書き出す出来事。期間を指定した時は、ターンの行(`turns`)は同じターンの最後の 1 件だけにする:
+    /// ターンは待機・実行中・段階ごと・完了のたびに、AI に渡したプラン(その日の記録の全文を含む)ごと行を書き直すので、
+    /// 1 回のターンで同じ記録が何回も複製される。最後の 1 件の実行記録に、途中の段階の時刻はすべて残っている。
+    static func exportedEvents(_ stored: [StoredLedgerEvent], scope: Scope) -> [ExportedEvent] {
+        var rows: [StoredLedgerEvent] = stored
+        if let since = scope.since {
+            let start: String = LedgerClock.iso(since)
+            rows = rows.filter { $0.createdAt >= start }
+            var lastTurnEvent: [String: Int64] = [:]
+            for row in rows where row.entity == LedgerEntity.turns.rawValue {
+                guard let seq = row.seq else { continue }
+                lastTurnEvent[row.entityId] = max(lastTurnEvent[row.entityId] ?? seq, seq)
+            }
+            rows = rows.filter { row in row.entity != LedgerEntity.turns.rawValue || row.seq == lastTurnEvent[row.entityId] }
+        }
+        return rows.compactMap { row -> ExportedEvent? in
             guard let seq = row.seq else { return nil }
             return ExportedEvent(seq: seq, deviceID: row.deviceId, kind: row.kind, entity: row.entity, entityID: row.entityId, payload: row.payload, createdAt: row.createdAt)
         }
-        let manifest = Manifest(formatVersion: formatVersion, deviceID: deviceID, createdAt: LedgerClock.now(), eventCount: events.count)
+    }
+
+    static func exportSnapshot(stored: [StoredLedgerEvent], deviceID: String, root: URL, directory: URL,
+                               scope: Scope = .everything, suffix: String? = nil) throws -> URL {
+        let events: [ExportedEvent] = exportedEvents(stored, scope: scope)
+        var manifest = Manifest(formatVersion: formatVersion, deviceID: deviceID, createdAt: LedgerClock.now(), eventCount: events.count)
+        if scope.isPartial {
+            manifest.partial = true
+            manifest.since = scope.since.map(LedgerClock.iso)
+            manifest.includesFiles = scope.includesFiles
+        }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        var writer = ZipWriter()
-        writer.add(path: "manifest.json", data: try encoder.encode(manifest))
-        writer.add(path: "ledger_events.json", data: try encoder.encode(events))
         let manager = FileManager.default
-        for name in fileRoots {
-            let base = root.appendingPathComponent(name, isDirectory: true)
-            guard let enumerator = manager.enumerator(at: base, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey]) else { continue }
-            for case let url as URL in enumerator {
-                let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
-                guard values.isRegularFile == true, values.isSymbolicLink != true else { continue }
-                let relative = url.standardizedFileURL.path.dropFirst(base.standardizedFileURL.path.count + 1)
-                writer.add(path: "\(name)/\(relative)", data: try Data(contentsOf: url))
+        let target: URL = directory.appendingPathComponent(fileName(suffix: suffix))
+        // 書きかけのファイルに書いてから置き換える(写真を全部メモリに載せず、1 つずつファイルへ書く)。
+        let partialTarget: URL = directory.appendingPathComponent(target.lastPathComponent + ".part")
+        try? manager.removeItem(at: partialTarget)
+        guard manager.createFile(atPath: partialTarget.path, contents: nil) else { throw CocoaError(.fileWriteUnknown) }
+        let handle: FileHandle = try FileHandle(forWritingTo: partialTarget)
+        do {
+            var writer = ZipFileWriter(handle: handle)
+            try writer.add(path: "manifest.json", data: try encoder.encode(manifest))
+            try writer.add(path: "ledger_events.json", data: try encoder.encode(events))
+            for name in fileRoots where scope.includesFiles || name == "diagnostics" {
+                let base = root.appendingPathComponent(name, isDirectory: true)
+                let keys: [URLResourceKey] = [.isRegularFileKey, .isSymbolicLinkKey, .contentModificationDateKey]
+                guard let enumerator = manager.enumerator(at: base, includingPropertiesForKeys: keys) else { continue }
+                for case let url as URL in enumerator {
+                    let values = try url.resourceValues(forKeys: Set(keys))
+                    guard values.isRegularFile == true, values.isSymbolicLink != true else { continue }
+                    // 期間を指定した時の写真・添付・記憶は、その期間に書かれたものだけ(`diagnostics` は追記のファイルなので丸ごと)。
+                    if let since = scope.since, name != "diagnostics", let modified = values.contentModificationDate, modified < since { continue }
+                    let relative = url.standardizedFileURL.path.dropFirst(base.standardizedFileURL.path.count + 1)
+                    try writer.add(path: "\(name)/\(relative)", data: try Data(contentsOf: url))
+                }
             }
+            try writer.finish()
+            try handle.close()
+        } catch {
+            try? handle.close()
+            try? manager.removeItem(at: partialTarget)
+            throw error
         }
-        let target = directory.appendingPathComponent(fileName())
         try? manager.removeItem(at: target)
-        try writer.finish().write(to: target, options: .atomic)
+        try manager.moveItem(at: partialTarget, to: target)
         return target
     }
 
@@ -112,6 +223,9 @@ nonisolated enum LedgerArchive {
             throw LedgerError.invalid("Struis の台帳ファイルではありません")
         }
         let manifest = try JSONDecoder().decode(Manifest.self, from: manifestData)
+        guard manifest.partial != true else {
+            throw LedgerError.invalid("期間を指定した・写真を除いた書き出しは調べる用なので、取り込めません。「すべて」で書き出したファイルを選んでください")
+        }
         guard manifest.formatVersion <= formatVersion else { throw LedgerError.invalid("新しい版の台帳ファイルです。アプリを更新してください") }
         guard manifest.formatVersion == formatVersion else { throw LedgerError.invalid("未対応の台帳ファイルです") }
         let exported = try JSONDecoder().decode([ExportedEvent].self, from: eventsData).sorted { $0.seq < $1.seq }
@@ -148,9 +262,17 @@ nonisolated struct ZipWriter {
     private var count: UInt16 = 0
 
     mutating func add(path: String, data: Data) {
+        let headers = Self.headers(path: path, data: data, offset: UInt32(body.count))
+        body.append(headers.local)
+        body.append(data)
+        central.append(headers.central)
+        count += 1
+    }
+
+    /// 1 つの項目の、ローカルヘッダと目次の行(圧縮なし)。
+    static func headers(path: String, data: Data, offset: UInt32) -> (local: Data, central: Data) {
         let name = Data(path.utf8)
         let crc = CRC32.checksum(data)
-        let offset = UInt32(body.count)
         var local = Data()
         local.append(le32: 0x0403_4b50)
         local.append(le16: 20)          // version needed
@@ -163,9 +285,8 @@ nonisolated struct ZipWriter {
         local.append(le16: UInt16(name.count))
         local.append(le16: 0)
         local.append(name)
-        body.append(local)
-        body.append(data)
 
+        var central = Data()
         central.append(le32: 0x0201_4b50)
         central.append(le16: 20); central.append(le16: 20)
         central.append(le16: 0x0800); central.append(le16: 0)
@@ -177,13 +298,18 @@ nonisolated struct ZipWriter {
         central.append(le32: 0)
         central.append(le32: offset)
         central.append(name)
-        count += 1
+        return (local, central)
     }
 
     func finish() -> Data {
         var out = body
-        let centralOffset = UInt32(out.count)
-        out.append(central)
+        out.append(Self.end(central: central, centralOffset: UInt32(body.count), count: count))
+        return out
+    }
+
+    /// 目次と終端の記録。
+    static func end(central: Data, centralOffset: UInt32, count: UInt16) -> Data {
+        var out = central
         out.append(le32: 0x0605_4b50)
         out.append(le16: 0); out.append(le16: 0)
         out.append(le16: count); out.append(le16: count)
@@ -191,6 +317,34 @@ nonisolated struct ZipWriter {
         out.append(le32: centralOffset)
         out.append(le16: 0)
         return out
+    }
+}
+
+/// 項目をファイルへ順に書く zip(書き出しで、写真を全部メモリに載せない)。形式は `ZipWriter` と同じ。
+nonisolated struct ZipFileWriter {
+    private let handle: FileHandle
+    private var central = Data()
+    private var count: UInt16 = 0
+    private var offset: UInt32 = 0
+
+    init(handle: FileHandle) {
+        self.handle = handle
+    }
+
+    mutating func add(path: String, data: Data) throws {
+        guard count < UInt16.max else { throw LedgerError.invalid("zip に入れる項目が多すぎます") }
+        let headers = ZipWriter.headers(path: path, data: data, offset: offset)
+        let written: UInt64 = UInt64(offset) + UInt64(headers.local.count) + UInt64(data.count)
+        guard written <= UInt64(UInt32.max) else { throw LedgerError.invalid("zip が大きすぎます(4GB を超えます)") }
+        try handle.write(contentsOf: headers.local)
+        try handle.write(contentsOf: data)
+        offset = UInt32(written)
+        central.append(headers.central)
+        count += 1
+    }
+
+    func finish() throws {
+        try handle.write(contentsOf: ZipWriter.end(central: central, centralOffset: offset, count: count))
     }
 }
 

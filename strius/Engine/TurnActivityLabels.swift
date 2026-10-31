@@ -118,6 +118,12 @@ nonisolated enum TurnActivityLabels {
             }
             if let title = scan.strings["unit_title"] { return (0, "単元名を「\(title)」にしました", []) }
             return nil
+        case .timelineBatch:
+            // タイムラインの次の5枚: 書き終わったカードの数と、最後のカードの形の名前(問題文は受け取りの点検の前なので見せない)。
+            let cards: [[String: Any]] = PartialJSONScanner.scan(text).arrays["cards"] ?? []
+            guard !cards.isEmpty else { return nil }
+            let typeName: String = (cards.last?["type_name"] as? String ?? "").trimmingCharacters(in: .whitespaces)
+            return (cards.count, typeName.isEmpty ? "\(cards.count) 問目まで書きました" : "\(cards.count) 問目まで書きました（\(typeName)）", [])
         default:
             return nil
         }

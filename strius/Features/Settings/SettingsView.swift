@@ -848,9 +848,29 @@ private struct AdvancedSettingsDetail: View {
         @Bindable var settings = settings
         let count = settings.ledgerEventCount
         VStack(spacing: 0) {
+            Picker("書き出す期間", selection: $settings.exportPeriod) {
+                ForEach(LedgerArchive.Period.allCases) { period in
+                    Text(period.title).tag(period)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .accessibilityIdentifier("settings-ledger-export-period")
+            if settings.exportPeriod != .all {
+                Toggle(isOn: $settings.exportIncludesFiles) {
+                    Text("答案の写真・添付・記憶も入れる")
+                        .font(Typography.caption)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+                .accessibilityIdentifier("settings-ledger-export-files")
+            }
             SettingsActionRow(
                 title: "書き出す",
-                detail: count.map { "\($0) 件の記録と画像・記憶を zip に" } ?? "記録と画像・記憶を zip に",
+                detail: settings.exportPeriod == .all
+                    ? (count.map { "\($0) 件の記録と画像・記憶を zip に。別の端末に取り込めます" } ?? "記録と画像・記憶を zip に。別の端末に取り込めます")
+                    : "\(settings.exportPeriod.title)の記録だけを zip に(調べる用。取り込みには使えません)",
                 actionTitle: settings.ledgerBusy ? "処理中" : "書き出す",
                 disabled: settings.ledgerBusy
             ) {

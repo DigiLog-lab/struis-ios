@@ -52,6 +52,8 @@ nonisolated struct TurnActivity: Sendable, Equatable {
     var writingPrivateTail = false
     /// 同じ会話の前の返事が記録を書き終えるのを待っている(この返事はまだ始まっていない)。
     var queuedBehindReply = false
+    /// 構造化の枠が空くのを待っている(まだ AI に頼んでいない)。値は何の後に始まるかの言葉。
+    var waitingForSlot: String?
     /// 学習者が「このまま待つ」を選んだ時刻。
     var keepWaitingAt: Date?
 
@@ -84,6 +86,11 @@ nonisolated enum TurnSilence {
             return Statement(text: queuedText, offersChoice: false)
         }
         let silence = activity.silence(now: now)
+        if let slot = activity.waitingForSlot {
+            // まだ AI に頼んでいない(枠が空くのを待っている)。AI の応答を待っているとは言わない。
+            // 1 分を超えて待っていれば、止めるか待つかを選べる(「このまま待つ」を選んだ後は聞き直さない)。
+            return Statement(text: slot, offersChoice: activity.keepWaitingAt == nil && silence >= choiceAfter)
+        }
         if let keep = activity.keepWaitingAt, (activity.lastEventAt ?? .distantPast) < keep {
             return Statement(text: "このまま待っています。応答が届いたらすぐに出します", offersChoice: false)
         }
@@ -346,6 +353,16 @@ final class TurnActivityBoard {
         activities[key]?.keepWaitingAt = Date()
     }
 
+    /// 枠が空くのを待ち始めた(`text`)・枠を取れた(nil)。取れた時から、AI の応答の沈黙を数え直す。
+    func slotWait(_ key: String, text: String?, generation expected: Int, at date: Date = Date()) {
+        guard generation[key] == expected, var activity = activities[key] else { return }
+        let wasWaiting = activity.waitingForSlot != nil
+        activity.waitingForSlot = text
+        if text == nil, wasWaiting { activity.startedAt = date }
+        activities[key] = activity
+        activityLog.info("activity \(key, privacy: .public) slot \(text ?? "acquired", privacy: .public)")
+    }
+
     func apply(_ key: String, _ event: TurnProgressEvent, generation expected: Int) {
         guard generation[key] == expected, var activity = activities[key] else { return }
         let now = Date()
@@ -444,6 +461,7 @@ final class TurnActivityBoard {
                 switch message {
                 case .event(let event): board.apply(key, event, generation: generation)
                 case .started(let date): board.startQueued(key, generation: generation, at: date)
+                case .slotWait(let text, let date): board.slotWait(key, text: text, generation: generation, at: date)
                 }
             }
             board.finish(key, generation: generation)
@@ -458,11 +476,14 @@ nonisolated struct TurnActivitySink: Sendable {
         case event(TurnProgressEvent)
         /// 前の返事を待っていたターンが始まった。
         case started(Date)
+        /// 構造化の枠を待ち始めた(言葉)・枠を取れた(nil)。
+        case slotWait(String?, Date)
     }
 
     let continuation: AsyncStream<Message>.Continuation
 
     func send(_ event: TurnProgressEvent) { continuation.yield(.event(event)) }
     func started() { continuation.yield(.started(Date())) }
+    func waitForSlot(_ text: String?) { continuation.yield(.slotWait(text, Date())) }
     func finish() { continuation.finish() }
 }

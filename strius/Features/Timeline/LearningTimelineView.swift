@@ -210,13 +210,20 @@ struct LearningTimelineView: View {
             VStack(alignment: .leading, spacing: 12) {
                 ProgressView()
                 Text("問題を用意しています").font(Typography.sans(size: 17, weight: .bold)).foregroundStyle(Theme.primaryText)
+                // AI が今していること(実際に届いた出来事)と、出来事が来ない時の事実。1 分を超えたら「止める」を出す。
+                if let batchID = store.awaitedBatchID {
+                    TurnLiveLine(keys: [TurnActivityKey.target(batchID)], onStop: { Task { await store.stopBatch() } })
+                        .frame(maxWidth: 320, alignment: .leading)
+                        .accessibilityIdentifier("timeline-waiting-live")
+                }
             }
             .accessibilityElement(children: .contain)
         .accessibilityIdentifier("timeline-waiting")
         case .batchFailed(let reason):
             VStack(alignment: .leading, spacing: 12) {
                 Text(TimelineTurns.batchFailure).font(Typography.sans(size: 17, weight: .bold)).foregroundStyle(Theme.primaryText)
-                if !reason.isEmpty { Text(reason).font(Typography.micro).foregroundStyle(Theme.secondaryText).lineLimit(3) }
+                let shown: String = TimelineTurns.batchFailureReason(reason)
+                if !shown.isEmpty { Text(shown).font(Typography.micro).foregroundStyle(Theme.secondaryText).lineLimit(3) }
                 Button("もう一度") { Task { await store.retryBatch() } }.buttonStyle(.bordered).accessibilityIdentifier("timeline-batch-retry")
             }
             .accessibilityElement(children: .contain)
