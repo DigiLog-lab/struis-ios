@@ -12,9 +12,11 @@ final class TimelineBatchWaitTests: XCTestCase {
         struct Stopped: Error {}
         private var waiting: [String: CheckedContinuation<Void, Never>] = [:]
         private var stopped: Set<String> = []
+        /// テストを終えた: この後に来るターン(枠を待っていた・組んでいた)もすぐ返す(次のテストに残さない)。
+        private var closed = false
 
         func run(_ plan: TurnPlan, progress: @escaping @Sendable (TurnProgressEvent) -> Void) async throws -> TurnOutcome {
-            if !stopped.contains(plan.id) {
+            if !closed, !stopped.contains(plan.id) {
                 await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in waiting[plan.id] = continuation }
             }
             throw Stopped()
@@ -26,12 +28,21 @@ final class TimelineBatchWaitTests: XCTestCase {
         }
 
         func stopAll() {
+            closed = true
             for (id, continuation) in waiting {
                 stopped.insert(id)
                 continuation.resume()
             }
             waiting.removeAll()
         }
+    }
+
+    /// 止まっているターンを全部返し、裏で動く許可(`BackgroundTurnActivity`)がすべて返るまで待つ。
+    /// 返らないターンを残すと、次のテストの「保存が済むまで許可を持つ」の確かめが終わらない。
+    @MainActor
+    private func finish(_ runner: HangingRunner) async throws {
+        runner.stopAll()
+        try await waitUntil { BackgroundTurnActivity.shared.runningCount == 0 }
     }
 
     private func waitUntil(_ condition: @escaping () async throws -> Bool) async throws {
@@ -76,7 +87,7 @@ final class TimelineBatchWaitTests: XCTestCase {
         XCTAssertFalse(prefetches.contains(id), "学習者が待っている5枚を、先回りの後ろに並べない")
         let working: Bool = await turns.isWorking(on: batchID)
         XCTAssertTrue(working)
-        await runner.stopAll()
+        try await finish(runner)
     }
 
     // MARK: 持ち主のいない依頼は閉じて頼み直す
@@ -100,7 +111,7 @@ final class TimelineBatchWaitTests: XCTestCase {
         let awaited: String = try XCTUnwrap(store.awaitedBatchID)
         XCTAssertNotEqual(awaited, orphanID, "新しい依頼を待つ")
         XCTAssertEqual(store.machine.batches[awaited]?.status, "requested")
-        await runner.stopAll()
+        try await finish(runner)
     }
 
     @MainActor
@@ -142,7 +153,7 @@ final class TimelineBatchWaitTests: XCTestCase {
             if case .batchFailed = store.phase { return true }
             return false
         }
-        await runner.stopAll()
+        try await finish(runner)
     }
 
     func testFailureReasonsAreShownInPlainWords() {
