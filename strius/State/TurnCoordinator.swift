@@ -286,7 +286,7 @@ actor TurnCoordinator {
             stoppedWhileComposing.remove(targetID)
             turnLog.error("compose \(kind.rawValue, privacy: .public) failed: \(String(describing: error), privacy: .public)")
             if TimelineTurns.isTimeline(kind) {
-                try? await ledger.commit { db in (try TimelineTurns.fail(kind: kind, targetID: targetID, error: String(describing: error), db: db), ()) }
+                try? await ledger.commit { db in (try TimelineTurns.fail(kind: kind, targetID: targetID, error: error is StoppedBeforeLaunch ? "interrupted" : String(describing: error), db: db), ()) }
                 notify(Notice(turnID: turnID, kind: kind, targetID: targetID, status: "failed"))
                 return
             }
@@ -607,7 +607,8 @@ actor TurnCoordinator {
                 return ([.upsert("turn.interrupted", turn)], ())
             }
             WorkspaceStager.cleanup(plan: plan)
-            await start(kind: plan.kind, targetID: targetID, prefetch: true)
+            // 止めている間に学習者の依頼へ上げられていたら(`promote`)、組み直しも先回りにしない。
+            await start(kind: plan.kind, targetID: targetID, prefetch: prefetchTurns.contains(turnID))
             return acquired
         }
         do {

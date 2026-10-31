@@ -638,9 +638,14 @@ final class TimelineStore {
         let request: LedgerJSON = .emptyObject
         // 行を書いてからターンに渡すまでの間は、まだ誰も働いていない。その間に別の呼び出しが持ち主のいない依頼と見て閉じないように印を付ける。
         batchRequestsInFlight += 1
+        batchRequestEpoch += 1
         defer { batchRequestsInFlight -= 1 }
         guard let id = await commitValue({ machine in machine.insertBatchRequest(purpose: "cards", request: request, accuracy: accuracy, levelCap: cap) }) else { return }
-        if learnerWaiting { awaitedBatchID = id }
+        if learnerWaiting {
+            awaitedBatchID = id
+            // 持ち主のいない依頼を閉じた時に「もう一度」の画面へ移っていても、新しい依頼を待つ画面に戻す。
+            if case .batchFailed = phase { phase = .waiting }
+        }
         await turns.startTimeline(kind: .timelineBatch, targetID: id, prefetch: !learnerWaiting)
     }
 
@@ -654,6 +659,8 @@ final class TimelineStore {
     private var ownBatchIDs: [String] = []
     /// 5枚の依頼の行を書いてターンに渡し終えるまでの呼び出しの数(0 でなければ、持ち主のいない依頼を閉じない)。
     private var batchRequestsInFlight = 0
+    /// 5枚の依頼を書き始めるたびに増やす(働いているかを確かめている間に、別の呼び出しが頼み終えていないかを見る)。
+    private var batchRequestEpoch = 0
 
     /// この端末が頼んで、まだ返事が来ていない依頼があるか。iCloud 同期で届いた他の端末の `requested` は数えない
     /// (その端末が閉じたままだと、こちらがいつまでも待つことになる。Issue #57)。
@@ -672,10 +679,11 @@ final class TimelineStore {
         }
         var live: [String] = []
         var orphaned: [String] = []
+        let epoch: Int = batchRequestEpoch
         for id in own {
             if await turns.isWorking(on: id) { live.append(id) } else { orphaned.append(id) }
         }
-        if batchRequestsInFlight > 0 {
+        if batchRequestsInFlight > 0 || batchRequestEpoch != epoch {
             // 今まさに頼んでいる(行は書いたがターンに渡す前の)依頼かもしれない: 閉じずに、頼んでいる最中として数える。
             live += orphaned
             orphaned = []
@@ -698,7 +706,8 @@ final class TimelineStore {
         guard batchID == awaitedBatchID else { return }
         await reload()
         guard phase == .waiting, awaitedBatchID == batchID, machine.batches[batchID]?.status == "requested", batchRequestsInFlight == 0 else { return }
-        guard !(await turns.isWorking(on: batchID, excluding: finishing)) else { return }
+        let epoch: Int = batchRequestEpoch
+        guard !(await turns.isWorking(on: batchID, excluding: finishing)), batchRequestEpoch == epoch, batchRequestsInFlight == 0 else { return }
         timelineLog.error("timeline: awaited batch \(batchID, privacy: .public) ended with no result; closing it")
         await commit { machine in
             if machine.batches[batchID]?.status == "requested" { machine.failBatch(id: batchID, error: TimelineTurns.abandonedBatch) }

@@ -202,7 +202,8 @@ final class TimelineBatchWaitTests: XCTestCase {
         await turns.release(turnID: "a", kind: .timelineGrading, acquired: true)
         let acquired: Bool = await waiter.value
         XCTAssertTrue(acquired)
-        XCTAssertEqual(texts.values.last ?? "x", nil, "枠を取れたら待ちの言葉を消す")
+        XCTAssertEqual(texts.values.count, 2, "待ち始めた時と、枠を取れた時の 2 回")
+        XCTAssertNil(texts.values.last!, "枠を取れたら待ちの言葉を消す")
     }
 
     // MARK: 5枚を書いている途中
