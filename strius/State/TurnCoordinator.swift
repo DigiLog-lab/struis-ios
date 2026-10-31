@@ -45,6 +45,9 @@ actor TurnCoordinator {
     /// 起動時の後始末(`resumeUnfinished`)を済ませたか。済む前は、台帳に残った `queued` / `running` の行も
     /// これから組み直されるものとして数える。
     private var resumedUnfinished = false
+    /// 起動時の後始末で、前のターンの行を閉じてから組み直すまでの対象。その間も働いている対象として数える
+    /// (行を閉じた後・`start` が組み始める前に、タイムラインが持ち主のいない依頼と見て閉じないように)。
+    private var recoveringTargets: Set<String> = []
 
     private struct StoppedBeforeLaunch: Error {}
     private var progressHandlers: [String: @Sendable (TurnProgressEvent) -> Void] = [:]
@@ -362,7 +365,8 @@ actor TurnCoordinator {
     /// - Parameter excluding: 終わりを知らせている最中のターン(終わりの知らせは、そのターンを外す前に届く)。
     func isWorking(on targetID: String, excluding finishing: String? = nil) async -> Bool {
         func inMemory() -> Bool {
-            composingTargets.contains(targetID) || runningTargets.contains { $0.key != finishing && $0.value == targetID }
+            composingTargets.contains(targetID) || recoveringTargets.contains(targetID)
+                || runningTargets.contains { $0.key != finishing && $0.value == targetID }
         }
         if inMemory() { return true }
         guard !resumedUnfinished else { return false }
@@ -757,9 +761,18 @@ actor TurnCoordinator {
                 // スレッドと今日の記録が入っていて、設定を変えた後(ChatGPT から Claude へ)や翌日に流すと、つながっていない
                 // ChatGPT に送って返事が来ない・前のスレッドが無いと断られる(2026-10-31 の実機: 前日の夜に組んだ5枚が
                 // gpt-6.1-sol のまま流れて 7 分以上返らなかった)。行を閉じ、まだ要るものだけ今の設定で組み直す。
+                guard let target = turn.targetId else {
+                    await closeUnresumed(turn, status: "interrupted", reason: "not resumed: recomposed with the current settings")
+                    continue
+                }
+                // 行を閉じる前から組み直しを始めるまで、この対象は働いているものとして数える(`start` は組み始めの時点で
+                // `composingTargets` に入れるので、その後に外す)。
+                recoveringTargets.insert(target)
                 await closeUnresumed(turn, status: "interrupted", reason: "not resumed: recomposed with the current settings")
-                guard let target = turn.targetId, await timelineTargetPending(kind: kind, targetID: target) else { continue }
-                await start(kind: kind, targetID: target, prefetch: kind == .timelineGraph)
+                if await timelineTargetPending(kind: kind, targetID: target) {
+                    await start(kind: kind, targetID: target, prefetch: kind == .timelineGraph)
+                }
+                recoveringTargets.remove(target)
                 continue
             }
             // 単元ホームのターン: 古い(1 日を超えた)・組んだ時と実行先が違うプランは流さず、失敗にして「作り直す」「判定し直す」を出す
