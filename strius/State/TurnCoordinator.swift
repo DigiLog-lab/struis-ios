@@ -38,6 +38,13 @@ actor TurnCoordinator {
     /// ターンを組んでいる最中(台帳にまだターンの行が無い)の答案・一枚と、その間に止められたもの。
     private var composingTargets: Set<String> = []
     private var stoppedWhileComposing: Set<String> = []
+    /// 構造化ターンの対象(ターン ID → 答案・一枚・依頼の ID)。このプロセスで、その対象にまだ働いているターンがあるかを見る。
+    private var runningTargets: [String: String] = [:]
+    /// 構造化の枠を持っているターンと、その種類(枠を待つ画面に「何の後に始まるか」を出すため)。
+    private var slotHolders: [String: TurnPlan.Kind] = [:]
+    /// 起動時の後始末(`resumeUnfinished`)を済ませたか。済む前は、台帳に残った `queued` / `running` の行も
+    /// これから組み直されるものとして数える。
+    private var resumedUnfinished = false
 
     private struct StoppedBeforeLaunch: Error {}
     private var progressHandlers: [String: @Sendable (TurnProgressEvent) -> Void] = [:]
@@ -273,7 +280,7 @@ actor TurnCoordinator {
             composingTargets.remove(targetID)
             // 行を書いている間に止められた: 枠を取らずに「止めた」として終わらせる(`acquire` が見る印)。
             if stoppedWhileComposing.remove(targetID) != nil { stoppedBeforeStart.insert(turnID) }
-            launch(turnID: turnID, plan: plan, context: context)
+            launch(turnID: turnID, targetID: targetID, plan: plan, context: context)
         } catch {
             composingTargets.remove(targetID)
             stoppedWhileComposing.remove(targetID)
@@ -338,24 +345,54 @@ actor TurnCoordinator {
         return (try? await ledger.read { db in try ConversationExpressions.inThread(db: db, threadID: threadID) }) ?? []
     }
 
-    private func launch(turnID: String, plan: TurnPlan, context: WorkbookMachine.GradingContext?) {
+    /// - Parameter targetID: ターンの対象(答案・一枚・タイムラインの依頼)。`isWorking(on:)` が、組み終えてから終わるまでを見る。
+    private func launch(turnID: String, targetID: String?, plan: TurnPlan, context: WorkbookMachine.GradingContext?) {
+        // 組み終えた(`composingTargets` から外した)瞬間から、対象に働いているターンとして数える。
+        if let targetID { runningTargets[turnID] = targetID }
         running[turnID] = Task { [weak self] in
             guard let self else { return }
-            let acquired = await self.execute(turnID: turnID, plan: plan, context: context)
+            let acquired: Bool = await self.execute(turnID: turnID, plan: plan, context: context)
             await self.finished(turnID: turnID, kind: plan.kind, releasesSlot: acquired)
         }
+    }
+
+    /// その対象(答案・一枚・タイムラインの依頼)に、まだ働いているターンがあるか。組んでいる最中・枠を待っている・走っている・
+    /// 起動時の後始末でこれから組み直される(台帳に `queued` / `running` の行が残っている)なら true。
+    /// どれでもなければ、その対象の依頼は持ち主がいない(行だけ `requested` のまま残った)。
+    /// - Parameter excluding: 終わりを知らせている最中のターン(終わりの知らせは、そのターンを外す前に届く)。
+    func isWorking(on targetID: String, excluding finishing: String? = nil) async -> Bool {
+        func inMemory() -> Bool {
+            composingTargets.contains(targetID) || runningTargets.contains { $0.key != finishing && $0.value == targetID }
+        }
+        if inMemory() { return true }
+        guard !resumedUnfinished else { return false }
+        let deviceID: String = ledger.deviceID
+        let open: Int = (try? await ledger.read { db in
+            try TurnRecord.filter(Column("target_id") == targetID && ["queued", "running"].contains(Column("status"))).fetchAll(db)
+                .filter { try Ledger.isLocal(.turns, $0.id, deviceID: deviceID, db) }.count
+        }) ?? 0
+        // 読んでいる間に組み始めた・後始末が済んだ時も、上の印を見直す。
+        if inMemory() { return true }
+        return open > 0 && !resumedUnfinished
     }
 
     /// 枠が空くまで待つ。待っている間に学習者が止めたら false(枠は取らない)。
     /// 先回り(`prefetchTurns`)は、学習者の処理が待っていない時だけ、同時に 1 つまで始める。学習者の処理が枠を
     /// 待つ時は、走っている先回りを止めて枠を空ける。
-    func acquire(kind: TurnPlan.Kind, turnID: String) async -> Bool {
+    /// - Parameter onWait: 枠を待つ間、何の後に始まるかの言葉を受け取る(待ちの画面に出す)。枠を取れたら nil を渡す。
+    func acquire(kind: TurnPlan.Kind, turnID: String, onWait: (@Sendable (String?) -> Void)? = nil) async -> Bool {
         var waiting = false
+        var reportedWait: String?
         defer { if waiting { learnerWaiting -= 1 } }
+        func took() -> Bool {
+            if kind != .chat { slotHolders[turnID] = kind }
+            if reportedWait != nil { onWait?(nil) }
+            return true
+        }
         while true {
             if stoppedBeforeStart.contains(turnID) { return false }
             if kind == .chat {
-                if chatActive < Self.chatLimit { chatActive += 1; return true }
+                if chatActive < Self.chatLimit { chatActive += 1; return took() }
             } else if prefetchTurns.contains(turnID) {
                 // 見直しは次の5枚・グラフの先回りを待たせない(先回りの枠を 1 つ余分に使ってよい。学習者の処理には先に譲る)。
                 let limit = kind == .timelineReview ? Self.prefetchLimit + 1 : Self.prefetchLimit
@@ -363,10 +400,10 @@ actor TurnCoordinator {
                     if kind == .timelineReview { reviewTurns.insert(turnID) }
                     structuredActive += 1
                     runningPrefetches.insert(turnID)
-                    return true
+                    return took()
                 }
             } else {
-                if structuredActive < Self.structuredLimit { structuredActive += 1; return true }
+                if structuredActive < Self.structuredLimit { structuredActive += 1; return took() }
                 let candidates = runningPrefetches.filter { prefetchTurns.contains($0) && !preemptedPrefetches.contains($0) }
                 if let victim = candidates.first(where: { reviewTurns.contains($0) }) ?? candidates.first {
                     turnLog.info("prefetch \(victim, privacy: .public) yields to \(turnID, privacy: .public)")
@@ -376,7 +413,34 @@ actor TurnCoordinator {
                 }
                 if !waiting { waiting = true; learnerWaiting += 1 }
             }
+            if kind != .chat, let onWait {
+                let text: String = Self.slotWaitText(holders: slotHolders.filter { $0.key != turnID }.map(\.value))
+                if text != reportedWait {
+                    reportedWait = text
+                    onWait(text)
+                }
+            }
             await withCheckedContinuation { waiters.append($0) }
+        }
+    }
+
+    /// 枠を待っている間に出す言葉。今その枠で動いている作業の名前を出す(本当に動いているものだけ)。
+    nonisolated static func slotWaitText(holders: [TurnPlan.Kind]) -> String {
+        let names: [String] = Array(Set(holders.compactMap { Self.slotWorkName($0) })).sorted()
+        guard !names.isEmpty else { return "前の作業が終わりしだい始めます" }
+        return "先に動いている作業（" + names.joined(separator: "・") + "）が終わりしだい始めます"
+    }
+
+    nonisolated static func slotWorkName(_ kind: TurnPlan.Kind) -> String? {
+        switch kind {
+        case .timelineGraph: return "学ぶ順番の地図づくり"
+        case .timelineReview: return "前の答案の見直し"
+        case .timelineGrading, .workbookGrading: return "答案の採点"
+        case .timelineMarks: return "赤ペン"
+        case .timelineBatch: return "別の問題づくり"
+        case .workbookSet: return "単元の問題づくり"
+        case .workbookUnit: return "単元づくり"
+        case .chat, .threadFork, .threadInject, .lunaLookup: return nil
         }
     }
 
@@ -399,6 +463,8 @@ actor TurnCoordinator {
 
     private func finished(turnID: String, kind: TurnPlan.Kind, releasesSlot: Bool) {
         running[turnID] = nil
+        runningTargets[turnID] = nil
+        slotHolders[turnID] = nil
         progressHandlers[turnID] = nil
         stoppedBeforeStart.remove(turnID)
         runningPrefetches.remove(turnID)
@@ -509,7 +575,8 @@ actor TurnCoordinator {
         // 赤ペンは見直しと同じ答案を対象に並んで走るので、別の key に流す(見出しが混ざらないように)。
         let activity = await targetID(of: turnID).map { TurnActivityBoard.sink(plan.kind == .timelineMarks ? TurnActivityKey.marks($0) : TurnActivityKey.target($0)) }
         defer { activity?.finish() }
-        let acquired = await acquire(kind: plan.kind, turnID: turnID)
+        // 枠を待っている間は、何の後に始まるかを待ちの画面に出す(「AI の応答を待っています」と偽らない)。
+        let acquired: Bool = await acquire(kind: plan.kind, turnID: turnID) { text in activity?.waitForSlot(text) }
         var outcome: TurnOutcome
         if !acquired {
             // 枠が空く前に止められた: 走らせずに「止めた」結果として反映する(答案・一枚は「判定し直す」「作り直す」へ)。
@@ -681,14 +748,29 @@ actor TurnCoordinator {
                 continue
             }
             guard let plan = try? TurnPlan.from(turn.plan), let kind = TurnPlan.Kind(rawValue: turn.kind) else { continue }
+            // 5枚・グラフの依頼がもう閉じている(前の日の依頼を開いた時に閉じた等): 組み直しても反映されず、枠を最大 3 分ふさぐだけ。
+            if kind == .timelineBatch || kind == .timelineGraph, let target = turn.targetId,
+               let status: String = try? await ledger.read({ db in try TimelineBatchRecord.fetchOne(db, key: target)?.status }),
+               status != "requested" {
+                try? await ledger.commit { db in
+                    guard var row = try TurnRecord.fetchOne(db, key: turn.id) else { return ([], ()) }
+                    row.status = "interrupted"
+                    row.error = "not resumed: the batch was already \(status)"
+                    row.completedAt = LedgerClock.now()
+                    return ([.upsert("turn.interrupted", row)], ())
+                }
+                continue
+            }
             if kind == .workbookGrading, let captureID = turn.targetId {
                 let machine = try? await ledger.read { db in try WorkbookMachine(loading: db) }
                 guard let machine, let capture = machine.captures[captureID] else { continue }
-                launch(turnID: turn.id, plan: plan, context: machine.gradingContext(capture: capture))
+                launch(turnID: turn.id, targetID: turn.targetId, plan: plan, context: machine.gradingContext(capture: capture))
             } else {
-                launch(turnID: turn.id, plan: plan, context: nil)
+                launch(turnID: turn.id, targetID: turn.targetId, plan: plan, context: nil)
             }
         }
+        // ここから後は、台帳に残った `queued` / `running` の行で、このプロセスが持っていないものは、もう誰も組み直さない。
+        resumedUnfinished = true
         await recoverAbandonedChats(abandonedChats)
     }
 }

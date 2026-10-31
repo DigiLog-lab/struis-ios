@@ -69,8 +69,8 @@ final class TimelineStore {
     private var assisted = false
     /// やり方の確認を開いたカード(「同じ形」を挟んで戻っても、ヒントありのまま)。
     private var assistedIDs: Set<String> = []
-    /// 手元にカードが無い間に待っている5枚の依頼。
-    private var awaitedBatchID: String?
+    /// 手元にカードが無い間に待っている5枚の依頼(待ちの画面は、この依頼のターンの途中経過を出す)。
+    private(set) var awaitedBatchID: String?
     /// やり方の確認の後に解く「同じ形」の後で戻る、元のカード。
     private var returnToID: String?
     private var awayStartedAt: Date?
@@ -93,8 +93,17 @@ final class TimelineStore {
             self.observer = id
             // 赤ペンのターンの終わり(頼み直しの行は終わりを知らせる前に書かれる)。
             self.noticeObserver = await turns.observe { [weak self] notice in
-                guard notice.kind == .timelineMarks, let target = notice.targetID, notice.status != "running" else { return }
-                Task { @MainActor [weak self] in await self?.markingSettled(target) }
+                guard let target = notice.targetID, notice.status != "running" else { return }
+                switch notice.kind {
+                case .timelineMarks:
+                    Task { @MainActor [weak self] in await self?.markingSettled(target) }
+                case .timelineBatch:
+                    // 5枚のターンが 1 つ終わった: 待っている依頼なら、持ち主のいないまま残っていないか確かめる。
+                    let finishing: String = notice.turnID
+                    Task { @MainActor [weak self] in await self?.batchTurnSettled(target, finishing: finishing) }
+                default:
+                    break
+                }
             }
         }
     }
@@ -611,28 +620,97 @@ final class TimelineStore {
     // MARK: - 裏で頼むもの
 
     /// 5枚を頼む。手元の未使用が1枚以下(5枚のうち4枚目を出した時点)で、この端末が頼んでいる最中でなければ。
+    /// 手元にカードが無い(学習者が5枚を待っている)時は先回りにしない: 先回りは知識グラフ・例題の先回りの後ろに並び、
+    /// 学習者の処理に枠を譲るので、何も出せないまま待たせることになる(2026-10-31 の実機で「問題を用意しています」のまま進まなかった)。
     func requestBatch(force: Bool = false) async {
         guard !workbook.units.isEmpty || machine.hasGraph else { return }
-        let pending = await hasOwnPendingBatch(purpose: "cards")
-        if pending, currentID == nil {
-            awaitedBatchID = machine.batches.values.filter { $0.purpose == "cards" && $0.status == "requested" }.max { $0.createdAt < $1.createdAt }?.id
+        let learnerWaiting: Bool = currentID == nil
+        let pending: Bool = await hasOwnPendingBatch(purpose: "cards")
+        if pending, learnerWaiting {
+            let id: String? = ownPendingBatchIDs(purpose: "cards").last
+            awaitedBatchID = id
+            // 先回りとして頼んでいた依頼を、学習者が待っている依頼として通し直す(枠を待っていれば、先回りを止めて先に通す)。
+            if let id { await turns.promote(targetID: id) }
         }
         guard force ? !pending : TimelineRules.shouldRequestBatch(unusedCount: machine.queue.filter { $0.id != currentID }.count, pending: pending) else { return }
         let accuracy = machine.accuracy
         let cap = TimelineRules.levelCap(accuracy: accuracy, currentLevel: machine.currentLevel)
         let request: LedgerJSON = .emptyObject
+        // 行を書いてからターンに渡すまでの間は、まだ誰も働いていない。その間に別の呼び出しが持ち主のいない依頼と見て閉じないように印を付ける。
+        batchRequestsInFlight += 1
+        defer { batchRequestsInFlight -= 1 }
         guard let id = await commitValue({ machine in machine.insertBatchRequest(purpose: "cards", request: request, accuracy: accuracy, levelCap: cap) }) else { return }
-        if currentID == nil { awaitedBatchID = id }
-        await turns.startTimeline(kind: .timelineBatch, targetID: id, prefetch: true)
+        if learnerWaiting { awaitedBatchID = id }
+        await turns.startTimeline(kind: .timelineBatch, targetID: id, prefetch: !learnerWaiting)
     }
+
+    /// この端末が頼んだ `requested` の依頼(古い順)。
+    private func ownPendingBatchIDs(purpose: String) -> [String] {
+        ownBatchIDs.filter { id in machine.batches[id].map { $0.purpose == purpose && $0.status == "requested" } ?? false }
+            .sorted { (machine.batches[$0]?.createdAt ?? "") < (machine.batches[$1]?.createdAt ?? "") }
+    }
+
+    /// `hasOwnPendingBatch` が最後に確かめた、この端末の依頼。
+    private var ownBatchIDs: [String] = []
+    /// 5枚の依頼の行を書いてターンに渡し終えるまでの呼び出しの数(0 でなければ、持ち主のいない依頼を閉じない)。
+    private var batchRequestsInFlight = 0
 
     /// この端末が頼んで、まだ返事が来ていない依頼があるか。iCloud 同期で届いた他の端末の `requested` は数えない
     /// (その端末が閉じたままだと、こちらがいつまでも待つことになる。Issue #57)。
+    /// 行は `requested` でも、それに働いているターンがもう無い依頼(組んでいる途中でアプリが止められた・反映に失敗した等)は、
+    /// 失敗として閉じてから数える。閉じないと、その日はいつまでも「頼んでいる最中」と見なして次を頼まず、待ちから抜けない。
     private func hasOwnPendingBatch(purpose: String) async -> Bool {
-        let ids = machine.batches.values.filter { $0.purpose == purpose && $0.status == "requested" }.map(\.id)
-        guard !ids.isEmpty else { return false }
-        let deviceID = ledger.deviceID
-        return (try? await ledger.read { db in try ids.contains { try Ledger.isLocal(.timelineBatches, $0, deviceID: deviceID, db) } }) ?? true
+        let ids: [String] = machine.batches.values.filter { $0.purpose == purpose && $0.status == "requested" }.map(\.id)
+        guard !ids.isEmpty else {
+            ownBatchIDs = []
+            return false
+        }
+        let deviceID: String = ledger.deviceID
+        guard let own: [String] = try? await ledger.read({ db in try ids.filter { try Ledger.isLocal(.timelineBatches, $0, deviceID: deviceID, db) } }) else {
+            // 読めなかった: 頼み直さない(二重に頼まない)。
+            return true
+        }
+        var live: [String] = []
+        var orphaned: [String] = []
+        for id in own {
+            if await turns.isWorking(on: id) { live.append(id) } else { orphaned.append(id) }
+        }
+        if batchRequestsInFlight > 0 {
+            // 今まさに頼んでいる(行は書いたがターンに渡す前の)依頼かもしれない: 閉じずに、頼んでいる最中として数える。
+            live += orphaned
+            orphaned = []
+        }
+        if !orphaned.isEmpty {
+            timelineLog.error("timeline: closing \(orphaned.count, privacy: .public) requested batch(es) with no turn working on them")
+            let closing: [String] = orphaned
+            await commit { machine in
+                for id in closing where machine.batches[id]?.status == "requested" { machine.failBatch(id: id, error: TimelineTurns.abandonedBatch) }
+            }
+        }
+        ownBatchIDs = live
+        return !live.isEmpty
+    }
+
+    /// 5枚のターンが終わった(頼み直しの行は、終わりを知らせる前に書かれる)。待っている依頼が `requested` のまま、
+    /// 働いているターンも無ければ、失敗として閉じて「もう一度」を出す(待ちの画面に置き去りにしない)。
+    /// - Parameter finishing: 終わりを知らせたターン(まだ外れていないので、働いているターンに数えない)。
+    private func batchTurnSettled(_ batchID: String, finishing: String? = nil) async {
+        guard batchID == awaitedBatchID else { return }
+        await reload()
+        guard phase == .waiting, awaitedBatchID == batchID, machine.batches[batchID]?.status == "requested", batchRequestsInFlight == 0 else { return }
+        guard !(await turns.isWorking(on: batchID, excluding: finishing)) else { return }
+        timelineLog.error("timeline: awaited batch \(batchID, privacy: .public) ended with no result; closing it")
+        await commit { machine in
+            if machine.batches[batchID]?.status == "requested" { machine.failBatch(id: batchID, error: TimelineTurns.abandonedBatch) }
+        }
+    }
+
+    /// 待ちの画面の「止める」: 待っている5枚の依頼を止める(止まった依頼は失敗になり、「もう一度」を出す)。
+    func stopBatch() async {
+        guard phase == .waiting, let id = awaitedBatchID else { return }
+        await turns.interrupt(targetID: id)
+        // 枠を待つ前・組んでいる途中に止まって、ターンの行が残らなかった時も、待ちを抜ける。
+        await batchTurnSettled(id)
     }
 
     /// 知識グラフを作る(初めて開いた時・新しい単元ができた時)・丸ごと見直す(きっかけが起きた時)。頼んだかは台帳の行で見る。

@@ -18,6 +18,21 @@ private let timelineTurnLog = Logger(subsystem: "com.digiloglab.strius", categor
 nonisolated enum TimelineTurns {
     static let batchFailure = "次の問題を作れませんでした。"
     static let gradingFailure = "採点できませんでした。もう一度撮ってください。"
+    /// 行は `requested` のまま、働いているターンが無くなった5枚の依頼を閉じる時の理由(台帳に残す)。
+    static let abandonedBatch = "abandoned: no turn was working on this batch"
+
+    /// 5枚の依頼が失敗した理由を、学習者に見せる一言にする(台帳の理由は英語の記録のまま)。
+    /// 分からない理由は、そのまま出す(何が起きたかを隠さない)。
+    static func batchFailureReason(_ error: String) -> String {
+        let trimmed: String = error.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return "" }
+        if trimmed == "interrupted" { return "止めました。" }
+        if trimmed == abandonedBatch { return "作っている途中で処理が止まっていました。" }
+        if trimmed.hasPrefix("time limit") { return "時間内に問題が届かなかったので止めました。" }
+        if trimmed == "unreadable batch" { return "AI の返事を問題として読めませんでした。" }
+        if trimmed.hasPrefix("no acceptable cards") { return "使える問題が 1 つもありませんでした。" }
+        return trimmed
+    }
 
     /// 採点・出題・見直しの考える深さ(3 つで揃える。深さが違うとキャッシュが分かれることがある。2026-10-27)。
     static let tutorEffort = "medium"
