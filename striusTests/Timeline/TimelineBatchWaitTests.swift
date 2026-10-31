@@ -7,8 +7,8 @@ import XCTest
 /// - 行だけ `requested` のまま、働いているターンの無い依頼は閉じて頼み直す
 /// - 枠を待っている間は「AI の応答を待っています」と言わず、何の後に始まるかを出す
 final class TimelineBatchWaitTests: XCTestCase {
-    /// 止められるまで返らないターン(待っている間の状態を見る)。
-    private actor HangingRunner: TurnRunning {
+    /// 止められるまで返らないターン(待っている間の状態を見る)。`TurnRunning` は MainActor の protocol なので MainActor のクラスにする。
+    @MainActor private final class HangingRunner: TurnRunning {
         struct Stopped: Error {}
         private var waiting: [String: CheckedContinuation<Void, Never>] = [:]
         private var stopped: Set<String> = []
@@ -188,6 +188,7 @@ final class TimelineBatchWaitTests: XCTestCase {
         XCTAssertEqual(activity?.startedAt, start.addingTimeInterval(100), "AI の沈黙は枠を取れた時から数える")
     }
 
+    @MainActor
     func testAcquireReportsTheWaitAndItsEnd() async throws {
         let ledger: Ledger = try Ledger.inMemory()
         let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: HangingRunner())
