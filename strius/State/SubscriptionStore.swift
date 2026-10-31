@@ -11,9 +11,9 @@ private let storeLog = Logger(subsystem: "com.digiloglab.strius", category: "sub
 @Observable
 @MainActor
 final class SubscriptionStore {
-    /// サブスクリプショングループの ID。Simulator と UI テストは `Config/Struis.storekit` の値。
-    /// App Store Connect に商品を作った時は、そこで割り当てられた ID に替える。
-    static let groupID = "21579510"
+    /// App Store Connect のサブスクリプショングループ「Struis」の ID。
+    /// Simulator・UI テスト・単体テストは `Config/Struis.storekit` のテスト用の ID(21579510)で動く。
+    static let groupID = "22531808"
 
     enum LoadState: Equatable {
         case idle, loading, loaded, failed
@@ -23,6 +23,9 @@ final class SubscriptionStore {
     private(set) var loadState: LoadState = .idle
     private(set) var plan: UsagePlan?
     private(set) var purchasing: UsagePlan?
+    /// 今の契約を受け取るグループ。商品を読んだら、その商品のグループにする
+    /// (Xcode の StoreKit の設定ファイルで動かした時は、設定ファイルのテスト用の ID になる)。
+    private(set) var activeGroupID = SubscriptionStore.groupID
     var errorMessage: String?
     private let meter: UsageMeter
     private var updates: Task<Void, Never>?
@@ -50,6 +53,7 @@ final class SubscriptionStore {
         do {
             let loaded = try await Product.products(for: UsagePlan.allCases.map(\.productID))
             products = Dictionary(uniqueKeysWithValues: loaded.compactMap { product in UsagePlan(productID: product.id).map { ($0, product) } })
+            if let group = products.values.first?.subscription?.subscriptionGroupID { activeGroupID = group }
             loadState = products.isEmpty ? .failed : .loaded
         } catch {
             storeLog.error("products failed: \(String(describing: error), privacy: .public)")
@@ -131,9 +135,12 @@ final class SubscriptionStore {
 extension View {
     /// 今の契約を受け取り続ける(アプリの一番外側に付ける)。
     func struisSubscriptionStatus(_ store: SubscriptionStore) -> some View {
-        subscriptionStatusTask(for: SubscriptionStore.groupID) { state in
+        subscriptionStatusTask(for: store.activeGroupID) { state in
             if let statuses = state.value { store.update(statuses: statuses) }
         }
-        .task { store.start() }
+        .task {
+            store.start()
+            await store.loadProducts()
+        }
     }
 }

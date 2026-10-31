@@ -12,6 +12,8 @@ import XCTest
 /// 止まる。期限切れのあとは、お試しの枠(週 $0.25)に今週の使用額を引き継ぐ。
 @MainActor
 final class SubscriptionStoreTests: XCTestCase {
+    /// `Config/Struis.storekit` のテスト用のグループ ID(本番の `SubscriptionStore.groupID` とは違う)。
+    private static let groupID = "21579510"
     private var session: SKTestSession!
     private var clock: TestClock!
     /// 入れ直しても残る保存先(Keychain と iCloud)。
@@ -49,7 +51,7 @@ final class SubscriptionStoreTests: XCTestCase {
 
     /// `.subscriptionStatusTask` が届ける今の契約を読み直す。
     private func deliverStatuses(to store: SubscriptionStore) async throws {
-        store.update(statuses: try await Product.SubscriptionInfo.status(for: SubscriptionStore.groupID))
+        store.update(statuses: try await Product.SubscriptionInfo.status(for: Self.groupID))
     }
 
     /// 更新・期限切れ・返金を起こし、契約の状態が変わってから届ける(`SKTestSession` の操作は少し遅れて状態に出る)。
@@ -58,13 +60,13 @@ final class SubscriptionStoreTests: XCTestCase {
         func signature(_ statuses: [Product.SubscriptionInfo.Status]) -> [String] {
             statuses.map { "\($0.state.rawValue):\((try? $0.transaction.payloadValue.id) ?? 0)" }
         }
-        let before = signature(try await Product.SubscriptionInfo.status(for: SubscriptionStore.groupID))
+        let before = signature(try await Product.SubscriptionInfo.status(for: Self.groupID))
         try change()
         let deadline = Date().addingTimeInterval(15)
-        var statuses = try await Product.SubscriptionInfo.status(for: SubscriptionStore.groupID)
+        var statuses = try await Product.SubscriptionInfo.status(for: Self.groupID)
         while signature(statuses) == before, Date() < deadline {
             try await Task.sleep(for: .milliseconds(200))
-            statuses = try await Product.SubscriptionInfo.status(for: SubscriptionStore.groupID)
+            statuses = try await Product.SubscriptionInfo.status(for: Self.groupID)
         }
         store.update(statuses: statuses)
     }
@@ -75,11 +77,13 @@ final class SubscriptionStoreTests: XCTestCase {
 
     func testStoreKitConfigurationHasThreePlansInOneGroupByGroupLevel() async throws {
         let (store, _) = install()
+        XCTAssertEqual(store.activeGroupID, SubscriptionStore.groupID, "商品を読むまでは本番のグループ")
         await store.loadProducts()
         XCTAssertEqual(store.loadState, .loaded)
+        XCTAssertEqual(store.activeGroupID, Self.groupID, "商品を読んだら、設定ファイルのグループで契約を受け取る")
         for plan in UsagePlan.allCases {
             let product = try XCTUnwrap(store.products[plan], plan.displayName)
-            XCTAssertEqual(product.subscription?.subscriptionGroupID, SubscriptionStore.groupID)
+            XCTAssertEqual(product.subscription?.subscriptionGroupID, Self.groupID)
             XCTAssertNil(product.subscription?.introductoryOffer, "App Store の無料トライアルは付けない")
             XCTAssertEqual(product.displayPrice, plan.priceText, "購入画面に出す価格")
         }
