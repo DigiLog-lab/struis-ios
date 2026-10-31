@@ -18,7 +18,9 @@ struct OnboardingFlowView: View {
         self.learnerData = learnerData
         self.subscriptions = subscriptions
         self.onFinish = onFinish
+        // DEBUG の途中の画面からの確認は、前に保存した回答を使わずに始める。
         let model = OnboardingModel(
+            profile: start == nil ? nil : OnboardingProfile(),
             hasPlan: { [subscriptions] in subscriptions.plan != nil },
             isClaudeAvailable: { [learnerData] in Self.claudeAvailable(learnerData: learnerData) },
             start: start

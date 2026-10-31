@@ -89,7 +89,7 @@ struct OnboardingTrialView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.top, 40)
+            .padding(.top, 32)
         } footer: {
             resultButtons
         }
@@ -99,7 +99,7 @@ struct OnboardingTrialView: View {
     private var resultButtons: some View {
         OnboardingPrimaryButton(title: "自分の範囲で続ける", identifier: "onboarding-continue") { model.continueToRange() }
         if model.trialRemaining > 0 {
-            OnboardingSecondaryButton(title: "もう1問やる(お試しはあと\(model.trialRemaining)問)", identifier: "onboarding-another") { model.anotherProblem() }
+            OnboardingSecondaryButton(title: "もう1問やる（お試しはあと\(model.trialRemaining)問）", identifier: "onboarding-another") { model.anotherProblem() }
         }
     }
 
@@ -241,9 +241,12 @@ struct TrialProblemCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             if !problem.math.isEmpty {
-                TimelineMath(latex: problem.math, size: compact ? 18 : 26)
-                    .frame(maxWidth: .infinity)
-                    .opacity(compact ? 0.8 : 1)
+                HStack {
+                    Spacer(minLength: 0)
+                    TimelineMath(latex: problem.math, size: compact ? 18 : 26).fixedSize()
+                    Spacer(minLength: 0)
+                }
+                .opacity(compact ? 0.8 : 1)
             }
         }
         .padding(compact ? 16 : 18)
@@ -282,9 +285,9 @@ struct LearnerAnswerLine: View {
     var body: some View {
         HStack(spacing: 4) {
             Text("書いた答え").font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText)
-            TimelineRichText(text: answer, size: 13, color: Theme.secondaryText, plainMath: true)
+            TimelineRichText(text: answer, size: 13, color: Theme.secondaryText).fixedSize()
         }
-        .fixedSize(horizontal: !centered, vertical: true)
+        .frame(maxWidth: centered ? .infinity : nil, alignment: centered ? .center : .leading)
     }
 }
 

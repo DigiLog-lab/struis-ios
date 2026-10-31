@@ -255,6 +255,9 @@ struct OnboardingScaffold<Content: View, Footer: View>: View {
     @ViewBuilder let content: Content
     @ViewBuilder let footer: Footer
 
+    /// 戻る・ロゴ・お試しの数のどれも無い画面は、上の帯を詰めて見出しを上に置く。
+    private var hasHeader: Bool { onBack != nil || showsBrand || badge != nil }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -274,10 +277,10 @@ struct OnboardingScaffold<Content: View, Footer: View>: View {
                         .accessibilityIdentifier("onboarding-trial-badge")
                 }
             }
-            .frame(height: 44)
-            .padding(.top, 12)
+            .frame(height: hasHeader ? 44 : 0)
+            .padding(.top, hasHeader ? 12 : 0)
             .padding(.horizontal, isPad ? 40 : OnboardingMetrics.horizontal)
-            .opacity(onBack == nil && !showsBrand && badge == nil ? 0 : 1)
+            .opacity(hasHeader ? 1 : 0)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {

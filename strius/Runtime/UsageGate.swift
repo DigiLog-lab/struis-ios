@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-private let usageLog = Logger(subsystem: "com.digiloglab.strius", category: "usage")
+nonisolated private let usageLog = Logger(subsystem: "com.digiloglab.strius", category: "usage")
 
 /// 料金プラン(#62、2026-10-30 決定)。プラン間で機能の差はつけず、1 週間に使える Claude 代だけが違う。
 /// 上限は内部的に週ごとのドルで持つ(Claude 代は手取りの 50% 以内、1 ドル 160 円)。問題数は 1 問 ¥10 で割って切り下げた目安。

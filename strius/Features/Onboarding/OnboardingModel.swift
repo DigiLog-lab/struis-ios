@@ -356,6 +356,8 @@ final class OnboardingModel {
 
     /// 買えた(か、もう契約がある)。計画づくりの前に挟んだ購入画面なら、計画づくりに戻る。
     func afterPurchase() {
+        // 購入の完了と、契約が届いた通知の両方から呼ばれる(2 回目は何もしない)。
+        guard step == .paywall else { return }
         if plansAfterPurchase {
             plansAfterPurchase = false
             go(.planWait, remember: false)
@@ -469,6 +471,9 @@ final class OnboardingModel {
 
     /// 計画を作る前に購入を確かめる(途中から再開した時も、購入していなければ購入画面を挟む)。
     func startPlanning() {
+        // 選び直した時は、前の計画の下書きを使わない。
+        draft = nil
+        UserDefaults.standard.removeObject(forKey: Self.draftKey)
         if hasPlan() {
             go(.planWait)
         } else {
@@ -606,7 +611,23 @@ final class OnboardingModel {
     #if DEBUG
     /// 画面の確認用(`STRUIS_ONBOARDING_START`): 途中の画面に要る中身を入れる。
     func prepareForPreview(_ start: OnboardingStep) {
-        if profile.grade == nil { profile.grade = "中3"; selectedGrade = "中3" }
+        let environment = ProcessInfo.processInfo.environment
+        if profile.grade == nil {
+            let grade = environment["STRUIS_ONBOARDING_GRADE"] ?? "中3"
+            profile.grade = grade
+            selectedGrade = grade
+            if grade == OnboardingProfile.universityGrade { profile.route = .university }
+        }
+        if let band = environment["STRUIS_AGE_RANGE"].flatMap(AgeBand.init(rawValue:)) { profile.ageBand = band }
+        if [.grading, .result].contains(start), environment["STRUIS_ONBOARDING_INK"] == nil, let data = Self.sampleAnswerImage() {
+            answerImagePath = try? Self.store(data, folder: "onboarding/trial")
+        }
+        if [.planWait, .plan].contains(start), environment["STRUIS_ONBOARDING_PAGES"] == "1", materials.isEmpty, let data = Self.sampleAnswerImage() {
+            addMaterialPhotos([data, data, data, data])
+        }
+        if profile.route == .university {
+            if universityTopic.isEmpty { universityTopic = "解析学I"; profile.universityTopic = "解析学I" }
+        }
         if problem == nil { problem = TrialProblem.problems(grade: profile.grade ?? "中3").first(where: { $0.unit == "二次方程式" }) ?? TrialProblem.problems(grade: profile.grade ?? "中3").first }
         if [.result, .trialDone, .intent, .unit, .untilTest, .pages, .weak, .planWait, .plan, .notify].contains(start), profile.trial.isEmpty, let problem {
             let wrong = ProcessInfo.processInfo.environment["STRUIS_MOCK_TIMELINE_WRONG"] == "1"
@@ -619,6 +640,11 @@ final class OnboardingModel {
                 profile.trial.append(TrialRecord(problemID: problem.id, label: problem.label, correct: index == 1 ? false : !wrong, learnerAnswer: verdict.learnerAnswer, comment: verdict.comment))
             }
         }
+        if let route = environment["STRUIS_ONBOARDING_ROUTE"].flatMap(OnboardingProfile.Route.init(rawValue:)), profile.route == nil || route == .university {
+            profile.route = route
+            if route == .weak { profile.unit = "関数 y = ax²"; selectedUnit = profile.unit }
+            if route == .university { universityGoal = "来週の小テストまでに、連続性の ε-δ 論法で証明が書けるようになりたい"; profile.universityGoal = universityGoal }
+        }
         if [.untilTest, .pages, .planWait, .plan, .notify].contains(start), profile.route == nil {
             profile.route = .range
             profile.unit = "二次方程式"
@@ -629,8 +655,24 @@ final class OnboardingModel {
             let json = MockTurnRunner.onboardingPlan(["unit": profile.unit ?? "二次方程式", "trial": profile.trial.map { ["correct": $0.correct] }])
             if let data = try? JSONSerialization.data(withJSONObject: json) { draft = try? JSONDecoder().decode(OnboardingPlanDraft.self, from: data) }
         }
-        if start == .grading { answerImagePath = nil; gradingStartedAt = Date() }
-        step = start
+        if start == .grading { gradingStartedAt = Date().addingTimeInterval(-4) }
+        if isClaudeAvailable() { step = start }
+    }
+
+    /// 画面の確認用の答案(手書きの代わりに、3 行の式を描いた画像)。
+    static func sampleAnswerImage() -> Data? {
+        let size = CGSize(width: 900, height: 700)
+        let image = UIGraphicsImageRenderer(size: size).image { context in
+            UIColor(red: 0.98, green: 0.97, blue: 0.94, alpha: 1).setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            let attributes: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 58, weight: .medium), .foregroundColor: UIColor(white: 0.12, alpha: 1)]
+            for (index, line) in ["x² − 5x + 6 = 0", "(x − 2)(x − 3) = 0", "x = 2, 3"].enumerated() {
+                let text = NSAttributedString(string: line, attributes: attributes)
+                let width = text.size().width
+                text.draw(at: CGPoint(x: (size.width - width) / 2, y: 140 + CGFloat(index) * 140))
+            }
+        }
+        return image.jpegData(compressionQuality: 0.85)
     }
     #endif
 }

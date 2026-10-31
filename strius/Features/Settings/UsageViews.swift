@@ -18,11 +18,11 @@ final class UsageStatus {
 
     func refresh() { snapshot = meter.snapshot() }
 
-    /// 「11月2日(月)0:00」。
-    static func resetText(_ date: Date) -> String {
+    /// 「11月2日（月）0:00」。
+    nonisolated static func resetText(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ja_JP")
-        formatter.dateFormat = "M月d日(E)H:mm"
+        formatter.dateFormat = "M月d日（E）H:mm"
         return formatter.string(from: date)
     }
 }
@@ -158,7 +158,7 @@ struct UsageLimitSheet: View {
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
             if let next = snapshot.plan?.upgrade ?? (snapshot.plan == nil ? .light : nil) {
-                OnboardingPrimaryButton(title: "\(next.displayName)にする(\(store.price(of: next)) / 月)", isEnabled: store.purchasing == nil, identifier: "usage-limit-upgrade") {
+                OnboardingPrimaryButton(title: "\(next.displayName)にする（\(store.price(of: next)) / 月）", isEnabled: store.purchasing == nil, identifier: "usage-limit-upgrade") {
                     Task { if await store.purchase(next) { onClose() } }
                 }
             }

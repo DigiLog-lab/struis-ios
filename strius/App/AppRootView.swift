@@ -27,7 +27,22 @@ struct AppRootView: View {
     /// 画面全体の大きさ(iPad の横向き・縦向きを、右の質問の欄を含めた幅で決める)。
     @State private var screenSize: CGSize = .zero
     /// 利用枠を使い切った時のシート(カードの切れ目で出す。#40 の 12、#62 のソフトリミット)。
-    @State private var limitSnapshot: UsageSnapshot?
+    /// DEBUG: `STRUIS_START_SCREEN=limit` で起動した時に出す(画面の確認用)。
+    @State private var limitSnapshot: UsageSnapshot? = {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["STRUIS_START_SCREEN"] == "limit" { return UsageMeter.shared.snapshot() }
+        #endif
+        return nil
+    }()
+
+    /// DEBUG: 設定の「利用枠」を開いた状態から始める(`STRUIS_START_SCREEN=usage`。画面の確認用)。
+    @State private var isUsagePreviewPresented: Bool = {
+        #if DEBUG
+        return ProcessInfo.processInfo.environment["STRUIS_START_SCREEN"] == "usage"
+        #else
+        return false
+        #endif
+    }()
 
     /// 起動した時に単元ホームを重ねた状態から始めるか(DEBUG: 単元ホームから操作する UI テストの起動に使う)。
     private static var startsOnUnits: Bool {
@@ -211,6 +226,9 @@ struct AppRootView: View {
                         guard current != nil, limitSnapshot == nil else { return }
                         let snapshot = UsageMeter.shared.snapshot()
                         if snapshot.isExhausted { limitSnapshot = snapshot }
+                    }
+                    .sheet(isPresented: $isUsagePreviewPresented) {
+                        NavigationStack { UsageSettingsView() }
                     }
                     .sheet(item: $limitSnapshot) { snapshot in
                         UsageLimitSheet(snapshot: snapshot, store: subscriptions) { limitSnapshot = nil }

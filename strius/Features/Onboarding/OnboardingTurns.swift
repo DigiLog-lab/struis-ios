@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-private let onboardingTurnLog = Logger(subsystem: "com.digiloglab.strius", category: "onboarding-turns")
+nonisolated private let onboardingTurnLog = Logger(subsystem: "com.digiloglab.strius", category: "onboarding-turns")
 
 /// お試しの見本(#40)。中1〜高3 の数学を 3 問ずつ、問題文・正答・採点の観点をアプリに埋め込む。
 nonisolated struct TrialProblem: Codable, Hashable, Sendable, Identifiable {

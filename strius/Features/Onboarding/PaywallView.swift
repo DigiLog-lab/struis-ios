@@ -95,7 +95,7 @@ struct OnboardingPaywallView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 130, alignment: .topLeading)
                 } else {
-                    HStack(spacing: 14) {
+                    HStack(spacing: 12) {
                         ZStack {
                             Circle().strokeBorder(selected ? Theme.accentColor : Theme.tertiaryText, lineWidth: 1.5).frame(width: 22, height: 22)
                             if selected { Circle().fill(Theme.accentColor).frame(width: 22, height: 22); Circle().fill(Theme.card).frame(width: 8, height: 8) }
@@ -103,8 +103,9 @@ struct OnboardingPaywallView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(plan.displayName).font(Typography.sans(size: 17, weight: .bold)).foregroundStyle(Theme.primaryText)
                             Text(subtitle(plan)).font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText)
+                                .lineLimit(1).minimumScaleFactor(0.8)
                         }
-                        Spacer(minLength: 4)
+                        Spacer(minLength: 2)
                         price(plan, size: 17)
                     }
                 }
@@ -128,6 +129,8 @@ struct OnboardingPaywallView: View {
             Text("/ 月").font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText)
         }
         .accessibilityElement(children: .combine)
+        // App Store の商品から読めた値段か(読めない間は料金表の値段を出す)。
+        .accessibilityValue(store.products[plan] == nil ? "料金表" : "App Store")
         .accessibilityIdentifier("paywall-price-\(plan.rawValue)")
     }
 }

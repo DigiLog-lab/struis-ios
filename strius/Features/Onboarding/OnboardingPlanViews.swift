@@ -15,7 +15,7 @@ struct OnboardingPlanView: View {
             }
         }
         .task(id: model.step) {
-            if model.step == .planWait, model.draft == nil || model.planError == nil {
+            if model.step == .planWait {
                 model.makePlan(assets: learnerData.assets, turns: learnerData.turns, runner: learnerData.runner)
             }
         }

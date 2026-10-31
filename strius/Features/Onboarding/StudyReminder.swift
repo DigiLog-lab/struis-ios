@@ -2,7 +2,7 @@ import Foundation
 import OSLog
 import UserNotifications
 
-private let reminderLog = Logger(subsystem: "com.digiloglab.strius", category: "reminder")
+nonisolated private let reminderLog = Logger(subsystem: "com.digiloglab.strius", category: "reminder")
 
 /// 勉強する時間の通知(#40)。前置きの画面の「次へ」で iOS の確認を出し(使う時に求める)、選んだ時刻に毎日、その日にやることを 1 つ知らせる。
 nonisolated enum StudyReminder {
