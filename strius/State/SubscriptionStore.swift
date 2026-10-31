@@ -27,11 +27,15 @@ final class SubscriptionStore {
     /// (Xcode の StoreKit の設定ファイルで動かした時は、設定ファイルのテスト用の ID になる)。
     private(set) var activeGroupID = SubscriptionStore.groupID
     var errorMessage: String?
+    /// 商品を買う 1 か所。本番は `product.purchase()`。単体テストは `SKTestSession.buyProduct` に差し替える。
+    typealias Purchase = @MainActor (Product) async throws -> Product.PurchaseResult
     private let meter: UsageMeter
+    private let purchaseProduct: Purchase
     private var updates: Task<Void, Never>?
 
-    init(meter: UsageMeter = .shared) {
+    init(meter: UsageMeter = .shared, purchase: @escaping Purchase = { try await $0.purchase() }) {
         self.meter = meter
+        purchaseProduct = purchase
         plan = meter.plan
     }
 
@@ -72,7 +76,7 @@ final class SubscriptionStore {
         purchasing = plan
         defer { purchasing = nil }
         do {
-            switch try await product.purchase() {
+            switch try await purchaseProduct(product) {
             case .success(let result):
                 guard case .verified(let transaction) = result else {
                     errorMessage = "購入を確かめられませんでした。もう一度試してください。"

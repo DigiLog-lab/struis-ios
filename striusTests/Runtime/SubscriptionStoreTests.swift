@@ -5,7 +5,9 @@ import XCTest
 
 /// 購入まわり(#40・#62): `Config/Struis.storekit` を `SKTestSession` で読み、画面を出さずに `SubscriptionStore` と
 /// 利用枠(`UsageMeter`・`DeviceUsageGate`)を確かめる。`.subscriptionStatusTask` の代わりに、グループの契約の状態を
-/// 読み直して `update(statuses:)` に渡す。
+/// 読み直して `update(statuses:)` に渡す。購入は `product.purchase()` の代わりに `SKTestSession.buyProduct` で行う
+/// (`product.purchase()` は、StoreKit の設定が入っていない Simulator ではテストのホストのプロセスが終わるまで Sandbox の
+/// アカウントの認証を待つ)。`buyProduct` は `failTransactionsEnabled` を見ないので、その時は StoreKit と同じエラーを投げてまねる。
 ///
 /// 週の使用額の決まり: プランが変わっても今週の使用額は引き継ぎ、月曜 0:00 にだけ戻す。上げた直後は新しい上限から
 /// 今週の使用額を引いた分が使える。下げた時は次の更新日から切り替わり、切り替え後に上限を超えていれば次の月曜まで
@@ -30,9 +32,6 @@ final class SubscriptionStoreTests: XCTestCase {
         session.disableDialogs = true
         session.askToBuyEnabled = false
         session.failTransactionsEnabled = false
-        // 購入より先に契約の状態を読み、storekitd にこの設定ファイル(XcodeTest)で繋がせる。繋がる前に購入すると
-        // Sandbox へ送られ、アカウントの認証を待ったまま返らない(storekitd が起きて最初の購入で起きる)。
-        _ = try await Product.SubscriptionInfo.status(for: Self.groupID)
         // 水曜の昼(週の途中)。
         clock = TestClock(UsageRules.weekStart(for: Date()).addingTimeInterval(2 * 86_400 + 12 * 3_600))
         local = MemoryValueStore()
@@ -49,7 +48,12 @@ final class SubscriptionStoreTests: XCTestCase {
         let defaults = UserDefaults(suiteName: "subscription-tests-\(UUID().uuidString)")!
         let clock = clock!
         let meter = UsageMeter(values: MirroredValues(local: local, cloud: cloud), defaults: defaults, now: { clock.date })
-        return (SubscriptionStore(meter: meter), meter)
+        let session = session!
+        let store = SubscriptionStore(meter: meter) { product in
+            if session.failTransactionsEnabled { throw StoreKitError.unknown }
+            return .success(.verified(try await session.buyProduct(identifier: product.id)))
+        }
+        return (store, meter)
     }
 
     /// `.subscriptionStatusTask` が届ける今の契約を読み直す。
