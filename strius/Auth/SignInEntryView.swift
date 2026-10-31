@@ -6,15 +6,15 @@ struct SignInEntryView: View {
 
     var body: some View {
         ZStack {
-            LiquidWallpaper()
+            Theme.ground.ignoresSafeArea()
 
             VStack(spacing: 28) {
                 Spacer()
 
                 VStack(spacing: 12) {
-                    Text("Struis")
-                        .font(Typography.heroSerif)
-                        .foregroundStyle(Theme.accent(scheme))
+                    // ロゴマーク＋brandName(2026-10-30 に斜体のセリフ体をやめた)。
+                    StruisBrandHeader()
+                        .padding(.bottom, 4)
 
                     Text("つまずきの根を、ひとつずつほどく。")
                         .font(Typography.heading2)

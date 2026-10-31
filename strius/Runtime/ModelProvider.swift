@@ -51,8 +51,12 @@ nonisolated enum ModelProviderPreference {
             if let forced = ProcessInfo.processInfo.environment["STRUIS_MODEL_PROVIDER"].flatMap(ModelProvider.init(rawValue:)) {
                 return forced
             }
+            // 前に選んだ実行先は DEBUG の検証用の入口(`-show-codex-settings`)からだけ選べる。
+            return UserDefaults.standard.string(forKey: defaultsKey).flatMap(ModelProvider.init(rawValue:)) ?? .anthropic
+            #else
+            // ChatGPT(Codex)の経路は選択肢から外した(#40、2026-10-31)。前に GPT を選んでいた端末も Claude で始める。
+            return .anthropic
             #endif
-            return UserDefaults.standard.string(forKey: defaultsKey).flatMap(ModelProvider.init(rawValue:)) ?? .openai
         }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: defaultsKey) }
     }
@@ -111,8 +115,8 @@ nonisolated enum ModelProviderError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .claudeUnavailable: ClaudeAppAttestConfig.clientID == nil
-            ? "このビルドには Claude の接続設定(client ID)がありません。設定の「AIモデル」で GPT を選んでください。"
-            : "この端末では App Attest(端末の確認)を使えないため、Claude を使えません。設定の「AIモデル」で GPT を選んでください。"
+            ? "このビルドには Claude の接続設定(client ID)がありません。"
+            : "この端末では App Attest(端末の確認)を使えないため、採点と説明を使えません。iPhone か iPad で開いてください。"
         }
     }
 }

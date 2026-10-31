@@ -199,7 +199,11 @@ final class ChatKickoffTests: XCTestCase {
     /// 単元づくり(待ち時間の体験 §3.3): 最初の問いはアプリが待ちなしで出し、モデルは答えがそろってから動いて全体像の提案まで進む。
     func testUnitCreationAsksScriptedQuestionsThenProposes() async throws {
         let (ledger, turns, _) = try makeCoordinator()
-        let profile = OnboardingProfile(grade: "中学3年", currentFocus: "定期テスト", subject: "数学", confusion: "式を作れない", studyStyle: "紙のノート", materialName: nil)
+        var profile = OnboardingProfile()
+        profile.grade = "中学3年"
+        profile.route = .range
+        profile.unit = "二次関数"
+        profile.trial = [TrialRecord(problemID: "h1-vertex", label: "高1 数学・二次関数", correct: true, learnerAnswer: "(2, -3)", comment: "")]
         let threadID = try await turns.startUnitCreation(existingThreadID: nil, profile: profile, attachments: [])
         var rows = try await ledger.read { db in try ChatRepository.messages(db, threadID: threadID) }
         XCTAssertEqual(rows.count, 1, "最初の問いだけ(モデルは動かない)")
@@ -232,6 +236,7 @@ final class ChatKickoffTests: XCTestCase {
         let modelText = lastUser.metadata["model_text"]?.stringValue ?? ""
         for answer in answers { XCTAssertTrue(modelText.contains(answer), "問いと答えをまとめてモデルに渡す: \(answer)") }
         XCTAssertTrue(modelText.contains("学年: 中学3年"), "オンボーディングの回答を文脈として渡す")
+        XCTAssertTrue(modelText.contains("お試しの問題: 高1 数学・二次関数 ○"), "お試しの結果も文脈として渡す")
         let reply = try XCTUnwrap(rows.last { $0.role == "assistant" })
         XCTAssertEqual(reply.status, "completed")
         XCTAssertNotNil(reply.metadata["workbook_proposal_id"]?.stringValue, "答えがそろったら全体像の提案まで進む: \(reply.plainText ?? "")")

@@ -13,6 +13,7 @@ struct striusApp: App {
     @State private var deviceRuntime: DeviceRuntime?
     @State private var learnerData: LearnerData
     @State private var timeline: TimelineStore
+    @State private var subscriptions = SubscriptionStore()
 
     init() {
         #if DEBUG
@@ -73,6 +74,9 @@ struct striusApp: App {
                 .environment(workbookCoordinator)
                 .environment(learnerData)
                 .environment(timeline)
+                .environment(subscriptions)
+                // 今の契約を受け取り続ける(#40・#62)。プランは利用枠の判定にも使う。
+                .struisSubscriptionStatus(subscriptions)
                 .tint(Theme.Palette.accentLight)
                 .progressViewStyle(StruisProgressViewStyle())
                 .task {

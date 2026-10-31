@@ -13,7 +13,8 @@ final class DeviceRuntimeUITests: XCTestCase {
     @MainActor
     func testRuntimeBootsAndDeviceCodeLoginStarts() throws {
         let app = XCUIApplication.struisUnits()
-        app.launchArguments += ["-skip-onboarding"]
+        // ChatGPT(Codex)の入口は選択肢から外した(#40)。検証用の起動引数でだけ出す。
+        app.launchArguments += ["-skip-onboarding", "-show-codex-settings"]
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "1"
         app.launch()
 

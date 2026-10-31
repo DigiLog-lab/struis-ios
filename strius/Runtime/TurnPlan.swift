@@ -19,6 +19,9 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
         case timelineReview = "timeline_review"
         /// 誤答の結果の画面で、書く面に書いた答案に赤ペンを入れる(2026-10-29)。
         case timelineMarks = "timeline_marks"
+        /// オンボーディング(#40): お試しの1問の採点と、最初の計画。
+        case onboardingGrading = "onboarding_grading"
+        case onboardingPlan = "onboarding_plan"
     }
 
     nonisolated struct AssetRef: Codable, Hashable, Sendable {

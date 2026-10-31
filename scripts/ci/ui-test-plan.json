@@ -180,15 +180,20 @@
       ]
     },
     "onboarding": {
-      "property": "初回設定: 初回設定から最初の単元に着き、再起動で繰り返さない",
+      "property": "オンボーディング: 学年・年齢・規約・同意からお試しの1問を採点し、購入(StoreKit の設定ファイル)・計画・通知を経てタイムラインに着き、再起動で繰り返さない",
       "tests": [
-        "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain"
+        "OnboardingFlowUITests/testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain"
       ],
       "paths": [
         "strius/Features/Onboarding/**",
         "strius/Features/Workbook/UnitCreationDecomposer.swift",
         "strius/Features/Workbook/UnitCreationSieve.swift",
-        "strius/Features/Workbook/WorkbookProposalCard.swift"
+        "strius/Features/Workbook/WorkbookProposalCard.swift",
+        "strius/State/SubscriptionStore.swift",
+        "strius/Runtime/UsageGate.swift",
+        "strius/Features/Settings/UsageViews.swift",
+        "strius/Engine/TimelineMachine.swift",
+        "strius/Features/Timeline/TimelineStore.swift"
       ]
     },
     "timeline": {
@@ -305,7 +310,9 @@
     "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealCodex": "実Codexが要る",
     "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording": "録画用。質問・復帰と介入から終了までの2本をつなげた内容で、自動の判定は2本が持つ",
     "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration": "数式の描き方は画像を目で見て確かめる",
-    "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation": "ボタン帯の重なりは画像を目で見て確かめる"
+    "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation": "ボタン帯の重なりは画像を目で見て確かめる",
+    "OnboardingScreenshotUITests/testIPhoneScreens": "画面の写真をデザインの画像と目で見比べる(#40)。自動の判定は OnboardingFlowUITests が持つ",
+    "OnboardingScreenshotUITests/testIPadLandscapeScreens": "iPad の横向きの写真をデザインの画像と目で見比べる(#40)。自動の判定は OnboardingFlowUITests が持つ"
   },
   "excluded": {
     "striusUITests/testExample": "起動するだけのテンプレート。起動の失敗は選ばれたどのUIテストでも分かる",
@@ -354,7 +361,6 @@
     "WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately": 84,
     "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton": 24,
     "WorkbookLongConversationUITests/testLongSubunitConversationDoesNotFreeze": 298,
-    "WorkbookOnboardingUITests/testOnboardingLeadsToFirstUnitAndIsNotShownAgain": 94,
     "WorkbookSplitGradingBatchUITests/testBatchOfPhotosGradedAsOneAnswer": 82,
     "WorkbookSplitGradingCloseSetUITests/testCloseSetWithFoundProblems": 110,
     "WorkbookSplitGradingUITests/testPhotosAddUpToOneSetResult": 98,
@@ -376,6 +382,9 @@
     "TimelineUITests/testInkCoversTheWholeWidthAndTheProblemTextAndZoomsAroundThePinch": 45,
     "TimelineUITests/testSkippingShowsReasonsAndTwoSkipsOfferTheDipCard": 40,
     "TimelineUITests/testStopSheetOffersOneMoreOrStop": 40,
-    "TimelineUITests/testWrongAnswerShowsBothAnswersAndOffersADisputeFromAsk": 40
+    "TimelineUITests/testWrongAnswerShowsBothAnswersAndOffersADisputeFromAsk": 40,
+    "OnboardingFlowUITests/testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain": 55,
+    "OnboardingScreenshotUITests/testIPhoneScreens": 0,
+    "OnboardingScreenshotUITests/testIPadLandscapeScreens": 0
   }
 }

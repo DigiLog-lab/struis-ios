@@ -6,7 +6,18 @@ struct SettingsView: View {
     @Environment(BootstrapStore.self) private var bootstrap
     @Environment(APIClient.self) private var apiClient
     @Environment(LearnerData.self) private var learnerData
+    @Environment(SubscriptionStore.self) private var subscriptions
     @Environment(\.colorScheme) private var scheme
+    @State private var usage = UsageStatus()
+
+    /// ChatGPT(Codex)の入口。経路は選択肢から外した(#40)ので、DEBUG の検証(`-show-codex-settings`)でだけ出す。
+    static var showsCodexEntry: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.contains("-show-codex-settings")
+        #else
+        return false
+        #endif
+    }
 
     /// オンボーディングをもう一度見る。nil の入口(質問画面の設定)では行を出さない。
     let onReplayOnboarding: (() -> Void)?
@@ -31,6 +42,7 @@ struct SettingsView: View {
         .background(Color(uiColor: .systemGroupedBackground))
         .scrollContentBackground(.hidden)
         .task {
+            usage.refresh()
             await settings.refresh()
             await learnerData.refreshAssets(client: apiClient)
         }
@@ -50,15 +62,37 @@ struct SettingsView: View {
                 divider
             }
             SettingsHomeRow(
-                icon: "sparkle",
-                title: "ChatGPT / Codex",
-                detail: settings.account?.isConnected == true ? [planLabel, "接続済み"].compactMap { $0 }.joined(separator: " / ") : "未接続",
-                value: settings.account?.isConnected == true ? "接続済み" : "接続"
+                icon: "gauge.with.dots.needle.33percent",
+                title: "利用枠",
+                detail: "今週 \(usage.snapshot.percent)%・残りの目安 約\(usage.snapshot.remainingProblems)問",
+                value: subscriptions.plan?.displayName ?? "お試し"
             ) {
-                CodexSettingsDetail()
+                UsageSettingsView()
             }
-            .accessibilityIdentifier("settings-row-codex")
+            .accessibilityIdentifier("settings-row-usage")
             divider
+            SettingsHomeRow(
+                icon: "bell",
+                title: "通知",
+                detail: "勉強する時間に、その日にやることを知らせます",
+                value: StudyReminder.hour.map { "\($0):00" } ?? "オフ"
+            ) {
+                ReminderSettingsDetail()
+            }
+            .accessibilityIdentifier("settings-row-reminder")
+            divider
+            if Self.showsCodexEntry {
+                SettingsHomeRow(
+                    icon: "sparkle",
+                    title: "ChatGPT / Codex",
+                    detail: settings.account?.isConnected == true ? [planLabel, "接続済み"].compactMap { $0 }.joined(separator: " / ") : "未接続",
+                    value: settings.account?.isConnected == true ? "接続済み" : "接続"
+                ) {
+                    CodexSettingsDetail()
+                }
+                .accessibilityIdentifier("settings-row-codex")
+                divider
+            }
             SettingsHomeRow(
                 icon: "cpu",
                 title: "AIモデル",
@@ -238,7 +272,7 @@ private struct ModelProviderSettingsDetail: View {
                 }
                 VStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: 12) {
-                        ProviderSegmented(selection: $settings.modelProvider)
+                        if SettingsView.showsCodexEntry { ProviderSegmented(selection: $settings.modelProvider) }
                         Text(providerSummary)
                             .font(Typography.caption)
                             .foregroundStyle(Theme.textSecondary(scheme))
@@ -282,6 +316,31 @@ private struct ModelProviderSettingsDetail: View {
             return "ChatGPT / Codex の接続で \(CodexModels.astraModel) を使います。"
         case .anthropic:
             return "\(ClaudeModels.displayName(ClaudeModels.astraModel)) を使います(下調べは \(ClaudeModels.displayName(ClaudeModels.lunaModel)))。この iPhone の Struis が正規のアプリであることを App Attest で示し、Anthropic に直接送ります。API キーや中継サーバーはありません。"
+        }
+    }
+}
+
+/// 通知の時刻(オンボーディングの「勉強する時間に知らせますか」と同じ)。
+private struct ReminderSettingsDetail: View {
+    @State private var hour: Int? = StudyReminder.hour
+
+    var body: some View {
+        SettingsDetailScaffold(eyebrow: "REMINDER", title: "通知") {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("選んだ時間に、その日にやることを1つ知らせます。")
+                    .font(Typography.bodyCompact)
+                    .foregroundStyle(Theme.secondaryText)
+                OnboardingPillGrid(options: OnboardingCatalog.reminderHours.map { "\($0):00" } + ["知らせない"], selection: hour.map { "\($0):00" } ?? "知らせない", columns: 2) { value in
+                    if let selected = Int(value.prefix { $0 != ":" }) {
+                        hour = selected
+                        let title = UserDefaults.standard.string(forKey: StudyReminder.titleKey) ?? "今日の小単元"
+                        Task { await StudyReminder.request(hour: selected, subunitTitle: title) }
+                    } else {
+                        hour = nil
+                        StudyReminder.cancel()
+                    }
+                }
+            }
         }
     }
 }

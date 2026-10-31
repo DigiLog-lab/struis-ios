@@ -21,6 +21,7 @@
     <BuildableProductRunnable runnableDebuggingMode="0">
       <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="992C09AC2F927BB8009FF690" BuildableName="strius.app" BlueprintName="strius" ReferencedContainer="container:strius.xcodeproj" />
     </BuildableProductRunnable>
+    <StoreKitConfigurationFileReference identifier="../Config/Struis.storekit" />
   </LaunchAction>
   <AnalyzeAction buildConfiguration="Debug" />
   <ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES">
