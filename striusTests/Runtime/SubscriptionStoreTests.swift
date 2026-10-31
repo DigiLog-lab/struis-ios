@@ -30,6 +30,9 @@ final class SubscriptionStoreTests: XCTestCase {
         session.disableDialogs = true
         session.askToBuyEnabled = false
         session.failTransactionsEnabled = false
+        // 購入より先に契約の状態を読み、storekitd にこの設定ファイル(XcodeTest)で繋がせる。繋がる前に購入すると
+        // Sandbox へ送られ、アカウントの認証を待ったまま返らない(storekitd が起きて最初の購入で起きる)。
+        _ = try await Product.SubscriptionInfo.status(for: Self.groupID)
         // 水曜の昼(週の途中)。
         clock = TestClock(UsageRules.weekStart(for: Date()).addingTimeInterval(2 * 86_400 + 12 * 3_600))
         local = MemoryValueStore()

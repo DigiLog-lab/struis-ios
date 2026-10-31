@@ -61,7 +61,7 @@ final class SubscriptionStore {
         }
     }
 
-    /// 購入する。買えたら true(プランは `subscriptionStatusTask` でも届く)。
+    /// 購入する。買えたら true。プランは契約の状態から決める(`subscriptionStatusTask` でも届く)。
     func purchase(_ plan: UsagePlan) async -> Bool {
         errorMessage = nil
         if products[plan] == nil { await loadProducts() }
@@ -79,7 +79,12 @@ final class SubscriptionStore {
                     return false
                 }
                 await transaction.finish()
-                apply(plans: [plan])
+                // 押されたプランをそのまま使わず、契約の状態を読み直す(下げた時は次の更新日まで今のプランのまま)。
+                if let statuses = try? await product.subscription?.status, !statuses.isEmpty {
+                    update(statuses: statuses)
+                } else {
+                    apply(plans: UsagePlan(productID: transaction.productID).map { [$0] } ?? [])
+                }
                 return true
             case .pending:
                 errorMessage = "購入の承認を待っています。承認されると使えるようになります。"
