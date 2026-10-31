@@ -39,6 +39,31 @@ struct StruisLoadingIndicator: View {
     }
 }
 
+/// 止まったロゴマーク(暗い角丸の地に 3 本の線)。ロゴマーク＋`Typography.brandName` の見出しに使う。
+struct StruisMark: View {
+    var size: CGFloat = 32
+
+    var body: some View {
+        StruisRotatingMark(isAnimating: false)
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+}
+
+/// ロゴマーク＋「Struis」(17/700)。
+struct StruisBrandHeader: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            StruisMark(size: 32)
+            Text("Struis")
+                .font(Typography.brandName)
+                .foregroundStyle(Theme.primaryText)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Struis")
+    }
+}
+
 private struct StruisRotatingMark: UIViewRepresentable {
     let isAnimating: Bool
     func makeUIView(context: Context) -> StruisLoadingUIView { StruisLoadingUIView() }

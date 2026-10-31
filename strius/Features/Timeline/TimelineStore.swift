@@ -135,6 +135,12 @@ final class TimelineStore {
     /// 単元のチップ(「数学I・平方完成」)。混ぜて出す復習のカードでは隠す(どの解き方を使うかが見えてしまうため)。
     func unitChip(for card: TimelineCardRecord) -> String? {
         if card.origin == "rapid" { return nil }
+        // オンボーディングの計画の 1 枚目: 「二次方程式 1 / 6」。
+        if card.payload["starter"]?.boolValue == true, let subunit = card.subunitId.flatMap({ workbook.subunits[$0] }), let unit = workbook.units[subunit.unitId] {
+            let count = workbook.subunits.values.filter { $0.unitId == subunit.unitId }.count
+            let index = workbook.orderedSubunits(unitID: subunit.unitId).firstIndex { $0.id == subunit.id } ?? 0
+            return "\(unit.title) \(index + 1) / \(count)"
+        }
         if !card.skills.isEmpty, card.skills.allSatisfy({ machine.skills[$0]?.status == "mastered" }) { return nil }
         let unitID = card.unitId ?? card.subunitId.flatMap { workbook.subunits[$0]?.unitId } ?? card.skills.compactMap { machine.skills[$0].flatMap { TimelineGraphSchedule.unitID(of: $0, workbook: workbook) } }.first
         let unit = unitID.flatMap { workbook.units[$0]?.title } ?? card.payload["unit_title"]?.stringValue

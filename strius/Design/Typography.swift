@@ -62,6 +62,8 @@ enum Typography {
     static let counter = serifItalic(size: 30, relativeTo: .largeTitle)
     static let heroSerif = serifItalic(size: 40, relativeTo: .largeTitle)
 
+    /// ロゴマークの横の「Struis」(2026-10-30 に斜体のセリフ体をやめた。オンボーディングとサインインの画面)。
+    static let brandName = sans(size: 17, weight: .bold, relativeTo: .headline)
     static let heading1 = sans(size: 26, weight: .bold, relativeTo: .title)
     static let heading2 = sans(size: 22, weight: .bold, relativeTo: .title2)
     static let title = sans(size: 20, weight: .bold, relativeTo: .headline)

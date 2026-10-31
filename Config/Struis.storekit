@@ -1,0 +1,106 @@
+{
+  "appPolicies": {
+    "eula": "",
+    "policies": [
+      {
+        "locale": "ja",
+        "policyText": "",
+        "policyURL": ""
+      }
+    ]
+  },
+  "identifier": "5E3F2A10",
+  "nonRenewingSubscriptions": [],
+  "products": [],
+  "settings": {
+    "_failTransactionsEnabled": false,
+    "_locale": "ja",
+    "_storefront": "JPN",
+    "_storeKitErrors": []
+  },
+  "subscriptionGroups": [
+    {
+      "id": "21579510",
+      "localizations": [
+        {
+          "description": "",
+          "displayName": "Struis のプラン",
+          "locale": "ja"
+        }
+      ],
+      "name": "Struis",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "1480",
+          "familyShareable": false,
+          "groupNumber": 3,
+          "internalID": "6740000003",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "1週間に約12問が目安",
+              "displayName": "ライト",
+              "locale": "ja"
+            }
+          ],
+          "productID": "com.digiloglab.strius.plan.light",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Light",
+          "subscriptionGroupID": "21579510",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "3980",
+          "familyShareable": false,
+          "groupNumber": 2,
+          "internalID": "6740000002",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "ライトの2.5倍・1週間に約30問が目安",
+              "displayName": "スタンダード",
+              "locale": "ja"
+            }
+          ],
+          "productID": "com.digiloglab.strius.plan.standard",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Standard",
+          "subscriptionGroupID": "21579510",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "9800",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "6740000001",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "ライトの6倍・1週間に約75問が目安",
+              "displayName": "たっぷり",
+              "locale": "ja"
+            }
+          ],
+          "productID": "com.digiloglab.strius.plan.generous",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Generous",
+          "subscriptionGroupID": "21579510",
+          "type": "RecurringSubscription",
+          "winbackOffers": []
+        }
+      ]
+    }
+  ],
+  "version": {
+    "major": 4,
+    "minor": 0
+  }
+}
