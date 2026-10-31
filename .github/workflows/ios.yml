@@ -260,9 +260,11 @@ jobs:
               print(f"  - {test}")
           PY
 
-  # The pull request and gate check: one build and one test run. Unit tests and the selected UI tests
-  # run in a single xcodebuild invocation on one booted Simulator; with no UI test selected, only
-  # -only-testing:striusTests is passed (an empty filter would run every test).
+  # The pull request and gate check: one build, then the unit tests, then the selected UI tests, on one
+  # booted Simulator. The unit tests run first in their own xcodebuild invocation, so a failing unit test
+  # stops the job within minutes instead of being reported after every UI test (2026-10-31: a unit test
+  # that failed in the first 5 minutes was reported after 17). The Release archive runs at the same time
+  # on another runner (`release-archive`), so it no longer adds about 15 minutes after the tests.
   verify:
     needs: [native, ui-plan]
     if: needs.ui-plan.outputs.tier == 'pr'
@@ -313,31 +315,32 @@ jobs:
             -destination "id=$udid" -derivedDataPath "$RUNNER_TEMP/DerivedData" ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
           xcrun simctl boot "$udid" 2>/dev/null || true
           xcrun simctl bootstatus "$udid" -b
-      - name: 単体テスト全部と選んだUIテストを流す
+      - name: 単体テストを流す(落ちたらここで止め、UIテストは流さない)
+        run: |
+          set -euo pipefail
+          xcodebuild test-without-building -project strius.xcodeproj -scheme strius \
+            -destination "id=$SIMULATOR_UDID" -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -resultBundlePath "$RUNNER_TEMP/StruisGateUnit.xcresult" \
+            -collect-test-diagnostics never -only-testing:striusTests \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
+            -maximum-test-execution-time-allowance 600 \
+            -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
+      - name: 選んだUIテストを流す
+        if: needs.ui-plan.outputs.ui != ''
         env:
           UI_TESTS: ${{ needs.ui-plan.outputs.ui }}
         run: |
           set -euo pipefail
-          # macOS bash 3.2 treats "${ui[@]}" of an empty array as unbound under set -u; ${ui[@]+...} expands to nothing.
-          ui=()
-          if [[ -n "$UI_TESTS" ]]; then read -r -a ui <<< "$UI_TESTS"; fi
+          read -r -a ui <<< "$UI_TESTS"
           echo "UI tests: ${#ui[@]}"
           xcodebuild test-without-building -project strius.xcodeproj -scheme strius \
             -destination "id=$SIMULATOR_UDID" -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            -resultBundlePath "$RUNNER_TEMP/StruisGate.xcresult" \
-            -collect-test-diagnostics never -only-testing:striusTests ${ui[@]+"${ui[@]}"} \
+            -resultBundlePath "$RUNNER_TEMP/StruisGateUI.xcresult" \
+            -collect-test-diagnostics never "${ui[@]}" \
             -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
             -maximum-test-execution-time-allowance 600 \
             -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES \
             TEST_RUNNER_STRUIS_PROBE_DIR="$RUNNER_TEMP/ui-probe"
-      - name: 実機向けRelease archiveを検証
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
-        timeout-minutes: 30
-        run: |
-          set -euo pipefail
-          xcodebuild archive -project strius.xcodeproj -scheme strius \
-            -configuration Release -destination 'generic/platform=iOS' \
-            -archivePath "$RUNNER_TEMP/StruisPR.xcarchive" CODE_SIGNING_ALLOWED=NO
       - name: メモリの様子を記録
         if: always()
         run: |
@@ -353,14 +356,20 @@ jobs:
             ${{ runner.temp }}/ui-probe
           if-no-files-found: ignore
       # The gate controller compares these names with the tests the gate requires
-      # (a missing test is never green).
+      # (a missing test is never green). Each result bundle gets its own list in the same artifact;
+      # the controller reads every file of every `ios-gate-tests-<run>-<attempt>-*` artifact.
       - name: 門の照合用に実行したテストの一覧を書き出す
         if: always() && inputs.gate_pr
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/gate-tests"
-          xcrun xcresulttool get test-results tests --path "$RUNNER_TEMP/StruisGate.xcresult" --format json \
-            > "$RUNNER_TEMP/gate-tests/verify.json"
+          for part in Unit UI; do
+            bundle="$RUNNER_TEMP/StruisGate$part.xcresult"
+            [[ -d "$bundle" ]] || continue
+            name=$(echo "$part" | tr '[:upper:]' '[:lower:]')
+            xcrun xcresulttool get test-results tests --path "$bundle" --format json \
+              > "$RUNNER_TEMP/gate-tests/verify-$name.json"
+          done
       - name: 門の照合用の一覧を保存
         if: always() && inputs.gate_pr
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -368,6 +377,43 @@ jobs:
           name: ios-gate-tests-${{ github.run_id }}-${{ github.run_attempt }}-verify
           path: ${{ runner.temp }}/gate-tests
           if-no-files-found: error
+
+  # The Release archive check of the `pr` tier, on its own runner at the same time as `verify` (it used to run
+  # after the tests in `verify`). A failure here fails the run like a failed test.
+  release-archive:
+    needs: [native, ui-plan]
+    if: >-
+      needs.ui-plan.outputs.tier == 'pr' &&
+        (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'))
+    runs-on: xcode-27
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
+      - name: Spotlight の索引を止める
+        run: sudo mdutil -a -i off >/dev/null 2>&1 || true
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: Native Runtime cacheを復元
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          fail-on-cache-miss: true
+      - name: 実機向けRelease archiveを検証
+        timeout-minutes: 30
+        run: |
+          set -euo pipefail
+          xcodebuild archive -project strius.xcodeproj -scheme strius \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/StruisPR.xcarchive" CODE_SIGNING_ALLOWED=NO
 
   ui-tests:
     needs: [native, ui-plan]
