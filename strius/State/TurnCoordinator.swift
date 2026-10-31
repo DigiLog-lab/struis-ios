@@ -748,18 +748,28 @@ actor TurnCoordinator {
                 abandonedChats.append(turn)  // no task survives a relaunch: 「止まりました」+「送り直す」
                 continue
             }
-            guard let plan = try? TurnPlan.from(turn.plan), let kind = TurnPlan.Kind(rawValue: turn.kind) else { continue }
-            // 5枚・グラフの依頼がもう閉じている(前の日の依頼を開いた時に閉じた等): 組み直しても反映されず、枠を最大 3 分ふさぐだけ。
-            if kind == .timelineBatch || kind == .timelineGraph, let target = turn.targetId,
-               let status: String = try? await ledger.read({ db in try TimelineBatchRecord.fetchOne(db, key: target)?.status }),
-               status != "requested" {
-                try? await ledger.commit { db in
-                    guard var row = try TurnRecord.fetchOne(db, key: turn.id) else { return ([], ()) }
-                    row.status = "interrupted"
-                    row.error = "not resumed: the batch was already \(status)"
-                    row.completedAt = LedgerClock.now()
-                    return ([.upsert("turn.interrupted", row)], ())
-                }
+            guard let kind = TurnPlan.Kind(rawValue: turn.kind) else {
+                await closeUnresumed(turn, status: "failed", reason: "not resumed: unknown kind")
+                continue
+            }
+            if TimelineTurns.isTimeline(kind) {
+                // タイムラインのターンは、前のプロセスが保存したプランを流し直さない。プランには組んだ時の実行先・モデル・
+                // スレッドと今日の記録が入っていて、設定を変えた後(ChatGPT から Claude へ)や翌日に流すと、つながっていない
+                // ChatGPT に送って返事が来ない・前のスレッドが無いと断られる(2026-10-31 の実機: 前日の夜に組んだ5枚が
+                // gpt-6.1-sol のまま流れて 7 分以上返らなかった)。行を閉じ、まだ要るものだけ今の設定で組み直す。
+                await closeUnresumed(turn, status: "interrupted", reason: "not resumed: recomposed with the current settings")
+                guard let target = turn.targetId, await timelineTargetPending(kind: kind, targetID: target) else { continue }
+                await start(kind: kind, targetID: target, prefetch: kind == .timelineGraph)
+                continue
+            }
+            // 単元ホームのターン: 古い(1 日を超えた)・組んだ時と実行先が違うプランは流さず、失敗にして「作り直す」「判定し直す」を出す
+            // (2026-10-31 の実機: 10/15 に組んだ一枚の生成が、起動のたびに古いスレッドのまま流れ、枠を 7 分ふさいでいた)。
+            guard let plan = try? TurnPlan.from(turn.plan) else {
+                await failUnresumedWorkbookTurn(turn, kind: kind, reason: "not resumed: the stored plan is unreadable")
+                continue
+            }
+            if let reason = Self.staleReason(createdAt: turn.createdAt, planProvider: plan.thread.provider, current: ModelProviderPreference.current, now: Date()) {
+                await failUnresumedWorkbookTurn(turn, kind: kind, reason: reason)
                 continue
             }
             if kind == .workbookGrading, let captureID = turn.targetId {
@@ -773,5 +783,67 @@ actor TurnCoordinator {
         // ここから後は、台帳に残った `queued` / `running` の行で、このプロセスが持っていないものは、もう誰も組み直さない。
         resumedUnfinished = true
         await recoverAbandonedChats(abandonedChats)
+    }
+
+    /// 起動時に流し直さないプランの理由(流してよければ nil)。1 日を超えたプラン、組んだ時と今で実行先(Claude / ChatGPT)が違うプラン。
+    nonisolated static func staleReason(createdAt: String, planProvider: ModelProvider?, current: ModelProvider, now: Date) -> String? {
+        if let created: Date = LedgerClock.parse(createdAt), now.timeIntervalSince(created) > 24 * 60 * 60 {
+            return "not resumed: the stored plan is older than a day"
+        }
+        let plannedForClaude: Bool = planProvider == .anthropic
+        if plannedForClaude != (current == .anthropic) {
+            return "not resumed: the stored plan was made for another provider"
+        }
+        return nil
+    }
+
+    /// 起動時に流さなかったターンの行を閉じる。
+    private func closeUnresumed(_ turn: TurnRecord, status: String, reason: String) async {
+        try? await ledger.commit { db in
+            guard var row = try TurnRecord.fetchOne(db, key: turn.id), ["queued", "running"].contains(row.status) else { return ([], ()) }
+            row.status = status
+            row.error = reason
+            row.completedAt = LedgerClock.now()
+            return ([.upsert("turn.\(status)", row)], ())
+        }
+        turnLog.info("turn \(turn.id, privacy: .public) (\(turn.kind, privacy: .public)) \(reason, privacy: .public)")
+    }
+
+    /// タイムラインの対象が、まだ組み直す必要があるか。5枚・グラフは依頼が `requested`、採点は答案が採点中。
+    /// 見直し・赤ペンは組み直さない(見直しは次の見直しがまだ見ていない答案をまとめて見る。赤ペンは無くても結果の画面は止まらない)。
+    private func timelineTargetPending(kind: TurnPlan.Kind, targetID: String) async -> Bool {
+        switch kind {
+        case .timelineBatch, .timelineGraph:
+            let status: String? = try? await ledger.read { db in try TimelineBatchRecord.fetchOne(db, key: targetID)?.status }
+            return status == "requested"
+        case .timelineGrading:
+            let verdict: String? = try? await ledger.read { db in try TimelineAttemptRecord.fetchOne(db, key: targetID)?.verdict }
+            return verdict == "grading"
+        default:
+            return false
+        }
+    }
+
+    /// 流さなかった単元ホームのターン: 行を失敗で閉じ、答案・一枚・全体像を失敗にする(画面は「判定し直す」「作り直す」を出す)。
+    private func failUnresumedWorkbookTurn(_ turn: TurnRecord, kind: TurnPlan.Kind, reason: String) async {
+        let targetID: String? = turn.targetId
+        try? await ledger.commit { db in
+            guard var row = try TurnRecord.fetchOne(db, key: turn.id), ["queued", "running"].contains(row.status) else { return ([], ()) }
+            row.status = "failed"
+            row.error = reason
+            row.completedAt = LedgerClock.now()
+            var machine = try WorkbookMachine(loading: db)
+            if let targetID {
+                switch kind {
+                case .workbookGrading: if machine.captures[targetID] != nil { machine.failCapture(id: targetID, error: TurnApplier.gradingFailure) }
+                case .workbookSet: if machine.sets[targetID] != nil { machine.failSet(setID: targetID, error: TurnApplier.setFailure) }
+                case .workbookUnit: if machine.proposals[targetID] != nil { machine.failProposal(id: targetID, error: TurnApplier.unitFailure) }
+                default: break
+                }
+            }
+            return (machine.events + [.upsert("turn.failed", row)], ())
+        }
+        turnLog.info("turn \(turn.id, privacy: .public) (\(turn.kind, privacy: .public)) \(reason, privacy: .public)")
+        notify(Notice(turnID: turn.id, kind: kind, targetID: targetID, status: "failed"))
     }
 }

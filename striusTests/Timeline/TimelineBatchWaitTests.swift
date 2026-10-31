@@ -115,7 +115,7 @@ final class TimelineBatchWaitTests: XCTestCase {
     }
 
     @MainActor
-    func testTurnLeftQueuedBeforeTheRelaunchCleanupStillCountsAsWorking() async throws {
+    func testTurnLeftBeforeTheRelaunchIsRecomposedWithTheCurrentSettings() async throws {
         let ledger: Ledger = try await unitLedger()
         let batchID: String = try await ledger.commit { db in
             var timeline = try TimelineMachine(loading: db)
@@ -127,13 +127,34 @@ final class TimelineBatchWaitTests: XCTestCase {
             outcome: nil, codexThreadId: nil, codexTurnId: nil, executions: .emptyArray, error: nil,
             createdAt: LedgerClock.now(), startedAt: nil, completedAt: nil
         ))])
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: HangingRunner())
+        let runner = HangingRunner()
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
         let before: Bool = await turns.isWorking(on: batchID)
         XCTAssertTrue(before, "起動時の後始末の前は、残った行をこれから組み直されるものとして数える")
-        // 後始末で組み直せなかった行(プランが読めない)は、後始末の後はもう誰も持っていない。
+        // 後始末: 前のプロセスのプランは流さず、行を閉じて今の設定で組み直す(まだ requested の依頼なので)。
         await turns.resumeUnfinished()
+        let (left, fresh): (TurnRecord?, [TurnRecord]) = try await ledger.read { db in
+            (try TurnRecord.fetchOne(db, key: "t-left"),
+             try TurnRecord.filter(Column("target_id") == batchID && Column("id") != "t-left").fetchAll(db))
+        }
+        XCTAssertEqual(left?.status, "interrupted", "前のプロセスのプランは流さない")
+        XCTAssertEqual(fresh.count, 1, "今の設定で組み直した")
         let after: Bool = await turns.isWorking(on: batchID)
-        XCTAssertFalse(after)
+        XCTAssertTrue(after)
+        try await finish(runner)
+    }
+
+    // MARK: 起動時に流さない古いプラン
+
+    func testStalePlansAreNotResumed() {
+        let now = Date(timeIntervalSince1970: 1_793_404_800)
+        let recent: String = LedgerClock.iso(now.addingTimeInterval(-3600))
+        let old: String = LedgerClock.iso(now.addingTimeInterval(-25 * 3600))
+        XCTAssertNil(TurnCoordinator.staleReason(createdAt: recent, planProvider: .anthropic, current: .anthropic, now: now))
+        XCTAssertNil(TurnCoordinator.staleReason(createdAt: recent, planProvider: nil, current: .openai, now: now))
+        XCTAssertNotNil(TurnCoordinator.staleReason(createdAt: old, planProvider: .anthropic, current: .anthropic, now: now), "1 日を超えたプラン")
+        XCTAssertNotNil(TurnCoordinator.staleReason(createdAt: recent, planProvider: nil, current: .anthropic, now: now), "ChatGPT で組んだプランを Claude の設定で流さない")
+        XCTAssertNotNil(TurnCoordinator.staleReason(createdAt: recent, planProvider: .anthropic, current: .openai, now: now))
     }
 
     // MARK: 待ちの画面の「止める」
