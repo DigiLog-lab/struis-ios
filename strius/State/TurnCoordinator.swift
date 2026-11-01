@@ -444,6 +444,8 @@ actor TurnCoordinator {
         case .timelineBatch: return "別の問題づくり"
         case .workbookSet: return "単元の問題づくり"
         case .workbookUnit: return "単元づくり"
+        case .onboardingGrading: return "お試しの採点"
+        case .onboardingPlan: return "計画づくり"
         case .chat, .threadFork, .threadInject, .lunaLookup: return nil
         }
     }
