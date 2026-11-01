@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "properties": {
+    "readable": {"type": "boolean"},
+    "grade": {"type": "string", "enum": ["correct", "partial", "wrong"]},
+    "learner_answer": {"type": "string"},
+    "comment": {"type": "string"},
+    "solution": {"type": "string"}
+  },
+  "required": ["readable", "grade", "learner_answer", "comment", "solution"],
+  "additionalProperties": false
+}

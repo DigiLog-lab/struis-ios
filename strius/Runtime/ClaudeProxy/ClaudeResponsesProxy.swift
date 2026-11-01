@@ -213,6 +213,8 @@ nonisolated struct ClaudeUpstream: Sendable {
     var route: @Sendable () -> Route?
     var attest: AppAttestClient
     var session: URLSession
+    /// 利用枠の判定(#62)。送る前に確かめ、料金が分かったら記録する。
+    var gate: any UsageGate
     static let anthropicBaseURL = URL(string: "https://api.anthropic.com")!
 
     /// 既定: DEBUG の Simulator で API キーがあればそれ、それ以外は App Attest。どちらも使えなければ nil。
@@ -232,13 +234,14 @@ nonisolated struct ClaudeUpstream: Sendable {
     }
 
     /// テスト用: 決まった送り先に API キーで送る。
-    init(baseURL: URL, apiKey: @escaping @Sendable () -> String?, session: URLSession? = nil) {
-        self.init(route: { apiKey().map { .apiKey(baseURL: baseURL, key: $0) } }, session: session)
+    init(baseURL: URL, apiKey: @escaping @Sendable () -> String?, session: URLSession? = nil, gate: any UsageGate = DeviceUsageGate()) {
+        self.init(route: { apiKey().map { .apiKey(baseURL: baseURL, key: $0) } }, session: session, gate: gate)
     }
 
-    init(route: @escaping @Sendable () -> Route?, attest: AppAttestClient = .shared, session: URLSession?) {
+    init(route: @escaping @Sendable () -> Route?, attest: AppAttestClient = .shared, session: URLSession?, gate: any UsageGate = DeviceUsageGate()) {
         self.route = route
         self.attest = attest
+        self.gate = gate
         if let session {
             self.session = session
         } else {
@@ -475,6 +478,12 @@ nonisolated private struct ClaudeRelay {
         }
     }
 
+    /// 1 回の要求の記録を実行監査に残し、使った金額を利用枠に足す。
+    private func settle(bytes: Int, key: ClaudeRequestLog.Key?, _ record: [String: Any]) {
+        log.append(record, key: key)
+        upstream.gate.record(record, requestBytes: bytes)
+    }
+
     func run(_ request: [String: Any]) async {
         let classified = log.classify(request: request)
         let threadID = classified.key?.threadID
@@ -483,6 +492,14 @@ nonisolated private struct ClaudeRelay {
             writer.respond(status: 401, json: ["error": [
                 "message": ModelProviderError.claudeUnavailable.localizedDescription,
                 "type": "invalid_request_error", "code": "claude_unavailable",
+            ]])
+            return
+        }
+        // 利用枠を使い切った(#62)。Codex が再試行しない 400 で返す(429・5xx は送り直される)。
+        guard upstream.gate.admit() else {
+            proxyLog.error("usage limit reached; not sent")
+            writer.respond(status: 400, json: ["error": [
+                "message": UsageLimitResponse.message, "type": "invalid_request_error", "code": UsageLimitResponse.code,
             ]])
             return
         }
@@ -519,7 +536,7 @@ nonisolated private struct ClaudeRelay {
             if ClaudeResponsesProxy.requestTooLarge(data.count) {
                 let message = "request body \(data.count) bytes exceeds \(ClaudeResponsesProxy.maxRequestBytes)"
                 proxyLog.error("\(message, privacy: .public); not sent")
-                log.append(attempt.finish(status: "oversized", translator: nil, httpStatus: nil, error: ("request_too_large", message)), key: classified.key)
+                settle(bytes: data.count, key: classified.key, attempt.finish(status: "oversized", translator: nil, httpStatus: nil, error: ("request_too_large", message)))
                 // 400 で返す: Codex は 413 を一時的な失敗として同じ本文を送り直す(`codexStatus` が上流の 413 を 400 に
                 // 直しているのと同じ理由)。送り直されると記録が重なり、学習者には同じ失敗が遅れて届く。
                 writer.respond(status: ClaudeResponsesProxy.oversizedStatus, json: ["error": [
@@ -541,7 +558,7 @@ nonisolated private struct ClaudeRelay {
                     }
                     let error = ((try? JSONSerialization.jsonObject(with: collected)) as? [String: Any])?["error"] as? [String: Any]
                     let message = error?["message"] as? String ?? String(decoding: collected.prefix(2_000), as: UTF8.self)
-                    log.append(attempt.finish(status: "http_error", translator: nil, httpStatus: status, error: (error?["type"] as? String, message)), key: classified.key)
+                    settle(bytes: data.count, key: classified.key, attempt.finish(status: "http_error", translator: nil, httpStatus: status, error: (error?["type"] as? String, message)))
                     // cache diagnostics を受け付けない経路では外して送り直す(診断は無くても要求は通す)。
                     if status == 400, options.includeDiagnostics, translation.body["diagnostics"] != nil,
                        message.localizedCaseInsensitiveContains("diagnostics") {
@@ -597,8 +614,8 @@ nonisolated private struct ClaudeRelay {
                     if streamTranslator.isFinished {
                         // Codex に終わりを渡す前に記録する(ターンの終わりで実行監査に移すため)。
                         let status = streamTranslator.errorType != nil ? "stream_error" : Self.status(stopReason: streamTranslator.stopReason)
-                        log.append(attempt.finish(status: status, translator: streamTranslator, httpStatus: 200,
-                                                  error: streamTranslator.errorType.map { ($0, "stream error") }), key: classified.key)
+                        settle(bytes: data.count, key: classified.key, attempt.finish(status: status, translator: streamTranslator, httpStatus: 200,
+                                                  error: streamTranslator.errorType.map { ($0, "stream error") }))
                         if let threadID, let id = streamTranslator.messageID {
                             log.setPreviousResponseID(id, threadID: diagnosticsKey ?? threadID)
                             // 再起動の後も比べられるよう、控えのあるスレッドには残す(下調べの子などの控えは作らない)。
@@ -609,20 +626,20 @@ nonisolated private struct ClaudeRelay {
                     if streamTranslator.isFinished { break }
                 }
                 if !streamTranslator.isFinished {
-                    log.append(attempt.finish(status: "stream_ended", translator: streamTranslator, httpStatus: 200, error: (nil, "stream ended early")), key: classified.key)
+                    settle(bytes: data.count, key: classified.key, attempt.finish(status: "stream_ended", translator: streamTranslator, httpStatus: 200, error: (nil, "stream ended early")))
                 }
                 for out in streamTranslator.streamEnded() { try await writer.sendEvent(out) }
                 writer.endStream()
                 return
             } catch is CancellationError {
                 if translator?.isFinished != true {
-                    log.append(attempt.finish(status: "cancelled", translator: translator, httpStatus: nil, error: nil), key: classified.key)
+                    settle(bytes: data.count, key: classified.key, attempt.finish(status: "cancelled", translator: translator, httpStatus: nil, error: nil))
                 }
                 return
             } catch {
                 if translator?.isFinished != true {
-                    log.append(attempt.finish(status: Task.isCancelled ? "cancelled" : "failed", translator: translator, httpStatus: nil,
-                                              error: (nil, String(describing: error))), key: classified.key)
+                    settle(bytes: data.count, key: classified.key, attempt.finish(status: Task.isCancelled ? "cancelled" : "failed", translator: translator, httpStatus: nil,
+                                              error: (nil, String(describing: error))))
                 }
                 if Task.isCancelled { return }
                 proxyLog.error("upstream failed: \(String(describing: error), privacy: .public)")

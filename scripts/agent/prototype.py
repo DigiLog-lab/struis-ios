@@ -116,6 +116,7 @@ def cmd_register_slots(args):
                 asc.ensure_capability(bundle, 'APP_GROUPS')
                 if not suffix:
                     asc.ensure_capability(bundle, 'ICLOUD')
+                    asc.ensure_capability(bundle, 'DECLARED_AGE_RANGE')
                 if new:
                     created.append(identifier)
 

@@ -243,6 +243,11 @@ nonisolated struct BundledAssets: Sendable {
         "prompt:timeline_marks_instructions": "timeline_marks_instructions.md",
         "schema:timeline_batch": "timeline_batch.json",
         "schema:timeline_grading": "timeline_grading.json",
+        // オンボーディング(#40): お試しの1問の採点と、最初の計画。配信前の初回起動でも使う。
+        "prompt:onboarding_grading_instructions": "onboarding_grading_instructions.md",
+        "schema:onboarding_grading": "onboarding_grading.json",
+        "prompt:onboarding_plan_instructions": "onboarding_plan_instructions.md",
+        "schema:onboarding_plan": "onboarding_plan.json",
         "schema:timeline_graph": "timeline_graph.json",
         "schema:timeline_decompose": "timeline_decompose.json",
         "schema:timeline_misconceptions": "timeline_misconceptions.json",

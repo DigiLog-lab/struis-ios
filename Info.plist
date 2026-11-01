@@ -45,6 +45,41 @@
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
+		<key>NSPinnedDomains</key>
+		<dict>
+			<key>api.anthropic.com</key>
+			<dict>
+				<key>NSIncludesSubdomains</key>
+				<false/>
+				<key>NSPinnedCAIdentities</key>
+				<array>
+					<dict>
+						<key>SPKI-SHA256-BASE64</key>
+						<string>kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4=</string>
+					</dict>
+					<dict>
+						<key>SPKI-SHA256-BASE64</key>
+						<string>hxqRlPTu1bMS/0DITB1SSu0vd4u/8l8TjPgfaAp63Gc=</string>
+					</dict>
+					<dict>
+						<key>SPKI-SHA256-BASE64</key>
+						<string>Vfd95BwDeSQo+NUYxVEEIlvkOlWY2SalKK1lPhzOx78=</string>
+					</dict>
+					<dict>
+						<key>SPKI-SHA256-BASE64</key>
+						<string>QXnt2YHvdHR3tJYmQIr0Paosp6t/nggsEGD4QJZ3Q0g=</string>
+					</dict>
+					<dict>
+						<key>SPKI-SHA256-BASE64</key>
+						<string>mEflZT5enoR1FuXLgYYGqnVEoZvmf9c2bVBpiOjYQ0c=</string>
+					</dict>
+					<dict>
+						<key>SPKI-SHA256-BASE64</key>
+						<string>K87oWBWM9UZfyddvDfoxL+8lpNyoUB2ptGtn0fv6G2Q=</string>
+					</dict>
+				</array>
+			</dict>
+		</dict>
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>解いた紙を撮って問題集に綴じます。</string>
@@ -52,10 +87,10 @@
 	<string>$(STRUIS_APP_GROUP)</string>
 	<key>StruisAuthRequired</key>
 	<string>$(STRUIS_AUTH_REQUIRED)</string>
-	<key>StruisDeliveryAppKey</key>
-	<string>$(STRUIS_DELIVERY_APP_KEY)</string>
 	<key>StruisClaudeClientID</key>
 	<string>$(STRUIS_CLAUDE_CLIENT_ID)</string>
+	<key>StruisDeliveryAppKey</key>
+	<string>$(STRUIS_DELIVERY_APP_KEY)</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>ZenKakuGothicNew-Regular.ttf</string>

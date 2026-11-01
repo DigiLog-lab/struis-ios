@@ -33,6 +33,8 @@ nonisolated enum CodexAppServerError: Error, LocalizedError, Sendable {
         case .closed: "AI が途中で止まりました。もう一度送ってください。"
         case .malformed: "AI の返事を読み取れませんでした。もう一度送ってください。"
         case .interrupted: "停止しました。"
+        case .turnFailed(let detail) where detail.contains(UsageLimitResponse.code):
+            "今週の利用枠を使い切りました。設定の「利用枠」で、戻る日時とプランを確かめてください。"
         case .turnFailed(let detail):
             detail.localizedCaseInsensitiveContains("usage limit")
                 ? "ChatGPT の利用上限に達しました。時間をおいてもう一度送ってください。"

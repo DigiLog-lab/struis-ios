@@ -1027,6 +1027,19 @@ nonisolated struct TimelineMachine {
     /// 見直しが入れるカードの位置: 生徒が次に解く位置(今解いている問題の次)。
     private var frontPosition: Int { (queue.first?.position ?? nextPosition) - 1 }
 
+    /// オンボーディングの計画の 1 枚目(#40): 小単元 1 から、30 秒で解ける 1 問を次に出す位置に入れる。
+    @discardableResult
+    mutating func addStarterCard(prompt: String, math: String, answerKey: String, unitID: String, subunitID: String) -> String {
+        let card = TimelineCardRecord(
+            id: newID(), batchId: nil, position: frontPosition, kind: TimelineCards.Kind.solve.rawValue, level: 1, skills: [], typeName: "はじめの1問",
+            prompt: prompt, math: math, question: "", answerKey: answerKey, answerExpr: "", checkpoints: [], commonMistakes: [], estimatedSeconds: 30,
+            chain: nil, easierOf: nil, subunitId: subunitID, unitId: unitID, payload: .object(["starter": .bool(true)]), origin: "batch", status: "unused",
+            createdAt: now(), updatedAt: now()
+        )
+        put("timeline.card_added", card)
+        return card.id
+    }
+
     /// 確かめの 1 問を、生徒が次に解く位置に入れる。
     @discardableResult
     mutating func addReviewCard(prompt: String, math: String, question: String, answerKey: String, skillIDs: [String], level: Int, note: String) -> String {

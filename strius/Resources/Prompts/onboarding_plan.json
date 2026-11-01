@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "properties": {
+    "unit_title": {"type": "string"},
+    "outcome": {"type": "string"},
+    "heading": {"type": "string"},
+    "lead": {"type": "string"},
+    "subunits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string"},
+          "outcome": {"type": "string"},
+          "n": {"type": "integer"},
+          "scoring_unit": {"type": "string"},
+          "note": {"type": "string"}
+        },
+        "required": ["title", "outcome", "n", "scoring_unit", "note"],
+        "additionalProperties": false
+      }
+    },
+    "first_problem": {
+      "type": "object",
+      "properties": {
+        "prompt": {"type": "string"},
+        "math": {"type": "string"},
+        "answer_key": {"type": "string"}
+      },
+      "required": ["prompt", "math", "answer_key"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["unit_title", "outcome", "heading", "lead", "subunits", "first_problem"],
+  "additionalProperties": false
+}

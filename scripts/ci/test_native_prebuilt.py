@@ -110,7 +110,7 @@ class TestFileSelectionTests(unittest.TestCase):
         plan = json.loads(ui_test_plan.PLAN.read_text())
         selected = ui_test_plan.select(tests, plan, 'pr', ['striusUITests/WorkbookE2EFixesUITests.swift'])
         self.assertEqual({test.split('/')[0] for test in selected},
-                         {'WorkbookE2EFixesUITests', 'WorkbookLongConversationUITests', 'WorkbookOnboardingUITests'})
+                         {'WorkbookE2EFixesUITests', 'WorkbookLongConversationUITests'})
         support = ui_test_plan.select(tests, plan, 'pr', ['striusUITests/UITestDiagnosticsObserver.swift'])
         self.assertEqual(support, ui_test_plan.select(tests, plan, 'pr', None))
 

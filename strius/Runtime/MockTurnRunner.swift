@@ -65,6 +65,8 @@ actor MockTurnRunner: TurnRunning {
         case .timelineGraph: text = Self.json(Self.timelineGraph(request))
         case .timelineReview: text = Self.json(["skill_results": [], "notes": ""])
         case .timelineMarks: text = Self.json(Self.timelineMarks(request))
+        case .onboardingGrading: text = Self.json(Self.onboardingGrading(request))
+        case .onboardingPlan: text = Self.json(Self.onboardingPlan(request))
         }
         let threadID = plan.thread.codexThreadID ?? "thr_mock_\(UUID().uuidString.prefix(16).lowercased())"
         return TurnOutcome(
@@ -380,6 +382,54 @@ actor MockTurnRunner: TurnRunning {
     /// 赤ペン: 依頼に付いた画像の左上寄りに 1 か所(アプリが実際の線の外枠に寄せる)。
     nonisolated static func timelineMarks(_ request: JSONObject) -> JSONObject {
         ["marks": [["x": 0, "y": 0, "width": 400, "height": 200, "correction": "$-\\frac{1}{2}$($\\cos 2\\pi = 1$)"]]]
+    }
+
+    /// お試しの採点: 正解(`STRUIS_MOCK_TIMELINE_WRONG=1` で誤答、`STRUIS_MOCK_TRIAL_UNREADABLE=1` で読めない)。
+    nonisolated static func onboardingGrading(_ request: JSONObject) -> JSONObject {
+        let environment = ProcessInfo.processInfo.environment
+        let wrong = environment["STRUIS_MOCK_TIMELINE_WRONG"] == "1"
+        let unreadable = environment["STRUIS_MOCK_TRIAL_UNREADABLE"] == "1"
+        let answer = request["answer"] as? String ?? ""
+        let quadratic = (request["problem_id"] as? String) == "j3-quadratic-equation"
+        return [
+            "readable": !unreadable, "grade": wrong ? "wrong" : "correct",
+            "learner_answer": wrong ? (quadratic ? "x = -2, -3" : "?") : answer,
+            "comment": wrong
+                ? (quadratic ? "因数分解の符号が逆です。$(x + 2)(x + 3)$ を展開すると $x^2 + 5x + 6$ になり、元の式と合いません。" : "途中の計算が合っていません。")
+                : (quadratic ? "因数分解で解けています。和が $-5$、積が $6$ になる 2 数を見つけられていました。" : "正しく解けています。"),
+            "solution": wrong ? (quadratic ? "和が $-5$、積が $6$ になる 2 数を探すと $-2$ と $-3$。なので $(x - 2)(x - 3) = 0$、$x = 2, 3$ です。" : "正しい答えは $\(answer)$ です。") : "",
+        ]
+    }
+
+    /// 最初の計画: 単元の名前に合わせた決まった小単元(二次方程式なら 6 つ、ほかは 3 つ)。
+    nonisolated static func onboardingPlan(_ request: JSONObject) -> JSONObject {
+        let unit = (request["unit"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? (request["topic"] as? String) ?? "二次方程式"
+        let trial = (request["trial"] as? [JSONObject]) ?? []
+        let correct = trial.last?["correct"] as? Bool ?? false
+        let subunits: [JSONObject]
+        if unit.contains("二次方程式") {
+            subunits = [
+                ["title": "二次方程式とその解", "outcome": "解の意味が分かる", "n": 4, "scoring_unit": "1問ごとに正誤", "note": ""],
+                ["title": "因数分解で解く", "outcome": "因数分解で解ける", "n": correct ? 3 : 6, "scoring_unit": "1問ごとに正誤",
+                 "note": trial.isEmpty ? "" : (correct ? "お試しの1問でできていたので短めです" : "お試しの1問でつまずいていたので、ていねいに進めます")],
+                ["title": "平方根の考えで解く", "outcome": "平方根を使って解ける", "n": 5, "scoring_unit": "1問ごとに正誤", "note": ""],
+                ["title": "解の公式", "outcome": "解の公式で解ける", "n": 6, "scoring_unit": "1問ごとに正誤", "note": ""],
+                ["title": "いろいろな二次方程式", "outcome": "形に合う解き方を選べる", "n": 5, "scoring_unit": "1問ごとに正誤", "note": ""],
+                ["title": "二次方程式の利用", "outcome": "文章題を式にして解ける", "n": 5, "scoring_unit": "1問ごとに正誤", "note": ""],
+            ]
+        } else {
+            subunits = [
+                ["title": "\(unit)の基本", "outcome": "基本の問題が解ける", "n": 4, "scoring_unit": "1問ごとに正誤", "note": trial.isEmpty ? "" : "お試しの1問の結果から、ここから始めます"],
+                ["title": "\(unit)の練習", "outcome": "練習問題が解ける", "n": 5, "scoring_unit": "1問ごとに正誤", "note": ""],
+                ["title": "\(unit)の応用", "outcome": "応用問題が解ける", "n": 5, "scoring_unit": "1問ごとに正誤", "note": ""],
+            ]
+        }
+        return [
+            "unit_title": unit, "outcome": "\(unit)の基本問題が自力で解ける",
+            "heading": "\(unit)を\(subunits.count)つに分けて進めます", "lead": "",
+            "subunits": subunits,
+            "first_problem": ["prompt": "$x = 3$ は、この方程式の解ですか。", "math": "x^2 - 9 = 0", "answer_key": "はい"],
+        ]
     }
 
     nonisolated static func timelineGrading(_ request: JSONObject) -> JSONObject {

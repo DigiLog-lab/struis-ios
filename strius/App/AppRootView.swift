@@ -14,21 +14,35 @@ struct AppRootView: View {
     @Environment(WorkbookCoordinator.self) private var coordinator
     @Environment(LearningFeedRuntimeServices.self) private var learningFeedRuntime
     @Environment(TimelineStore.self) private var timeline
+    @Environment(SubscriptionStore.self) private var subscriptions
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
 
     /// オンボーディングは Release でも出す(§7.2)。完了は端末に保存し、2 回目の起動からは出さない。
     @State private var isShowingOnboarding = Self.initiallyShowsOnboarding
     @State private var onboardingSessionID = 0
-    /// オンボーディングの完了を保存している最中(続けて押されても 2 回目は受けない)。
-    @State private var isCompletingOnboarding = false
-    /// オンボーディングで選んだ教材を保存できなかった(オンボーディングは閉じずに、もう一度押してもらう)。
-    @State private var onboardingSaveFailed = false
     @State private var isSettingsPresented = false
     /// 単元ホームをタイムラインの上に重ねている。
     @State private var isUnitsPresented = Self.startsOnUnits
     /// 画面全体の大きさ(iPad の横向き・縦向きを、右の質問の欄を含めた幅で決める)。
     @State private var screenSize: CGSize = .zero
+    /// 利用枠を使い切った時のシート(カードの切れ目で出す。#40 の 12、#62 のソフトリミット)。
+    /// DEBUG: `STRUIS_START_SCREEN=limit` で起動した時に出す(画面の確認用)。
+    @State private var limitSnapshot: UsageSnapshot? = {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["STRUIS_START_SCREEN"] == "limit" { return UsageMeter.shared.snapshot() }
+        #endif
+        return nil
+    }()
+
+    /// DEBUG: 設定の「利用枠」を開いた状態から始める(`STRUIS_START_SCREEN=usage`。画面の確認用)。
+    @State private var isUsagePreviewPresented: Bool = {
+        #if DEBUG
+        return ProcessInfo.processInfo.environment["STRUIS_START_SCREEN"] == "usage"
+        #else
+        return false
+        #endif
+    }()
 
     /// 起動した時に単元ホームを重ねた状態から始めるか(DEBUG: 単元ホームから操作する UI テストの起動に使う)。
     private static var startsOnUnits: Bool {
@@ -46,9 +60,21 @@ struct AppRootView: View {
             UserDefaults.standard.removeObject(forKey: OnboardingProfile.completedKey)
             UserDefaults.standard.removeObject(forKey: OnboardingProfile.profileKey)
             UserDefaults.standard.removeObject(forKey: OnboardingProfile.unitCreationThreadKey)
+            UserDefaults.standard.removeObject(forKey: OnboardingModel.draftKey)
+            _ = OnboardingRecords.shared
         }
+        if onboardingStart != nil { return true }
         #endif
         return showsOnboardingOnSignIn
+    }
+
+    /// DEBUG: 途中の画面から始める(`STRUIS_ONBOARDING_START=<画面名>`。画面の確認用)。
+    private static var onboardingStart: OnboardingStep? {
+        #if DEBUG
+        return ProcessInfo.processInfo.environment["STRUIS_ONBOARDING_START"].flatMap(OnboardingStep.init(rawValue:))
+        #else
+        return nil
+        #endif
     }
 
     /// サインインした時にオンボーディングを出すか(完了の記録が無い)。
@@ -80,56 +106,16 @@ struct AppRootView: View {
         // サインイン → オンボーディング → ホーム。
         Group {
             if auth.canUseApp, isShowingOnboarding {
-                OnboardingPrototypeView { profile, attachments in
-                    guard !isCompletingOnboarding else { return }
-                    isCompletingOnboarding = true
-                    // サインアウトを始めた時点で変わる(サインアウトの後始末を待たずに、保存を無効にする)。
-                    let generation = auth.sessionGeneration
-                    Task {
-                        defer { isCompletingOnboarding = false }
-                        // 選んだ教材は、完了の印を付ける前に端末へ保存して保留にする(途中でアプリが終わっても失わない)。
-                        // 回答と教材が新しくなったので、作りかけの単元づくりの会話と前に保留した教材は使わず、新しい会話で始める
-                        // (今回「今は追加しない」を選んだ時も、前の教材を送らない)。
-                        let stored: [ChatTurns.Attachment]
-                        do {
-                            stored = try await ChatStore.storeAttachmentsInBackground(attachments)
-                        } catch {
-                            // 保存できなかった: 教材を黙って落とさず、オンボーディングを開いたまま知らせる。
-                            onboardingSaveFailed = true
-                            return
-                        }
-                        // 保存している間にサインアウト・別の学習者のサインインがあったら、何も書かない。
-                        guard generation == auth.sessionGeneration, auth.canUseApp else {
-                            ChatStore.removeStoredAttachments(stored)
-                            return
-                        }
-                        ChatStore.removeStoredAttachments(OnboardingProfile.pendingUnitCreationAttachments())
-                        OnboardingProfile.setPendingUnitCreationAttachments(stored)
-                        UserDefaults.standard.removeObject(forKey: OnboardingProfile.unitCreationThreadKey)
-                        profile.save()
-                        OnboardingProfile.markCompleted()
-                        isShowingOnboarding = false
-                        // 最初の単元を作る: 質問画面の単元づくり。モデルが先に問いを出す(§13.12)。教材は保留から使う。
-                        coordinator.createUnit(attachments: [])
-                    }
+                // 最後の行き先はタイムライン(計画の小単元 1 から、30 秒で解ける問題が 1 枚目に入っている)。
+                OnboardingFlowView(learnerData: learnerData, subscriptions: subscriptions, start: Self.onboardingStart) {
+                    OnboardingProfile.markCompleted()
+                    UserDefaults.standard.removeObject(forKey: OnboardingProfile.unitCreationThreadKey)
+                    isShowingOnboarding = false
+                    isUnitsPresented = false
+                    Task { await workbook.refreshHome() }
                 }
                 .id(onboardingSessionID)
-                // 教材を保存している間は、戻る・答えを変える・教材を外すを受けない(押した時の答えと教材で保存するため)。
-                .disabled(isCompletingOnboarding)
-                .overlay {
-                    if isCompletingOnboarding {
-                        ProgressView("保存しています")
-                            .padding(20)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-                            .accessibilityIdentifier("onboarding-saving")
-                    }
-                }
                 .onAppear { chat.start() }
-                .alert("教材を保存できませんでした", isPresented: $onboardingSaveFailed) {
-                    Button("OK", role: .cancel) {}
-                } message: {
-                    Text("端末の空き容量を確かめて、もう一度「最初の単元を作る」を押してください。")
-                }
             } else {
                 authenticatedContent
             }
@@ -234,6 +220,20 @@ struct AppRootView: View {
                         if case .idle = bootstrap.loadState {
                             await bootstrap.refresh()
                         }
+                    }
+                    // 次のカードに替わった時(解いている途中のカードは採点まで終わっている)に、使い切っていたら下から出す。
+                    .onChange(of: timeline.currentID) { _, current in
+                        guard current != nil, limitSnapshot == nil else { return }
+                        let snapshot = UsageMeter.shared.snapshot()
+                        if snapshot.isExhausted { limitSnapshot = snapshot }
+                    }
+                    .sheet(isPresented: $isUsagePreviewPresented) {
+                        NavigationStack { UsageSettingsView() }
+                    }
+                    .sheet(item: $limitSnapshot) { snapshot in
+                        UsageLimitSheet(snapshot: snapshot, store: subscriptions) { limitSnapshot = nil }
+                            .presentationDetents([.height(380)])
+                            .presentationDragIndicator(.visible)
                     }
             } else if auth.isRestoring {
                 SessionRestoringView()
