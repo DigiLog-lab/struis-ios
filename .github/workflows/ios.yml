@@ -135,7 +135,8 @@ jobs:
   # Manual full runs only (a release from main, or ui_tier=full): the pull request and gate path is `verify`.
   build:
     needs: [native, ui-plan]
-    if: needs.ui-plan.outputs.tier == 'full'
+    # An upload run skips the UI tests: the merged PRs already passed the gate, and signed-archive builds the app itself.
+    if: needs.ui-plan.outputs.tier == 'full' && !inputs.upload
     runs-on: xcode-27
     timeout-minutes: 90
     steps:
@@ -417,7 +418,7 @@ jobs:
 
   ui-tests:
     needs: [native, ui-plan]
-    if: needs.ui-plan.outputs.tier == 'full' && needs.ui-plan.outputs.matrix != '[]'
+    if: needs.ui-plan.outputs.tier == 'full' && needs.ui-plan.outputs.matrix != '[]' && !inputs.upload
     name: UIテスト (${{ matrix.shard }})
     runs-on: xcode-27
     timeout-minutes: 90
@@ -529,11 +530,12 @@ jobs:
 
   signed-archive:
     needs: [build, ui-plan, ui-tests]
-    # main only (a manual release/upload run), after the build job and every UI test runner passed.
+    # main only (a manual release/upload run). Without upload, after the build job and every UI test runner passed;
+    # with upload, straight away (the UI tests are skipped, see `build`).
     if: >-
       !cancelled() && !inputs.source_ref && !inputs.gate_pr && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' &&
-      needs.build.result == 'success' && needs.ui-plan.result == 'success' &&
-      needs.ui-tests.result == 'success'
+      needs.ui-plan.result == 'success' &&
+      (inputs.upload || (needs.build.result == 'success' && needs.ui-tests.result == 'success'))
     runs-on: xcode-27
     timeout-minutes: 180
     steps:
