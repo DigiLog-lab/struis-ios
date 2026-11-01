@@ -7,7 +7,7 @@ import XCTest
 /// 利用枠(`UsageMeter`・`DeviceUsageGate`)を確かめる。`.subscriptionStatusTask` の代わりに、グループの契約の状態を
 /// 読み直して `update(statuses:)` に渡す。購入は `product.purchase()` の代わりに `SKTestSession.buyProduct` で行う
 /// (`product.purchase()` は、StoreKit の設定が入っていない Simulator ではテストのホストのプロセスが終わるまで Sandbox の
-/// アカウントの認証を待つ)。`buyProduct` は `failTransactionsEnabled` を見ないので、その時は StoreKit と同じエラーを投げてまねる。
+/// アカウントの認証を待つ)。`buyProduct` は契約の状態に出るまで待ってから返す。`buyProduct` は `failTransactionsEnabled` を見ないので、その時は StoreKit と同じエラーを投げてまねる。
 ///
 /// 週の使用額の決まり: プランが変わっても今週の使用額は引き継ぎ、月曜 0:00 にだけ戻す。上げた直後は新しい上限から
 /// 今週の使用額を引いた分が使える。下げた時は次の更新日から切り替わり、切り替え後に上限を超えていれば次の月曜まで
@@ -51,7 +51,19 @@ final class SubscriptionStoreTests: XCTestCase {
         let session = session!
         let store = SubscriptionStore(meter: meter) { product in
             if session.failTransactionsEnabled { throw StoreKitError.unknown }
-            return .success(.verified(try await session.buyProduct(identifier: product.id)))
+            let transaction = try await session.buyProduct(identifier: product.id)
+            // `product.purchase()` は契約の状態に出てから返る。`buyProduct` は少し遅れて出るので、出るまで待つ
+            // (上げた時は新しい取引、下げた時は次の更新のプラン)。15 秒たっても出なければそのまま返す(続く確かめで落ちる)。
+            let deadline = Date().addingTimeInterval(15)
+            while Date() < deadline {
+                let statuses = try await Product.SubscriptionInfo.status(for: Self.groupID)
+                if statuses.contains(where: { status in
+                    (try? status.transaction.payloadValue.id) == transaction.id
+                        || (try? status.renewalInfo.payloadValue.autoRenewPreference) == product.id
+                }) { break }
+                try await Task.sleep(for: .milliseconds(200))
+            }
+            return .success(.verified(transaction))
         }
         return (store, meter)
     }
