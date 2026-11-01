@@ -8,6 +8,8 @@ final class OnboardingScreenshotUITests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = true
+        // 27 画面を 1 枚ずつ起動して撮るので、既定の 3 分を超える(main の手動の全件実行で時間切れになった)。
+        executionTimeAllowance = 6 * 60
         let configuration = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Config/Struis.storekit")
         let session = try SKTestSession(contentsOf: configuration)
