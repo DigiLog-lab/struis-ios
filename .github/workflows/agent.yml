@@ -260,7 +260,7 @@ jobs:
           ref: main
           persist-credentials: false
           sparse-checkout: scripts/agent
-      - name: 閉じたIssueのDerivedData cacheと受け渡し用ブランチを削除
+      - name: 閉じたIssueのDerivedData cache、作業ブランチ、受け渡し用ブランチを削除
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 scripts/agent/cleanup.py

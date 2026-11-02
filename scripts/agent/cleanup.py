@@ -1,8 +1,9 @@
 """After an agent Issue closes: drop what only that Issue used.
 
 Runs on Linux in agent.yml with actions: write (Actions caches) and contents: write (branches).
-Deletes the branch's DerivedData cache entries and the Issue's handoff branch. The Native Runtime
-cache is shared and never touched here.
+Deletes the working branch's DerivedData cache entries, the working branch itself (unless an open PR
+still comes from it) and the Issue's handoff branch. A deleted working branch can be restored from its
+merged or closed PR. The Native Runtime cache is shared and never touched here.
 """
 import hashlib
 import json
@@ -29,8 +30,7 @@ def delete_branch_cache(gh, branch):
             removed += 1
 
 
-def delete_handoff(gh, number):
-    branch = f'handoff/issue-{number}'
+def delete_ref(gh, branch):
     try:
         gh.request('DELETE', f'/repos/{gh.repository}/git/refs/heads/{urllib.parse.quote(branch, safe="/")}', retry=False)
         return True
@@ -40,11 +40,28 @@ def delete_handoff(gh, number):
         raise
 
 
+def delete_handoff(gh, number):
+    return delete_ref(gh, f'handoff/issue-{number}')
+
+
+def delete_work_branch(gh, branch):
+    """Delete the Issue's working branch. Only agent/ branches, and only when no open PR comes from it."""
+    if not branch.startswith('agent/'):
+        return 'kept (not an agent branch)'
+    owner = gh.repository.split('/')[0]
+    query = urllib.parse.urlencode({'state': 'open', 'head': f'{owner}:{branch}', 'per_page': 1})
+    if gh.get(f'/repos/{gh.repository}/pulls?{query}'):
+        return 'kept (open PR)'
+    return 'deleted' if delete_ref(gh, branch) else 'not present'
+
+
 def cleanup(number, branch, gh):
-    caches = delete_branch_cache(gh, branch) if branch else 0
+    branch = branch or f'agent/issue-{number}'
+    caches = delete_branch_cache(gh, branch)
+    work = delete_work_branch(gh, branch)
     handoff = delete_handoff(gh, number)
     append_summary(f'Issue #{number}: {caches} DerivedData cache entries deleted; '
-                   f'handoff branch {"deleted" if handoff else "not present"}.')
+                   f'working branch `{branch}` {work}; handoff branch {"deleted" if handoff else "not present"}.')
 
 
 def main():

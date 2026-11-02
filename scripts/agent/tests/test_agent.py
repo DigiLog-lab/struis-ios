@@ -477,6 +477,30 @@ class CleanupTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             cleanup.delete_handoff(gh, 4)
 
+    def run_cleanup(self, branch, open_prs=()):
+        gh = mock.Mock(repository='o/r')
+        gh.get.side_effect = lambda path: {'actions_caches': []} if 'caches' in path else list(open_prs)
+        with mock.patch.object(cleanup, 'append_summary'):
+            cleanup.cleanup(4, branch, gh)
+        return [call.args[1] for call in gh.request.call_args_list if call.args[0] == 'DELETE'], gh
+
+    def test_the_working_branch_and_handoff_are_deleted(self):
+        deleted, gh = self.run_cleanup('agent/issue-4')
+        self.assertEqual(deleted, ['/repos/o/r/git/refs/heads/agent/issue-4', '/repos/o/r/git/refs/heads/handoff/issue-4'])
+        self.assertIn('head=o%3Aagent%2Fissue-4', [c.args[0] for c in gh.get.call_args_list][-1])
+
+    def test_a_branch_with_an_open_pr_is_kept(self):
+        deleted, _ = self.run_cleanup('agent/issue-4', open_prs=[{'number': 9}])
+        self.assertEqual(deleted, ['/repos/o/r/git/refs/heads/handoff/issue-4'])
+
+    def test_only_agent_branches_are_deleted(self):
+        deleted, _ = self.run_cleanup('main')
+        self.assertEqual(deleted, ['/repos/o/r/git/refs/heads/handoff/issue-4'])
+
+    def test_an_issue_without_state_uses_the_default_branch_name(self):
+        deleted, _ = self.run_cleanup(None)
+        self.assertIn('/repos/o/r/git/refs/heads/agent/issue-4', deleted)
+
 
 class PrototypeTests(unittest.TestCase):
     def test_slot_identifiers(self):
