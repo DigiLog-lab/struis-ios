@@ -1,32 +1,17 @@
 name: iOS
 run-name: >-
-  ${{ inputs.ci_request && format('iOS CI {0} {1}', inputs.ci_request, inputs.source_ref) ||
-      github.event_name == 'pull_request' && format('iOS verification PR #{0} {1}', github.event.pull_request.number, github.event.pull_request.head.sha) || 'iOS' }}
+  ${{ github.event_name == 'repository_dispatch' && format('Verify PR #{0} {1}', github.event.client_payload.pr, github.event.client_payload.sha) || 'iOS' }}
 
 on:
-  # Explicit manual diagnostic entry point for a connected GitHub client.
-  # A label already present on a PR does not run again on a WIP push.
-  pull_request:
-    types: [labeled]
-  # No push or nightly trigger. workflow_dispatch carries the merge gate (the
-  # `verify` job, dispatched by the Ready controller) and the release route
-  # (a manual run on main: every UI test, then `signed-archive` and the optional
-  # TestFlight upload). Xcode Cloud (PR Gate / Release) is kept only as a manual
-  # backup (docs/verification-and-delivery-policy.md).
+  # The verification of a PR: `agentctl ready` (or the web Claude after a direct fix) sends the PR's exact
+  # HEAD. It runs main's definition of this file on that commit; agent.yml's `report` job turns the result
+  # into the commit status `Struis / verify` that main requires, and wakes the Issue when it is red.
+  repository_dispatch:
+    types: [verify]
+  # Manual runs: on main, every UI test, then `signed-archive` and the optional TestFlight upload; on any
+  # other branch, the same checks as a PR verification (or every UI test with ui_tier=full).
   workflow_dispatch:
     inputs:
-      source_ref:
-        description: 門の対象の厳密なcommit SHA（定義はmainから実行）
-        type: string
-        required: false
-      gate_pr:
-        description: 門のPR番号（署名と配信を禁止）
-        type: string
-        required: false
-      ci_request:
-        description: エージェントのCI要求識別子
-        type: string
-        required: false
       ui_tier:
         description: UIテストの範囲(pr = 変更に関係する分、full = 全件)
         type: choice
@@ -45,97 +30,22 @@ permissions:
   contents: read
 
 concurrency:
-  # Only main's manual release/upload uses the shared non-cancellable group.
-  group: ios-${{ inputs.ci_request || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && 'manual-main') || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main') }}
+  # Verifications of one PR run one after another (each is a different commit); main's manual release runs alone.
+  group: ${{ github.event_name == 'repository_dispatch' && format('ios-verify-{0}', github.event.client_payload.pr) || format('ios-{0}', github.ref) }}
+  cancel-in-progress: false
 
 jobs:
-  # Guarantees the bootstrap output (about 50 minutes to build) is in the cache, so the
-  # build and UI test runners below can start in parallel and only restore it.
+  # Builds the Native Runtime cache for this commit if it is missing (agent-native-cache.yml is the only
+  # builder), so the build and UI test runners below can start in parallel and only restore it.
   native:
-    if: >-
-      github.event_name != 'pull_request' ||
-        (github.event.label.name == 'ios-verify' && github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: xcode-27
-    timeout-minutes: 150
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-          ref: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
-      - name: cache keyを生成前に固定
-        id: key
-        run: echo "key=native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: '3.14'
-      - name: Native Runtime cacheを確認
-        id: native
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            NativeRuntime/Vendor
-            NativeRuntime/PythonPackages
-            NativeRuntime/PackageCache
-            NativeRuntime/.build
-          key: ${{ steps.key.outputs.key }}
-          lookup-only: true
-      - name: ツールを準備
-        if: steps.native.outputs.cache-hit != 'true'
-        run: |
-          set -euo pipefail
-          brew install autoconf automake libtool
-          if ! command -v rustup >/dev/null; then
-            brew install rustup
-          fi
-          rustup toolchain install 1.95.0 --profile minimal
-          rustup target add --toolchain 1.95.0 aarch64-apple-ios aarch64-apple-ios-sim
-      - name: 固定依存を生成
-        if: steps.native.outputs.cache-hit != 'true'
-        env:
-          CARGO_BUILD_JOBS: '2'
-        run: |
-          set -euo pipefail
-          python3.14 NativeRuntime/Scripts/bootstrap.py --platform both
-      - name: ビルド用cacheを整理
-        if: steps.native.outputs.cache-hit != 'true'
-        run: |
-          set -euo pipefail
-          rm -rf NativeRuntime/.build/codex NativeRuntime/.build/codex-artifacts
-      - name: Native Runtime cacheを保存
-        if: steps.native.outputs.cache-hit != 'true'
-        # agent-native-cache.yml may already be writing this exact key.
-        continue-on-error: true
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            NativeRuntime/Vendor
-            NativeRuntime/PythonPackages
-            NativeRuntime/PackageCache
-            NativeRuntime/.build
-          key: ${{ steps.key.outputs.key }}
-      - name: Native Runtime cacheが使えることを確認
-        if: steps.native.outputs.cache-hit != 'true'
-        id: saved
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            NativeRuntime/Vendor
-            NativeRuntime/PythonPackages
-            NativeRuntime/PackageCache
-            NativeRuntime/.build
-          key: ${{ steps.key.outputs.key }}
-          lookup-only: true
-      - name: cacheが無ければ止める
-        if: steps.native.outputs.cache-hit != 'true' && steps.saved.outputs.cache-hit != 'true'
-        run: |
-          echo '::error::Native Runtime cacheを保存できませんでした。agent-native-cache.yml が同じcacheを保存中の可能性があります。その実行が終わってから、このworkflowを再実行してください。'
-          exit 1
+    uses: ./.github/workflows/agent-native-cache.yml
+    with:
+      ref: ${{ github.event.client_payload.sha || github.sha }}
 
-  # Manual full runs only (a release from main, or ui_tier=full): the pull request and gate path is `verify`.
+  # Manual full runs only (a release from main, or ui_tier=full): a PR verification is `verify`.
   build:
     needs: [native, ui-plan]
-    # An upload run skips the UI tests: the merged PRs already passed the gate, and signed-archive builds the app itself.
+    # An upload run skips the UI tests: the merged PRs were verified, and signed-archive builds the app itself.
     if: needs.ui-plan.outputs.tier == 'full' && !inputs.upload
     runs-on: xcode-27
     timeout-minutes: 90
@@ -143,7 +53,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          ref: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.client_payload.sha || github.sha }}
       - name: Spotlight の索引を止める
         # The runner VM has 3 CPUs and 7 GB; Xcode, the Simulator and the app already fill the memory, and a
         # stackshot of a 2-minute stall showed Spotlight (mds_stores) indexing while pages were read back in.
@@ -183,7 +93,7 @@ jobs:
             -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
             -maximum-test-execution-time-allowance 300 ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
       - name: 実機向けRelease archiveを検証
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')
+        if: github.ref != 'refs/heads/main'
         timeout-minutes: 30
         run: |
           set -euo pipefail
@@ -199,13 +109,10 @@ jobs:
           if-no-files-found: ignore
 
   # Decides the tier and the UI tests (scripts/ci/ui_test_plan.py, scripts/ci/ui-test-plan.json).
-  # Pull requests, the gate and the agent's CI requests run the `pr` tier in the single `verify` job:
+  # A PR verification and a manual run on another branch run the `pr` tier in the single `verify` job:
   # every unit test plus the UI tests of the contracts the change touches (possibly none).
   # A manual run on main and a manual `full` run every UI test across runners (`build` + `ui-tests`).
   ui-plan:
-    if: >-
-      github.event_name != 'pull_request' ||
-        (github.event.label.name == 'ios-verify' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -216,19 +123,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          ref: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.client_payload.sha || github.sha }}
           fetch-depth: 0
       - name: 実行するUIテストを決める
         id: plan
         env:
+          EVENT: ${{ github.event_name }}
           REF: ${{ github.ref }}
-          PR_BASE: ${{ github.base_ref }}
           REQUESTED_TIER: ${{ inputs.ui_tier }}
-          SOURCE_REF: ${{ inputs.source_ref }}
         run: |
           set -euo pipefail
           # Manual main runs (release) get every UI test.
-          if [[ -z "$SOURCE_REF" && ( "$REQUESTED_TIER" == "full" || "$REF" == "refs/heads/main" ) ]]; then
+          if [[ "$EVENT" == "workflow_dispatch" && ( "$REQUESTED_TIER" == "full" || "$REF" == "refs/heads/main" ) ]]; then
             echo "tier=full" >> "$GITHUB_OUTPUT"
             matrix=$(python3 scripts/ci/ui_test_plan.py --matrix)
             echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
@@ -238,11 +144,10 @@ jobs:
           fi
           echo "tier=pr" >> "$GITHUB_OUTPUT"
           echo "matrix=[]" >> "$GITHUB_OUTPUT"
-          base="${PR_BASE:-main}"
           args=()
-          if git rev-parse --verify --quiet "origin/$base" >/dev/null; then
-            git diff --name-only --no-renames "origin/$base...HEAD" > "$RUNNER_TEMP/changed.txt"
-            git diff -U0 --no-renames "origin/$base...HEAD" -- strius.xcodeproj/project.pbxproj > "$RUNNER_TEMP/project.diff"
+          if git rev-parse --verify --quiet origin/main >/dev/null; then
+            git diff --name-only --no-renames "origin/main...HEAD" > "$RUNNER_TEMP/changed.txt"
+            git diff -U0 --no-renames "origin/main...HEAD" -- strius.xcodeproj/project.pbxproj > "$RUNNER_TEMP/project.diff"
             args=(--changed-files "$RUNNER_TEMP/changed.txt" --project-diff "$RUNNER_TEMP/project.diff")
           else
             # No base to compare with: every contract (never fewer tests than the change needs).
@@ -261,7 +166,7 @@ jobs:
               print(f"  - {test}")
           PY
 
-  # The pull request and gate check: one build, then the unit tests, then the selected UI tests, on one
+  # The PR verification: one build, then the unit tests, then the selected UI tests, on one
   # booted Simulator. The unit tests run first in their own xcodebuild invocation, so a failing unit test
   # stops the job within minutes instead of being reported after every UI test (2026-10-31: a unit test
   # that failed in the first 5 minutes was reported after 17). The Release archive runs at the same time
@@ -275,7 +180,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          ref: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.client_payload.sha || github.sha }}
       - name: Spotlight の索引を止める
         # The runner VM has 3 CPUs and 7 GB; Xcode, the Simulator and the app already fill the memory, and a
         # stackshot of a 2-minute stall showed Spotlight (mds_stores) indexing while pages were read back in.
@@ -356,43 +261,19 @@ jobs:
             ${{ runner.temp }}/*.xcresult
             ${{ runner.temp }}/ui-probe
           if-no-files-found: ignore
-      # The gate controller compares these names with the tests the gate requires
-      # (a missing test is never green). Each result bundle gets its own list in the same artifact;
-      # the controller reads every file of every `ios-gate-tests-<run>-<attempt>-*` artifact.
-      - name: 門の照合用に実行したテストの一覧を書き出す
-        if: always() && inputs.gate_pr
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/gate-tests"
-          for part in Unit UI; do
-            bundle="$RUNNER_TEMP/StruisGate$part.xcresult"
-            [[ -d "$bundle" ]] || continue
-            name=$(echo "$part" | tr '[:upper:]' '[:lower:]')
-            xcrun xcresulttool get test-results tests --path "$bundle" --format json \
-              > "$RUNNER_TEMP/gate-tests/verify-$name.json"
-          done
-      - name: 門の照合用の一覧を保存
-        if: always() && inputs.gate_pr
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ios-gate-tests-${{ github.run_id }}-${{ github.run_attempt }}-verify
-          path: ${{ runner.temp }}/gate-tests
-          if-no-files-found: error
 
   # The Release archive check of the `pr` tier, on its own runner at the same time as `verify` (it used to run
   # after the tests in `verify`). A failure here fails the run like a failed test.
   release-archive:
     needs: [native, ui-plan]
-    if: >-
-      needs.ui-plan.outputs.tier == 'pr' &&
-        (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'))
+    if: needs.ui-plan.outputs.tier == 'pr' && (github.event_name == 'repository_dispatch' || github.ref != 'refs/heads/main')
     runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          ref: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.client_payload.sha || github.sha }}
       - name: Spotlight の索引を止める
         run: sudo mdutil -a -i off >/dev/null 2>&1 || true
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
@@ -430,7 +311,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          ref: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.client_payload.sha || github.sha }}
       - name: Spotlight の索引を止める
         # The runner VM has 3 CPUs and 7 GB; Xcode, the Simulator and the app already fill the memory, and a
         # stackshot of a 2-minute stall showed Spotlight (mds_stores) indexing while pages were read back in.
@@ -533,7 +414,7 @@ jobs:
     # main only (a manual release/upload run). Without upload, after the build job and every UI test runner passed;
     # with upload, straight away (the UI tests are skipped, see `build`).
     if: >-
-      !cancelled() && !inputs.source_ref && !inputs.gate_pr && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' &&
+      !cancelled() && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' &&
       needs.ui-plan.result == 'success' &&
       (inputs.upload || (needs.build.result == 'success' && needs.ui-tests.result == 'success'))
     runs-on: xcode-27
@@ -542,7 +423,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-          ref: ${{ inputs.source_ref || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.client_payload.sha || github.sha }}
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14'

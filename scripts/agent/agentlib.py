@@ -319,31 +319,76 @@ def session_key(issue, name):
     return f'sessions/{issue}/{name}'
 
 
-CONFIG_FILE = Path(__file__).resolve().with_name('gate-config.json')
-CONFIG_ENV = {'gateMaxAttempts': 'AGENT_GATE_MAX_ATTEMPTS', 'backend': 'AGENT_GATE_BACKEND',
-              'checkpointSeconds': 'AGENT_CHECKPOINT_SECONDS'}
-
-
-def gate_config():
-    """Settings committed with the controller (scripts/agent/gate-config.json).
-
-    No repository variable is needed. The environment overrides a value only
-    when it is set and non-empty (local tests and one-off diagnostics).
-    """
-    config = json.loads(CONFIG_FILE.read_text())
-    for key, variable in CONFIG_ENV.items():
-        value = os.environ.get(variable)
-        if value not in (None, ''):
-            config[key] = int(value) if isinstance(config.get(key), int) else value
-    return config
-
-
 def dispatch(gh, event_type, payload):
     """Start a workflow on main with a repository_dispatch event.
 
     Unlike workflow_dispatch this needs only contents: write, so the macOS
-    worker does not hold actions: write (it could otherwise re-run or delete
-    the runs and artifacts that decide the gate).
+    worker does not hold actions: write. A workflow started this way always
+    runs main's definition, whatever branch the sender works on.
     """
     gh.request('POST', f'/repos/{gh.repository}/dispatches',
                {'event_type': event_type, 'client_payload': {key: str(value) for key, value in payload.items()}})
+
+
+# Environment variables whose values never leave the runner. live-log.cjs uses the same rule for the
+# public Actions log; redact() applies it to the files kept as the run's artifact.
+SENSITIVE_NAME = re.compile(r'TOKEN|PASSWORD|SECRET|PRIVATE_KEY|API_KEY|APP_KEY|CERTIFICATE|PROVISION_PROFILE', re.I)
+_PATTERNS = [
+    (re.compile(r'-----BEGIN [^-]*(?:PRIVATE KEY|CERTIFICATE)-----[\s\S]*?-----END [^-]+-----'), '[REDACTED PEM]'),
+    (re.compile(r'(?:sk-(?:ant-)?[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}'
+                r'|xox[baprs]-[A-Za-z0-9-]{10,})'), '[REDACTED TOKEN]'),
+    (re.compile(r'eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'), '[REDACTED JWT]'),
+    (re.compile(r'((?:authorization["\']?\s*[:=]\s*["\']?)(?:Bearer |Basic )?)[^\s"\']+', re.I), r'\1[REDACTED]'),
+    (re.compile(r'([\w.-]*(?:token|password|secret|api[_-]?key|private[_-]?key|app[_-]?key)[\w.-]*["\']?\s*[:=]\s*)'
+                r'("[^"\n]*"|\'[^\'\n]*\'|[^\s,}]+)', re.I), r'\1[REDACTED]'),
+]
+
+
+def secret_values(environment=None):
+    """Values of sensitive variables (and each of their lines), longest first, as they may appear in text."""
+    values = set()
+    for key, value in (os.environ if environment is None else environment).items():
+        if not SENSITIVE_NAME.search(key) or not value:
+            continue
+        for part in [value, *value.splitlines()]:
+            part = part.strip()
+            if len(part) >= 6:
+                values.update({part, urllib.parse.quote(part, safe=''), json.dumps(part)[1:-1]})
+    return sorted(values, key=len, reverse=True)
+
+
+def redact(text, environment=None, values=None):
+    for value in (secret_values(environment) if values is None else values):
+        text = text.replace(value, '[REDACTED]')
+    for pattern, replacement in _PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text
+
+
+TEXT_SUFFIXES = {'.log', '.txt', '.json', '.jsonl', '.md', '.tsv', '.csv', '.plist', '.xml', '.yml', '.yaml'}
+
+
+def redact_tree(root, environment=None):
+    """Redact every file under root in place before it is uploaded as a public artifact.
+
+    Text files get the full rules. Any other file (screenshots, result bundles) only has the exact
+    secret values overwritten with as many `*`, so offsets inside it (a SQLite database) stay valid.
+    """
+    values = secret_values(environment)
+    encoded = [value.encode() for value in values]
+    changed = 0
+    for path in Path(root).rglob('*'):
+        if path.is_symlink() or not path.is_file():
+            continue
+        data = path.read_bytes()
+        if path.suffix.lower() in TEXT_SUFFIXES:
+            text = data.decode('utf-8', errors='replace')
+            new = redact(text, values=values).encode()
+        else:
+            new = data
+            for value in encoded:
+                new = new.replace(value, b'*' * len(value))
+        if new != data:
+            path.write_bytes(new)
+            changed += 1
+    return changed

@@ -1,21 +1,22 @@
-"""Unit tests for the Issue agent scripts: python3 -m unittest discover scripts/agent/tests"""
-import io
+"""Unit tests for the Issue agent scripts: python3 -m unittest discover -s scripts/agent/tests"""
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
-import tarfile
 import tempfile
 import unittest
 from unittest import mock
-import urllib.error
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import agentctl  # noqa: E402
 import agentlib  # noqa: E402
 import appstoreconnect  # noqa: E402
-import gate  # noqa: E402
+import cleanup  # noqa: E402
 import prototype  # noqa: E402
+import verify_report  # noqa: E402
+
+SHA = 'a' * 40
 
 
 def comment(identifier, login='owner', association='OWNER', kind='User', body='hello'):
@@ -23,18 +24,47 @@ def comment(identifier, login='owner', association='OWNER', kind='User', body='h
             'body': body, 'created_at': '2026-10-10T00:00:00Z'}
 
 
-class PendingCommentsTests(unittest.TestCase):
+ISSUE = {'number': 4, 'title': 'T', 'html_url': 'https://github.com/o/r/issues/4', 'user': {'login': 'owner'},
+         'author_association': 'OWNER', 'created_at': '2026-10-09T00:00:00Z', 'body': 'やること', 'state': 'open',
+         'labels': [{'name': 'agent'}]}
+
+
+def git(cwd, *args):
+    return subprocess.run(['git', *args], cwd=cwd, check=True, capture_output=True, text=True).stdout.strip()
+
+
+class FakeStore:
+    def __init__(self, objects=None):
+        self.objects = dict(objects or {})
+        self.uploaded = []
+
+    def get_json(self, key):
+        return json.loads(json.dumps(self.objects[key])) if key in self.objects else None
+
+    def put_json(self, key, value, **_):
+        self.objects[key] = json.loads(json.dumps(value))
+
+    def update_json(self, key, change, default=None, attempts=8):
+        self.objects[key] = change(self.get_json(key) or json.loads(json.dumps(default)))
+        return self.objects[key]
+
+    def upload_file(self, key, path, content_type):
+        self.uploaded.append(key)
+
+    def list(self, prefix):
+        return []
+
+
+class PendingWorkTests(unittest.TestCase):
     def setUp(self):
-        os.environ.pop('AGENT_ALLOWED_USERS', None)
+        patch = mock.patch.dict(os.environ, {'AGENT_ALLOWED_USERS': ''})
+        patch.start()
+        self.addCleanup(patch.stop)
 
     def test_only_new_comments_from_allowed_people(self):
-        comments = [
-            comment(1), comment(5),
-            comment(6, 'github-actions[bot]', 'NONE', 'Bot'),
-            comment(7, 'stranger', 'NONE'),
-            comment(8, body=f'{agentlib.REPLY_MARKER} reply'),
-            comment(9, 'member', 'COLLABORATOR'),
-        ]
+        comments = [comment(1), comment(5), comment(6, 'github-actions[bot]', 'NONE', 'Bot'),
+                    comment(7, 'stranger', 'NONE'), comment(8, body=f'{agentlib.REPLY_MARKER} reply'),
+                    comment(9, 'member', 'COLLABORATOR')]
         pending = agentlib.pending_comments(comments, {'lastCommentId': 4})
         self.assertEqual([item['id'] for item in pending], [5, 9])
 
@@ -43,72 +73,308 @@ class PendingCommentsTests(unittest.TestCase):
             comments = [comment(1, 'alice', 'NONE'), comment(2, 'owner', 'OWNER')]
             self.assertEqual([item['id'] for item in agentlib.pending_comments(comments, {})], [1])
 
-    def test_issue_body_is_pending_once(self):
-        issue = {'user': {'login': 'owner'}, 'author_association': 'OWNER'}
-        self.assertTrue(agentlib.issue_is_pending(issue, {}))
-        self.assertFalse(agentlib.issue_is_pending(issue, {'issueBodyProcessed': True}))
+    def test_a_red_verification_is_work_even_without_a_new_comment(self):
+        state = {'issueBodyProcessed': True, 'lastCommentId': 9, 'verifyFailure': {'pr': 3}}
+        pending, body, failure = agentctl.has_work(ISSUE, [comment(9)], state)
+        self.assertEqual((pending, body), ([], False))
+        self.assertEqual(failure, {'pr': 3})
 
 
-class ExecutionAnalysisTests(unittest.TestCase):
-    def test_usage_and_first_request(self):
-        messages = [
-            {'type': 'system', 'subtype': 'init', 'session_id': 's', 'model': 'claude-opus-5-5', 'tools': ['Bash']},
-            {'type': 'assistant', 'parent_tool_use_id': None, 'message': {'id': 'a', 'content': [{'type': 'text', 'text': 'x'}],
-             'usage': {'input_tokens': 2, 'cache_read_input_tokens': 90, 'cache_creation_input_tokens': 8,
-                       'cache_creation': {'ephemeral_1h_input_tokens': 8}}}},
-            {'type': 'assistant', 'parent_tool_use_id': 'tool', 'message': {'id': 'sub', 'content': [], 'usage': {}}},
-            {'type': 'result', 'subtype': 'success', 'is_error': False, 'result': 'done', 'session_id': 's',
-             'usage': {'input_tokens': 4, 'cache_read_input_tokens': 180, 'cache_creation_input_tokens': 16, 'output_tokens': 50}},
-        ]
-        report = agentctl.analyze(messages)
-        self.assertEqual(report['sessionId'], 's')
-        self.assertEqual(report['requests'], 1)
-        self.assertEqual(report['firstRequest']['cacheCreation1h'], 8)
-        self.assertAlmostEqual(report['turnUsage']['cacheHitRate'], 0.9)
+class PromptTests(unittest.TestCase):
+    def test_first_run_sees_the_issue_body_only(self):
+        prompt = agentctl.build_prompt('<ctx/>', ISSUE, [], [comment(2)], {}, None)
+        self.assertIn('<issue-body', prompt)
+        self.assertNotIn('<thread>', prompt)
+        self.assertIn('<comment id="2"', prompt)
 
-    def test_missing_result_has_no_hit_rate(self):
-        report = agentctl.analyze([])
-        self.assertIsNone(report['result'])
-        self.assertIsNone(report['turnUsage']['cacheHitRate'])
+    def test_later_runs_rebuild_the_thread_with_agent_replies_and_decisions(self):
+        reply = comment(3, 'github-actions[bot]', 'NONE', 'Bot',
+                        f'{agentlib.REPLY_MARKER}\n\n答え\n\n<details><summary>セッション情報</summary>表</details>')
+        state = {'issueBodyProcessed': True, 'decisions': [{'at': 'x', 'text': 'SwiftMathにする'}]}
+        prompt = agentctl.build_prompt('<ctx/>', ISSUE, [comment(2), reply], [comment(4, body='次')], state, None)
+        self.assertIn('<thread>', prompt)
+        self.assertIn('role="agent"', prompt)
+        self.assertIn('答え', prompt)
+        self.assertNotIn('セッション情報', prompt)
+        self.assertIn('SwiftMathにする', prompt)
+        self.assertIn('<comment id="4"', prompt)
+
+    def test_a_red_verification_is_handed_over_with_its_failures(self):
+        failure = {'pr': 3, 'sha': SHA, 'failed': [{'job': 'verify', 'steps': ['単体テスト']}]}
+        prompt = agentctl.build_prompt('<ctx/>', ISSUE, [], [], {'issueBodyProcessed': True}, failure)
+        self.assertIn('<verify-failure>', prompt)
+        self.assertIn('単体テスト', prompt)
+
+    def test_merge_outcomes_are_described_for_claude(self):
+        self.assertIn('最新のmainを含んで', agentctl.describe_merge({'status': 'up-to-date'}))
+        self.assertIn('3コミット', agentctl.describe_merge({'status': 'merged', 'behind': 3}))
+        self.assertIn('a.swift', agentctl.describe_merge({'status': 'conflict', 'behind': 1, 'files': ['a.swift']}))
 
 
-class SessionArchiveTests(unittest.TestCase):
-    def test_round_trip_through_store(self):
-        stored = {}
+class BranchTests(unittest.TestCase):
+    """merge_main and fetch_handoff against a real origin."""
 
-        class FakeStore:
-            def put(self, key, data, content_type):
-                stored[key] = data
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        root = Path(self.temp.name)
+        self.origin, self.work = root / 'origin.git', root / 'work'
+        git(root, 'init', '--bare', '-b', 'main', str(self.origin))
+        git(root, 'clone', str(self.origin), str(self.work))
+        for key, value in (('user.name', 't'), ('user.email', 't@example.com')):
+            git(self.work, 'config', key, value)
+        (self.work / 'a.txt').write_text('base\n')
+        git(self.work, 'add', '.')
+        git(self.work, 'commit', '-m', 'base')
+        git(self.work, 'push', 'origin', 'main')
+        patch = mock.patch.dict(os.environ, {'GITHUB_WORKSPACE': str(self.work)})
+        patch.start()
+        self.addCleanup(patch.stop)
 
-            def get(self, key):
-                return stored.get(key)
+    def advance_main(self, text):
+        other = Path(self.temp.name) / f'other-{len(text)}'
+        git(self.temp.name, 'clone', str(self.origin), str(other))
+        for key, value in (('user.name', 't'), ('user.email', 't@example.com')):
+            git(other, 'config', key, value)
+        (other / 'a.txt').write_text(text)
+        git(other, 'commit', '-am', 'main moves')
+        git(other, 'push', 'origin', 'main')
 
-        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
-            projects = Path(first) / 'projects' / '-Users-runner-work-struis-ios-struis-ios'
-            projects.mkdir(parents=True)
-            (projects / 'abc.jsonl').write_text('{"type":"user"}\n')
-            with mock.patch.object(agentctl, 'CLAUDE_DIR', Path(first)):
-                agentctl.save_session(FakeStore(), 3)
-            with mock.patch.object(agentctl, 'CLAUDE_DIR', Path(second)):
-                self.assertTrue(agentctl.restore_session(FakeStore(), 3, 'abc'))
-                self.assertFalse(agentctl.restore_session(FakeStore(), 3, 'other'))
+    def test_new_branch_starts_from_main_and_is_up_to_date(self):
+        self.assertFalse(agentctl.checkout_branch('agent/issue-4'))
+        self.assertEqual(agentctl.merge_main(), {'status': 'up-to-date'})
 
-    def test_archive_rejects_path_traversal(self):
-        buffer = io.BytesIO()
-        with tarfile.open(fileobj=buffer, mode='w:gz') as archive:
-            info = tarfile.TarInfo('../escape.txt')
-            info.size = 1
-            archive.addfile(info, io.BytesIO(b'x'))
+    def test_main_is_merged_into_an_existing_branch(self):
+        git(self.work, 'checkout', '-b', 'agent/issue-4')
+        (self.work / 'b.txt').write_text('work\n')
+        git(self.work, 'add', '.')
+        git(self.work, 'commit', '-m', 'work')
+        git(self.work, 'push', 'origin', 'agent/issue-4')
+        self.advance_main('main\n')
+        self.assertTrue(agentctl.checkout_branch('agent/issue-4'))
+        merge = agentctl.merge_main()
+        self.assertEqual((merge['status'], merge['behind']), ('merged', 1))
+        self.assertEqual((self.work / 'a.txt').read_text(), 'main\n')
+        self.assertEqual((self.work / 'b.txt').read_text(), 'work\n')
 
-        class FakeStore:
-            def get(self, key):
-                return buffer.getvalue()
+    def test_a_conflict_is_aborted_and_reported(self):
+        git(self.work, 'checkout', '-b', 'agent/issue-4')
+        (self.work / 'a.txt').write_text('branch\n')
+        git(self.work, 'commit', '-am', 'work')
+        git(self.work, 'push', 'origin', 'agent/issue-4')
+        self.advance_main('main side\n')
+        agentctl.checkout_branch('agent/issue-4')
+        merge = agentctl.merge_main()
+        self.assertEqual((merge['status'], merge['files']), ('conflict', ['a.txt']))
+        self.assertEqual(git(self.work, 'status', '--porcelain'), '')
+        self.assertEqual((self.work / 'a.txt').read_text(), 'branch\n')
 
-        with tempfile.TemporaryDirectory() as directory:
-            with mock.patch.object(agentctl, 'CLAUDE_DIR', Path(directory) / 'claude'):
-                with self.assertRaises(tarfile.FilterError):
-                    agentctl.restore_session(FakeStore(), 3, 'abc')
-            self.assertFalse((Path(directory) / 'escape.txt').exists())
+    def test_handoff_files_are_unpacked_and_absent_branch_is_none(self):
+        home = Path(self.temp.name) / 'home'
+        home.mkdir()
+        self.assertIsNone(agentctl.fetch_handoff(4, home))
+        git(self.work, 'checkout', '--orphan', 'handoff/issue-4')
+        git(self.work, 'rm', '-rfq', '.')
+        (self.work / 'ref').mkdir()
+        (self.work / 'ref' / 'card.png').write_bytes(b'png')
+        git(self.work, 'add', '.')
+        git(self.work, 'commit', '-m', 'handoff')
+        git(self.work, 'push', 'origin', 'handoff/issue-4')
+        git(self.work, 'checkout', 'main')
+        destination = agentctl.fetch_handoff(4, home)
+        self.assertEqual((destination / 'ref' / 'card.png').read_bytes(), b'png')
+
+
+class PrepareTests(BranchTests):
+    def test_prepare_builds_the_turn_from_the_thread_main_and_handoff(self):
+        home = Path(self.temp.name) / 'home'
+        output = Path(self.temp.name) / 'output'
+        store = FakeStore({'sessions/4/state.json': {'issueBodyProcessed': True, 'lastCommentId': 2,
+                                                     'branch': 'agent/issue-4'}})
+        gh = mock.Mock(repository='o/r')
+        gh.issue.return_value = ISSUE
+        gh.comments.return_value = [comment(2, body='前の指示'), comment(3, body='画面を直して')]
+        env = {'AGENT_HOME': str(home), 'GITHUB_OUTPUT': str(output), 'ISSUE_NUMBER': '4',
+               'GITHUB_REPOSITORY': 'o/r', 'AGENT_ALLOWED_USERS': ''}
+        with mock.patch.dict(os.environ, env), mock.patch.object(agentctl, 'GitHub', return_value=gh), \
+                mock.patch.object(agentctl, 'Store', return_value=store), mock.patch('progress.update'):
+            agentctl.cmd_prepare(None)
+        prompt = (home / 'prompt.txt').read_text()
+        self.assertIn('<thread>', prompt)
+        self.assertIn('前の指示', prompt)
+        self.assertIn('<comment id="3"', prompt)
+        self.assertIn('main: 最新のmainを含んでいます', prompt)
+        run = json.loads((home / 'run.json').read_text())
+        self.assertEqual(run['includedComments'], [3])
+        self.assertEqual(git(self.work, 'rev-parse', '--abbrev-ref', 'HEAD'), 'agent/issue-4')
+        self.assertIn('skip=false', output.read_text())
+        self.assertEqual(store.objects['sessions/4/state.json']['workerStatus'], 'running')
+
+    def test_nothing_new_skips_the_runner(self):
+        home = Path(self.temp.name) / 'home'
+        store = FakeStore({'sessions/4/state.json': {'issueBodyProcessed': True, 'lastCommentId': 3}})
+        gh = mock.Mock(repository='o/r')
+        gh.issue.return_value = ISSUE
+        gh.comments.return_value = [comment(3)]
+        with mock.patch.dict(os.environ, {'AGENT_HOME': str(home), 'GITHUB_OUTPUT': str(home / 'out'), 'ISSUE_NUMBER': '4'}), \
+                mock.patch.object(agentctl, 'GitHub', return_value=gh), mock.patch.object(agentctl, 'Store', return_value=store):
+            agentctl.cmd_prepare(None)
+        self.assertIn('skip=true', (home / 'out').read_text())
+
+
+class FinalizeTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.home = Path(self.temp.name)
+        (self.home / 'artifacts').mkdir()
+        self.execution = self.home / 'execution.json'
+        patch = mock.patch.dict(os.environ, {
+            'AGENT_HOME': str(self.home), 'CLAUDE_EXECUTION_FILE': str(self.execution), 'GITHUB_REPOSITORY': 'o/r',
+            'GITHUB_RUN_ID': '7', 'GITHUB_STEP_SUMMARY': str(self.home / 'summary.md'), 'SOME_API_KEY': 'topsecret-value'})
+        patch.start()
+        self.addCleanup(patch.stop)
+        failure = {'pr': 3, 'sha': SHA}
+        (self.home / 'run.json').write_text(json.dumps({
+            'issue': 4, 'branch': 'agent/issue-4', 'model': 'opus', 'startedAt': '2026-11-02T00:00:00Z',
+            'includedComments': [5], 'includedIssueBody': True, 'verifyFailure': failure}))
+        self.store = FakeStore({'sessions/4/state.json': {'lastCommentId': 2, 'verifyFailure': failure}})
+        self.gh = mock.Mock(repository='o/r')
+        (self.home / 'artifacts' / 'log.txt').write_text('key=topsecret-value\n')
+
+    def finalize(self, messages):
+        self.execution.write_text(json.dumps(messages))
+        with mock.patch.object(agentctl, 'GitHub', return_value=self.gh), \
+                mock.patch.object(agentctl, 'Store', return_value=self.store), \
+                mock.patch('progress.update'), mock.patch('progress.stop_owned_commands'):
+            agentctl.cmd_finalize(None)
+        return self.store.objects['sessions/4/state.json'], self.gh.comment.call_args.args[1]
+
+    def test_success_marks_the_requests_processed_and_clears_the_fixed_failure(self):
+        state, body = self.finalize([{'type': 'result', 'subtype': 'success', 'is_error': False, 'num_turns': 3,
+                                      'result': '直しました', 'session_id': 's'}])
+        self.assertEqual(state['lastCommentId'], 5)
+        self.assertTrue(state['issueBodyProcessed'])
+        self.assertNotIn('verifyFailure', state)
+        self.assertIn('直しました', body)
+        self.assertNotIn('topsecret-value', (self.home / 'artifacts' / 'log.txt').read_text())
+
+    def test_failure_leaves_the_requests_pending_and_does_not_restart(self):
+        with self.assertRaises(SystemExit):
+            self.finalize([{'type': 'result', 'subtype': 'error_max_turns', 'is_error': True, 'num_turns': 3}])
+        state = self.store.objects['sessions/4/state.json']
+        self.assertEqual(state['lastCommentId'], 2)
+        self.assertIn('verifyFailure', state)
+        body = self.gh.comment.call_args.args[1]
+        self.assertIn('途中で止まりました', body)
+        self.gh.request.assert_not_called()  # no dispatch: nothing restarts on its own
+
+
+class RecordTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.home = Path(self.temp.name)
+        patch = mock.patch.dict(os.environ, {'AGENT_HOME': str(self.home)})
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def test_redaction_of_values_patterns_and_binary_files(self):
+        environment = {'X_TOKEN': 'value-123456', 'PLAIN': 'not-a-secret'}
+        text = agentlib.redact('a value-123456 b sk-ant-oat01-AAAAAAAAAAAAAAAAAAAAAAAA Authorization: Bearer xyz not-a-secret', environment)
+        self.assertNotIn('value-123456', text)
+        self.assertNotIn('sk-ant-', text)
+        self.assertNotIn('xyz', text)
+        self.assertIn('not-a-secret', text)
+        (self.home / 'a.log').write_text('value-123456')
+        (self.home / 'b.bin').write_bytes(b'\x00value-123456\x00')
+        self.assertEqual(agentlib.redact_tree(self.home, environment), 2)
+        self.assertEqual((self.home / 'b.bin').read_bytes(), b'\x00************\x00')
+
+    def test_shot_records_state_commit_and_attaches(self):
+        args = mock.Mock(device='booted', launch_args='-learning-feed-e2e', caption='カード', no_attach=False)
+        args.name = 'timeline card'
+        def capture(command, **_):
+            Path(command[-1]).write_bytes(b'png')
+            return mock.Mock(returncode=0)
+        with mock.patch.object(agentctl.subprocess, 'run', side_effect=capture), \
+                mock.patch.object(agentctl, 'git', side_effect=lambda *a, **k: SHA if a[0] == 'rev-parse' else ''):
+            agentctl.cmd_shot(args)
+        screens = json.loads((self.home / 'artifacts' / 'screens.json').read_text())
+        self.assertEqual(screens[0]['file'], 'screens/timeline-card.png')
+        self.assertEqual((screens[0]['commit'], screens[0]['launchArgs']), (SHA, '-learning-feed-e2e'))
+        self.assertIn('"attach"', (self.home / 'outbox.jsonl').read_text())
+
+    def test_failed_tests_and_their_messages_are_extracted(self):
+        tree = {'testNodes': [{'nodeType': 'Unit test bundle', 'children': [
+            {'nodeType': 'Test Case', 'nodeIdentifier': 'A/testOk', 'result': 'Passed'},
+            {'nodeType': 'Test Case', 'nodeIdentifier': 'A/testBad', 'result': 'Failed',
+             'children': [{'nodeType': 'Failure Message', 'name': 'A.swift:3: XCTAssertEqual failed'}]}]}]}
+        self.assertEqual(agentctl.failure_details(tree),
+                         [{'test': 'A/testBad', 'result': 'Failed', 'messages': ['A.swift:3: XCTAssertEqual failed']}])
+
+
+class VerifyReportTests(unittest.TestCase):
+    def event(self, conclusion):
+        return {'workflow_run': {'id': 11, 'display_title': f'Verify PR #3 {SHA}', 'conclusion': conclusion,
+                                 'html_url': 'https://github.com/o/r/actions/runs/11'}}
+
+    def gh(self, head=SHA, state='open'):
+        gh = mock.Mock(repository='o/r')
+        pr = {'state': state, 'head': {'sha': head}, 'body': 'x <!-- struis-agent:issue=4 -->'}
+        jobs = {'jobs': [{'name': 'verify', 'conclusion': 'failure', 'html_url': 'u',
+                          'steps': [{'name': '単体テスト', 'conclusion': 'failure'}, {'name': 'x', 'conclusion': 'success'}]}]}
+        gh.get.side_effect = lambda path: jobs if path.endswith('/jobs?per_page=100') else pr
+        return gh
+
+    def test_titles_name_the_pr_and_the_exact_commit(self):
+        self.assertEqual(verify_report.parse(f'Verify PR #3 {SHA}'), (3, SHA))
+        self.assertIsNone(verify_report.parse('iOS'))
+
+    def test_red_on_the_current_head_records_and_wakes_the_agent(self):
+        gh, store = self.gh(), FakeStore()
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.report(self.event('failure'), gh, store)
+        status = gh.request.call_args_list[0].args
+        self.assertEqual((status[1], status[2]['state']), (f'/repos/o/r/statuses/{SHA}', 'failure'))
+        failure = store.objects['sessions/4/state.json']['verifyFailure']
+        self.assertEqual(failure['failed'][0]['steps'], ['単体テスト'])
+        self.assertEqual(gh.request.call_args_list[1].args[2]['event_type'], 'agent-issue')
+
+    def test_green_clears_and_tells_the_issue(self):
+        gh, store = self.gh(), FakeStore({'sessions/4/state.json': {'verifyFailure': {'pr': 3}}})
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.report(self.event('success'), gh, store)
+        self.assertNotIn('verifyFailure', store.objects['sessions/4/state.json'])
+        self.assertIn('マージできます', gh.comment.call_args.args[1])
+
+    def test_a_stale_head_only_gets_its_status(self):
+        gh, store = self.gh(head='b' * 40), FakeStore()
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.report(self.event('failure'), gh, store)
+        self.assertEqual(gh.request.call_count, 1)
+        gh.comment.assert_not_called()
+        self.assertEqual(store.objects, {})
+
+
+class CancelledVerifyTests(VerifyReportTests):
+    def test_a_cancelled_run_is_an_error_and_wakes_nobody(self):
+        gh, store = self.gh(), FakeStore()
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.report(self.event('cancelled'), gh, store)
+        self.assertEqual(gh.request.call_args.args[2]['state'], 'error')
+        self.assertEqual(gh.request.call_count, 1)
+        gh.comment.assert_not_called()
+
+
+class CleanupTests(unittest.TestCase):
+    def test_missing_handoff_branch_is_not_an_error(self):
+        gh = mock.Mock(repository='o/r')
+        gh.request.side_effect = RuntimeError("GitHub DELETE x: HTTP 422 b'Reference does not exist'")
+        self.assertFalse(cleanup.delete_handoff(gh, 4))
+        gh.request.side_effect = RuntimeError('GitHub DELETE x: HTTP 403')
+        with self.assertRaises(RuntimeError):
+            cleanup.delete_handoff(gh, 4)
 
 
 class PrototypeTests(unittest.TestCase):
@@ -139,6 +405,7 @@ class PrototypeTests(unittest.TestCase):
             self.assertIn('badge_icon.swift', str(run.call_args[0][0][1]))
 
 
+
 class AppStoreConnectTests(unittest.TestCase):
     def test_der_signature_conversion(self):
         r = (1).to_bytes(1, 'big')
@@ -149,349 +416,6 @@ class AppStoreConnectTests(unittest.TestCase):
         self.assertEqual(int.from_bytes(raw[:32], 'big'), 1)
         self.assertEqual(int.from_bytes(raw[32:], 'big'), 0x80)
 
-    def _client_with_responses(self, codes):
-        client = appstoreconnect.AppStoreConnect('/unused.p8', 'KEY', 'ISSUER')
-        calls = []
-
-        def urlopen(request, timeout):
-            calls.append(request.get_method())
-            code = codes[len(calls) - 1]
-            if code == 200:
-                response = mock.MagicMock()
-                response.__enter__.return_value.read.return_value = b'{"data": {"id": "build1"}}'
-                return response
-            raise urllib.error.HTTPError(request.full_url, code, 'error', {}, io.BytesIO(b'{}'))
-        return client, calls, urlopen
-
-    def test_build_start_is_never_retried_after_a_server_error(self):
-        client, calls, urlopen = self._client_with_responses([503, 200])
-        with mock.patch.object(client, 'token', return_value='t'), \
-                mock.patch.object(appstoreconnect.urllib.request, 'urlopen', side_effect=urlopen), \
-                mock.patch.object(appstoreconnect.time, 'sleep'), self.assertRaisesRegex(RuntimeError, 'HTTP 503'):
-            gate.post_build(client, 'workflow1', 'ref1')
-        self.assertEqual(calls, ['POST'])  # the build may already exist; a retry could start a second one
-
-    def test_rate_limited_start_and_reads_are_retried(self):
-        client, calls, urlopen = self._client_with_responses([429, 200, 503, 200])
-        with mock.patch.object(client, 'token', return_value='t'), \
-                mock.patch.object(appstoreconnect.urllib.request, 'urlopen', side_effect=urlopen), \
-                mock.patch.object(appstoreconnect.time, 'sleep'):
-            self.assertEqual(gate.post_build(client, 'workflow1', 'ref1'), {'id': 'build1'})
-            self.assertEqual(client.request('GET', '/v1/ciBuildRuns/build1'), {'data': {'id': 'build1'}})
-        self.assertEqual(calls, ['POST', 'POST', 'GET', 'GET'])
-
-    def test_rejected_build_start_falls_back_instead_of_blocking(self):
-        client, _calls, urlopen = self._client_with_responses([409])
-        with mock.patch.object(client, 'token', return_value='t'), \
-                mock.patch.object(appstoreconnect.urllib.request, 'urlopen', side_effect=urlopen), \
-                self.assertRaises(gate.CloudStartRejected):
-            gate.post_build(client, 'workflow1', 'ref1')
-
-
-class PullRequestCITests(unittest.TestCase):
-    def test_request_pr_creates_pr_then_dispatches_ci_without_running_tests(self):
-        with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
-            (home / 'run.json').write_text(json.dumps({'issue': 4, 'branch': 'agent/issue-4'}))
-            body = home / 'pr.md'
-            body.write_text('Refs #4')
-            gh = mock.Mock(repository='owner/repo')
-            gh.get.return_value = []
-            gh.request.side_effect = [({'html_url': 'https://github.com/owner/repo/pull/9'}, {}), ({}, {}), ({}, {})]
-            args = mock.Mock(title='Fix', body_file=str(body))
-            store = mock.Mock()
-            store.get_json.return_value = {}
-            snapshots = []
-            store.put_json.side_effect = lambda key, value: snapshots.append(json.loads(json.dumps(value)))
-            with mock.patch.object(agentctl, 'Store', return_value=store), mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh), mock.patch.object(agentctl, 'git', side_effect=['', '', 'abc', 'abc', 'abc']), mock.patch.object(agentctl, 'outbox_append'):
-                agentctl.cmd_request_pr(args)
-            self.assertEqual([call.args[1] for call in gh.request.call_args_list], [
-                '/repos/owner/repo/pulls',
-                '/repos/owner/repo/actions/workflows/ios.yml/dispatches',
-                '/repos/owner/repo/actions/workflows/agent-tests.yml/dispatches'])
-            record = json.loads((home / 'pr-ci.json').read_text())
-            self.assertEqual(record['head'], 'abc')
-            self.assertEqual([state['prCI']['dispatched'] for state in snapshots],
-                             [[], ['ios.yml'], ['ios.yml', 'agent-tests.yml']])
-            self.assertEqual(record['dispatched'], ['ios.yml', 'agent-tests.yml'])
-            self.assertEqual(gh.request.call_args_list[1].args[2],
-                             {'ref': 'agent/issue-4', 'inputs': {'ci_request': record['request']}})
-
-    def test_uncommitted_work_does_not_create_pr(self):
-        with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
-            (home / 'run.json').write_text(json.dumps({'issue': 4, 'branch': 'agent/issue-4'}))
-            with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'read_pr_body', return_value='Refs #4'), mock.patch.object(agentctl, 'git', return_value=' M file'), mock.patch.object(agentctl, 'GitHub') as gh:
-                with self.assertRaises(SystemExit):
-                    agentctl.cmd_request_pr(mock.Mock())
-                gh.assert_not_called()
-
-
-class PRCIResultTests(unittest.TestCase):
-    def record(self, home, head='abc', dispatched=None):
-        record = {'head': head, 'branch': 'agent/issue-4', 'request': 'unique',
-                  'dispatched': list(agentctl.PR_CI_WORKFLOWS) if dispatched is None else dispatched}
-        (home / 'pr-ci.json').write_text(json.dumps(record))
-
-    def responses(self, status='completed', conclusion='success', head='abc'):
-        responses = []
-        for identifier, label in enumerate(agentctl.PR_CI_WORKFLOWS.values(), 10):
-            run = {'id': identifier, 'head_sha': head, 'head_branch': 'agent/issue-4',
-                   'display_title': f'{label} CI unique', 'run_attempt': 2,
-                   'html_url': f'https://github.com/owner/repo/actions/runs/{identifier}',
-                   'status': status, 'conclusion': conclusion}
-            responses.extend([{'workflow_runs': [run]}, run])
-        return responses
-
-    def test_both_successes_for_exact_head_and_request_are_required(self):
-        with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
-            self.record(home)
-            gh = mock.Mock(repository='owner/repo')
-            gh.get.side_effect = self.responses()
-            with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh):
-                agentctl.verify_pr_ci({'branch': 'agent/issue-4'}, 'abc')
-            result = json.loads((home / 'validation.json').read_text())
-            self.assertTrue(result['success'])
-            self.assertEqual([c['attempt'] for c in result['checks']], [2, 2])
-
-    def test_pending_failed_cancelled_or_missing_dispatch_cannot_finalize(self):
-        for status, conclusion in [('queued', None), ('in_progress', None), ('completed', 'failure'),
-                                   ('completed', 'cancelled'), ('completed', 'skipped')]:
-            with self.subTest(status=status, conclusion=conclusion), tempfile.TemporaryDirectory() as directory:
-                home = Path(directory)
-                self.record(home)
-                gh = mock.Mock(repository='owner/repo')
-                gh.get.side_effect = self.responses(status, conclusion)
-                with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh):
-                    with self.assertRaisesRegex(RuntimeError, 'PR CI未成功'):
-                        agentctl.verify_pr_ci({'branch': 'agent/issue-4'}, 'abc')
-                self.assertFalse(json.loads((home / 'validation.json').read_text())['success'])
-
-    def test_stale_head_missing_record_and_partial_dispatch_are_rejected(self):
-        for scenario in ('stale', 'missing'):
-            with self.subTest(scenario=scenario), tempfile.TemporaryDirectory() as directory:
-                home = Path(directory)
-                if scenario != 'missing':
-                    self.record(home, head='old' if scenario == 'stale' else 'abc', dispatched=[])
-                gh = mock.Mock(repository='owner/repo')
-                with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh):
-                    with self.assertRaises(RuntimeError):
-                        agentctl.verify_pr_ci({'branch': 'agent/issue-4'}, 'abc')
-                gh.get.assert_not_called()
-
-    def test_unrelated_successful_runs_cannot_satisfy_request(self):
-        for field, value in [('head_sha', 'old'), ('head_branch', 'other'), ('display_title', 'iOS CI other')]:
-            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
-                home = Path(directory)
-                self.record(home)
-                runs = self.responses()[0]['workflow_runs']
-                runs[0][field] = value
-                gh = mock.Mock(repository='owner/repo')
-                gh.get.return_value = {'workflow_runs': runs}
-                with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh):
-                    with self.assertRaisesRegex(RuntimeError, 'まだ見つかりません'):
-                        agentctl.verify_pr_ci({'branch': 'agent/issue-4'}, 'abc')
-
-
-class PRBodyTests(unittest.TestCase):
-    def test_untracked_body_in_checkout_is_preserved_outside_git(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            workspace, home = root / 'repo', root / 'agent'
-            workspace.mkdir()
-            home.mkdir()
-            body = workspace / 'PR body.md'
-            body.write_text('Refs #4\nテスト確認中')
-            with mock.patch.dict(os.environ, {'GITHUB_WORKSPACE': str(workspace)}), mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'git', return_value='') as git:
-                self.assertEqual(agentctl.read_pr_body(body), 'Refs #4\nテスト確認中')
-            self.assertFalse(body.exists())
-            saved, = (home / 'pr-bodies').glob('*.md')
-            self.assertEqual(saved.read_text(), 'Refs #4\nテスト確認中')
-            git.assert_called_once_with('ls-files', '--', 'PR body.md')
-
-    def test_tracked_body_is_never_removed_or_modified(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            body = root / 'tracked.md'
-            body.write_text('tracked PR body')
-            with mock.patch.dict(os.environ, {'GITHUB_WORKSPACE': str(root)}), mock.patch.object(agentctl, 'git', return_value='tracked.md'):
-                self.assertEqual(agentctl.read_pr_body(body), 'tracked PR body')
-            self.assertEqual(body.read_text(), 'tracked PR body')
-
-
-class ValidatedHeadTests(unittest.TestCase):
-    def test_followup_on_validated_head_skips_ci_but_edit_requires_new_ci(self):
-        self.assertFalse(agentctl.requires_pr_ci('tested', {'validatedHead': 'tested'}, 'main'))
-        self.assertTrue(agentctl.requires_pr_ci('new', {'validatedHead': 'tested'}, 'main'))
-        self.assertTrue(agentctl.requires_pr_ci('tested', {}, 'main'))
-        self.assertFalse(agentctl.requires_pr_ci('main', {}, 'main'))
-
-    def test_success_persists_validated_head_for_the_next_runner(self):
-        with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
-            run = {'issue': 4, 'branch': 'agent/issue-4', 'restored': False, 'recovery': False,
-                   'startedAt': 'now', 'model': 'opus', 'includedComments': [123], 'includedIssueBody': True}
-            (home / 'run.json').write_text(json.dumps(run))
-            result = [{'type': 'result', 'subtype': 'success', 'num_turns': 1, 'result': 'CI passed'}]
-            gh, store = mock.Mock(), mock.Mock()
-            store.get_json.return_value = {}
-            with mock.patch.dict(os.environ, {'VALIDATION_OUTCOME': 'success'}), mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh), mock.patch.object(agentctl, 'Store', return_value=store), mock.patch.object(agentctl, 'load_execution', return_value=result), mock.patch.object(agentctl, 'save_session'), mock.patch.object(agentctl, 'save_workspace'), mock.patch.object(agentctl, 'read_outbox', return_value=[]), mock.patch.object(agentctl, 'upload_attachments', return_value=[]), mock.patch.object(agentctl, 'record_prototype_events'), mock.patch.object(agentctl, 'append_summary'), mock.patch.object(agentctl, 'git', return_value='tested'), mock.patch('progress.update'):
-                agentctl.cmd_finalize(None)
-            state = store.put_json.call_args.args[1]
-            self.assertEqual(state['validatedHead'], 'tested')
-            self.assertEqual(state['lastCommentId'], 123)
-            self.assertFalse(agentctl.requires_pr_ci('tested', state, 'main'))
-            (home / 'run.json').write_text(json.dumps({'headBefore': 'tested', 'validationRequired': False}))
-            with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'git', side_effect=['', 'tested']), mock.patch.object(agentctl, 'verify_pr_ci') as ci, mock.patch.object(agentctl, 'load_execution', return_value=result):
-                agentctl.cmd_validate(None)
-            ci.assert_not_called()
-
-
-class PendingCICheckpointTests(unittest.TestCase):
-    def test_new_runner_can_finish_original_ci_without_redispatch(self):
-        persisted = {}
-        store = mock.Mock()
-        store.get_json.side_effect = lambda key: json.loads(json.dumps(persisted.get(key)))
-        store.put_json.side_effect = lambda key, value: persisted.update({key: json.loads(json.dumps(value))})
-        record = {'head': 'abc', 'branch': 'agent/issue-4', 'request': 'unique',
-                  'dispatched': ['ios.yml', 'agent-tests.yml']}
-        with tempfile.TemporaryDirectory() as first:
-            with mock.patch.object(agentctl, 'agent_home', return_value=Path(first)):
-                agentctl.save_pr_ci(4, record, store)
-        # The old runner and all its local files are gone, before finalize ran.
-        with tempfile.TemporaryDirectory() as second:
-            home = Path(second)
-            state = store.get_json(agentlib.session_key(4, 'state.json'))
-            gh = mock.Mock(repository='owner/repo')
-            gh.get.side_effect = PRCIResultTests().responses()
-            with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh):
-                self.assertEqual(agentctl.restore_pr_ci(state, record['branch'], 'abc'), record)
-                agentctl.verify_pr_ci({'branch': record['branch']}, 'abc')
-            self.assertTrue(json.loads((home / 'validation.json').read_text())['success'])
-            gh.request.assert_not_called()
-
-    def test_pending_or_partial_record_survives_and_stale_head_is_not_restored(self):
-        for dispatched in (['ios.yml'], ['ios.yml', 'agent-tests.yml']):
-            with self.subTest(dispatched=dispatched), tempfile.TemporaryDirectory() as directory:
-                home = Path(directory)
-                record = {'head': 'abc', 'branch': 'agent/issue-4', 'request': 'unique', 'dispatched': dispatched}
-                store = mock.Mock()
-                store.get_json.return_value = {'lastCommentId': 12}
-                with mock.patch.object(agentctl, 'agent_home', return_value=home):
-                    agentctl.save_pr_ci(4, record, store)
-                    state = json.loads(json.dumps(store.put_json.call_args.args[1]))
-                    self.assertEqual(state['lastCommentId'], 12)
-                    self.assertEqual(agentctl.restore_pr_ci(state, 'agent/issue-4', 'abc'), record)
-                    self.assertIsNone(agentctl.restore_pr_ci(state, 'agent/issue-4', 'new-head'))
-                    self.assertFalse((home / 'pr-ci.json').exists())
-                    self.assertIsNone(agentctl.restore_pr_ci(state, 'other-branch', 'abc'))
-                    self.assertEqual(state['prCI'], record)
-
-
-class PRCIDispatchReuseTests(unittest.TestCase):
-    def execute(self, home, persisted, statuses, dispatched=None, completed=False):
-        record = {'head': 'abc', 'branch': 'agent/issue-4', 'request': 'original',
-                  'dispatched': list(agentctl.PR_CI_WORKFLOWS) if dispatched is None else dispatched}
-        persisted.update({'validatedCI' if completed else 'prCI': record})
-        store = mock.Mock()
-        store.get_json.side_effect = lambda key: json.loads(json.dumps(persisted))
-        store.put_json.side_effect = lambda key, value: (persisted.clear(), persisted.update(json.loads(json.dumps(value))))
-        (home / 'run.json').write_text(json.dumps({'issue': 4, 'branch': 'agent/issue-4'}))
-        body = home / 'body.md'
-        body.write_text('Refs #4')
-        gh = mock.Mock(repository='owner/repo')
-        gh.get.return_value = [{'number': 9}]
-        gh.request.return_value = ({'html_url': 'https://github.com/owner/repo/pull/9'}, {})
-        def find(_gh, workflow, _record):
-            status = statuses[workflow]
-            if status is None:
-                return None
-            return {'status': status[0], 'conclusion': status[1], 'html_url': 'https://github.com/owner/repo/actions/runs/10'}
-        with mock.patch.object(agentctl, 'Store', return_value=store), mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh), mock.patch.object(agentctl, 'git', side_effect=['', '', 'abc', 'abc', 'abc']), mock.patch.object(agentctl, 'find_pr_ci_run', side_effect=find):
-            agentctl.cmd_request_pr(mock.Mock(title='Fix', body_file=str(body)))
-        return gh
-
-    def test_repeated_request_reuses_running_queued_and_successful_ci(self):
-        for ios in [('in_progress', None), ('queued', None), ('completed', 'success')]:
-            with self.subTest(ios=ios), tempfile.TemporaryDirectory() as directory:
-                state = {}
-                gh = self.execute(Path(directory), state, {'ios.yml': ios, 'agent-tests.yml': ('completed', 'success')})
-                self.assertEqual(gh.request.call_count, 1)  # PR metadata update only.
-                self.assertEqual(state['prCI']['request'], 'original')
-                self.assertNotIn('requests', state['prCI'])
-
-    def test_metadata_update_after_successful_turn_reuses_completed_ci(self):
-        with tempfile.TemporaryDirectory() as directory:
-            state = {'validatedHead': 'abc'}
-            gh = self.execute(Path(directory), state, {'ios.yml': ('completed', 'success'), 'agent-tests.yml': ('completed', 'success')}, completed=True)
-            self.assertEqual(gh.request.call_count, 1)
-            self.assertEqual(state['prCI']['request'], 'original')
-            self.assertEqual(state['validatedHead'], 'abc')
-
-    def test_only_failed_workflow_gets_a_new_request(self):
-        for conclusion in ('failure', 'cancelled', 'timed_out'):
-            with self.subTest(conclusion=conclusion), tempfile.TemporaryDirectory() as directory:
-                state = {}
-                gh = self.execute(Path(directory), state, {'ios.yml': ('completed', conclusion), 'agent-tests.yml': ('completed', 'success')})
-                self.assertEqual(gh.request.call_count, 2)
-                call = gh.request.call_args_list[-1]
-                self.assertEqual(call.args[1], '/repos/owner/repo/actions/workflows/ios.yml/dispatches')
-                record = state['prCI']
-                self.assertNotEqual(agentctl.ci_request_id(record, 'ios.yml'), 'original')
-                self.assertEqual(agentctl.ci_request_id(record, 'agent-tests.yml'), 'original')
-                self.assertEqual(call.args[2]['inputs']['ci_request'], record['requests']['ios.yml'])
-
-    def test_accepted_run_with_lost_ack_is_recovered_without_duplicate(self):
-        with tempfile.TemporaryDirectory() as directory:
-            state = {}
-            gh = self.execute(Path(directory), state, {'ios.yml': ('in_progress', None), 'agent-tests.yml': None}, dispatched=[])
-            self.assertEqual(gh.request.call_count, 2)
-            self.assertIn('/agent-tests.yml/dispatches', gh.request.call_args.args[1])
-            self.assertEqual(state['prCI']['dispatched'], ['ios.yml', 'agent-tests.yml'])
-
-    def test_accepted_dispatch_not_yet_in_github_listing_is_not_repeated(self):
-        with tempfile.TemporaryDirectory() as directory:
-            state = {}
-            gh = self.execute(Path(directory), state, {'ios.yml': None, 'agent-tests.yml': None})
-            self.assertEqual(gh.request.call_count, 1)
-
-
-class PRCILookupBoundaryTests(unittest.TestCase):
-    def test_lost_dispatch_ack_does_not_hide_a_successful_run(self):
-        with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
-            PRCIResultTests().record(home, dispatched=[])
-            gh = mock.Mock(repository='owner/repo')
-            gh.get.side_effect = PRCIResultTests().responses()
-            with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh):
-                agentctl.verify_pr_ci({'branch': 'agent/issue-4'}, 'abc')
-            self.assertTrue(json.loads((home / 'validation.json').read_text())['success'])
-
-    def test_partial_dispatch_without_remote_run_is_not_successful(self):
-        with tempfile.TemporaryDirectory() as directory:
-            home = Path(directory)
-            PRCIResultTests().record(home, dispatched=[])
-            gh = mock.Mock(repository='owner/repo')
-            gh.get.return_value = {'workflow_runs': []}
-            with mock.patch.object(agentctl, 'agent_home', return_value=home), mock.patch.object(agentctl, 'GitHub', return_value=gh):
-                with self.assertRaisesRegex(RuntimeError, '起動未完了'):
-                    agentctl.verify_pr_ci({'branch': 'agent/issue-4'}, 'abc')
-
-    def test_current_run_is_rechecked_against_request_and_head(self):
-        record = {'head': 'abc', 'branch': 'agent/issue-4', 'request': 'unique'}
-        responses = PRCIResultTests().responses()[:2]
-        responses[1] = dict(responses[1], head_sha='other')
-        gh = mock.Mock(repository='owner/repo')
-        gh.get.side_effect = responses
-        with self.assertRaisesRegex(RuntimeError, '一致しません'):
-            agentctl.find_pr_ci_run(gh, 'ios.yml', record)
-
-    def test_old_success_cannot_satisfy_new_per_workflow_request(self):
-        record = {'head': 'abc', 'branch': 'agent/issue-4', 'request': 'unique', 'requests': {'ios.yml': 'new'}}
-        gh = mock.Mock(repository='owner/repo')
-        gh.get.return_value = PRCIResultTests().responses()[0]
-        self.assertIsNone(agentctl.find_pr_ci_run(gh, 'ios.yml', record))
 
 
 if __name__ == '__main__':

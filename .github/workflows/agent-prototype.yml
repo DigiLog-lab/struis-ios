@@ -103,8 +103,36 @@ jobs:
       - name: アーカイブして枠を解放
         run: python3 scripts/agent/prototype.py archive --issue "$ISSUE" --variant "$VARIANT" --note "$NOTE"
 
-  build:
+  validate:
     if: (inputs.operation || github.event.client_payload.operation) == 'build'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ISSUE: ${{ (inputs.issue || github.event.client_payload.issue) }}
+      VARIANT: ${{ (inputs.variant || github.event.client_payload.variant) }}
+      REF: ${{ (inputs.ref || github.event.client_payload.ref) }}
+    steps:
+      - name: 入力を検証
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$ISSUE" =~ ^[1-9][0-9]*$ ]] || { echo "::error::issue must be a number"; exit 1; }
+          [[ "$VARIANT" =~ ^[a-z][a-z0-9]{0,7}$ ]] || { echo "::error::variant must be lowercase"; exit 1; }
+          # Any branch of this repository: no tag, commit SHA or refs/pull/*.
+          [[ "$REF" != refs/* ]] && git check-ref-format --branch "$REF" >/dev/null || { echo "::error::ref must be a branch name"; exit 1; }
+          encoded=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe="/"))' "$REF")
+          gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$encoded" --silent || { echo "::error::branch $REF does not exist in $GITHUB_REPOSITORY"; exit 1; }
+
+  # Builds the Native Runtime cache for the branch if it is missing (agent-native-cache.yml is the only builder).
+  native:
+    needs: validate
+    uses: ./.github/workflows/agent-native-cache.yml
+    with:
+      ref: refs/heads/${{ (inputs.ref || github.event.client_payload.ref) }}
+
+  build:
+    needs: native
     runs-on: xcode-27
     timeout-minutes: 200
     environment: prototype-distribution
@@ -119,17 +147,6 @@ jobs:
       TITLE: ${{ (inputs.title || github.event.client_payload.title) }}
       SUMMARY: ${{ (inputs.summary || github.event.client_payload.summary) }}
     steps:
-      - name: 入力を検証
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          [[ "$ISSUE" =~ ^[1-9][0-9]*$ ]] || { echo "::error::issue must be a number"; exit 1; }
-          [[ "$VARIANT" =~ ^[a-z][a-z0-9]{0,7}$ ]] || { echo "::error::variant must be lowercase"; exit 1; }
-          # Any branch of this repository: no tag, commit SHA or refs/pull/*.
-          [[ "$REF" != refs/* ]] && git check-ref-format --branch "$REF" >/dev/null || { echo "::error::ref must be a branch name"; exit 1; }
-          encoded=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe="/"))' "$REF")
-          gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$encoded" --silent || { echo "::error::branch $REF does not exist in $GITHUB_REPOSITORY"; exit 1; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: refs/heads/${{ (inputs.ref || github.event.client_payload.ref) }}
@@ -147,11 +164,7 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.14'
-      - name: native runtime cache keyを計算
-        id: native-key
-        run: echo "key=native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}" >> "$GITHUB_OUTPUT"
       - name: native runtime cacheを復元
-        id: native
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -159,29 +172,8 @@ jobs:
             NativeRuntime/PythonPackages
             NativeRuntime/PackageCache
             NativeRuntime/.build
-          key: ${{ steps.native-key.outputs.key }}
-      - name: 固定依存を生成
-        if: steps.native.outputs.cache-hit != 'true'
-        env:
-          CARGO_BUILD_JOBS: '2'
-        run: |
-          set -euo pipefail
-          brew install autoconf automake libtool
-          command -v rustup >/dev/null || brew install rustup
-          rustup toolchain install 1.95.0 --profile minimal
-          rustup target add --toolchain 1.95.0 aarch64-apple-ios aarch64-apple-ios-sim
-          python3.14 NativeRuntime/Scripts/bootstrap.py --platform both
-          rm -rf NativeRuntime/.build/codex NativeRuntime/.build/codex-artifacts
-      - name: native runtime cacheを保存
-        if: steps.native.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            NativeRuntime/Vendor
-            NativeRuntime/PythonPackages
-            NativeRuntime/PackageCache
-            NativeRuntime/.build
-          key: ${{ steps.native-key.outputs.key }}
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          fail-on-cache-miss: true
       - name: 識別子を割り当て
         id: allocate
         run: python3 "$RUNNER_TEMP/agent-tools/prototype.py" allocate --issue "$ISSUE" --variant "$VARIANT" --ref "$REF" --title "$TITLE" --summary "$SUMMARY"

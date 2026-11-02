@@ -1,15 +1,18 @@
 name: Native runtime cache
 
-# Keeps the bootstrap output (about 50 minutes to build) in the Actions cache
-# so iOS, Issue agent and prototype runs can restore it, and publishes the same
-# outputs as an asset of the GitHub Release `native-runtime` so Xcode Cloud
-# downloads them instead of rebuilding (scripts/ci/native_prebuilt.py).
-# ios-cold.yml verifies the uncached README path separately.
+# The only place that builds the Native Runtime (NativeRuntime/Scripts/bootstrap.py, about 50 minutes)
+# into the Actions cache. ios.yml and agent-prototype.yml call it for the commit they build and only
+# restore the cache afterwards; the Issue agent restores it. A push to main that changes NativeRuntime
+# builds the new cache ahead of time.
+# The signed release archive in ios.yml deliberately builds from source instead (see `signed-archive`).
 on:
+  workflow_call:
+    inputs:
+      ref:
+        description: ビルドするcommit(既定は呼び出し元のcommit)
+        type: string
+        required: false
   workflow_dispatch:
-  # Lets a token with only contents: write (re)publish the asset.
-  repository_dispatch:
-    types: [native-runtime]
   push:
     branches: [main]
     paths:
@@ -17,12 +20,7 @@ on:
       - '.github/workflows/agent-native-cache.yml'
 
 permissions:
-  # write: create the `native-runtime` release and upload its asset.
-  contents: write
-
-concurrency:
-  group: native-runtime-cache
-  cancel-in-progress: false
+  contents: read
 
 jobs:
   build:
@@ -32,6 +30,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          ref: ${{ inputs.ref || github.sha }}
       - name: cache keyを計算
         id: key
         run: echo "key=native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}" >> "$GITHUB_OUTPUT"
@@ -70,6 +69,8 @@ jobs:
           rm -rf NativeRuntime/.build/codex NativeRuntime/.build/codex-artifacts
       - name: cacheを保存
         if: steps.lookup.outputs.cache-hit != 'true'
+        # Two builds of the same NativeRuntime at once: the second save is refused, the first one's cache is the same.
+        continue-on-error: true
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -78,32 +79,3 @@ jobs:
             NativeRuntime/PackageCache
             NativeRuntime/.build
           key: ${{ steps.key.outputs.key }}
-      - name: 公開済みのXcode Cloud用assetを確認
-        id: published
-        run: |
-          set -euo pipefail
-          key="$(python3 scripts/ci/native_prebuilt.py key)"
-          echo "key=$key" >> "$GITHUB_OUTPUT"
-          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/native-runtime/native-runtime-${key}.tar.gz.sha256"
-          if curl -fsSIL -o /dev/null "$url"; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
-      - name: 既存cacheを展開
-        if: steps.lookup.outputs.cache-hit == 'true' && steps.published.outputs.exists != 'true'
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            NativeRuntime/Vendor
-            NativeRuntime/PythonPackages
-            NativeRuntime/PackageCache
-            NativeRuntime/.build
-          key: ${{ steps.key.outputs.key }}
-          fail-on-cache-miss: true
-      - name: Xcode Cloud用にnative生成物を公開
-        if: steps.published.outputs.exists != 'true'
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          KEY: ${{ steps.published.outputs.key }}
-        run: |
-          set -euo pipefail
-          archive="$RUNNER_TEMP/native-runtime-$KEY.tar.gz"
-          python3 scripts/ci/native_prebuilt.py pack "$archive"
-          python3 scripts/ci/publish_native.py "$archive"

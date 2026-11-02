@@ -13,7 +13,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import prototype  # noqa: E402
-from gate_fakes import MemoryStore  # noqa: E402
+from fakes import MemoryStore  # noqa: E402
 
 META = {'slot': 's01', 'bundleId': 'com.digiloglab.strius.preview.s01', 'appGroup': 'group.com.digiloglab.strius.preview.s01'}
 EXPIRES = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=200)).isoformat()
