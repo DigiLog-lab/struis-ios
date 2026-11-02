@@ -367,6 +367,12 @@ class VerifyReportTests(unittest.TestCase):
         gh.get.side_effect = lambda path: jobs if path.endswith('/jobs?per_page=100') else pr
         return gh
 
+    def test_the_dispatch_payload_names_the_pr_and_the_commit(self):
+        event = verify_report.from_dispatch({'client_payload': {'pr': '3', 'sha': SHA, 'issue': '4'}}, 'success', 'u', 9)
+        self.assertEqual(verify_report.parse(event['workflow_run']['display_title']), (3, SHA))
+        self.assertIsNone(verify_report.parse(verify_report.from_dispatch({'client_payload': {'pr': '3', 'sha': 'x'}}, 'success', 'u', 9)
+                                              ['workflow_run']['display_title']))
+
     def test_titles_name_the_pr_and_the_exact_commit(self):
         self.assertEqual(verify_report.parse(f'Verify PR #3 {SHA}'), (3, SHA))
         self.assertIsNone(verify_report.parse('iOS'))

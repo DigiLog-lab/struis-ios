@@ -4,8 +4,8 @@ run-name: >-
 
 on:
   # The verification of a PR: `agentctl ready` (or the web Claude after a direct fix) sends the PR's exact
-  # HEAD. It runs main's definition of this file on that commit; agent.yml's `report` job turns the result
-  # into the commit status `Struis / verify` that main requires, and wakes the Issue when it is red.
+  # HEAD. It runs main's definition of this file on that commit; its last job calls agent.yml's `report`,
+  # which writes the commit status `Struis / verify` and wakes the Issue when it is red.
   repository_dispatch:
     types: [verify]
   # Manual runs: on main, every UI test, then `signed-archive` and the optional TestFlight upload; on any
@@ -475,3 +475,21 @@ jobs:
               for key, value in record.items():
                   stream.write(f'- {key}: `{value}`\n')
           PY
+
+  # The result of a PR verification goes back through agent.yml (the store accepts only that workflow).
+  # Called here because a run started by the agent's GITHUB_TOKEN never triggers a workflow_run.
+  report:
+    needs: [native, ui-plan, verify, release-archive]
+    if: always() && github.event_name == 'repository_dispatch'
+    permissions:
+      contents: write
+      statuses: write
+      issues: write
+      pull-requests: read
+      actions: read
+      id-token: write
+    uses: ./.github/workflows/agent.yml
+    with:
+      verify_conclusion: >-
+        ${{ needs.verify.result == 'success' && needs.release-archive.result == 'success' && 'success' ||
+            contains(needs.*.result, 'cancelled') && 'cancelled' || 'failure' }}

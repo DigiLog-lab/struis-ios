@@ -1,18 +1,26 @@
 name: Issue agent
 run-name: >-
   ${{ github.event_name == 'push' && 'Refresh agent PRs after main moved' ||
-      github.event_name == 'workflow_run' && format('Verify report {0}', github.event.workflow_run.display_title) ||
       github.event_name == 'issues' && github.event.action == 'closed' && format('Cleanup #{0}', github.event.issue.number) ||
       format('Issue agent #{0}', github.event.issue.number || inputs.issue || github.event.client_payload.issue) }}
 
 # Issues labeled `agent` are conversations with Claude Code. Each comment from an allowed person
 # starts a new session that is shown the Issue thread; nothing is checkpointed or restarted on its
-# own. `agentctl ready` sends a PR's verified HEAD to ios.yml (`Verify PR #<n> <sha>`); the
-# `report` job turns that run into the commit status `Struis / verify` and wakes the Issue when it is red.
+# own. `agentctl ready` sends a PR's verified HEAD to ios.yml (`Verify PR #<n> <sha>`); that run calls
+# this workflow at its end (workflow_call, `report` only) to write the commit status `Struis / verify`
+# and wake the Issue when it is red. A workflow_run trigger cannot be used for that: a run started
+# with GITHUB_TOKEN (the agent's repository_dispatch) never triggers workflow_run (Issue #68).
 # When main moves, `refresh` brings the agent PRs waiting for review up to date and verifies them again.
-# The store (cloudflare/agent) accepts jobs of this workflow file, so every job that reads or writes
-# the Issue's state lives here.
+# The store (cloudflare/agent) accepts jobs of this workflow file, also when it is called from ios.yml,
+# so every job that reads or writes the Issue's state lives here.
 on:
+  # Only from ios.yml's PR verification, with the result of its jobs.
+  workflow_call:
+    inputs:
+      verify_conclusion:
+        description: success / failure / cancelled
+        type: string
+        required: true
   workflow_dispatch:
     inputs:
       issue:
@@ -26,9 +34,6 @@ on:
     types: [opened, labeled, closed]
   issue_comment:
     types: [created]
-  workflow_run:
-    workflows: [iOS]
-    types: [completed]
   push:
     branches: [main]
 
@@ -38,8 +43,8 @@ permissions:
 concurrency:
   # One group per Issue for workers; reports and cleanups never wait on a worker.
   group: >-
-    ${{ github.event_name == 'push' && 'agent-refresh' ||
-        github.event_name == 'workflow_run' && format('agent-report-{0}', github.event.workflow_run.id) ||
+    ${{ inputs.verify_conclusion && format('agent-report-{0}', github.run_id) ||
+        github.event_name == 'push' && 'agent-refresh' ||
         github.event_name == 'issues' && github.event.action == 'closed' && format('agent-cleanup-{0}', github.event.issue.number) ||
         format('agent-issue-{0}', github.event.issue.number || inputs.issue || github.event.client_payload.issue) }}
   cancel-in-progress: false
@@ -54,10 +59,11 @@ env:
 jobs:
   route:
     if: >-
+      !inputs.verify_conclusion && (
       github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch' ||
       (contains(fromJSON('["issues", "issue_comment"]'), github.event_name) && github.event.action != 'closed' &&
       !github.event.issue.pull_request && contains(github.event.issue.labels.*.name, vars.AGENT_LABEL || 'agent') &&
-      (github.event_name != 'issue_comment' || github.event.comment.user.type != 'Bot'))
+      (github.event_name != 'issue_comment' || github.event.comment.user.type != 'Bot')))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -192,12 +198,10 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # A finished `Verify PR #<n> <sha>` run of ios.yml: the commit status, and a wake-up when red.
-  # Runs main's code only; no checkout of the PR.
+  # The end of a `Verify PR #<n> <sha>` run of ios.yml (called from there): the commit status, and a
+  # wake-up when red. Runs main's code only; no checkout of the PR.
   report:
-    if: >-
-      github.event_name == 'workflow_run' && github.event.workflow_run.event == 'repository_dispatch' &&
-      startsWith(github.event.workflow_run.display_title, 'Verify PR #')
+    if: inputs.verify_conclusion != ''
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -216,11 +220,12 @@ jobs:
       - name: 検証の結果をPRとIssueへ返す
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          VERIFY_CONCLUSION: ${{ inputs.verify_conclusion }}
         run: python3 scripts/agent/verify_report.py
 
   # main moved (a merge): every agent PR waiting for review takes main and is verified again.
   refresh:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && !inputs.verify_conclusion
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -241,7 +246,7 @@ jobs:
 
   cleanup:
     if: >-
-      github.event_name == 'issues' && github.event.action == 'closed' &&
+      !inputs.verify_conclusion && github.event_name == 'issues' && github.event.action == 'closed' &&
       contains(github.event.issue.labels.*.name, vars.AGENT_LABEL || 'agent')
     runs-on: ubuntu-latest
     timeout-minutes: 10
