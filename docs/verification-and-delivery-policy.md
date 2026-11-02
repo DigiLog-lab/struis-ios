@@ -19,7 +19,7 @@
 | 作業の開始 | `agent.yml` の `worker` | 作業ブランチに最新の main を取り込む(衝突したら最初に解消させる) |
 | 手元検証 | エージェントの runner(`agentctl local-verify`) | push 済み HEAD で、全単体テスト＋変更に関係する UI テスト。失敗したテストと失敗メッセージを返す |
 | Ready | `agentctl ready` | HEAD が push 済み・最新の main を含む・手元検証が緑、の3つを確かめ、PR をレビュー待ちにし、`repository_dispatch` の `verify` で検証を起動する |
-| 検証 | `ios.yml`(`Verify PR #<n> <sha>`) | main の定義で、その SHA の native cache 確認 → 単体テスト → 変更に関係する UI テスト、と並行して Release archive |
+| 検証 | `ios.yml`(`Verify PR #<n> <sha>`) | 最初にその SHA へ `Struis / verify` を「実行中(pending)」で付け、PR に検証中と出す。main の定義で、その SHA の native cache 確認 → 単体テスト → 変更に関係する UI テスト、と並行して Release archive |
 | 報告 | `agent.yml` の `report`(Linux、main のコードだけ) | commit status `Struis / verify` をその SHA に書く。HEAD のままなら、緑は Issue に知らせ、赤は失敗を記録してエージェントを起こす。取り消された実行は `error` にし、誰も起こさない |
 | マージ | 人 | PR の `Struis / verify` が緑であることを見てマージする |
 | main が進んだ後 | `agent.yml` の `refresh`(Linux) | レビュー待ちの他の PR に GitHub 側で main を取り込み、新しい HEAD を検証し直す(取り込み直した HEAD には、検証が緑になるまで緑の status が付かない)。衝突した PR はエージェントを起こして解消させる |
