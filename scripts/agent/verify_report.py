@@ -1,6 +1,8 @@
-"""Report a finished `Verify PR #<n> <sha>` run of ios.yml back to the PR and the Issue.
+"""Report the end of a `Verify PR #<n> <sha>` run of ios.yml back to the PR and the Issue.
 
-Runs on Linux in agent.yml (workflow_run of iOS), from main's code only. It writes the commit status
+Runs on Linux in agent.yml, called by that run's last job, from main's code only. The PR and the commit
+come from the run's repository_dispatch payload (the commit ios.yml checked out), the result from its
+jobs (VERIFY_CONCLUSION). It writes the commit status
 `Struis / verify` on the verified SHA (shown on the PR), and when that SHA is still
 the head of the open PR: on green it tells the Issue the PR can be merged, on red it records the
 failure and wakes the Issue's agent to fix it.
@@ -9,7 +11,7 @@ import json
 import os
 import re
 
-from agentlib import GitHub, REPLY_MARKER, Store, append_summary, dispatch, iso, session_key
+from agentlib import GitHub, REPLY_MARKER, Store, append_summary, dispatch, iso, run_url, session_key
 
 CONTEXT = 'Struis / verify'
 TITLE = re.compile(r'^Verify PR #([1-9]\d*) ([0-9a-f]{40})$')
@@ -19,6 +21,13 @@ PR_ISSUE = re.compile(r'<!-- struis-agent:issue=([1-9]\d*) -->')
 def parse(title):
     match = TITLE.match(title or '')
     return (int(match[1]), match[2]) if match else None
+
+
+def from_dispatch(event, conclusion, url, run_id):
+    """The shape report() reads, from the verification run's own repository_dispatch payload."""
+    payload = event.get('client_payload') or {}
+    return {'workflow_run': {'id': run_id, 'display_title': f"Verify PR #{payload.get('pr')} {payload.get('sha')}",
+                             'conclusion': conclusion, 'html_url': url}}
 
 
 def failed_steps(gh, run_id):
@@ -74,7 +83,7 @@ def report(event, gh, store):
 
 def main():
     event = json.loads(open(os.environ['GITHUB_EVENT_PATH']).read())
-    report(event, GitHub(), Store())
+    report(from_dispatch(event, os.environ['VERIFY_CONCLUSION'], run_url(), os.environ['GITHUB_RUN_ID']), GitHub(), Store())
 
 
 if __name__ == '__main__':
