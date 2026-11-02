@@ -1,7 +1,7 @@
 """Report a finished `Verify PR #<n> <sha>` run of ios.yml back to the PR and the Issue.
 
 Runs on Linux in agent.yml (workflow_run of iOS), from main's code only. It writes the commit status
-`Struis / verify` on the verified SHA (the check main's ruleset requires), and when that SHA is still
+`Struis / verify` on the verified SHA (shown on the PR), and when that SHA is still
 the head of the open PR: on green it tells the Issue the PR can be merged, on red it records the
 failure and wakes the Issue's agent to fix it.
 """

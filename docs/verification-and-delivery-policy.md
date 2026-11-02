@@ -21,7 +21,7 @@
 | Ready | `agentctl ready` | HEAD が push 済み・最新の main を含む・手元検証が緑、の3つを確かめ、PR をレビュー待ちにし、`repository_dispatch` の `verify` で検証を起動する |
 | 検証 | `ios.yml`(`Verify PR #<n> <sha>`) | main の定義で、その SHA の native cache 確認 → 単体テスト → 変更に関係する UI テスト、と並行して Release archive |
 | 報告 | `agent.yml` の `report`(Linux、main のコードだけ) | commit status `Struis / verify` をその SHA に書く。HEAD のままなら、緑は Issue に知らせ、赤は失敗を記録してエージェントを起こす。取り消された実行は `error` にし、誰も起こさない |
-| マージ | 人 | main のルールセットが `Struis / verify` の緑と「ブランチが最新」を求める |
+| マージ | 人 | PR の `Struis / verify` が緑で、GitHub が「ブランチが古い」と出していないことを見てマージする。出ていたら、Issue にコメントしてエージェントに main を取り込ませる |
 
 - エージェントの worker には `statuses: write` も `actions: write` もありません。commit status を書けるのは `report` だけです。
 - web 版の Claude が作業ブランチへ直接 push した時は、その HEAD の検証を同じ `verify` で起動します。
