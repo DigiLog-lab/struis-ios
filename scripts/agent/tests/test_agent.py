@@ -497,6 +497,22 @@ class CleanupTests(unittest.TestCase):
         deleted, _ = self.run_cleanup('main')
         self.assertEqual(deleted, ['/repos/o/r/git/refs/heads/handoff/issue-4'])
 
+    def test_sweep_deletes_only_branches_of_closed_issues(self):
+        gh = mock.Mock(repository='o/r')
+        refs = [{'ref': f'refs/heads/{name}'} for name in
+                ('agent/issue-2', 'agent/issue-22-wip', 'agent/issue-19', 'agent/issue-x', 'agent/issue-7')]
+        issues = {2: 'closed', 22: 'open', 19: 'closed', 7: 'closed'}
+
+        def get(path):
+            if 'matching-refs' in path:
+                return refs
+            if '/issues/' in path:
+                return {'state': issues[int(path.rsplit('/', 1)[1])]}
+            return [{'number': 8}] if 'agent%2Fissue-7' in path else []
+        gh.get.side_effect = get
+        with mock.patch.object(cleanup, 'append_summary'):
+            self.assertEqual(cleanup.sweep_closed(gh), ['agent/issue-2', 'agent/issue-19'])
+
     def test_an_issue_without_state_uses_the_default_branch_name(self):
         deleted, _ = self.run_cleanup(None)
         self.assertIn('/repos/o/r/git/refs/heads/agent/issue-4', deleted)

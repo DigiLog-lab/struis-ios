@@ -13,7 +13,7 @@ GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Cla
 | Claude Code | `anthropics/claude-code-action`(commit 固定) | 自動化モード(`prompt` 指定)。毎回新しいセッションで、Issue のやり取りを履歴として渡す |
 | 制御スクリプト | `scripts/agent/agentctl.py`、`agentlib.py` | 経路判定、prompt 生成、実行結果の解析、Issue への返信、Claude から使う補助コマンド |
 | 検証の報告 | 同 `report` job(ubuntu)、`scripts/agent/verify_report.py` | `ios.yml` の `Verify PR #<n> <sha>` の結果を commit status `Struis / verify` にし、赤ならエージェントを起こす |
-| PR の取り込み直し | 同 `refresh` job(ubuntu)、`scripts/agent/refresh.py` | main が進んだら、レビュー待ちのエージェントの PR に GitHub 側で main を取り込み(「Update branch」と同じ)、新しい HEAD を検証し直す。衝突したらエージェントを起こす |
+| PR の取り込み直し | 同 `refresh` job(ubuntu)、`scripts/agent/refresh.py` | main が進んだら、レビュー待ちのエージェントの PR に GitHub 側で main を取り込み(「Update branch」と同じ)、新しい HEAD を検証し直す。衝突したらエージェントを起こす。あわせて、閉じた Issue の `agent/issue-<n>`(`-wip` などの付いた枝も含む)を、そこから開いた PR が無ければ削除する |
 | 後片付け | 同 `cleanup` job(ubuntu)、`scripts/agent/cleanup.py` | Issue が閉じたら、作業ブランチの DerivedData cache、作業ブランチ(そこから開いた PR が無い時だけ。マージ済み・閉じた PR のページから復元できる)、`handoff/issue-<n>` を削除 |
 | 固定システムプロンプト | `scripts/agent/system-prompt.md` | エージェントの作業規則。会話ごとに変わる情報は含めない |
 | 保存先 | `cloudflare/agent`(Worker)+ R2 バケット `struis-agent` | 状態、使用量、返信の添付画像、プロトタイプの記録と IPA。CI は GitHub OIDC で認証(受け付けるのは `agent.yml` と `agent-prototype.yml`) |

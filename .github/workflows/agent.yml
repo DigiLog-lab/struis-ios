@@ -239,7 +239,7 @@ jobs:
           ref: main
           persist-credentials: false
           sparse-checkout: scripts/agent
-      - name: レビュー待ちのPRに最新のmainを取り込み、検証し直す
+      - name: レビュー待ちのPRに最新のmainを取り込み、検証し直す。閉じたIssueの作業ブランチを消す
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 scripts/agent/refresh.py

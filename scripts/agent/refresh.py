@@ -10,6 +10,7 @@ import os
 import re
 import time
 
+import cleanup
 from agentlib import GitHub, REPLY_MARKER, Store, append_summary, dispatch, iso, session_key
 
 PR_ISSUE = re.compile(r'<!-- struis-agent:issue=([1-9]\d*) -->')
@@ -76,7 +77,9 @@ def refresh(gh, store, main_sha, wait=2):
 
 def main():
     event = json.loads(open(os.environ['GITHUB_EVENT_PATH']).read())
-    refresh(GitHub(), Store(), event['after'])
+    gh = GitHub()
+    refresh(gh, Store(), event['after'])
+    cleanup.sweep_closed(gh)
 
 
 if __name__ == '__main__':

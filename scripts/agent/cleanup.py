@@ -8,6 +8,7 @@ merged or closed PR. The Native Runtime cache is shared and never touched here.
 import hashlib
 import json
 import os
+import re
 import urllib.parse
 
 from agentlib import GitHub, Store, append_summary, session_key
@@ -53,6 +54,31 @@ def delete_work_branch(gh, branch):
     if gh.get(f'/repos/{gh.repository}/pulls?{query}'):
         return 'kept (open PR)'
     return 'deleted' if delete_ref(gh, branch) else 'not present'
+
+
+WORK_BRANCH = re.compile(r'^agent/issue-([1-9]\d*)(?:-.+)?$')
+
+
+def sweep_closed(gh):
+    """Delete agent/issue-<n>[-…] branches whose Issue is closed and that no open PR comes from.
+
+    Catches what the close-time cleanup missed: branches left before it existed, and side branches
+    such as agent/issue-22-wip that the Issue's state does not name. Run when main moves.
+    """
+    refs = gh.get(f'/repos/{gh.repository}/git/matching-refs/heads/agent/issue-')
+    states, deleted = {}, []
+    for ref in refs:
+        branch = ref['ref'].removeprefix('refs/heads/')
+        match = WORK_BRANCH.match(branch)
+        if not match:
+            continue
+        number = int(match[1])
+        if number not in states:
+            states[number] = gh.get(f'/repos/{gh.repository}/issues/{number}')['state']
+        if states[number] == 'closed' and delete_work_branch(gh, branch) == 'deleted':
+            deleted.append(branch)
+    append_summary(f'Working branches of closed Issues deleted: {", ".join(deleted) or "none"}.')
+    return deleted
 
 
 def cleanup(number, branch, gh):
