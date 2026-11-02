@@ -35,9 +35,10 @@ struct OnboardingPaywallView: View {
                                     isEnabled: store.purchasing == nil && !(onClose != nil && store.plan == selection), identifier: "paywall-purchase") {
                 Task { if await store.purchase(selection) { onPurchased() } }
             }
-            Text("毎月自動で更新されます。いつでも App Store の設定から解約できます。")
+            Text("毎月自動で更新されます。解約は設定の「利用枠」からできます。更新日の24時間前までに解約すると次の請求はなく、今の期間の終わりまで使えます。")
                 .font(Typography.sans(size: 11, weight: .medium)).foregroundStyle(Theme.secondaryText)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 18) {
                 Button(isRestoring ? "確かめています" : "購入を復元") {
                     isRestoring = true

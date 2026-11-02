@@ -161,7 +161,7 @@ struct OnboardingFlowView: View {
                 OnboardingListCard {
                     OnboardingPointRow(title: "採点と説明は AI が行います", detail: "間違えることがあります。おかしいと思ったら「質問」で確かめてください。")
                     OnboardingPointRow(title: "お試しは3問まで、続きは有料です", detail: "プランごとに1週間に使える量が決まっています。")
-                    OnboardingPointRow(title: "解約と返金は App Store で行います", detail: "解約は端末の設定から、いつでもできます。", showsDivider: false)
+                    OnboardingPointRow(title: "解約と返金は App Store で行います", detail: "解約は設定の「利用枠」から、いつでもできます。", showsDivider: false)
                 }
                 if model.isMinor {
                     OnboardingNote(symbol: "person.2", text: "18歳未満の方は、保護者の方と一緒に読んで、同意をもらってから使ってください。")

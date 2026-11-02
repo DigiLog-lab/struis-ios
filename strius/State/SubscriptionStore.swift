@@ -23,6 +23,8 @@ final class SubscriptionStore {
     private(set) var loadState: LoadState = .idle
     private(set) var plan: UsagePlan?
     private(set) var purchasing: UsagePlan?
+    /// 解約の予約中(自動更新が止まっている)なら、今のプランを使える最後の日時。自動更新が続いていれば nil。
+    private(set) var cancelsAt: Date?
     /// 今の契約を受け取るグループ。商品を読んだら、その商品のグループにする
     /// (Xcode の StoreKit の設定ファイルで動かした時は、設定ファイルのテスト用の ID になる)。
     private(set) var activeGroupID = SubscriptionStore.groupID
@@ -88,6 +90,7 @@ final class SubscriptionStore {
                     update(statuses: statuses)
                 } else {
                     apply(plans: UsagePlan(productID: transaction.productID).map { [$0] } ?? [])
+                    cancelsAt = nil
                 }
                 return true
             case .pending:
@@ -121,13 +124,31 @@ final class SubscriptionStore {
         if plans.isEmpty { errorMessage = "復元できる購入が見つかりませんでした。" }
     }
 
-    /// `.subscriptionStatusTask` から: 有効な契約(購読中・猶予期間)のうち、一番上のプラン。
+    /// 契約の状態を読み直す。管理シートでの解約は `.subscriptionStatusTask` に届かないことがあるので、シートを閉じた時に読む。
+    func refreshStatus() async {
+        do {
+            let statuses: [Product.SubscriptionInfo.Status] = try await Product.SubscriptionInfo.status(for: activeGroupID)
+            update(statuses: statuses)
+        } catch {
+            storeLog.error("status failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    /// `.subscriptionStatusTask` から: 有効な契約(購読中・猶予期間)のうち、一番上のプランと、その解約の予約。
     func update(statuses: [Product.SubscriptionInfo.Status]) {
-        let plans = statuses.compactMap { status -> UsagePlan? in
-            guard status.state == .subscribed || status.state == .inGracePeriod, case .verified(let transaction) = status.transaction else { return nil }
-            return UsagePlan(productID: transaction.productID)
+        var plans: [UsagePlan] = []
+        var endDates: [UsagePlan: Date] = [:]
+        for status in statuses {
+            guard status.state == .subscribed || status.state == .inGracePeriod,
+                  case .verified(let transaction) = status.transaction,
+                  let plan = UsagePlan(productID: transaction.productID) else { continue }
+            plans.append(plan)
+            if case .verified(let renewal) = status.renewalInfo, !renewal.willAutoRenew {
+                endDates[plan] = transaction.expirationDate
+            }
         }
         apply(plans: plans, replacing: true)
+        cancelsAt = UsagePlan.best(of: plans).flatMap { endDates[$0] }
     }
 
     private func apply(plans: [UsagePlan], replacing: Bool = false) {
