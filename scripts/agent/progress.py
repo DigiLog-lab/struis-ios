@@ -8,7 +8,7 @@ import signal
 import subprocess
 import re
 
-from agentlib import GitHub, REPLY_MARKER, Store, agent_home, gate_config, iso, run_url
+from agentlib import GitHub, REPLY_MARKER, agent_home, iso, run_url
 
 
 def process_name(pid):
@@ -34,7 +34,7 @@ def register_claude():
 
 
 def stop_owned_commands():
-    """Freeze an interrupted runner before saving its workspace."""
+    """Stop what Claude left running in the background (a log stream, a verification) before the run ends."""
     for path in agent_home().glob('*-process-*.json'):
         try:
             record = json.loads(path.read_text())
@@ -98,19 +98,11 @@ def update(run, phase, finished=False):
 def watch():
     home = agent_home()
     run = json.loads((home / 'run.json').read_text())
-    next_checkpoint = time.monotonic() + int(gate_config()['checkpointSeconds'])
     while not (home / 'progress-stop').exists():
         try:
             update(run, '実行中')
         except Exception as error:
             print(f'Progress update failed: {type(error).__name__}', flush=True)
-        if os.environ.get('AGENT_VALIDATION_MODE') == 'gate' and time.monotonic() >= next_checkpoint:
-            try:
-                import checkpoints
-                checkpoints.save(Store(), run['issue'], run, periodic=True)
-            except Exception as error:
-                print(f'Periodic checkpoint deferred: {type(error).__name__}', flush=True)
-            next_checkpoint = time.monotonic() + int(gate_config()['checkpointSeconds'])
         # Notice finalize's stop promptly, including while waiting for the next tick.
         for _ in range(60):
             if (home / 'progress-stop').exists():

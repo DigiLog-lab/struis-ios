@@ -65,12 +65,12 @@ UIテストが0件の時は `-only-testing:striusTests` だけを渡します。
 
 ### 実行の形
 
-門は GitHub の `iOS` workflow(`verify` ジョブ)で、ビルド1回とテスト1回だけを回します。エージェントの完了前の手元検証(`scripts/agent/delivery.py` の `local_verify`)も同じ形です。
+PR の検証は GitHub の `iOS` workflow(`verify` ジョブ)で、ビルド1回のあと、単体テスト → 選んだ UI テストの順に流します。エージェントの手元検証(`scripts/agent/agentctl.py` の `local_verify`)も同じテストを流します。
 
 - `build-for-testing` を1回、`test-without-building` を1回。単体テストと選んだUIテストを1つのコマンドで流します。
 - テストの時は署名を外しません(`CODE_SIGNING_ALLOWED=NO` を渡さない)。外した試行で `ClaudeAppAttestTests` が1件落ちたためです(2026-10-22)。
 - Simulator は1台、並列にしません(`xcode-27` の runner は3コア・7GBで、1台の中で並列にすると遅く、不安定になった)。
-- 結果は `ios-test-results-<実行ID>-<再実行番号>` の artifact に保存します(xcresult と、落ちた時の画面の写真・要素の木 `ui-probe`)。門の時は、実行したテストの一覧を `ios-gate-tests-…-verify` に保存し、制御ジョブが必要なテストと照合します。
+- 結果は `ios-test-results-<実行ID>-<再実行番号>` の artifact に保存します(xcresult と、落ちた時の画面の写真・要素の木 `ui-probe`)。
 - 手動の全件実行(`ui_tier=full`、または main での手動実行)は、従来どおり3台の runner に分けて流します(`build` + `ui-tests` ジョブ)。
 
 ### 時間を縮めるための fixture

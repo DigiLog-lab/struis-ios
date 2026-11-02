@@ -1,45 +1,48 @@
 # Issue エージェントと Ad Hoc プロトタイプ配布
 
-GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Claude Code(公式の `anthropics/claude-code-action`)で相談・設計・実装・テスト・Pull Request 作成を行います。複数の実装案は、別々の Bundle ID を持つ Ad Hoc 署名アプリとして配布し、登録済みの iPhone に並べてインストールできます。
+GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Claude Code(公式の `anthropics/claude-code-action`)で相談・設計・実装・テスト・Pull Request 作成を行います。指示を出すのは Tomochika か、Tomochika と会話している web 版の Claude です。複数の実装案は、別々の Bundle ID を持つ Ad Hoc 署名アプリとして配布し、登録済みの iPhone に並べてインストールできます。
 
-この文書は、仕組みを第三者が確認できるようにするためと、自分のリポジトリ・Claude 認証・Apple Developer アカウント・Cloudflare アカウントで同じ構成を導入するためのものです。
+この文書は、仕組みを第三者が確認できるようにするためと、自分のリポジトリ・Claude 認証・Apple Developer アカウント・Cloudflare アカウントで同じ構成を導入するためのものです。検証とマージの決まりは [verification-and-delivery-policy.md](verification-and-delivery-policy.md) です。
 
 ## 構成
 
 | 部品 | 場所 | 役割 |
 |---|---|---|
-| Event Router | `.github/workflows/agent.yml` の `route` job(ubuntu) | `agent` ラベル付き Issue の作成・ラベル付与・コメントを受け、投稿者の権限と未処理の指示を確認してから macOS runner を起動 |
-| macOS Worker | 同 `worker` job(`xcode-27`) | セッションと作業ブランチの復元、Claude Code の実行、返信・使用量・セッションの保存 |
-| Claude Code | `anthropics/claude-code-action`(commit 固定) | 自動化モード(`prompt` 指定)で実行。人の指示は新規セッション、中断の自動再開だけ `--resume` |
+| Event Router | `.github/workflows/agent.yml` の `route` job(ubuntu) | `agent` ラベル付き Issue の作成・ラベル付与・コメント、赤い検証の通知を受け、未処理の指示があるときだけ macOS runner を起動 |
+| macOS Worker | 同 `worker` job(`xcode-27`) | 作業ブランチの準備と main の取り込み、受け渡しファイルの展開、Claude Code の実行、返信・使用量・記録の保存 |
+| Claude Code | `anthropics/claude-code-action`(commit 固定) | 自動化モード(`prompt` 指定)。毎回新しいセッションで、Issue のやり取りを履歴として渡す |
 | 制御スクリプト | `scripts/agent/agentctl.py`、`agentlib.py` | 経路判定、prompt 生成、実行結果の解析、Issue への返信、Claude から使う補助コマンド |
+| 検証の報告 | 同 `report` job(ubuntu)、`scripts/agent/verify_report.py` | `ios.yml` の `Verify PR #<n> <sha>` の結果を commit status `Struis / verify` にし、赤ならエージェントを起こす |
+| PR の取り込み直し | 同 `refresh` job(ubuntu)、`scripts/agent/refresh.py` | main が進んだら、レビュー待ちのエージェントの PR に GitHub 側で main を取り込み(「Update branch」と同じ)、新しい HEAD を検証し直す。衝突したらエージェントを起こす |
+| 後片付け | 同 `cleanup` job(ubuntu)、`scripts/agent/cleanup.py` | Issue が閉じたら、そのブランチの DerivedData cache と `handoff/issue-<n>` を削除 |
 | 固定システムプロンプト | `scripts/agent/system-prompt.md` | エージェントの作業規則。会話ごとに変わる情報は含めない |
-| 保存先 | `cloudflare/agent`(Worker)+ R2 バケット `struis-agent` | 状態、チェックポイントの指し先、使用量、プロトタイプの記録と IPA。CI は GitHub OIDC で認証(受け付けるのは `agent.yml` と `agent-prototype.yml`) |
-| チェックポイント | worker の実行の GitHub Artifact(`scripts/agent/checkpoints.py`、`artifacts.py`) | セッション・作業中の差分など。保存期間14日 |
-| 門の制御 | `agent.yml` の `control`・`checkpoint-gc`・`cleanup` job(ubuntu) | Ready の門の起動と照合、使わなかったチェックポイントと DerivedData cache の削除 |
-| native 依存の cache | `.github/workflows/agent-native-cache.yml` | 約50分かかる bootstrap の生成物を Actions cache に保存 |
+| 保存先 | `cloudflare/agent`(Worker)+ R2 バケット `struis-agent` | 状態、使用量、返信の添付画像、プロトタイプの記録と IPA。CI は GitHub OIDC で認証(受け付けるのは `agent.yml` と `agent-prototype.yml`) |
+| native 依存の cache | `.github/workflows/agent-native-cache.yml` | 約50分かかる bootstrap の生成物を Actions cache に作る唯一の場所。`ios.yml` と `agent-prototype.yml` が呼び出す |
 | プロトタイプ | `.github/workflows/agent-prototype.yml`、`scripts/agent/prototype.py` | 識別子の割当と解放、App Store Connect API、Ad Hoc 署名、IPA、配布ページ、Issue への投稿 |
 
 ## 会話の流れ
 
 1. `agent` ラベルの付いた Issue を作成するか、Issue にコメントします。
 2. `route` が、投稿者がリポジトリの OWNER / MEMBER / COLLABORATOR であること(Repository variable `AGENT_ALLOWED_USERS` を設定した場合はその一覧)と、未処理のコメントがあることを確認します。Bot の投稿とエージェント自身の返信は対象外です。
-3. `worker` が作業ブランチを取得し、最新の完全なチェックポイントがあれば復元します。人の指示では新規セッション、中断の自動再開では保存したセッションを使います。権限のある人の指示とエージェントの返信を履歴として渡します。
-4. 全項目を実装し、完了を記録します。途中のテストはエージェントの判断で流し、WIPは1つのDraft PRへpushします。
-5. 全項目完了後、push済みHEADで `local-verify` を流します。全単体テスト・必須E2E・差分UI(カメラのテストを含む)を検証します。
-6. `ready` が全項目完了・push済み・同じSHAの手元検証成功を確認し、記録をPR本文とチェックポイントへ保存します。Draftを外し、`repository_dispatch`(`GITHUB_TOKEN` の `contents: write` で送れる)で門を起動します。
-7. macOS workerは門を待たずに終了します。LinuxがXcode Cloud／予備のGitHub実行を確認し、緑なら完了を記録し、赤ならDraftへ戻して同じIssueのworkerを起こします。HEADが変わった結果は採用しません。マージは人が行います。
+3. `worker` が作業ブランチ(`agent/issue-<n>`)を origin から取り、最新の main を取り込みます。衝突したら取り込みを中止し、最初に解消するよう Claude に伝えます。`handoff/issue-<n>` があれば `$AGENT_HOME/handoff` に展開します。
+4. Claude は毎回新しいセッションで、Issue 本文・それまでのやり取り・記録済みの設計判断(`decision`)・新しいコメントを受け取ります。
+5. 作業を終えたら push 済み HEAD で `local-verify`(全単体テスト＋変更に関係する UI テスト)を流し、緑なら `ready` で PR をレビュー待ちにして `ios.yml` の検証を起動します。結果は待たずにセッションを終えます。
+6. `report` が検証の結果を commit status にします。緑なら Issue にマージできる旨を投稿し、赤なら失敗の内容を記録してエージェントを起こします。マージは人が行います。
+7. PR がマージされて main が進むと、`refresh` が他のレビュー待ちの PR に最新の main を取り込み、検証し直します。取り込みが衝突した PR は、そのエージェントを起こして解消させます。
 
-### 保存と中断
+実行が途中で止まっても自動では再開しません。push 済みの commit は作業ブランチに残り、Issue へのコメントで新しく始めます。失敗した実行が扱っていたコメントは未処理のまま残るので、次の実行で一緒に扱います。Claude の step は300分、job は340分です。
 
-Claudeのstepは240分、jobは340分です。実行中は `progress.py` が900秒ごとに、終了時はfinalizeがチェックポイントを作ります。セッション・dirty diff・未追跡ファイル・未push commit・依頼のスナップショット・項目の完了・手元検証の記録を1つのArtifactへ書き、アップロード後に `workspace.json` をCASで更新します。常に最新と1つ前を残します。強制終了でfinalizeが走らなかった場合も `agent-recovery.yml` が最新の完全な保存から再開します。連続自動再開は3回までです。
+## web 版 Claude との受け渡し
 
-PRの結果待ちは自動再開の理由にしません。門の赤では、失敗したHEADと元の依頼だけを対象に新規セッションで修正し、完了前の手元検証を全体でやり直します。中断時は修正セッション自身を引き継ぎます。後から届いた指示は自動再開の入力へ混ぜません。
+- **指示**: Issue のコメントで出します。エージェントは前の会話を覚えていないので、指示は毎回それ単体で分かる形で書きます。
+- **ファイル**: コメントに載せられないもの(参考スクリーンショット、デザインの寸法、AI 応答の固定データ)は、Issue ごとの `handoff/issue-<n>` に置きます。main と履歴を共有しない空のブランチで、workflow を含まないので push しても何も起動しません。中身は常に1コミットに上書きし、Issue が閉じたら `cleanup` が削除します。
+- **結果**: 返信と、そこに貼られるスクリーンショット(`agentctl shot`)。run の artifact(`agent-issue-<n>-run-…`、14日保存)には、`screens.json`(画面名・起動引数・commit)、手元検証の結果と失敗の一覧(`failures.json`)、アプリのログ(`agentctl applog`)、模擬 Claude サーバーの要求と応答、Claude Code のセッション記録が入ります。Claude の説明・ツール呼出し・結果は Actions のログにも逐次出ます。
+- **公開範囲**: リポジトリは公開なので、artifact も Actions のログも公開です。保存前に、認証情報の値(環境変数の値そのものと、トークン・鍵の形)を伏せ字にします(`agentlib.redact_tree`、`live-log.cjs`)。
+- **直接修正**: web 版の Claude は作業ブランチへ直接 commit することがあります。エージェントの実行中は push せず、強制 push は使いません。コミットメッセージは `hotfix:` で始め、Issue に「hotfix: <SHA> 何を・なぜ」を残します。push した HEAD の検証は `repository_dispatch` の `verify` で起動します。
 
-### DerivedData・削除・運用設定
+## DerivedData と cache
 
-DerivedDataはブランチ名・OS/architecture・Xcode版・native依存のhashごとのActions cacheで持ち越します。PRのclose/merge時にLinuxがそのブランチのDerivedData cacheを削除します。native cacheは削除しません。チェックポイントはworkerの後のLinux jobが最新と1つ前以外を削除し、完了・Issue close・PR close/mergeで全件を削除します。1時間ごとの照合も行い、最後はArtifactの保存期間14日で消えます。
-
-仕組み・権限・設定は [agent-gate.md](agent-gate.md) を参照してください。リポジトリの変数やWorkerの設定変更は要りません。単体テストは `python3 -m unittest discover -s scripts/agent/tests -v` です。PR定義を変更するLinuxの検査と、Xcode/macOSでの実測は別に記録します。
+DerivedData はブランチ名・OS/architecture・Xcode 版・native 依存の hash ごとの Actions cache で持ち越します。Issue が閉じたら `cleanup` がそのブランチの DerivedData cache を削除します。native cache は削除しません。単体テストは `python3 -m unittest discover -s scripts/agent/tests -v` です。
 
 ## Ad Hoc プロトタイプ
 
@@ -99,7 +102,7 @@ App Store Connect API キーでは App Group の作成と App ID への割当が
 
 ## 制約
 
-- 1回のコメントごとに runner を起動して `--resume` で再開します。runner を待機させる方式は公式 action の実行モデルに合わないため採用していません。キャッシュは1時間 TTL のため、間隔が1時間を超えると次の最初の要求で再作成されます。
-- `GITHUB_TOKEN` で作成した Pull Request では、ほかの workflow(`ios.yml`)が自動実行されません。必要な場合は GitHub App のトークンを `github_token` に渡してください。`.github/workflows/` の変更も `GITHUB_TOKEN` では push できません。
+- 1回のコメントごとに runner を起動し、新しいセッションで始めます。runner を待機させる方式は公式 action の実行モデルに合わないため採用していません。
+- `GITHUB_TOKEN` での push や PR 作成では、`pull_request` 系の workflow が起動しません。そのため PR の検証は `repository_dispatch`(`contents: write` で送れる)で起動します。`.github/workflows/` の変更も `GITHUB_TOKEN` では push できません。
 - native 依存を変える変更では、cache が更新されるまで bootstrap(約50分)が必要です。
 - 実機へのインストールと実機上の操作は利用者が行います。
