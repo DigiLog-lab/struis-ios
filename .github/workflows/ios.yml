@@ -35,6 +35,27 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # A run started by repository_dispatch belongs to main, so GitHub shows nothing of it on the PR. Mark the
+  # verified commit `Struis / verify: pending` first, so the PR shows the verification in progress (and not
+  # "ready to merge"); `report` overwrites it with the result. No checkout: the PR's code never runs here.
+  pending:
+    if: github.event_name == 'repository_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      statuses: write
+    steps:
+      - name: 検証中であることをPRのcommitに付ける
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.client_payload.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha must be a full commit SHA"; exit 1; }
+          gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" -f state=pending -f context='Struis / verify' \
+            -f target_url="$RUN_URL" -f description='ios.yml: 検証中' --silent
+
   # Builds the Native Runtime cache for this commit if it is missing (agent-native-cache.yml is the only
   # builder), so the build and UI test runners below can start in parallel and only restore it.
   native:
