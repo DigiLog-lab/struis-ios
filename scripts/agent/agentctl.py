@@ -292,9 +292,13 @@ def cmd_prepare(_args):
            'verifyFailure': failure, 'merge': merge, 'headBefore': git('rev-parse', 'HEAD')}
     (home / 'run.json').write_text(json.dumps(run, ensure_ascii=False, indent=2))
     (home / 'prompt.txt').write_text(prompt)
-    state.update({'issue': number, 'branch': branch, 'workerStatus': 'running', 'workerRun': run_url(),
-                  'workerStartedAt': iso(now)})
-    store.put_json(session_key(number, 'state.json'), state)
+    # Only this worker's fields: a verification report may have recorded a failure since `state` was read,
+    # and it must survive for the next run (this run's prompt was built without it).
+    def running(current):
+        current.update({'issue': number, 'branch': branch, 'workerStatus': 'running', 'workerRun': run_url(),
+                        'workerStartedAt': iso(now)})
+        return current
+    store.update_json(session_key(number, 'state.json'), running, default={})
 
     import progress
     progress.update(run, '起動中')

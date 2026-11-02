@@ -135,7 +135,9 @@ class PrototypeWorkflowTests(unittest.TestCase):
         self.assertNotIn('ref must be prototype/', text)
         self.assertIn('git check-ref-format --branch "$REF"', text)
         self.assertIn('git/ref/heads/$encoded', text)
-        self.assertIn("ref: refs/heads/${{ (inputs.ref || github.event.client_payload.ref) }}", text)
+        # One commit for the native cache and the build, resolved from the branch once.
+        self.assertIn("--jq '.object.sha'", text)
+        self.assertEqual(text.count('ref: ${{ needs.validate.outputs.sha }}'), 2)
 
     def test_build_and_archive_of_one_prototype_share_a_concurrency_group(self) -> None:
         group: str = WORKFLOW.read_text().split('\nconcurrency:\n', 1)[1].split('cancel-in-progress', 1)[0]

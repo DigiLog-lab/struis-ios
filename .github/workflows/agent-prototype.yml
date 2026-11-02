@@ -107,12 +107,17 @@ jobs:
     if: (inputs.operation || github.event.client_payload.operation) == 'build'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.check.outputs.sha }}
     env:
       ISSUE: ${{ (inputs.issue || github.event.client_payload.issue) }}
       VARIANT: ${{ (inputs.variant || github.event.client_payload.variant) }}
       REF: ${{ (inputs.ref || github.event.client_payload.ref) }}
     steps:
-      - name: 入力を検証
+      # The branch is resolved to one commit here: the native cache and the build must use the same one,
+      # even if the branch moves while the native job bootstraps or the build waits for its environment.
+      - name: 入力を検証し、ビルドするcommitを決める
+        id: check
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -122,17 +127,19 @@ jobs:
           # Any branch of this repository: no tag, commit SHA or refs/pull/*.
           [[ "$REF" != refs/* ]] && git check-ref-format --branch "$REF" >/dev/null || { echo "::error::ref must be a branch name"; exit 1; }
           encoded=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe="/"))' "$REF")
-          gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$encoded" --silent || { echo "::error::branch $REF does not exist in $GITHUB_REPOSITORY"; exit 1; }
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$encoded" --jq '.object.sha') || { echo "::error::branch $REF does not exist in $GITHUB_REPOSITORY"; exit 1; }
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::could not resolve $REF"; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
-  # Builds the Native Runtime cache for the branch if it is missing (agent-native-cache.yml is the only builder).
+  # Builds the Native Runtime cache for that commit if it is missing (agent-native-cache.yml is the only builder).
   native:
     needs: validate
     uses: ./.github/workflows/agent-native-cache.yml
     with:
-      ref: refs/heads/${{ (inputs.ref || github.event.client_payload.ref) }}
+      ref: ${{ needs.validate.outputs.sha }}
 
   build:
-    needs: native
+    needs: [validate, native]
     runs-on: xcode-27
     timeout-minutes: 200
     environment: prototype-distribution
@@ -149,7 +156,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: refs/heads/${{ (inputs.ref || github.event.client_payload.ref) }}
+          ref: ${{ needs.validate.outputs.sha }}
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:

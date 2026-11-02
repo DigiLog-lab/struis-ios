@@ -211,6 +211,24 @@ class PrepareTests(BranchTests):
         self.assertIn('skip=false', output.read_text())
         self.assertEqual(store.objects['sessions/4/state.json']['workerStatus'], 'running')
 
+    def test_a_failure_reported_while_preparing_is_kept(self):
+        home = Path(self.temp.name) / 'home'
+        store = FakeStore({'sessions/4/state.json': {'issueBodyProcessed': True, 'lastCommentId': 2}})
+        original = store.update_json
+        def report_arrives_first(key, change, default=None, attempts=8):
+            store.objects[key]['verifyFailure'] = {'pr': 3}
+            return original(key, change, default)
+        store.update_json = report_arrives_first
+        gh = mock.Mock(repository='o/r')
+        gh.issue.return_value = ISSUE
+        gh.comments.return_value = [comment(3, body='次')]
+        env = {'AGENT_HOME': str(home), 'GITHUB_OUTPUT': str(home / 'out'), 'ISSUE_NUMBER': '4', 'AGENT_ALLOWED_USERS': ''}
+        with mock.patch.dict(os.environ, env), mock.patch.object(agentctl, 'GitHub', return_value=gh), \
+                mock.patch.object(agentctl, 'Store', return_value=store), mock.patch('progress.update'):
+            agentctl.cmd_prepare(None)
+        state = store.objects['sessions/4/state.json']
+        self.assertEqual((state['verifyFailure'], state['workerStatus']), ({'pr': 3}, 'running'))
+
     def test_nothing_new_skips_the_runner(self):
         home = Path(self.temp.name) / 'home'
         store = FakeStore({'sessions/4/state.json': {'issueBodyProcessed': True, 'lastCommentId': 3}})
