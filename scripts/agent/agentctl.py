@@ -197,7 +197,11 @@ def build_prompt(context, issue, history, pending, state, failure):
                       'ここから文脈を引き継いでください。\n' + '\n'.join(thread) + '\n</thread>')
     blocks.extend(f'<comment id="{c["id"]}" author="{c["user"]["login"]}" created="{c["created_at"]}">\n'
                   f'{c.get("body") or ""}\n</comment>' for c in pending)
-    if failure:
+    if failure and failure.get('conflict'):
+        blocks.append('<verify-failure>\nmainが進み、レビュー待ちのPRへ取り込むと衝突しました。`main:` の行の指示に従って衝突を解消し、'
+                      'commit・push後に local-verify → ready をやり直してください。\n'
+                      + json.dumps(failure, ensure_ascii=False) + '\n</verify-failure>')
+    elif failure:
         blocks.append('<verify-failure>\nReadyにしたHEADの検証(ios.yml)が赤でした。原因を調べて直し、'
                       'local-verify → ready をやり直してください。テストのskip・期待失敗化・判定の緩和・再実行だけで通すことはしません。\n'
                       + json.dumps(failure, ensure_ascii=False) + '\n</verify-failure>')

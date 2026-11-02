@@ -13,6 +13,7 @@ GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Cla
 | Claude Code | `anthropics/claude-code-action`(commit 固定) | 自動化モード(`prompt` 指定)。毎回新しいセッションで、Issue のやり取りを履歴として渡す |
 | 制御スクリプト | `scripts/agent/agentctl.py`、`agentlib.py` | 経路判定、prompt 生成、実行結果の解析、Issue への返信、Claude から使う補助コマンド |
 | 検証の報告 | 同 `report` job(ubuntu)、`scripts/agent/verify_report.py` | `ios.yml` の `Verify PR #<n> <sha>` の結果を commit status `Struis / verify` にし、赤ならエージェントを起こす |
+| PR の取り込み直し | 同 `refresh` job(ubuntu)、`scripts/agent/refresh.py` | main が進んだら、レビュー待ちのエージェントの PR に GitHub 側で main を取り込み(「Update branch」と同じ)、新しい HEAD を検証し直す。衝突したらエージェントを起こす |
 | 後片付け | 同 `cleanup` job(ubuntu)、`scripts/agent/cleanup.py` | Issue が閉じたら、そのブランチの DerivedData cache と `handoff/issue-<n>` を削除 |
 | 固定システムプロンプト | `scripts/agent/system-prompt.md` | エージェントの作業規則。会話ごとに変わる情報は含めない |
 | 保存先 | `cloudflare/agent`(Worker)+ R2 バケット `struis-agent` | 状態、使用量、返信の添付画像、プロトタイプの記録と IPA。CI は GitHub OIDC で認証(受け付けるのは `agent.yml` と `agent-prototype.yml`) |
@@ -27,6 +28,7 @@ GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Cla
 4. Claude は毎回新しいセッションで、Issue 本文・それまでのやり取り・記録済みの設計判断(`decision`)・新しいコメントを受け取ります。
 5. 作業を終えたら push 済み HEAD で `local-verify`(全単体テスト＋変更に関係する UI テスト)を流し、緑なら `ready` で PR をレビュー待ちにして `ios.yml` の検証を起動します。結果は待たずにセッションを終えます。
 6. `report` が検証の結果を commit status にします。緑なら Issue にマージできる旨を投稿し、赤なら失敗の内容を記録してエージェントを起こします。マージは人が行います。
+7. PR がマージされて main が進むと、`refresh` が他のレビュー待ちの PR に最新の main を取り込み、検証し直します。取り込みが衝突した PR は、そのエージェントを起こして解消させます。
 
 実行が途中で止まっても自動では再開しません。push 済みの commit は作業ブランチに残り、Issue へのコメントで新しく始めます。失敗した実行が扱っていたコメントは未処理のまま残るので、次の実行で一緒に扱います。Claude の step は300分、job は340分です。
 

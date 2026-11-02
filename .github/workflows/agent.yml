@@ -1,13 +1,15 @@
 name: Issue agent
 run-name: >-
-  ${{ github.event_name == 'workflow_run' && format('Verify report {0}', github.event.workflow_run.display_title) ||
+  ${{ github.event_name == 'push' && 'Refresh agent PRs after main moved' ||
+      github.event_name == 'workflow_run' && format('Verify report {0}', github.event.workflow_run.display_title) ||
       github.event_name == 'issues' && github.event.action == 'closed' && format('Cleanup #{0}', github.event.issue.number) ||
       format('Issue agent #{0}', github.event.issue.number || inputs.issue || github.event.client_payload.issue) }}
 
 # Issues labeled `agent` are conversations with Claude Code. Each comment from an allowed person
 # starts a new session that is shown the Issue thread; nothing is checkpointed or restarted on its
 # own. `agentctl ready` sends a PR's verified HEAD to ios.yml (`Verify PR #<n> <sha>`); the
-# `report` job turns that run into the commit status main requires and wakes the Issue when it is red.
+# `report` job turns that run into the commit status `Struis / verify` and wakes the Issue when it is red.
+# When main moves, `refresh` brings the agent PRs waiting for review up to date and verifies them again.
 # The store (cloudflare/agent) accepts jobs of this workflow file, so every job that reads or writes
 # the Issue's state lives here.
 on:
@@ -27,6 +29,8 @@ on:
   workflow_run:
     workflows: [iOS]
     types: [completed]
+  push:
+    branches: [main]
 
 permissions:
   contents: read
@@ -34,7 +38,8 @@ permissions:
 concurrency:
   # One group per Issue for workers; reports and cleanups never wait on a worker.
   group: >-
-    ${{ github.event_name == 'workflow_run' && format('agent-report-{0}', github.event.workflow_run.id) ||
+    ${{ github.event_name == 'push' && 'agent-refresh' ||
+        github.event_name == 'workflow_run' && format('agent-report-{0}', github.event.workflow_run.id) ||
         github.event_name == 'issues' && github.event.action == 'closed' && format('agent-cleanup-{0}', github.event.issue.number) ||
         format('agent-issue-{0}', github.event.issue.number || inputs.issue || github.event.client_payload.issue) }}
   cancel-in-progress: false
@@ -212,6 +217,27 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 scripts/agent/verify_report.py
+
+  # main moved (a merge): every agent PR waiting for review takes main and is verified again.
+  refresh:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          persist-credentials: false
+          sparse-checkout: scripts/agent
+      - name: レビュー待ちのPRに最新のmainを取り込み、検証し直す
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/agent/refresh.py
 
   cleanup:
     if: >-
