@@ -478,6 +478,9 @@ jobs:
 
   # The result of a PR verification goes back through agent.yml (the store accepts only that workflow).
   # Called here because a run started by the agent's GITHUB_TOKEN never triggers a workflow_run.
+  # GitHub checks these against every job of agent.yml, including the ones that do not run when it is called
+  # (worker: pull-requests write, cleanup: actions write), so this is the ceiling of all of them. Only
+  # agent.yml's `report` job runs, with its own narrower permissions; the PR's code never runs in this job.
   report:
     needs: [native, ui-plan, verify, release-archive]
     if: always() && github.event_name == 'repository_dispatch'
@@ -485,8 +488,8 @@ jobs:
       contents: write
       statuses: write
       issues: write
-      pull-requests: read
-      actions: read
+      pull-requests: write
+      actions: write
       id-token: write
     uses: ./.github/workflows/agent.yml
     with:
