@@ -341,6 +341,10 @@ class RecordTests(unittest.TestCase):
         self.assertEqual((screens[0]['commit'], screens[0]['launchArgs']), (SHA, '-learning-feed-e2e'))
         self.assertIn('"attach"', (self.home / 'outbox.jsonl').read_text())
 
+    def test_a_launch_argument_starting_with_a_dash_is_kept_as_the_value(self):
+        self.assertEqual(agentctl.join_option_values(['shot', 'a', '--launch-args', '-skip-onboarding', '--caption', 'x'], ('--launch-args',)),
+                         ['shot', 'a', '--launch-args=-skip-onboarding', '--caption', 'x'])
+
     def test_failed_tests_and_their_messages_are_extracted(self):
         tree = {'testNodes': [{'nodeType': 'Unit test bundle', 'children': [
             {'nodeType': 'Test Case', 'nodeIdentifier': 'A/testOk', 'result': 'Passed'},

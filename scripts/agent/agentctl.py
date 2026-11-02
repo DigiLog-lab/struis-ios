@@ -469,7 +469,7 @@ def finalize(home):
         print(f'Progress final update failed: {type(error).__name__}')
 
     outbox = read_outbox(home)
-    pull_requests = [f'Pull Request: {entry["url"]}' for entry in outbox if entry.get('type') == 'pull-request']
+    pull_requests = list(dict.fromkeys(f'Pull Request: {entry["url"]}' for entry in outbox if entry.get('type') == 'pull-request'))
     decisions = [{'at': iso(), 'text': entry['text']} for entry in outbox if entry.get('type') == 'decision']
     attachments = upload_attachments(store, [entry for entry in outbox if entry.get('type') == 'attach'])
     record_prototype_events(store, number, [entry for entry in outbox if entry.get('type') == 'prototype-status'], gh)
@@ -937,6 +937,20 @@ def cmd_prototype_build(args):
         sys.exit(1)
 
 
+def join_option_values(argv, names):
+    """`--launch-args -skip-onboarding` → `--launch-args=-skip-onboarding`: argparse would read a value that starts
+    with `-` as another option (Issue #68)."""
+    joined, index = [], 0
+    while index < len(argv):
+        if argv[index] in names and index + 1 < len(argv):
+            joined.append(f'{argv[index]}={argv[index + 1]}')
+            index += 2
+        else:
+            joined.append(argv[index])
+            index += 1
+    return joined
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
@@ -985,7 +999,7 @@ def main():
     build.add_argument('--wait', action='store_true')
     build.add_argument('--wait-minutes', type=float, default=9)
     build.set_defaults(func=cmd_prototype_build)
-    args = parser.parse_args()
+    args = parser.parse_args(join_option_values(sys.argv[1:], ('--launch-args',)))
     args.func(args)
 
 

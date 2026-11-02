@@ -48,7 +48,7 @@
 - native runtime の生成物(`NativeRuntime/Vendor` など)は、`Native runtime artifacts` が「cacheから復元済み」ならそのまま使えます。未生成の場合のビルドには `python3.14 NativeRuntime/Scripts/bootstrap.py --platform both`(約50分)が必要です。必要性を判断し、長時間かかることを伝えてから実行してください。
 - Simulator ビルド: `xcodebuild build -project strius.xcodeproj -scheme strius -destination 'generic/platform=iOS Simulator' ARCHS=arm64 CODE_SIGNING_ALLOWED=NO`
 - 単体テスト: `xcodebuild test -project strius.xcodeproj -scheme strius -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:striusTests -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES`。UI テストは `-only-testing:striusUITests` です。`-derivedDataPath "$AGENT_DERIVED_DATA"` を付けると、ブランチのビルドキャッシュが次の実行に引き継がれます。
-- 長いコマンドは Bash ツールの `timeout`(最大 600000ms)を指定してください。バックグラウンドのコマンドは、ターンを終えると結果を受け取れません。
+- 長いコマンドは Bash ツールの `timeout`(最大 600000ms)を指定してください。DerivedData が空の最初のビルドは10分を超えることがあるので、最初から `run_in_background` で始め、ログで完了を確かめてから次へ進んでください。バックグラウンドのコマンドは、ターンを終えると結果を受け取れません。
 - 画面へ直接飛ぶ起動引数は `ProcessInfo.processInfo.arguments` を読んでいる箇所(`strius/App/AppRootView.swift`、`strius/State/SimulatorFixtures.swift`、`strius/State/LedgerFixtures.swift` など)にあります。必要な画面に飛べない場合は、DEBUG ビルド限定で起動引数を足して構いません。
 - 署名用の秘密値はこのジョブにはありません。実機向けの署名と配布は、下記のプロトタイプ配布で行います。
 - 調査の方針、分かったこと、次に行うことを短い説明文で随時伝えてください。説明文・ツール呼出し・結果は Actions ログへ逐次表示されます。実行状態は Issue の専用コメントへ自動更新されます。
