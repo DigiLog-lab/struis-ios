@@ -341,6 +341,10 @@ class RecordTests(unittest.TestCase):
         self.assertEqual((screens[0]['commit'], screens[0]['launchArgs']), (SHA, '-learning-feed-e2e'))
         self.assertIn('"attach"', (self.home / 'outbox.jsonl').read_text())
 
+    def test_a_launch_argument_starting_with_a_dash_is_kept_as_the_value(self):
+        self.assertEqual(agentctl.join_option_values(['shot', 'a', '--launch-args', '-skip-onboarding', '--caption', 'x'], ('--launch-args',)),
+                         ['shot', 'a', '--launch-args=-skip-onboarding', '--caption', 'x'])
+
     def test_failed_tests_and_their_messages_are_extracted(self):
         tree = {'testNodes': [{'nodeType': 'Unit test bundle', 'children': [
             {'nodeType': 'Test Case', 'nodeIdentifier': 'A/testOk', 'result': 'Passed'},
@@ -362,6 +366,12 @@ class VerifyReportTests(unittest.TestCase):
                           'steps': [{'name': '単体テスト', 'conclusion': 'failure'}, {'name': 'x', 'conclusion': 'success'}]}]}
         gh.get.side_effect = lambda path: jobs if path.endswith('/jobs?per_page=100') else pr
         return gh
+
+    def test_the_dispatch_payload_names_the_pr_and_the_commit(self):
+        event = verify_report.from_dispatch({'client_payload': {'pr': '3', 'sha': SHA, 'issue': '4'}}, 'success', 'u', 9)
+        self.assertEqual(verify_report.parse(event['workflow_run']['display_title']), (3, SHA))
+        self.assertIsNone(verify_report.parse(verify_report.from_dispatch({'client_payload': {'pr': '3', 'sha': 'x'}}, 'success', 'u', 9)
+                                              ['workflow_run']['display_title']))
 
     def test_titles_name_the_pr_and_the_exact_commit(self):
         self.assertEqual(verify_report.parse(f'Verify PR #3 {SHA}'), (3, SHA))
