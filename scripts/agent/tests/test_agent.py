@@ -292,6 +292,23 @@ class RecordTests(unittest.TestCase):
         self.assertEqual(agentlib.redact_tree(self.home, environment), 2)
         self.assertEqual((self.home / 'b.bin').read_bytes(), b'\x00************\x00')
 
+    def test_session_records_stay_valid_json_and_keep_usage_numbers(self):
+        environment = {'X_TOKEN': 'value-123456'}
+        record = {'type': 'assistant', 'message': {'usage': {'input_tokens': 10, 'cache_read_input_tokens': 90},
+                  'content': [{'type': 'text', 'text': 'got value-123456'}]}, 'oauth_token': 'abc', 'max_tokens': 4096}
+        (self.home / 's.jsonl').write_text(json.dumps(record) + '\n' + 'not json api_key=abcdef\n')
+        (self.home / 'r.json').write_text(json.dumps({'access_token': 'zzz', 'count': 2}))
+        agentlib.redact_tree(self.home, environment)
+        first, second = (self.home / 's.jsonl').read_text().split('\n')[:2]
+        line = json.loads(first)
+        self.assertEqual(line['message']['usage'], {'input_tokens': 10, 'cache_read_input_tokens': 90})
+        self.assertEqual(line['max_tokens'], 4096)
+        self.assertEqual(line['oauth_token'], '[REDACTED]')
+        self.assertNotIn('value-123456', first)
+        self.assertNotIn('abcdef', second)
+        self.assertEqual(json.loads((self.home / 'r.json').read_text()), {'access_token': '[REDACTED]', 'count': 2})
+        self.assertEqual(agentlib.redact('max_tokens=4096 "input_tokens": 10', {}), 'max_tokens=4096 "input_tokens": 10')
+
     def test_shot_records_state_commit_and_attaches(self):
         args = mock.Mock(device='booted', launch_args='-learning-feed-e2e', caption='カード', no_attach=False)
         args.name = 'timeline card'

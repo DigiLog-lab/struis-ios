@@ -339,9 +339,13 @@ _PATTERNS = [
                 r'|xox[baprs]-[A-Za-z0-9-]{10,})'), '[REDACTED TOKEN]'),
     (re.compile(r'eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'), '[REDACTED JWT]'),
     (re.compile(r'((?:authorization["\']?\s*[:=]\s*["\']?)(?:Bearer |Basic )?)[^\s"\']+', re.I), r'\1[REDACTED]'),
+    # `name=value` / `"name": "value"` where the name looks like a credential. Numbers, booleans and null
+    # are counters or flags (`"input_tokens": 10`, `max_tokens=4096`), never a secret, and stay.
     (re.compile(r'([\w.-]*(?:token|password|secret|api[_-]?key|private[_-]?key|app[_-]?key)[\w.-]*["\']?\s*[:=]\s*)'
+                r'(?!(?:-?\d+(?:\.\d+)?|true|false|null)(?![\w.-]))'
                 r'("[^"\n]*"|\'[^\'\n]*\'|[^\s,}]+)', re.I), r'\1[REDACTED]'),
 ]
+KEY_NAME = re.compile(r'token|password|secret|api[_-]?key|private[_-]?key|app[_-]?key|authorization', re.I)
 
 
 def secret_values(environment=None):
@@ -365,6 +369,40 @@ def redact(text, environment=None, values=None):
     return text
 
 
+def redact_json(value, values):
+    """Redact a parsed JSON document without breaking it: every string is redacted as text, and a string
+    under a credential-like key is replaced whole. Numbers and booleans are left as they are."""
+    if isinstance(value, dict):
+        return {key: '[REDACTED]' if isinstance(item, str) and item and KEY_NAME.search(key)
+                else redact_json(item, values) for key, item in value.items()}
+    if isinstance(value, list):
+        return [redact_json(item, values) for item in value]
+    if isinstance(value, str):
+        return redact(value, values=values)
+    return value
+
+
+def redact_structured(text, suffix, values):
+    """JSON stays JSON and JSONL stays one JSON document per line; anything that does not parse is plain text."""
+    if suffix == '.json':
+        try:
+            document = json.loads(text)
+        except json.JSONDecodeError:
+            return redact(text, values=values)
+        cleaned = redact_json(document, values)
+        return text if cleaned == document else json.dumps(cleaned, ensure_ascii=False, indent=2)
+    lines = []
+    for line in text.split('\n'):
+        try:
+            document = json.loads(line)
+        except json.JSONDecodeError:
+            lines.append(redact(line, values=values))
+            continue
+        cleaned = redact_json(document, values)
+        lines.append(line if cleaned == document else json.dumps(cleaned, ensure_ascii=False))
+    return '\n'.join(lines)
+
+
 TEXT_SUFFIXES = {'.log', '.txt', '.json', '.jsonl', '.md', '.tsv', '.csv', '.plist', '.xml', '.yml', '.yaml'}
 
 
@@ -381,9 +419,11 @@ def redact_tree(root, environment=None):
         if path.is_symlink() or not path.is_file():
             continue
         data = path.read_bytes()
-        if path.suffix.lower() in TEXT_SUFFIXES:
-            text = data.decode('utf-8', errors='replace')
-            new = redact(text, values=values).encode()
+        suffix = path.suffix.lower()
+        if suffix in ('.json', '.jsonl'):
+            new = redact_structured(data.decode('utf-8', errors='replace'), suffix, values).encode()
+        elif suffix in TEXT_SUFFIXES:
+            new = redact(data.decode('utf-8', errors='replace'), values=values).encode()
         else:
             new = data
             for value in encoded:
