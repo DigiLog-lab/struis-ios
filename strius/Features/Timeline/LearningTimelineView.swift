@@ -409,7 +409,7 @@ struct LearningTimelineView: View {
 
     @ViewBuilder
     private var actions: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 22) {
             switch store.phase {
             case .solving:
                 if let card = store.current {
