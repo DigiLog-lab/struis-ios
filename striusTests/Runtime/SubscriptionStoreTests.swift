@@ -90,6 +90,19 @@ final class SubscriptionStoreTests: XCTestCase {
         store.update(statuses: statuses)
     }
 
+    /// 自動更新を切り替え、`cancelsAt` が変わるまで読み直す(`SKTestSession` の操作は少し遅れて状態に出る)。
+    /// 15 秒たっても変わらなければ、そのまま返す(続く確かめで落ちる)。
+    private func refreshUntilCancelsAtChanges(on store: SubscriptionStore, after change: () throws -> Void) async throws {
+        let before: Date? = store.cancelsAt
+        try change()
+        let deadline = Date().addingTimeInterval(15)
+        repeat {
+            await store.refreshStatus()
+            if store.cancelsAt != before { return }
+            try await Task.sleep(for: .milliseconds(200))
+        } while Date() < deadline
+    }
+
     private func transaction(for plan: UsagePlan) -> SKTestTransaction? {
         session.allTransactions().last { $0.productIdentifier == plan.productID }
     }
@@ -178,6 +191,24 @@ final class SubscriptionStoreTests: XCTestCase {
         clock.date = UsageRules.resetDate(after: clock.date)
         XCTAssertEqual(meter.snapshot().spentUSD, 0, "月曜 0:00 に戻る")
         XCTAssertTrue(DeviceUsageGate(meter: meter).admit())
+    }
+
+    // MARK: - 解約
+
+    func testCancellingKeepsThePlanUntilTheEndOfThePeriodAndUndoingClearsTheDate() async throws {
+        let (store, _) = install()
+        _ = await store.purchase(.standard)
+        XCTAssertNil(store.cancelsAt, "自動更新が続いている間は解約の日付を出さない")
+        let purchase = try XCTUnwrap(transaction(for: .standard))
+
+        try await refreshUntilCancelsAtChanges(on: store) { try session.disableAutoRenewForTransaction(identifier: purchase.identifier) }
+        let cancelsAt = try XCTUnwrap(store.cancelsAt, "解約したら、使える最後の日時が分かる")
+        XCTAssertGreaterThan(cancelsAt, Date())
+        XCTAssertEqual(store.plan, .standard, "解約しても期間の終わりまでは今のプラン")
+
+        try await refreshUntilCancelsAtChanges(on: store) { try session.enableAutoRenewForTransaction(identifier: purchase.identifier) }
+        XCTAssertNil(store.cancelsAt, "解約を取り消したら出さない")
+        XCTAssertEqual(store.plan, .standard)
     }
 
     // MARK: - 期限切れ・返金

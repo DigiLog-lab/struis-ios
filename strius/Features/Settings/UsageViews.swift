@@ -1,3 +1,4 @@
+import StoreKit
 import SwiftUI
 
 /// 今週の利用の見え方(#40 の 11・12、#62)。使用額かプランが変わったら読み直す。
@@ -25,6 +26,14 @@ final class UsageStatus {
         formatter.dateFormat = "M月d日（E）H:mm"
         return formatter.string(from: date)
     }
+
+    /// 「11月2日（月）」。
+    nonisolated static func dayText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "M月d日（E）"
+        return formatter.string(from: date)
+    }
 }
 
 /// 使用率のバー。
@@ -43,12 +52,14 @@ struct UsageBar: View {
     }
 }
 
-/// 設定 › 利用枠: 今週の使用率のゲージ・残りの目安の問題数・リセットの日時・今のプラン・「プランを変える」。
+/// 設定 › 利用枠: 今週の使用率のゲージ・残りの目安の問題数・リセットの日時・今のプラン・「プランを変える」・解約(契約中だけ)。
+/// 解約は Apple の管理シートの中で行う(アプリから直接解約する API は無い)。
 struct UsageSettingsView: View {
     @Environment(SubscriptionStore.self) private var subscriptions
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var status = UsageStatus()
     @State private var isPaywallPresented = false
+    @State private var isManagePresented = false
 
     var body: some View {
         let snapshot = status.snapshot
@@ -79,26 +90,32 @@ struct UsageSettingsView: View {
                 .accessibilityLabel("今週の利用枠 \(snapshot.percent)% 使用。残りの目安 約\(snapshot.remainingProblems)問。\(UsageStatus.resetText(snapshot.resetsAt)) に戻ります")
 
                 VStack(spacing: 0) {
-                    HStack {
-                        Text("プラン").font(Typography.sans(size: 15, weight: .bold))
-                        Spacer()
-                        Text(subscriptions.plan.map { "\($0.displayName)   \(subscriptions.price(of: $0)) / 月" } ?? "お試し")
-                            .font(Typography.sans(size: 15, weight: .medium)).foregroundStyle(Theme.secondaryText)
-                            .accessibilityIdentifier("usage-plan")
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("プラン").font(Typography.sans(size: 15, weight: .bold))
+                            Spacer()
+                            Text(subscriptions.plan.map { "\($0.displayName)   \(subscriptions.price(of: $0)) / 月" } ?? "お試し")
+                                .font(Typography.sans(size: 15, weight: .medium)).foregroundStyle(Theme.secondaryText)
+                                .accessibilityIdentifier("usage-plan")
+                        }
+                        if let cancelsAt = subscriptions.cancelsAt {
+                            Text("解約済みです。\(UsageStatus.dayText(cancelsAt)) まで今のプランを使えます。")
+                                .font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityIdentifier("usage-cancels-at")
+                        }
                     }
                     .padding(.vertical, 14)
                     Rectangle().fill(Theme.hairline).frame(height: 1)
-                    Button { isPaywallPresented = true } label: {
-                        HStack {
-                            Text(subscriptions.plan == nil ? "プランを選ぶ" : "プランを変える").font(Typography.sans(size: 15, weight: .bold))
-                            Spacer()
-                            Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.tertiaryText)
-                        }
-                        .padding(.vertical, 14)
-                        .contentShape(Rectangle())
+                    actionRow(title: subscriptions.plan == nil ? "プランを選ぶ" : "プランを変える", identifier: "usage-change-plan") {
+                        isPaywallPresented = true
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("usage-change-plan")
+                    if subscriptions.plan != nil {
+                        Rectangle().fill(Theme.hairline).frame(height: 1)
+                        actionRow(title: "解約・サブスクリプションの管理", identifier: "usage-manage-subscription") {
+                            isManagePresented = true
+                        }
+                    }
                 }
                 .foregroundStyle(Theme.primaryText)
                 .padding(.horizontal, 18)
@@ -122,7 +139,26 @@ struct UsageSettingsView: View {
                 isPaywallPresented = false
             }
         }
+        .manageSubscriptionsSheet(isPresented: $isManagePresented)
+        // 画面を開いた時と管理シートを閉じた時に読み直す(解約の予約は `.subscriptionStatusTask` に届かないことがある)。
+        .task(id: isManagePresented) {
+            if !isManagePresented { await subscriptions.refreshStatus() }
+        }
         .accessibilityIdentifier("usage-settings")
+    }
+
+    private func actionRow(title: String, identifier: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title).font(Typography.sans(size: 15, weight: .bold))
+                Spacer()
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.tertiaryText)
+            }
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
     }
 }
 
