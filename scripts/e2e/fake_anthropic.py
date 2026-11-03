@@ -17,7 +17,9 @@ Codex 版と Claude 直結版の比較(`RunnerComparisonLiveTests`)のために�
 - `scenario`: 要求の記録の置き場所(`<log-dir>/scenarios/<scenario>/NNNN.json`)。到着と返し終わりの時刻も残す。
 - `mode`: `script`(決まった応答)、`record`(本物の API へ転送して応答を時刻付きで `<tape-dir>/<tape>/NNNN.json` に録る)、
   `replay`(録った応答を同じ間隔で順に返す)。録画と再生は要求の中身ではなく順番で対応させる(比べる 2 つの本文は同じとは限らない)。
-- `faults`: 要求ごとに 1 つ消費する故障の列(`http`・`drop`・`stall`・`sse_error`・`first_byte_delay`)。
+- `faults`: 要求ごとに 1 つ消費する故障の列(`http`・`drop`・`stall`・`sse_error`・`first_byte_delay`・`trickle`)。
+  `trickle` は最初の本文の前に、本文の差分を `interval` 秒(既定 1)ごとに 1 つ、最大 `seconds` 秒(既定 900)流し続ける
+  (止める操作の確認用。接続は切らないのでアプリは送り直さない)。送った差分の数と最後の時刻を記録の `trickle` に残す。
 
 会話の返事は、学習者の今の発言(最後の `The learner's current message:` の後)で変わる。「調べて」があれば資料を探してから
 `struis__struis_delegate` に任せ、「続けて」があれば最初のラウンドで `disposition: continue` を返して続きのラウンドを起こす
@@ -494,6 +496,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.emit({"type": "content_block_delta", "index": index, "delta": {"type": "signature_delta", "signature": block["signature"]}})
             elif kind == "text":
                 self.emit({"type": "content_block_start", "index": index, "content_block": {"type": "text", "text": ""}})
+                self.trickle(index)
                 text = block["text"]
                 for start in range(0, len(text), 12):
                     self.emit({"type": "content_block_delta", "index": index, "delta": {"type": "text_delta", "text": text[start:start + 12]}})
@@ -581,6 +584,22 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("connection", "close")
         self.end_headers()
         self.close_connection = True
+
+    def trickle(self, index: int):
+        fault = self.fault
+        if not fault or self.fault_fired or fault.get("kind") != "trickle":
+            return
+        self.fault_fired = True
+        interval = float(fault.get("interval", 1))
+        until = time.time() + float(fault.get("seconds", 900))
+        state = {"sent": 0, "started_at": time.time(), "last_at": None}
+        self.record["trickle"] = state
+        while time.time() < until:
+            state["sent"] += 1
+            self.emit({"type": "content_block_delta", "index": index, "delta": {"type": "text_delta", "text": f"流れ続ける本文の {state['sent']} 番目。"}}, pace=False)
+            state["last_at"] = time.time()
+            time.sleep(interval)
+        state["finished"] = True
 
     def fault_due(self, event: dict) -> bool:
         fault = self.fault

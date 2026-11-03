@@ -21,6 +21,8 @@ nonisolated enum ChatTurns {
         checks.filter { $0["accepted"]?.boolValue == false }.count > repairLimit
     }
     static let interruptedText = "停止しました。"
+    /// 理由の分からない失敗で学習者に出す文。以前は `Codex の応答を受け取れませんでした` だった。
+    static let replyUnavailableText: String = "AIの応答を受け取れませんでした"
     /// 返事を始められなかった(ターンの行を書けなかった等)。学習者には日本語の一言だけ。
     static let startFailedText = "AI の返事を始められませんでした。もう一度送ってください。"
     static let continuation = "Continue the remaining model-owned work now, until a concrete learner input is required. Do not repeat text already delivered."
@@ -375,7 +377,7 @@ nonisolated enum ChatTurns {
         state.rateLimits = outcome.rateLimits ?? state.rateLimits
         switch outcome.status {
         case .interrupted: return .failed(interruptedText)
-        case .failed: return .failed(outcome.error ?? "Codex の応答を受け取れませんでした", detail: outcome.errorDetail)
+        case .failed: return .failed(outcome.error ?? replyUnavailableText, detail: outcome.errorDetail)
         case .completed: break
         }
         do {
@@ -393,7 +395,7 @@ nonisolated enum ChatTurns {
                 candidate = kept
             }
             let visible = (state.deliveredParts + [candidate]).joined(separator: "\n\n")
-            let ids = Self.referencedMessageIDs(progressRaw)
+            let ids = Self.referencedMessageIDs(progressRaw, before: state.progressAfter)
             let sources = try await ledger.read { db in try ChatRepository.sourceMessages(db, ids: ids) }
             let progressAfter = state.progressAfter
             let userMessageID = state.userMessageID
@@ -508,7 +510,8 @@ nonisolated enum ChatTurns {
         return LearnerText.sanitizeLearnerFacingText(value).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private static func referencedMessageIDs(_ raw: JSONObject) -> Set<String> {
+    /// 学習の進行の更新が指す発言の id(台帳から本文を読み、根拠の引用を確かめる)。
+    static func referencedMessageIDs(_ raw: JSONObject, before: ProgressState) -> Set<String> {
         var ids = Set<String>()
         for goal in raw["goals"] as? [JSONObject] ?? [] {
             for evidence in goal["evidence"] as? [JSONObject] ?? [] {
@@ -518,6 +521,10 @@ nonisolated enum ChatTurns {
         for change in raw["goal_changes"] as? [JSONObject] ?? [] {
             for evidence in change["add_evidence"] as? [JSONObject] ?? [] {
                 if let id = evidence["message_id"] as? String { ids.insert(id) }
+            }
+            // 部分更新は保存済みの根拠を合わせて検証する(`LearningProgress.expandGoalChanges`)ので、その本文も要る。
+            if let goalID = change["id"] as? String, let stored = before.goals[goalID] {
+                for evidence in stored.evidence { ids.insert(evidence.messageID) }
             }
         }
         for attempt in raw["attempts"] as? [JSONObject] ?? [] {
