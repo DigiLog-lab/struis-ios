@@ -353,9 +353,12 @@ protocol TurnRunning: Sendable {
     func forgetThreads(_ ids: Set<String>) async throws
     /// 時間切れのターンを置いて先へ進んだ後、接続を作り直させる(返らない接続を次のターンが使わない)。
     func resetConnection() async
+    /// この会話の続きを、その履歴から送れるか(false なら新しいスレッドで始まる)。
+    func resumes(threadID: String?) async -> Bool
 }
 
 extension TurnRunning {
+    func resumes(threadID: String?) async -> Bool { threadID != nil }
     func warmUp() async {}
     func forgetThreads(_ ids: Set<String>) async throws {}
     func resetConnection() async {}

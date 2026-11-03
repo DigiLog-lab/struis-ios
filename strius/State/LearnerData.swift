@@ -63,7 +63,7 @@ final class LearnerData {
             // Simulator では `STRUIS_DEVICE_RUNTIME=1`(無いとモック)と `STRUIS_DEVICE_ASSETS_DIR`(`scripts/e2e/standin_assets.py`)も要る。
             if ProcessInfo.processInfo.environment["STRUIS_DIRECT_CLAUDE"] == "1" {
                 let boot = runtime!.boot
-                runner = DirectClaudeTurnRunner(assets: assets, fallback: codex) {
+                runner = DirectClaudeTurnRunner(assets: assets, conversations: ClaudeConversationStore(queue: ledger.queue), fallback: codex) {
                     await boot.start()
                     await NativeRuntimeHost.shared.prepareForCommandsOnly()
                 }

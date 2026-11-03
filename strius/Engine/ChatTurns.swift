@@ -159,7 +159,9 @@ nonisolated enum ChatTurns {
 
     // MARK: - Compose (§3.4 staging)
 
-    static func compose(ledger: Ledger, assets: AssetCache, state: inout State, roundText: String?) async throws -> TurnPlan {
+    /// `resumes`: 実行先がこの会話の履歴から続けられるか(`TurnRunning.resumes`)。続けられない時は、新しいスレッドに
+    /// 記憶の根拠を全部渡す。
+    static func compose(ledger: Ledger, assets: AssetCache, state: inout State, roundText: String?, resumes: Bool = true) async throws -> TurnPlan {
         let planID = state.turnID
         let learnerID = state.learnerID
         let workspaceKey = state.codexThreadID.flatMap { TurnPlan.threadWorkspaceKey(codexThreadID: $0) }
@@ -248,7 +250,7 @@ nonisolated enum ChatTurns {
             let session = "current/session.yaml"
             let sessionContext = try await ledger.withMemory { _ in try TutorMemory.renderTutorMemoryContext(workspace: StruisPaths.memory, only: [session]) }
             let sections = try await ledger.withMemory { _ in try TutorMemory.tutorMemorySections(workspace: StruisPaths.memory, excluding: [session]) }
-            let update = MemoryUpdate(sections: sections, delivered: existingThread.flatMap { ThreadContextStore.shared.entry($0)?.memoryFiles })
+            let update = MemoryUpdate(sections: sections, delivered: resumes ? existingThread.flatMap { ThreadContextStore.shared.entry($0)?.memoryFiles } : nil)
             state.deliveredMemory = update.delivered
             text = try firstRoundSlimText(state: state, manifestPath: manifestPath, sessionContext: sessionContext, memory: update)
         } else {

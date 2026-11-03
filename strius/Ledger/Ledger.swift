@@ -236,6 +236,11 @@ actor Ledger {
         for event in journal.events {
             seqs += try Int64.fetchAll(db, sql: "SELECT seq FROM ledger_events WHERE entity=? AND entity_id=?", arguments: [event.entity.rawValue, event.entityID])
         }
+        // Claude に送る会話の控え(イベントの外の表)も消す。
+        for id in journal.fact.scope.codexIDs {
+            try db.execute(sql: "DELETE FROM claude_conversation_messages WHERE thread_id = ?", arguments: [id])
+            try db.execute(sql: "DELETE FROM claude_conversations WHERE thread_id = ?", arguments: [id])
+        }
         for seq in Set(seqs) {
             try db.execute(sql: """
                 INSERT OR IGNORE INTO sync_tombstones (record_name)

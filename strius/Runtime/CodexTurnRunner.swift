@@ -149,7 +149,10 @@ actor CodexTurnRunner: TurnRunning {
             try await deliverNotices(threadID: threadID, planID: plan.id)
             var watcher: DelegationWatcher?
             if let delegation = plan.delegation, delegation.enabled {
-                let created = DelegationWatcher(plan: plan, delegation: delegation, runner: self, session: session, assets: assets)
+                let created = DelegationWatcher(plan: plan, delegation: delegation, assets: assets) { [weak self] child in
+                    guard let self else { return DelegationWatcher.ChildResult(text: nil, executions: [], error: "runner released") }
+                    return await self.runCodexChild(child, provider: delegation.provider, session: session)
+                }
                 delegationWatchers[plan.id] = created
                 await created.start()
                 watcher = created
@@ -199,6 +202,43 @@ actor CodexTurnRunner: TurnRunning {
             default: false
             }
             return (outcome, broken: broken)
+        }
+    }
+
+    /// 下調べの子ターン(比較の間だけ残す Codex の経路)。
+    func runCodexChild(_ child: DelegationWatcher.Child, provider: ModelProvider?, session: CodexAppServerSession) async -> DelegationWatcher.ChildResult {
+        var executions: [LedgerJSON] = []
+        do {
+            var params: JSONObject = [
+                "dynamicTools": NativeToolRouter.lookupDefinitions,
+                "cwd": child.cwd, "model": child.model, "ephemeral": true, "approvalPolicy": "never", "sandbox": "danger-full-access",
+                "allowProviderModelFallback": false, "baseInstructions": child.baseInstructions, "developerInstructions": child.developerInstructions,
+                "config": NativeToolRouter.configuration([
+                    "model_reasoning_effort": child.effort, "features.multi_agent": false, "features.unified_exec": false,
+                    "features.apps": false, "features.browser_use": false, "features.computer_use": false, "web_search": "disabled",
+                ]),
+            ]
+            _ = try await Self.applyProvider(provider, to: &params)
+            let configured = try await session.request("thread/start", params: params, timeout: .seconds(180))
+            let childID = (configured["thread"] as? JSONObject)?["id"] as? String ?? ""
+            guard !childID.isEmpty else { throw CodexAppServerError.malformed("thread/start returned no thread id") }
+            let observed = try await observeTurn(
+                session: session, planID: child.planID, threadID: childID, cwd: child.cwd, text: child.text, images: [],
+                model: child.model, effort: child.effort, outputSchema: child.outputSchema, sandboxPolicy: "dangerFullAccess",
+                configured: configured, configurationEvidence: "thread/start", taskType: child.taskType, timeoutS: 300,
+                parentThreadID: child.parentThreadID, parentTurnID: child.parentTurnID, executionID: child.requestID,
+                provider: provider, progress: { _ in }
+            ) { execution in
+                if let index = executions.firstIndex(where: { $0["execution_id"]?.stringValue == child.requestID }) {
+                    executions[index] = execution
+                } else {
+                    executions.append(execution)
+                }
+            }
+            release(threadID: childID)
+            return DelegationWatcher.ChildResult(text: observed.text, executions: executions, error: nil)
+        } catch {
+            return DelegationWatcher.ChildResult(text: nil, executions: executions, error: Self.describe(error))
         }
     }
 

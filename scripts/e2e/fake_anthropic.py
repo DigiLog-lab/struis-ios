@@ -19,6 +19,10 @@ Codex 版と Claude 直結版の比較(`RunnerComparisonLiveTests`)のために�
   `replay`(録った応答を同じ間隔で順に返す)。録画と再生は要求の中身ではなく順番で対応させる(比べる 2 つの本文は同じとは限らない)。
 - `faults`: 要求ごとに 1 つ消費する故障の列(`http`・`drop`・`stall`・`sse_error`・`first_byte_delay`)。
 
+会話の返事は、学習者の今の発言(最後の `The learner's current message:` の後)で変わる。「調べて」があれば資料を探してから
+`struis__struis_delegate` に任せ、「続けて」があれば最初のラウンドで `disposition: continue` を返して続きのラウンドを起こす
+(続きのラウンドは `not_learning` で終える)。
+
 `record` の転送先のキーは `--upstream-key-file` のファイルから読み、記録には残さない。
 """
 from __future__ import annotations
@@ -279,7 +283,8 @@ def plan_response(body: dict) -> tuple[list[dict], str]:
         schema = fmt["schema"]
         blocks.append({"type": "text", "text": json.dumps(sample(schema, schema.get("$defs", {})), ensure_ascii=False)})
         return blocks, "end_turn"
-    latest = "\n".join(user_texts(body)[-2:])
+    # 委任は学習者の今の発言で決める(前の回の発言や Codex の足す文の数で、送る範囲が変わらないように)。
+    latest = latest_learner_message(body) or "\n".join(user_texts(body)[-2:])
     if "struis__struis_delegate" in tools and "調べて" in latest:
         previous = last_tool_use(body)
         if not last_user_has_tool_result(body):
@@ -314,6 +319,40 @@ def user_texts(body: dict) -> list[str]:
     return texts
 
 
+LEARNER_MARK = "The learner's current message:\n"
+CONTINUATION = "Continue the remaining model-owned work"
+
+
+def latest_turn_text(body: dict) -> str:
+    """いまのラウンドの依頼文(学習者の発言を載せた文か、続きの依頼)。無ければ空。"""
+    for text in reversed(user_texts(body)):
+        if LEARNER_MARK in text or CONTINUATION in text:
+            return text
+    return ""
+
+
+def latest_learner_message(body: dict) -> str:
+    """最後の `The learner's current message:` の後の、学習者の発言だけ(後ろに付く進行の文脈や記憶は除く)。"""
+    for text in reversed(user_texts(body)):
+        if LEARNER_MARK in text:
+            message = text.rsplit(LEARNER_MARK, 1)[1]
+            for end in ("\n\n", "\nStruis progress context"):
+                message = message.split(end, 1)[0]
+            return message
+    return ""
+
+
+def continue_goal() -> dict:
+    """`disposition: continue` に要る、いま進めている一番小さい目標(モデルの目標、繰り返しなし)。"""
+    return {
+        "id": "fake-continue", "parent_id": None, "title": "平方完成の手順を確かめる", "outcome": "平方完成の手順を説明できる",
+        "learner_action": "説明を読む", "model_action": "手順を続けて説明する", "completion_condition": "手順を最後まで説明した",
+        "kind": "model", "status": "active", "next_action": "続きの手順を説明する", "child_order": [], "evidence": [],
+        "loop": {"enabled": False, "unit": "説明", "repeat_when": "なし", "exit_when": "説明を終えた", "after_exit": "質問を待つ",
+                 "stagnation_attempts": 2, "max_attempts": 1},
+    }
+
+
 def revision_of(text: str) -> int:
     revision = 0
     for match in re.finditer(r'"revision"\s*:\s*(\d+)', text):
@@ -338,6 +377,15 @@ def chat_reply(body: dict) -> str:
         return "<struis_progress_update>" + json.dumps(update, ensure_ascii=False) + "</struis_progress_update>\n<struis_memory_update>NO_UPDATE</struis_memory_update>"
     update = {"schema_version": 1, "base_revision": revision, "goals": [], "problems": [], "attempts": [],
               "current_goal_id": None, "disposition": "not_learning", "next_action": "", "reply_quotes": [reply]}
+    # 学習者が「続けて」と書いた最初のラウンドは、続きのラウンド(`disposition: continue`)を頼む。続きのラウンドは終える。
+    continuing = CONTINUATION in latest_turn_text(body) and LEARNER_MARK not in latest_turn_text(body)
+    if "続けて" in latest_learner_message(body) and not continuing:
+        reply = "Claude(検証用サーバー)からの返事です。続きの説明に進みます。"
+        update.update(goals=[continue_goal()], current_goal_id="fake-continue", disposition="continue",
+                      next_action="続きの手順を説明する", reply_quotes=[reply])
+    elif continuing:
+        reply = "Claude(検証用サーバー)からの返事です。続きの説明はここまでです。"
+        update["reply_quotes"] = [reply]
     blocks = [reply,
               "<struis_progress_update>" + json.dumps(update, ensure_ascii=False) + "</struis_progress_update>",
               "<struis_memory_update>NO_UPDATE</struis_memory_update>"]

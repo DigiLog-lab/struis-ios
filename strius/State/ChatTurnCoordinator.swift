@@ -211,7 +211,8 @@ extension TurnCoordinator {
         var errorDetail: String?
         while true {
             do {
-                plan = try await ChatTurns.compose(ledger: ledger, assets: assets, state: &state, roundText: roundText)
+                let resumes: Bool = await runner.resumes(threadID: state.codexThreadID)
+                plan = try await ChatTurns.compose(ledger: ledger, assets: assets, state: &state, roundText: roundText, resumes: resumes)
             } catch let composeError {
                 error = composeError.localizedDescription
                 errorDetail = CodexTurnRunner.describe(composeError)

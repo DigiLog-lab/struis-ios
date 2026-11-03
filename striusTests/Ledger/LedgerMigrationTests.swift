@@ -45,7 +45,7 @@ final class LedgerMigrationTests: XCTestCase {
     }
 
     func testTheRegistrationOrderPutsTheTimelineBeforeTheSync() {
-        XCTAssertEqual(LedgerSchema.migrations.map(\.id), timelineOnly + ["sync-v1"])
+        XCTAssertEqual(LedgerSchema.migrations.map(\.id), timelineOnly + ["sync-v1", "v6-claude-conversations"])
     }
 
     /// タイムラインの版で使っていた台帳(`v1`〜`v5`)に `sync-v1` を流す。前のイベントは元の端末とその連番が付き、送る対象になる。

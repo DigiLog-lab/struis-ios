@@ -105,7 +105,8 @@ extension TurnCoordinator {
             state.codexThreadID = try await forkCodexThread(from: (prefetch.baseCodexThreadID, prefetch.baseLastTurnID))
             var roundText: String?
             while true {
-                let plan = try await ChatTurns.compose(ledger: ledger, assets: assets, state: &state, roundText: roundText)
+                let resumes: Bool = await runner.resumes(threadID: state.codexThreadID)
+                let plan = try await ChatTurns.compose(ledger: ledger, assets: assets, state: &state, roundText: roundText, resumes: resumes)
                 prefetch.plan = plan
                 let outcome = try await runner.run(plan) { event in activity.send(event) }
                 let applied = await ChatTurns.applyRound(ledger: ledger, state: &state, outcome: outcome)

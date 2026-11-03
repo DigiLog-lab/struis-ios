@@ -19,6 +19,8 @@ nonisolated enum LedgerSchema {
         ("v5-timeline-log", addTimelineLog),
         // iCloud 同期 (Issue #51)。
         ("sync-v1", addSync),
+        // Claude に直接送る会話の履歴(2026-11-03、Codex を外した)。台帳のイベントには入れない控えの表を足すだけ。
+        ("v6-claude-conversations", ClaudeConversationStore.createTables),
     ]
 
     static var migrator: DatabaseMigrator {

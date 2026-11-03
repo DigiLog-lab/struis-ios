@@ -3,8 +3,11 @@
 
     python3 scripts/e2e/compare_runners.py --server <dir>/server --outcomes <dir>/outcomes --out <dir>/report
 
-- 届いた要求: 同じ場面・同じ順番の要求を、ID や時刻など毎回変わるものを揃えて比べる。Codex だけが足す権限の注記と環境情報は
-  `allowed` として分けて数え、それ以外の違いはすべて `differences` に出す。
+- 届いた要求: 同じ場面・同じ順番の要求を、ID や時刻など毎回変わるものを揃えて比べる。Codex だけが足す権限の注記・環境情報・
+  アプリの案内(`<permissions instructions>`・`<environment_context>`・`<apps_instructions>`)と `request_user_input` の道具は
+  `allowed` として分けて数え、それ以外の違いはすべて `differences` に出す。これらの節は、1 つの文(翻訳 v2 の `system` など)の
+  中に "\n\n" で挟まっていても取り除く。Skill の一覧(`<skills_instructions>`)と AGENTS.md は直結版も同じに作るので比べる。
+- 場面の置き場所は `<server>/scenarios/<版>/<組>/<段>/NNNN.json`(会話は組 `chat`・段が場面の名前、構造化は組 `structured`)。
 - 結果・時間・故障時・メモリを版ごとに並べる。時間は同じ計算機の時計で測った模擬サーバーの到着時刻を使う。
 
 標準ライブラリだけで動く。結果は `summary.json` と `report.md`。
@@ -17,7 +20,9 @@ import re
 import statistics
 from pathlib import Path
 
-CODEX_ONLY = ("<permissions instructions>", "<environment_context>", "<apps_instructions>", "<skills_instructions>")
+CODEX_ONLY = ("<permissions instructions>", "<environment_context>", "<apps_instructions>")
+# 文の中に埋まった Codex だけの節(閉じタグまで)。前の区切りの空行も一緒に取る。
+CODEX_ONLY_SECTIONS = [re.compile(r"(?:\n\n)?" + re.escape(tag) + r".*?" + re.escape(tag.replace("<", "</", 1)), re.S) for tag in CODEX_ONLY]
 CODEX_ONLY_TOOLS = ("request_user_input",)
 CLOCK = re.compile(r"(?<![0-9:])\d{2}:\d{2}(?![0-9:])")
 TOP_LEVEL = ("model", "max_tokens", "stream", "thinking", "output_config", "tool_choice", "cache_control", "tools")
@@ -26,6 +31,8 @@ PLAN_ID = re.compile(r"compare-[a-z0-9-]+?-[0-9a-f]{8}\b")
 PATHS = re.compile(r"/[^\s\"']*/(?:workspace|Containers)/[^\s\"']*")
 STAMP = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?")
 TOOL_ID = re.compile(r"toolu_[A-Za-z0-9]+")
+TIMING_SETS = (("warm", "起動直後"), ("normal", "固定の応答"), ("replay", "録画の再生"), ("structured", "構造化の各種"), ("chat", "会話"))
+DETAIL_SETS = ("structured", "chat")
 
 
 def normalize_text(text: str) -> str:
@@ -55,10 +62,42 @@ def is_codex_only(block: dict) -> bool:
     return block.get("type") == "text" and str(block.get("text", "")).lstrip().startswith(CODEX_ONLY)
 
 
-def split_codex_only(blocks: list) -> tuple[list, list]:
+def strip_codex_sections(text: str) -> tuple[str, list[str]]:
+    """文の中の Codex だけの節を取り除く。戻り値の 2 つ目は取り除いた節。"""
+    removed: list[str] = []
+    for pattern in CODEX_ONLY_SECTIONS:
+        def take(match):
+            removed.append(match.group(0).lstrip("\n"))
+            return ""
+        text = pattern.sub(take, text)
+    if removed:
+        text = text.lstrip("\n")
+    return text, removed
+
+
+def split_codex_only(blocks) -> tuple[list, list]:
+    """Codex だけの文を除く。丸ごとの文は落とし、埋まった節は文から取り除く(残りが空なら落とす)。"""
+    if isinstance(blocks, str):
+        blocks = [{"type": "text", "text": blocks}]
     kept, removed = [], []
     for block in blocks:
-        (removed if isinstance(block, dict) and is_codex_only(block) else kept).append(block)
+        if not isinstance(block, dict) or block.get("type") != "text":
+            kept.append(block)
+            continue
+        if is_codex_only(block):
+            text, sections = strip_codex_sections(str(block.get("text", "")))
+            # 閉じタグの無い文は、文ごと Codex だけのものとして落とす。
+            if not sections or not text.strip():
+                removed.append(block)
+                continue
+            removed += [{"type": "text", "text": section} for section in sections]
+            kept.append({**block, "text": text})
+            continue
+        text, sections = strip_codex_sections(str(block.get("text", "")))
+        removed += [{"type": "text", "text": section} for section in sections]
+        if sections and not text.strip():
+            continue
+        kept.append({**block, "text": text} if sections else block)
     return kept, removed
 
 
@@ -70,6 +109,8 @@ def canonical(body: dict) -> tuple[dict, list[str]]:
     messages = []
     for message in body.get("messages") or []:
         content = message.get("content")
+        if isinstance(content, str):
+            content = [{"type": "text", "text": content}]
         if isinstance(content, list):
             content, gone = split_codex_only(content)
             removed += gone
@@ -110,37 +151,67 @@ def load_requests(root: Path, runner: str, set_name: str, step: str) -> list[dic
     return [json.loads(path.read_text()) for path in sorted(directory.glob("*.json"))] if directory.exists() else []
 
 
+def scenario_steps(server: Path) -> list[tuple[str, str]]:
+    """どちらかの版に要求が届いた (組, 段)。"""
+    steps: set[tuple[str, str]] = set()
+    for runner in ("codex", "direct"):
+        root = server / "scenarios" / runner
+        if not root.exists():
+            continue
+        for set_dir in (p for p in root.iterdir() if p.is_dir()):
+            steps.update((set_dir.name, step_dir.name) for step_dir in set_dir.iterdir() if step_dir.is_dir())
+    return sorted(steps)
+
+
 def compare_requests(server: Path) -> dict:
-    root = server / "scenarios" / "codex"
     pairs = []
-    if not root.exists():
-        return {"pairs": [], "identical": 0, "different": 0, "codex_only_text": []}
     only: dict[str, int] = {}
-    for set_dir in sorted(p for p in root.iterdir() if p.is_dir()):
-        for step_dir in sorted(p for p in set_dir.iterdir() if p.is_dir()):
-            codex = load_requests(server, "codex", set_dir.name, step_dir.name)
-            direct = load_requests(server, "direct", set_dir.name, step_dir.name)
-            if not direct:
-                continue
-            for index in range(max(len(codex), len(direct))):
-                entry = {"set": set_dir.name, "step": step_dir.name, "index": index + 1}
-                if index >= len(codex) or index >= len(direct):
-                    entry["differences"] = [{"path": "request", "codex": index < len(codex), "direct": index < len(direct)}]
-                    pairs.append(entry)
-                    continue
-                a, removed = canonical(codex[index]["request"])
-                b, _ = canonical(direct[index]["request"])
-                for text in removed:
-                    only[text] = only.get(text, 0) + 1
-                found: list[dict] = []
-                diff("body", a, b, found)
-                entry["differences"] = found
-                entry["codex_bytes"], entry["direct_bytes"] = codex[index].get("bytes"), direct[index].get("bytes")
+    for set_name, step in scenario_steps(server):
+        # 片方の版で流していない組(録画の `real` など)は比べない。段の要求が片方だけ無いのは違いとして出す。
+        if not all((server / "scenarios" / runner / set_name).is_dir() for runner in ("codex", "direct")):
+            continue
+        codex = load_requests(server, "codex", set_name, step)
+        direct = load_requests(server, "direct", set_name, step)
+        if not direct and not codex:
+            continue
+        for index in range(max(len(codex), len(direct))):
+            entry = {"set": set_name, "step": step, "index": index + 1}
+            if index >= len(codex) or index >= len(direct):
+                entry["differences"] = [{"path": "request", "codex": index < len(codex), "direct": index < len(direct)}]
                 pairs.append(entry)
+                continue
+            a, removed = canonical(codex[index]["request"])
+            b, _ = canonical(direct[index]["request"])
+            for text in removed:
+                only[text] = only.get(text, 0) + 1
+            found: list[dict] = []
+            diff("body", a, b, found)
+            entry["differences"] = found
+            entry["codex_bytes"], entry["direct_bytes"] = codex[index].get("bytes"), direct[index].get("bytes")
+            pairs.append(entry)
     return {
         "pairs": pairs, "identical": sum(not pair["differences"] for pair in pairs), "different": sum(bool(pair["differences"]) for pair in pairs),
         "codex_only_text": sorted(only.items(), key=lambda item: -item[1]),
+        "by_step": by_step(pairs),
     }
+
+
+def by_step(pairs: list[dict]) -> list[dict]:
+    """組・段ごとの違い(会話の場面・構造化の種類ごとに見えるように)。"""
+    groups: dict[tuple[str, str], list[dict]] = {}
+    for pair in pairs:
+        groups.setdefault((pair["set"], pair["step"]), []).append(pair)
+    rows = []
+    for (set_name, step), items in sorted(groups.items()):
+        paths: dict[str, dict] = {}
+        for pair in items:
+            for item in pair["differences"]:
+                paths.setdefault(re.sub(r"\[\d+\]", "[]", item["path"]), {**item, "request": pair["index"]})
+        rows.append({
+            "set": set_name, "step": step, "requests": len(items), "identical": sum(not p["differences"] for p in items),
+            "different": sum(bool(p["differences"]) for p in items), "paths": list(paths.values()),
+        })
+    return rows
 
 
 def timing(server: Path, runner: str, results: list[dict]) -> list[dict]:
@@ -221,6 +292,19 @@ def cache_rows(runners: dict) -> dict:
     return rows
 
 
+def turn_rows(runners: dict) -> list[dict]:
+    """構造化と会話の場面の結果を、版ごとに並べる。"""
+    rows: dict[tuple[str, str], dict] = {}
+    for runner, data in runners.items():
+        for result in data["results"]:
+            if result["set"] not in DETAIL_SETS:
+                continue
+            row = rows.setdefault((result["set"], result["step"]), {"set": result["set"], "step": result["step"]})
+            row[runner] = {"status": result.get("status"), "ms": round((result["ended_at"] - result["started_at"]) * 1000),
+                           "error": result.get("error"), "executions": result.get("execution_count"), "text": short(result.get("final_text") or "")[:120]}
+    return list(rows.values())
+
+
 def megabytes(value) -> float:
     return round((value or 0) / (1024 * 1024), 1)
 
@@ -244,8 +328,29 @@ def report(summary: dict) -> str:
             direct = str(item.get("direct")).replace("|", "\\|").replace("\n", " ")[:120]
             lines.append(f"| `{path}` | {codex} | {direct} |")
         lines.append("")
+    lines += ["## 場面ごとの要求の違い", "", "| 組/段 | 要求 | 同じ | 違う | 違う場所 |", "|---|---|---|---|---|"]
+    for row in requests.get("by_step", []):
+        where = ", ".join(f"`{item['path']}`" for item in row["paths"][:6]) + (" …" if len(row["paths"]) > 6 else "")
+        lines.append(f"| {row['set']}/{row['step']} | {row['requests']} | {row['identical']} | {row['different']} | {where or '-'} |")
+    lines.append("")
+    detail = [row for row in requests.get("by_step", []) if row["set"] in DETAIL_SETS and row["paths"]]
+    if detail:
+        lines += ["### 構造化と会話の違いの中身", ""]
+        for row in detail:
+            lines.append(f"- **{row['set']}/{row['step']}**")
+            for item in row["paths"][:10]:
+                codex = str(item.get("codex")).replace("\n", " ")[:160]
+                direct = str(item.get("direct")).replace("\n", " ")[:160]
+                lines.append(f"  - 要求 {item['request']} `{item['path']}`: Codex `{codex}` / 直結 `{direct}`")
+        lines.append("")
+    if summary.get("turns"):
+        lines += ["## 構造化と会話の結果", "", "| 組/段 | Codex | 直結 |", "|---|---|---|"]
+        for row in summary["turns"]:
+            cell = lambda data: (f"{data['status']} / {data['ms']} ms / 実行 {data['executions']}" + (f" / {data['error']}" if data.get("error") else "")).replace("|", "\\|") if data else "-"
+            lines.append(f"| {row['set']}/{row['step']} | {cell(row.get('codex'))} | {cell(row.get('direct'))} |")
+        lines.append("")
     lines += ["## 時間(中央値、ミリ秒)", "", "| 場面 | 版 | 件数 | 最初の要求まで | 要求の間 | 最後の応答の後 | 合計 |", "|---|---|---|---|---|---|---|"]
-    for prefix, label in (("warm", "起動直後"), ("normal", "固定の応答"), ("replay", "録画の再生")):
+    for prefix, label in TIMING_SETS:
         for runner, table in summary["timing"].items():
             row = table[prefix]
             if row["turns"]:
@@ -279,7 +384,8 @@ def main() -> None:
     rows = {name: timing(args.server, name, data["results"]) for name, data in runners.items()}
     summary = {
         "requests": compare_requests(args.server),
-        "timing": {name: {prefix: timing_summary(table, prefix) for prefix in ("warm", "normal", "replay")} for name, table in rows.items()},
+        "timing": {name: {prefix: timing_summary(table, prefix) for prefix, _ in TIMING_SETS} for name, table in rows.items()},
+        "turns": turn_rows(runners),
         "runtime": {name: {"startup_ms": data["startup_ms"], "memory": data["memory"]} for name, data in runners.items()},
         "faults": fault_rows(args.server, runners),
         "outcomes": outcome_differences(runners),
