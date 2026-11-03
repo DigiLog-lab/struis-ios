@@ -22,8 +22,10 @@ from pathlib import Path
 
 CODEX_ONLY = ("<permissions instructions>", "<environment_context>", "<apps_instructions>")
 # 文の中に埋まった Codex だけの節(閉じタグまで)。前の区切りの空行も一緒に取る。
-CODEX_ONLY_SECTIONS = [re.compile(r"(?:\n\n)?" + re.escape(tag) + r".*?" + re.escape(tag.replace("<", "</", 1)), re.S) for tag in CODEX_ONLY]
-CODEX_ONLY_TOOLS = ("request_user_input",)
+CODEX_ONLY_SECTIONS = [re.compile(r"(?:\n\n|\n)?" + re.escape(tag) + r".*?" + re.escape(tag.replace("<", "</", 1)), re.S) for tag in CODEX_ONLY]
+# Codex の組み込みの道具。`request_user_input` は Plan モード専用、`create_goal`・`get_goal`・`update_goal` は Codex の
+# 「目標」機能(CLI の自律実行用)で、Struis は使わない。直結版は足さない。
+CODEX_ONLY_TOOLS = ("request_user_input", "create_goal", "get_goal", "update_goal")
 CLOCK = re.compile(r"(?<![0-9:])\d{2}:\d{2}(?![0-9:])")
 TOP_LEVEL = ("model", "max_tokens", "stream", "thinking", "output_config", "tool_choice", "cache_control", "tools")
 UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
