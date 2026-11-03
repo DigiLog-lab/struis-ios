@@ -140,6 +140,13 @@ final class LearnerData {
         return false
     }
 
+    /// 更新に失敗して質問できない(設定のホームの知らせに出す)。
+    var isDeliveryFailed: Bool {
+        guard requiresDelivery else { return false }
+        if case .failed = deliveryState { return true }
+        return false
+    }
+
     var isDeliveryRefreshing: Bool {
         if case .refreshing = deliveryState { return true }
         return false
@@ -161,7 +168,7 @@ final class LearnerData {
         case .idle: return "質問に必要なデータを確認します"
         case .refreshing: return "質問に必要なデータを更新しています"
         case .ready: return "質問を送信できます"
-        case .failed: return "設定から配信データを更新してください"
+        case .failed: return "設定を開いて「更新する」を押してください"
         }
     }
 

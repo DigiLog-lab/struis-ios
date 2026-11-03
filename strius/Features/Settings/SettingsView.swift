@@ -1,14 +1,14 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// 設定のホーム。本番は利用者が決めることだけを並べ、内部の情報は「開発者向け」にまとめる。
 struct SettingsView: View {
     @Environment(SettingsStore.self) private var settings
-    @Environment(BootstrapStore.self) private var bootstrap
     @Environment(APIClient.self) private var apiClient
     @Environment(LearnerData.self) private var learnerData
-    @Environment(SubscriptionStore.self) private var subscriptions
-    @Environment(\.colorScheme) private var scheme
-    @State private var usage = UsageStatus()
+    @State private var usage: UsageStatus = UsageStatus()
+    /// 内部の配布か。TestFlight は開いてから分かるので、最初は Bundle ID とビルドで決める。
+    @State private var isInternalBuild: Bool = InternalBuild.isKnownInternal
 
     /// ChatGPT(Codex)の入口。経路は選択肢から外した(#40)ので、DEBUG の検証(`-show-codex-settings`)でだけ出す。
     static var showsCodexEntry: Bool {
@@ -19,699 +19,287 @@ struct SettingsView: View {
         #endif
     }
 
-    /// オンボーディングをもう一度見る。nil の入口(質問画面の設定)では行を出さない。
-    let onReplayOnboarding: (() -> Void)?
-
-    init(onReplayOnboarding: (() -> Void)? = nil) {
-        self.onReplayOnboarding = onReplayOnboarding
-    }
-
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                statusPill
-                settingsList
-                if onReplayOnboarding != nil {
-                    onboardingRow
+        SettingsScreen(title: "設定") {
+            notices
+            if Auth0Config.authenticationRequired {
+                SettingsSection {
+                    SettingsLinkRow(title: "アカウント") {
+                        AccountSettingsDetail()
+                    }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 22)
-            .padding(.bottom, 36)
+            SettingsSection {
+                SettingsLinkRow(title: "利用枠", value: "今週 \(usage.snapshot.percent)%") {
+                    UsageSettingsView()
+                }
+                .accessibilityIdentifier("settings-row-usage")
+            }
+            SettingsSection {
+                ReminderRows()
+                SettingsDivider()
+                ThemeRow()
+            }
+            SettingsSection {
+                SettingsLinkRow(title: "iCloud 同期", value: learnerData.iCloud.isEnabled && learnerData.iCloud.isSupported ? "オン" : "オフ") {
+                    ICloudSyncSettingsDetail()
+                }
+                .accessibilityIdentifier("settings-row-icloud")
+                SettingsDivider()
+                SettingsLinkRow(title: "学習記録") {
+                    LearningRecordSettingsDetail()
+                }
+                .accessibilityIdentifier("settings-row-learning-record")
+                if Auth0Config.authenticationRequired {
+                    SettingsDivider()
+                    SettingsLinkRow(title: "ファイル") {
+                        WorkspaceBrowserView()
+                    }
+                }
+            }
+            SettingsSection {
+                SettingsExternalLinkRow(title: "利用規約", url: LegalLinks.terms)
+                SettingsDivider()
+                SettingsExternalLinkRow(title: "プライバシーポリシー", url: LegalLinks.privacy)
+            }
+            if isInternalBuild || Self.showsCodexEntry {
+                SettingsSection {
+                    if isInternalBuild {
+                        SettingsLinkRow(title: "開発者向け") {
+                            DeveloperSettingsView()
+                        }
+                        .accessibilityIdentifier("settings-row-developer")
+                    }
+                    if isInternalBuild && Self.showsCodexEntry {
+                        SettingsDivider()
+                    }
+                    if Self.showsCodexEntry {
+                        SettingsLinkRow(title: "ChatGPT / Codex", value: settings.account?.isConnected == true ? "接続済み" : "未接続") {
+                            CodexSettingsDetail()
+                        }
+                        .accessibilityIdentifier("settings-row-codex")
+                    }
+                }
+            }
         }
-        .background(Color(uiColor: .systemGroupedBackground))
-        .scrollContentBackground(.hidden)
         .task {
             usage.refresh()
+            isInternalBuild = await InternalBuild.resolve()
             await settings.refresh()
             await learnerData.refreshAssets(client: apiClient)
         }
     }
 
-    private var settingsList: some View {
+    /// 利用者が動かないと直らないことだけを、一番上に出す。普段は何も出ない。
+    @ViewBuilder
+    private var notices: some View {
+        if learnerData.isDeliveryFailed {
+            SettingsNotice(
+                title: "質問の準備ができていません",
+                detail: "必要なデータを更新できませんでした",
+                actionTitle: "更新する",
+                actionDisabled: learnerData.isDeliveryRefreshing
+            ) {
+                Task { await learnerData.refreshAssets(client: apiClient) }
+            }
+            .accessibilityIdentifier("settings-delivery-notice")
+        }
+        if settings.modelProvider == .anthropic, !settings.claudeAvailable {
+            SettingsNotice(title: "この端末では使えません", detail: ModelProviderError.claudeUnavailable.localizedDescription)
+                .accessibilityIdentifier("settings-model-claude-unavailable")
+        }
+    }
+}
+
+/// 通知のオンオフと時刻。時刻は分まで自由に選べる(オンボーディングは 3 択のまま)。
+private struct ReminderRows: View {
+    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var isOn: Bool = StudyReminder.time != nil
+    @State private var selection: Date = (StudyReminder.time ?? StudyReminder.lastTime).date()
+    /// iOS の設定で通知が拒否されている(時刻を選んでも届かない)。
+    @State private var isDenied: Bool = false
+
+    var body: some View {
         VStack(spacing: 0) {
-            if Auth0Config.authenticationRequired {
-                SettingsHomeRow(
-                    icon: "person",
-                    title: "アカウント",
-                    detail: accountDetail,
-                    value: "管理"
-                ) {
-                    AccountSettingsDetail()
+            Toggle(isOn: $isOn) {
+                Text("通知")
+                    .font(Typography.body)
+                    .foregroundStyle(Theme.primaryText)
+            }
+            .tint(Theme.accentColor)
+            .padding(.horizontal, 16)
+            .frame(minHeight: 48)
+            .accessibilityIdentifier("settings-reminder-toggle")
+            if isOn {
+                SettingsDivider()
+                HStack(spacing: 12) {
+                    Text("時刻")
+                        .font(Typography.body)
+                        .foregroundStyle(Theme.primaryText)
+                    Spacer(minLength: 12)
+                    DatePicker("時刻", selection: $selection, displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                        .environment(\.locale, Locale(identifier: "ja_JP"))
+                        .accessibilityIdentifier("settings-reminder-time")
                 }
-                divider
-            }
-            SettingsHomeRow(
-                icon: "gauge.with.dots.needle.33percent",
-                title: "利用枠",
-                detail: "今週 \(usage.snapshot.percent)%・残りの目安 約\(usage.snapshot.remainingProblems)問",
-                value: subscriptions.plan?.displayName ?? "お試し"
-            ) {
-                UsageSettingsView()
-            }
-            .accessibilityIdentifier("settings-row-usage")
-            divider
-            SettingsHomeRow(
-                icon: "bell",
-                title: "通知",
-                detail: "勉強する時間に、その日にやることを知らせます",
-                value: StudyReminder.hour.map { "\($0):00" } ?? "オフ"
-            ) {
-                ReminderSettingsDetail()
-            }
-            .accessibilityIdentifier("settings-row-reminder")
-            divider
-            if Self.showsCodexEntry {
-                SettingsHomeRow(
-                    icon: "sparkle",
-                    title: "ChatGPT / Codex",
-                    detail: settings.account?.isConnected == true ? [planLabel, "接続済み"].compactMap { $0 }.joined(separator: " / ") : "未接続",
-                    value: settings.account?.isConnected == true ? "接続済み" : "接続"
-                ) {
-                    CodexSettingsDetail()
-                }
-                .accessibilityIdentifier("settings-row-codex")
-                divider
-            }
-            SettingsHomeRow(
-                icon: "cpu",
-                title: "AIモデル",
-                detail: modelDetail,
-                value: settings.modelProvider.displayName
-            ) {
-                ModelProviderSettingsDetail()
-            }
-            .accessibilityIdentifier("settings-row-model")
-            divider
-            SettingsHomeRow(
-                icon: "arrow.down.circle",
-                title: "配信データ",
-                detail: learnerData.deliverySummary,
-                value: learnerData.requiresDelivery && !learnerData.isDeliveryReady ? "更新" : "利用可"
-            ) {
-                DeliverySettingsDetail()
-            }
-            .accessibilityIdentifier("settings-row-delivery")
-            divider
-            if Auth0Config.authenticationRequired {
-                SettingsHomeRow(
-                    icon: "folder",
-                    title: "ファイル",
-                    detail: "Workspaceの内容",
-                    value: "表示"
-                ) {
-                    WorkspaceBrowserView()
-                }
-                divider
-            }
-            SettingsHomeRow(
-                icon: "line.3.horizontal",
-                title: "表示",
-                detail: "テーマ、レイアウト幅",
-                value: "システム"
-            ) {
-                DisplaySettingsDetail()
-            }
-            divider
-            SettingsHomeRow(
-                icon: "icloud",
-                title: "iCloud 同期",
-                detail: learnerData.iCloud.statusText,
-                value: learnerData.iCloud.isEnabled && learnerData.iCloud.isSupported ? "オン" : "オフ"
-            ) {
-                ICloudSyncSettingsDetail()
-            }
-            .accessibilityIdentifier("settings-row-icloud")
-            divider
-            SettingsHomeRow(
-                icon: "externaldrive",
-                title: "詳細設定",
-                detail: "端末データ",
-                value: "管理"
-            ) {
-                AdvancedSettingsDetail()
-            }
-            .accessibilityIdentifier("settings-row-advanced")
-        }
-        .settingsCard()
-    }
-
-    private var statusPill: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(isReady ? Theme.growth(scheme) : Theme.textTertiary(scheme))
-                .frame(width: 9, height: 9)
-            Text(statusText)
-                .font(Typography.caption)
-                .foregroundStyle(Theme.textPrimary(scheme))
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .glassSurface(.thin, in: Capsule())
-    }
-
-    /// オンボーディングをもう一度見る(Release でも出す)。
-    private var onboardingRow: some View {
-        SettingsActionRow(
-            title: "オンボーディング",
-            detail: "最初の画面をもう一度見ます",
-            actionTitle: "もう一度見る",
-            action: { onReplayOnboarding?() }
-        )
-        .settingsCard()
-        .accessibilityIdentifier("settings-replay-onboarding")
-    }
-
-    /// 選んでいる実行先で質問できるか(GPT は ChatGPT の接続、Claude は API キー)。
-    private var isReady: Bool {
-        settings.modelProvider == .anthropic ? settings.claudeAvailable : settings.account?.isConnected == true
-    }
-
-    private var statusText: String {
-        if settings.modelProvider == .anthropic {
-            return settings.claudeAvailable ? "Claude / App Attest" : "Claude / この端末では使えません"
-        }
-        return settings.account?.isConnected == true ? ["Codex接続済み", planLabel].compactMap { $0 }.joined(separator: " / ") : "Codex未接続"
-    }
-
-    private var modelDetail: String {
-        switch settings.modelProvider {
-        case .openai: return "ChatGPT / Codex で GPT を使う"
-        case .anthropic: return settings.claudeAvailable ? "App Attest で Claude を使う" : "この端末では Claude を使えません"
-        }
-    }
-
-    private var accountDetail: String {
-        let name = bootstrap.user?.displayName ?? "Learner"
-        if let email = bootstrap.user?.email, !email.isEmpty {
-            return "\(name) / \(email)"
-        }
-        return name
-    }
-
-    /// 学習者に見せるプランの名前。内部の識別子(`prolite` など)はそのまま出さない(D13)。分からなければ出さない。
-    private var planLabel: String? {
-        CodexPlanName.display(settings.account?.planType)
-    }
-
-    private var divider: some View {
-        SettingsDivider()
-    }
-}
-
-private struct DeliverySettingsDetail: View {
-    @Environment(APIClient.self) private var apiClient
-    @Environment(LearnerData.self) private var learnerData
-    @Environment(\.colorScheme) private var scheme
-
-    var body: some View {
-        SettingsDetailScaffold(eyebrow: "DELIVERY", title: "配信データ") {
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("質問の準備")
-                        .font(Typography.heading2)
-                    Text("質問に使うプロンプトとスキーマをこの端末に保存します。")
-                        .font(Typography.bodyCompact)
-                        .foregroundStyle(Theme.textSecondary(scheme))
-                }
-
-                VStack(spacing: 0) {
-                    SettingsInfoRow(title: "状態", detail: learnerData.deliveryDetail)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 48)
+                if isDenied {
                     SettingsDivider()
-                    SettingsActionRow(
-                        title: "配信データ",
-                        detail: learnerData.deliverySummary,
-                        actionTitle: learnerData.isDeliveryRefreshing ? "更新中" : "更新",
-                        disabled: learnerData.isDeliveryRefreshing || !learnerData.requiresDelivery
-                    ) {
-                        Task { await learnerData.refreshAssets(client: apiClient) }
+                    SettingsButtonRow(title: "通知が許可されていません", detail: "iOS の設定で許可すると届きます", systemImage: SettingsChevron.symbolName) {
+                        if let url: URL = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
                     }
-                    .accessibilityIdentifier("settings-delivery-refresh")
+                    .accessibilityIdentifier("settings-reminder-denied")
                 }
-                .settingsCard()
             }
+        }
+        .onChange(of: isOn) { (_: Bool, turnedOn: Bool) in
+            if turnedOn {
+                apply()
+            } else {
+                isDenied = false
+                StudyReminder.cancel()
+            }
+        }
+        .onChange(of: selection) { (_: Date, _: Date) in
+            if isOn { apply() }
+        }
+        .onChange(of: scenePhase) { (_: ScenePhase, phase: ScenePhase) in
+            // iOS の設定から戻ってきた時に読み直す。許可されたら通知を置き直す。
+            if phase == .active, isOn { apply() }
+        }
+        .task {
+            if isOn { isDenied = await StudyReminder.isDenied() }
+        }
+    }
+
+    private func apply() {
+        let time: ReminderTime = ReminderTime(date: selection)
+        Task {
+            let granted: Bool = await StudyReminder.update(to: time)
+            isDenied = !granted
         }
     }
 }
 
-/// GPT と Claude の切り替え。どちらも端末内の Codex で動き、Claude は API キーで直接呼ぶ。
-private struct ModelProviderSettingsDetail: View {
-    @Environment(SettingsStore.self) private var settings
-    @Environment(\.colorScheme) private var scheme
+/// テーマ。押すと iOS のメニューが開く。
+private struct ThemeRow: View {
+    @AppStorage(ThemePreference.storageKey) private var selection: ThemePreference = .system
 
     var body: some View {
-        @Bindable var settings = settings
-        SettingsDetailScaffold(eyebrow: "MODEL", title: "AIモデル") {
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("使うモデル")
-                        .font(Typography.heading2)
-                    Text("新しく始める会話・単元づくり・採点から切り替わります。続きの会話は、始めたときのモデルのまま続きます。")
-                        .font(Typography.bodyCompact)
-                        .foregroundStyle(Theme.textSecondary(scheme))
-                }
-                VStack(spacing: 0) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        if SettingsView.showsCodexEntry { ProviderSegmented(selection: $settings.modelProvider) }
-                        Text(providerSummary)
-                            .font(Typography.caption)
-                            .foregroundStyle(Theme.textSecondary(scheme))
-                            .accessibilityIdentifier("settings-model-summary")
-                    }
-                    .padding(16)
-                }
-                .settingsCard()
-
-                if settings.modelProvider == .anthropic {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("タイムラインのモデル")
-                            .font(Typography.heading2)
-                        Text("タイムラインの出題・採点・見直しに使います。次の依頼から切り替わり、今日の記録・正誤・難しさはそのまま引き継ぎます。知識グラフは \(ClaudeModels.displayName(TimelineModels.fallback(role: TimelineModels.graphRole, provider: .anthropic)?.model ?? "")) のままです。")
-                            .font(Typography.bodyCompact)
-                            .foregroundStyle(Theme.textSecondary(scheme))
-                    }
-                    VStack(spacing: 0) {
-                        TimelineModelSegmented(selection: $settings.timelineClaudeModel)
-                            .padding(16)
-                    }
-                    .settingsCard()
-                }
-
-                if settings.modelProvider == .anthropic, !settings.claudeAvailable {
-                    Text(ModelProviderError.claudeUnavailable.localizedDescription)
-                        .font(Typography.caption)
-                        .foregroundStyle(Theme.regress(scheme))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .settingsCard()
-                        .accessibilityIdentifier("settings-model-claude-unavailable")
+        Menu {
+            Picker("テーマ", selection: $selection) {
+                ForEach(ThemePreference.allCases) { (theme: ThemePreference) in
+                    Text(theme.title).tag(theme)
                 }
             }
-        }
-    }
-
-    private var providerSummary: String {
-        switch settings.modelProvider {
-        case .openai:
-            return "ChatGPT / Codex の接続で \(CodexModels.astraModel) を使います。"
-        case .anthropic:
-            return "\(ClaudeModels.displayName(ClaudeModels.astraModel)) を使います(下調べは \(ClaudeModels.displayName(ClaudeModels.lunaModel)))。この iPhone の Struis が正規のアプリであることを App Attest で示し、Anthropic に直接送ります。API キーや中継サーバーはありません。"
-        }
-    }
-}
-
-/// 通知の時刻(オンボーディングの「勉強する時間に知らせますか」と同じ)。
-private struct ReminderSettingsDetail: View {
-    @State private var hour: Int? = StudyReminder.hour
-
-    var body: some View {
-        SettingsDetailScaffold(eyebrow: "REMINDER", title: "通知") {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("選んだ時間に、その日にやることを1つ知らせます。")
-                    .font(Typography.bodyCompact)
-                    .foregroundStyle(Theme.secondaryText)
-                OnboardingPillGrid(options: OnboardingCatalog.reminderHours.map { "\($0):00" } + ["知らせない"], selection: hour.map { "\($0):00" } ?? "知らせない", columns: 2) { value in
-                    if let selected = Int(value.prefix { $0 != ":" }) {
-                        hour = selected
-                        let title = UserDefaults.standard.string(forKey: StudyReminder.titleKey) ?? "今日の小単元"
-                        Task { await StudyReminder.request(hour: selected, subunitTitle: title) }
-                    } else {
-                        hour = nil
-                        StudyReminder.cancel()
-                    }
-                }
-            }
-        }
-    }
-}
-
-private struct ProviderSegmented: View {
-    @Binding var selection: ModelProvider
-    @Environment(\.colorScheme) private var scheme
-
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(ModelProvider.allCases, id: \.self) { provider in
-                Button {
-                    selection = provider
-                } label: {
-                    Text(provider.displayName)
-                        .font(Typography.bodyEmphasized)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .foregroundStyle(selection == provider ? Color(uiColor: .systemBackground) : Theme.textSecondary(scheme))
-                        .background(selection == provider ? Theme.textPrimary(scheme) : Color.clear, in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("settings-model-\(provider.rawValue)")
-                .accessibilityAddTraits(selection == provider ? .isSelected : [])
-            }
-        }
-        .padding(4)
-        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: Capsule())
-    }
-}
-
-/// タイムラインの Claude のモデル(Sonnet 5.5 / Haiku 5.5)。
-private struct TimelineModelSegmented: View {
-    @Binding var selection: String
-    @Environment(\.colorScheme) private var scheme
-
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(TimelineModelPreference.choices, id: \.self) { model in
-                Button {
-                    selection = model
-                } label: {
-                    Text(ClaudeModels.displayName(model))
-                        .font(Typography.bodyEmphasized)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .foregroundStyle(selection == model ? Color(uiColor: .systemBackground) : Theme.textSecondary(scheme))
-                        .background(selection == model ? Theme.textPrimary(scheme) : Color.clear, in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("settings-timeline-model-\(model)")
-                .accessibilityAddTraits(selection == model ? .isSelected : [])
-            }
-        }
-        .padding(4)
-        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: Capsule())
-    }
-}
-
-private struct SettingsHomeRow<Destination: View>: View {
-    let icon: String
-    let title: String
-    let detail: String
-    let value: String
-    @ViewBuilder let destination: Destination
-
-    @Environment(\.colorScheme) private var scheme
-
-    var body: some View {
-        NavigationLink {
-            destination
+            .pickerStyle(.inline)
         } label: {
-            HStack(spacing: 14) {
-                iconView
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(Typography.title)
-                        .foregroundStyle(Theme.textPrimary(scheme))
-                    Text(detail)
-                        .font(Typography.caption)
-                        .foregroundStyle(Theme.textSecondary(scheme))
-                        .lineLimit(1)
-                }
+            HStack(spacing: 8) {
+                Text("テーマ")
+                    .font(Typography.body)
+                    .foregroundStyle(Theme.primaryText)
                 Spacer(minLength: 12)
-                HStack(spacing: 7) {
-                    Text(value)
-                        .font(Typography.caption)
-                        .foregroundStyle(Theme.textSecondary(scheme))
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Theme.textTertiary(scheme))
-                }
+                Text(selection.title)
+                    .font(Typography.body)
+                    .foregroundStyle(Theme.secondaryText)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Theme.tertiaryText)
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 16)
+            .frame(minHeight: 48)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    private var iconView: some View {
-        Image(systemName: icon)
-            .font(.system(size: 18, weight: .medium))
-            .foregroundStyle(Theme.accent(scheme))
-            .frame(width: 44, height: 44)
-            .background(Theme.accent(scheme).opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .accessibilityIdentifier("settings-row-theme")
     }
 }
 
-private struct AccountSettingsDetail: View {
-    @Environment(BootstrapStore.self) private var bootstrap
-    @Environment(AuthStore.self) private var auth
-    @Environment(\.colorScheme) private var scheme
-
-    var body: some View {
-        SettingsDetailScaffold(eyebrow: "ACCOUNT", title: "アカウント") {
-            VStack(spacing: 0) {
-                SettingsInfoRow(title: "表示名", detail: bootstrap.user?.displayName ?? "Learner")
-                SettingsDivider()
-                SettingsInfoRow(title: "メール", detail: bootstrap.user?.email ?? "メール未設定")
-                SettingsDivider()
-                Button(role: .destructive) {
-                    auth.logout()
-                } label: {
-                    HStack {
-                        Text("この端末からログアウト")
-                            .font(Typography.bodyEmphasized)
-                            .foregroundStyle(Theme.regress(scheme))
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 15)
-                }
-                .buttonStyle(.plain)
-            }
-            .settingsCard()
-        }
-    }
-}
-
-private struct CodexSettingsDetail: View {
+/// 学習記録: 記録を 1 つのファイルにして別の端末に移す。
+private struct LearningRecordSettingsDetail: View {
     @Environment(SettingsStore.self) private var settings
-    @Environment(\.colorScheme) private var scheme
+    @State private var isImporterPresented: Bool = false
 
     var body: some View {
-        SettingsDetailScaffold(eyebrow: "CODEX", title: "ChatGPT / Codex 接続") {
-            VStack(alignment: .leading, spacing: 14) {
-                sectionHeader
-                if settings.account?.isConnected == true {
-                    metricGrid
-                    connectedRows
-                } else {
-                    disconnectedRows
+        @Bindable var bindable: SettingsStore = settings
+        let count: Int? = settings.ledgerEventCount
+        SettingsScreen(title: "学習記録") {
+            SettingsSection(header: "別の端末に移す", footer: "iCloud 同期がオンなら、同じ Apple ID の端末には自動で届きます。") {
+                SettingsButtonRow(
+                    title: settings.ledgerBusy ? "処理中" : "書き出す",
+                    detail: "記録・答案の写真・記憶を 1 つのファイルにします",
+                    systemImage: "square.and.arrow.up",
+                    disabled: settings.ledgerBusy
+                ) {
+                    Task { await settings.exportAllRecords() }
                 }
-                if let code = settings.account?.userCode {
-                    verificationBox(code: code, url: settings.account?.verificationURL)
+                .accessibilityIdentifier("settings-ledger-export")
+                SettingsDivider()
+                SettingsButtonRow(
+                    title: "取り込む",
+                    detail: count == 0 ? "書き出したファイルから記録を戻します" : "記録が入っている端末には取り込めません",
+                    disabled: settings.ledgerBusy || count != 0
+                ) {
+                    isImporterPresented = true
                 }
-                if let message = settings.errorMessage {
-                    Text(message)
-                        .font(Typography.caption)
-                        .foregroundStyle(Theme.regress(scheme))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .settingsCard()
-                        .accessibilityIdentifier("settings-codex-error")
+                .accessibilityIdentifier("settings-ledger-import")
+                LedgerExportResultRows()
+            }
+            if Auth0Config.authenticationRequired {
+                SettingsSection(footer: "モデル名・所要時間・トークン数だけです。会話やファイルは送りません。") {
+                    Toggle(isOn: $bindable.usageReportingEnabled) {
+                        Text("使用量を送る")
+                            .font(Typography.body)
+                            .foregroundStyle(Theme.primaryText)
+                    }
+                    .tint(Theme.accentColor)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 48)
+                    .accessibilityIdentifier("settings-usage-reporting")
                 }
             }
         }
+        .task { await settings.loadLedgerSummary() }
+        .fileImporter(isPresented: $isImporterPresented, allowedContentTypes: [.zip]) { (result: Result<URL, any Error>) in
+            if case .success(let url) = result {
+                Task { await settings.importLedger(from: url) }
+            }
+        }
     }
+}
 
-    private var sectionHeader: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(statusLabel)
+/// 書き出しのあとに出す行(保存・共有と、結果の文言)。学習記録と開発者向けで共有する。
+struct LedgerExportResultRows: View {
+    @Environment(SettingsStore.self) private var settings
+
+    var body: some View {
+        if let archive: URL = settings.exportedArchive {
+            SettingsDivider()
+            HStack(spacing: 12) {
+                Text(archive.lastPathComponent)
                     .font(Typography.caption)
-                    .foregroundStyle(statusColor)
-                    .accessibilityIdentifier("settings-codex-status")
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .glassSurface(.thin, in: Capsule())
-                Spacer()
-            }
-            Text(settings.account?.accountEmail ?? "学習に使う自分の ChatGPT / Codex アカウントを管理します。")
-                .font(Typography.bodyCompact)
-                .foregroundStyle(Theme.textSecondary(scheme))
-        }
-    }
-
-    private var metricGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            SettingsMetric(label: "プラン", value: CodexPlanName.display(settings.account?.planType) ?? "—")
-            SettingsMetric(label: "使用中", value: usageLabel)
-            SettingsMetric(label: "残り", value: remainingLabel)
-            SettingsMetric(label: "リセット", value: resetLabel)
-            SettingsMetric(label: "最終同期", value: lastSyncedLabel)
-            SettingsMetric(label: "状態", value: statusLabel)
-        }
-    }
-
-    private var connectedRows: some View {
-        VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("接続アカウント")
-                        .font(Typography.bodyEmphasized)
-                    Text(settings.account?.accountEmail ?? "メール未取得")
-                        .font(Typography.caption)
-                        .foregroundStyle(Theme.textSecondary(scheme))
+                    .foregroundStyle(Theme.secondaryText)
+                    .lineLimit(1)
+                Spacer(minLength: 12)
+                ShareLink(item: archive) {
+                    Text("保存・共有")
+                        .font(Typography.body)
+                        .foregroundStyle(Theme.primaryText)
                 }
-                Spacer()
-                Button {
-                    Task { await settings.sync() }
-                } label: {
-                    Label("再同期", systemImage: "clock.arrow.circlepath")
-                }
-                .settingsActionButton()
-                .disabled(settings.busy)
+                .accessibilityIdentifier("settings-ledger-share")
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 15)
+            .frame(minHeight: 48)
+        }
+        if let message: String = settings.ledgerMessage {
             SettingsDivider()
-            Button {
-                Task { await settings.disconnect() }
-            } label: {
-                HStack {
-                    Text("接続解除")
-                        .font(Typography.bodyEmphasized)
-                        .foregroundStyle(Theme.regress(scheme))
-                    Spacer()
-                }
+            SettingsNote(text: message)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
-                .padding(.vertical, 15)
-            }
-            .buttonStyle(.plain)
-            .disabled(settings.busy)
-        }
-        .settingsCard()
-    }
-
-    private var disconnectedRows: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("ChatGPTアカウント")
-                    .font(Typography.bodyEmphasized)
-                Text("ChatGPT / Codex を接続すると、学習チャットで利用できます。")
-                    .font(Typography.caption)
-                    .foregroundStyle(Theme.textSecondary(scheme))
-            }
-            Spacer()
-            Button {
-                Task { await settings.connect() }
-            } label: {
-                Label(settings.busy ? "接続中" : "接続", systemImage: "sparkles")
-            }
-            .settingsActionButton(prominent: true)
-            .disabled(settings.busy)
-            .accessibilityIdentifier("settings-codex-connect")
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 15)
-        .settingsCard()
-    }
-
-    private func verificationBox(code: String, url: String?) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("認証コード")
-                .font(Typography.caption)
-                .foregroundStyle(Theme.textSecondary(scheme))
-            Text(code)
-                .font(.system(size: 22, weight: .semibold, design: .monospaced))
-                .accessibilityIdentifier("settings-codex-user-code")
-            if let url, let link = URL(string: url) {
-                Link("認証ページを開く", destination: link)
-                    .font(Typography.caption)
-                    .foregroundStyle(Theme.accent(scheme))
-            }
-        }
-        .padding(16)
-        .settingsCard()
-    }
-
-    private var usageLabel: String {
-        guard let used = settings.account?.rateLimitPrimaryNumber("usedPercent") else { return "取得待ち" }
-        return "\(Int(used.rounded()))% 使用中"
-    }
-
-    private var remainingLabel: String {
-        guard let remaining = settings.account?.rateLimitPrimaryNumber("remaining") else { return "取得待ち" }
-        return "\(Int(remaining.rounded()))"
-    }
-
-    private var resetLabel: String {
-        guard let date = settings.account?.rateLimitResetsAt else { return "取得待ち" }
-        return date.formatted(date: .omitted, time: .shortened)
-    }
-
-    private var lastSyncedLabel: String {
-        guard let date = settings.account?.lastSyncedAt else { return "未同期" }
-        return date.formatted(date: .omitted, time: .shortened)
-    }
-
-    private var statusLabel: String {
-        guard let status = settings.account?.status else { return "未取得" }
-        switch status {
-        case .connected: return "接続済み"
-        case .connecting: return "接続中"
-        case .rateLimited: return "利用枠待ち"
-        case .error: return "要確認"
-        case .disconnected: return "未接続"
-        }
-    }
-
-    private var statusColor: Color {
-        settings.account?.isConnected == true ? Theme.growth(scheme) : Theme.textSecondary(scheme)
-    }
-}
-
-private struct DisplaySettingsDetail: View {
-    @Environment(\.colorScheme) private var scheme
-    @AppStorage("settings.themePreference") private var themePreference = "system"
-
-    var body: some View {
-        SettingsDetailScaffold(eyebrow: "DISPLAY", title: "表示") {
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("表示とレイアウト")
-                        .font(Typography.heading2)
-                    Text("この端末だけに保存される見た目と作業面の設定。")
-                        .font(Typography.bodyCompact)
-                        .foregroundStyle(Theme.textSecondary(scheme))
-                }
-                VStack(spacing: 0) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("テーマ")
-                                .font(Typography.bodyEmphasized)
-                            Text(themePreferenceSummary)
-                                .font(Typography.caption)
-                                .foregroundStyle(Theme.textSecondary(scheme))
-                        }
-                        ThemeSegmented(selection: $themePreference)
-                    }
-                    .padding(16)
-                    SettingsDivider()
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("レイアウト幅")
-                                .font(Typography.bodyEmphasized)
-                            Text("サイドバーと作業面の幅")
-                                .font(Typography.caption)
-                                .foregroundStyle(Theme.textSecondary(scheme))
-                        }
-                        Spacer()
-                        Button("リセット") {
-                            // Reserved for future iPad/sidebar sizing settings.
-                        }
-                        .settingsActionButton()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 15)
-                }
-                .settingsCard()
-            }
-        }
-    }
-
-    private var themePreferenceSummary: String {
-        switch themePreference {
-        case "light": return "現在はライトです"
-        case "dark": return "現在はダークです"
-        default: return "システム設定に合わせます"
+                .padding(.vertical, 12)
+                .accessibilityIdentifier("settings-ledger-message")
         }
     }
 }
@@ -719,64 +307,63 @@ private struct DisplaySettingsDetail: View {
 /// iCloud 同期 (Issue #51)。同じ Apple ID の端末どうしで、学習記録と画像・記憶を利用者の iCloud だけで同期する。
 private struct ICloudSyncSettingsDetail: View {
     @Environment(LearnerData.self) private var learnerData
-    @Environment(\.colorScheme) private var scheme
-    @State private var isConfirmingUploadAgain = false
+    @State private var isConfirmingUploadAgain: Bool = false
+
+    private static let syncedPrefix: String = "最後に同期: "
 
     var body: some View {
-        let sync = learnerData.iCloud
-        SettingsDetailScaffold(eyebrow: "ICLOUD", title: "iCloud 同期") {
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("同じ Apple ID の端末と同期")
-                        .font(Typography.heading2)
-                    Text("単元・問題・採点・会話・進み具合と、答案の写真・添付・記憶を、あなたの iCloud だけに保存します。中身は暗号化され、開発者は読めません")
-                        .font(Typography.bodyCompact)
-                        .foregroundStyle(Theme.textSecondary(scheme))
+        let sync: ICloudSync = learnerData.iCloud
+        let status: String = sync.statusText
+        SettingsScreen(title: "iCloud 同期") {
+            SettingsSection(footer: "単元・問題・採点・会話・進み具合と、答案の写真・添付・記憶を、自分の iCloud だけに保存します。中身は暗号化され、開発者は読めません。") {
+                Toggle(isOn: Binding(get: { sync.isEnabled }, set: { sync.setEnabled($0) })) {
+                    Text("iCloud 同期")
+                        .font(Typography.body)
+                        .foregroundStyle(Theme.primaryText)
                 }
-                VStack(spacing: 0) {
-                    Toggle(isOn: Binding(get: { sync.isEnabled }, set: { sync.setEnabled($0) })) {
-                        Text("iCloud 同期")
-                            .font(Typography.bodyEmphasized)
-                    }
-                    .disabled(!sync.isSupported)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .accessibilityIdentifier("settings-icloud-toggle")
-                    SettingsDivider()
-                    SettingsInfoRow(title: "状態", detail: sync.statusText)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityIdentifier("settings-icloud-status")
-                    SettingsDivider()
-                    SettingsInfoRow(title: "未送信", detail: "\(sync.counts.unsent) 件")
-                        .accessibilityElement(children: .combine)
-                    SettingsDivider()
-                    SettingsInfoRow(title: "保留中", detail: sync.counts.pending == 0 ? "0 件" : "\(sync.counts.pending) 件(アプリを更新すると取り込みます)")
-                        .accessibilityElement(children: .combine)
-                    if let message = sync.message {
-                        SettingsDivider()
-                        Text(message)
-                            .font(Typography.caption)
-                            .foregroundStyle(Theme.textSecondary(scheme))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                            .accessibilityIdentifier("settings-icloud-message")
+                .tint(Theme.accentColor)
+                .disabled(!sync.isSupported)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 48)
+                .accessibilityIdentifier("settings-icloud-toggle")
+                SettingsDivider()
+                Group {
+                    if status.hasPrefix(Self.syncedPrefix) {
+                        SettingsValueRow(title: "最後に同期", value: String(status.dropFirst(Self.syncedPrefix.count)))
+                    } else {
+                        SettingsValueRow(title: "状態", value: status)
                     }
                 }
-                .settingsCard()
-                VStack(spacing: 0) {
-                    SettingsActionRow(
-                        title: "iCloud のデータを消して、この端末の内容で上げ直す",
-                        detail: "ほかの端末の記録は、次に開いた時にこの内容で置き換わります(置き換える前の記録は、その端末に1つ残ります)",
-                        actionTitle: sync.isUploadingAgain ? "処理中" : "上げ直す",
-                        destructive: true,
-                        disabled: !sync.isSupported || !sync.isEnabled || sync.isUploadingAgain
-                    ) {
-                        isConfirmingUploadAgain = true
-                    }
-                    .accessibilityIdentifier("settings-icloud-upload-again")
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("settings-icloud-status")
+                if sync.counts.unsent > 0 {
+                    SettingsDivider()
+                    SettingsValueRow(title: "未送信", value: "\(sync.counts.unsent) 件")
+                        .accessibilityElement(children: .combine)
                 }
-                .settingsCard()
+                if sync.counts.pending > 0 {
+                    SettingsDivider()
+                    SettingsValueRow(title: "保留中", value: "\(sync.counts.pending) 件(アプリを更新すると取り込みます)")
+                        .accessibilityElement(children: .combine)
+                }
+                if let message: String = sync.message {
+                    SettingsDivider()
+                    SettingsNote(text: message)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .accessibilityIdentifier("settings-icloud-message")
+                }
+            }
+            SettingsSection(footer: "iCloud の記録を消して、この端末の内容に置き換えます。ほかの端末の記録も次に開いた時に置き換わり、置き換える前の記録はその端末に 1 つ残ります。") {
+                SettingsButtonRow(
+                    title: sync.isUploadingAgain ? "処理中" : "この端末の内容で上げ直す",
+                    tone: .destructive,
+                    disabled: !sync.isSupported || !sync.isEnabled || sync.isUploadingAgain
+                ) {
+                    isConfirmingUploadAgain = true
+                }
+                .accessibilityIdentifier("settings-icloud-upload-again")
             }
         }
         .task { await sync.refreshCounts() }
@@ -791,411 +378,135 @@ private struct ICloudSyncSettingsDetail: View {
     }
 }
 
-private struct AdvancedSettingsDetail: View {
-    @Environment(SettingsStore.self) private var settings
-    @Environment(\.colorScheme) private var scheme
-    @State private var isImporterPresented = false
+private struct AccountSettingsDetail: View {
+    @Environment(BootstrapStore.self) private var bootstrap
+    @Environment(AuthStore.self) private var auth
 
     var body: some View {
-        SettingsDetailScaffold(eyebrow: "ADVANCED", title: "詳細設定") {
-            VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("詳細設定")
-                        .font(Typography.heading2)
-                    Text("この端末に保存されたデータ")
-                        .font(Typography.bodyCompact)
-                        .foregroundStyle(Theme.textSecondary(scheme))
+        SettingsScreen(title: "アカウント") {
+            SettingsSection {
+                SettingsValueRow(title: "表示名", value: bootstrap.user?.displayName ?? "Learner")
+                SettingsDivider()
+                SettingsValueRow(title: "メール", value: bootstrap.user?.email ?? "メール未設定")
+            }
+            SettingsSection {
+                SettingsButtonRow(title: "この端末からログアウト", tone: .destructive) {
+                    auth.logout()
                 }
-                VStack(spacing: 0) {
-                    SettingsActionRow(title: "下書き", detail: "保存なし", actionTitle: "削除", destructive: true, disabled: true) {}
-                    SettingsDivider()
-                    SettingsActionRow(title: "キャッシュ", detail: "保存なし", actionTitle: "削除", destructive: true, disabled: true) {}
-                }
-                .settingsCard()
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("学習記録")
-                        .font(Typography.heading2)
-                    Text("iCloud 同期のほかに、書き出したファイルでも別の端末に移せます")
-                        .font(Typography.bodyCompact)
-                        .foregroundStyle(Theme.textSecondary(scheme))
-                }
-                ledgerCard
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("今月のトークン使用量")
-                        .font(Typography.heading2)
-                    Text("学習記録に残したターンごとの使用量の合計です。Claude の料金は公開価格からの概算です")
-                        .font(Typography.bodyCompact)
-                        .foregroundStyle(Theme.textSecondary(scheme))
-                }
-                tokenUsageCard
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("実行環境")
-                        .font(Typography.heading2)
-                    Text("この端末で動く Codex と Python")
-                        .font(Typography.bodyCompact)
-                        .foregroundStyle(Theme.textSecondary(scheme))
-                }
-                let runtime = settings.runtimeSummary
-                VStack(spacing: 0) {
-                    SettingsInfoRow(title: "Hyotan", detail: runtime.hyotanVersion)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityIdentifier("settings-runtime-hyotan")
-                    SettingsDivider()
-                    SettingsInfoRow(
-                        title: "Codex / Python",
-                        detail: runtime.codexVersion.map { "\($0) / 3.14" } ?? "-"
-                    )
-                    SettingsDivider()
-                    SettingsInfoRow(title: "起動", detail: runtime.bootState + durationSuffix(runtime.installSeconds, label: "準備") + durationSuffix(runtime.bootSeconds, label: "起動"))
-                        .accessibilityElement(children: .combine)
-                        .accessibilityIdentifier("settings-runtime-boot")
-                    SettingsDivider()
-                    SettingsInfoRow(title: "Codex app-server", detail: runtime.appServerState + durationSuffix(runtime.initializeSeconds, label: "initialize"))
-                        .accessibilityElement(children: .combine)
-                        .accessibilityIdentifier("settings-runtime-appserver")
-                }
-                .settingsCard()
             }
         }
     }
+}
 
-    private var tokenUsageCard: some View {
-        VStack(spacing: 0) {
-            let models = settings.monthlyTokenUsage?.models ?? []
-            if models.isEmpty {
-                SettingsInfoRow(title: "使用量", detail: "まだ記録がありません")
-            }
-            ForEach(Array(models.enumerated()), id: \.element.id) { index, usage in
-                if index > 0 { SettingsDivider() }
-                SettingsInfoRow(title: usage.model, detail: Self.tokenDetail(usage))
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("settings-token-usage-\(usage.model)")
-            }
-            if let cost = settings.monthlyTokenUsage?.estimatedCostUSD {
-                SettingsDivider()
-                SettingsInfoRow(title: "Claude の概算料金", detail: String(format: "約 $%.2f", cost))
-                    .accessibilityIdentifier("settings-token-usage-cost")
-            }
-            ForEach(settings.monthlyTimelineCost?.models.filter { $0.answers > 0 } ?? []) { usage in
-                SettingsDivider()
-                SettingsInfoRow(title: "タイムライン 1問あたり(\(ClaudeModels.displayName(usage.model)))", detail: Self.timelineCostDetail(usage))
-                    .accessibilityElement(children: .combine)
-                    .accessibilityIdentifier("settings-timeline-cost-\(usage.model)")
-            }
-        }
-        .settingsCard()
-    }
+/// ChatGPT / Codex の接続。経路は選択肢から外した(#40)ので、DEBUG の検証(`-show-codex-settings`)でだけ開ける。
+private struct CodexSettingsDetail: View {
+    @Environment(SettingsStore.self) private var settings
 
-    private static func timelineCostDetail(_ usage: TimelineCostSummary.Model) -> String {
-        let per = usage.perAnswerUSD.map { String(format: usage.costIncomplete ? "約 $%.3f 以上" : "約 $%.3f", $0) } ?? "-"
-        return "\(per) / \(usage.answers) 問(出題・採点・見直しの合計 約 $\(String(format: "%.2f", usage.estimatedCostUSD)))"
-    }
-
-    private static func tokenDetail(_ usage: TokenUsageSummary.Model) -> String {
-        let format = { (n: Int) in n.formatted(.number.notation(.compactName)) }
-        var parts = ["入力 \(format(usage.inputTokens))(うちキャッシュ \(format(usage.cachedInputTokens)))", "出力 \(format(usage.outputTokens))", "\(usage.executions) 回"]
-        if usage.cacheWrite1hTokens > 0 || usage.cacheWrite5mTokens > 0 {
-            parts.append("書き込み 5分 \(format(usage.cacheWrite5mTokens))・1時間 \(format(usage.cacheWrite1hTokens))")
-        }
-        if usage.extraRequests > 0 { parts.append("追加の要求 \(usage.extraRequests) 回") }
-        if let cost = usage.estimatedCostUSD { parts.append(String(format: usage.costIncomplete ? "約 $%.2f 以上" : "約 $%.2f", cost)) }
-        return parts.joined(separator: " / ")
-    }
-
-    @ViewBuilder
-    private var ledgerCard: some View {
-        @Bindable var settings = settings
-        let count = settings.ledgerEventCount
-        VStack(spacing: 0) {
-            Picker("書き出す期間", selection: $settings.exportPeriod) {
-                ForEach(LedgerArchive.Period.allCases) { period in
-                    Text(period.title).tag(period)
+    var body: some View {
+        SettingsScreen(title: "ChatGPT / Codex 接続") {
+            if settings.account?.isConnected == true {
+                SettingsSection {
+                    SettingsValueRow(title: "状態", value: statusLabel)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("settings-codex-status")
+                    SettingsDivider()
+                    SettingsValueRow(title: "接続アカウント", value: settings.account?.accountEmail ?? "メール未取得")
+                    SettingsDivider()
+                    SettingsValueRow(title: "プラン", value: CodexPlanName.display(settings.account?.planType) ?? "—")
+                    SettingsDivider()
+                    SettingsValueRow(title: "使用中", value: usageLabel)
+                    SettingsDivider()
+                    SettingsValueRow(title: "残り", value: remainingLabel)
+                    SettingsDivider()
+                    SettingsValueRow(title: "リセット", value: resetLabel)
+                    SettingsDivider()
+                    SettingsValueRow(title: "最終同期", value: lastSyncedLabel)
                 }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .accessibilityIdentifier("settings-ledger-export-period")
-            if settings.exportPeriod != .all {
-                Toggle(isOn: $settings.exportIncludesFiles) {
-                    Text("答案の写真・添付・記憶も入れる")
-                        .font(Typography.caption)
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-                .accessibilityIdentifier("settings-ledger-export-files")
-            }
-            SettingsActionRow(
-                title: "書き出す",
-                detail: settings.exportPeriod == .all
-                    ? (count.map { "\($0) 件の記録と画像・記憶を zip に。別の端末に取り込めます" } ?? "記録と画像・記憶を zip に。別の端末に取り込めます")
-                    : "\(settings.exportPeriod.title)の記録だけを zip に(調べる用。取り込みには使えません)",
-                actionTitle: settings.ledgerBusy ? "処理中" : "書き出す",
-                disabled: settings.ledgerBusy
-            ) {
-                Task { await settings.exportLedger() }
-            }
-            .accessibilityIdentifier("settings-ledger-export")
-            if let archive = settings.exportedArchive {
-                SettingsDivider()
-                HStack {
-                    Text(archive.lastPathComponent)
-                        .font(Typography.caption)
-                        .foregroundStyle(Theme.textSecondary(scheme))
-                        .lineLimit(1)
-                    Spacer()
-                    ShareLink(item: archive) { Text("保存・共有") }
-                        .accessibilityIdentifier("settings-ledger-share")
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-            }
-            SettingsDivider()
-            SettingsActionRow(
-                title: "取り込む",
-                detail: count == 0 ? "書き出したファイルから記録を戻す" : "空の端末でだけ取り込めます",
-                actionTitle: "選ぶ",
-                disabled: settings.ledgerBusy || count != 0
-            ) {
-                isImporterPresented = true
-            }
-            .accessibilityIdentifier("settings-ledger-import")
-            if Auth0Config.authenticationRequired {
-                SettingsDivider()
-                Toggle(isOn: $settings.usageReportingEnabled) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("使用量を送る")
-                            .font(Typography.bodyEmphasized)
-                        Text("モデル名・所要時間・トークン数だけ。会話やファイルは送りません")
-                            .font(Typography.caption)
-                            .foregroundStyle(Theme.textSecondary(scheme))
+                SettingsSection {
+                    SettingsButtonRow(title: "再同期", disabled: settings.busy) {
+                        Task { await settings.sync() }
+                    }
+                    SettingsDivider()
+                    SettingsButtonRow(title: "接続解除", tone: .destructive, disabled: settings.busy) {
+                        Task { await settings.disconnect() }
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .accessibilityIdentifier("settings-usage-reporting")
+            } else {
+                SettingsSection(footer: "ChatGPT / Codex を接続すると、学習チャットで利用できます。") {
+                    SettingsValueRow(title: "状態", value: statusLabel)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("settings-codex-status")
+                    SettingsDivider()
+                    SettingsButtonRow(title: settings.busy ? "接続中" : "接続する", disabled: settings.busy) {
+                        Task { await settings.connect() }
+                    }
+                    .accessibilityIdentifier("settings-codex-connect")
+                }
             }
-            if let message = settings.ledgerMessage {
-                SettingsDivider()
-                Text(message)
-                    .font(Typography.caption)
-                    .foregroundStyle(Theme.textSecondary(scheme))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .accessibilityIdentifier("settings-ledger-message")
+            if let code: String = settings.account?.userCode {
+                verificationSection(code: code, url: settings.account?.verificationURL)
             }
-        }
-        .settingsCard()
-        .task { await settings.loadLedgerSummary() }
-        .fileImporter(isPresented: $isImporterPresented, allowedContentTypes: [.zip]) { result in
-            if case .success(let url) = result {
-                Task { await settings.importLedger(from: url) }
-            }
-        }
-    }
-
-    private func durationSuffix(_ seconds: Double?, label: String) -> String {
-        guard let seconds else { return "" }
-        return " (\(label) \(String(format: "%.1f", seconds))s)"
-    }
-}
-
-private struct SettingsDetailScaffold<Content: View>: View {
-    let eyebrow: String
-    let title: String
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(eyebrow)
+            if let message: String = settings.errorMessage {
+                SettingsSection {
+                    Text(message)
                         .font(Typography.caption)
-                        .foregroundStyle(Theme.accent(.dark))
-                        .textCase(.uppercase)
-                    Text(title)
-                        .font(Typography.heroSerif)
+                        .foregroundStyle(Theme.regressColor)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .accessibilityIdentifier("settings-codex-error")
                 }
-                content
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 24)
-            .padding(.bottom, 36)
         }
-        .background(Color(uiColor: .systemGroupedBackground))
-        .navigationBarTitleDisplayMode(.inline)
     }
-}
 
-private struct SettingsInfoRow: View {
-    let title: String
-    let detail: String
-
-    @Environment(\.colorScheme) private var scheme
-
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(Typography.bodyEmphasized)
-                Text(detail)
-                    .font(Typography.caption)
-                    .foregroundStyle(Theme.textSecondary(scheme))
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 15)
-    }
-}
-
-private struct SettingsActionRow: View {
-    let title: String
-    let detail: String
-    let actionTitle: String
-    var destructive = false
-    var disabled = false
-    let action: () -> Void
-
-    @Environment(\.colorScheme) private var scheme
-
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(Typography.bodyEmphasized)
-                Text(detail)
-                    .font(Typography.caption)
-                    .foregroundStyle(Theme.textSecondary(scheme))
-            }
-            Spacer()
-            Button(actionTitle, action: action)
-                .settingsActionButton(destructive: destructive)
-                .disabled(disabled)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 15)
-    }
-}
-
-private struct SettingsMetric: View {
-    let label: String
-    let value: String
-
-    @Environment(\.colorScheme) private var scheme
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(label)
-                .font(Typography.micro)
-                .foregroundStyle(Theme.textTertiary(scheme))
-            Text(value)
-                .font(Typography.bodyEmphasized)
-                .foregroundStyle(Theme.textPrimary(scheme))
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .settingsCard(cornerRadius: Theme.Radius.stat)
-    }
-}
-
-private struct ThemeSegmented: View {
-    @Binding var selection: String
-    @Environment(\.colorScheme) private var scheme
-
-    private let options = [
-        ("light", "ライト"),
-        ("dark", "ダーク"),
-        ("system", "システム")
-    ]
-
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(options, id: \.0) { value, label in
-                Button {
-                    selection = value
-                } label: {
-                    Text(label)
-                        .font(Typography.bodyEmphasized)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .foregroundStyle(selection == value ? Color(uiColor: .systemBackground) : Theme.textSecondary(scheme))
-                        .background(selection == value ? Theme.textPrimary(scheme) : Color.clear, in: Capsule())
+    private func verificationSection(code: String, url: String?) -> some View {
+        SettingsSection(header: "認証コード") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(code)
+                    .font(.system(size: 22, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Theme.primaryText)
+                    .accessibilityIdentifier("settings-codex-user-code")
+                if let url, let link: URL = URL(string: url) {
+                    Link("認証ページを開く", destination: link)
+                        .font(Typography.caption)
+                        .foregroundStyle(Theme.primaryText)
                 }
-                .buttonStyle(.plain)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
         }
-        .padding(4)
-        .background(Color(uiColor: .tertiarySystemGroupedBackground), in: Capsule())
-    }
-}
-
-private struct SettingsDivider: View {
-    @Environment(\.colorScheme) private var scheme
-
-    var body: some View {
-        Rectangle()
-            .fill(Theme.separator(scheme))
-            .frame(height: 0.5)
-            .padding(.leading, 16)
-    }
-}
-
-private struct SettingsCardModifier: ViewModifier {
-    let cornerRadius: CGFloat
-
-    func body(content: Content) -> some View {
-        content
-            .background(
-                Color(uiColor: .secondarySystemGroupedBackground),
-                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color.primary.opacity(0.05), lineWidth: 0.5)
-            }
-    }
-}
-
-private struct SettingsActionButtonModifier: ViewModifier {
-    var prominent = false
-    var destructive = false
-
-    @Environment(\.colorScheme) private var scheme
-
-    func body(content: Content) -> some View {
-        content
-            .font(Typography.caption)
-            .foregroundStyle(foreground)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(background, in: Capsule())
-            .buttonStyle(.plain)
     }
 
-    private var foreground: Color {
-        if destructive { return Theme.regress(scheme) }
-        if prominent { return Color(uiColor: .systemBackground) }
-        return Theme.textPrimary(scheme)
+    private var usageLabel: String {
+        guard let used: Double = settings.account?.rateLimitPrimaryNumber("usedPercent") else { return "取得待ち" }
+        return "\(Int(used.rounded()))% 使用中"
     }
 
-    private var background: Color {
-        if prominent { return Theme.textPrimary(scheme) }
-        if destructive { return Theme.regress(scheme).opacity(0.12) }
-        return Color(uiColor: .tertiarySystemGroupedBackground)
-    }
-}
-
-private extension View {
-    func settingsCard(cornerRadius: CGFloat = Theme.Radius.cardLarge) -> some View {
-        modifier(SettingsCardModifier(cornerRadius: cornerRadius))
+    private var remainingLabel: String {
+        guard let remaining: Double = settings.account?.rateLimitPrimaryNumber("remaining") else { return "取得待ち" }
+        return "\(Int(remaining.rounded()))"
     }
 
-    func settingsActionButton(prominent: Bool = false, destructive: Bool = false) -> some View {
-        modifier(SettingsActionButtonModifier(prominent: prominent, destructive: destructive))
+    private var resetLabel: String {
+        guard let date: Date = settings.account?.rateLimitResetsAt else { return "取得待ち" }
+        return date.formatted(date: .omitted, time: .shortened)
+    }
+
+    private var lastSyncedLabel: String {
+        guard let date: Date = settings.account?.lastSyncedAt else { return "未同期" }
+        return date.formatted(date: .omitted, time: .shortened)
+    }
+
+    private var statusLabel: String {
+        guard let status = settings.account?.status else { return "未取得" }
+        switch status {
+        case .connected: return "接続済み"
+        case .connecting: return "接続中"
+        case .rateLimited: return "利用枠待ち"
+        case .error: return "要確認"
+        case .disconnected: return "未接続"
+        }
     }
 }
 

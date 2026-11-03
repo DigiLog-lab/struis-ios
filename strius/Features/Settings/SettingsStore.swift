@@ -108,14 +108,22 @@ final class SettingsStore {
         monthlyTimelineCost = turns.map { TimelineCostSummary.summarize($0.map { TimelineCostSummary.Turn(kind: $0.kind, targetID: $0.targetId, status: $0.status, executions: $0.executions) }) }
     }
 
+    /// 学習記録の「書き出す」: 端末の乗り換えに使うので、全部の記録と写真・添付・記憶を入れる。
+    func exportAllRecords() async {
+        await exportLedger(period: .all, includesFiles: true)
+    }
+
+    /// 開発者向けの「調べる用に書き出す」: 選んだ期間だけを書き出す(取り込みには使えない)。
     func exportLedger() async {
+        await exportLedger(period: exportPeriod, includesFiles: exportIncludesFiles)
+    }
+
+    private func exportLedger(period: LedgerArchive.Period, includesFiles: Bool) async {
         guard let ledger, !ledgerBusy else { return }
         ledgerBusy = true
         defer { ledgerBusy = false }
         do {
-            let period: LedgerArchive.Period = exportPeriod
-            // 「すべて」は端末の乗り換えに使うので、写真・添付・記憶も必ず入れる。
-            let scope = LedgerArchive.Scope(since: period.since(), includesFiles: period == .all || exportIncludesFiles)
+            let scope = LedgerArchive.Scope(since: period.since(), includesFiles: period == .all || includesFiles)
             exportedArchive = try await LedgerArchive.export(ledger: ledger, scope: scope, suffix: period.fileSuffix)
             ledgerMessage = scope.isPartial
                 ? "\(period.title)・\(scope.includesFiles ? "写真あり" : "写真なし")で書き出しました。調べる用なので、取り込みには使えません"
