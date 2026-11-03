@@ -200,7 +200,8 @@ final class ClaudeTurnRunnerTests: XCTestCase {
         XCTAssertEqual(resumed.map { $0["role"] as? String ?? "" }, ["user", "assistant", "user", "assistant", "user"])
         XCTAssertEqual((resumed[3]["content"] as? [[String: Any]])?.first?["signature"] as? String, "sig-a")
         XCTAssertEqual(texts(resumed[4]), ["質問 2"], "同じ作業フォルダでは AGENTS.md を送り直さない")
-        XCTAssertEqual(try conversations.messages(thread).count, 5)
+        // 1 ターン目の 4 件(質問・道具の呼び出し・その結果・答え)と、2 ターン目の 2 件(質問・答え)。
+        XCTAssertEqual(try conversations.messages(thread).count, 6)
     }
 
     func testForkCopiesTheHistoryUpToTheTurnAndResendsAgentsForItsFolder() async throws {

@@ -12,6 +12,7 @@ final class NativeMigrationTests: XCTestCase {
         let home: URL = old.appendingPathComponent("rootfs-v2/data/root/.codex")
         let target: URL = base.appendingPathComponent("native")
         try fm.createDirectory(at: workspace.appendingPathComponent("thread-a"), withIntermediateDirectories: true)
+        try fm.createDirectory(at: workspace.appendingPathComponent("thread-b"), withIntermediateDirectories: true)
         try fm.createDirectory(at: home, withIntermediateDirectories: true)
         try fm.createDirectory(at: target.appendingPathComponent("workspace/thread-b"), withIntermediateDirectories: true)
         try Data("migration-test-auth".utf8).write(to: home.appendingPathComponent("auth.json"))
