@@ -1,1 +1,0 @@
-print('memory stand-in')

@@ -1,1 +1,0 @@
-print('delegate stand-in')
