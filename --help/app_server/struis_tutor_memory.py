@@ -1,0 +1,1 @@
+print('memory stand-in')

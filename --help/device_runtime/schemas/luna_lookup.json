@@ -1,0 +1,40 @@
+{
+ "type": "object",
+ "properties": {
+  "status": {
+   "type": "string",
+   "enum": [
+    "found",
+    "not_found"
+   ]
+  },
+  "findings": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "source": {
+      "type": "string"
+     },
+     "excerpt": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "source",
+     "excerpt"
+    ],
+    "additionalProperties": false
+   }
+  },
+  "note": {
+   "type": "string"
+  }
+ },
+ "required": [
+  "status",
+  "findings",
+  "note"
+ ],
+ "additionalProperties": false
+}

@@ -12,7 +12,10 @@ import XCTest
 ///     TEST_RUNNER_STRUIS_RUNNER_COMPARE_OUT=<dir>/outcomes TEST_RUNNER_STRUIS_RUNNER_COMPARE_RUNNER=codex|direct
 ///     TEST_RUNNER_STRUIS_RUNNER_COMPARE_SETS=record,normal,replay,faults(既定 normal,faults)
 ///     TEST_RUNNER_STRUIS_ANTHROPIC_BASE_URL=http://127.0.0.1:8787 TEST_RUNNER_STRUIS_DEBUG_ANTHROPIC_KEY_FILE=<偽のキー>
-///     TEST_RUNNER_STRUIS_DEVICE_RUNTIME=0
+///     TEST_RUNNER_STRUIS_DEVICE_RUNTIME=0 TEST_RUNNER_STRUIS_PLAN=generous TEST_RUNNER_STRUIS_USAGE_PERCENT=0
+///
+/// `STRUIS_PLAN`・`STRUIS_USAGE_PERCENT` は端末の利用枠をメモリの中だけの枠に替える。付けないと Keychain に週ごとに溜まる
+/// お試しの枠($0.25)を数回で使い切り、以降の依頼が全部「利用枠を使い切りました」で止まる。
 ///
 /// 比べるのは `scripts/e2e/compare_runners.py`。
 final class RunnerComparisonLiveTests: XCTestCase {
