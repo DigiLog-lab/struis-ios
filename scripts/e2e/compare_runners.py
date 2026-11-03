@@ -18,6 +18,8 @@ import statistics
 from pathlib import Path
 
 CODEX_ONLY = ("<permissions instructions>", "<environment_context>", "<apps_instructions>", "<skills_instructions>")
+CODEX_ONLY_TOOLS = ("request_user_input",)
+CLOCK = re.compile(r"(?<![0-9:])\d{2}:\d{2}(?![0-9:])")
 TOP_LEVEL = ("model", "max_tokens", "stream", "thinking", "output_config", "tool_choice", "cache_control", "tools")
 UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
 PLAN_ID = re.compile(r"compare-[a-z0-9-]+?-[0-9a-f]{8}\b")
@@ -27,7 +29,14 @@ TOOL_ID = re.compile(r"toolu_[A-Za-z0-9]+")
 
 
 def normalize_text(text: str) -> str:
-    for pattern, value in ((UUID, "<uuid>"), (PLAN_ID, "<plan>"), (PATHS, "<path>"), (STAMP, "<time>"), (TOOL_ID, "<tool-id>")):
+    text = re.sub(r"fake-sig-\d+", "<sig>", text); text = re.sub(r"検証用の考えごと \d+", "<thinking>", text)
+    stripped = text.strip()
+    if stripped.startswith("{") and stripped.endswith("}"):
+        try:
+            text = json.dumps(json.loads(stripped), sort_keys=True, ensure_ascii=False)
+        except ValueError:
+            pass
+    for pattern, value in ((UUID, "<uuid>"), (PLAN_ID, "<plan>"), (PATHS, "<path>"), (STAMP, "<time>"), (TOOL_ID, "<tool-id>"), (CLOCK, "<hhmm>")):
         text = pattern.sub(value, text)
     return text
 
@@ -70,6 +79,7 @@ def canonical(body: dict) -> tuple[dict, list[str]]:
         messages.append(message)
     result = {key: body.get(key) for key in TOP_LEVEL}
     result["diagnostics_present"] = "diagnostics" in body
+    result["tools"] = [t for t in (body.get("tools") or []) if t.get("name") not in CODEX_ONLY_TOOLS]
     result["system"] = system
     result["messages"] = messages
     return normalize(result), [str(block.get("text", ""))[:80] for block in removed]
