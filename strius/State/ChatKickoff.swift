@@ -59,7 +59,7 @@ extension TurnCoordinator {
             return .started
         } catch let error as LedgerError where error.code == "kickoff_exists" {
             return .alreadyStarted
-        } catch let error as LedgerError where error.code == "codex_turn_in_progress" {
+        } catch let error as LedgerError where error.code == "chat_turn_in_progress" {
             return .busy
         } catch {
             kickoffLog.error("kickoff failed: \(String(describing: error), privacy: .public)")
@@ -157,7 +157,7 @@ extension TurnCoordinator {
 
     /// 単元づくりの会話を始める。作りかけ(提案がまだ始まっていない)の会話があればそれを返し、
     /// 無ければ新しい thread を作って最初の問いを出す。thread が空の時だけ出すので重複しない。
-    /// 学習者が答えている間に、裏でゲストと app-server を起こしておく(モデルは答えがそろってから動く)。
+    /// 学習者が答えている間に、裏でコマンド worker の準備を済ませておく(モデルは答えがそろってから動く)。
     func startUnitCreation(existingThreadID: String?, profile: OnboardingProfile?, attachments: [ChatTurns.Attachment]) async throws -> String {
         Task { await self.runner.warmUp() }
         if let existingThreadID {
@@ -269,7 +269,7 @@ extension TurnCoordinator {
                 guard let thread = try ThreadRecord.fetchOne(db, key: send.threadID) else { throw LedgerError.notFound("thread") }
                 // 読んでから書くまでの間に同じ問いへ答えが書かれていたら、二重に書かない。
                 guard try Self.unitQuestionState(db, threadID: send.threadID)?.pending == pending else {
-                    throw LedgerError.rejected(code: "codex_turn_in_progress", message: "前の答えを受け取っています")
+                    throw LedgerError.rejected(code: "chat_turn_in_progress", message: "前の答えを受け取っています")
                 }
                 var blocks: [LedgerJSON] = []
                 if !send.text.isEmpty { blocks.append(.object(["kind": .string("text"), "payload": .object(["text": .string(send.text)])])) }

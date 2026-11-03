@@ -252,36 +252,13 @@ final class TimelineReviewTests: XCTestCase {
 
     // MARK: キャッシュ
 
-    /// Codex が送る形を真似た、2 回の採点の要求(作業フォルダの場所・問題・画像が違う)。
-    private func codexGrading(planID: String, log: String, problem: String) -> [String: Any] {
-        [
-            "model": "claude-sonnet-5-5", "instructions": "BASE\n\nSHARED\n\nUNIT",
-            "tools": [["type": "namespace", "name": "struis", "tools": [["type": "function", "name": "timeline_query", "parameters": ["type": "object", "properties": [:]]]]]],
-            "reasoning": ["effort": "low"], "text": ["format": ["type": "json_schema", "schema": ["type": "object", "properties": ["grade": ["type": "string"]]]]],
-            "input": [
-                ["type": "message", "role": "developer", "content": [["type": "input_text", "text": log + "\n\n<permissions instructions>Full access.</permissions instructions>"]]],
-                ["type": "message", "role": "user", "content": [["type": "input_text", "text": "<environment_context><cwd>/workspace/\(planID)</cwd></environment_context>"]]],
-                ["type": "message", "role": "user", "content": [["type": "input_text", "text": "# 今回の仕事: 採点\n\n# 今回の材料\n" + problem],
-                                                               ["type": "input_image", "image_url": "data:image/jpeg;base64,/9j/4AAQ"]]],
-            ],
-        ]
+    private func schema(_ name: String) -> String {
+        ClaudeTranslation.schemaInstruction(["type": "object", "properties": [name: ["type": "string"]], "required": [name]])
     }
 
-    private func schema(_ name: String) -> [String: Any] {
-        ["type": "object", "properties": [name: ["type": "string"]], "required": [name]]
-    }
-
-    private func codexRequest(planID: String, log: String, task: String, schema: [String: Any], effort: String = "medium") -> [String: Any] {
-        [
-            "model": "claude-sonnet-5-5", "instructions": "BASE\n\nSHARED\n\nTOOLS",
-            "tools": [["type": "namespace", "name": "struis", "tools": [["type": "function", "name": "timeline_query", "parameters": ["type": "object", "properties": [:]]]]]],
-            "reasoning": ["effort": effort], "text": ["format": ["type": "json_schema", "schema": schema]],
-            "input": [
-                ["type": "message", "role": "developer", "content": [["type": "input_text", "text": log + "\n\n<permissions instructions>Full access.</permissions instructions>"]]],
-                ["type": "message", "role": "user", "content": [["type": "input_text", "text": "<environment_context><cwd>/workspace/\(planID)</cwd></environment_context>"]]],
-                ["type": "message", "role": "user", "content": [["type": "input_text", "text": task]]],
-            ],
-        ]
+    /// タイムラインの依頼の system(`ClaudeTurn` が版 4 で送るもの): 基本指示と、developer 指示(今日の記録)。
+    private func system(log: String, schema: String) -> [[String: Any]] {
+        ClaudeTranslation.tutorSystem(parts: ["BASE\n\nSHARED\n\nTOOLS", log], schema: schema)
     }
 
     func testVersionFourSendsEachLogEntryAsABlockAndKeepsTheSharedPartByteForByte() throws {
@@ -293,31 +270,25 @@ final class TimelineReviewTests: XCTestCase {
         machine.recordDispute(attemptID: attempt, text: "")
         let log2 = TimelineTurns.answerLog(timeline: machine)
 
-        var options = ClaudeRequestTranslator.Options()
-        options.translation = ClaudeTranslation.version(kind: "timeline_grading")
-        options.tailCacheTTL = ClaudeTranslation.tailCacheTTL(kind: "timeline_grading")
-        options.schemaInInstructions = true
-        let grading = try ClaudeRequestTranslator.translate(codexRequest(planID: "plan-1", log: log1, task: "# 今回の仕事: 採点", schema: schema("grade")), options: options).body
-        let review = try ClaudeRequestTranslator.translate(codexRequest(planID: "plan-2", log: log2, task: "# 今回の仕事: 見直し", schema: schema("notes")), options: options).body
-        let batch = try ClaudeRequestTranslator.translate(codexRequest(planID: "plan-3", log: log2, task: "# 今回の仕事: 次の5枚", schema: schema("cards")), options: options).body
-        let system1 = try XCTUnwrap(grading["system"] as? [[String: Any]])
-        let system2 = try XCTUnwrap(review["system"] as? [[String: Any]])
-        let system3 = try XCTUnwrap(batch["system"] as? [[String: Any]])
-        // 基本指示 + 記録の見出し + 単元とスキル + 答案 1 件 + Codex の注記 + 出力の形。
-        XCTAssertEqual(system1.count, 6)
-        XCTAssertEqual(system2.count, 7, "申し出の 1 件が増えた")
+        XCTAssertEqual(ClaudeTranslation.version(kind: "timeline_grading"), 4)
+        let system1: [[String: Any]] = system(log: log1, schema: schema("grade"))
+        let system2: [[String: Any]] = system(log: log2, schema: schema("notes"))
+        let system3: [[String: Any]] = system(log: log2, schema: schema("cards"))
+        // 基本指示 + 記録の見出し + 単元とスキル + 答案 1 件 + 出力の形。
+        XCTAssertEqual(system1.count, 5)
+        XCTAssertEqual(system2.count, 6, "申し出の 1 件が増えた")
         XCTAssertEqual(system1[0]["text"] as? String, "BASE\n\nSHARED\n\nTOOLS")
         let hour: [String: String] = ["type": "ephemeral", "ttl": "1h"]
         XCTAssertEqual(system1[0]["cache_control"] as? [String: String], hour, "基本指示の最後に 1 時間の印")
         XCTAssertEqual(system1[3]["cache_control"] as? [String: String], hour, "今日の記録の最後のブロックに 1 時間の印")
         XCTAssertEqual(system2[4]["cache_control"] as? [String: String], hour)
         XCTAssertEqual(system1.filter { $0["cache_control"] != nil }.count, 2)
-        XCTAssertEqual(system1[4]["text"] as? String, "<permissions instructions>Full access.</permissions instructions>")
-        XCTAssertTrue((system1[5]["text"] as? String)?.contains("JSON Schema") == true, "出力の形は文章で、記録の後ろ")
+        XCTAssertEqual(system2.filter { $0["cache_control"] != nil }.count, 2)
+        XCTAssertTrue((system1[4]["text"] as? String)?.contains("JSON Schema") == true, "出力の形は文章で、記録の後ろ")
+        XCTAssertNil(system1[4]["cache_control"])
         XCTAssertTrue((system1[3]["text"] as? String)?.hasPrefix("## ") == true)
-        XCTAssertNil((grading["output_config"] as? [String: Any])?["format"], "output_config.format は使わない")
-        XCTAssertEqual((grading["output_config"] as? [String: Any])?["effort"] as? String, "medium")
-        XCTAssertNil(grading["cache_control"], "最初の要求の末尾(今回の仕事・材料)には印を置かない")
+        XCTAssertFalse(system1.contains { ($0["text"] as? String)?.contains("struis:block") == true || ($0["text"] as? String)?.contains("struis:log-end") == true },
+                       "区切りの印はモデルに送らない")
 
         // 採点 → 見直し → 出題で、基本指示と今日の記録(前回の印まで)は 1 バイトも違わない。
         func bytes(_ blocks: ArraySlice<[String: Any]>) throws -> Data { try JSONSerialization.data(withJSONObject: Array(blocks).map { $0.filter { $0.key != "cache_control" } }, options: [.sortedKeys]) }
@@ -325,49 +296,48 @@ final class TimelineReviewTests: XCTestCase {
         XCTAssertEqual(try bytes(system2[0...4]), try bytes(system3[0...4]))
         XCTAssertEqual(try JSONSerialization.data(withJSONObject: system2[0...4].map { $0 }, options: [.sortedKeys]),
                        try JSONSerialization.data(withJSONObject: system3[0...4].map { $0 }, options: [.sortedKeys]))
-        let tools1 = try JSONSerialization.data(withJSONObject: grading["tools"] ?? [], options: [.sortedKeys])
-        let tools3 = try JSONSerialization.data(withJSONObject: batch["tools"] ?? [], options: [.sortedKeys])
-        XCTAssertEqual(tools1, tools3)
-        XCTAssertFalse(String(decoding: try JSONSerialization.data(withJSONObject: system1), as: UTF8.self).contains("plan-1"))
+        // tools(system より前のキャッシュの先頭)は、タイムラインの依頼の種類をまたいで同じ。
+        func tools(_ kind: TurnPlan.Kind) throws -> Data {
+            let names: ClaudeToolNames = ClaudeToolNames(responsesTools: NativeToolRouter.definitions(for: kind) + [ClaudeTurn.viewImageTool], sorted: true)
+            return try JSONSerialization.data(withJSONObject: names.claudeTools, options: [.sortedKeys])
+        }
+        XCTAssertEqual(try tools(.timelineGrading), try tools(.timelineBatch))
+        XCTAssertEqual(try tools(.timelineGrading), try tools(.timelineReview))
 
-        // 版 2(会話・単元ホーム)の形は変えない。
-        options.translation = 2
-        options.schemaInInstructions = false
-        let legacy = try ClaudeRequestTranslator.translate(codexRequest(planID: "plan-1", log: "LOG", task: "x", schema: schema("grade")), options: options).body
-        XCTAssertEqual((legacy["system"] as? [[String: Any]])?.count, 1)
-        XCTAssertNotNil((legacy["output_config"] as? [String: Any])?["format"])
+        // 記録の終わりより後ろに足した注記は、印の無い別のブロックにする。
+        let noted: [[String: Any]] = system(log: log1 + "\n\nStruis note", schema: schema("grade"))
+        XCTAssertEqual(noted.count, 6)
+        XCTAssertEqual(noted[4]["text"] as? String, "Struis note")
+        XCTAssertNil(noted[4]["cache_control"])
+        XCTAssertEqual(noted[3]["cache_control"] as? [String: String], hour)
     }
 
     func testVersionFourMarksTheTailOnlyForContinuationsAfterATool() throws {
-        var options = ClaudeRequestTranslator.Options()
-        options.translation = ClaudeTranslation.version(kind: "timeline_review")
-        options.tailCacheTTL = ClaudeTranslation.tailCacheTTL(kind: "timeline_review")
-        options.schemaInInstructions = true
-        let log = "# 今日の記録" + ClaudeTranslation.blockSeparator + "まだありません。" + ClaudeTranslation.logEnd
-        var request = codexRequest(planID: "plan-1", log: log, task: "# 今回の仕事: 見直し", schema: schema("notes"))
-        let start = try ClaudeRequestTranslator.translate(request, options: options).body
-        XCTAssertNil(start["cache_control"], "turn_start")
+        let translation: Int = ClaudeTranslation.version(kind: "timeline_review")
+        let start: [[String: Any]] = [["role": "user", "content": [["type": "text", "text": "# 今回の仕事: 見直し"]]]]
+        XCTAssertFalse(ClaudeTranslation.marksTail(translation: translation, messages: start), "turn_start")
 
         // 頼み直し(validation_repair): 前の返事の後ろに、理由を添えた同じ仕事が来る。
-        var repair = request
-        repair["input"] = (request["input"] as! [[String: Any]]) + [
-            ["type": "message", "role": "assistant", "content": [["type": "output_text", "text": "読めない返事"]]],
-            ["type": "message", "role": "user", "content": [["type": "input_text", "text": "# 前の返事について"]]],
+        let repair: [[String: Any]] = start + [
+            ["role": "assistant", "content": [["type": "text", "text": "読めない返事"]]],
+            ["role": "user", "content": [["type": "text", "text": "# 前の返事について"]]],
         ]
-        XCTAssertNil(try ClaudeRequestTranslator.translate(repair, options: options).body["cache_control"], "validation_repair")
+        XCTAssertFalse(ClaudeTranslation.marksTail(translation: translation, messages: repair), "validation_repair")
 
         // 道具を使った後の続き(continuation)だけ、末尾に 5 分の印。
-        request["input"] = (request["input"] as! [[String: Any]]) + [
-            ["type": "function_call", "call_id": "call_1", "namespace": "struis", "name": "timeline_query", "arguments": "{}"],
-            ["type": "function_call_output", "call_id": "call_1", "output": "rows"],
+        let continuation: [[String: Any]] = start + [
+            ["role": "assistant", "content": [["type": "tool_use", "id": "toolu_1", "name": "struis__timeline_query", "input": [String: Any]()]]],
+            ["role": "user", "content": [["type": "tool_result", "tool_use_id": "toolu_1", "content": "rows"]]],
         ]
-        let continuation = try ClaudeRequestTranslator.translate(request, options: options).body
-        XCTAssertEqual(continuation["cache_control"] as? [String: String], ["type": "ephemeral"])
-        XCTAssertEqual((start["system"] as? [[String: Any]])?.filter { $0["cache_control"] != nil }.count, 2, "1 時間の印は今のまま")
+        XCTAssertTrue(ClaudeTranslation.marksTail(translation: translation, messages: continuation))
+        // 末尾の印は 5 分(既定の ttl なし)。1 時間の印は system の 2 つのまま。
+        XCTAssertEqual(ClaudeTranslation.tailCacheTTL(kind: "timeline_review"), "5m")
+        XCTAssertEqual(ClaudeTranslation.cacheControl(ttl: nil) as? [String: String], ["type": "ephemeral"])
+        let log: String = "# 今日の記録" + ClaudeTranslation.blockSeparator + "まだありません。" + ClaudeTranslation.logEnd
+        XCTAssertEqual(system(log: log, schema: schema("notes")).filter { $0["cache_control"] != nil }.count, 2, "1 時間の印は今のまま")
 
         // 版 2(会話・単元ホーム)は最初の要求にも付ける。
-        options.translation = 2
-        XCTAssertNotNil(try ClaudeRequestTranslator.translate(codexRequest(planID: "p", log: "LOG", task: "x", schema: schema("grade")), options: options).body["cache_control"])
+        XCTAssertTrue(ClaudeTranslation.marksTail(translation: 2, messages: start))
     }
 
     func testRepliesWithProseBeforeTheJSONAreRead() throws {

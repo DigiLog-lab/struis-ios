@@ -4,11 +4,11 @@
 
 ## Native runtime
 
-`NativeRuntime/` は Hyotan-v2 の native 実装を移植したものです。Codexはアプリ本体のNativeCodexHost、Python・コマンドはStruisExecで実行します。旧iSHのRuntime/hyotan・rootfsはこの独立リポジトリへ収録していません。
+`NativeRuntime/` は Hyotan-v2 の native 実装を移植したものです。モデルAPI(AnthropicのMessages API)はアプリ本体のSwiftから直接呼び、Python・コマンドはStruisExecで実行します。アプリ本体には作業領域操作ライブラリ(`libhyotan_operations.a`)だけを静的にリンクします。旧iSHのRuntime/hyotan・rootfsはこの独立リポジトリへ収録していません。以前同梱していたOpenAI Codex(Apache-2.0)とその依存は削除し、告知からも外しました。
 
 | 同梱物 | 固定入力 | 告知 |
 |---|---|---|
-| Native Codex 0.153.4 | `3d2ee51ca2d5db578f328aa75e20aa22c0197c9a`、iOS向け変更は `Scripts/prepare-codex.py` | Apache-2.0、`Licenses/Codex.txt`、Rust個別告知 |
+| Hyotan native libraries(検索・作業領域操作) | `NativeLibrary/Cargo.lock` | Apache-2.0、Rust個別告知 |
 | ios_system / BSD commands | `ebc045299e56edaf3509144d43a7f7348af400a7` | BSD系ほか、`Licenses/dependencies.json` |
 | dash | `3da49bb7ac15458ea4f554b589dde5197816f6ba` | BSD-3-Clause、`Licenses/dash.txt` |
 | CPython / Python-Apple-support | `dependencies.lock.json` のURLとSHA-256 | PSF-2.0 / MIT、Python native依存の個別告知 |
@@ -18,14 +18,14 @@
 | PyYAML 6.0.3 | 同lock、pure Python版 | MIT |
 | CA bundle | `ca-bundle.lock.json` | CDLA-Permissive-2.0 |
 
-`NativeRuntime/Licenses/` をextensionに同梱します。NumPyはApple Accelerateを使用し、iOS wheelのnative依存も監査対象にします。Rust依存一覧と通知は `Rust-dependencies.json` / `Rust-notices.txt` / `Rust-upstream/` に保持します。`debugserver-types` の独立した上流LICENSE/著作権通知が無い例外は既存監査に記録されています。
+`NativeRuntime/Licenses/` をアプリとStruisExec拡張に同梱します。NumPyはApple Accelerateを使用し、iOS wheelのnative依存も監査対象にします。Rust依存一覧と通知は `Rust-dependencies.json` / `Rust-notices.txt` に保持します。
 
 ## 再ビルド
 
 Xcode 27、Python 3.14、Rust 1.95.0とiOS targetを準備し、次を実行します。
 
 ```sh
-python3 NativeRuntime/Scripts/bootstrap.py --platform both
+python3.14 NativeRuntime/Scripts/bootstrap.py --platform both
 ```
 
 ビルド済みframework、取得ソース、PythonPackagesはGit管理外です。別のローカルプロジェクトへのsymlinkは使用しません。BSDのパーサーはBerkeley Yaccで再生成し、dashのsignal tableも独立生成します。ビルド時だけ必要な生成器をアプリへ同梱しません。GitHub Actionsは同じnative構成のbootstrapを呼びます。
@@ -48,4 +48,4 @@ SPM パッケージの版は `strius.xcodeproj` の package reference で解決�
 
 ## Claude App Attest
 
-`strius/Runtime/ClaudeProxy/AppAttestClient.swift` の token 取得の手順(エンドポイント、client data の組み立て、取り直しの規則)は、[anthropics/ClaudeForFoundationModels](https://github.com/anthropics/ClaudeForFoundationModels) の `AppAttestSession`(Copyright 2026 Anthropic PBC、Apache-2.0)に倣って書き直したものです。パッケージ自体は同梱していません。
+`strius/Runtime/Claude/AppAttestClient.swift` の token 取得の手順(エンドポイント、client data の組み立て、取り直しの規則)は、[anthropics/ClaudeForFoundationModels](https://github.com/anthropics/ClaudeForFoundationModels) の `AppAttestSession`(Copyright 2026 Anthropic PBC、Apache-2.0)に倣って書き直したものです。パッケージ自体は同梱していません。

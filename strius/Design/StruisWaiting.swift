@@ -78,7 +78,7 @@ struct StruisWaitingStatus: View {
 /// 文言は「考えています」だけに固定する(内容を装った文言は出さない)。
 struct ChatThinkingRow: View {
     let startedAt: Date
-    /// Codex から推論の要約が取れるようになったら、ここで差し替える(今は常に nil)。
+    /// 推論の要約を出せるようになったら、ここで差し替える(今は常に nil)。
     var summary: String? = nil
 
     static let label = "考えています"

@@ -60,7 +60,7 @@ nonisolated struct TurnComposer {
             id: planID, kind: .workbookGrading, round: 1,
             thread: try await structuredThread(planID: planID, instructions: "prompt:grading_instructions", model: await assets.model("astra")),
             turn: TurnPlan.TurnSpec(text: Self.dump(.object(request)), images: images, outputSchema: try await assets.json("schema:workbook_grading"), sandboxPolicy: "dangerFullAccess"),
-            workspace: TurnPlan.WorkspaceSpec(files: [], dirs: []), delegation: nil, collect: [], limits: .structured, items: nil
+            workspace: TurnPlan.WorkspaceSpec(files: [], dirs: []), delegation: nil, collect: [], limits: .structured
         )
         return (plan, context)
     }
@@ -108,7 +108,7 @@ nonisolated struct TurnComposer {
             id: planID, kind: .workbookSet, round: 1,
             thread: try await structuredThread(planID: planID, instructions: "prompt:set_instructions", model: await assets.model("astra")),
             turn: TurnPlan.TurnSpec(text: Self.dump(request), images: [], outputSchema: schema, sandboxPolicy: "dangerFullAccess"),
-            workspace: TurnPlan.WorkspaceSpec(files: [], dirs: []), delegation: nil, collect: [], limits: .structured, items: nil
+            workspace: TurnPlan.WorkspaceSpec(files: [], dirs: []), delegation: nil, collect: [], limits: .structured
         )
     }
 
@@ -135,7 +135,7 @@ nonisolated struct TurnComposer {
             id: planID, kind: .workbookUnit, round: 1,
             thread: try await structuredThread(planID: planID, instructions: "prompt:unit_instructions", model: await assets.model("astra")),
             turn: TurnPlan.TurnSpec(text: Self.dump(request), images: [], outputSchema: try await assets.json("schema:workbook_unit"), sandboxPolicy: "dangerFullAccess"),
-            workspace: TurnPlan.WorkspaceSpec(files: [], dirs: []), delegation: nil, collect: [], limits: .structured, items: nil
+            workspace: TurnPlan.WorkspaceSpec(files: [], dirs: []), delegation: nil, collect: [], limits: .structured
         )
     }
 }

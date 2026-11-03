@@ -164,7 +164,7 @@ nonisolated enum OnboardingTurns {
             thread: try await thread(assets: assets, planID: planID, instructions: "prompt:onboarding_grading_instructions", role: TimelineModels.role),
             turn: TurnPlan.TurnSpec(text: turnText(materials: request), images: [image],
                                     outputSchema: try await assets.json("schema:onboarding_grading"), sandboxPolicy: "dangerFullAccess"),
-            workspace: TimelineTurns.workspace, delegation: nil, collect: [], limits: .structured, items: nil
+            workspace: TimelineTurns.workspace, delegation: nil, collect: [], limits: .structured
         )
     }
 
@@ -180,7 +180,7 @@ nonisolated enum OnboardingTurns {
             thread: try await thread(assets: assets, planID: planID, instructions: "prompt:onboarding_plan_instructions", role: TimelineModels.graphRole),
             turn: TurnPlan.TurnSpec(text: turnText(materials: request), images: Array(images),
                                     outputSchema: try await assets.json("schema:onboarding_plan"), sandboxPolicy: "dangerFullAccess"),
-            workspace: TimelineTurns.workspace, delegation: nil, collect: [], limits: .structured, items: nil
+            workspace: TimelineTurns.workspace, delegation: nil, collect: [], limits: .structured
         )
     }
 

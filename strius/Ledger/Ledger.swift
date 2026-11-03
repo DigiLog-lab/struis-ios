@@ -65,7 +65,7 @@ actor Ledger {
         let queue = try DatabaseQueue(path: path.path, configuration: configuration)
         try LedgerSchema.migrator.migrate(queue)
         self.deletionRoot = path.deletingLastPathComponent()
-        self.deletionRuntimeRoots = path.standardizedFileURL == StruisPaths.ledger.standardizedFileURL ? [HyotanBoot.codexHome, HyotanBoot.sharedCodexHome, HyotanBoot.workspaceRoot, HyotanBoot.legacyRoot, HyotanBoot.legacyRoot.deletingLastPathComponent().appendingPathComponent("agentcase")] : []
+        self.deletionRuntimeRoots = path.standardizedFileURL == StruisPaths.ledger.standardizedFileURL ? [HyotanBoot.workspaceRoot, HyotanBoot.legacyRoot, HyotanBoot.legacyRoot.deletingLastPathComponent().appendingPathComponent("agentcase")] : []
         self.queue = queue
         self.deviceID = try queue.write { db in
             let installation = try String.fetchOne(db, sql: "SELECT value FROM ledger_meta WHERE key = 'installation_id'")

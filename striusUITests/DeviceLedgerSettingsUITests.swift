@@ -15,13 +15,13 @@ final class DeviceLedgerSettingsUITests: XCTestCase {
         app.launchArguments += ["-skip-onboarding"]
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
-        if let auth = ProcessInfo.processInfo.environment["STRUIS_REAL_CODEX_AUTH"], !auth.isEmpty {
+        if let auth = ProcessInfo.processInfo.environment["STRUIS_REAL_CLAUDE_KEY_FILE"], !auth.isEmpty {
             app.launchEnvironment.removeValue(forKey: "STRUIS_DEVICE_TURNS")
             app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "1"
             app.launchEnvironment["STRUIS_LEDGER"] = "persistent"
-            app.launchEnvironment["STRUIS_DEBUG_CODEX_AUTH_FILE"] = auth
-            let assets = ProcessInfo.processInfo.environment["STRUIS_REAL_CODEX_ASSETS_DIR"] ?? ""
-            try XCTSkipIf(assets.isEmpty, "TEST_RUNNER_STRUIS_REAL_CODEX_ASSETS_DIR が無い (既定単元の実AI試験には外部配信資産が必要)")
+            app.launchEnvironment["STRUIS_DEBUG_ANTHROPIC_KEY_FILE"] = auth
+            let assets = ProcessInfo.processInfo.environment["STRUIS_REAL_AI_ASSETS_DIR"] ?? ""
+            try XCTSkipIf(assets.isEmpty, "TEST_RUNNER_STRUIS_REAL_AI_ASSETS_DIR が無い (既定単元の実AI試験には外部配信資産が必要)")
             app.launchEnvironment["STRUIS_DEVICE_ASSETS_DIR"] = assets
         }
         app.launch()

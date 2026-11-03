@@ -18,7 +18,7 @@ final class VirtualPythonCommandBridgeTests: XCTestCase {
             try FileManager.default.createDirectory(at: root.deletingLastPathComponent()
                 .appendingPathComponent("Library"), withIntermediateDirectories: true)
         }
-        let (codex, _) = try await host.start { _ in }
+        host.prepareForCommands()
         defer { host.stop() }
         let result: NativeRuntimeReply
         do { result = try await host.send(.init(operation: .virtualPythonBridgeProbe)) }
@@ -30,7 +30,7 @@ final class VirtualPythonCommandBridgeTests: XCTestCase {
         XCTAssertEqual(result.exitCode, 0, result.output)
         // C sets each bit only after actual pipe/thread assertions succeed.
         XCTAssertEqual(result.output, "63", "Expected transfer/EOF/read-cancel/write-cancel/EPIPE/next-context")
-        XCTAssertNotEqual(result.pid, codex.pid, "The probe must run in the real Exec worker")
+        XCTAssertNotEqual(result.pid, getpid(), "The probe must run in the real Exec worker")
         let health = try await host.commandWorkerHealth()
         XCTAssertEqual(health.pid, result.pid)
         XCTAssertNil(health.error)

@@ -4,13 +4,15 @@ import UIKit
 import XCTest
 @testable import strius
 
-/// Codex 版(`CodexTurnRunner`)と Claude 直結版(`DirectClaudeTurnRunner`)に同じ依頼を流し、模擬の Anthropic に届いた
-/// 要求・結果・時間・メモリを記録する。手で流す測定で、CI の門には入れない(移行が終わったら消す)。
+/// Claude 直結版(`ClaudeTurnRunner`)に決まった依頼を流し、模擬の Anthropic に届いた要求・結果・時間・メモリを記録する。
+/// 手で流す測定で、CI の門には入れない。
 ///
-/// プロセスを分けて 1 回に 1 つの版だけ動かす(Codex はアプリのプロセスの中で動くので、同じプロセスだとメモリを比べられない)。
+/// 端末内の Codex(`CodexTurnRunner`)は 2026-11-03 に外したので、Codex 版はもう動かせない。移行の時に同じ依頼で録った
+/// Codex 版の結果は `artifacts/compare-final` にあり、`scripts/e2e/compare_runners.py` はそれと今回の直結版(版の名前は
+/// `direct` のまま)を比べる。
 ///
 ///     python3 scripts/e2e/fake_anthropic.py --port 8787 --log-dir <dir>/server [--upstream-key-file <key>]
-///     TEST_RUNNER_STRUIS_RUNNER_COMPARE_OUT=<dir>/outcomes TEST_RUNNER_STRUIS_RUNNER_COMPARE_RUNNER=codex|direct
+///     TEST_RUNNER_STRUIS_RUNNER_COMPARE_OUT=<dir>/outcomes [TEST_RUNNER_STRUIS_RUNNER_COMPARE_RUNNER=direct]
 ///     TEST_RUNNER_STRUIS_RUNNER_COMPARE_SETS=record,normal,replay,faults,structured,chat(既定 normal,faults)
 ///     TEST_RUNNER_STRUIS_ANTHROPIC_BASE_URL=http://127.0.0.1:8787 TEST_RUNNER_STRUIS_DEBUG_ANTHROPIC_KEY_FILE=<偽のキー>
 ///     TEST_RUNNER_STRUIS_DEVICE_RUNTIME=0 TEST_RUNNER_STRUIS_PLAN=generous TEST_RUNNER_STRUIS_USAGE_PERCENT=0
@@ -30,7 +32,7 @@ import XCTest
 ///   前の話を覚えているか)→ `interrupt`(返事を待っている間に止める)→ `interrupt-next`(止めた後の質問)→ `drop`(返事の途中で
 ///   接続が切れる)。最後に別の会話で `fork`(小単元の要点の起動と、`thread_fork` の上で先回りする例題)。場面は `<版>/chat/<場面>`。
 ///
-/// 比べるのは `scripts/e2e/compare_runners.py`。
+/// `replay` は Codex 版が録った録画(`codex-real`)を再生する。比べるのは `scripts/e2e/compare_runners.py`。
 final class RunnerComparisonLiveTests: XCTestCase {
     typealias F = TimelineFixture
 
@@ -60,9 +62,9 @@ final class RunnerComparisonLiveTests: XCTestCase {
     private var baseURL = ""
     private var results: [[String: Any]] = []
     private var assets: AssetCache!
-    /// 直結版の会話の控え。開き直した時の新しい直結版も同じものを使う。
+    /// 会話の控え。開き直した時の新しいランナーも同じものを使う。
     private var conversations: ClaudeConversationStore?
-    /// 直結版の道具(コマンド)の実行環境。開き直した直結版も同じものを使う(同じプロセスの中で二重に起こさない)。
+    /// 道具(コマンド)の実行環境。開き直したランナーも同じものを使う(同じプロセスの中で二重に起こさない)。
     private var boot: HyotanBoot?
 
     @MainActor
@@ -72,11 +74,12 @@ final class RunnerComparisonLiveTests: XCTestCase {
         try XCTSkipIf(output.isEmpty, "TEST_RUNNER_STRUIS_RUNNER_COMPARE_OUT が無い(比較は手動)")
         out = URL(fileURLWithPath: output, isDirectory: true)
         try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
-        runnerName = environment["STRUIS_RUNNER_COMPARE_RUNNER"] ?? "codex"
+        let requested: String = environment["STRUIS_RUNNER_COMPARE_RUNNER"] ?? "direct"
+        try XCTSkipIf(requested != "direct", "Codex 版は 2026-11-03 に外した。録った結果は artifacts/compare-final にある")
+        runnerName = "direct"
         baseURL = environment["STRUIS_ANTHROPIC_BASE_URL"] ?? "http://127.0.0.1:8787"
         let sets = (environment["STRUIS_RUNNER_COMPARE_SETS"] ?? "normal,faults").split(separator: ",").map(String.init)
         let iterations = Int(environment["STRUIS_RUNNER_COMPARE_ITERATIONS"] ?? "") ?? 5
-        setenv("STRUIS_MODEL_PROVIDER", "anthropic", 1)
 
         let assets: AssetCache = try await Self.makeAssets(environment: environment)
         self.assets = assets
@@ -84,7 +87,7 @@ final class RunnerComparisonLiveTests: XCTestCase {
         let before = StruisMemorySnapshot()
         let began = Date()
         let runner = try await makeRunner(assets: assets)
-        let startupMs = CodexTurnRunner.elapsed(began)
+        let startupMs = ClaudeTurnClock.elapsed(began)
         let afterStart = StruisMemorySnapshot()
 
         // 最初の 1 回だけ、起動の分を含む時間として別に残す(`warm`)。
@@ -92,7 +95,7 @@ final class RunnerComparisonLiveTests: XCTestCase {
         _ = try await runSteps(set: "warm", only: 1, mode: "script", tapePrefix: nil, runner: runner, composer: composer)
 
         if sets.contains("record") {
-            // 本物の API に 1 回通して録る。録画は Codex 版だけが作り、両方が同じ録画を再生する。
+            // 本物の API に 1 回通して録る。`replay` が再生するのは、移行の時に Codex 版が録った録画(`codex-real`)。
             _ = try await runSteps(set: "real", only: nil, mode: "record", tapePrefix: "\(runnerName)-real", runner: runner, composer: composer)
         }
         if sets.contains("normal") {
@@ -146,47 +149,30 @@ final class RunnerComparisonLiveTests: XCTestCase {
 
     @MainActor
     private func makeRunner(assets: AssetCache) async throws -> any TurnRunning {
-        switch runnerName {
-        case "direct":
-            let conversations: ClaudeConversationStore = try ClaudeConversationStore.temporary()
-            self.conversations = conversations
-            return await makeDirectRunner(assets: assets, conversations: conversations)
-        default:
-            let runtime = DeviceRuntime()
-            await runtime.start()
-            try await runtime.ensureRunning()
-            return CodexTurnRunner(session: runtime.session, assets: assets, timeouts: CodexTurnRunner.Timeouts(messageStall: Self.stall)) {
-                try await runtime.ensureRunning()
-            }
-        }
+        let conversations: ClaudeConversationStore = try ClaudeConversationStore.temporary()
+        self.conversations = conversations
+        return await makeClaudeRunner(assets: assets, conversations: conversations)
     }
 
     @MainActor
-    private func makeDirectRunner(assets: AssetCache, conversations: ClaudeConversationStore) async -> DirectClaudeTurnRunner {
+    private func makeClaudeRunner(assets: AssetCache, conversations: ClaudeConversationStore) async -> ClaudeTurnRunner {
         let boot: HyotanBoot = self.boot ?? HyotanBoot()
         self.boot = boot
-        let runner: DirectClaudeTurnRunner = DirectClaudeTurnRunner(
-            assets: assets, conversations: conversations, timeouts: DirectClaudeTurnRunner.Timeouts(messageStall: Self.stall)
+        let runner: ClaudeTurnRunner = ClaudeTurnRunner(
+            assets: assets, conversations: conversations, timeouts: ClaudeTurnRunner.Timeouts(messageStall: Self.stall)
         ) {
             await boot.start()
-            await NativeRuntimeHost.shared.prepareForCommandsOnly()
+            await NativeRuntimeHost.shared.prepareForCommands()
         }
         await runner.warmUp()
         return runner
     }
 
-    /// アプリを開き直したことにする。直結版は同じ会話の控えで新しく作り直し、Codex 版は app-server との接続を閉じる
-    /// (次のターンは `thread/resume` から始まる)。
+    /// アプリを開き直したことにする。同じ会話の控えで、新しいランナーを作り直す。
     @MainActor
     private func relaunch(_ runner: any TurnRunning) async throws -> any TurnRunning {
-        switch runnerName {
-        case "direct":
-            let conversations: ClaudeConversationStore = try XCTUnwrap(self.conversations, "直結版の会話の控えが無い")
-            return await makeDirectRunner(assets: assets, conversations: conversations)
-        default:
-            await runner.resetConnection()
-            return runner
-        }
+        let conversations: ClaudeConversationStore = try XCTUnwrap(self.conversations, "会話の控えが無い")
+        return await makeClaudeRunner(assets: assets, conversations: conversations)
     }
 
     private func control(_ payload: [String: Any]) async throws {

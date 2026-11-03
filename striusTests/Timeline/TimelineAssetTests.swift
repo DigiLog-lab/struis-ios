@@ -60,17 +60,17 @@ final class TimelineAssetTests: XCTestCase {
 
     func testTimelineModelAliases() async throws {
         let cache = AssetCache(root: emptyRoot())
-        let claude = await cache.model(TimelineModels.role, provider: .anthropic)
+        let claude = await cache.model(TimelineModels.role)
         XCTAssertEqual(claude.model, "claude-sonnet-5-5")
         XCTAssertEqual(claude.provider, .anthropic)
-        let graph = await cache.model(TimelineModels.graphRole, provider: .anthropic)
+        let graph = await cache.model(TimelineModels.graphRole)
         XCTAssertEqual(graph.model, "claude-opus-5-5")
-        // 実行先が OpenAI の時は astra ではなく GPT-6.1 Sol。
-        let openai = await cache.model(TimelineModels.role, provider: .openai)
-        XCTAssertEqual(openai.model, "gpt-6.1-sol")
-        XCTAssertNil(openai.provider)
-        let openaiGraph = await cache.model(TimelineModels.graphRole, provider: .openai)
-        XCTAssertEqual(openaiGraph.model, "gpt-6.1-sol")
+        // 質問・下調べは Claude の既定。
+        let astra = await cache.model("astra")
+        XCTAssertEqual(astra.model, ClaudeModels.astraModel)
+        XCTAssertEqual(astra.provider, .anthropic)
+        let luna = await cache.model("luna")
+        XCTAssertEqual(luna.model, ClaudeModels.lunaModel)
     }
 
     func testManifestAliasOverridesTheTimelineModel() async throws {
@@ -81,16 +81,16 @@ final class TimelineAssetTests: XCTestCase {
         ], assets: [:], fetchedAt: nil)
         try AssetCache.encoder.encode(manifest).write(to: root.appendingPathComponent("manifest.json"))
         let cache = AssetCache(root: root)
-        // OpenAI は配信の別名のまま。
-        let openai = await cache.model(TimelineModels.role, provider: .openai)
-        XCTAssertEqual(openai.model, "gpt-6.2")
+        // 前の配信の GPT のキー(`timeline`)は読まない。
+        let graphDefault = await cache.model(TimelineModels.graphRole)
+        XCTAssertEqual(graphDefault.model, "claude-opus-5-5")
         // Claude は設定で選んだモデル(既定は Sonnet 5.5)が manifest の `claude:timeline` より優先する。
         let haiku = AssetCache(root: root, timelineClaudeModel: { "claude-haiku-5-5" })
-        let model = await haiku.model(TimelineModels.role, provider: .anthropic)
+        let model = await haiku.model(TimelineModels.role)
         XCTAssertEqual(model.model, "claude-haiku-5-5")
         XCTAssertEqual(model.provider, .anthropic)
         // 知識グラフは設定の対象外。
-        let graph = await haiku.model(TimelineModels.graphRole, provider: .anthropic)
+        let graph = await haiku.model(TimelineModels.graphRole)
         XCTAssertEqual(graph.model, "claude-opus-5-5")
     }
 

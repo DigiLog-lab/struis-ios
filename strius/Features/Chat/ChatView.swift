@@ -326,7 +326,7 @@ struct ChatView: View {
         }
         if bootstrap.user == nil { await bootstrap.refresh() }
         guard !Task.isCancelled else { return }
-        // 会話は台帳と端末の Codex だけで動く。サーバーの bootstrap が通らない(圏外・認証切れ)ときも台帳の会話一覧で開く。
+        // 会話は台帳と Claude への直接の送信だけで動く。サーバーの bootstrap が通らない(圏外・認証切れ)ときも台帳の会話一覧で開く。
         if bootstrap.user == nil { await bootstrap.refreshThreads() }
         // 質問は開くたびに空の新しい会話で始める(前に開いていた会話・いちばん新しい会話は出さない)。
         // 前の会話は消さず、左上の履歴から開ける。

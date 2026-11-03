@@ -5,7 +5,7 @@ import OSLog
 private let prefetchLog = Logger(subsystem: "com.digiloglab.strius", category: "example-prefetch")
 
 /// 先回りで作る例題(待ち時間の体験 §3.1)。段階 1(要点)の説明が出終わって会話が止まっている間に、
-/// 小単元の Codex thread をその時点で分岐し(`thread/fork`)、段階 2 の起動ターンを分岐の上で回しておく。
+/// 小単元の会話をその時点で分岐し(`thread_fork`: 履歴を写す)、段階 2 の起動ターンを分岐の上で回しておく。
 /// 台帳には書かない(学習者には見えない)。「先に進む」の時に分岐の時点から会話が進んでいなければ、
 /// 進める・起動を記録する・例題と解説を書く・会話を分岐先の thread へ付け替える、を 1 つのトランザクションで行う。
 /// 会話が進んでいた・進行が更新されていた時は捨てて、ふつうに起こす(§6 の待ちになる)。
@@ -15,7 +15,7 @@ nonisolated struct ExamplePrefetch: Sendable {
     /// 例題の回(`example_round`)と、起動の記録に使うキー。
     let round: Int
     let kickoffKey: String
-    /// 分岐の元(小単元の会話の Codex thread と、その最後のターン)。
+    /// 分岐の元(小単元の会話のスレッドと、その最後のターン)。
     let baseCodexThreadID: String
     let baseLastTurnID: String
     let kickoffText: String
@@ -180,13 +180,13 @@ extension TurnCoordinator {
                     id: state.userMessageID, threadID: prefetch.threadID, role: "user", status: "completed", plainText: prefetch.kickoffText,
                     blocks: .array([.object(["kind": .string("text"), "payload": .object(["text": .string(prefetch.kickoffText)])])]),
                     metadata: .object([
-                        "handled_as": .string("codex_app_server"), "source": .string("struis_kickoff"), "attachments": .emptyArray,
+                        "handled_as": .string("claude_messages"), "source": .string("struis_kickoff"), "attachments": .emptyArray,
                         "hidden": .bool(true), "prefetched": .bool(true),
                     ])
                 )
                 let (pending, _) = ChatRepository.createMessage(
                     id: state.assistantMessageID, threadID: prefetch.threadID, role: "assistant", status: "pending", plainText: nil,
-                    blocks: .emptyArray, metadata: .object(["handled_as": .string("codex_app_server"), "prefetched": .bool(true)])
+                    blocks: .emptyArray, metadata: .object(["handled_as": .string("claude_messages"), "prefetched": .bool(true)])
                 )
                 let (events, finished) = try ChatTurns.finishEvents(db, state: state, memorySnapshot: memory, assistant: pending, machine: &machine)
                 _ = thread

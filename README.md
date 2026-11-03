@@ -2,13 +2,13 @@
 
 紙に解いた答案を取り込み、質問・例題・演習と学習記録をつなぐiOSアプリです。このリポジトリでは、端末側の画面、学習規則、台帳、通信、Hyotan-v2の実行環境とビルド手順を公開します。
 
-ソースの閲覧、ローカルでのビルド、実サービスの利用にはそれぞれ条件があります。ビルドには下記のツールが必要です。実サービスには配信サーバーの利用設定とAI認証が必要で、公開テンプレートだけでは利用できません。backend・Web・配信プロンプト・スキーマ・Skill本文はこのリポジトリに含みません。
+ソースの閲覧、ローカルでのビルド、実サービスの利用にはそれぞれ条件があります。ビルドには下記のツールが必要です。実サービスには配信サーバーの利用設定と、AIのためのAnthropicのApp Attest(Claude Consoleに登録したclient IDとBundle ID)が必要で、公開テンプレートだけでは利用できません。AIはAnthropicのMessages APIを端末から直接呼びます。backend・Web・配信プロンプト・スキーマ・Skill本文はこのリポジトリに含みません。
 
 | 場所 | 内容 |
 |---|---|
 | `strius/Features/`・`strius/App/` | 画面とアプリ起動 |
 | `strius/Engine/`・`strius/Ledger/` | 学習規則、応答検証、端末台帳 |
-| `strius/Runtime/`・`NativeRuntime/` | Codex、Python、BSD/dashとworker |
+| `strius/Runtime/`・`NativeRuntime/` | Claude(Messages API)への要求、端末のtool、Python、BSD/dashとworker |
 | `strius/Delivery/`・`Networking/`・`Auth/` | 配信、通信、認証 |
 | `striusTests/`・`striusUITests/` | 単体テスト、画面テスト、任意の実AIテスト |
 

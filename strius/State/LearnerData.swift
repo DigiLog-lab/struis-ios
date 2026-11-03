@@ -53,26 +53,18 @@ final class LearnerData {
         #if DEBUG
         useMock = MockTurnRunner.isEnabled || runtime == nil || (SimulatorFixtures.isEnabled && !DeviceRuntime.isForcedInFixtures)
         #endif
-        assets = AssetCache(lenient: useMock)
-        #if DEBUG
-        if useMock {
-            runner = MockTurnRunner()
-        } else {
-            let codex = CodexTurnRunner(runtime: runtime!, assets: assets)
-            // 比較の検証用(`STRUIS_DIRECT_CLAUDE=1`): タイムラインの 1 回で終わるターンだけ Claude に直接送る。
-            // Simulator では `STRUIS_DEVICE_RUNTIME=1`(無いとモック)と `STRUIS_DEVICE_ASSETS_DIR`(`scripts/e2e/standin_assets.py`)も要る。
-            if ProcessInfo.processInfo.environment["STRUIS_DIRECT_CLAUDE"] == "1" {
-                let boot = runtime!.boot
-                runner = DirectClaudeTurnRunner(assets: assets, conversations: ClaudeConversationStore(queue: ledger.queue), fallback: codex) {
-                    await boot.start()
-                    await NativeRuntimeHost.shared.prepareForCommandsOnly()
-                }
-            } else {
-                runner = codex
-            }
+        let cache: AssetCache = AssetCache(lenient: useMock)
+        assets = cache
+        let conversations: ClaudeConversationStore = ClaudeConversationStore(queue: ledger.queue)
+        let claude: (DeviceRuntime) -> ClaudeTurnRunner = { runtime in
+            ClaudeTurnRunner(assets: cache, conversations: conversations) { await runtime.start() }
         }
+        #if DEBUG
+        // Simulator の実 AI の検証では `STRUIS_DEVICE_RUNTIME=1`(無いとモック)と `STRUIS_DEVICE_ASSETS_DIR`(配信の写し、または
+        // `scripts/e2e/standin_assets.py`)も要る。
+        runner = useMock ? MockTurnRunner() : claude(runtime!)
         #else
-        runner = CodexTurnRunner(runtime: runtime!, assets: assets)
+        runner = claude(runtime!)
         #endif
         requiresDelivery = !useMock
         turns = TurnCoordinator(ledger: ledger, assets: assets, runner: runner)

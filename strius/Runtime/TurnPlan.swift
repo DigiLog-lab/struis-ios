@@ -10,7 +10,6 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
         case workbookSet = "workbook_set"
         case workbookUnit = "workbook_unit"
         case threadFork = "thread_fork"
-        case threadInject = "thread_inject"
         case lunaLookup = "luna_lookup"
         /// 学習タイムライン(Issue #46): 次の5枚、採点、知識グラフを作る・見直す。
         case timelineBatch = "timeline_batch"
@@ -53,7 +52,7 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
         var config: LedgerJSON
         /// `thread/fork` source turn.
         var lastTurnID: String?
-        /// 実行先。nil は OpenAI(この項目より前に保存された plan と互換)。
+        /// 実行先(記録のための値。保存済みの plan の nil・以前の値でも Claude として動く)。
         var provider: ModelProvider? = nil
 
         enum CodingKeys: String, CodingKey {
@@ -143,7 +142,7 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
         /// The delegation contract is in the thread's developer instructions (P1-3); the turn text
         /// does not repeat it.
         var contractInDeveloper: Bool?
-        /// 子の実行先。親のスレッドと同じ provider にする。
+        /// 子の実行先(記録のための値)。
         var provider: ModelProvider? = nil
 
         enum CodingKeys: String, CodingKey {
@@ -178,20 +177,18 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
     var delegation: DelegationSpec?
     var collect: [String]
     var limits: Limits
-    /// `thread_inject` payload.
-    var items: LedgerJSON?
     /// The working directory under the workspace root, when it is not this plan's own (P1-1): a chat
-    /// turn runs in its Codex thread's directory (`thread-<codex thread id>`), the same for every turn
+    /// turn runs in its conversation thread's directory (`thread-<thread id>`), the same for every turn
     /// of the conversation. Nil: the plan's own directory (structured turns, one turn per thread).
     var workspaceKey: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, kind, round, thread, turn, workspace, delegation, collect, limits, items
+        case id, kind, round, thread, turn, workspace, delegation, collect, limits
         case workspaceKey = "workspace_key"
     }
 
     init(id: String, kind: Kind, round: Int, thread: ThreadSpec, turn: TurnSpec?, workspace: WorkspaceSpec, delegation: DelegationSpec?,
-         collect: [String], limits: Limits, items: LedgerJSON?, workspaceKey: String? = nil) {
+         collect: [String], limits: Limits, workspaceKey: String? = nil) {
         self.id = id
         self.kind = kind
         self.round = round
@@ -201,11 +198,12 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
         self.delegation = delegation
         self.collect = collect
         self.limits = limits
-        self.items = items
         self.workspaceKey = workspaceKey
     }
 
-    /// The directory a Codex thread's turns share (P1-1). Nil if the id cannot name a directory.
+    /// The directory a conversation thread's turns share (P1-1). Nil if the id cannot name a directory.
+    /// The `codex_thread_id` names (here and in the Ledger) are kept for compatibility; the ID is the
+    /// Claude conversation's (`ClaudeConversationStore`).
     nonisolated static func threadWorkspaceKey(codexThreadID: String) -> String? {
         let key = "thread-" + codexThreadID
         return isSafeWorkspaceID(key) ? key : nil
@@ -301,10 +299,9 @@ nonisolated struct TurnOutcome: Codable, Hashable, Sendable {
     var json: LedgerJSON { LedgerEvent.encode(self) }
 }
 
-/// Progress labels shown in the pending bubble (`codex.turn.status` equivalent).
 /// One thing that really happened while a turn ran (reliability plan P2, waiting rule W11).
 /// `label` stays the short learner-facing status; `kind` says what produced it so each waiting
-/// screen can choose how to show it. Producers: `CodexTurnRunner` (lane B fills in the kinds);
+/// screen can choose how to show it. Producer: `ClaudeTurnRunner`;
 /// consumers: `TurnCoordinator` and the waiting views. Never invent progress that did not happen.
 nonisolated struct TurnProgressEvent: Sendable, Hashable {
     nonisolated enum Kind: Sendable, Hashable {
@@ -338,21 +335,17 @@ nonisolated struct TurnProgressEvent: Sendable, Hashable {
         self.label = label
         self.progressID = progressID
         self.allowDuplicate = allowDuplicate
-        self.items = items
     }
 }
 
-/// Executes plans. The production runner drives the on-device app-server; the
-/// mock runner (DEBUG) answers deterministically so the UI can be exercised
-/// without a ChatGPT login.
+/// Executes plans. The production runner (`ClaudeTurnRunner`) sends them to Claude's Messages API;
+/// the mock runner (DEBUG) answers deterministically so the UI can be exercised without the API.
 protocol TurnRunning: Sendable {
     func run(_ plan: TurnPlan, progress: @escaping @Sendable (TurnProgressEvent) -> Void) async throws -> TurnOutcome
     func interrupt(planID: String) async
-    /// ゲストと app-server を先に起こしておく(待ち時間の体験 §3.3: 学習者が答えている間に起動を進める)。
+    /// コマンド worker を先に起こしておく(待ち時間の体験 §3.3: 学習者が答えている間に起動を進める)。
     func warmUp() async
     func forgetThreads(_ ids: Set<String>) async throws
-    /// 時間切れのターンを置いて先へ進んだ後、接続を作り直させる(返らない接続を次のターンが使わない)。
-    func resetConnection() async
     /// この会話の続きを、その履歴から送れるか(false なら新しいスレッドで始まる)。
     func resumes(threadID: String?) async -> Bool
 }
@@ -361,5 +354,4 @@ extension TurnRunning {
     func resumes(threadID: String?) async -> Bool { threadID != nil }
     func warmUp() async {}
     func forgetThreads(_ ids: Set<String>) async throws {}
-    func resetConnection() async {}
 }

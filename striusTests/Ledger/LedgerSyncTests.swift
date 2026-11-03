@@ -479,9 +479,11 @@ final class LedgerSyncTests: XCTestCase {
         XCTAssertEqual(accounts, 0)
     }
 
-    // MARK: - 7. 別の端末で作られた会話に続けて送ると、rollout の欠落から回復する
+    // MARK: - 7. 別の端末で作られた会話に続けて送ると、台帳の履歴から続ける
 
-    @MainActor func testContinuingAConversationFromAnotherDeviceRecoversTheMissingRollout() async throws {
+    /// 会話の履歴(`ClaudeConversationStore`)は端末の外に出ない。別の端末で始めた会話の続きは新しいスレッドで始まり、
+    /// 台帳から作った `struis_context/recent_thread_history.md` を置いて、それを読むようにモデルに伝える。
+    @MainActor func testContinuingAConversationFromAnotherDeviceContinuesFromTheLedgerHistory() async throws {
         let cloud = FakeCloud()
         let a = try device(cloud), b = try device(cloud)
         let (thread, threadEvent) = ChatRepository.createThread(title: "iPhone で始めた会話")
@@ -489,17 +491,42 @@ final class LedgerSyncTests: XCTestCase {
                                                          blocks: .emptyArray, metadata: .object([:]))
         let (_, answer) = ChatRepository.createMessage(threadID: thread.id, role: "assistant", status: "completed", plainText: "平方完成で求めます",
                                                        blocks: .emptyArray, metadata: .object([:]))
-        let mapping = CodexThreadRecord(threadId: thread.id, codexThreadId: "codex-thread-on-iphone", lastTurnId: "turn-1",
+        let mapping = CodexThreadRecord(threadId: thread.id, codexThreadId: "thread-on-iphone", lastTurnId: "turn-1",
                                         lastCompletedAt: LedgerClock.now(), createdAt: LedgerClock.now())
         try await a.ledger.append([threadEvent, question, answer, .upsert("codex_thread.mapped", mapping)])
         try await a.engine.sync()
         try await b.engine.sync()
 
-        let server = FakeAppServer { _, method, _ in method == "thread/resume" ? .missingRollout : .default }
-        let session = CodexAppServerSession(clientVersion: "sync-test", launcher: server.launcher, abandonGrace: .milliseconds(300))
-        let runner = CodexTurnRunner(session: session, assets: AssetCache(root: FileManager.default.temporaryDirectory.appendingPathComponent("sync-\(UUID().uuidString)"), lenient: true),
-                                     timeouts: CodexTurnRunner.Timeouts(configure: .milliseconds(400), inject: .milliseconds(400), turnStart: .seconds(2),
-                                                                         interrupt: .milliseconds(400), rateLimits: .milliseconds(400), minimumTurnS: 5))
+        let configuration: URLSessionConfiguration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubAnthropic.self]
+        let recorder: RequestRecorder = RequestRecorder()
+        let reply: String = [
+            #"{"type":"message_start","message":{"id":"msg_sync","model":"claude-opus-5-5","usage":{"input_tokens":10,"output_tokens":1}}}"#,
+            #"{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            #"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"頂点は平方完成で求めます。"}}"#,
+            #"{"type":"content_block_stop","index":0}"#,
+            #"{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":4}}"#,
+            #"{"type":"message_stop"}"#,
+        ].map { "event: x\ndata: \($0)\n\n" }.joined()
+        StubAnthropic.handler = { request in
+            var body: [String: Any] = (try? JSONSerialization.jsonObject(with: StubAnthropic.body(of: request))) as? [String: Any] ?? [:]
+            // 要求を送っている間(作業フォルダを置いた後)に、台帳から作った履歴がモデルの読める場所にあるか。
+            let threads: [URL] = (try? FileManager.default.contentsOfDirectory(at: HyotanBoot.workspaceRoot, includingPropertiesForKeys: nil)) ?? []
+            body["_history_staged"] = threads.contains { directory in
+                let history: String? = try? String(contentsOf: directory.appendingPathComponent("struis_context/recent_thread_history.md"), encoding: .utf8)
+                return history?.hasPrefix("# Struis Recent Thread History") == true && history?.contains("平方完成で求めます") == true
+            }
+            _ = recorder.add(body)
+            return (200, reply)
+        }
+        defer { StubAnthropic.handler = nil }
+        let conversations: ClaudeConversationStore = try ClaudeConversationStore.temporary()
+        let upstream: ClaudeUpstream = ClaudeUpstream(baseURL: URL(string: "https://stub.invalid")!, apiKey: { "sk-test" },
+                                                      session: URLSession(configuration: configuration), gate: OpenUsageGate())
+        let runner: ClaudeTurnRunner = ClaudeTurnRunner(
+            assets: AssetCache(root: FileManager.default.temporaryDirectory.appendingPathComponent("sync-\(UUID().uuidString)"), lenient: true),
+            conversations: conversations, upstream: upstream, contextStore: ThreadContextStore(url: nil), prepareCommands: {}
+        )
         let turns = TurnCoordinator(ledger: b.ledger, assets: AssetCache(lenient: true), runner: runner)
         _ = try await turns.sendChat(TurnCoordinator.ChatSend(threadID: thread.id, text: "続きを教えて", attachments: [], workbookView: nil))
         for _ in 0..<400 {
@@ -507,15 +534,15 @@ final class LedgerSyncTests: XCTestCase {
             if last?.status != "pending" { break }
             try await Task.sleep(for: .milliseconds(25))
         }
-        let resumed = server.params("thread/resume")
-        XCTAssertEqual(resumed.first?["threadId"] as? String, "codex-thread-on-iphone", "iPhone の Codex スレッドを続けようとする")
-        let started = server.params("thread/start")
-        XCTAssertEqual(started.count, 1, "rollout が無いので新しいスレッドで続ける")
-        XCTAssertNil(started.first?["threadId"])
-        XCTAssertTrue((started.first?["developerInstructions"] as? String)?.contains("recent_thread_history.md") == true)
-        let reply = try await b.ledger.read { db in try ChatRepository.messages(db, threadID: thread.id) }.last
-        XCTAssertNotEqual(reply?.status, "pending")
-        await session.close()
+        let first: [String: Any] = try XCTUnwrap(recorder.bodies.first, "Claude に送っていない")
+        let system: String = (first["system"] as? [[String: Any]])?.first?["text"] as? String ?? ""
+        XCTAssertTrue(system.contains(ClaudeTurn.missingHistoryNote), "前の履歴が無いことと、履歴のファイルを読むことを伝える")
+        XCTAssertEqual(first["_history_staged"] as? Bool, true, "台帳の会話を recent_thread_history.md に置く")
+        let resumesOld: Bool = await runner.resumes(threadID: "thread-on-iphone")
+        XCTAssertFalse(resumesOld, "iPhone のスレッドの履歴はこの端末に無い")
+        XCTAssertEqual(try conversations.messages("thread-on-iphone").count, 0)
+        let last = try await b.ledger.read { db in try ChatRepository.messages(db, threadID: thread.id) }.last
+        XCTAssertNotEqual(last?.status, "pending")
     }
 }
 

@@ -82,7 +82,7 @@ struct striusApp: App {
                 .preferredColorScheme(themePreference.colorScheme)
                 .progressViewStyle(StruisProgressViewStyle())
                 .task {
-                    // Prepare native runtime data and start the extension's app-server in the background;
+                    // Prepare native runtime data and register the command helper in the background;
                     // the ledger-backed screens do not wait for it (design §6.5).
                     guard let deviceRuntime, !SimulatorFixtures.isEnabled || DeviceRuntime.isForcedInFixtures else { return }
                     await deviceRuntime.start()

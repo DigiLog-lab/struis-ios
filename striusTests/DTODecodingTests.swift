@@ -155,63 +155,6 @@ struct DTODecodingTests {
         _ = try decoder.decode(EmptyResponse.self, from: json)
     }
 
-    @Test func decodeCodexAccount() throws {
-        let json = """
-        {
-          "id": "codex-account-1",
-          "status": "connected",
-          "auth_mode": "chatgpt",
-          "plan_type": "pro",
-          "account_email": "codex@example.com",
-          "rate_limit_resets_at": "2026-04-17T12:00:00Z",
-          "last_synced_at": "2026-04-17T10:00:00Z",
-          "error": null,
-          "loginId": null,
-          "verificationUrl": null,
-          "userCode": null
-        }
-        """.data(using: .utf8)!
-
-        let account = try decoder.decode(CodexAccount.self, from: json)
-        #expect(account.status == .connected)
-        #expect(account.authMode == "chatgpt")
-        #expect(account.planType == "pro")
-        #expect(account.accountEmail == "codex@example.com")
-        #expect(account.isConnected)
-    }
-
-    @Test func decodeCodexPromptVersions() throws {
-        let json = """
-        {
-          "base": {
-            "family": "education-base-e017e93a-v1",
-            "sha256": "0123456789abcdef",
-            "version": "education-base-e017e93a-v1+sha256:0123456789ab",
-            "updated_at": "2026-09-01"
-          },
-          "developer_instructions": {
-            "family": "education-developer-v1",
-            "sha256": "abcdef0123456789",
-            "version": "education-developer-v1+sha256:abcdef012345",
-            "updated_at": "2026-09-01"
-          },
-          "agents": {
-            "family": "struis-app-server-agents",
-            "sha256": "fedcba9876543210",
-            "version": "struis-app-server-agents+sha256:fedcba987654",
-            "updated_at": "2026-07-20"
-          }
-        }
-        """.data(using: .utf8)!
-
-        let versions = try decoder.decode(CodexPromptVersions.self, from: json)
-        #expect(versions.base.family == "education-base-e017e93a-v1")
-        #expect(versions.base.updatedAt == "2026-09-01")
-        #expect(versions.developerInstructions.version.contains("abcdef012345"))
-        #expect(versions.agents.version.contains("fedcba987654"))
-        #expect(versions.agents.updatedAt == "2026-07-20")
-    }
-
     @Test func decodeTextAttemptView() throws {
         let json = #"""
         {

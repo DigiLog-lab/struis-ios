@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 /// Claude の料金表(USD / 100 万トークン)。料金は要求ごとに、応答で実際に使われたモデルで計算する。
@@ -95,15 +94,11 @@ nonisolated enum ClaudeRequestReason: String, Sendable {
     case schemaRetry = "schema_retry"
     /// cache diagnostics の指定を外して送り直した。
     case diagnosticsRetry = "diagnostics_retry"
-    /// Codex が同じ入力をもう一度送った(通信・ストリームの再試行)。
-    case codexRetry = "codex_retry"
-    /// Codex の自動要約(compaction)。
-    case compaction
+    /// 同じ入力をもう一度送った(通信・ストリームの再試行)。
+    case retry
 }
 
-/// Claude への要求 1 回ごとの記録。端末内のプロキシが書き、ターンの終わりに `CodexTurnRunner` が実行監査に移す。
-///
-/// Codex は Responses の要求の `client_metadata` に `thread_id`・`turn_id` を入れて送るので、それで束ねる。
+/// Claude への要求 1 回ごとの記録。`ClaudeTurn` が要求ごとに書き、ターンの終わりに実行監査に移す(スレッドとターンで束ねる)。
 nonisolated final class ClaudeRequestLog: @unchecked Sendable {
     static let shared = ClaudeRequestLog()
 
@@ -115,29 +110,9 @@ nonisolated final class ClaudeRequestLog: @unchecked Sendable {
     private let lock = NSLock()
     private var records: [Key: [AnySendable]] = [:]
     private var order: [Key] = []
-    /// 同じターンの直前の要求の入力(Codex の再試行を見分ける)。
-    private var lastInput: [Key: String] = [:]
     /// スレッドごとの直前の応答 ID(cache diagnostics の `previous_message_id`)。
     private var lastResponse: [String: String] = [:]
     static let keptTurns = 200
-
-    /// Codex の要求から、記録の束ね先と、この要求を送った理由を決める。
-    func classify(request: [String: Any]) -> (key: Key?, reason: ClaudeRequestReason) {
-        let metadata = request["client_metadata"] as? [String: Any] ?? [:]
-        let thread = metadata["thread_id"] as? String
-        let turn = metadata["turn_id"] as? String
-        if metadata["request_kind"] as? String == "compaction" {
-            return (thread.map { Key(threadID: $0, turnID: turn ?? "") }, .compaction)
-        }
-        guard let thread else { return (nil, .turnStart) }
-        let key = Key(threadID: thread, turnID: turn ?? "")
-        let fingerprint = Self.fingerprint(request["input"])
-        return lock.withLock {
-            defer { lastInput[key] = fingerprint }
-            guard let previous = lastInput[key] else { return (key, .turnStart) }
-            return (key, previous == fingerprint ? .codexRetry : .continuation)
-        }
-    }
 
     func append(_ record: [String: Any], key: Key?) {
         guard let key else { return }
@@ -147,7 +122,6 @@ nonisolated final class ClaudeRequestLog: @unchecked Sendable {
                 if order.count > Self.keptTurns {
                     let dropped = order.removeFirst()
                     records[dropped] = nil
-                    lastInput[dropped] = nil
                 }
             }
             records[key, default: []].append(AnySendable(record))
@@ -160,7 +134,6 @@ nonisolated final class ClaudeRequestLog: @unchecked Sendable {
         return lock.withLock {
             let taken = records.removeValue(forKey: key) ?? []
             order.removeAll { $0 == key }
-            lastInput[key] = nil
             return taken.compactMap { $0.value as? [String: Any] }
         }
     }
@@ -169,12 +142,6 @@ nonisolated final class ClaudeRequestLog: @unchecked Sendable {
 
     func setPreviousResponseID(_ id: String?, threadID: String) {
         lock.withLock { lastResponse[threadID] = id }
-    }
-
-    static func fingerprint(_ input: Any?) -> String {
-        guard let input, JSONSerialization.isValidJSONObject(["i": input]),
-              let data = try? JSONSerialization.data(withJSONObject: ["i": input], options: [.sortedKeys]) else { return "" }
-        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
     /// 実行監査の要求ごとの記録から、ターンの料金を足す。料金を出せない要求(料金表に無いモデル・使用量の無い失敗)が

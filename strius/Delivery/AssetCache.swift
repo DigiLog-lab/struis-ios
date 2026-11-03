@@ -12,7 +12,7 @@ nonisolated struct DeliveryManifest: Codable, Hashable, Sendable {
     nonisolated struct Model: Codable, Hashable, Sendable {
         var model: String
         var effort: String
-        /// 実行先。nil は OpenAI(従来の配信と互換)。
+        /// 実行先。Claude だけ(前の配信の nil や `"openai"` も Claude として読む。`ModelProvider.init(from:)`)。
         var provider: ModelProvider? = nil
     }
 
@@ -100,32 +100,23 @@ actor AssetCache {
         return hasAllRequiredAssets(manifest)
     }
 
-    /// 役割(`astra` / `luna` / `timeline` / `timeline_graph`)のモデル。`provider` を省くと設定画面で選んだ実行先を使う。
-    func model(_ role: String, provider: ModelProvider = ModelProviderPreference.current) -> DeliveryManifest.Model {
-        if let fallback = TimelineModels.fallback(role: role, provider: provider) {
+    /// 役割(`astra` / `luna` / `timeline` / `timeline_graph`)の Claude のモデル。配信 manifest の `claude:<役割>` があればそれ、
+    /// 無ければ同梱の既定(`ClaudeModels`・`TimelineModels`)。
+    func model(_ role: String) -> DeliveryManifest.Model {
+        let provider: ModelProvider = .anthropic
+        if let fallback: DeliveryManifest.Model = TimelineModels.fallback(role: role) {
             // タイムラインは別名で指す(配信の manifest に別名があればそれ、無ければ同梱の既定)。
-            var model = manifest?.models[provider.manifestKey(role: role)] ?? fallback
-            model.provider = provider == .anthropic ? .anthropic : nil
-            // 出題・採点・見直しの Claude は、設定で選んだモデルを manifest より優先する(考える深さは `TimelineTurns.tutorEffort`)。
-            if role == TimelineModels.role, provider == .anthropic { model.model = timelineClaudeModel() }
+            var model: DeliveryManifest.Model = manifest?.models[provider.manifestKey(role: role)] ?? fallback
+            model.provider = provider
+            // 出題・採点・見直しは、設定で選んだモデルを manifest より優先する(考える深さは `TimelineTurns.tutorEffort`)。
+            if role == TimelineModels.role { model.model = timelineClaudeModel() }
             return model
         }
-        switch provider {
-        case .openai:
-            if var model = manifest?.models[role] {
-                model.provider = nil
-                return model
-            }
-            return role == "luna"
-                ? DeliveryManifest.Model(model: CodexModels.lunaModel, effort: CodexModels.lunaEffort)
-                : DeliveryManifest.Model(model: CodexModels.astraModel, effort: CodexModels.astraEffort)
-        case .anthropic:
-            var model = manifest?.models[provider.manifestKey(role: role)] ?? (role == "luna"
-                ? DeliveryManifest.Model(model: ClaudeModels.lunaModel, effort: ClaudeModels.lunaEffort)
-                : DeliveryManifest.Model(model: ClaudeModels.astraModel, effort: ClaudeModels.astraEffort))
-            model.provider = .anthropic
-            return model
-        }
+        var model: DeliveryManifest.Model = manifest?.models[provider.manifestKey(role: role)] ?? (role == "luna"
+            ? DeliveryManifest.Model(model: ClaudeModels.lunaModel, effort: ClaudeModels.lunaEffort)
+            : DeliveryManifest.Model(model: ClaudeModels.astraModel, effort: ClaudeModels.astraEffort))
+        model.provider = provider
+        return model
     }
 
     /// Reference for a plan: the current sha256 of a named asset. 配信に無い名前は同梱版を使う(sha256 は同梱ファイルから計算)。
@@ -269,20 +260,16 @@ nonisolated struct BundledAssets: Sendable {
 }
 
 /// タイムラインのモデルの別名(Issue #46)。配信の manifest に別名(`timeline` / `claude:timeline` など)があればそちら。
-/// 実行先が OpenAI の時は astra の別名ではなく GPT-6.1 Sol を使う(2026-10-23 の指示)。
 nonisolated enum TimelineModels {
     /// 次の5枚と採点。
     static let role = "timeline"
     /// 知識グラフを作る・見直す上位モデル。
     static let graphRole = "timeline_graph"
-    static let openAIModel = "gpt-6.1-sol"
 
-    static func fallback(role: String, provider: ModelProvider) -> DeliveryManifest.Model? {
-        switch (role, provider) {
-        case (Self.role, .anthropic): DeliveryManifest.Model(model: "claude-sonnet-5-5", effort: "low")
-        case (Self.graphRole, .anthropic): DeliveryManifest.Model(model: "claude-opus-5-5", effort: "medium")
-        case (Self.role, .openai): DeliveryManifest.Model(model: openAIModel, effort: "low")
-        case (Self.graphRole, .openai): DeliveryManifest.Model(model: openAIModel, effort: "medium")
+    static func fallback(role: String) -> DeliveryManifest.Model? {
+        switch role {
+        case Self.role: DeliveryManifest.Model(model: "claude-sonnet-5-5", effort: "low")
+        case Self.graphRole: DeliveryManifest.Model(model: "claude-opus-5-5", effort: "medium")
         default: nil
         }
     }
@@ -358,10 +345,8 @@ nonisolated struct LocalDirectoryAssetSource: AssetSource {
         }
         return DeliveryManifest(
             codexVersion: "0.153.4", rootfsMinVersion: 1,
-            models: [
-                "astra": DeliveryManifest.Model(model: CodexModels.astraModel, effort: CodexModels.astraEffort),
-                "luna": DeliveryManifest.Model(model: CodexModels.lunaModel, effort: CodexModels.lunaEffort),
-            ],
+            // モデルは渡さない(`AssetCache.model` が Claude の既定を使う)。
+            models: [:],
             assets: assets, fetchedAt: nil
         )
     }

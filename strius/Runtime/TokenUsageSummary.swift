@@ -1,0 +1,141 @@
+import Foundation
+
+/// 設定の「トークン使用量」: 台帳のターンの実行監査を、モデルごとに足し合わせる。
+nonisolated struct TokenUsageSummary: Equatable, Sendable {
+    nonisolated struct Model: Equatable, Sendable, Identifiable {
+        var model: String
+        var executions = 0
+        var inputTokens = 0
+        var cachedInputTokens = 0
+        var cacheWriteInputTokens = 0
+        var outputTokens = 0
+        /// 要求ごとの記録がある実行の、キャッシュ書き込みの TTL ごとの内訳。
+        var cacheWrite5mTokens = 0
+        var cacheWrite1hTokens = 0
+        /// Claude への要求の数と、そのうち最初の要求以外(検証修正・処理継続・再試行など)の数。
+        var requests = 0
+        var extraRequests = 0
+        var estimatedCostUSD: Double?
+        /// 料金を出せなかった実行・要求がある(合計は少なめに出ている)。
+        var costIncomplete = false
+        var id: String { model }
+    }
+
+    var models: [Model]
+    var estimatedCostUSD: Double? { models.compactMap(\.estimatedCostUSD).isEmpty ? nil : models.compactMap(\.estimatedCostUSD).reduce(0, +) }
+
+    static func summarize(_ turns: [LedgerJSON]) -> TokenUsageSummary {
+        var byModel: [String: Model] = [:]
+        for executions in turns {
+            // 同じ実行は進行中・完了の順に記録される。実行ごとに最後の記録だけを数える。
+            var latest: [String: LedgerJSON] = [:]
+            var order: [String] = []
+            for (index, execution) in (executions.arrayValue ?? []).enumerated() {
+                let id = execution["execution_id"]?.stringValue ?? "#\(index)"
+                if latest[id] == nil { order.append(id) }
+                latest[id] = execution
+            }
+            for execution in order.compactMap({ latest[$0] }) {
+                if let requests = execution["requests"]?.arrayValue, !requests.isEmpty {
+                    // 要求ごとの記録: 応答で実際に使われたモデルごとに、要求の料金を足す。
+                    for request in requests {
+                        let name = request["actual_model"]?.stringValue ?? request["requested_model"]?.stringValue ?? "unknown"
+                        var model = byModel[name] ?? Model(model: name)
+                        model.requests += 1
+                        if let reason = request["reason"]?.stringValue, reason != ClaudeRequestReason.turnStart.rawValue { model.extraRequests += 1 }
+                        if let tokens = request["tokens"]?.objectValue {
+                            let read = tokens["cache_read"]?.intValue ?? 0
+                            let write5m = tokens["cache_write_5m"]?.intValue ?? 0
+                            let write1h = tokens["cache_write_1h"]?.intValue ?? 0
+                            model.inputTokens += (tokens["input"]?.intValue ?? 0) + read + write5m + write1h
+                            model.cachedInputTokens += read
+                            model.cacheWriteInputTokens += write5m + write1h
+                            model.cacheWrite5mTokens += write5m
+                            model.cacheWrite1hTokens += write1h
+                            model.outputTokens += tokens["output"]?.intValue ?? 0
+                        }
+                        if case .number(let cost)? = request["estimated_cost_usd"] {
+                            model.estimatedCostUSD = (model.estimatedCostUSD ?? 0) + cost
+                        } else if request["cost_status"]?.stringValue != "not_billed" {
+                            model.costIncomplete = true
+                        }
+                        byModel[name] = model
+                    }
+                    let name = execution["actual_model"]?.stringValue ?? execution["requested_model"]?.stringValue ?? "unknown"
+                    byModel[name, default: Model(model: name)].executions += 1
+                    continue
+                }
+                guard let tokens = execution["turn_tokens"]?.objectValue else { continue }
+                let name = execution["actual_model"]?.stringValue ?? execution["requested_model"]?.stringValue ?? "unknown"
+                var model = byModel[name] ?? Model(model: name)
+                model.executions += 1
+                model.inputTokens += tokens["input_tokens"]?.intValue ?? 0
+                model.cachedInputTokens += tokens["cached_input_tokens"]?.intValue ?? 0
+                model.cacheWriteInputTokens += tokens["cache_write_input_tokens"]?.intValue ?? 0
+                model.outputTokens += tokens["output_tokens"]?.intValue ?? 0
+                if case .number(let cost)? = execution["estimated_cost_usd"] { model.estimatedCostUSD = (model.estimatedCostUSD ?? 0) + cost }
+                byModel[name] = model
+            }
+        }
+        return TokenUsageSummary(models: byModel.values.sorted { $0.inputTokens + $0.outputTokens > $1.inputTokens + $1.outputTokens })
+    }
+}
+
+/// 設定の「タイムラインの 1 問あたり」: 出題・採点・見直し・赤ペンの Claude の料金を、応答で実際に使われたモデルごとに足し、
+/// そのモデルで採点した答案の数で割る(設定でタイムラインのモデルを切り替えた時に、Sonnet と Haiku を比べるため)。
+nonisolated struct TimelineCostSummary: Equatable, Sendable {
+    nonisolated struct Model: Equatable, Sendable, Identifiable {
+        var model: String
+        /// このモデルで採点し終えた答案の数。
+        var answers = 0
+        var estimatedCostUSD: Double = 0
+        /// 料金を出せなかった要求がある(合計は少なめに出ている)。
+        var costIncomplete = false
+        var id: String { model }
+        var perAnswerUSD: Double? { answers > 0 ? estimatedCostUSD / Double(answers) : nil }
+    }
+
+    nonisolated struct Turn: Sendable {
+        var kind: String
+        var targetID: String?
+        var status: String
+        var executions: LedgerJSON
+    }
+
+    var models: [Model]
+
+    static func summarize(_ turns: [Turn]) -> TimelineCostSummary {
+        var byModel: [String: Model] = [:]
+        var answered: [String: Set<String>] = [:]
+        for turn in turns where ClaudeTranslation.tutorKinds.contains(turn.kind) {
+            // 同じ実行は進行中・完了の順に記録される。実行ごとに最後の記録だけを数える。
+            var latest: [String: LedgerJSON] = [:]
+            var order: [String] = []
+            for (index, execution) in (turn.executions.arrayValue ?? []).enumerated() {
+                let id = execution["execution_id"]?.stringValue ?? "#\(index)"
+                if latest[id] == nil { order.append(id) }
+                latest[id] = execution
+            }
+            var turnModel: String?
+            for execution in order.compactMap({ latest[$0] }) {
+                for request in execution["requests"]?.arrayValue ?? [] {
+                    let name = request["actual_model"]?.stringValue ?? request["requested_model"]?.stringValue ?? "unknown"
+                    var model = byModel[name] ?? Model(model: name)
+                    if case .number(let cost)? = request["estimated_cost_usd"] {
+                        model.estimatedCostUSD += cost
+                    } else if request["cost_status"]?.stringValue != "not_billed" {
+                        model.costIncomplete = true
+                    }
+                    byModel[name] = model
+                }
+                if let name = execution["actual_model"]?.stringValue ?? execution["requested_model"]?.stringValue { turnModel = name }
+            }
+            if turn.kind == TurnPlan.Kind.timelineGrading.rawValue, turn.status == "completed", let target = turn.targetID, let name = turnModel {
+                answered[name, default: []].insert(target)
+                if byModel[name] == nil { byModel[name] = Model(model: name) }
+            }
+        }
+        for (name, targets) in answered { byModel[name]?.answers = targets.count }
+        return TimelineCostSummary(models: byModel.values.sorted { $0.model < $1.model })
+    }
+}

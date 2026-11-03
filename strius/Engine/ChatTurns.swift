@@ -272,7 +272,7 @@ nonisolated enum ChatTurns {
                 // tutor_desk を写した後に添付の文書を置く(先に置くと tutor_desk の写しで消える)。
                 copies: [TurnPlan.CopySpec(hostPath: desk.path, path: "tutor_desk")] + documentCopies
             ),
-            delegation: delegation, collect: ["tutor_desk/queue/memory/*.yaml"], limits: .chat, items: nil,
+            delegation: delegation, collect: ["tutor_desk/queue/memory/*.yaml"], limits: .chat,
             workspaceKey: workspaceKey
         )
     }
@@ -618,7 +618,7 @@ nonisolated enum ChatTurns {
             guard latest == state.progressBefore.revision else { throw LedgerError.conflict("学習の進行が更新されています。もう一度送信してください。") }
             var events: [LedgerEvent] = []
             var metadata: [String: LedgerJSON] = [
-                "handled_as": .string("codex_app_server"), "codex_turn_id": state.codexTurnID.map(LedgerJSON.string) ?? .null,
+                "handled_as": .string("claude_messages"), "codex_turn_id": state.codexTurnID.map(LedgerJSON.string) ?? .null,
                 // 実行監査に残った実行先(Claude は API キー)。古い記録は ChatGPT。
                 "billing_source": .string(state.executions.lazy.compactMap { $0["billing_source"]?.stringValue }.first ?? "byo_chatgpt"),
                 "learning_progress_available": .bool(true), "learning_progress": trace,

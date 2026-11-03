@@ -2,14 +2,10 @@ import GRDB
 import XCTest
 @testable import strius
 
-/// 信頼性計画 P1・P4(3〜6)のランタイム: 会話ごとの cwd、読み込み済みスレッドへの resume の省略、
-/// 期限の時計と記録、接続が切れた後の入り直し、利用枠の読み取りの切り離し、終わったスレッドの unsubscribe。
+/// 信頼性計画 P1・P4 のランタイムのうち、ランナーに依らない部分: 期限の時計(バックグラウンドの時間を数えない)、
+/// バックグラウンド実行の数え方、会話の作業フォルダの後始末、進行の記録の JSON の修復と差し戻し。
+/// 期限で止めた記録と次のターンへの注記は `ClaudeTurnRunnerTests` が確かめる。
 final class LaneRuntimeTests: XCTestCase {
-    private static let timeouts = CodexTurnRunner.Timeouts(
-        configure: .milliseconds(600), inject: .milliseconds(600), turnStart: .seconds(2),
-        interrupt: .milliseconds(400), rateLimits: .milliseconds(300), minimumTurnS: 5
-    )
-
     private static func assets() -> AssetCache {
         AssetCache(root: FileManager.default.temporaryDirectory.appendingPathComponent("lane-a-\(UUID().uuidString)"), lenient: true)
     }
@@ -26,106 +22,12 @@ final class LaneRuntimeTests: XCTestCase {
             ),
             turn: TurnPlan.TurnSpec(text: "質問", images: [], outputSchema: nil, sandboxPolicy: "dangerFullAccess"),
             workspace: TurnPlan.WorkspaceSpec(files: [TurnPlan.FileSpec(path: "AGENTS.md", inline: "rules")], dirs: []), delegation: nil, collect: [],
-            limits: TurnPlan.Limits(collectMaxFiles: 0, collectMaxBytes: 0, turnTimeoutS: limit), items: nil,
+            limits: TurnPlan.Limits(collectMaxFiles: 0, collectMaxBytes: 0, turnTimeoutS: limit),
             workspaceKey: threadID.flatMap { TurnPlan.threadWorkspaceKey(codexThreadID: $0) }
         )
     }
 
-    private static func structuredPlan() -> TurnPlan {
-        var plan = chatPlan(threadID: nil)
-        plan.kind = .workbookSet
-        plan.workspaceKey = nil
-        return plan
-    }
-
-    // MARK: - P1-1 / P1-2
-
-    /// The turns of one conversation share one cwd, and a thread loaded on this connection is not
-    /// resumed again (its instructions are not re-sent). The developer message enters once.
-    @MainActor func testConversationKeepsOneCwdAndResumesOnlyOncePerConnection() async throws {
-        let server = FakeAppServer { _, _, _ in .default }
-        let session = CodexAppServerSession(clientVersion: "test", launcher: server.launcher, abandonGrace: .milliseconds(300))
-        let store = ThreadContextStore(url: nil)
-        let runner = CodexTurnRunner(session: session, assets: Self.assets(), timeouts: Self.timeouts, contextStore: store)
-
-        let first = try await runner.run(Self.chatPlan(threadID: nil)) { _ in }
-        XCTAssertEqual(first.status, .completed, first.error ?? "")
-        let thread = try XCTUnwrap(first.codexThreadID)
-        for _ in 0..<3 {
-            let next = try await runner.run(Self.chatPlan(threadID: thread)) { _ in }
-            XCTAssertEqual(next.status, .completed, next.error ?? "")
-        }
-        XCTAssertEqual(server.count("thread/start"), 1)
-        XCTAssertEqual(server.count("thread/resume"), 0, "loaded on this connection: no resume")
-        XCTAssertEqual(server.count("thread/inject_items"), 0, "the thread already holds this developer message")
-        let cwds = Set(server.params("turn/start").compactMap { $0["cwd"] as? String })
-        XCTAssertEqual(cwds.count, 1, "one cwd for the whole conversation: \(cwds)")
-        XCTAssertTrue(cwds.first?.hasSuffix("/thread-\(thread)") == true)
-
-        // After a reconnect the thread is resumed once again (to subscribe), still without re-sending the developer message.
-        await session.restart()
-        let afterReconnect = try await runner.run(Self.chatPlan(threadID: thread)) { _ in }
-        XCTAssertEqual(afterReconnect.status, .completed, afterReconnect.error ?? "")
-        let again = try await runner.run(Self.chatPlan(threadID: thread)) { _ in }
-        XCTAssertEqual(again.status, .completed, again.error ?? "")
-        XCTAssertEqual(server.count("thread/resume"), 1)
-        // The thread is resumed in the (trusted) workspace root; its turns keep their own directory.
-        XCTAssertEqual(server.params("thread/resume").first?["cwd"] as? String, HyotanBoot.workspaceRoot.path)
-        XCTAssertEqual(Set(server.params("turn/start").compactMap { $0["cwd"] as? String }), cwds)
-        XCTAssertEqual(server.count("thread/inject_items"), 0)
-        await session.close()
-    }
-
-    /// A thread whose developer message is unknown (made before this version) or outdated gets the
-    /// current one once, not on every turn.
-    @MainActor func testOutdatedDeveloperMessageIsInjectedOnce() async throws {
-        let server = FakeAppServer { _, _, _ in .default }
-        let session = CodexAppServerSession(clientVersion: "test", launcher: server.launcher, abandonGrace: .milliseconds(300))
-        let store = ThreadContextStore(url: nil)
-        let runner = CodexTurnRunner(session: session, assets: Self.assets(), timeouts: Self.timeouts, contextStore: store)
-        for _ in 0..<3 {
-            let outcome = try await runner.run(Self.chatPlan(threadID: "thr-old")) { _ in }
-            XCTAssertEqual(outcome.status, .completed, outcome.error ?? "")
-        }
-        XCTAssertEqual(server.count("thread/resume"), 1)
-        XCTAssertEqual(server.count("thread/inject_items"), 1)
-        await session.close()
-    }
-
     // MARK: - P4-3
-
-    /// The deadline ends the turn, records that Struis (not the learner) stopped it, and tells the
-    /// model on the next turn of the thread.
-    @MainActor func testDeadlineIsRecordedAsStruisStopAndToldToTheModel() async throws {
-        let server = FakeAppServer { _, method, params in
-            if method == "turn/start", FakeAppServer.text(params) == "質問", params["threadId"] as? String == "thr-slow" {
-                return .answerTurnStart(completes: false)
-            }
-            return .default
-        }
-        let session = CodexAppServerSession(clientVersion: "test", launcher: server.launcher, abandonGrace: .milliseconds(300))
-        let store = ThreadContextStore(url: nil)
-        var timeouts = Self.timeouts
-        timeouts.minimumTurnS = 1
-        let runner = CodexTurnRunner(session: session, assets: Self.assets(), timeouts: timeouts, contextStore: store)
-        let began = Date()
-        let outcome = try await runner.run(Self.chatPlan(threadID: "thr-slow", limit: 1)) { _ in }
-        XCTAssertEqual(outcome.status, .failed)
-        XCTAssertLessThan(Date().timeIntervalSince(began), 4)
-        let audit = try XCTUnwrap(outcome.executions.last)
-        XCTAssertEqual(audit["status"]?.stringValue, "timed_out")
-        XCTAssertEqual(audit["stopped_by"]?.stringValue, "deadline")
-        XCTAssertEqual(store.entry("thr-slow")?.notices?.count, 1)
-
-        var next = Self.chatPlan(threadID: "thr-slow", inject: false)
-        next.turn?.text = "次"
-        let after = try await runner.run(next) { _ in }
-        XCTAssertEqual(after.status, .completed, after.error ?? "")
-        let injected = server.params("thread/inject_items").compactMap { ($0["items"] as? [JSONObject])?.first?["content"] as? [JSONObject] }
-        XCTAssertTrue(injected.contains { $0.contains { ($0["text"] as? String)?.contains("The learner did not interrupt it") == true } })
-        XCTAssertNil(store.entry("thr-slow")?.notices)
-        await session.close()
-    }
 
     /// Time the app spent in the background (where iOS may suspend it) does not count; a slow
     /// foreground (heavy load) still counts in full, so the deadline always ends a stalled turn.
@@ -144,10 +46,6 @@ final class LaneRuntimeTests: XCTestCase {
         XCTAssertEqual(clock.skippedSeconds, 600, accuracy: 0.001)
     }
 
-    // MARK: - P4-5
-
-    /// H1: the connection closes while the in-app server keeps running the turn. The runner subscribes
-    /// again and takes the turn's result; the turn is neither interrupted nor started a second time.
     /// 開始と終了が近接して届いても、全部終わった後にバックグラウンド実行を持ちっぱなしにしない。
     @MainActor func testBackgroundActivityCountsBeginAndEndInCallOrder() async {
         let activity = BackgroundTurnActivity.shared
@@ -163,84 +61,6 @@ final class LaneRuntimeTests: XCTestCase {
         XCTAssertEqual(activity.runningCount, before)
         for _ in 0..<5 { await Task.yield() }
         XCTAssertEqual(activity.runningCount, before)
-    }
-
-    @MainActor func testTurnIsReenteredAfterTheConnectionCloses() async throws {
-        let server = FakeAppServer { generation, method, params in
-            if generation == 1, method == "turn/start" { return .answerTurnStartThenDisconnect }
-            if method == "thread/turns/list" {
-                return .result(["data": [["id": "turn-1-1", "status": "completed", "items": [["type": "agentMessage", "text": "こたえ"]]]]])
-            }
-            return .default
-        }
-        let session = CodexAppServerSession(clientVersion: "test", launcher: server.launcher, serverOutlivesConnection: true, abandonGrace: .milliseconds(300))
-        let runner = CodexTurnRunner(session: session, assets: Self.assets(), timeouts: Self.timeouts, contextStore: ThreadContextStore(url: nil))
-        let outcome = try await runner.run(Self.chatPlan(threadID: "thr-live")) { _ in }
-        XCTAssertEqual(outcome.status, .completed, outcome.error ?? "")
-        XCTAssertEqual(outcome.finalText, "こたえ")
-        XCTAssertEqual(outcome.codexTurnID, "turn-1-1")
-        XCTAssertEqual(server.count("turn/start"), 1, "the same input is not sent again")
-        XCTAssertEqual(server.count("turn/interrupt"), 0, "the running turn is not stopped")
-        XCTAssertEqual(outcome.executions.last?["reattached"]?.intValue, 1)
-        await session.close()
-    }
-
-    /// H4/M3: a slow rate-limit read neither delays the result nor rebuilds the connection.
-    @MainActor func testSlowRateLimitReadKeepsTheConnection() async throws {
-        let server = FakeAppServer { _, method, _ in method == "account/rateLimits/read" ? .ignore : .default }
-        let session = CodexAppServerSession(clientVersion: "test", launcher: server.launcher, abandonGrace: .milliseconds(300))
-        let runner = CodexTurnRunner(session: session, assets: Self.assets(), timeouts: Self.timeouts, contextStore: ThreadContextStore(url: nil))
-        let began = Date()
-        let first = try await runner.run(Self.chatPlan(threadID: nil)) { _ in }
-        XCTAssertEqual(first.status, .completed, first.error ?? "")
-        XCTAssertLessThan(Date().timeIntervalSince(began), 0.3, "the result does not wait for the rate limits")
-        try await Task.sleep(for: .milliseconds(500))
-        let healthy = await session.isHealthy
-        XCTAssertTrue(healthy)
-        let second = try await runner.run(Self.chatPlan(threadID: first.codexThreadID)) { _ in }
-        XCTAssertEqual(second.status, .completed, second.error ?? "")
-        XCTAssertEqual(server.launches, 1)
-        await session.close()
-    }
-
-    /// H4: a stop followed at once by a new send waits for the stopped turn to end instead of
-    /// rebuilding the connection under a structured turn running in parallel.
-    @MainActor func testSendRightAfterStopDoesNotTearDownParallelTurns() async throws {
-        let server = FakeAppServer { _, method, params in
-            if method == "turn/start", FakeAppServer.text(params) == "止める" { return .answerTurnStart(completes: false) }
-            if method == "turn/interrupt" { return .answerInterruptThenCompleteLater(0.15) }
-            return .default
-        }
-        let session = CodexAppServerSession(clientVersion: "test", launcher: server.launcher, serverOutlivesConnection: true, abandonGrace: .seconds(3))
-        let runner = CodexTurnRunner(session: session, assets: Self.assets(), timeouts: Self.timeouts, contextStore: ThreadContextStore(url: nil))
-        var stopped = Self.chatPlan(threadID: "thr-a")
-        stopped.turn?.text = "止める"
-        let running = Task { try await runner.run(stopped) { _ in } }
-        try await server.waitFor("turn/start", generation: 1)
-        await runner.interrupt(planID: stopped.id)
-        let interrupted = try await running.value
-        XCTAssertEqual(interrupted.status, .interrupted)
-        let next = try await runner.run(Self.chatPlan(threadID: "thr-a")) { _ in }
-        XCTAssertEqual(next.status, .completed, next.error ?? "")
-        XCTAssertEqual(server.launches, 1, "no rebuild: the stopped turn reported its end within the grace")
-        await session.close()
-    }
-
-    // MARK: - P4-6
-
-    @MainActor func testFinishedStructuredThreadIsUnsubscribed() async throws {
-        let server = FakeAppServer { _, _, _ in .default }
-        let session = CodexAppServerSession(clientVersion: "test", launcher: server.launcher, abandonGrace: .milliseconds(300))
-        let runner = CodexTurnRunner(session: session, assets: Self.assets(), timeouts: Self.timeouts, contextStore: ThreadContextStore(url: nil))
-        let outcome = try await runner.run(Self.structuredPlan()) { _ in }
-        XCTAssertEqual(outcome.status, .completed, outcome.error ?? "")
-        try await server.waitFor("thread/unsubscribe", generation: 1)
-        XCTAssertEqual(server.params("thread/unsubscribe").first?["threadId"] as? String, outcome.codexThreadID)
-        let chat = try await runner.run(Self.chatPlan(threadID: nil)) { _ in }
-        XCTAssertEqual(chat.status, .completed)
-        try await Task.sleep(for: .milliseconds(200))
-        XCTAssertEqual(server.count("thread/unsubscribe"), 1, "a conversation thread stays subscribed")
-        await session.close()
     }
 
     // MARK: - Workspace
@@ -303,7 +123,7 @@ final class LaneRecoveryTests: XCTestCase {
         )
         let (assistant, assistantEvent) = ChatRepository.createMessage(
             threadID: thread.id, role: "assistant", status: "pending", plainText: nil, blocks: .emptyArray,
-            metadata: .object(["handled_as": .string("codex_app_server")].merging(replyMetadata) { $1 })
+            metadata: .object(["handled_as": .string("claude_messages")].merging(replyMetadata) { $1 })
         )
         let turn = TurnRecord(
             id: LedgerID.make(), kind: "chat", targetId: assistant.id, threadId: thread.id, status: "running", round: 1,
@@ -347,7 +167,7 @@ final class LaneRecoveryTests: XCTestCase {
         try await Self.waitIdle(turns, threadID: seeded.threadID, runner: runner, runs: 1)
         let reply = try await ledger.read { db in try MessageRecord.fetchOne(db, key: seeded.assistantID) }
         XCTAssertEqual(reply?.status, "failed")
-        XCTAssertEqual(reply?.plainText, CodexAppServerError.closed("stub").localizedDescription, "学習者向けの一文はそのまま")
+        XCTAssertEqual(reply?.plainText, TurnRuntimeError.closed("stub").localizedDescription, "学習者向けの一文はそのまま")
         XCTAssertEqual(reply?.metadata["error_detail"]?.stringValue, "closed stub", "理由が残っていない")
         let message = ChatRepository.chatMessage(try XCTUnwrap(reply))
         XCTAssertEqual(message.errorDetail, "closed stub")
@@ -468,8 +288,8 @@ nonisolated final class CountingRunner: TurnRunning, @unchecked Sendable {
         lock.withLock { count += 1 }
         return TurnOutcome(
             planID: plan.id, round: plan.round, status: .failed, codexThreadID: nil, codexTurnID: nil, finalText: "",
-            executions: [], rateLimits: nil, files: [], error: CodexAppServerError.closed("stub").localizedDescription, elapsedMs: 1,
-            errorDetail: CodexAppServerError.closed("stub").detail
+            executions: [], rateLimits: nil, files: [], error: TurnRuntimeError.closed("stub").localizedDescription, elapsedMs: 1,
+            errorDetail: TurnRuntimeError.closed("stub").detail
         )
     }
 
@@ -480,15 +300,6 @@ nonisolated final class FakeUptime: @unchecked Sendable {
     private let lock = NSLock()
     private var stored: TimeInterval = 100
     var value: TimeInterval {
-        get { lock.withLock { stored } }
-        set { lock.withLock { stored = newValue } }
-    }
-}
-
-nonisolated final class LockedFlag: @unchecked Sendable {
-    private let lock = NSLock()
-    private var stored = false
-    var value: Bool {
         get { lock.withLock { stored } }
         set { lock.withLock { stored = newValue } }
     }

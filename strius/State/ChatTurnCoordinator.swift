@@ -5,7 +5,7 @@ import OSLog
 
 private let chatCoordinatorLog = Logger(subsystem: "com.digiloglab.strius", category: "chat-coordinator")
 
-/// 質問ターンの起動と修復ループ (design §6.3)。`post_message` → `run_codex_turn_background` の端末版。
+/// 質問ターンの起動と修復ループ (design §6.3)。
 extension TurnCoordinator {
     nonisolated struct ChatSend: Sendable {
         var threadID: String
@@ -57,7 +57,7 @@ extension TurnCoordinator {
         var predecessor: String?
         if await isChatRunning(threadID: send.threadID) {
             guard send.queuesBehindReply, let running = queueableChat(threadID: send.threadID) else {
-                throw LedgerError.rejected(code: "codex_turn_in_progress", message: "前の返信を待っています")
+                throw LedgerError.rejected(code: "chat_turn_in_progress", message: "前の返信を待っています")
             }
             predecessor = running
         }
@@ -79,7 +79,7 @@ extension TurnCoordinator {
                 id: userMessageID, threadID: send.threadID, role: "user", status: "completed",
                 plainText: send.text.isEmpty ? nil : send.text, blocks: .array(blocks),
                 metadata: WorkbookMachine.merge(.object([
-                    "handled_as": .string("codex_app_server"), "source": .string(send.hidden ? "struis_kickoff" : "thread_message"),
+                    "handled_as": .string("claude_messages"), "source": .string(send.hidden ? "struis_kickoff" : "thread_message"),
                     "attachments": .array(send.attachments.map(\.json)), "hidden": .bool(send.hidden),
                     "model_attachments": .array(send.modelAttachments.map(\.json)),
                     "workbook_view": send.workbookView ?? .null,
@@ -95,7 +95,7 @@ extension TurnCoordinator {
             }
             let (_, assistantEvent) = ChatRepository.createMessage(
                 id: assistantMessageID, threadID: send.threadID, role: "assistant", status: "pending", plainText: nil, blocks: .emptyArray,
-                metadata: .object(["handled_as": .string("codex_app_server")])
+                metadata: .object(["handled_as": .string("claude_messages")])
             )
             let progress = try ChatRepository.progressState(db)
             let mapping = try CodexThreadRecord.fetchOne(db, key: send.threadID)
@@ -140,12 +140,12 @@ extension TurnCoordinator {
                 config: .object(["model_reasoning_effort": .string(astra.effort), "features.multi_agent": .bool(false), "features.unified_exec": .bool(false)]),
                 lastTurnID: fork.lastTurnID, provider: astra.provider
             ),
-            turn: nil, workspace: TurnPlan.WorkspaceSpec(files: [], dirs: []), delegation: nil, collect: [], limits: .structured, items: nil
+            turn: nil, workspace: TurnPlan.WorkspaceSpec(files: [], dirs: []), delegation: nil, collect: [], limits: .structured
         )
         let outcome = try await runner.run(plan) { _ in }
         WorkspaceStager.cleanup(plan: plan)
         guard outcome.status == .completed, let forked = outcome.codexThreadID else {
-            throw LedgerError.rejected(code: "codex_app_server_error", message: outcome.error ?? "AI の会話を準備できませんでした。もう一度送ってください。")
+            throw LedgerError.rejected(code: "chat_start_error", message: outcome.error ?? "AI の会話を準備できませんでした。もう一度送ってください。")
         }
         return forked
     }
@@ -183,10 +183,10 @@ extension TurnCoordinator {
         let readyDetector = ExampleReadyStreamDetector()
         let assistantMessageID = state.assistantMessageID
         if let predecessor {
-            // 前の返事(記録を書いている)は止めずに、台帳に書き終わるまで待つ。同じ Codex thread で順に答える。
+            // 前の返事(記録を書いている)は止めずに、台帳に書き終わるまで待つ。同じ会話のスレッドで順に答える。
             await waitForChat(predecessor, turnID: state.turnID)
             activity.started()
-            // 前の返事が新しい会話の最初のターンだった時、Codex thread はその返事が終わって初めて決まる。
+            // 前の返事が新しい会話の最初のターンだった時、スレッドはその返事が終わって初めて決まる。
             if let mapped = try? await ledger.read({ db in try CodexThreadRecord.fetchOne(db, key: state.threadID)?.codexThreadId }) {
                 state.codexThreadID = mapped
             }
@@ -215,7 +215,7 @@ extension TurnCoordinator {
                 plan = try await ChatTurns.compose(ledger: ledger, assets: assets, state: &state, roundText: roundText, resumes: resumes)
             } catch let composeError {
                 error = composeError.localizedDescription
-                errorDetail = CodexTurnRunner.describe(composeError)
+                errorDetail = ClaudeTurnRunner.describe(composeError)
                 break
             }
             guard let current = plan else { break }
@@ -243,7 +243,7 @@ extension TurnCoordinator {
                 } }
             } catch let runError {
                 error = runError.localizedDescription
-                errorDetail = CodexTurnRunner.describe(runError)
+                errorDetail = ClaudeTurnRunner.describe(runError)
                 break
             }
             chatCoordinatorLog.info("chat round \(state.round, privacy: .public) outcome \(outcome.status.rawValue, privacy: .public) \(outcome.finalText.count, privacy: .public) chars")
@@ -288,7 +288,7 @@ extension TurnCoordinator {
                 }
             } catch let finishError {
                 error = finishError.localizedDescription
-                errorDetail = CodexTurnRunner.describe(finishError)
+                errorDetail = ClaudeTurnRunner.describe(finishError)
             }
         }
         if let error {

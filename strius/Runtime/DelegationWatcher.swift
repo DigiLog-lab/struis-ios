@@ -112,7 +112,7 @@ actor DelegationWatcher {
     }
 
     func submit(_ object: JSONObject) async throws -> JSONObject {
-        guard !closed else { throw CodexAppServerError.interrupted }
+        guard !closed else { throw TurnRuntimeError.interrupted }
         let data = try JSONSerialization.data(withJSONObject: object)
         guard data.count <= 24_000 else { throw LedgerError.invalid("Delegation request is too large") }
         let request = try JSONDecoder().decode(LookupRequest.self, from: data)
@@ -128,7 +128,7 @@ actor DelegationWatcher {
             }
             try await Task.sleep(for: .milliseconds(100))
         }
-        throw CodexAppServerError.timeout("delegation")
+        throw TurnRuntimeError.timeout("delegation")
     }
 
     func start() {
@@ -263,9 +263,9 @@ actor DelegationWatcher {
             let result: ChildResult = await runChildTurn(child)
             executions.append(contentsOf: result.executions)
             if Task.isCancelled || closed { throw CancellationError() }
-            guard let text = result.text else { throw CodexAppServerError.turnFailed(result.error ?? "luna lookup failed") }
+            guard let text = result.text else { throw TurnRuntimeError.turnFailed(result.error ?? "luna lookup failed") }
             guard let data = text.data(using: .utf8), let parsed = try JSONSerialization.jsonObject(with: data) as? JSONObject else {
-                throw CodexAppServerError.malformed("luna result is not JSON")
+                throw TurnRuntimeError.malformed("luna result is not JSON")
             }
             let findings: [Any] = parsed["findings"] as? [Any] ?? []
             guard findings.count <= request.count else { throw LedgerError.invalid("Luna returned more findings than requested") }

@@ -211,7 +211,7 @@ final class WKProviderTransportTests: XCTestCase {
         let boot = HyotanBoot(); await boot.start(); XCTAssertTrue(boot.state.isReady)
         let host = NativeRuntimeHost.shared
         if let root = NativeRuntimePaths.sharedRoot { try FileManager.default.createDirectory(at: root.deletingLastPathComponent().appendingPathComponent("Library"), withIntermediateDirectories: true) }
-        _ = try await host.start(onExit: { _ in }); defer { host.stop() }
+        host.prepareForCommands(); defer { host.stop() }
         let workspace = HyotanBoot.workspaceRoot.appendingPathComponent("wk-provider-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workspace) }
@@ -311,7 +311,7 @@ final class WKProviderTransportTests: XCTestCase {
         let boot = HyotanBoot(); await boot.start(); XCTAssertTrue(boot.state.isReady)
         let host = NativeRuntimeHost.shared
         if let root = NativeRuntimePaths.sharedRoot { try FileManager.default.createDirectory(at: root.deletingLastPathComponent().appendingPathComponent("Library"), withIntermediateDirectories: true) }
-        _ = try await host.start(onExit: { _ in }); defer { host.stop() }
+        host.prepareForCommands(); defer { host.stop() }
         let base = HyotanBoot.workspaceRoot.appendingPathComponent("wk-git-fixture-" + UUID().uuidString)
         let workspace = base.appendingPathComponent("workspace"), canary = base.appendingPathComponent("synthetic-private-canary")
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)

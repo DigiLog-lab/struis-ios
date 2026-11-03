@@ -1,64 +1,27 @@
 import Foundation
 
-/// AI の実行先。どちらも端末内の Codex App Server が動かし、Claude は端末内の
-/// `ClaudeResponsesProxy`(Responses API → Messages API の変換)を provider として使う。
+/// AI の実行先。Claude(Anthropic の Messages API を端末から直接使う)だけ。
+/// GPT / ChatGPT(Codex)の経路は外した。将来「ChatGPT でサインイン」を足す時は Responses API の送り手と一緒にここへ case を足す。
 nonisolated enum ModelProvider: String, Codable, CaseIterable, Sendable {
-    /// ChatGPT / Codex 認証で OpenAI のモデルを使う(従来の経路)。
-    case openai
     /// App Attest で端末を確かめ、Anthropic の API を端末から直接使う。
     case anthropic
 
-    /// Codex の `model_providers` に登録する ID(組み込みの `openai` 等と重ならない名前)。
-    var codexProviderID: String? {
-        switch self {
-        case .openai: nil
-        case .anthropic: "struis-claude"
-        }
+    /// 保存したプランや配信 manifest の値は何でも Claude として読む(前の `"openai"` や知らない値も落とさない)。
+    /// 値が無い(nil)時は、持ち主の型が `ModelProvider?` のまま nil として読む。
+    init(from decoder: any Decoder) throws {
+        let container: any SingleValueDecodingContainer = try decoder.singleValueContainer()
+        _ = try? container.decode(String.self)
+        self = .anthropic
     }
 
-    var displayName: String {
-        switch self {
-        case .openai: "GPT"
-        case .anthropic: "Claude"
-        }
-    }
+    var displayName: String { "Claude" }
 
     /// 実行監査の `billing_source`。
-    var billingSource: String {
-        switch self {
-        case .openai: "byo_chatgpt"
-        case .anthropic: "anthropic_app_attest"
-        }
-    }
+    var billingSource: String { "anthropic_app_attest" }
 
     /// 配信 manifest がこの provider のモデルを渡すときのキー(`models["claude:astra"]` など)。
     func manifestKey(role: String) -> String {
-        switch self {
-        case .openai: role
-        case .anthropic: "claude:" + role
-        }
-    }
-}
-
-/// 学習者が設定画面で選んだ実行先。新しく始めるスレッドだけが従う(続きの会話は始めた時の実行先のまま)。
-nonisolated enum ModelProviderPreference {
-    static let defaultsKey = "settings.modelProvider"
-
-    static var current: ModelProvider {
-        get {
-            #if DEBUG
-            // 検証用の起動引数・環境(Simulator の実AIテストなど)。設定より優先する。
-            if let forced = ProcessInfo.processInfo.environment["STRUIS_MODEL_PROVIDER"].flatMap(ModelProvider.init(rawValue:)) {
-                return forced
-            }
-            // 前に選んだ実行先は DEBUG の検証用の入口(`-show-codex-settings`)からだけ選べる。
-            return UserDefaults.standard.string(forKey: defaultsKey).flatMap(ModelProvider.init(rawValue:)) ?? .anthropic
-            #else
-            // ChatGPT(Codex)の経路は選択肢から外した(#40、2026-10-31)。前に GPT を選んでいた端末も Claude で始める。
-            return .anthropic
-            #endif
-        }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: defaultsKey) }
+        "claude:" + role
     }
 }
 

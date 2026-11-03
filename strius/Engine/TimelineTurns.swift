@@ -209,7 +209,7 @@ nonisolated enum TimelineTurns {
             thread: try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline),
             turn: TurnPlan.TurnSpec(text: turnText(task: try await composer.assets.text("prompt:timeline_instructions"), materials: request, repair: repair), images: [],
                                     outputSchema: try await composer.assets.json("schema:timeline_batch"), sandboxPolicy: "dangerFullAccess"),
-            workspace: workspace, delegation: nil, collect: [], limits: .structured, items: nil
+            workspace: workspace, delegation: nil, collect: [], limits: .structured
         )
     }
 
@@ -248,7 +248,7 @@ nonisolated enum TimelineTurns {
             thread: try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline),
             turn: TurnPlan.TurnSpec(text: turnText(task: try await composer.assets.text("prompt:timeline_grading_instructions"), materials: gradingRequest(attempt: attempt, card: card), repair: repair),
                                     images: [image], outputSchema: try await composer.assets.json("schema:timeline_grading"), sandboxPolicy: "dangerFullAccess"),
-            workspace: workspace, delegation: nil, collect: [], limits: .structured, items: nil
+            workspace: workspace, delegation: nil, collect: [], limits: .structured
         )
     }
 
@@ -282,7 +282,7 @@ nonisolated enum TimelineTurns {
             thread: try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline),
             turn: TurnPlan.TurnSpec(text: turnText(task: try await composer.assets.text("prompt:timeline_marks_instructions"), materials: marksRequest(attempt: attempt, card: card), repair: repair),
                                     images: [image], outputSchema: try await composer.assets.json("schema:timeline_marks"), sandboxPolicy: "dangerFullAccess"),
-            workspace: workspace, delegation: nil, collect: [], limits: .structured, items: nil
+            workspace: workspace, delegation: nil, collect: [], limits: .structured
         )
     }
 
@@ -325,7 +325,7 @@ nonisolated enum TimelineTurns {
             thread: try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline),
             turn: TurnPlan.TurnSpec(text: turnText(task: try await composer.assets.text("prompt:timeline_review_instructions"), materials: reviewRequest(targetID: attemptID, timeline: timeline), repair: repair),
                                     images: images, outputSchema: try await composer.assets.json("schema:timeline_review"), sandboxPolicy: "dangerFullAccess"),
-            workspace: workspace, delegation: nil, collect: [], limits: .structured, items: nil
+            workspace: workspace, delegation: nil, collect: [], limits: .structured
         )
     }
 
@@ -470,7 +470,7 @@ nonisolated enum TimelineTurns {
             id: planID, kind: .timelineGraph, round: 1,
             thread: try await thread(composer: composer, planID: planID, instructions: instructions, role: TimelineModels.graphRole, workbook: workbook, timeline: timeline),
             turn: TurnPlan.TurnSpec(text: TurnComposer.dump(.object(request)), images: [], outputSchema: try await composer.assets.json(schema), sandboxPolicy: "dangerFullAccess"),
-            workspace: workspace, delegation: nil, collect: [], limits: .structured, items: nil
+            workspace: workspace, delegation: nil, collect: [], limits: .structured
         )
     }
 

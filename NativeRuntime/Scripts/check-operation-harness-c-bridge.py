@@ -145,13 +145,13 @@ def main():
     parser.add_argument("--target-dir", type=Path, default=Path("/tmp/hyotan-c-operation-bridge-target"))
     args = parser.parse_args()
     target_dir = args.target_dir.resolve()
-    subprocess.run(["cargo", "build", "--offline", "--locked", "--manifest-path", str(ROOT / "NativeCodex/Cargo.toml"), "--no-default-features", "--features", "operations", "--target-dir", str(target_dir)], check=True)
+    subprocess.run(["cargo", "build", "--offline", "--locked", "--manifest-path", str(ROOT / "NativeLibrary/Cargo.toml"), "--no-default-features", "--features", "operations", "--target-dir", str(target_dir)], check=True)
     with tempfile.TemporaryDirectory(prefix="hyotan-c-operations-") as temp:
         temp = Path(temp)
         source = temp / "caller.c"
         executable = temp / "caller"
         source.write_text(C_SOURCE)
-        subprocess.run([os.environ.get("CC", "cc"), "-std=c11", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT / "NativeCodex/include-operations"), str(source), str(target_dir / "debug/libhyotan_codex.a"), "-ldl", "-lpthread", "-lm", "-o", str(executable)], check=True)
+        subprocess.run([os.environ.get("CC", "cc"), "-std=c11", "-Wall", "-Wextra", "-Werror", "-I", str(ROOT / "NativeLibrary/include-operations"), str(source), str(target_dir / "debug/libhyotan_native.a"), "-ldl", "-lpthread", "-lm", "-o", str(executable)], check=True)
         subprocess.run([str(executable), str(temp)], check=True)
     print("C pointer lifetimes were trusted; this does not activate Swift/WK/Python or product host mode.")
 

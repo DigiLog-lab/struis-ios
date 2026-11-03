@@ -153,19 +153,19 @@ final class ReplyTailUITests: XCTestCase {
         attach(app, "6-advanced-to-similar-problem")
     }
 
-    /// 実 Codex(hyotan 上の app-server)で同じことを確かめる。`TEST_RUNNER_STRUIS_REAL_CODEX_AUTH=<auth.json>` の時だけ動く。
+    /// 実 Claude(Anthropic の Messages API)で同じことを確かめる。`TEST_RUNNER_STRUIS_REAL_CLAUDE_KEY_FILE=<API キーのファイル>` の時だけ動く。
     /// 本物のモデルが返事の後ろの記録を書いている間に次の質問を送り、前の返事が止まらずに出来上がり、次の質問にも答えること。
     @MainActor
-    func testQuestionSheetSendsWhileRecordingWithRealCodex() throws {
-        let auth = ProcessInfo.processInfo.environment["STRUIS_REAL_CODEX_AUTH"] ?? ""
-        try XCTSkipIf(auth.isEmpty, "TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)")
+    func testQuestionSheetSendsWhileRecordingWithRealClaude() throws {
+        let auth = ProcessInfo.processInfo.environment["STRUIS_REAL_CLAUDE_KEY_FILE"] ?? ""
+        try XCTSkipIf(auth.isEmpty, "TEST_RUNNER_STRUIS_REAL_CLAUDE_KEY_FILE が無い (実 Claude 検証は手動)")
         let app = XCUIApplication.struisUnits()
         app.launchArguments += ["-skip-onboarding"]
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "1"
         app.launchEnvironment["STRUIS_LEDGER"] = "memory"
-        app.launchEnvironment["STRUIS_DEBUG_CODEX_AUTH_FILE"] = auth
-        let assets = ProcessInfo.processInfo.environment["STRUIS_REAL_CODEX_ASSETS_DIR"] ?? ""
-        try XCTSkipIf(assets.isEmpty, "TEST_RUNNER_STRUIS_REAL_CODEX_ASSETS_DIR が無い (既定単元の実AI試験には外部配信資産が必要)")
+        app.launchEnvironment["STRUIS_DEBUG_ANTHROPIC_KEY_FILE"] = auth
+        let assets = ProcessInfo.processInfo.environment["STRUIS_REAL_AI_ASSETS_DIR"] ?? ""
+        try XCTSkipIf(assets.isEmpty, "TEST_RUNNER_STRUIS_REAL_AI_ASSETS_DIR が無い (既定単元の実AI試験には外部配信資産が必要)")
         app.launchEnvironment["STRUIS_DEVICE_ASSETS_DIR"] = assets
         app.launch()
         XCTAssertTrue(app.openQuestionSheet(timeout: 60))

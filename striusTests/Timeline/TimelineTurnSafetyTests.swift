@@ -3,14 +3,13 @@ import XCTest
 @testable import strius
 
 /// 2026-10-24 の見直し「フリーズを起こさない作り」: 保存が終わるまで裏で動く許可を持つ、返らないターンを上限で
-/// 打ち切る、返らない起動の後に接続を作り直す、ターンの段階を台帳に残す。
+/// 打ち切る、ターンの段階を台帳に残す。
 final class TimelineTurnSafetyTests: XCTestCase {
     typealias F = TimelineFixture
 
     /// 返らないターン(上限で打ち切られる)。
     @MainActor private final class HangingRunner: TurnRunning {
         private(set) var interrupted: [String] = []
-        private(set) var resets = 0
 
         func run(_ plan: TurnPlan, progress: @escaping @Sendable (TurnProgressEvent) -> Void) async throws -> TurnOutcome {
             TurnStage.report("startup")
@@ -19,7 +18,6 @@ final class TimelineTurnSafetyTests: XCTestCase {
         }
 
         func interrupt(planID: String) async { interrupted.append(planID) }
-        func resetConnection() async { resets += 1 }
     }
 
     /// 段階を知らせてから、モックの結果を返す。
@@ -97,9 +95,7 @@ final class TimelineTurnSafetyTests: XCTestCase {
         XCTAssertTrue(executions.contains { $0["type"]?.stringValue == "time_limit" })
         XCTAssertTrue(executions.contains { $0["type"]?.stringValue == "stage" && $0["stage"]?.stringValue == "startup" }, "どこで待っていたかが残る")
         let interrupted = await runner.interrupted
-        let resets = await runner.resets
-        XCTAssertEqual(interrupted.count, 1)
-        XCTAssertEqual(resets, 1, "時間切れの後は接続を作り直させる")
+        XCTAssertEqual(interrupted.count, 1, "時間切れの後は止める")
     }
 
     @MainActor func testStagesSurviveTheCompletedTurn() async throws {
@@ -116,38 +112,6 @@ final class TimelineTurnSafetyTests: XCTestCase {
         XCTAssertEqual(Set(stages), ["startup", "runtime_ready", "turn_started"])
         XCTAssertTrue((turn?.executions.arrayValue ?? []).allSatisfy { $0["type"]?.stringValue != "stage" || $0["at"]?.stringValue != nil })
     }
-
-    func testCloseDuringAHangingLaunchLetsTheNextStartLaunchAgain() async throws {
-        let gate = Gate()
-        let server = FakeAppServer { _, _, _ in .default }
-        let launches = LockedValues()
-        let firstTerminated = LockedValues()
-        let session = CodexAppServerSession(clientVersion: "hanging-launch-test", launcher: { onLine, onExit in
-            launches.append(1)
-            if launches.values.count == 1 {
-                // 1 回目の起動は返らない(close の後で返ってくる)。
-                await gate.wait()
-                return GuestProcessHandle(pid: 1, writeLine: { _ in }, terminate: { firstTerminated.append(1) })
-            }
-            return try await server.launcher(onLine, onExit)
-        })
-        let hanging = Task { try await session.start() }
-        try await waitUntil { launches.values.count == 1 }
-        await session.close()
-        // 返らない起動を待たずに、起動し直す。
-        try await session.start()
-        let running = await session.isRunning
-        XCTAssertTrue(running)
-        XCTAssertEqual(launches.values.count, 2)
-        // 遅れて返ってきた 1 回目の接続は捨てる。
-        await gate.open()
-        _ = try? await hanging.value
-        try await waitUntil { !firstTerminated.values.isEmpty }
-        let stillRunning = await session.isRunning
-        XCTAssertTrue(stillRunning)
-        _ = try await session.request("thread/read", params: [:])
-        await session.close()
-    }
 }
 
 /// 別のスレッドから足していく値。
@@ -156,19 +120,4 @@ private final class LockedValues: @unchecked Sendable {
     private var stored: [Int] = []
     func append(_ value: Int) { lock.withLock { stored.append(value) } }
     var values: [Int] { lock.withLock { stored } }
-}
-
-/// 開くまで待たせる(取り消しでは開かない)。
-private actor Gate {
-    private var isOpen = false
-    private var waiters: [CheckedContinuation<Void, Never>] = []
-    func wait() async {
-        if isOpen { return }
-        await withCheckedContinuation { waiters.append($0) }
-    }
-    func open() {
-        isOpen = true
-        waiters.forEach { $0.resume() }
-        waiters.removeAll()
-    }
 }

@@ -6,7 +6,7 @@ nonisolated private let activityLog = Logger(subsystem: "com.digiloglab.strius",
 
 /// 待ちの間に本当に起きていることを画面へ渡す(待ち時間の体験 W11、信頼性計画 P2)。
 ///
-/// `CodexTurnRunner.observeTurn` が出す `TurnProgressEvent` を、ターンの対象(会話の返事・答案・一枚・全体像・先回りの例題)
+/// `ClaudeTurnRunner` が出す `TurnProgressEvent` を、ターンの対象(会話の返事・答案・一枚・全体像・先回りの例題)
 /// ごとに 1 本の流れにまとめる。画面はこの板を読み、実際に起きた出来事の言葉・書かれた本文・届いた部分の結果だけを出す。
 /// 出来事が 10 秒以上来ない時は、その事実(「いつもより時間がかかっています」など)を出す。値と段は偽らない。
 nonisolated enum TurnActivityKey {

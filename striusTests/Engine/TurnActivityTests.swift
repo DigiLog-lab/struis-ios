@@ -174,7 +174,7 @@ struct TurnActivityTests {
         var skills = SkillWaiting()
         skills.labels["struis-document"] = ["default": .init(started: "資料の読み方を確かめています", finished: "資料の読み方を確かめました")]
         let item: [String: Any] = ["type": "commandExecution", "id": "c1", "command": "cat .agents/skills/struis-document/SKILL.md"]
-        #expect(CodexTurnRunner.startedItemEvent(item, skills: skills)?.label == "資料の読み方を確かめています")
-        #expect(CodexTurnRunner.completedItemEvent(item, phase: "", skills: skills)?.label == "資料の読み方を確かめました")
+        #expect(ClaudeTurnRunner.startedItemEvent(item, skills: skills)?.label == "資料の読み方を確かめています")
+        #expect(ClaudeTurnRunner.completedItemEvent(item, skills: skills)?.label == "資料の読み方を確かめました")
     }
 }

@@ -19,11 +19,11 @@ def audit(environment):
     app = archive / 'Products/Applications/strius.app'
     if not app.is_dir() or not derived.is_dir():
         raise RuntimeError('Native archive app or DerivedData is missing')
-    targets = {'strius', 'StruisRuntime', 'StruisExec'}
+    targets = {'strius', 'StruisExec'}
     maps = []
     found = set()
     for path in sorted(derived.rglob('*-LinkMap-*.txt')):
-        match = re.fullmatch(r'(strius|StruisRuntime|StruisExec)-LinkMap-.+\.txt', path.name)
+        match = re.fullmatch(r'(strius|StruisExec)-LinkMap-.+\.txt', path.name)
         parts = path.relative_to(derived).parts
         if (match and 'ArchiveIntermediates' in parts
                 and any(part.endswith('-iphoneos') for part in parts)

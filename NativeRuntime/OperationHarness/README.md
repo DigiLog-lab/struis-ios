@@ -10,4 +10,4 @@ trusted callerはworkspaceのrename・分類変更や私有fileの配置前にgr
 rustup run 1.95.0 cargo test --locked --manifest-path NativeRuntime/OperationHarness/Cargo.toml
 ```
 
-テストは一時的な合成workspaceとprivate canaryを使用します。単独のfilesystem試験と、アプリのAI・worker・撮影・再開の実操作は別に確認してください。アプリへの接続は`NativeCodex/src/lib.rs`と`Scripts/prepare-codex.py`、Swiftの`NativeRuntimeHost`から追えます。
+テストは一時的な合成workspaceとprivate canaryを使用します。単独のfilesystem試験と、アプリのAI・worker・撮影・再開の実操作は別に確認してください。アプリへの接続は`NativeLibrary/src/operations.rs`(`libhyotan_operations.a`)とSwiftの`WorkspaceOperationBroker`から追えます。

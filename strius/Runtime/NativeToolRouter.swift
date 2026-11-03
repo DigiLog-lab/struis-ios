@@ -20,22 +20,6 @@ actor NativeToolRouter {
         return [namespace]
     }
 
-    nonisolated static func configuration(_ original: JSONObject) -> JSONObject {
-        var config = original
-        config["features.code_mode"] = ["enabled": false, "direct_only_tool_namespaces": ["struis"]]
-        // Codex 同梱の Skills(画像生成・Skill のインストールなど)は学習に関係なく、一覧が毎スレッド入るだけなので外す。
-        // Struis の Skill は作業フォルダの `.agents/skills` に置く(配信Skillの説明)。
-        config["skills.bundled.enabled"] = false
-        // ChatGPT の Apps(コネクタ)と Plugins は Struis では使わない。Apps は既定で有効で、ChatGPT にサインインしていると
-        // Codex が `codex_apps` MCP サーバーをつなぎ、アカウントの全コネクタの tool 定義を毎要求に入れる。
-        // Claude のモデルは Codex に未知で `supports_search_tool` が false のため、定義が遅延(名前だけ)されず
-        // 全文が送られ、1 要求あたり約 19 万トークン(2026-10-16 の実機の台帳: 要約の要求 5 万に対し通常の要求 25 万)になった。
-        config["features.apps"] = false
-        config["features.plugins"] = false
-        config["features.tool_suggest"] = false
-        return config
-    }
-
     nonisolated static var definitions: [JSONObject] {
         [["type": "namespace", "name": "struis", "description": "Native workspace commands and private material lookup.", "tools": [
             ["type": "function", "name": "exec_command", "description": "Run a POSIX shell command in this turn's workspace. Python 3 is embedded. Use struis_delegate for private lookups; never wait for a child in a shell command.",
@@ -77,12 +61,12 @@ actor NativeToolRouter {
         }
     }
     func handle(_ params: JSONObject) async throws -> (JSONObject, JSONObject?) {
-        guard let threadID = params["threadId"] as? String else { throw CodexAppServerError.interrupted }
-        guard let registration = contexts[threadID]?.registration else { throw CodexAppServerError.interrupted }
-        // Notifications can be delivered before the awaiting runner processes turn/start.
+        guard let threadID = params["threadId"] as? String else { throw TurnRuntimeError.interrupted }
+        guard let registration = contexts[threadID]?.registration else { throw TurnRuntimeError.interrupted }
+        // A call can arrive before the runner bound its turn to the registration.
         // Wait for that exact registration instead of accepting an unbound turn ID.
         for _ in 0..<500 {
-            guard contexts[threadID]?.registration == registration else { throw CodexAppServerError.interrupted }
+            guard contexts[threadID]?.registration == registration else { throw TurnRuntimeError.interrupted }
             if contexts[threadID]?.turnID != nil { break }
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -90,7 +74,7 @@ actor NativeToolRouter {
               let context = contexts[threadID], !cancelled.contains(context.planID),
               context.turnID == turnID,
               let name = params["tool"] as? String, let arguments = params["arguments"] as? JSONObject
-        else { throw CodexAppServerError.interrupted }
+        else { throw TurnRuntimeError.interrupted }
         let result: JSONObject
         var execution: JSONObject?
         if name == "struis_delegate", let delegate = context.delegate {
@@ -103,26 +87,26 @@ actor NativeToolRouter {
                 return denied(params, message: "This operation is not permitted: the working directory is outside this turn's workspace. Use a directory inside the supplied workspace. Use struis_delegate for private material lookups.")
             }
             // Reject the obsolete blocking delegation entry point rather than deadlock the child.
-            guard !command.contains("struis_delegate.py") else { throw CodexAppServerError.malformed("Use the struis_delegate tool") }
+            guard !command.contains("struis_delegate.py") else { throw TurnRuntimeError.malformed("Use the struis_delegate tool") }
             let start = Date()
             let reply = try await NativeRuntimeHost.shared.send(NativeRuntimeRequest(operation: .command, command: command, cwd: resolved.path, owner: context.registration.uuidString))
-            guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw CodexAppServerError.interrupted }
+            guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw TurnRuntimeError.interrupted }
             result = ["output": reply.output, "exit_code": reply.exitCode, "cwd": resolved.path, "truncated": reply.truncated]
             execution = ["threadId": threadID, "turnId": turnID, "item": ["type": "commandExecution", "id": params["callId"] ?? UUID().uuidString, "command": command, "cwd": resolved.path, "exitCode": reply.exitCode, "durationMs": Int(Date().timeIntervalSince(start) * 1000), "aggregatedOutput": reply.output, "truncated": reply.truncated, "status": "completed"]]
         } else if name == "timeline_query" {
             // 学習者の知識グラフと解答の台帳(ホスト側。前提は WITH RECURSIVE でたどり、結果だけを文にして返す)。
             let text = await TimelineQueryHost.handle(arguments)
-            guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw CodexAppServerError.interrupted }
+            guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw TurnRuntimeError.interrupted }
             return (["success": true, "contentItems": [["type": "inputText", "text": text]]], nil)
         } else if TimelineQueryHost.writeToolNames.contains(name) {
             // 見直しなどが台帳に書く(確かめの 1 問・問い・判定の取り消し・お知らせ)。
             let reply = await TimelineQueryHost.handleWrite(name: name, arguments: arguments)
-            guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw CodexAppServerError.interrupted }
+            guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw TurnRuntimeError.interrupted }
             return (["success": reply.success, "contentItems": [["type": "inputText", "text": reply.text]]], nil)
         } else if name == TimelineCaptureImage.toolName {
             // 答案の写真を元の解像度で見る(依頼に付けたのは縮めた写し)。見せた画像は captures に残し、実行記録に載せる。
             let reply = await TimelineQueryHost.viewCapture(arguments)
-            guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw CodexAppServerError.interrupted }
+            guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw TurnRuntimeError.interrupted }
             let execution: JSONObject? = reply.record.map { record in
                 ["threadId": threadID, "turnId": turnID, "item": record.merging(["type": "captureView", "id": params["callId"] ?? UUID().uuidString]) { _, new in new }]
             }
@@ -130,15 +114,15 @@ actor NativeToolRouter {
         } else if name == DocumentTool.name {
             // 添付の PDF・画像を読む(ホスト側。主スレッドの外で、一度に 1 つ)。
             let reply = await DocumentTool.handle(arguments, root: context.cwd)
-            guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw CodexAppServerError.interrupted }
+            guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw TurnRuntimeError.interrupted }
             return (["success": reply.success, "contentItems": reply.items], nil)
-        } else { throw CodexAppServerError.malformed("unsupported native tool") }
-        guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw CodexAppServerError.interrupted }
+        } else { throw TurnRuntimeError.malformed("unsupported native tool") }
+        guard !cancelled.contains(context.planID), contexts[threadID]?.registration == context.registration else { throw TurnRuntimeError.interrupted }
         let text = String(decoding: try JSONSerialization.data(withJSONObject: result), as: UTF8.self)
         return (["success": true, "contentItems": [["type": "inputText", "text": text]]], execution)
     }
 
-    /// Policy failures are tool results, so the real AppServer can let the model
+    /// Policy failures are tool results, so the model can
     /// choose an allowed next operation. No attempted path or command is echoed.
     /// This cwd rejection does not mediate file operations inside a command.
     private func denied(_ params: JSONObject, message: String) -> (JSONObject, JSONObject?) {

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build a signed archive from the checked-out commit using private CI inputs.
 
-The App Store profiles of the three bundles come from the App Store Connect API
+The App Store profiles of the two bundles (app and Exec extension) come from the App Store Connect API
 (as in scripts/agent/prototype.py): an active profile with the distribution
 certificate, at least a week of validity and the required entitlements is reused,
 otherwise one is created. Adding a capability to an App ID (iCloud for sync,
@@ -29,7 +29,6 @@ from appstoreconnect import AppStoreConnect  # noqa: E402
 
 PROFILE_BUNDLES = {  # Xcode product name -> bundle ID
     'strius': 'com.digiloglab.strius',
-    'StruisRuntime': 'com.digiloglab.strius.runtime',
     'StruisExec': 'com.digiloglab.strius.exec',
 }
 APP_GROUP = 'group.com.digiloglab.struis.runtime'
@@ -56,7 +55,7 @@ def profile_problem(document, product, certificate_der):
 
 
 def ensure_store_profiles(asc, certificate_der, serial, decode, now=None):
-    """App Store profiles for the three bundles: product -> (profile bytes, decoded profile)."""
+    """App Store profiles for the two bundles: product -> (profile bytes, decoded profile)."""
     now = now or datetime.datetime.now(datetime.timezone.utc)
     horizon = (now + datetime.timedelta(days=PROFILE_MIN_DAYS)).strftime('%Y-%m-%dT%H:%M:%S')
     certificates = [cert for cert in asc.distribution_certificates()

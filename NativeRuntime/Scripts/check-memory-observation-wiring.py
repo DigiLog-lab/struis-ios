@@ -54,13 +54,13 @@ def main():
         run([args.ruby, str(generator)])
         first = (project / 'project.pbxproj').read_bytes()
         after = json.loads(run([args.ruby, '-e', INSPECT, str(project)]))
-        for name in ('strius', 'StruisRuntime', 'StruisExec'):
+        for name in ('strius', 'StruisExec'):
             assert after[name]['sources'].count('Worker/NativeMemory.m') == 1, name
             assert before[name]['frameworks'] == after[name]['frameworks'], name
             assert before[name]['sources'] == after[name]['sources'], name
         run([args.ruby, str(generator)])
         assert first == (project / 'project.pbxproj').read_bytes(), 'generator not idempotent'
-        print('PASS actual Ruby generator repairs host telemetry membership; one source in host/Codex/Exec')
+        print('PASS actual Ruby generator repairs host telemetry membership; one source in host/Exec')
         print('PASS regenerated source and framework memberships unchanged; no model/command dependency added to host')
         print('PASS second generation byte-identical SHA256=' + hashlib.sha256(first).hexdigest())
     print('PASS dedicated scheme selects compatibility/identity fixtures and live endpoint tests')

@@ -96,7 +96,7 @@ def main():
     if errors: raise SystemExit('\n'.join(errors))
     (ROOT / 'Licenses/Rust-dependencies.json').write_text(json.dumps(entries, indent=2) + '\n')
     (ROOT / 'Licenses/Rust-notices.txt').write_text('\n'.join(blocks))
-    (ROOT / 'Licenses/Rust-audit.json').write_text(json.dumps({'cargoLockSHA256': hashlib.sha256((ROOT / 'NativeCodex/Cargo.lock').read_bytes()).hexdigest(), 'packageCount': len(entries), 'noticeExceptions': [entry['name'] for entry in entries if entry.get('noticeBasis', {}).get('review')]}, indent=2) + '\n')
+    (ROOT / 'Licenses/Rust-audit.json').write_text(json.dumps({'cargoLockSHA256': hashlib.sha256((ROOT / 'NativeLibrary/Cargo.lock').read_bytes()).hexdigest(), 'packageCount': len(entries), 'noticeExceptions': [entry['name'] for entry in entries if entry.get('noticeBasis', {}).get('review')]}, indent=2) + '\n')
     print(f'PASS: {len(entries)} runtime Rust packages have a recorded permissive license choice and notice evidence.')
     print('Scope: target-filtered Cargo runtime graph; native vendored code is preserved in notices and requires separate source review.')
 if __name__ == '__main__': main()

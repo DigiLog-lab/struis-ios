@@ -329,40 +329,38 @@ extension UnitDeletionTests {
     }
 }
 
-/// 実ランナーの結果だけを保持し、削除との競合を再現する。モデル出力は生成しない。
-@MainActor private final class HeldNativeDeletionRunner: TurnRunning {
-    let native: CodexTurnRunner
+/// ランナーの結果を保持したまま返さず、削除との競合を再現する。返事は `MockTurnRunner` の決まった答え。
+@MainActor private final class HeldDeletionRunner: TurnRunning {
+    let inner: any TurnRunning
     var held: TurnOutcome?
     var releaseContinuation: CheckedContinuation<Void, Never>?
     var interrupted = false
-    init(_ native: CodexTurnRunner) { self.native = native }
+    init(_ inner: any TurnRunning) { self.inner = inner }
     func run(_ plan: TurnPlan, progress: @escaping @Sendable (TurnProgressEvent) -> Void) async throws -> TurnOutcome {
-        let outcome = try await native.run(plan, progress: progress)
+        let outcome = try await inner.run(plan, progress: progress)
         if held == nil {
             held = outcome
             await withCheckedContinuation { releaseContinuation = $0 }
         }
         return outcome
     }
-    func interrupt(planID: String) async { interrupted = true; await native.interrupt(planID: planID) }
-    func forgetThreads(_ ids: Set<String>) async throws { try await native.forgetThreads(ids) }
+    func interrupt(planID: String) async { interrupted = true; await inner.interrupt(planID: planID) }
+    func forgetThreads(_ ids: Set<String>) async throws { try await inner.forgetThreads(ids) }
     func release() { releaseContinuation?.resume(); releaseContinuation = nil }
 }
 
 extension UnitDeletionTests {
     @MainActor
-    func testNativeLateGradingGenerationChatAndPrefetchNeverRestoreDeletedUnit() async throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["STRUIS_UNIT_DELETION_LIVE"] == "1", "実Codex検証は明示的に起動する")
+    /// 遅れて届いた採点・出題・会話・先読みの結果が、消した単元を戻さない。端末の台帳(`StruisPaths.ledger`)に書くので、
+    /// 明示的に起動した時だけ動かす。返事はモックの決まった答え(結果を持ったまま削除と競わせるのが目的)。
+    func testLateGradingGenerationChatAndPrefetchNeverRestoreDeletedUnit() async throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["STRUIS_UNIT_DELETION_LIVE"] == "1", "端末の台帳に書く検証は明示的に起動する")
         try StruisPaths.prepare()
-        let runtime = DeviceRuntime()
-        try await runtime.ensureRunning()
-        let assets = AssetCache()
-        let source = try XCTUnwrap(LocalDirectoryAssetSource.fromEnvironment)
-        _ = try await assets.refresh(from: source)
+        let assets: AssetCache = AssetCache(lenient: true)
         let ledger = try Ledger(path: StruisPaths.ledger)
         for mode in ["grading", "generation", "chat", "prefetch"] {
-            let native = CodexTurnRunner(runtime: runtime, assets: assets)
-            let held = HeldNativeDeletionRunner(native)
+            let inner: MockTurnRunner = MockTurnRunner()
+            let held = HeldDeletionRunner(inner)
             let coordinator = TurnCoordinator(ledger: ledger, assets: assets, runner: held)
             let captureID = LedgerID.make()
             let imageName = "unit-deletion-live-\(captureID).jpg"
@@ -392,32 +390,31 @@ extension UnitDeletionTests {
             let deadline = Date().addingTimeInterval(300)
             while await held.held == nil && Date() < deadline { try await Task.sleep(for: .milliseconds(200)) }
             let received = await held.held
-            let outcome = try XCTUnwrap(received, "実ランナーの結果が届かない: \(mode)")
+            let outcome = try XCTUnwrap(received, "ランナーの結果が届かない: \(mode)")
             guard outcome.status == .completed else {
                 await held.release()
-                XCTFail("実ランナー \(mode) status=\(outcome.status) error=\(outcome.error ?? "")")
+                XCTFail("ランナー \(mode) status=\(outcome.status) error=\(outcome.error ?? "")")
                 continue
             }
-            XCTAssertNotNil(outcome.codexThreadID)
-            print("UNIT_DELETION_NATIVE held mode=\(mode) status=\(outcome.status.rawValue) codex_thread=\(outcome.codexThreadID ?? "")")
+            print("UNIT_DELETION_LATE held mode=\(mode) status=\(outcome.status.rawValue)")
             let deletion = Task { try await coordinator.deleteUnit(id: unitID) }
             let stopDeadline = Date().addingTimeInterval(15)
             while !(await held.interrupted) && Date() < stopDeadline { try await Task.sleep(for: .milliseconds(100)) }
             let stopped = await held.interrupted
             XCTAssertTrue(stopped)
             let during = try await ledger.read { try WorkbookUnitRecord.fetchOne($0, key: unitID) }
-            XCTAssertNotNil(during, "実結果を保持している間に完了扱いにした")
+            XCTAssertNotNil(during, "結果を保持している間に完了扱いにした")
             await held.release()
             _ = try await deletion.value
             let reopened = try Ledger(path: StruisPaths.ledger)
-            await TurnCoordinator(ledger: reopened, assets: assets, runner: native).resumeUnfinished()
+            await TurnCoordinator(ledger: reopened, assets: assets, runner: inner).resumeUnfinished()
             let restored = try await reopened.read { db in
                 try WorkbookUnitRecord.fetchOne(db, key: unitID) != nil || WorkbookSubunitRecord.fetchOne(db, key: subunitID) != nil || WorkbookSetRecord.fetchOne(db, key: setID) != nil || ThreadRecord.fetchOne(db, key: threadID) != nil
             }
             XCTAssertFalse(restored)
             let facts = try await reopened.events().filter { $0.kind == "unit.deleted" && $0.entityId == unitID }
             XCTAssertEqual(facts.count, 1)
-            print("UNIT_DELETION_NATIVE deleted mode=\(mode) restored=\(restored) facts=\(facts.count)")
+            print("UNIT_DELETION_LATE deleted mode=\(mode) restored=\(restored) facts=\(facts.count)")
         }
     }
 }

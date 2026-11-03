@@ -10,15 +10,6 @@ struct SettingsView: View {
     /// 内部の配布か。TestFlight は開いてから分かるので、最初は Bundle ID とビルドで決める。
     @State private var isInternalBuild: Bool = InternalBuild.isKnownInternal
 
-    /// ChatGPT(Codex)の入口。経路は選択肢から外した(#40)ので、DEBUG の検証(`-show-codex-settings`)でだけ出す。
-    static var showsCodexEntry: Bool {
-        #if DEBUG
-        return ProcessInfo.processInfo.arguments.contains("-show-codex-settings")
-        #else
-        return false
-        #endif
-    }
-
     var body: some View {
         SettingsScreen(title: "設定") {
             notices
@@ -62,30 +53,18 @@ struct SettingsView: View {
                 SettingsDivider()
                 SettingsExternalLinkRow(title: "プライバシーポリシー", url: LegalLinks.privacy)
             }
-            if isInternalBuild || Self.showsCodexEntry {
+            if isInternalBuild {
                 SettingsSection {
-                    if isInternalBuild {
-                        SettingsLinkRow(title: "開発者向け") {
-                            DeveloperSettingsView()
-                        }
-                        .accessibilityIdentifier("settings-row-developer")
+                    SettingsLinkRow(title: "開発者向け") {
+                        DeveloperSettingsView()
                     }
-                    if isInternalBuild && Self.showsCodexEntry {
-                        SettingsDivider()
-                    }
-                    if Self.showsCodexEntry {
-                        SettingsLinkRow(title: "ChatGPT / Codex", value: settings.account?.isConnected == true ? "接続済み" : "未接続") {
-                            CodexSettingsDetail()
-                        }
-                        .accessibilityIdentifier("settings-row-codex")
-                    }
+                    .accessibilityIdentifier("settings-row-developer")
                 }
             }
         }
         .task {
             usage.refresh()
             isInternalBuild = await InternalBuild.resolve()
-            await settings.refresh()
             await learnerData.refreshAssets(client: apiClient)
         }
     }
@@ -104,7 +83,7 @@ struct SettingsView: View {
             }
             .accessibilityIdentifier("settings-delivery-notice")
         }
-        if settings.modelProvider == .anthropic, !settings.claudeAvailable {
+        if !settings.claudeAvailable {
             SettingsNotice(title: "この端末では使えません", detail: ModelProviderError.claudeUnavailable.localizedDescription)
                 .accessibilityIdentifier("settings-model-claude-unavailable")
         }
@@ -396,166 +375,4 @@ private struct AccountSettingsDetail: View {
             }
         }
     }
-}
-
-/// ChatGPT / Codex の接続。経路は選択肢から外した(#40)ので、DEBUG の検証(`-show-codex-settings`)でだけ開ける。
-private struct CodexSettingsDetail: View {
-    @Environment(SettingsStore.self) private var settings
-
-    var body: some View {
-        SettingsScreen(title: "ChatGPT / Codex 接続") {
-            if settings.account?.isConnected == true {
-                SettingsSection {
-                    SettingsValueRow(title: "状態", value: statusLabel)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityIdentifier("settings-codex-status")
-                    SettingsDivider()
-                    SettingsValueRow(title: "接続アカウント", value: settings.account?.accountEmail ?? "メール未取得")
-                    SettingsDivider()
-                    SettingsValueRow(title: "プラン", value: CodexPlanName.display(settings.account?.planType) ?? "—")
-                    SettingsDivider()
-                    SettingsValueRow(title: "使用中", value: usageLabel)
-                    SettingsDivider()
-                    SettingsValueRow(title: "残り", value: remainingLabel)
-                    SettingsDivider()
-                    SettingsValueRow(title: "リセット", value: resetLabel)
-                    SettingsDivider()
-                    SettingsValueRow(title: "最終同期", value: lastSyncedLabel)
-                }
-                SettingsSection {
-                    SettingsButtonRow(title: "再同期", disabled: settings.busy) {
-                        Task { await settings.sync() }
-                    }
-                    SettingsDivider()
-                    SettingsButtonRow(title: "接続解除", tone: .destructive, disabled: settings.busy) {
-                        Task { await settings.disconnect() }
-                    }
-                }
-            } else {
-                SettingsSection(footer: "ChatGPT / Codex を接続すると、学習チャットで利用できます。") {
-                    SettingsValueRow(title: "状態", value: statusLabel)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityIdentifier("settings-codex-status")
-                    SettingsDivider()
-                    SettingsButtonRow(title: settings.busy ? "接続中" : "接続する", disabled: settings.busy) {
-                        Task { await settings.connect() }
-                    }
-                    .accessibilityIdentifier("settings-codex-connect")
-                }
-            }
-            if let code: String = settings.account?.userCode {
-                verificationSection(code: code, url: settings.account?.verificationURL)
-            }
-            if let message: String = settings.errorMessage {
-                SettingsSection {
-                    Text(message)
-                        .font(Typography.caption)
-                        .foregroundStyle(Theme.regressColor)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .accessibilityIdentifier("settings-codex-error")
-                }
-            }
-        }
-    }
-
-    private func verificationSection(code: String, url: String?) -> some View {
-        SettingsSection(header: "認証コード") {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(code)
-                    .font(.system(size: 22, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(Theme.primaryText)
-                    .accessibilityIdentifier("settings-codex-user-code")
-                if let url, let link: URL = URL(string: url) {
-                    Link("認証ページを開く", destination: link)
-                        .font(Typography.caption)
-                        .foregroundStyle(Theme.primaryText)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-        }
-    }
-
-    private var usageLabel: String {
-        guard let used: Double = settings.account?.rateLimitPrimaryNumber("usedPercent") else { return "取得待ち" }
-        return "\(Int(used.rounded()))% 使用中"
-    }
-
-    private var remainingLabel: String {
-        guard let remaining: Double = settings.account?.rateLimitPrimaryNumber("remaining") else { return "取得待ち" }
-        return "\(Int(remaining.rounded()))"
-    }
-
-    private var resetLabel: String {
-        guard let date: Date = settings.account?.rateLimitResetsAt else { return "取得待ち" }
-        return date.formatted(date: .omitted, time: .shortened)
-    }
-
-    private var lastSyncedLabel: String {
-        guard let date: Date = settings.account?.lastSyncedAt else { return "未同期" }
-        return date.formatted(date: .omitted, time: .shortened)
-    }
-
-    private var statusLabel: String {
-        guard let status = settings.account?.status else { return "未取得" }
-        switch status {
-        case .connected: return "接続済み"
-        case .connecting: return "接続中"
-        case .rateLimited: return "利用枠待ち"
-        case .error: return "要確認"
-        case .disconnected: return "未接続"
-        }
-    }
-}
-
-private extension CodexAccount {
-    func rateLimitPrimaryNumber(_ key: String) -> Double? {
-        guard let primary = rateLimitPrimary else { return nil }
-        return primary[key]?.numberValue
-    }
-
-    private var rateLimitPrimary: [String: AnyJSONValue]? {
-        guard case let .object(root) = rateLimitStatus?.value else { return nil }
-        if case let .object(rateLimits)? = root["rateLimits"],
-           case let .object(primary)? = rateLimits["primary"] {
-            return primary
-        }
-        if case let .object(buckets)? = root["rateLimitsByLimitId"] {
-            for bucket in buckets.values {
-                guard case let .object(bucketObject) = bucket else { continue }
-                if case let .string(limitId)? = bucketObject["limitId"], limitId != "codex" {
-                    continue
-                }
-                if case let .object(primary)? = bucketObject["primary"] {
-                    return primary
-                }
-            }
-        }
-        return nil
-    }
-}
-
-private extension AnyJSONValue {
-    var numberValue: Double? {
-        if case let .number(value) = self {
-            return value
-        }
-        return nil
-    }
-}
-
-/// ChatGPT のプランの、学習者に見せる名前(D13)。Codex が返す内部の識別子をそのまま出さない。
-/// 知っている識別子だけを名前にし、知らないものは nil(画面には出さない)。架空のプラン名で埋めない。
-enum CodexPlanName {
-    static func display(_ planType: String?) -> String? {
-        guard let key = planType?.trimmingCharacters(in: .whitespaces).lowercased(), !key.isEmpty else { return nil }
-        return names[key]
-    }
-
-    private static let names: [String: String] = [
-        "free": "Free", "go": "Go", "plus": "Plus", "pro": "Pro", "team": "Team", "business": "Business",
-        "enterprise": "Enterprise", "edu": "Edu", "education": "Edu",
-    ]
 }

@@ -449,7 +449,7 @@ nonisolated enum TimelineCaptureImage {
         let out = fitted(width: picture.width, height: picture.height, limit: viewMaxDimension)
         guard let final = resized(picture, width: out.width, height: out.height) else { throw ViewError(description: "The photo could not be decoded.") }
         var jpeg = DocumentReader.jpeg(final, quality: 0.85)
-        // Claude に渡せる画像は 5 MB まで(`ClaudeRequestTranslator.Options.maxImageBytes`)。
+        // Claude に渡せる画像は 5 MB まで(`ClaudeRequestFormat.maxImageBytes`)。
         if let data = jpeg, data.count > 3_500_000 { jpeg = DocumentReader.jpeg(final, quality: 0.6) }
         guard let jpeg else { throw ViewError(description: "The photo could not be encoded.") }
         return View(jpeg: jpeg, width: final.width, height: final.height, rect: rect, originalWidth: size.width, originalHeight: size.height)

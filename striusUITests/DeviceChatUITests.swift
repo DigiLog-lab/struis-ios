@@ -4,9 +4,9 @@ import XCTest
 /// 保留中の返信 → ターン実行 → 修復ループ・memory・進行更新を通って返信が完了する。
 ///
 /// - `testQuestionTurnWithMockModel`: モデル出力だけ固定 (`STRUIS_DEVICE_TURNS=mock`)。
-/// - `testQuestionTurnWithRealCodex`: hyotan 上の実 Codex app-server で回す。
-///   `TEST_RUNNER_STRUIS_REAL_CODEX_AUTH=<auth.json のパス>` を xcodebuild に渡したときだけ動く
-///   (DEBUG + simulator 限定の `STRUIS_DEBUG_CODEX_AUTH_FILE` でゲストに置く)。
+/// - `testQuestionTurnWithRealClaude`: 実 Claude(端末から Anthropic の Messages API へ直接)で回す。
+///   `TEST_RUNNER_STRUIS_REAL_CLAUDE_KEY_FILE=<API キーのファイルのパス>` を xcodebuild に渡したときだけ動く
+///   (DEBUG + simulator 限定の `STRUIS_DEBUG_ANTHROPIC_KEY_FILE` でアプリに渡す)。
 final class DeviceChatUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -28,45 +28,45 @@ final class DeviceChatUITests: XCTestCase {
     }
 
     @MainActor
-    func testQuestionTurnWithRealCodex() throws {
-        let auth = ProcessInfo.processInfo.environment["STRUIS_REAL_CODEX_AUTH"] ?? ""
-        try XCTSkipIf(auth.isEmpty, "TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)")
+    func testQuestionTurnWithRealClaude() throws {
+        let auth = ProcessInfo.processInfo.environment["STRUIS_REAL_CLAUDE_KEY_FILE"] ?? ""
+        try XCTSkipIf(auth.isEmpty, "TEST_RUNNER_STRUIS_REAL_CLAUDE_KEY_FILE が無い (実 Claude 検証は手動)")
         let app = XCUIApplication.struisUnits()
         app.launchArguments += ["-skip-onboarding"]
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "1"
         app.launchEnvironment["STRUIS_LEDGER"] = "memory"
         if let stdio = ProcessInfo.processInfo.environment["STRUIS_STDIO_LOG"] { app.launchEnvironment["STRUIS_STDIO_LOG"] = stdio }
-        app.launchEnvironment["STRUIS_DEBUG_CODEX_AUTH_FILE"] = auth
-        let assets = ProcessInfo.processInfo.environment["STRUIS_REAL_CODEX_ASSETS_DIR"] ?? ""
-        try XCTSkipIf(assets.isEmpty, "TEST_RUNNER_STRUIS_REAL_CODEX_ASSETS_DIR が無い (既定単元の実AI試験には外部配信資産が必要)")
+        app.launchEnvironment["STRUIS_DEBUG_ANTHROPIC_KEY_FILE"] = auth
+        let assets = ProcessInfo.processInfo.environment["STRUIS_REAL_AI_ASSETS_DIR"] ?? ""
+        try XCTSkipIf(assets.isEmpty, "TEST_RUNNER_STRUIS_REAL_AI_ASSETS_DIR が無い (既定単元の実AI試験には外部配信資産が必要)")
         app.launchEnvironment["STRUIS_DEVICE_ASSETS_DIR"] = assets
         app.launch()
         let reply = try ask(app, "y = x^2 - 4x + 1 を平方完成すると、どうして -3 が出てくるのですか？", timeout: 240)
         XCTAssertFalse(reply.isEmpty)
         assertTurnSucceeded(reply, "ターン")
         XCTAssertFalse(reply.contains("<struis_"), "私的ブロックが画面に漏れている: \(reply)")
-        snapshot(app, "chat-real-codex-reply")
+        snapshot(app, "chat-real-claude-reply")
 
-        // 同じ会話に続けて聞く: thread/resume + inject_items の経路。
+        // 同じ会話に続けて聞く: 保存した会話の履歴から続ける経路。
         let followUp = try ask(app, "では y = x^2 + 6x + 2 の頂点はどこですか？", timeout: 240, openSheet: false)
         assertTurnSucceeded(followUp, "2 通目")
         XCTAssertFalse(followUp.contains("<struis_"), "私的ブロックが画面に漏れている: \(followUp)")
-        snapshot(app, "chat-real-codex-follow-up")
+        snapshot(app, "chat-real-claude-follow-up")
     }
 
     /// 学習計画の依頼 → `<struis_workbook_proposal>` → 端末で単元生成ターン → 提案カードの「はじめる」。
     /// 続けて過去の会話記録を調べる依頼を送り、Luna 委任の経路を通す (委任するかはモデル判断)。
     @MainActor
-    func testWorkbookProposalAndLookupWithRealCodex() throws {
-        let auth = ProcessInfo.processInfo.environment["STRUIS_REAL_CODEX_AUTH"] ?? ""
-        try XCTSkipIf(auth.isEmpty, "TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)")
+    func testWorkbookProposalAndLookupWithRealClaude() throws {
+        let auth = ProcessInfo.processInfo.environment["STRUIS_REAL_CLAUDE_KEY_FILE"] ?? ""
+        try XCTSkipIf(auth.isEmpty, "TEST_RUNNER_STRUIS_REAL_CLAUDE_KEY_FILE が無い (実 Claude 検証は手動)")
         let app = XCUIApplication.struisUnits()
         app.launchArguments += ["-skip-onboarding"]
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "1"
         app.launchEnvironment["STRUIS_LEDGER"] = "memory"
-        app.launchEnvironment["STRUIS_DEBUG_CODEX_AUTH_FILE"] = auth
-        let assets = ProcessInfo.processInfo.environment["STRUIS_REAL_CODEX_ASSETS_DIR"] ?? ""
-        try XCTSkipIf(assets.isEmpty, "TEST_RUNNER_STRUIS_REAL_CODEX_ASSETS_DIR が無い (既定単元の実AI試験には外部配信資産が必要)")
+        app.launchEnvironment["STRUIS_DEBUG_ANTHROPIC_KEY_FILE"] = auth
+        let assets = ProcessInfo.processInfo.environment["STRUIS_REAL_AI_ASSETS_DIR"] ?? ""
+        try XCTSkipIf(assets.isEmpty, "TEST_RUNNER_STRUIS_REAL_AI_ASSETS_DIR が無い (既定単元の実AI試験には外部配信資産が必要)")
         app.launchEnvironment["STRUIS_DEVICE_ASSETS_DIR"] = assets
         app.launch()
         let reply = try ask(app, "春休みに三角比を一から予習したいです。計画を立ててください。", timeout: 240)
@@ -74,7 +74,7 @@ final class DeviceChatUITests: XCTestCase {
         XCTAssertFalse(reply.contains("<struis_"), "私的ブロックが画面に漏れている: \(reply)")
         let start = app.descendants(matching: .any)["workbook-proposal-start"].firstMatch
         XCTAssertTrue(start.appears(timeout: 300), "単元の提案カードが出ない")
-        snapshot(app, "chat-real-codex-proposal")
+        snapshot(app, "chat-real-claude-proposal")
         start.tap()
         // 「はじめる」の後は質問画面を閉じて小単元 1 の要点を開く(質問画面に取り残されない)。
         let header = app.descendants(matching: .any)["workbook-subunit-header"].firstMatch
@@ -83,21 +83,21 @@ final class DeviceChatUITests: XCTestCase {
 
         let lookup = try ask(app, "さっき私が何を予習したいと言ったか、会話の記録を調べて一言で確認してください。", timeout: 300)
         XCTAssertTrue(lookup.contains("三角比"), "記録の確認ができていない: \(lookup)")
-        snapshot(app, "chat-real-codex-lookup")
+        snapshot(app, "chat-real-claude-lookup")
     }
 
     /// 中断 (turn/interrupt) と、停止の後の再送・再起動後の継続。
     @MainActor
-    func testInterruptWithRealCodex() throws {
-        let auth = ProcessInfo.processInfo.environment["STRUIS_REAL_CODEX_AUTH"] ?? ""
-        try XCTSkipIf(auth.isEmpty, "TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)")
+    func testInterruptWithRealClaude() throws {
+        let auth = ProcessInfo.processInfo.environment["STRUIS_REAL_CLAUDE_KEY_FILE"] ?? ""
+        try XCTSkipIf(auth.isEmpty, "TEST_RUNNER_STRUIS_REAL_CLAUDE_KEY_FILE が無い (実 Claude 検証は手動)")
         let app = XCUIApplication.struisUnits()
         app.launchArguments += ["-skip-onboarding"]
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "1"
         app.launchEnvironment["STRUIS_LEDGER"] = "persistent"
-        app.launchEnvironment["STRUIS_DEBUG_CODEX_AUTH_FILE"] = auth
-        let assets = ProcessInfo.processInfo.environment["STRUIS_REAL_CODEX_ASSETS_DIR"] ?? ""
-        try XCTSkipIf(assets.isEmpty, "TEST_RUNNER_STRUIS_REAL_CODEX_ASSETS_DIR が無い (既定単元の実AI試験には外部配信資産が必要)")
+        app.launchEnvironment["STRUIS_DEBUG_ANTHROPIC_KEY_FILE"] = auth
+        let assets = ProcessInfo.processInfo.environment["STRUIS_REAL_AI_ASSETS_DIR"] ?? ""
+        try XCTSkipIf(assets.isEmpty, "TEST_RUNNER_STRUIS_REAL_AI_ASSETS_DIR が無い (既定単元の実AI試験には外部配信資産が必要)")
         app.launchEnvironment["STRUIS_DEVICE_ASSETS_DIR"] = assets
         app.launch()
         assertTurnSucceeded(try ask(app, "y = (x-3)^2 + 5 の頂点を一言で教えてください。", timeout: 240), "本流の返信")
@@ -113,11 +113,11 @@ final class DeviceChatUITests: XCTestCase {
         sleep(6)
         stop.tap()
         XCTAssertTrue(app.staticTexts["停止しました。"].firstMatch.appears(timeout: 60), "停止が反映されない")
-        snapshot(app, "chat-real-codex-interrupted")
+        snapshot(app, "chat-real-claude-interrupted")
         let resent = try ask(app, "13 と 17 の積だけ答えてください。", timeout: 240, openSheet: false)
         assertTurnSucceeded(resent, "停止後の再送")
         XCTAssertTrue(resent.contains("221"), resent)
-        snapshot(app, "chat-real-codex-after-interrupt")
+        snapshot(app, "chat-real-claude-after-interrupt")
         app.terminate()
         app.launch()
         // 質問は空の新しい会話で開くので、さっきの会話を履歴から選んで続ける。
@@ -126,7 +126,7 @@ final class DeviceChatUITests: XCTestCase {
         let resumed = try ask(app, "直前に求めた積はいくつでしたか？数字だけで答えてください。", timeout: 240, openSheet: false)
         assertTurnSucceeded(resumed, "アプリ再起動後の継続")
         XCTAssertTrue(resumed.contains("221"), resumed)
-        snapshot(app, "chat-real-codex-after-relaunch")
+        snapshot(app, "chat-real-claude-after-relaunch")
     }
 
     @MainActor
@@ -157,7 +157,7 @@ final class DeviceChatUITests: XCTestCase {
     }
 
     /// 返信がターンの失敗表示 (異常終了・利用上限・タイムアウトなど) でないこと。
-    private static let failureMarkers = ["Codex が終了", "失敗", "timeout", "usage limit", "hit your", "上限", "rate limit", "受け取れませんでした"]
+    private static let failureMarkers = ["もう一度送ってください", "失敗", "timeout", "usage limit", "hit your", "上限", "rate limit", "受け取れませんでした"]
 
     private func assertTurnSucceeded(_ reply: String, _ label: String, file: StaticString = #filePath, line: UInt = #line) {
         let marker = Self.failureMarkers.first { reply.localizedCaseInsensitiveContains($0) }

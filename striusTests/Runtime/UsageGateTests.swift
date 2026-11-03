@@ -1,9 +1,8 @@
-import Network
 import XCTest
 @testable import strius
 
 /// 利用枠(#62): 週の区切り・保存先の大きい方・プランごとの上限とソフトリミット・料金が分からない要求の見積もり・
-/// 上限に達した時の返し方(再試行されない 400)。
+/// 上限に達した時の止め方(送らずにターンを失敗にする)。
 @MainActor
 final class UsageGateTests: XCTestCase {
     private var tokyo: Calendar {
@@ -125,48 +124,44 @@ final class UsageGateTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(unknown, opus - 1e-6)
     }
 
-    // MARK: - 中継
+    // MARK: - ランナー
 
-    func testProxyRefusesWithANonRetried400WhenTheLimitIsReached() async throws {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [RefusingUpstream.self]
-        RefusingUpstream.requests = 0
-        let upstream = ClaudeUpstream(baseURL: URL(string: "https://stub.invalid")!, apiKey: { "sk-test" },
-                                      session: URLSession(configuration: configuration), gate: ClosedGate())
-        let proxy = ClaudeResponsesProxy(upstream: upstream)
-        let endpoint = try await proxy.start()
-        defer { Task { await proxy.stop() } }
-        var request = URLRequest(url: URL(string: endpoint.baseURL + "/responses")!)
-        request.httpMethod = "POST"
-        request.setValue("Bearer " + endpoint.token, forHTTPHeaderField: "Authorization")
-        request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "model": "claude-sonnet-5-5", "instructions": "BASE", "stream": true,
-            "input": [["type": "message", "role": "user", "content": [["type": "input_text", "text": "hi"]]]],
-        ])
-        let (data, response) = try await URLSession.shared.data(for: request)
-        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 400, "Codex は 429・5xx を再試行するので 400 で返す")
-        let error = (try JSONSerialization.jsonObject(with: data) as? [String: Any])?["error"] as? [String: Any]
-        XCTAssertEqual(error?["code"] as? String, "usage_limit_reached")
-        XCTAssertEqual(RefusingUpstream.requests, 0, "上限に達したら Anthropic に送らない")
-        XCTAssertEqual(CodexAppServerError.turnFailed(error?["message"] as? String ?? "").errorDescription,
-                       "今週の利用枠を使い切りました。設定の「利用枠」で、戻る日時とプランを確かめてください。")
+    /// 上限に達したら Anthropic に送らず、ターンを失敗にする(学習者には利用枠の一文、記録には理由)。
+    func testRunnerRefusesWithoutSendingWhenTheLimitIsReached() async throws {
+        let configuration: URLSessionConfiguration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubAnthropic.self]
+        let recorder: RequestRecorder = RequestRecorder()
+        StubAnthropic.handler = { _ in
+            _ = recorder.add([:])
+            return (500, "")
+        }
+        defer { StubAnthropic.handler = nil }
+        let upstream: ClaudeUpstream = ClaudeUpstream(baseURL: URL(string: "https://stub.invalid")!, apiKey: { "sk-test" },
+                                                      session: URLSession(configuration: configuration), gate: ClosedGate())
+        let assets: AssetCache = AssetCache(root: FileManager.default.temporaryDirectory.appendingPathComponent("usage-gate-\(UUID().uuidString)"), lenient: true)
+        let runner: ClaudeTurnRunner = ClaudeTurnRunner(assets: assets, conversations: try ClaudeConversationStore.temporary(), upstream: upstream,
+                                                        contextStore: ThreadContextStore(url: nil), prepareCommands: {})
+        let plan: TurnPlan = TurnPlan(
+            id: LedgerID.make(), kind: .workbookSet, round: 1,
+            thread: TurnPlan.ThreadSpec(codexThreadID: nil, mode: .start, cwd: "/", model: "claude-sonnet-5-5", effort: "medium", ephemeral: true,
+                                        baseInstructions: TurnPlan.AssetRef(asset: "prompt:base", sha256: "unavailable"), developerInstructions: nil,
+                                        developerText: "Only JSON.", injectDeveloperOnResume: false, config: .object([:]), lastTurnID: nil),
+            turn: TurnPlan.TurnSpec(text: "hi", images: [], outputSchema: nil, sandboxPolicy: "dangerFullAccess"),
+            workspace: TurnPlan.WorkspaceSpec(files: [], dirs: []), delegation: nil, collect: [], limits: .structured
+        )
+        defer { WorkspaceStager.cleanup(plan: plan) }
+        let outcome: TurnOutcome = try await runner.run(plan) { _ in }
+        XCTAssertEqual(outcome.status, .failed)
+        XCTAssertTrue(recorder.bodies.isEmpty, "上限に達したら Anthropic に送らない")
+        XCTAssertEqual(outcome.error, "今週の利用枠を使い切りました。設定の「利用枠」で、戻る日時とプランを確かめてください。")
+        XCTAssertEqual(outcome.errorDetail, TurnRuntimeError.turnFailed(UsageLimitResponse.message).detail)
+        XCTAssertTrue(outcome.errorDetail?.contains(UsageLimitResponse.code) == true)
+        XCTAssertEqual(outcome.executions.last?["status"]?.stringValue, "failed")
     }
 }
 
-/// 送らせない判定(中継のテスト)。
-private struct ClosedGate: UsageGate {
+/// 送らせない判定(ランナーのテスト)。
+nonisolated private struct ClosedGate: UsageGate {
     func admit() -> Bool { false }
     func record(_ attempt: [String: Any], requestBytes: Int) {}
-}
-
-/// 呼ばれたら数える上流(呼ばれないことを確かめる)。
-private final class RefusingUpstream: URLProtocol {
-    nonisolated(unsafe) static var requests = 0
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-    override func startLoading() {
-        Self.requests += 1
-        client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
-    }
-    override func stopLoading() {}
 }

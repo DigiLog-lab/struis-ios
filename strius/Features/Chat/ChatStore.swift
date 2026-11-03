@@ -33,7 +33,7 @@ final class ChatStore {
     private var sentReplyID: UUID?
     private(set) var sendError: String?
     /// 答案の写真を添えた会話と答案(`thread|capture`)。同じ会話で同じ答案を何度も送らない。
-    /// 進行中の返信に付く進捗ラベル (`codex.turn.status` の端末版)。
+    /// 進行中の返信に付く進捗ラベル。
     private(set) var progressLabel: String?
 
     /// 動いている返事が、見える本文を書き終えて後ろの記録(進み具合・記憶など)だけを書いている。
@@ -571,7 +571,7 @@ final class ChatStore {
     /// モデルに画像で渡す PDF のページ数(と、1 つの PDF から渡す画像の数)の上限。ほかは struis.document で読む。
     nonisolated static let pdfPageImageLimit = 8
 
-    /// PDF の先頭のページを JPEG にする(cropBox と回転を反映し、Codex の枠に収める。縦長のページは分割する)。
+    /// PDF の先頭のページを JPEG にする(cropBox と回転を反映し、モデルに送る画像の枠に収める。縦長のページは分割する)。
     /// 名前は実際のページ番号で付ける(`p3`、分割したものは `p1-2`)。読めない PDF は空。
     nonisolated static func pdfPageImages(at url: URL, limit: Int = pdfPageImageLimit) -> [(name: String, jpeg: Data)] {
         guard let document = PDFDocument(url: url), !document.isLocked else { return [] }
@@ -640,8 +640,8 @@ final class ChatStore {
     private static func message(for error: Error) -> String {
         if let ledgerError = error as? LedgerError {
             switch ledgerError.code {
-            case "codex_turn_in_progress": return "前の返信を待っています"
-            case "codex_app_server_error": return ledgerError.localizedDescription
+            case "chat_turn_in_progress": return "前の返信を待っています"
+            case "chat_start_error": return ledgerError.localizedDescription
             default: return ledgerError.localizedDescription
             }
         }

@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-nonisolated private let directLog = Logger(subsystem: "com.digiloglab.strius", category: "direct-claude")
+nonisolated private let runnerLog = Logger(subsystem: "com.digiloglab.strius", category: "turn-runner")
 
 /// 経過ミリ秒(実行監査の `elapsed_ms`)。
 nonisolated enum ClaudeTurnClock {
@@ -17,8 +17,8 @@ nonisolated enum ClaudeTurnClock {
 /// `ClaudeRequestAttempt`・`ClaudeRequestLog`、作業フォルダは `WorkspaceStager` を使う。続く会話の履歴は
 /// `ClaudeConversationStore`(台帳の中の表)に Messages の形のまま残し、次のターンはそこから続ける。
 ///
-/// 再試行の回数は以前の経路に合わせる(`docs/integration-review.md` の表 3)。
-actor DirectClaudeTurnRunner: TurnRunning {
+/// 再試行の回数は以前の経路(端末内の Codex)に合わせた(`docs/integration-review.md` の表 3)。
+actor ClaudeTurnRunner: TurnRunning {
     nonisolated struct Timeouts: Sendable {
         var minimumTurnS: Int = 300
         /// 答えを書き始めた後にこれだけ何も届かなければ、ストリームが止まったとみなす。
@@ -45,36 +45,26 @@ actor DirectClaudeTurnRunner: TurnRunning {
     }
 
     private let dependencies: Dependencies
-    private let fallback: (any TurnRunning)?
-    private var liveTurns: [String: Task<DirectClaudeTurn.Result, Never>] = [:]
+    private var liveTurns: [String: Task<ClaudeTurn.Result, Never>] = [:]
 
     /// `prepareCommands`: 作業フォルダとコマンド worker の用意。
     init(assets: AssetCache, conversations: ClaudeConversationStore, upstream: ClaudeUpstream = ClaudeUpstream(),
          tools: NativeToolRouter = NativeToolRouter(), timeouts: Timeouts = Timeouts(), contextStore: ThreadContextStore = .shared,
-         fallback: (any TurnRunning)? = nil, prepareCommands: @escaping @Sendable () async throws -> Void) {
+         prepareCommands: @escaping @Sendable () async throws -> Void) {
         self.dependencies = Dependencies(assets: assets, conversations: conversations, upstream: upstream, tools: tools, timeouts: timeouts,
                                          contextStore: contextStore, prepareCommands: prepareCommands)
-        self.fallback = fallback
     }
 
-    /// 直結で回すターン。保存済みの plan の provider が nil(この項目より前の記録)でも Claude として動かす。
-    nonisolated static func handles(_ plan: TurnPlan) -> Bool {
-        plan.thread.provider != .openai && plan.kind != .threadInject
-    }
-
+    /// 保存済みの plan の provider は見ない(nil・以前の値でも Claude として動かす)。
     func run(_ plan: TurnPlan, progress: @escaping @Sendable (TurnProgressEvent) -> Void) async throws -> TurnOutcome {
-        guard Self.handles(plan) else {
-            guard let fallback else { throw CodexAppServerError.malformed("direct runner cannot run \(plan.kind.rawValue)") }
-            return try await fallback.run(plan, progress: progress)
-        }
         if plan.kind == .threadFork { return fork(plan) }
         let deadline: TurnDeadline = TurnDeadline(limitSeconds: max(dependencies.timeouts.minimumTurnS, plan.limits.turnTimeoutS))
         BackgroundTurnActivity.begin()
         defer { BackgroundTurnActivity.end() }
-        let first: DirectClaudeTurn.Result = await attempt(plan, deadline: deadline, progress: progress)
+        let first: ClaudeTurn.Result = await attempt(plan, deadline: deadline, progress: progress)
         // 1 回で終わるターンの止まった答えは、同じ依頼をもう一度送る(履歴は無い)。続く会話はターンの中で送り直す。
         guard first.outcome.status == .failed, first.retry, deadline.remaining > 0 else { return first.outcome }
-        directLog.error("turn \(plan.id, privacy: .public): the answer stalled, retrying once")
+        runnerLog.error("turn \(plan.id, privacy: .public): the answer stalled, retrying once")
         let second: TurnOutcome = await attempt(plan, deadline: deadline, progress: progress).outcome
         return TurnOutcome(
             planID: second.planID, round: second.round, status: second.status, codexThreadID: second.codexThreadID,
@@ -84,11 +74,11 @@ actor DirectClaudeTurnRunner: TurnRunning {
         )
     }
 
-    private func attempt(_ plan: TurnPlan, deadline: TurnDeadline, progress: @escaping @Sendable (TurnProgressEvent) -> Void) async -> DirectClaudeTurn.Result {
-        let turn: DirectClaudeTurn = DirectClaudeTurn(plan: plan, child: nil, dependencies: dependencies, deadline: deadline, progress: progress)
-        let task: Task<DirectClaudeTurn.Result, Never> = Task { await turn.run() }
+    private func attempt(_ plan: TurnPlan, deadline: TurnDeadline, progress: @escaping @Sendable (TurnProgressEvent) -> Void) async -> ClaudeTurn.Result {
+        let turn: ClaudeTurn = ClaudeTurn(plan: plan, child: nil, dependencies: dependencies, deadline: deadline, progress: progress)
+        let task: Task<ClaudeTurn.Result, Never> = Task { await turn.run() }
         liveTurns[plan.id] = task
-        let result: DirectClaudeTurn.Result = await task.value
+        let result: ClaudeTurn.Result = await task.value
         liveTurns[plan.id] = nil
         return result
     }
@@ -96,9 +86,9 @@ actor DirectClaudeTurnRunner: TurnRunning {
     /// 分岐: 元の会話の `lastTurnID` のターンまでの履歴を、新しいスレッドに写す(モデルは呼ばない)。
     private func fork(_ plan: TurnPlan) -> TurnOutcome {
         let started: Date = Date()
-        let forked: String = DirectClaudeTurn.newThreadID()
+        let forked: String = ClaudeTurn.newThreadID()
         do {
-            guard let source = plan.thread.codexThreadID else { throw CodexAppServerError.malformed("fork needs a thread") }
+            guard let source = plan.thread.codexThreadID else { throw TurnRuntimeError.malformed("fork needs a thread") }
             try dependencies.conversations.fork(from: source, upTo: plan.thread.lastTurnID, into: forked)
             let inherited: ThreadContextStore.Entry? = dependencies.contextStore.entry(source)
             dependencies.contextStore.update(forked) { entry in
@@ -114,7 +104,7 @@ actor DirectClaudeTurnRunner: TurnRunning {
             return TurnOutcome(planID: plan.id, round: plan.round, status: .completed, codexThreadID: forked, codexTurnID: nil, finalText: "",
                                executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: ClaudeTurnClock.elapsed(started))
         } catch {
-            directLog.error("fork failed: \(String(describing: error), privacy: .public)")
+            runnerLog.error("fork failed: \(String(describing: error), privacy: .public)")
             return TurnOutcome(planID: plan.id, round: plan.round, status: .failed, codexThreadID: nil, codexTurnID: nil, finalText: "",
                                executions: [], rateLimits: nil, files: [], error: error.localizedDescription, elapsedMs: ClaudeTurnClock.elapsed(started),
                                errorDetail: String(describing: error))
@@ -124,22 +114,15 @@ actor DirectClaudeTurnRunner: TurnRunning {
     func interrupt(planID: String) async {
         liveTurns[planID]?.cancel()
         await dependencies.tools.cancel(planID: planID)
-        await fallback?.interrupt(planID: planID)
     }
 
     func warmUp() async {
         try? await dependencies.prepareCommands()
-        await fallback?.warmUp()
     }
 
     func forgetThreads(_ ids: Set<String>) async throws {
         try dependencies.conversations.remove(ids)
         dependencies.contextStore.remove(ids)
-        try await fallback?.forgetThreads(ids)
-    }
-
-    func resetConnection() async {
-        await fallback?.resetConnection()
     }
 
     func resumes(threadID: String?) async -> Bool {
@@ -149,7 +132,7 @@ actor DirectClaudeTurnRunner: TurnRunning {
 }
 
 /// 1 回のターン。続く会話(チャット)は履歴を読み、モデルの返事と道具の結果のたびに履歴へ足す。
-nonisolated final class DirectClaudeTurn: @unchecked Sendable {
+nonisolated final class ClaudeTurn: @unchecked Sendable {
     nonisolated struct Result: Sendable {
         var outcome: TurnOutcome
         /// 止まった答え(1 回で終わるターンだけ、もう一度送る)。
@@ -163,7 +146,7 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
 
     private var plan: TurnPlan
     private let child: DelegationWatcher.Child?
-    private let dependencies: DirectClaudeTurnRunner.Dependencies
+    private let dependencies: ClaudeTurnRunner.Dependencies
     private let deadline: TurnDeadline
     private let progress: @Sendable (TurnProgressEvent) -> Void
     private let log: ClaudeRequestLog = ClaudeRequestLog.shared
@@ -202,7 +185,7 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
     private var reasoning: [String: String] = [:]
     private var skills: SkillWaiting = SkillWaiting()
 
-    init(plan: TurnPlan, child: DelegationWatcher.Child?, dependencies: DirectClaudeTurnRunner.Dependencies, deadline: TurnDeadline,
+    init(plan: TurnPlan, child: DelegationWatcher.Child?, dependencies: ClaudeTurnRunner.Dependencies, deadline: TurnDeadline,
          progress: @escaping @Sendable (TurnProgressEvent) -> Void) {
         self.plan = plan
         self.child = child
@@ -232,17 +215,17 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
         do {
             try await dependencies.prepareCommands()
             TurnStage.report("runtime_ready")
-            guard ClaudeAccess.isAvailable else { throw ModelProviderError.claudeUnavailable }
-            let input: [[String: Any]]
+            guard dependencies.upstream.route() != nil else { throw ModelProviderError.claudeUnavailable }
+            var input: [[String: Any]]
             if let child {
                 try configureChild(child)
                 input = [["type": "text", "text": child.text]]
             } else {
-                guard let turn = plan.turn else { throw CodexAppServerError.malformed("plan has no turn") }
+                guard let turn = plan.turn else { throw TurnRuntimeError.malformed("plan has no turn") }
                 let notes: [String] = try await configure(turn)
                 TurnStage.report("thread_configured")
                 try WorkspaceStager.prepare(plan: plan, assets: dependencies.assets)
-                skills = await CodexTurnRunner.skillWaiting(plan: plan, assets: dependencies.assets)
+                skills = await ClaudeTurnRunner.skillWaiting(plan: plan, assets: dependencies.assets)
                 var text: String = turn.text
                 if let delegation = plan.delegation, delegation.enabled {
                     let created: DelegationWatcher = makeWatcher(delegation)
@@ -251,6 +234,17 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
                     if delegation.contractInDeveloper != true { text += created.prompt }
                 }
                 input = try userContent(text: text, images: turn.images, notes: notes)
+                if conversation, (try? dependencies.conversations.conversation(threadID))?.agentsPath != plan.hostWorkspace.path,
+                   let agents = await agentsInstructions(replacing: try dependencies.conversations.messageCount(threadID) > 0) {
+                    // 作業フォルダが変わった最初の発話(新しいスレッド・分岐): その AGENTS.md を先頭に置く(同じフォルダの間は送らない)。
+                    // 履歴のある会話(分岐)では、新しいフォルダの Skill の一覧も developer の注記として送り直す。
+                    var preface: [[String: Any]] = [["type": "text", "text": agents.text]]
+                    if agents.replacing, let skillsBlock = await skillsInstructions() {
+                        preface.append(["type": "text", "text": "<developer_instructions>\n" + skillsBlock + "\n</developer_instructions>"])
+                    }
+                    input.insert(contentsOf: preface, at: 0)
+                    try dependencies.conversations.recordAgentsPath(threadID: threadID, path: plan.hostWorkspace.path)
+                }
             }
             if conversation {
                 try startConversationTurn(input)
@@ -296,10 +290,10 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
     }
 
     private func makeWatcher(_ delegation: TurnPlan.DelegationSpec) -> DelegationWatcher {
-        let dependencies: DirectClaudeTurnRunner.Dependencies = self.dependencies
+        let dependencies: ClaudeTurnRunner.Dependencies = self.dependencies
         let plan: TurnPlan = self.plan
         return DelegationWatcher(plan: plan, delegation: delegation, assets: dependencies.assets) { child in
-            let turn: DirectClaudeTurn = DirectClaudeTurn(plan: plan, child: child, dependencies: dependencies,
+            let turn: ClaudeTurn = ClaudeTurn(plan: plan, child: child, dependencies: dependencies,
                                                           deadline: TurnDeadline(limitSeconds: dependencies.timeouts.childTurnS), progress: { _ in })
             let result: Result = await turn.run()
             let outcome: TurnOutcome = result.outcome
@@ -310,7 +304,7 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
 
     private func fail(_ error: Error) -> Result {
         let cancelled: Bool = Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled
-            || (error as? CodexAppServerError) == .interrupted
+            || (error as? TurnRuntimeError) == .interrupted
         if cancelled {
             if !audit.isEmpty {
                 audit["stopped_by"] = "learner"
@@ -320,25 +314,25 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
             return Result(outcome: TurnOutcome(planID: plan.id, round: plan.round, status: .interrupted, codexThreadID: threadID, codexTurnID: nil, finalText: "",
                                                executions: executions, rateLimits: nil, files: [], error: nil, elapsedMs: elapsed), retry: false)
         }
-        let appError: CodexAppServerError? = error as? CodexAppServerError
-        let timedOut: Bool = appError == .timeout(CodexTurnRunner.deadlineDetail)
+        let appError: TurnRuntimeError? = error as? TurnRuntimeError
+        let timedOut: Bool = appError == .timeout(ClaudeTurnRunner.deadlineDetail)
         if !audit.isEmpty {
             if timedOut {
                 audit["stopped_by"] = "deadline"
                 audit["deadline_s"] = deadline.limitSeconds
             }
-            finishAudit(status: timedOut ? "timed_out" : "failed", error: CodexTurnRunner.describe(error))
+            finishAudit(status: timedOut ? "timed_out" : "failed", error: ClaudeTurnRunner.describe(error))
         }
         if conversation {
             closeOpenToolUses(persist: true)
             // 期限で止めたのは Struis で、学習者ではない。次のターンでモデルに伝える。
-            if timedOut { dependencies.contextStore.addNotice(threadID, CodexTurnRunner.deadlineNotice(limitSeconds: deadline.limitSeconds)) }
+            if timedOut { dependencies.contextStore.addNotice(threadID, ClaudeTurnRunner.deadlineNotice(limitSeconds: deadline.limitSeconds)) }
         }
-        directLog.error("turn \(self.plan.id, privacy: .public) failed: \(CodexTurnRunner.describe(error), privacy: .public)")
+        runnerLog.error("turn \(self.plan.id, privacy: .public) failed: \(ClaudeTurnRunner.describe(error), privacy: .public)")
         return Result(outcome: TurnOutcome(planID: plan.id, round: plan.round, status: .failed, codexThreadID: threadID, codexTurnID: nil, finalText: "",
                                            executions: executions, rateLimits: nil, files: [], error: error.localizedDescription, elapsedMs: elapsed,
-                                           errorDetail: CodexTurnRunner.describe(error)),
-                      retry: !conversation && child == nil && appError == .timeout(CodexTurnRunner.messageStallDetail))
+                                           errorDetail: ClaudeTurnRunner.describe(error)),
+                      retry: !conversation && child == nil && appError == .timeout(ClaudeTurnRunner.messageStallDetail))
     }
 
     // MARK: - 指示と道具
@@ -377,7 +371,7 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
                 }
                 stripThinking = dependencies.contextStore.entry(threadID)?.thinkingStripped == true
             } else {
-                let profile: ThreadContextStore.Profile = CodexTurnRunner.threadProfile(plan, base: base, developer: fullDeveloper)
+                let profile: ThreadContextStore.Profile = ClaudeTurnRunner.threadProfile(plan, base: base, developer: fullDeveloper)
                 dependencies.contextStore.update(threadID) {
                     $0.developer = developerHash
                     $0.provider = .anthropic
@@ -388,7 +382,9 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
             // 次のターンの前に入れる Struis からの注記(期限で止めた、など)。
             notes += dependencies.contextStore.takeNotices(threadID)
         }
-        systemParts = [base, fullDeveloper] + (try await workspaceInstructions())
+        // developer 指示と、作業フォルダの Skill の一覧は 1 つの developer 発話の中で改行 1 つで続く(以前の経路の文面と同じ)。
+        let skillsBlock: String? = await skillsInstructions()
+        systemParts = [base, fullDeveloper + (skillsBlock.map { "\n" + $0 } ?? "")]
         return notes
     }
 
@@ -399,9 +395,47 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
         toolNames = ClaudeToolNames(responsesTools: NativeToolRouter.lookupDefinitions + [Self.viewImageTool], sorted: true)
     }
 
-    /// 作業フォルダの `AGENTS.md` と `.agents/skills` の一覧(Codex がスレッドに入れていた文面と同じ)。
-    private func workspaceInstructions() async throws -> [String] {
-        []
+    /// 作業フォルダの `.agents/skills` の一覧(以前の経路がスレッドの developer 指示の後ろに入れていた文面と同じ)。
+    private func skillsInstructions() async -> String? {
+        var entries: [(name: String, directory: String, description: String)] = []
+        for file in plan.workspace.files {
+            guard let directory = SkillWaiting.skillName(fromWorkspacePath: file.path) else { continue }
+            let text: String? = if let asset = file.asset { try? await dependencies.assets.text(asset) } else { file.inline }
+            guard let text, let front = Self.frontmatter(text) else { continue }
+            let name: String = front["name"]?.stringValue ?? directory
+            entries.append((name: name, directory: directory, description: front["description"]?.stringValue ?? ""))
+        }
+        guard !entries.isEmpty else { return nil }
+        let root: String = plan.hostWorkspace.appendingPathComponent(".agents/skills").path
+        var lines: [String] = [
+            "## Skills",
+            "A skill is a set of local instructions to follow that is stored in a `SKILL.md` file. Below is the list of skills that can be used. Each entry includes a name, description, and a short path that can be expanded into an absolute path using the skill roots table.",
+            "### Skill roots",
+            "- `r0` = `\(root)`",
+            "### Available skills",
+        ]
+        for entry in entries.sorted(by: { $0.name < $1.name }) {
+            lines.append("- \(entry.name): \(entry.description) (file: r0/\(entry.directory)/SKILL.md)")
+        }
+        return "<skills_instructions>\n" + lines.joined(separator: "\n") + "\n</skills_instructions>"
+    }
+
+    private static func frontmatter(_ text: String) -> EngineObject? {
+        let lines: [String] = text.components(separatedBy: "\n")
+        guard lines.first?.trimmingCharacters(in: .whitespaces) == "---",
+              let end = lines.dropFirst().firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == "---" }),
+              let front = try? EngineYAML.load(lines[1..<end].joined(separator: "\n")) else { return nil }
+        return front.objectValue
+    }
+
+    /// 新しい会話の最初の発話の先頭に置く `AGENTS.md`(以前の経路が作業フォルダから読んで入れていた文面と同じ)。
+    /// `replacing`: 履歴に前の AGENTS.md がある(分岐した会話)。その時は置き換える旨を先頭に書く。
+    private func agentsInstructions(replacing: Bool) async -> (text: String, replacing: Bool)? {
+        guard let file = plan.workspace.files.first(where: { $0.path == "AGENTS.md" }) else { return nil }
+        let text: String? = if let asset = file.asset { try? await dependencies.assets.text(asset) } else { file.inline }
+        guard let text, !text.isEmpty else { return nil }
+        let preface: String = replacing ? "These AGENTS.md instructions replace all previously provided AGENTS.md instructions.\n\n" : ""
+        return ("# AGENTS.md instructions for \(plan.hostWorkspace.path)\n\n<INSTRUCTIONS>\n\(preface)\(text)\n</INSTRUCTIONS>", replacing)
     }
 
     /// Codex の組み込みの `view_image`(Codex が足す定義と同じ文面)。`request_user_input` は Plan モード専用なので足さない。
@@ -426,7 +460,7 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
                 return true
             }
             // 前の履歴が無い(以前の経路の会話・別の端末・書き出しから戻した台帳)か、長くなりすぎた: 新しいスレッドで続ける。
-            directLog.info("conversation \(existing, privacy: .public) continues on a new thread")
+            runnerLog.info("conversation \(existing, privacy: .public) continues on a new thread")
             let notices: [String] = dependencies.contextStore.takeNotices(existing)
             threadID = Self.newThreadID()
             for notice in notices { dependencies.contextStore.addNotice(threadID, notice) }
@@ -524,7 +558,7 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
     }
 
     static func imageBlock(_ data: Data) -> [String: Any]? {
-        ClaudeRequestTranslator.imageBlock("data:\(mediaType(data));base64,\(data.base64EncodedString())", maxBytes: ClaudeRequestTranslator.Options().maxImageBytes)
+        ClaudeRequestFormat.imageBlock("data:\(mediaType(data));base64,\(data.base64EncodedString())", maxBytes: ClaudeRequestFormat.maxImageBytes)
     }
 
     private static func mediaType(_ data: Data) -> String {
@@ -556,7 +590,7 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
             })
         }
         var body: [String: Any] = [
-            "model": model, "max_tokens": ClaudeRequestTranslator.Options().maxTokens, "stream": true, "messages": sent,
+            "model": model, "max_tokens": ClaudeRequestFormat.maxTokens, "stream": true, "messages": sent,
             "system": system, "thinking": ["type": "adaptive", "display": "summarized"],
         ]
         if ClaudeTranslation.marksTail(translation: translation, messages: sent) {
@@ -571,7 +605,7 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
             body["tool_choice"] = ["type": "auto"]
         }
         var outputConfig: [String: Any] = [:]
-        if let effort = ClaudeRequestTranslator.effort(effort) { outputConfig["effort"] = effort }
+        if let effort = ClaudeRequestFormat.effort(effort) { outputConfig["effort"] = effort }
         if let outputSchema, !schemaInInstructions {
             outputConfig["format"] = ["type": "json_schema", "schema": ClaudeSchema.sanitize(outputSchema)]
         }
@@ -584,7 +618,7 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
     private func loop() async throws -> String {
         var reason: ClaudeRequestReason = plan.round > 1 && child == nil ? .validationRepair : .turnStart
         while true {
-            let reader: DirectClaudeMessageReader = try await ask(reason: reason)
+            let reader: ClaudeMessageReader = try await ask(reason: reason)
             let content: [[String: Any]] = reader.content
             let toolUses: [[String: Any]] = reader.toolUses
             if !content.isEmpty {
@@ -593,7 +627,7 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
             }
             guard !toolUses.isEmpty else {
                 let text: String = reader.finalText
-                guard !text.isEmpty else { throw CodexAppServerError.turnFailed("Completed turn returned no final answer") }
+                guard !text.isEmpty else { throw TurnRuntimeError.turnFailed("Completed turn returned no final answer") }
                 return text
             }
             for text in reader.commentary {
@@ -614,7 +648,7 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
         let name: String = toolNames.entry(claudeName: claudeName)?.name ?? claudeName
         let arguments: [String: Any] = use["input"] as? [String: Any] ?? [:]
         let item: JSONObject = ["type": "dynamicToolCall", "id": id, "tool": name, "arguments": arguments]
-        if let event = CodexTurnRunner.startedItemEvent(item, skills: skills) { progress(event) }
+        if let event = ClaudeTurnRunner.startedItemEvent(item, skills: skills) { progress(event) }
         var reply: JSONObject
         do {
             if name == "view_image" { return viewImage(id: id, path: arguments["path"] as? String ?? "", item: item) }
@@ -631,13 +665,13 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
                                        "exitCode": command["exitCode"] ?? NSNull(), "durationMs": command["durationMs"] ?? NSNull()])
                 audit["lookup_commands"] = lookupCommands
             }
-        } catch CodexAppServerError.interrupted {
-            throw CodexAppServerError.interrupted
+        } catch TurnRuntimeError.interrupted {
+            throw TurnRuntimeError.interrupted
         } catch {
             if Task.isCancelled { throw CancellationError() }
             reply = ["success": false, "contentItems": [["type": "inputText", "text": String(describing: error)]]]
         }
-        if let event = CodexTurnRunner.completedItemEvent(item, phase: "", skills: skills) { progress(event) }
+        if let event = ClaudeTurnRunner.completedItemEvent(item, skills: skills) { progress(event) }
         var result: [String: Any] = ["type": "tool_result", "tool_use_id": id, "content": Self.toolContent(reply["contentItems"] as? [JSONObject] ?? [])]
         if reply["success"] as? Bool == false { result["is_error"] = true }
         return result
@@ -646,7 +680,7 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
     /// `view_image`: 作業フォルダの中の画像だけを読んで、画像のまま返す。
     private func viewImage(id: String, path: String, item: JSONObject) -> [String: Any] {
         progress(TurnProgressEvent(label: "画像を見ています", progressID: id, allowDuplicate: true))
-        defer { if let event = CodexTurnRunner.completedItemEvent(item, phase: "", skills: skills) { progress(event) } }
+        defer { if let event = ClaudeTurnRunner.completedItemEvent(item, skills: skills) { progress(event) } }
         let root: String = workspace.standardizedFileURL.resolvingSymlinksInPath().path
         let url: URL = (path.hasPrefix("/") ? URL(fileURLWithPath: path) : workspace.appendingPathComponent(path)).standardizedFileURL.resolvingSymlinksInPath()
         guard url.path == root || url.path.hasPrefix(root + "/") else {
@@ -666,7 +700,7 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
                 if let text = item["text"] as? String { blocks.append(["type": "text", "text": text]) }
             case "inputImage":
                 if let url = (item["imageUrl"] ?? item["image_url"]) as? String,
-                   let image = ClaudeRequestTranslator.imageBlock(url, maxBytes: ClaudeRequestTranslator.Options().maxImageBytes) {
+                   let image = ClaudeRequestFormat.imageBlock(url, maxBytes: ClaudeRequestFormat.maxImageBytes) {
                     blocks.append(image)
                 }
             default:
@@ -680,12 +714,12 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
     // MARK: - 1 回の要求と再試行
 
     private enum Exchange: @unchecked Sendable {
-        case finished(DirectClaudeMessageReader, ClaudeStreamTranslator)
-        case ended(ClaudeStreamTranslator)
+        case finished(ClaudeMessageReader, ClaudeStreamStatus)
+        case ended(ClaudeStreamStatus)
         case rejected(status: Int, type: String?, message: String, retryAfter: TimeInterval?, bearer: String?)
     }
 
-    private func ask(reason first: ClaudeRequestReason) async throws -> DirectClaudeMessageReader {
+    private func ask(reason first: ClaudeRequestReason) async throws -> ClaudeMessageReader {
         let upstream: ClaudeUpstream = dependencies.upstream
         guard let route = upstream.route() else { throw ModelProviderError.claudeUnavailable }
         var reason: ClaudeRequestReason = first
@@ -695,10 +729,8 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
         let diagnosticsKey: String = child == nil ? ClaudeTranslation.diagnosticsKey(threadID: threadID, kind: plan.kind.rawValue, model: model) : threadID
         while true {
             try Task.checkCancellation()
-            guard upstream.gate.admit() else { throw CodexAppServerError.turnFailed(UsageLimitResponse.message) }
-            var options: ClaudeRequestTranslator.Options = ClaudeRequestTranslator.Options()
-            options.translation = translation
-            options.tailCacheTTL = tailTTL
+            guard upstream.gate.admit() else { throw TurnRuntimeError.turnFailed(UsageLimitResponse.message) }
+            var options: ClaudeRequestOptions = ClaudeRequestOptions()
             options.schemaInInstructions = schemaInInstructions
             options.stripThinking = stripThinking
             options.includeDiagnostics = includeDiagnostics
@@ -712,13 +744,13 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
                 ttl["tail"] = NSNull()
                 attempt.record["cache_ttl"] = ttl
             }
-            if ClaudeResponsesProxy.requestTooLarge(data.count) {
-                let message: String = "request body \(data.count) bytes exceeds \(ClaudeResponsesProxy.maxRequestBytes)"
+            if ClaudeUpstream.requestTooLarge(data.count) {
+                let message: String = "request body \(data.count) bytes exceeds \(ClaudeUpstream.maxRequestBytes)"
                 settle(bytes: data.count, attempt.finish(status: "oversized", translator: nil, httpStatus: nil, error: ("request_too_large", message)))
-                throw CodexAppServerError.turnFailed("送る内容が大きすぎます(\(data.count / (1024 * 1024)) MB)。写真の枚数を減らすか、新しい会話で送ってください。")
+                throw TurnRuntimeError.turnFailed("送る内容が大きすぎます(\(data.count / (1024 * 1024)) MB)。写真の枚数を減らすか、新しい会話で送ってください。")
             }
-            let translator: ClaudeStreamTranslator = ClaudeStreamTranslator(tools: toolNames)
-            let reader: DirectClaudeMessageReader = DirectClaudeMessageReader()
+            let translator: ClaudeStreamStatus = ClaudeStreamStatus()
+            let reader: ClaudeMessageReader = ClaudeMessageReader()
             let exchange: Exchange
             do {
                 let (request, bearer) = try await upstream.request(data: data, route: route)
@@ -726,21 +758,21 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
             } catch {
                 if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
                     settle(bytes: data.count, attempt.finish(status: "cancelled", translator: translator, httpStatus: nil, error: nil))
-                    throw CodexAppServerError.interrupted
+                    throw TurnRuntimeError.interrupted
                 }
                 settle(bytes: data.count, attempt.finish(status: "failed", translator: translator, httpStatus: nil, error: (nil, String(describing: error))))
-                if case CodexAppServerError.timeout(let detail) = error {
+                if case TurnRuntimeError.timeout(let detail) = error {
                     // 続く会話は同じ依頼を送り直せる(途中の答えは履歴に残さない)。1 回で終わるターンはターンごと送り直す。
-                    guard conversation || child != nil, detail == CodexTurnRunner.messageStallDetail, streamRetries < dependencies.timeouts.streamRetries else { throw error }
+                    guard conversation || child != nil, detail == ClaudeTurnRunner.messageStallDetail, streamRetries < dependencies.timeouts.streamRetries else { throw error }
                     streamRetries += 1
-                    reason = .codexRetry
+                    reason = .retry
                     continue
                 }
                 if error is AppAttestClient.Failure || (error as NSError).domain == "com.apple.devicecheck.error" { throw error }
                 // 通信の失敗は同じ要求を送り直す。
-                guard requestRetries < dependencies.timeouts.requestRetries else { throw CodexAppServerError.turnFailed("Claude に接続できませんでした") }
+                guard requestRetries < dependencies.timeouts.requestRetries else { throw TurnRuntimeError.turnFailed("Claude に接続できませんでした") }
                 requestRetries += 1
-                reason = .codexRetry
+                reason = .retry
                 try await Self.backoff(requestRetries, retryAfter: nil)
                 continue
             }
@@ -756,23 +788,23 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
                 }
                 if let type = translator.errorType {
                     // 混み合いは送り直さない(以前の経路も再試行しなかった)。それ以外は送り直す。
-                    guard type != "overloaded_error", streamRetries < dependencies.timeouts.streamRetries else { throw CodexAppServerError.turnFailed("Claude stream error: \(type)") }
+                    guard type != "overloaded_error", streamRetries < dependencies.timeouts.streamRetries else { throw TurnRuntimeError.turnFailed("Claude stream error: \(type)") }
                     streamRetries += 1
-                    reason = .codexRetry
+                    reason = .retry
                     try await Self.backoff(streamRetries, retryAfter: nil)
                     continue
                 }
                 switch translator.stopReason {
-                case "refusal": throw CodexAppServerError.turnFailed("Claude declined to answer this request.")
-                case "max_tokens": throw CodexAppServerError.turnFailed("Incomplete response returned, reason: max_output_tokens")
-                case "model_context_window_exceeded": throw CodexAppServerError.turnFailed("The conversation is longer than the model's context window.")
+                case "refusal": throw TurnRuntimeError.turnFailed("Claude declined to answer this request.")
+                case "max_tokens": throw TurnRuntimeError.turnFailed("Incomplete response returned, reason: max_output_tokens")
+                case "model_context_window_exceeded": throw TurnRuntimeError.turnFailed("The conversation is longer than the model's context window.")
                 default: return reader
                 }
             case .ended(let translator):
                 settle(bytes: data.count, attempt.finish(status: "stream_ended", translator: translator, httpStatus: 200, error: (nil, "stream ended early")))
-                guard streamRetries < dependencies.timeouts.streamRetries else { throw CodexAppServerError.turnFailed("Claude stream ended before the message was complete") }
+                guard streamRetries < dependencies.timeouts.streamRetries else { throw TurnRuntimeError.turnFailed("Claude stream ended before the message was complete") }
                 streamRetries += 1
-                reason = .codexRetry
+                reason = .retry
                 try await Self.backoff(streamRetries, retryAfter: nil)
                 continue
             case .rejected(let status, let type, let message, let retryAfter, let bearer):
@@ -808,11 +840,11 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
                 }
                 if status == 529 || (500...599).contains(status), requestRetries < dependencies.timeouts.requestRetries {
                     requestRetries += 1
-                    reason = .codexRetry
+                    reason = .retry
                     try await Self.backoff(requestRetries, retryAfter: retryAfter)
                     continue
                 }
-                throw CodexAppServerError.turnFailed(message)
+                throw TurnRuntimeError.turnFailed(message)
             }
         }
     }
@@ -829,8 +861,8 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
     }
 
     /// 要求を送って応答を読み切る。読む処理と見張りを並べ、期限や停止が先に来たら読む処理を止める。
-    private func send(_ request: URLRequest, bearer: String?, translator: ClaudeStreamTranslator, reader: DirectClaudeMessageReader) async throws -> Exchange {
-        let watch: DirectClaudeStreamWatch = DirectClaudeStreamWatch()
+    private func send(_ request: URLRequest, bearer: String?, translator: ClaudeStreamStatus, reader: ClaudeMessageReader) async throws -> Exchange {
+        let watch: ClaudeStreamWatch = ClaudeStreamWatch()
         return try await withThrowingTaskGroup(of: Exchange?.self) { group in
             group.addTask { [self] in try await exchange(request, bearer: bearer, translator: translator, reader: reader, watch: watch) }
             group.addTask { [self] in
@@ -841,11 +873,11 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
             while let result = try await group.next() {
                 if let result { return result }
             }
-            throw CodexAppServerError.interrupted
+            throw TurnRuntimeError.interrupted
         }
     }
 
-    private func exchange(_ request: URLRequest, bearer: String?, translator: ClaudeStreamTranslator, reader: DirectClaudeMessageReader, watch: DirectClaudeStreamWatch) async throws -> Exchange {
+    private func exchange(_ request: URLRequest, bearer: String?, translator: ClaudeStreamStatus, reader: ClaudeMessageReader, watch: ClaudeStreamWatch) async throws -> Exchange {
         let (bytes, response) = try await dependencies.upstream.session.bytes(for: request)
         let status: Int = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 200 else {
@@ -864,23 +896,23 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
             let payload: String = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
             guard let event = (try? JSONSerialization.jsonObject(with: Data(payload.utf8))) as? [String: Any] else { continue }
             watch.touch()
-            _ = translator.consume(event)
+            translator.consume(event)
             for output in reader.consume(event) { show(output, watch: watch) }
             if translator.isFinished { return .finished(reader, translator) }
         }
         return .ended(translator)
     }
 
-    private func watchStream(_ watch: DirectClaudeStreamWatch) async throws {
+    private func watchStream(_ watch: ClaudeStreamWatch) async throws {
         let clock: ActiveClock = ActiveClock.shared
         var lastNotice: Int = 0
         while true {
             try await Task.sleep(for: .milliseconds(250))
-            guard deadline.remaining > 0 else { throw CodexAppServerError.timeout(CodexTurnRunner.deadlineDetail) }
+            guard deadline.remaining > 0 else { throw TurnRuntimeError.timeout(ClaudeTurnRunner.deadlineDetail) }
             let silent: TimeInterval = clock.now - watch.lastEventAt
-            if watch.answering, silent >= dependencies.timeouts.messageStall.timeInterval { throw CodexAppServerError.timeout(CodexTurnRunner.messageStallDetail) }
+            if watch.answering, silent >= dependencies.timeouts.messageStall.timeInterval { throw TurnRuntimeError.timeout(ClaudeTurnRunner.messageStallDetail) }
             if silent >= dependencies.timeouts.streamIdle.timeInterval { throw URLError(.timedOut) }
-            let ticks: Int = Int(silent / CodexTurnRunner.silenceTick)
+            let ticks: Int = Int(silent / ClaudeTurnRunner.silenceTick)
             if ticks > lastNotice {
                 lastNotice = ticks
                 progress(TurnProgressEvent(kind: .waitingForModel(seconds: Int(silent)), label: "", progressID: nil, allowDuplicate: true))
@@ -890,7 +922,7 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
         }
     }
 
-    private func show(_ output: DirectClaudeMessageReader.Output, watch: DirectClaudeStreamWatch) {
+    private func show(_ output: ClaudeMessageReader.Output, watch: ClaudeStreamWatch) {
         switch output {
         case .thinking(let itemID, let delta):
             reasoning[itemID, default: ""] += delta
@@ -984,7 +1016,7 @@ nonisolated final class DirectClaudeTurn: @unchecked Sendable {
 }
 
 /// ストリームの見張りと読む処理の間で共有する、最後に何か届いた時刻と、答えを書き始めたか。
-nonisolated private final class DirectClaudeStreamWatch: @unchecked Sendable {
+nonisolated private final class ClaudeStreamWatch: @unchecked Sendable {
     private let lock: NSLock = NSLock()
     private var last: TimeInterval = ActiveClock.shared.now
     private var started: Bool = false
@@ -993,4 +1025,89 @@ nonisolated private final class DirectClaudeStreamWatch: @unchecked Sendable {
     func startAnswer() { lock.withLock { started = true } }
     var lastEventAt: TimeInterval { lock.withLock { last } }
     var answering: Bool { lock.withLock { started } }
+}
+
+/// ターンの出来事と記録の共通の部品(チャットの待ちの表示・失敗の理由・Struis の注記)。
+extension ClaudeTurnRunner {
+    /// The `TurnRuntimeError.timeout` detail for a stalled answer (see `Timeouts.messageStall`).
+    nonisolated static let messageStallDetail = "agent message stalled"
+    /// The `TurnRuntimeError.timeout` detail for the whole-turn limit (P4-3).
+    nonisolated static let deadlineDetail = "turn deadline"
+    /// The turn was stopped because it reached the time limit, not by the learner (P4-3, C2).
+    nonisolated static func deadlineNotice(limitSeconds: Int) -> String {
+        "Struis note (not from the learner): the previous turn on this thread was stopped by Struis because it reached the \(limitSeconds)-second time limit. The learner did not interrupt it. Do not say or imply that the learner stopped it. Prefer a shorter path to an answer (fewer and lighter tool calls) this time."
+    }
+
+
+    /// 失敗の理由(診断の文)。ターンの失敗は `detail`(`turn failed: …` など)、Claude の準備(App Attest)の失敗は
+    /// 学習者向けの一文に理由(`register HTTP 401`)が入っているのでそのまま、それ以外は型の説明。
+    nonisolated static func describe(_ error: Error) -> String {
+        if let failure = error as? TurnRuntimeError { return failure.detail }
+        if let attest = error as? AppAttestClient.Failure { return attest.errorDescription ?? String(describing: attest) }
+        return String(describing: error)
+    }
+
+
+    /// スレッドを始めた時の設定の版(`ThreadContextStore.Profile`)。
+    nonisolated static func threadProfile(_ plan: TurnPlan, base: String, developer: String) -> ThreadContextStore.Profile {
+        let tools: String = (try? JSONSerialization.data(withJSONObject: NativeToolRouter.definitions(for: plan.kind), options: [.sortedKeys]))
+            .map { String(decoding: $0, as: UTF8.self) } ?? ""
+        let schema: String? = plan.turn?.outputSchema.flatMap { try? JSONSerialization.data(withJSONObject: $0.any, options: [.sortedKeys]) }
+            .map { ThreadContextStore.hash(String(decoding: $0, as: UTF8.self)) }
+        return ThreadContextStore.Profile(
+            kind: plan.kind.rawValue, model: plan.thread.model, effort: plan.thread.effort,
+            instructions: ThreadContextStore.hash(base, developer), tools: ThreadContextStore.hash(tools), schema: schema,
+            thinking: "adaptive/summarized", translation: ClaudeTranslation.version(kind: plan.kind.rawValue),
+            cacheTTL: ClaudeTranslation.tailCacheTTL(kind: plan.kind.rawValue), startedAt: Date()
+        )
+    }
+
+    /// 何も届かない時に、届いていない事実を流す間隔(W11 の 10 秒)。
+    nonisolated static let silenceTick: TimeInterval = 10
+
+    /// 道具の呼び出しの始まりを待ちの表示の出来事にする(コマンド・下調べ)。`item` は呼び出しの記録
+    /// (`type: dynamicToolCall`、`tool`、`arguments`)。
+    nonisolated static func startedItemEvent(_ item: JSONObject, skills: SkillWaiting = SkillWaiting()) -> TurnProgressEvent? {
+        let id: String? = item["id"] as? String
+        guard ["dynamicToolCall", "commandExecution"].contains(item["type"] as? String ?? "") else { return nil }
+        if item["tool"] as? String == "struis_delegate" {
+            return TurnProgressEvent(kind: .delegation(started: true), label: "教材を調べています", progressID: id, allowDuplicate: true)
+        }
+        guard let cmd = TurnActivityLabels.commandText(item) else {
+            return TurnProgressEvent(label: "手元で確かめています", progressID: id.map { "cmd-" + $0 }, allowDuplicate: true)
+        }
+        return TurnProgressEvent(label: TurnActivityLabels.command(cmd, skills: skills).started, progressID: id.map { "cmd-" + $0 }, allowDuplicate: true)
+    }
+
+    /// 道具の呼び出しの終わりを待ちの表示の出来事にする(コマンドの終わり・下調べの終わり)。
+    nonisolated static func completedItemEvent(_ item: JSONObject, skills: SkillWaiting = SkillWaiting()) -> TurnProgressEvent? {
+        let id: String? = item["id"] as? String
+        guard ["dynamicToolCall", "commandExecution"].contains(item["type"] as? String ?? "") else { return nil }
+        if item["tool"] as? String == "struis_delegate" {
+            return TurnProgressEvent(kind: .delegation(started: false), label: "教材を調べ終えました", progressID: id, allowDuplicate: true)
+        }
+        guard let cmd = TurnActivityLabels.commandText(item) else {
+            return TurnProgressEvent(label: "手元での確認が終わりました", progressID: id.map { "cmd-" + $0 }, allowDuplicate: true)
+        }
+        return TurnProgressEvent(label: TurnActivityLabels.command(cmd, skills: skills).finished, progressID: id.map { "cmd-" + $0 }, allowDuplicate: true)
+    }
+
+    /// 作業フォルダに置いた Skill の待ちの言葉と、このターンの添付の種類(Skill の本文を読む間の言葉を選ぶ)。
+    nonisolated static func skillWaiting(plan: TurnPlan, assets: AssetCache) async -> SkillWaiting {
+        var waiting: SkillWaiting = SkillWaiting()
+        for file in plan.workspace.files {
+            guard let name = SkillWaiting.skillName(fromWorkspacePath: file.path) else { continue }
+            let text: String? = if let asset = file.asset { try? await assets.text(asset) } else { file.inline }
+            if let text, let labels = SkillWaiting.parse(skillMarkdown: text) { waiting.labels[name] = labels }
+        }
+        // 添付は inbox の写しと画像の入力(tutor_desk の写しは添付ではない)。
+        let attached: [String] = (plan.workspace.copies ?? []).map(\.path).filter { $0.hasPrefix("tutor_desk/inbox/") }
+            + (plan.turn?.images ?? []).map(\.path)
+        if attached.contains(where: { $0.lowercased().hasSuffix(".pdf") }) {
+            waiting.attachments = .pdf
+        } else if !attached.isEmpty {
+            waiting.attachments = .image
+        }
+        return waiting
+    }
 }

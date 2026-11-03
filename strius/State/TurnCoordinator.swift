@@ -446,7 +446,7 @@ actor TurnCoordinator {
         case .workbookUnit: return "単元づくり"
         case .onboardingGrading: return "お試しの採点"
         case .onboardingPlan: return "計画づくり"
-        case .chat, .threadFork, .threadInject, .lunaLookup: return nil
+        case .chat, .threadFork, .lunaLookup: return nil
         }
     }
 
@@ -532,13 +532,12 @@ actor TurnCoordinator {
             )
         case nil:
             let seconds = Int((limit ?? .zero).timeInterval)
-            turnLog.error("turn \(turnID, privacy: .public) (\(plan.kind.rawValue, privacy: .public)) exceeded \(seconds, privacy: .public)s; giving up and rebuilding the connection")
+            turnLog.error("turn \(turnID, privacy: .public) (\(plan.kind.rawValue, privacy: .public)) exceeded \(seconds, privacy: .public)s; giving up")
             work.cancel()
-            // 止める・接続を作り直すのが返らなくても、失敗は必ず台帳に書く(返らないターンを「採点中」のまま残さない)。
+            // 止めるのが返らなくても、失敗は必ず台帳に書く(返らないターンを「採点中」のまま残さない)。
             let cleanup = TurnRace<Bool>()
             Task {
                 await runner.interrupt(planID: plan.id)
-                await runner.resetConnection()
                 cleanup.finish(true)
             }
             Task {
@@ -777,13 +776,13 @@ actor TurnCoordinator {
                 recoveringTargets.remove(target)
                 continue
             }
-            // 単元ホームのターン: 古い(1 日を超えた)・組んだ時と実行先が違うプランは流さず、失敗にして「作り直す」「判定し直す」を出す
+            // 単元ホームのターン: 古い(1 日を超えた)プランは流さず、失敗にして「作り直す」「判定し直す」を出す
             // (2026-10-31 の実機: 10/15 に組んだ一枚の生成が、起動のたびに古いスレッドのまま流れ、枠を 7 分ふさいでいた)。
             guard let plan = try? TurnPlan.from(turn.plan) else {
                 await failUnresumedWorkbookTurn(turn, kind: kind, reason: "not resumed: the stored plan is unreadable")
                 continue
             }
-            if let reason = Self.staleReason(createdAt: turn.createdAt, planProvider: plan.thread.provider, current: ModelProviderPreference.current, now: Date()) {
+            if let reason = Self.staleReason(createdAt: turn.createdAt, now: Date()) {
                 await failUnresumedWorkbookTurn(turn, kind: kind, reason: reason)
                 continue
             }
@@ -801,13 +800,9 @@ actor TurnCoordinator {
     }
 
     /// 起動時に流し直さないプランの理由(流してよければ nil)。1 日を超えたプラン、組んだ時と今で実行先(Claude / ChatGPT)が違うプラン。
-    nonisolated static func staleReason(createdAt: String, planProvider: ModelProvider?, current: ModelProvider, now: Date) -> String? {
+    nonisolated static func staleReason(createdAt: String, now: Date) -> String? {
         if let created: Date = LedgerClock.parse(createdAt), now.timeIntervalSince(created) > 24 * 60 * 60 {
             return "not resumed: the stored plan is older than a day"
-        }
-        let plannedForClaude: Bool = planProvider == .anthropic
-        if plannedForClaude != (current == .anthropic) {
-            return "not resumed: the stored plan was made for another provider"
         }
         return nil
     }

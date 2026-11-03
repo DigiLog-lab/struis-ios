@@ -136,11 +136,11 @@
     "scope": "runtime"
   },
   {
-    "name": "NativeCodex",
-    "version": "rust-v0.153.4 / 3d2ee51ca2d5db578f328aa75e20aa22c0197c9a",
+    "name": "Hyotan native libraries (search, workspace operations)",
+    "version": "hyotan-native 0.1.0",
     "selectedLicense": "Apache-2.0",
-    "notice": "Codex.txt",
-    "framework": "NativeCodex",
+    "notice": "Rust-notices.txt",
+    "framework": "NativeSearch, NativeOperations",
     "scope": "runtime",
     "dependencies": "Rust-dependencies.json"
   },

@@ -86,9 +86,6 @@ final class TimelineTurnsTests: XCTestCase {
             return (timeline.events, ())
         }
         let (workbook, timeline) = try await ledger.read { db in (try WorkbookMachine(loading: db), try TimelineMachine(loading: db)) }
-        let saved = UserDefaults.standard.object(forKey: ModelProviderPreference.defaultsKey)
-        defer { UserDefaults.standard.set(saved, forKey: ModelProviderPreference.defaultsKey) }
-        ModelProviderPreference.current = .anthropic
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("timeline-model-\(UUID().uuidString)")
         let sonnet = TurnComposer(assets: AssetCache(root: root, lenient: true, timelineClaudeModel: { "claude-sonnet-5-5" }))
         let haiku = TurnComposer(assets: AssetCache(root: root, lenient: true, timelineClaudeModel: { "claude-haiku-5-5" }))

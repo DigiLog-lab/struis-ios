@@ -51,48 +51,32 @@ struct DeveloperSettingsView: View {
     private var modelSection: some View {
         @Bindable var bindable: SettingsStore = settings
         SettingsSection(header: "AI モデル") {
-            if SettingsView.showsCodexEntry {
-                Picker("実行先", selection: $bindable.modelProvider) {
-                    ForEach(ModelProvider.allCases, id: \.self) { (provider: ModelProvider) in
-                        Text(provider.displayName).tag(provider)
+            HStack(spacing: 12) {
+                Text("タイムライン")
+                    .font(Typography.body)
+                    .foregroundStyle(Theme.primaryText)
+                Spacer(minLength: 12)
+                Picker("タイムライン", selection: $bindable.timelineClaudeModel) {
+                    ForEach(TimelineModelPreference.choices, id: \.self) { (model: String) in
+                        Text(Self.shortName(model)).tag(model)
                     }
                 }
+                .labelsHidden()
                 .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .accessibilityIdentifier("settings-model-provider")
-                SettingsDivider()
+                .frame(maxWidth: 200)
+                .accessibilityIdentifier("settings-timeline-model")
             }
-            if settings.modelProvider == .anthropic {
-                HStack(spacing: 12) {
-                    Text("タイムライン")
-                        .font(Typography.body)
-                        .foregroundStyle(Theme.primaryText)
-                    Spacer(minLength: 12)
-                    Picker("タイムライン", selection: $bindable.timelineClaudeModel) {
-                        ForEach(TimelineModelPreference.choices, id: \.self) { (model: String) in
-                            Text(Self.shortName(model)).tag(model)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 200)
-                    .accessibilityIdentifier("settings-timeline-model")
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                SettingsDivider()
-                SettingsValueRow(title: "質問", value: Self.shortName(ClaudeModels.astraModel))
-                SettingsDivider()
-                SettingsValueRow(title: "下調べ", value: Self.shortName(ClaudeModels.lunaModel))
-                SettingsDivider()
-                SettingsValueRow(
-                    title: "知識グラフ",
-                    value: Self.shortName(TimelineModels.fallback(role: TimelineModels.graphRole, provider: .anthropic)?.model ?? "-")
-                )
-            } else {
-                SettingsValueRow(title: "質問", value: CodexModels.astraModel)
-            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            SettingsDivider()
+            SettingsValueRow(title: "質問", value: Self.shortName(ClaudeModels.astraModel))
+            SettingsDivider()
+            SettingsValueRow(title: "下調べ", value: Self.shortName(ClaudeModels.lunaModel))
+            SettingsDivider()
+            SettingsValueRow(
+                title: "知識グラフ",
+                value: Self.shortName(TimelineModels.fallback(role: TimelineModels.graphRole)?.model ?? "-")
+            )
         }
     }
 
@@ -249,15 +233,9 @@ struct DeveloperSettingsView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("settings-runtime-hyotan")
             SettingsDivider()
-            SettingsValueRow(title: "Codex / Python", value: runtime.codexVersion.map { "\($0) / 3.14" } ?? "-")
-            SettingsDivider()
             SettingsValueRow(title: "起動", value: runtime.bootState + Self.duration(runtime.installSeconds, label: "準備") + Self.duration(runtime.bootSeconds, label: "起動"))
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("settings-runtime-boot")
-            SettingsDivider()
-            SettingsValueRow(title: "app-server", value: runtime.appServerState + Self.duration(runtime.initializeSeconds, label: "initialize"))
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("settings-runtime-appserver")
         }
     }
 

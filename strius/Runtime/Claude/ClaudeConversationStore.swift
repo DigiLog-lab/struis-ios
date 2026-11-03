@@ -36,6 +36,8 @@ nonisolated final class ClaudeConversationStore: Sendable {
         /// 直近の要求で送った入力のトークン数(キャッシュの読み書きを含む)。上限に近づいたら新しいスレッドへ移る。
         var lastPromptTokens: Int
         var forkedFrom: String?
+        /// 最後に `AGENTS.md` を送った作業フォルダ。変わったら(分岐・アプリの入れ物の移動)もう一度送る。
+        var agentsPath: String?
     }
 
     private let queue: DatabaseQueue
@@ -63,6 +65,7 @@ nonisolated final class ClaudeConversationStore: Sendable {
             t.column("model", .text).notNull()
             t.column("forked_from", .text)
             t.column("last_prompt_tokens", .integer).notNull().defaults(to: 0)
+            t.column("agents_path", .text)
             t.column("created_at", .text).notNull()
             t.column("updated_at", .text).notNull()
         }
@@ -82,7 +85,8 @@ nonisolated final class ClaudeConversationStore: Sendable {
     func conversation(_ threadID: String) throws -> Conversation? {
         try queue.read { db -> Conversation? in
             guard let row: Row = try Row.fetchOne(db, sql: "SELECT * FROM claude_conversations WHERE thread_id = ?", arguments: [threadID]) else { return nil }
-            return Conversation(threadID: row["thread_id"], kind: row["kind"], model: row["model"], lastPromptTokens: row["last_prompt_tokens"], forkedFrom: row["forked_from"])
+            return Conversation(threadID: row["thread_id"], kind: row["kind"], model: row["model"], lastPromptTokens: row["last_prompt_tokens"],
+                                forkedFrom: row["forked_from"], agentsPath: row["agents_path"])
         }
     }
 
@@ -95,6 +99,12 @@ nonisolated final class ClaudeConversationStore: Sendable {
         return rows.map { row in
             let stored: [[String: Any]] = (try? JSONSerialization.jsonObject(with: Data(row.content.utf8))) as? [[String: Any]] ?? []
             return Message(role: row.role, content: stored.map(restoreImages), turnID: row.turnID)
+        }
+    }
+
+    func messageCount(_ threadID: String) throws -> Int {
+        try queue.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM claude_conversation_messages WHERE thread_id = ?", arguments: [threadID]) ?? 0
         }
     }
 
@@ -121,6 +131,12 @@ nonisolated final class ClaudeConversationStore: Sendable {
             try db.execute(sql: "INSERT INTO claude_conversation_messages (thread_id, seq, turn_id, role, content, created_at) VALUES (?, ?, ?, ?, ?, ?)",
                            arguments: [threadID, next, turnID, role, text, now])
             try db.execute(sql: "UPDATE claude_conversations SET updated_at = ? WHERE thread_id = ?", arguments: [now, threadID])
+        }
+    }
+
+    func recordAgentsPath(threadID: String, path: String) throws {
+        try queue.write { db in
+            try db.execute(sql: "UPDATE claude_conversations SET agents_path = ? WHERE thread_id = ?", arguments: [path, threadID])
         }
     }
 
@@ -166,6 +182,15 @@ nonisolated final class ClaudeConversationStore: Sendable {
             }
         }
     }
+
+    #if DEBUG
+    /// 台帳に入っている形のまま(テスト用)。
+    func rawContentForTest(_ threadID: String) throws -> String? {
+        try queue.read { db in
+            try String.fetchAll(db, sql: "SELECT content FROM claude_conversation_messages WHERE thread_id = ? ORDER BY seq", arguments: [threadID]).joined(separator: "\n")
+        }
+    }
+    #endif
 
     // MARK: - 画像
 

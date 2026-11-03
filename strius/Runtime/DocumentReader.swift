@@ -12,7 +12,7 @@ import Vision
 nonisolated enum DocumentReader {
     // MARK: - Model image budget
 
-    /// 分割するときの短い辺の上限(px)。Codex の高精細の枠(長辺 2048px・32px のパッチ 2,500 個)に収まる。
+    /// 分割するときの短い辺の上限(px)。モデルに送る画像の枠(長辺 2048px・32px のパッチ 2,500 個、`WorkspaceStager`)に収まる。
     static let tileShortSide = 1280
     /// 分割した画像どうしの重なり(行が切れても、どちらかの画像で読めるように)。
     static let tileOverlap = 64

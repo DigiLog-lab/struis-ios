@@ -3,7 +3,7 @@ import Foundation
 /// Claude の Messages API のストリーム(SSE の data)を、次の要求の履歴にそのまま戻せる content に組み立てる。
 ///
 /// thinking は署名ごと元の形で残す(次の要求でそのまま送り返す)。tool_use の入力は JSON の断片を足して最後に読む。
-nonisolated final class DirectClaudeMessageReader {
+nonisolated final class ClaudeMessageReader {
     /// 読みながら起きたこと。ターンの待ちの表示に使う。
     enum Output {
         case text(itemID: String, delta: String)

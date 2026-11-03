@@ -24,7 +24,7 @@
           <Test Identifier="VirtualPythonProviderTransportTests"/>
           <Test Identifier="WKProviderTransportTests"/>
           <Test Identifier="TurnRecoveryTests"/>
-          <Test Identifier="NativeMigrationTests/testCodexHomeMovesIntoAppAndLeavesNoCredentialsInAppGroup"/>
+          <Test Identifier="NativeMigrationTests/testRetiredCodexDataIsRemovedAndMissingHomesAreSkipped"/>
           <Test Identifier="NativeMigrationTests/testSavedPlanPathsResolveAgainstCurrentContainer"/>
           <Test Identifier="ChatKickoffTests"/>
           <Test Identifier="WaitingExperienceTests"/>

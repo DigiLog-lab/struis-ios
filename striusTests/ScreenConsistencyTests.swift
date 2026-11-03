@@ -332,12 +332,4 @@ final class ScreenConsistencyTests: XCTestCase {
         XCTAssertNil(second.setIDToGenerate, "3 回目を組ませない")
         XCTAssertEqual(machine.sets[setID]?.status, "failed")
     }
-
-    // MARK: D13 プラン名
-
-    func testInternalPlanNamesAreNotShown() {
-        XCTAssertNil(CodexPlanName.display("prolite"))
-        XCTAssertEqual(CodexPlanName.display("plus"), "Plus")
-        XCTAssertNil(CodexPlanName.display(nil))
-    }
 }

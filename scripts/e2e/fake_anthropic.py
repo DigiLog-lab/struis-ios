@@ -437,7 +437,9 @@ class Handler(BaseHTTPRequestHandler):
         # 置き場所は着いた時の場面で決める(直結版は最後のイベントで返るので、書き終わる前に次の場面へ切り替わることがある)。
         self.scenario = Control.scenario
         errors = [] if mode == "record" else validate(body, recorded_signatures=mode == "replay")
-        record = {"path": self.path, "errors": errors, "request": scrub(body), "arrived_at": arrived, "bytes": len(raw), "fault": fault, "mode": mode}
+        # 送り手(アプリの URLSession は CFNetwork、以前の端末内プロキシ経由は Codex の HTTP クライアント)を見分ける。
+        record = {"path": self.path, "errors": errors, "request": scrub(body), "arrived_at": arrived, "bytes": len(raw), "fault": fault, "mode": mode,
+                  "user_agent": self.headers.get("user-agent"), "peer": self.client_address[0]}
         self.fault = fault
         self.events_sent = 0
         self.fault_fired = False

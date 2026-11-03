@@ -37,7 +37,7 @@ actor MockTurnRunner: TurnRunning {
     }
 
     func run(_ plan: TurnPlan, progress: @escaping @Sendable (TurnProgressEvent) -> Void) async throws -> TurnOutcome {
-        try? await Task.sleep(for: .milliseconds(plan.kind == .threadFork || plan.kind == .threadInject ? 50 : Self.delay))
+        try? await Task.sleep(for: .milliseconds(plan.kind == .threadFork ? 50 : Self.delay))
         counter += 1
         let request = Self.request(from: plan.turn?.text ?? "")
         let text: String
@@ -59,7 +59,7 @@ actor MockTurnRunner: TurnRunning {
                 }
             }
         case .lunaLookup: text = Self.json(["findings": [], "missing_information": [], "uncertainties": [], "failure_reasons": []])
-        case .threadFork, .threadInject: text = ""
+        case .threadFork: text = ""
         case .timelineBatch: text = Self.json(Self.timelineBatch(request, round: counter))
         case .timelineGrading: text = Self.json(Self.timelineGrading(request))
         case .timelineGraph: text = Self.json(Self.timelineGraph(request))

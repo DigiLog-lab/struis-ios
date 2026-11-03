@@ -378,7 +378,7 @@ final class WorkbookStore {
 
     // MARK: - Captures
 
-    /// 撮った紙を綴じる。即「最近」に入り、判定は端末の Codex で裏で走る (アップロードなし)。
+    /// 撮った紙を綴じる。即「最近」に入り、判定は裏で Claude に送る (Struis のサーバーへのアップロードなし)。
     /// 何枚かをまとめて撮った時は、全ページを順に 1 つの答案にして 1 回で判定する(一括採点)。
     @discardableResult
     func submitCapture(pages: [Data], context: WorkbookViewRef?) async -> WorkbookCaptureDTO? {
@@ -570,7 +570,6 @@ final class WorkbookStore {
         case "count_cannot_decrease": "問題数は減らせません"
         case "learner_stage_requires_evidence": "この段階は紙を撮って進みます"
         case "set_requires_learner_stage": "この段階では一枚を作りません"
-        case "codex_connection_required": "Codex に接続してください"
         case "capture_not_in_triage": "この答案は整理済みです"
         case "return_requires_learner_stage": "類題か演習から例題に戻れます"
         default: nil

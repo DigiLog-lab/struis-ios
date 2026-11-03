@@ -84,7 +84,7 @@ NSDictionary *StruisRunCommand(NSString *command, NSString *directory, NSString 
     }
     int finishError = StruisCompoundDashFinish();
     if (preparationError || finishError) code = 125;
-    // Commands change process cwd. Never leave Codex in a workspace that Swift can remove.
+    // Commands change process cwd. Never leave the worker in a workspace that Swift can remove.
     if (!finishError) {
         ios_setDirectoryURL([NSURL fileURLWithPath:home isDirectory:YES]);
         chdir(home.UTF8String);

@@ -154,7 +154,7 @@ final class ReplyTailQueueTests: XCTestCase {
             _ = try await turns.sendChat(TurnCoordinator.ChatSend(threadID: threadID, text: "並べない", attachments: [], workbookView: nil))
             XCTFail("並べる指定の無い送信は断る")
         } catch let error as LedgerError {
-            XCTAssertEqual(error.code, "codex_turn_in_progress")
+            XCTAssertEqual(error.code, "chat_turn_in_progress")
         }
         runner.release(try XCTUnwrap(runner.waiting.first))
         try await waitUntil("released turn waits again in tail or finishes") {

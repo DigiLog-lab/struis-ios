@@ -150,11 +150,8 @@ final class TimelineBatchWaitTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_793_404_800)
         let recent: String = LedgerClock.iso(now.addingTimeInterval(-3600))
         let old: String = LedgerClock.iso(now.addingTimeInterval(-25 * 3600))
-        XCTAssertNil(TurnCoordinator.staleReason(createdAt: recent, planProvider: .anthropic, current: .anthropic, now: now))
-        XCTAssertNil(TurnCoordinator.staleReason(createdAt: recent, planProvider: nil, current: .openai, now: now))
-        XCTAssertNotNil(TurnCoordinator.staleReason(createdAt: old, planProvider: .anthropic, current: .anthropic, now: now), "1 日を超えたプラン")
-        XCTAssertNotNil(TurnCoordinator.staleReason(createdAt: recent, planProvider: nil, current: .anthropic, now: now), "ChatGPT で組んだプランを Claude の設定で流さない")
-        XCTAssertNotNil(TurnCoordinator.staleReason(createdAt: recent, planProvider: .anthropic, current: .openai, now: now))
+        XCTAssertNil(TurnCoordinator.staleReason(createdAt: recent, now: now))
+        XCTAssertNotNil(TurnCoordinator.staleReason(createdAt: old, now: now), "1 日を超えたプラン")
     }
 
     // MARK: 待ちの画面の「止める」

@@ -117,7 +117,7 @@ def run(native, adapter, scratch, library):
     target.write_text(PREAMBLE + "\n" + "\n".join(bodies) + DRIVER)
     binary = scratch / "pinned-algorithms"
     subprocess.run([os.environ.get("CC", "cc"), "-std=c11", "-Wall", "-Wextra", "-Werror", "-Wno-unused-but-set-variable", "-pthread",
-                    "-I", str(native / "NativeCodex/include-operations"), "-I", str(adapter),
+                    "-I", str(native / "NativeLibrary/include-operations"), "-I", str(adapter),
                     str(adapter / "HyotanBsdDescriptors.c"), str(adapter / "HyotanBsdStdio.c"), str(target),
                     str(library), "-ldl", "-lm", "-o", str(binary)], check=True)
     workspace = scratch / "pinned-algorithms-workspace"
