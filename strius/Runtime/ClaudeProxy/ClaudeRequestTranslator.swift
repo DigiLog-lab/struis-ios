@@ -101,8 +101,7 @@ nonisolated enum ClaudeRequestTranslator {
         if let format = (request["text"] as? [String: Any])?["format"] as? [String: Any],
            format["type"] as? String == "json_schema", let schema = format["schema"] {
             if options.schemaInInstructions {
-                let text = (try? JSONSerialization.data(withJSONObject: schema, options: [.sortedKeys])).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
-                schemaPart = "Answer with exactly one JSON object and nothing else. It must validate against this JSON Schema:\n" + text
+                schemaPart = ClaudeTranslation.schemaInstruction(schema)
             } else {
                 outputConfig["format"] = ["type": "json_schema", "schema": ClaudeSchema.sanitize(schema)]
             }
@@ -110,27 +109,7 @@ nonisolated enum ClaudeRequestTranslator {
         }
         if !outputConfig.isEmpty { body["output_config"] = outputConfig }
         if options.translation >= 4, !systemParts.isEmpty {
-            // 1 つ目(基本指示)と、その後の developer 指示(今日の記録)を `blockSeparator` で分けて 1 件 1 ブロックにする。
-            // 1 時間の印は基本指示の最後と、今日の記録の最後のブロックに置く(後ろに足すだけの記録は、前の印から 20 ブロック
-            // 以内なら前回の分を読める)。記録の終わり(`logEnd`)より後ろ(Codex が足す権限の注記など)は別のブロックにし、
-            // 印は置かない。出力の形はその後ろ。末尾の自動の印(5 分)は続きの要求だけで、さらに後ろに来る。
-            var blocks: [[String: Any]] = [["type": "text", "text": systemParts[0], "cache_control": ClaudeTranslation.cacheControl(ttl: "1h")]]
-            var logMark: Int?
-            for part in systemParts.dropFirst() {
-                let end = part.range(of: ClaudeTranslation.logEnd)
-                let log = end.map { String(part[..<$0.lowerBound]) } ?? part
-                for piece in log.components(separatedBy: ClaudeTranslation.blockSeparator) where !piece.isEmpty {
-                    blocks.append(["type": "text", "text": piece])
-                    logMark = blocks.count - 1
-                }
-                if let end {
-                    let rest = part[end.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !rest.isEmpty { blocks.append(["type": "text", "text": rest]) }
-                }
-            }
-            if let logMark { blocks[logMark]["cache_control"] = ClaudeTranslation.cacheControl(ttl: "1h") }
-            if let schemaPart { blocks.append(["type": "text", "text": schemaPart]) }
-            body["system"] = blocks
+            body["system"] = ClaudeTranslation.tutorSystem(parts: systemParts, schema: schemaPart)
         } else if options.translation >= 3, !systemParts.isEmpty {
             // 指示(base)と、会話の前の developer 指示を別のブロックにし、それぞれの後ろに breakpoint を置く(最初と最後)。
             // タイムラインでは 1 つ目が「どの依頼にも同じもの」、2 つ目が「今日の答案の一覧」(後ろに足していく)。
@@ -474,6 +453,37 @@ nonisolated enum ClaudeTranslation {
         guard let last = messages.last, last["role"] as? String == "user",
               let content = last["content"] as? [[String: Any]] else { return false }
         return content.contains { $0["type"] as? String == "tool_result" }
+    }
+
+    /// 出力の形を指示文で渡す時の文。
+    static func schemaInstruction(_ schema: Any) -> String {
+        let text = (try? JSONSerialization.data(withJSONObject: schema, options: [.sortedKeys])).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
+        return "Answer with exactly one JSON object and nothing else. It must validate against this JSON Schema:\n" + text
+    }
+
+    /// 版 4 の system。1 つ目(基本指示)と、その後の developer 指示(今日の記録)を `blockSeparator` で分けて 1 件 1 ブロックにする。
+    /// 1 時間の印は基本指示の最後と、今日の記録の最後のブロックに置く(後ろに足すだけの記録は、前の印から 20 ブロック
+    /// 以内なら前回の分を読める)。記録の終わり(`logEnd`)より後ろ(Codex が足す権限の注記など)は別のブロックにし、
+    /// 印は置かない。出力の形はその後ろ。末尾の自動の印(5 分)は続きの要求だけで、さらに後ろに来る。
+    static func tutorSystem(parts: [String], schema: String?) -> [[String: Any]] {
+        guard let first = parts.first else { return [] }
+        var blocks: [[String: Any]] = [["type": "text", "text": first, "cache_control": cacheControl(ttl: "1h")]]
+        var logMark: Int?
+        for part in parts.dropFirst() {
+            let end = part.range(of: logEnd)
+            let log = end.map { String(part[..<$0.lowerBound]) } ?? part
+            for piece in log.components(separatedBy: blockSeparator) where !piece.isEmpty {
+                blocks.append(["type": "text", "text": piece])
+                logMark = blocks.count - 1
+            }
+            if let end {
+                let rest = part[end.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+                if !rest.isEmpty { blocks.append(["type": "text", "text": rest]) }
+            }
+        }
+        if let logMark { blocks[logMark]["cache_control"] = cacheControl(ttl: "1h") }
+        if let schema { blocks.append(["type": "text", "text": schema]) }
+        return blocks
     }
 
     static func cacheControl(ttl: String?) -> [String: Any] {

@@ -260,6 +260,8 @@
 		A45211BF8C1E0FD77008A31D /* UsageViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F79C178D527204AAE2104431 /* UsageViews.swift */; };
 		9ADC57BCA8681DFD06DAFB4D /* SubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D3C05E10B1D418B8FDF5E0A /* SubscriptionStore.swift */; };
 		6BB2F071861101E6A360BA24 /* UsageGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9CB84C3DA730E199739EC12 /* UsageGate.swift */; };
+		E8AA25982A01C94672869281 /* DirectClaudeMessageReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E86C610F4C7DF02783BC2AA5 /* DirectClaudeMessageReader.swift */; };
+		E8445ECA1DDD83B68B375064 /* DirectClaudeTurnRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F0CBB87424D5A75121D773 /* DirectClaudeTurnRunner.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -562,6 +564,8 @@
 		F79C178D527204AAE2104431 /* UsageViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageViews.swift; sourceTree = "<group>"; };
 		0D3C05E10B1D418B8FDF5E0A /* SubscriptionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionStore.swift; sourceTree = "<group>"; };
 		F9CB84C3DA730E199739EC12 /* UsageGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageGate.swift; sourceTree = "<group>"; };
+		E86C610F4C7DF02783BC2AA5 /* DirectClaudeMessageReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectClaudeMessageReader.swift; sourceTree = "<group>"; };
+		E8F0CBB87424D5A75121D773 /* DirectClaudeTurnRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectClaudeTurnRunner.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -1197,6 +1201,7 @@
 				E80AE3819EE636AC63BFA77A /* WorkspaceOperationBroker.swift */,
 				E8C0801F731258F0E1518FFC /* ThreadContextStore.swift */,
 				E8B7FF94CFF996F3B424C12C /* TurnClock.swift */,
+				E87A8A6A31AC27B13594EDA1 /* DirectClaude */,
 			);
 			path = Runtime;
 			sourceTree = "<group>";
@@ -1254,6 +1259,15 @@
 				E65AE9A79C0EBE31438EA058 /* TimelineStore.swift */,
 			);
 			path = Timeline;
+			sourceTree = "<group>";
+		};
+		E87A8A6A31AC27B13594EDA1 /* DirectClaude */ = {
+			isa = PBXGroup;
+			children = (
+				E86C610F4C7DF02783BC2AA5 /* DirectClaudeMessageReader.swift */,
+				E8F0CBB87424D5A75121D773 /* DirectClaudeTurnRunner.swift */,
+			);
+			path = DirectClaude;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1709,6 +1723,8 @@
 				A45211BF8C1E0FD77008A31D /* UsageViews.swift in Sources */,
 				9ADC57BCA8681DFD06DAFB4D /* SubscriptionStore.swift in Sources */,
 				6BB2F071861101E6A360BA24 /* UsageGate.swift in Sources */,
+				E8AA25982A01C94672869281 /* DirectClaudeMessageReader.swift in Sources */,
+				E8445ECA1DDD83B68B375064 /* DirectClaudeTurnRunner.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

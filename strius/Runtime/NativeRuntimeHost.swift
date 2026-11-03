@@ -509,6 +509,11 @@ extension AppExtensionPoint {
         return reply
     }
 
+    /// Codex を起動せずにコマンド worker だけを使う(`DirectClaudeTurnRunner`)。worker の起動は最初のコマンドの時。
+    func prepareForCommandsOnly() {
+        if workerID == nil { workerID = UUID().uuidString }
+    }
+
     func send(_ request: NativeRuntimeRequest) async throws -> NativeRuntimeReply {
         #if DEBUG && targetEnvironment(simulator)
         guard request.operation != .virtualPythonControl, request.virtualPythonJob == nil else {

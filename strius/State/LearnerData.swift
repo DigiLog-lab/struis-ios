@@ -58,7 +58,17 @@ final class LearnerData {
         if useMock {
             runner = MockTurnRunner()
         } else {
-            runner = CodexTurnRunner(runtime: runtime!, assets: assets)
+            let codex = CodexTurnRunner(runtime: runtime!, assets: assets)
+            // 比較の検証用(`STRUIS_DIRECT_CLAUDE=1`): タイムラインの 1 回で終わるターンだけ Claude に直接送る。
+            if ProcessInfo.processInfo.environment["STRUIS_DIRECT_CLAUDE"] == "1" {
+                let boot = runtime!.boot
+                runner = DirectClaudeTurnRunner(assets: assets, fallback: codex) {
+                    await boot.start()
+                    await NativeRuntimeHost.shared.prepareForCommandsOnly()
+                }
+            } else {
+                runner = codex
+            }
         }
         #else
         runner = CodexTurnRunner(runtime: runtime!, assets: assets)

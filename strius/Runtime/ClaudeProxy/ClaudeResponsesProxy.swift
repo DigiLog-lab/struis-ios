@@ -395,88 +395,99 @@ nonisolated private final class ProxyConnection: @unchecked Sendable {
     }
 }
 
+/// 1 回の要求の記録(実行監査の `requests[]`)。
+nonisolated struct ClaudeRequestAttempt {
+    var record: [String: Any]
+    let started = Date()
+
+    /// 直前の応答と比べる cache diagnostics を頼んだか。
+    let compared: Bool
+
+    init(reason: ClaudeRequestReason, model: String, translation: Int, tailTTL: String, options: ClaudeRequestTranslator.Options) {
+        compared = translation >= 2 && options.includeDiagnostics && options.previousResponseID != nil
+        record = [
+            "reason": reason.rawValue, "requested_model": model, "translation": translation,
+            "cache_ttl": ["system": ClaudeTranslation.systemCacheTTL(translation: translation, tail: tailTTL).map { $0 as Any } ?? NSNull(), "tail": translation >= 2 ? tailTTL : "5m"],
+            "thinking_stripped": options.stripThinking, "schema_in_instructions": options.schemaInInstructions,
+            "pricing_version": ClaudePricing.version, "started_at": LedgerClock.iso(Date()),
+        ]
+    }
+
+    mutating func finish(status: String, translator: ClaudeStreamTranslator?, httpStatus: Int?, error: (type: String?, message: String)?) -> [String: Any] {
+        record["status"] = status
+        record["elapsed_ms"] = Int((Date().timeIntervalSince(started) * 1000).rounded())
+        if let httpStatus { record["http_status"] = httpStatus }
+        if let error {
+            record["error_type"] = error.type ?? NSNull()
+            record["error"] = String(error.message.prefix(500))
+        }
+        let usage = translator?.rawUsage ?? [:]
+        record["response_id"] = translator?.messageID ?? NSNull()
+        record["actual_model"] = translator?.model ?? NSNull()
+        record["stop_reason"] = translator?.stopReason ?? NSNull()
+        record["usage"] = usage.isEmpty ? NSNull() : usage
+        // 出力のうち thinking の分(`output_tokens_details.thinking_tokens`)。返らなければ 0 ではなく内訳なしとする。
+        if let thinking = (usage["output_tokens_details"] as? [String: Any])?["thinking_tokens"] as? Int {
+            record["thinking_tokens"] = thinking
+            record["thinking_breakdown"] = "reported"
+        } else {
+            record["thinking_tokens"] = NSNull()
+            record["thinking_breakdown"] = "unavailable"
+        }
+        var diagnosis: String?
+        if compared, let translator, translator.messageID != nil {
+            let summary = ClaudeCacheDiagnosis.summarize(translator.diagnostics ?? NSNull())
+            record["cache_diagnostics"] = summary
+            diagnosis = (summary as? [String: Any])?["result"] as? String
+        }
+        if usage.isEmpty {
+            // 拒まれた要求(4xx)は課金されない。届いたのに使用量が読めなかった要求は「不明」として残す(0 にしない)。
+            let unbilled = translator?.messageID == nil && (httpStatus.map { $0 >= 400 } ?? true)
+            record["estimated_cost_usd"] = NSNull()
+            record["cost_status"] = unbilled ? "not_billed" : "usage_unavailable"
+            return record
+        }
+        // 料金は応答で実際に使われたモデルで計算する。
+        let model = translator?.model ?? record["requested_model"] as? String ?? ""
+        let ttl = record["cache_ttl"] as? [String: Any]
+        // 書き込みの内訳が無い時: 版 4 は書き込みの大半が system の 1 時間の印なので 1 時間として数える。
+        let assumed = (record["translation"] as? Int ?? 0) >= 4 ? ttl?["system"] as? String ?? "1h" : ttl?["tail"] as? String ?? "5m"
+        let tokens = ClaudePricing.Tokens(usage: usage, assumedWriteTTL: assumed)
+        record["tokens"] = [
+            "input": tokens.input, "cache_read": tokens.cacheRead, "cache_write_5m": tokens.cacheWrite5m,
+            "cache_write_1h": tokens.cacheWrite1h, "output": tokens.output, "prompt_total": tokens.promptTotal,
+            "write_split": tokens.writeSplitEstimated ? "estimated" : "reported",
+        ]
+        record["cache_state"] = ClaudeCacheDiagnosis.state(diagnosis: diagnosis, tokens: tokens)
+        if let cost = ClaudePricing.cost(model: model, tokens: tokens) {
+            record["estimated_cost_usd"] = cost.usd
+            record["pricing_tier"] = cost.tier
+            record["cost_status"] = "estimated"
+        } else {
+            record["estimated_cost_usd"] = NSNull()
+            record["cost_status"] = "unknown_model"
+        }
+        return record
+    }
+
+    /// 応答の止まり方を、要求の記録の `status` にする。
+    static func status(stopReason: String?) -> String {
+        switch stopReason {
+        case "max_tokens": "max_tokens"
+        case "refusal": "refusal"
+        case "model_context_window_exceeded": "context_window_exceeded"
+        case "pause_turn": "paused"
+        default: "completed"
+        }
+    }
+}
+
 /// 1 つの Responses 要求を Claude に送り、応答を変換して返す。送った要求は 1 回ごとに `ClaudeRequestLog` に記録する。
 nonisolated private struct ClaudeRelay {
     let upstream: ClaudeUpstream
     let writer: ProxyConnection
     var log: ClaudeRequestLog = .shared
     var contexts: ThreadContextStore = .shared
-
-    /// 1 回の要求の記録(実行監査の `requests[]`)。
-    private struct Attempt {
-        var record: [String: Any]
-        let started = Date()
-
-        /// 直前の応答と比べる cache diagnostics を頼んだか。
-        let compared: Bool
-
-        init(reason: ClaudeRequestReason, model: String, translation: Int, tailTTL: String, options: ClaudeRequestTranslator.Options) {
-            compared = translation >= 2 && options.includeDiagnostics && options.previousResponseID != nil
-            record = [
-                "reason": reason.rawValue, "requested_model": model, "translation": translation,
-                "cache_ttl": ["system": ClaudeTranslation.systemCacheTTL(translation: translation, tail: tailTTL).map { $0 as Any } ?? NSNull(), "tail": translation >= 2 ? tailTTL : "5m"],
-                "thinking_stripped": options.stripThinking, "schema_in_instructions": options.schemaInInstructions,
-                "pricing_version": ClaudePricing.version, "started_at": LedgerClock.iso(Date()),
-            ]
-        }
-
-        mutating func finish(status: String, translator: ClaudeStreamTranslator?, httpStatus: Int?, error: (type: String?, message: String)?) -> [String: Any] {
-            record["status"] = status
-            record["elapsed_ms"] = Int((Date().timeIntervalSince(started) * 1000).rounded())
-            if let httpStatus { record["http_status"] = httpStatus }
-            if let error {
-                record["error_type"] = error.type ?? NSNull()
-                record["error"] = String(error.message.prefix(500))
-            }
-            let usage = translator?.rawUsage ?? [:]
-            record["response_id"] = translator?.messageID ?? NSNull()
-            record["actual_model"] = translator?.model ?? NSNull()
-            record["stop_reason"] = translator?.stopReason ?? NSNull()
-            record["usage"] = usage.isEmpty ? NSNull() : usage
-            // 出力のうち thinking の分(`output_tokens_details.thinking_tokens`)。返らなければ 0 ではなく内訳なしとする。
-            if let thinking = (usage["output_tokens_details"] as? [String: Any])?["thinking_tokens"] as? Int {
-                record["thinking_tokens"] = thinking
-                record["thinking_breakdown"] = "reported"
-            } else {
-                record["thinking_tokens"] = NSNull()
-                record["thinking_breakdown"] = "unavailable"
-            }
-            var diagnosis: String?
-            if compared, let translator, translator.messageID != nil {
-                let summary = ClaudeCacheDiagnosis.summarize(translator.diagnostics ?? NSNull())
-                record["cache_diagnostics"] = summary
-                diagnosis = (summary as? [String: Any])?["result"] as? String
-            }
-            if usage.isEmpty {
-                // 拒まれた要求(4xx)は課金されない。届いたのに使用量が読めなかった要求は「不明」として残す(0 にしない)。
-                let unbilled = translator?.messageID == nil && (httpStatus.map { $0 >= 400 } ?? true)
-                record["estimated_cost_usd"] = NSNull()
-                record["cost_status"] = unbilled ? "not_billed" : "usage_unavailable"
-                return record
-            }
-            // 料金は応答で実際に使われたモデルで計算する。
-            let model = translator?.model ?? record["requested_model"] as? String ?? ""
-            let ttl = record["cache_ttl"] as? [String: Any]
-            // 書き込みの内訳が無い時: 版 4 は書き込みの大半が system の 1 時間の印なので 1 時間として数える。
-            let assumed = (record["translation"] as? Int ?? 0) >= 4 ? ttl?["system"] as? String ?? "1h" : ttl?["tail"] as? String ?? "5m"
-            let tokens = ClaudePricing.Tokens(usage: usage, assumedWriteTTL: assumed)
-            record["tokens"] = [
-                "input": tokens.input, "cache_read": tokens.cacheRead, "cache_write_5m": tokens.cacheWrite5m,
-                "cache_write_1h": tokens.cacheWrite1h, "output": tokens.output, "prompt_total": tokens.promptTotal,
-                "write_split": tokens.writeSplitEstimated ? "estimated" : "reported",
-            ]
-            record["cache_state"] = ClaudeCacheDiagnosis.state(diagnosis: diagnosis, tokens: tokens)
-            if let cost = ClaudePricing.cost(model: model, tokens: tokens) {
-                record["estimated_cost_usd"] = cost.usd
-                record["pricing_tier"] = cost.tier
-                record["cost_status"] = "estimated"
-            } else {
-                record["estimated_cost_usd"] = NSNull()
-                record["cost_status"] = "unknown_model"
-            }
-            return record
-        }
-    }
 
     /// 1 回の要求の記録を実行監査に残し、使った金額を利用枠に足す。
     private func settle(bytes: Int, key: ClaudeRequestLog.Key?, _ record: [String: Any]) {
@@ -527,7 +538,7 @@ nonisolated private struct ClaudeRelay {
                 return
             }
             ClaudeProxyDiagnostics.dump(request: request, translated: translation.body)
-            var attempt = Attempt(reason: reason, model: model, translation: options.translation, tailTTL: options.tailCacheTTL, options: options)
+            var attempt = ClaudeRequestAttempt(reason: reason, model: model, translation: options.translation, tailTTL: options.tailCacheTTL, options: options)
             if translation.body["cache_control"] == nil, var ttl = attempt.record["cache_ttl"] as? [String: Any] {
                 // 版 4 の最初の要求は末尾に印を置かない(実行監査にもそのとおり残す)。
                 ttl["tail"] = NSNull()
@@ -660,15 +671,7 @@ nonisolated private struct ClaudeRelay {
         }
     }
 
-    static func status(stopReason: String?) -> String {
-        switch stopReason {
-        case "max_tokens": "max_tokens"
-        case "refusal": "refusal"
-        case "model_context_window_exceeded": "context_window_exceeded"
-        case "pause_turn": "paused"
-        default: "completed"
-        }
-    }
+    static func status(stopReason: String?) -> String { ClaudeRequestAttempt.status(stopReason: stopReason) }
 
     /// Codex は 429・5xx を再試行し、4xx はそのまま失敗にする。
     static func codexStatus(_ status: Int) -> Int {

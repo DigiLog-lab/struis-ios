@@ -9,16 +9,31 @@ tool_result の対応、thinking の署名、structured outputs の schema 制�
     python3 scripts/e2e/fake_anthropic.py --port 8787 --log-dir /tmp/fake-anthropic
 
 アプリは `STRUIS_ANTHROPIC_BASE_URL=http://127.0.0.1:8787` で起動する。
+
+Codex 版と Claude 直結版の比較(`RunnerComparisonLiveTests`)のために、次を `POST /__control` で切り替える。
+
+    {"scenario": "codex/grading-1", "mode": "script", "faults": [{"kind": "http", "status": 500}]}
+
+- `scenario`: 要求の記録の置き場所(`<log-dir>/scenarios/<scenario>/NNNN.json`)。到着と返し終わりの時刻も残す。
+- `mode`: `script`(決まった応答)、`record`(本物の API へ転送して応答を時刻付きで `<tape-dir>/<tape>/NNNN.json` に録る)、
+  `replay`(録った応答を同じ間隔で順に返す)。録画と再生は要求の中身ではなく順番で対応させる(比べる 2 つの本文は同じとは限らない)。
+- `faults`: 要求ごとに 1 つ消費する故障の列(`http`・`drop`・`stall`・`sse_error`・`first_byte_delay`)。
+
+`record` の転送先のキーは `--upstream-key-file` のファイルから読み、記録には残さない。
 """
 from __future__ import annotations
 
 import argparse
 import base64
+import collections
+import hashlib
 import itertools
 import json
 import re
 import threading
 import time
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -31,7 +46,46 @@ counter = itertools.count(1)
 lock = threading.Lock()
 
 
-def validate(body: dict) -> list[str]:
+class Control:
+    """`POST /__control` で決める、いまの比較の場面。"""
+    scenario: str | None = None
+    mode = "script"
+    tape: str | None = None
+    tape_index = 0
+    faults: collections.deque = collections.deque()
+    request_index = 0
+    tape_dir = Path("/tmp/fake-anthropic-tapes")
+    upstream = "https://api.anthropic.com"
+    upstream_key_file: str | None = None
+
+    @classmethod
+    def set(cls, payload: dict) -> None:
+        with lock:
+            cls.scenario = payload.get("scenario")
+            cls.mode = payload.get("mode", "script")
+            cls.tape = payload.get("tape")
+            cls.tape_index = 0
+            cls.faults = collections.deque(payload.get("faults") or [])
+            cls.request_index = 0
+
+    @classmethod
+    def next_request(cls) -> tuple[int, dict | None]:
+        with lock:
+            cls.request_index += 1
+            return cls.request_index, (cls.faults.popleft() if cls.faults else None)
+
+    @classmethod
+    def next_tape_path(cls) -> Path:
+        with lock:
+            cls.tape_index += 1
+            return cls.tape_dir / (cls.tape or "default") / f"{cls.tape_index:04d}.json"
+
+
+class ConnectionDropped(Exception):
+    """故障の再現で、応答の途中で接続を切る。"""
+
+
+def validate(body: dict, recorded_signatures: bool = False) -> list[str]:
     errors: list[str] = []
     if body.get("model") not in MODELS:
         errors.append(f"model: unknown {body.get('model')!r}")
@@ -128,7 +182,7 @@ def validate(body: dict) -> list[str]:
                         errors.append(f"messages.{index}.content.{k}.input: must be an object")
                     open_tool_uses.append(block.get("id"))
                 elif kind == "thinking":
-                    if not str(block.get("signature", "")).startswith(SIGNATURE_PREFIX):
+                    if not recorded_signatures and not str(block.get("signature", "")).startswith(SIGNATURE_PREFIX):
                         errors.append(f"messages.{index}.content.{k}: Invalid `signature` in `thinking` block")
                 elif kind not in ("text", "redacted_thinking"):
                     errors.append(f"messages.{index}.content.{k}: {kind!r} is not allowed in an assistant message")
@@ -303,14 +357,26 @@ def sse(event: dict) -> bytes:
 class Handler(BaseHTTPRequestHandler):
     log_dir: Path = Path("/tmp/fake-anthropic")
     delay = 0.02
+    protocol_version = "HTTP/1.1"
 
     def log_message(self, *args):  # noqa: D401
         pass
 
+    def do_GET(self):
+        if self.path == "/__health":
+            self.reply(200, {"ok": True})
+            return
+        self.reply(404, {"type": "error", "error": {"type": "not_found_error", "message": self.path}})
+
     def do_POST(self):
         length = int(self.headers.get("content-length", "0"))
         raw = self.rfile.read(length)
-        stamp = f"{time.time():.3f}"
+        arrived = time.time()
+        stamp = f"{arrived:.3f}"
+        if self.path == "/__control":
+            Control.set(json.loads(raw or b"{}"))
+            self.reply(200, {"ok": True})
+            return
         if self.path != "/v1/messages":
             self.reply(404, {"type": "error", "error": {"type": "not_found_error", "message": self.path}})
             return
@@ -318,19 +384,52 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(401, {"type": "error", "error": {"type": "authentication_error", "message": "invalid x-api-key"}})
             return
         body = json.loads(raw)
-        errors = validate(body)
-        record = {"path": self.path, "errors": errors, "request": scrub(body)}
+        index, fault = Control.next_request()
+        mode = Control.mode
+        errors = [] if mode == "record" else validate(body, recorded_signatures=mode == "replay")
+        record = {"path": self.path, "errors": errors, "request": scrub(body), "arrived_at": arrived, "bytes": len(raw), "fault": fault, "mode": mode}
+        self.fault = fault
+        self.events_sent = 0
+        self.fault_fired = False
+        self.record = record
+        self.request_index = index
+        try:
+            self.answer(raw, body, record, errors, mode, stamp)
+        except ConnectionDropped:
+            record["dropped"] = True
+            self.close_connection = True
+        except (BrokenPipeError, ConnectionResetError):
+            # 依頼主が要求をやめた(止める・時間切れ)。
+            record["client_went_away"] = True
+            self.close_connection = True
+        record["finished_at"] = time.time()
+        self.write_log(stamp, record)
+
+    def answer(self, raw: bytes, body: dict, record: dict, errors: list[str], mode: str, stamp: str):
         if errors:
-            self.write_log(stamp, record)
+            record["status"] = 400
             self.reply(400, {"type": "error", "error": {"type": "invalid_request_error", "message": "; ".join(errors)}})
+            return
+        fault = self.fault
+        if fault and fault.get("kind") == "http":
+            status = int(fault.get("status", 500))
+            record["status"] = status
+            kind = fault.get("type") or {429: "rate_limit_error", 529: "overloaded_error", 401: "authentication_error", 400: "invalid_request_error"}.get(status, "api_error")
+            headers = {"retry-after": str(fault["retry_after"])} if "retry_after" in fault else {}
+            self.reply(status, {"type": "error", "error": {"type": kind, "message": fault.get("message", f"fake {status}")}}, headers)
+            return
+        if fault and fault.get("kind") == "first_byte_delay":
+            time.sleep(float(fault.get("seconds", 1)))
+        if mode == "record":
+            self.forward(raw, record)
+            return
+        if mode == "replay":
+            self.replay(record)
             return
         blocks, stop = plan_response(body)
         record["response"] = {"blocks": blocks, "stop_reason": stop}
-        self.write_log(stamp, record)
-        self.send_response(200)
-        self.send_header("content-type", "text/event-stream")
-        self.send_header("cache-control", "no-cache")
-        self.end_headers()
+        record["status"] = 200
+        self.begin_stream()
         msg_id = f"msg_fake{next(counter):04d}"
         self.emit({"type": "message_start", "message": {"id": msg_id, "type": "message", "role": "assistant", "model": body["model"],
                                                         "content": [], "usage": {"input_tokens": 120, "cache_read_input_tokens": 800, "output_tokens": 1}}})
@@ -356,24 +455,124 @@ class Handler(BaseHTTPRequestHandler):
         self.emit({"type": "message_delta", "delta": {"stop_reason": stop, "stop_sequence": None}, "usage": {"output_tokens": 64}})
         self.emit({"type": "message_stop"})
 
-    def emit(self, event: dict):
+    # MARK: 録画と再生
+
+    def forward(self, raw: bytes, record: dict):
+        """本物の API へ転送し、届いた順と間隔のまま返して録る。キーは記録に残さない。"""
+        key = Path(Control.upstream_key_file).read_text().strip() if Control.upstream_key_file else ""
+        request = urllib.request.Request(Control.upstream + "/v1/messages", data=raw, method="POST", headers={
+            "content-type": "application/json", "anthropic-version": "2023-06-01", "accept": "text/event-stream", "x-api-key": key})
+        path = Control.next_tape_path()
+        started = time.time()
+        tape: dict = {"events": []}
+        try:
+            response = urllib.request.urlopen(request, timeout=600)
+        except urllib.error.HTTPError as error:
+            payload = error.read()
+            tape.update(status=error.code, body=payload.decode("utf-8", "replace"), retry_after=error.headers.get("retry-after"))
+            self.save_tape(path, tape)
+            record["status"] = error.code
+            self.send_response(error.code)
+            self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(payload)))
+            if error.headers.get("retry-after"):
+                self.send_header("retry-after", error.headers["retry-after"])
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+        record["status"] = response.status
+        tape["status"] = response.status
+        self.begin_stream()
+        data_lines: list[str] = []
+        for line in response:
+            text = line.decode("utf-8").rstrip("\r\n")
+            if text.startswith("data:"):
+                data_lines.append(text[5:].strip())
+            elif not text and data_lines:
+                event = json.loads("\n".join(data_lines))
+                data_lines = []
+                tape["events"].append([round(time.time() - started, 4), event])
+                self.emit(event, pace=False)
+        self.save_tape(path, tape)
+
+    def save_tape(self, path: Path, tape: dict):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(tape, ensure_ascii=False))
+
+    def replay(self, record: dict):
+        path = Control.next_tape_path()
+        if not path.exists():
+            record["status"] = 409
+            self.reply(409, {"type": "error", "error": {"type": "invalid_request_error", "message": f"tape ended: {path.name}"}})
+            return
+        tape = json.loads(path.read_text())
+        record["status"] = tape.get("status", 200)
+        record["tape"] = str(path)
+        if tape.get("status", 200) != 200:
+            headers = {"retry-after": tape["retry_after"]} if tape.get("retry_after") else {}
+            self.reply(tape["status"], json.loads(tape.get("body") or "{}"), headers)
+            return
+        self.begin_stream()
+        started = time.time()
+        for offset, event in tape["events"]:
+            wait = started + offset - time.time()
+            if wait > 0:
+                time.sleep(wait)
+            self.emit(event, pace=False)
+
+    # MARK: 送信
+
+    def begin_stream(self):
+        self.send_response(200)
+        self.send_header("content-type", "text/event-stream")
+        self.send_header("cache-control", "no-cache")
+        self.send_header("connection", "close")
+        self.end_headers()
+        self.close_connection = True
+
+    def fault_due(self, event: dict) -> bool:
+        fault = self.fault
+        if not fault or self.fault_fired or fault.get("kind") not in ("drop", "stall", "sse_error"):
+            return False
+        if "after_events" in fault:
+            return self.events_sent >= int(fault["after_events"])
+        wanted = fault.get("after", "text_delta")
+        return (event.get("delta") or {}).get("type") == wanted
+
+    def emit(self, event: dict, pace: bool = True):
         self.wfile.write(sse(event))
         self.wfile.flush()
-        time.sleep(self.delay)
+        self.events_sent += 1
+        if self.fault_due(event):
+            self.fault_fired = True
+            kind = self.fault["kind"]
+            if kind == "stall":
+                time.sleep(float(self.fault.get("seconds", 30)))
+                raise ConnectionDropped()
+            if kind == "sse_error":
+                self.wfile.write(sse({"type": "error", "error": {"type": self.fault.get("type", "overloaded_error"), "message": "fake stream error"}}))
+                self.wfile.flush()
+                raise ConnectionDropped()
+            raise ConnectionDropped()
+        if pace:
+            time.sleep(self.delay)
 
-    def reply(self, status: int, payload: dict):
+    def reply(self, status: int, payload: dict, headers: dict | None = None):
         data = json.dumps(payload, ensure_ascii=False).encode()
         self.send_response(status)
         self.send_header("content-type", "application/json")
         self.send_header("content-length", str(len(data)))
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(data)
 
     def write_log(self, stamp: str, record: dict):
         with lock:
-            self.log_dir.mkdir(parents=True, exist_ok=True)
-            (self.log_dir / f"{stamp}-{len(list(self.log_dir.iterdir())):04d}.json").write_text(
-                json.dumps(record, ensure_ascii=False, indent=1))
+            target = self.log_dir / "scenarios" / Control.scenario if Control.scenario else self.log_dir
+            target.mkdir(parents=True, exist_ok=True)
+            name = f"{self.request_index:04d}.json" if Control.scenario else f"{stamp}-{len(list(target.iterdir())):04d}.json"
+            (target / name).write_text(json.dumps(record, ensure_ascii=False, indent=1))
 
 
 def scrub(value):
@@ -381,7 +580,8 @@ def scrub(value):
         return [scrub(v) for v in value]
     if isinstance(value, dict):
         if value.get("type") == "base64" and "data" in value:
-            return {**value, "data": f"…({len(value['data'])} chars)"}
+            digest = hashlib.sha256(value["data"].encode()).hexdigest()[:16]
+            return {**value, "data": f"…({len(value['data'])} chars sha256={digest})"}
         return {k: scrub(v) for k, v in value.items()}
     return value
 
@@ -390,8 +590,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--log-dir", default="/tmp/fake-anthropic")
+    parser.add_argument("--tape-dir", default=None, help="録画の置き場所(既定 <log-dir>/tapes)")
+    parser.add_argument("--upstream", default="https://api.anthropic.com", help="mode=record の転送先")
+    parser.add_argument("--upstream-key-file", default=None, help="mode=record で使う API キーのファイル")
     args = parser.parse_args()
     Handler.log_dir = Path(args.log_dir)
+    Control.tape_dir = Path(args.tape_dir) if args.tape_dir else Path(args.log_dir) / "tapes"
+    Control.upstream = args.upstream
+    Control.upstream_key_file = args.upstream_key_file
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     print(f"fake anthropic on 127.0.0.1:{args.port}", flush=True)
     server.serve_forever()
