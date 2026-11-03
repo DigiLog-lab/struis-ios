@@ -29,9 +29,9 @@ final class DeviceLedgerSettingsUITests: XCTestCase {
         let gear = app.buttons["workbook-open-settings"].firstMatch
         XCTAssertTrue(gear.appears(timeout: 20), "設定ボタンが無い")
         gear.tap()
-        let advanced = app.buttons["settings-row-advanced"].firstMatch
-        XCTAssertTrue(advanced.appears(timeout: 10))
-        advanced.tap()
+        let learningRecord = app.buttons["settings-row-learning-record"].firstMatch
+        XCTAssertTrue(learningRecord.appears(timeout: 10))
+        learningRecord.tap()
 
         // 使用量報告は既定オフ。
         let toggle = app.switches.matching(NSPredicate(format: "label CONTAINS %@", "使用量を送る")).firstMatch
@@ -39,12 +39,12 @@ final class DeviceLedgerSettingsUITests: XCTestCase {
         XCTAssertEqual(toggle.value as? String, "0", "使用量報告が既定でオンになっている")
 
         // 台帳に記録がある端末では取り込みはできない (空の台帳だけ)。
-        let importButton = app.buttons["選ぶ"].firstMatch
+        let importButton = app.buttons["settings-ledger-import"].firstMatch
         XCTAssertTrue(importButton.appears(timeout: 5))
         XCTAssertFalse(importButton.isEnabled, "記録がある台帳に取り込めてしまう")
 
         // 書き出す → zip ができ、共有の導線が出る。
-        let export = app.buttons["書き出す"].firstMatch
+        let export = app.buttons["settings-ledger-export"].firstMatch
         XCTAssertTrue(export.appears(timeout: 5))
         export.tap()
         let message = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "書き出しました")).firstMatch

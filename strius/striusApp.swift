@@ -14,6 +14,7 @@ struct striusApp: App {
     @State private var learnerData: LearnerData
     @State private var timeline: TimelineStore
     @State private var subscriptions = SubscriptionStore()
+    @AppStorage(ThemePreference.storageKey) private var themePreference: ThemePreference = .system
 
     init() {
         #if DEBUG
@@ -78,6 +79,7 @@ struct striusApp: App {
                 // 今の契約を受け取り続ける(#40・#62)。プランは利用枠の判定にも使う。
                 .struisSubscriptionStatus(subscriptions)
                 .tint(Theme.Palette.accentLight)
+                .preferredColorScheme(themePreference.colorScheme)
                 .progressViewStyle(StruisProgressViewStyle())
                 .task {
                     // Prepare native runtime data and start the extension's app-server in the background;

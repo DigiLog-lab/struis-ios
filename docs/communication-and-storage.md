@@ -27,7 +27,7 @@ StruisのAPI base URLは`STRUIS_API_BASE_URL`で上書きできます。Codexの
 
 送信対象はtask type、status、requested/resolved/actual modelとeffort、elapsed milliseconds、既知のtoken countersです。allowlist外のキー、本文、コマンド、path、写真、エラー内容はこの報告から除きます。actual model/effortを観測できない場合はnullを保持し、要求値から推定して埋めません。この設定はAIターンそのものの送信を止める設定ではありません。固定Native Codexは`analytics.enabled=false`も指定します。
 
-台帳の`turns.executions`には、実行ごとのトークン数(`turn_tokens`: 入力・キャッシュ読み出し・キャッシュ書き込み・出力)と、Claudeのモデルでは公開価格からの概算料金(`estimated_cost_usd`)を記録します。設定の「詳細設定」に今月の合計を表示します。概算は請求額そのものではありません。
+台帳の`turns.executions`には、実行ごとのトークン数(`turn_tokens`: 入力・キャッシュ読み出し・キャッシュ書き込み・出力)と、Claudeのモデルでは公開価格からの概算料金(`estimated_cost_usd`)を記録します。設定の「開発者向け」(TestFlight とプロトタイプだけ)に今月の合計を表示します。概算は請求額そのものではありません。
 
 ## iCloud 同期
 

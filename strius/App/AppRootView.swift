@@ -20,7 +20,6 @@ struct AppRootView: View {
 
     /// オンボーディングは Release でも出す(§7.2)。完了は端末に保存し、2 回目の起動からは出さない。
     @State private var isShowingOnboarding = Self.initiallyShowsOnboarding
-    @State private var onboardingSessionID = 0
     @State private var isSettingsPresented = false
     /// 単元ホームをタイムラインの上に重ねている。
     @State private var isUnitsPresented = Self.startsOnUnits
@@ -114,7 +113,6 @@ struct AppRootView: View {
                     isUnitsPresented = false
                     Task { await workbook.refreshHome() }
                 }
-                .id(onboardingSessionID)
                 .onAppear { chat.start() }
             } else {
                 authenticatedContent
@@ -191,14 +189,8 @@ struct AppRootView: View {
                     .fullScreenCover(isPresented: $isUnitsPresented) {
                         WorkbookHomeView(onOpenSettings: { isSettingsPresented = true }, onCloseTimeline: { isUnitsPresented = false })
                             .sheet(isPresented: $isSettingsPresented) {
-                                RootSettingsSheet(onReplayOnboarding: {
-                                    isUnitsPresented = false
-                                    withAnimation(.easeInOut(duration: Theme.Duration.standard)) {
-                                        onboardingSessionID += 1
-                                        isShowingOnboarding = true
-                                    }
-                                })
-                                .presentationDetents([.large])
+                                RootSettingsSheet()
+                                    .presentationDetents([.large])
                             }
                     }
                     // タイムラインの「質問」と、単元づくり(オンボーディングの後・案内の1枚)。単元ホームを重ねている間は、単元ホームが出す。
@@ -257,21 +249,17 @@ private struct SessionRestoringView: View {
 
 private struct RootSettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
-    let onReplayOnboarding: () -> Void
 
     var body: some View {
         NavigationStack {
-            SettingsView {
-                dismiss()
-                onReplayOnboarding()
-            }
-            .navigationTitle("設定")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("閉じる") { dismiss() }
+            SettingsView()
+                .navigationTitle("設定")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("閉じる") { dismiss() }
+                    }
                 }
-            }
         }
     }
 }

@@ -52,87 +52,20 @@ struct UsageBar: View {
     }
 }
 
-/// 設定 › 利用枠: 今週の使用率のゲージ・残りの目安の問題数・リセットの日時・今のプラン・「プランを変える」・解約(契約中だけ)。
+/// 設定 › 利用枠: 今週の使用率のゲージ・残りの目安の問題数・戻る日時・今のプラン・「プランを変える」・解約(契約中だけ)。
 /// 解約は Apple の管理シートの中で行う(アプリから直接解約する API は無い)。
 struct UsageSettingsView: View {
     @Environment(SubscriptionStore.self) private var subscriptions
     @Environment(\.horizontalSizeClass) private var sizeClass
-    @State private var status = UsageStatus()
-    @State private var isPaywallPresented = false
-    @State private var isManagePresented = false
+    @State private var status: UsageStatus = UsageStatus()
+    @State private var isPaywallPresented: Bool = false
+    @State private var isManagePresented: Bool = false
 
     var body: some View {
-        let snapshot = status.snapshot
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack(alignment: .lastTextBaseline) {
-                        Text("今週").font(Typography.sans(size: 15, weight: .bold)).foregroundStyle(Theme.primaryText)
-                        Spacer()
-                        Text("\(snapshot.percent)%")
-                            .font(Typography.sans(size: 34, weight: .bold, relativeTo: .largeTitle))
-                            .foregroundStyle(Theme.primaryText)
-                            .monospacedDigit()
-                            .accessibilityIdentifier("usage-percent")
-                    }
-                    UsageBar(fraction: snapshot.fraction)
-                    HStack {
-                        Text("残りの目安 約\(snapshot.remainingProblems)問").accessibilityIdentifier("usage-remaining")
-                        Spacer()
-                        Text("\(UsageStatus.resetText(snapshot.resetsAt)) に戻ります")
-                    }
-                    .font(Typography.sans(size: 12, weight: .medium))
-                    .foregroundStyle(Theme.secondaryText)
-                }
-                .padding(18)
-                .struisSurface(radius: Theme.Radius.cardLarge)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("今週の利用枠 \(snapshot.percent)% 使用。残りの目安 約\(snapshot.remainingProblems)問。\(UsageStatus.resetText(snapshot.resetsAt)) に戻ります")
-
-                VStack(spacing: 0) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("プラン").font(Typography.sans(size: 15, weight: .bold))
-                            Spacer()
-                            Text(subscriptions.plan.map { "\($0.displayName)   \(subscriptions.price(of: $0)) / 月" } ?? "お試し")
-                                .font(Typography.sans(size: 15, weight: .medium)).foregroundStyle(Theme.secondaryText)
-                                .accessibilityIdentifier("usage-plan")
-                        }
-                        if let cancelsAt = subscriptions.cancelsAt {
-                            Text("解約済みです。\(UsageStatus.dayText(cancelsAt)) まで今のプランを使えます。")
-                                .font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .accessibilityIdentifier("usage-cancels-at")
-                        }
-                    }
-                    .padding(.vertical, 14)
-                    Rectangle().fill(Theme.hairline).frame(height: 1)
-                    actionRow(title: subscriptions.plan == nil ? "プランを選ぶ" : "プランを変える", identifier: "usage-change-plan") {
-                        isPaywallPresented = true
-                    }
-                    if subscriptions.plan != nil {
-                        Rectangle().fill(Theme.hairline).frame(height: 1)
-                        actionRow(title: "解約・サブスクリプションの管理", identifier: "usage-manage-subscription") {
-                            isManagePresented = true
-                        }
-                    }
-                }
-                .foregroundStyle(Theme.primaryText)
-                .padding(.horizontal, 18)
-                .struisSurface(radius: Theme.Radius.cardLarge)
-
-                Text("問題数は目安です。質問や写真の量によって前後します。100%に達しても、解いている途中の問題は採点まで終わらせます。")
-                    .font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText).lineSpacing(3)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
-            .padding(.bottom, 36)
-            .frame(maxWidth: 560)
-            .frame(maxWidth: .infinity)
+        SettingsScreen(title: "利用枠") {
+            gauge(status.snapshot)
+            planSection
         }
-        .background(Theme.ground.ignoresSafeArea())
-        .navigationTitle("利用枠")
-        .navigationBarTitleDisplayMode(.inline)
         .onAppear { status.refresh() }
         .sheet(isPresented: $isPaywallPresented) {
             OnboardingPaywallView(store: subscriptions, isPad: TimelineLayout.isPad(sizeClass), onClose: { isPaywallPresented = false }) {
@@ -147,18 +80,106 @@ struct UsageSettingsView: View {
         .accessibilityIdentifier("usage-settings")
     }
 
-    private func actionRow(title: String, identifier: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack {
-                Text(title).font(Typography.sans(size: 15, weight: .bold))
-                Spacer()
-                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.tertiaryText)
+    /// 地に直接置く計器。これがこの画面の主役。
+    private func gauge(_ snapshot: UsageSnapshot) -> some View {
+        let until: String = untilText(snapshot)
+        return VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("今週の使用量")
+                    .font(Typography.caption)
+                    .foregroundStyle(Theme.secondaryText)
+                Text("\(snapshot.percent)%")
+                    .font(Typography.sans(size: 30, weight: .bold, relativeTo: .largeTitle))
+                    .foregroundStyle(Theme.primaryText)
+                    .monospacedDigit()
+                    .accessibilityIdentifier("usage-percent")
             }
-            .padding(.vertical, 14)
-            .contentShape(Rectangle())
+            UsageBar(fraction: snapshot.fraction)
+            HStack(spacing: 12) {
+                Text("残り 約\(snapshot.remainingProblems)問")
+                    .foregroundStyle(Theme.primaryText)
+                    .accessibilityIdentifier("usage-remaining")
+                Spacer(minLength: 0)
+                Text(until)
+                    .foregroundStyle(Theme.secondaryText)
+            }
+            .font(Typography.caption)
+            .monospacedDigit()
+            SettingsNote(text: "問題数は目安で、質問や写真の量で前後します。100% に達しても、解いている途中の問題は採点まで終わらせます。")
+                .padding(.top, 4)
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(identifier)
+        .padding(.horizontal, 4)
+        .padding(.top, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("今週の使用量 \(snapshot.percent)%。残り 約\(snapshot.remainingProblems)問。\(until)")
+    }
+
+    /// 枠が戻る前にプランが終わる時は、戻る日時を出さない(その日にはもう使えないため)。
+    private func untilText(_ snapshot: UsageSnapshot) -> String {
+        if let cancelsAt: Date = subscriptions.cancelsAt, cancelsAt < snapshot.resetsAt {
+            return "\(UsageStatus.dayText(cancelsAt))まで使えます"
+        }
+        return "\(UsageStatus.resetText(snapshot.resetsAt)) に 0% に戻ります"
+    }
+
+    private var planSection: some View {
+        let plan: UsagePlan? = subscriptions.plan
+        let isCancelled: Bool = subscriptions.cancelsAt != nil
+        return SettingsSection(header: "プラン") {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(plan?.displayName ?? "お試し")
+                        .font(Typography.title)
+                        .foregroundStyle(Theme.primaryText)
+                    if isCancelled {
+                        Text("解約済み・次の請求はありません")
+                            .font(Typography.caption)
+                            .foregroundStyle(Theme.secondaryText)
+                            .accessibilityIdentifier("usage-cancels-at")
+                    } else if let plan {
+                        Text("週 約\(plan.weeklyProblems)問が目安")
+                            .font(Typography.caption)
+                            .foregroundStyle(Theme.secondaryText)
+                            .monospacedDigit()
+                    }
+                }
+                Spacer(minLength: 12)
+                if let plan {
+                    Text("\(subscriptions.price(of: plan)) / 月")
+                        .font(Typography.body)
+                        .foregroundStyle(Theme.secondaryText)
+                        .monospacedDigit()
+                        .padding(.top, 3)
+                        .accessibilityIdentifier("usage-plan")
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            SettingsDivider()
+            if isCancelled {
+                SettingsButtonRow(title: "プランを続ける", systemImage: SettingsChevron.symbolName) {
+                    isManagePresented = true
+                }
+                .accessibilityIdentifier("usage-manage-subscription")
+                SettingsDivider()
+                SettingsButtonRow(title: "プランを変える", tone: .secondary, systemImage: SettingsChevron.symbolName) {
+                    isPaywallPresented = true
+                }
+                .accessibilityIdentifier("usage-change-plan")
+            } else {
+                SettingsButtonRow(title: plan == nil ? "プランを選ぶ" : "プランを変える", systemImage: SettingsChevron.symbolName) {
+                    isPaywallPresented = true
+                }
+                .accessibilityIdentifier("usage-change-plan")
+                if plan != nil {
+                    SettingsDivider()
+                    SettingsButtonRow(title: "解約・支払いの管理", tone: .secondary, systemImage: SettingsChevron.symbolName) {
+                        isManagePresented = true
+                    }
+                    .accessibilityIdentifier("usage-manage-subscription")
+                }
+            }
+        }
     }
 }
 
@@ -188,7 +209,7 @@ struct UsageLimitSheet: View {
                 .padding(.trailing, -10)
             }
             UsageBar(fraction: 1)
-            Text("\(UsageStatus.resetText(snapshot.resetsAt)) に戻ります。プランを上げると、すぐに続けられます。")
+            Text("\(UsageStatus.resetText(snapshot.resetsAt)) に 0% に戻ります。プランを上げると、すぐに続けられます。")
                 .font(Typography.sans(size: 15, weight: .medium))
                 .foregroundStyle(Theme.primaryText)
                 .lineSpacing(4)

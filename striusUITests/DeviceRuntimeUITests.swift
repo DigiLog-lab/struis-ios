@@ -23,9 +23,9 @@ final class DeviceRuntimeUITests: XCTestCase {
         gear.tap()
 
         // 実行環境の状態: rootfs の展開 (初回) と起動、app-server の initialize を待つ。
-        let advanced = app.buttons["settings-row-advanced"].firstMatch
-        XCTAssertTrue(advanced.appears(timeout: 10))
-        advanced.tap()
+        let developer = app.buttons["settings-row-developer"].firstMatch
+        XCTAssertTrue(developer.appears(timeout: 10))
+        developer.tap()
         let appServer = app.staticTexts["settings-runtime-appserver"].firstMatch
         XCTAssertTrue(appServer.appears(timeout: 10))
         let running = NSPredicate(format: "label CONTAINS[c] %@ OR value CONTAINS[c] %@", "実行中", "実行中")
