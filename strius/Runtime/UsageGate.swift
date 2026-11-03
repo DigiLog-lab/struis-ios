@@ -207,8 +207,12 @@ nonisolated struct UsageSnapshot: Equatable, Sendable, Identifiable {
     var fraction: Double { limitUSD > 0 ? min(1, max(0, spentUSD / limitUSD)) : 1 }
     var percent: Int { Int((fraction * 100).rounded(.down)) }
     var isExhausted: Bool { spentUSD >= limitUSD }
-    /// 残りの目安の問題数(1 問 ¥10 で割って切り下げ)。
-    var remainingProblems: Int { max(0, Int(((limitUSD - spentUSD) / UsageRules.problemUSD).rounded(.down))) }
+    /// 残りの目安の問題数(1 問 ¥10 で割って切り下げ)。購入画面の「週 約○問」を超えて見せない。
+    var remainingProblems: Int {
+        let remaining: Int = max(0, Int(((limitUSD - spentUSD) / UsageRules.problemUSD).rounded(.down)))
+        guard let plan else { return remaining }
+        return min(remaining, plan.weeklyProblems)
+    }
 }
 
 extension Notification.Name {

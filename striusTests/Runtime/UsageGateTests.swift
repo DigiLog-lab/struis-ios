@@ -81,6 +81,12 @@ final class UsageGateTests: XCTestCase {
         XCTAssertEqual(UsageStatus.resetText(snapshot.resetsAt), "11月2日（月）0:00")
     }
 
+    func testRemainingProblemsNeverExceedThePlansWeeklyProblems() {
+        // スタンダードの上限 $2.00 を 1 問 $0.0625 で割ると 32 問だが、購入画面の「週 約30問」を超えて見せない。
+        let meter = meter(plan: .standard, now: date("2026-10-31T09:00:00+09:00"))
+        XCTAssertEqual(meter.snapshot().remainingProblems, 30)
+    }
+
     func testGateAllowsOneCardOverTheLimitThenRefuses() {
         let meter = meter(plan: .light)
         let gate = DeviceUsageGate(meter: meter)

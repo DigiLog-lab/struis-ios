@@ -254,7 +254,7 @@ struct ChatView: View {
             }
         }
         .sheet(isPresented: $isSettingsPresented) {
-            SettingsSheet(onReplayOnboarding: {})
+            SettingsSheet()
                 .presentationDetents([.large])
         }
         .fullScreenCover(item: $activeScenePackage) { package in
@@ -649,7 +649,7 @@ struct ChatView: View {
                 Text(learnerData.isDeliveryRefreshing ? "質問の準備中" : "質問の準備が必要です")
                     .font(Typography.caption)
                     .foregroundStyle(Theme.textPrimary(scheme))
-                Text(embedded ? "ホームの設定から配信データを更新してください" : learnerData.deliveryDetail)
+                Text(embedded ? "ホームの設定を開いて「更新する」を押してください" : learnerData.deliveryDetail)
                     .font(Typography.micro)
                     .foregroundStyle(Theme.textSecondary(scheme))
                     .fixedSize(horizontal: false, vertical: true)
@@ -721,12 +721,10 @@ struct ChatView: View {
 
 private struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
-    let onReplayOnboarding: () -> Void
 
     var body: some View {
         NavigationStack {
-            // 質問画面からはオンボーディングをやり直せない(ルートの設定から行う)。行を出さない。
-            SettingsView(onReplayOnboarding: nil)
+            SettingsView()
                 .navigationTitle("設定")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
