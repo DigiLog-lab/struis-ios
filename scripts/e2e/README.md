@@ -25,7 +25,7 @@
 | `watch.py UDID 出力先` | 約 2 秒ごとに撮って OCR し、時系列を `watch.tsv` に残す(`STOP` ファイルで止まる) |
 | `gaps.py watch.tsv 10 --ignore-counters` | 10 秒を超えて新しい情報が出ない区間を出す(W11 の判定) |
 | `paths` | 台帳(`ledger.sqlite`)の場所。`turns.executions` の `requests[]` に要求ごとの記録(理由・状態・トークン・概算料金)が残る |
-| `fake_anthropic.py --port 8787 --log-dir 出力先` | Messages API の模擬サーバー(実モデルではない)。現行の Claude が拒む形の要求は 400 で返し、通った要求には決まった応答を SSE で返す。`POST /__control` で場面・`script`/`record`/`replay`・故障(`http`・`drop`・`stall`・`sse_error`・`first_byte_delay`)を切り替える。`record` の転送先のキーは `--upstream-key-file` |
+| `fake_anthropic.py --port 8787 --log-dir 出力先` | Messages API の模擬サーバー(実モデルではない)。現行の Claude が拒む形の要求は 400 で返し、通った要求には決まった応答を SSE で返す。`POST /__control` で場面・`script`/`record`/`replay`・故障(`http`・`drop`・`stall`・`sse_error`・`first_byte_delay`・`trickle`)を切り替える。`trickle` は本文の差分を 1 秒に 1 つ流し続ける(止める操作の確認用)。`record` の転送先のキーは `--upstream-key-file` |
 | `standin_assets.py 出力先` | 配信データの代わりの最小の prompt・schema(配線確認用。本番の配信本文ではない) |
 | `compare_runners.py --server … --outcomes … --out …` | 移行のときの比較(以前の Codex 版と直結版)を模擬サーバーの記録と `RunnerComparisonLiveTests` の結果から `report.md` にまとめる |
 | `makematerials.py 出力先` / `makepaper.py out.jpg 行...` / `makedng.py out.dng` | 教材(PDF・画像の境界ケース) / 手書き風の答案画像 / ProRAW の代わりの大きな DNG |
