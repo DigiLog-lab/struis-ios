@@ -224,19 +224,33 @@ nonisolated private final class DirectClaudeTurn: @unchecked Sendable {
         }
         let schema = turn.outputSchema.map { ClaudeTranslation.schemaInstruction($0.any) }
         system = ClaudeTranslation.tutorSystem(parts: [base, developer], schema: schema)
-        toolNames = ClaudeToolNames(responsesTools: NativeToolRouter.definitions(for: plan.kind), sorted: true)
+        toolNames = ClaudeToolNames(responsesTools: NativeToolRouter.definitions(for: plan.kind) + [Self.viewImageTool], sorted: true)
     }
+
+    /// Codex の組み込みの `view_image`(Codex が足す定義と同じ文面)。`request_user_input` は Plan モード専用なので足さない。
+    private static let viewImageTool: [String: Any] = [
+        "type": "function", "name": "view_image",
+        "description": "View a local image file from the filesystem when visual inspection is needed. Use this for images already available on disk.",
+        "parameters": [
+            "type": "object", "additionalProperties": false, "required": ["path"],
+            "properties": ["path": ["type": "string", "description": "Local filesystem path to an image file."]],
+        ] as [String: Any],
+    ]
 
     private func userContent(_ turn: TurnPlan.TurnSpec) throws -> [[String: Any]] {
         var content: [[String: Any]] = [["type": "text", "text": turn.text]]
-        for image in turn.images {
+        for (number, image) in turn.images.enumerated() {
             let url = plan.hostWorkspace.appendingPathComponent(image.path)
-            let data = try Data(contentsOf: url)
-            let block = ClaudeRequestTranslator.imageBlock("data:\(Self.mediaType(data));base64,\(data.base64EncodedString())",
-                                                           maxBytes: ClaudeRequestTranslator.Options().maxImageBytes)
-            content.append(block ?? ["type": "text", "text": "[An attached image could not be sent to the model.]"])
+            // Codex と同じく、画像の前後に名前と場所の印を付ける(モデルが道具で同じ画像を指せるように)。
+            content.append(["type": "text", "text": "<image name=[Image #\(number + 1)] path=\"\(url.path)\">"])
+            content.append(Self.imageBlock(try Data(contentsOf: url)) ?? ["type": "text", "text": "[An attached image could not be sent to the model.]"])
+            content.append(["type": "text", "text": "</image>"])
         }
         return content
+    }
+
+    private static func imageBlock(_ data: Data) -> [String: Any]? {
+        ClaudeRequestTranslator.imageBlock("data:\(mediaType(data));base64,\(data.base64EncodedString())", maxBytes: ClaudeRequestTranslator.Options().maxImageBytes)
     }
 
     private static func mediaType(_ data: Data) -> String {
@@ -270,7 +284,7 @@ nonisolated private final class DirectClaudeTurn: @unchecked Sendable {
         let claudeTools = toolNames.claudeTools
         if !claudeTools.isEmpty {
             body["tools"] = claudeTools
-            body["tool_choice"] = ["type": "auto", "disable_parallel_tool_use": true]
+            body["tool_choice"] = ["type": "auto"]
         }
         if let effort = ClaudeRequestTranslator.effort(plan.thread.effort) { body["output_config"] = ["effort": effort] }
         return body
@@ -310,6 +324,7 @@ nonisolated private final class DirectClaudeTurn: @unchecked Sendable {
         if let event = CodexTurnRunner.startedItemEvent(item, skills: skills) { progress(event) }
         var reply: JSONObject
         do {
+            if name == "view_image" { return viewImage(id: id, path: arguments["path"] as? String ?? "", item: item) }
             let (answer, execution) = try await tools.handle(["threadId": threadID, "turnId": turnID, "tool": name, "arguments": arguments, "callId": id])
             reply = answer
             if let view = execution?["item"] as? JSONObject, view["type"] as? String == "captureView" {
@@ -327,6 +342,20 @@ nonisolated private final class DirectClaudeTurn: @unchecked Sendable {
         var result: [String: Any] = ["type": "tool_result", "tool_use_id": id, "content": Self.toolContent(reply["contentItems"] as? [JSONObject] ?? [])]
         if reply["success"] as? Bool == false { result["is_error"] = true }
         return result
+    }
+
+    /// `view_image`: 作業フォルダの中の画像だけを読んで、画像のまま返す。
+    private func viewImage(id: String, path: String, item: JSONObject) -> [String: Any] {
+        defer { if let event = CodexTurnRunner.completedItemEvent(item, phase: "", skills: skills) { progress(event) } }
+        let root = plan.hostWorkspace.standardizedFileURL.resolvingSymlinksInPath().path
+        let url = (path.hasPrefix("/") ? URL(fileURLWithPath: path) : plan.hostWorkspace.appendingPathComponent(path)).standardizedFileURL.resolvingSymlinksInPath()
+        guard url.path == root || url.path.hasPrefix(root + "/") else {
+            return ["type": "tool_result", "tool_use_id": id, "content": "unable to locate image at `\(path)`: outside the workspace", "is_error": true]
+        }
+        guard let data = try? Data(contentsOf: url), let block = Self.imageBlock(data) else {
+            return ["type": "tool_result", "tool_use_id": id, "content": "unable to locate image at `\(path)`", "is_error": true]
+        }
+        return ["type": "tool_result", "tool_use_id": id, "content": [block]]
     }
 
     private static func toolContent(_ items: [JSONObject]) -> Any {

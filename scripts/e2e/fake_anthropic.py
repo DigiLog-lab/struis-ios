@@ -386,6 +386,8 @@ class Handler(BaseHTTPRequestHandler):
         body = json.loads(raw)
         index, fault = Control.next_request()
         mode = Control.mode
+        # 置き場所は着いた時の場面で決める(直結版は最後のイベントで返るので、書き終わる前に次の場面へ切り替わることがある)。
+        self.scenario = Control.scenario
         errors = [] if mode == "record" else validate(body, recorded_signatures=mode == "replay")
         record = {"path": self.path, "errors": errors, "request": scrub(body), "arrived_at": arrived, "bytes": len(raw), "fault": fault, "mode": mode}
         self.fault = fault
@@ -569,9 +571,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def write_log(self, stamp: str, record: dict):
         with lock:
-            target = self.log_dir / "scenarios" / Control.scenario if Control.scenario else self.log_dir
+            scenario = getattr(self, "scenario", None)
+            target = self.log_dir / "scenarios" / scenario if scenario else self.log_dir
             target.mkdir(parents=True, exist_ok=True)
-            name = f"{self.request_index:04d}.json" if Control.scenario else f"{stamp}-{len(list(target.iterdir())):04d}.json"
+            name = f"{self.request_index:04d}.json" if scenario else f"{stamp}-{len(list(target.iterdir())):04d}.json"
             (target / name).write_text(json.dumps(record, ensure_ascii=False, indent=1))
 
 
