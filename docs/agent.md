@@ -49,7 +49,7 @@ DerivedData はブランチ名・OS/architecture・Xcode 版・native 依存の 
 Claude は Issue の依頼に応じて `python3 "$AGENT_CTL" prototype-build <ID> [--ref <ブランチ>] --title … --summary … --wait` で `agent-prototype.yml` を起動します(`repository_dispatch` の `agent-prototype`)。ビルドするのはこのリポジトリのどのブランチでもよく(タグ・commit SHA・`refs/pull/` は不可)、今の作業を試すだけなら作業ブランチ `agent/issue-{番号}` をそのまま渡します。複数の案を並べて比べるときは、案ごとのブランチ(既定 `prototype/{Issue番号}/{ID}`)を作ります。人が起動するときは Actions → Agent prototype → Run workflow(branch は `main`、`operation=build`、Issue 番号、ID、ブランチ名)です。workflow は次を行います。
 
 1. 識別子の割当: 新しい案には空いている識別子枠を名前順に割り当て、`prototypes/{Issue}/{ID}/meta.json` に記録します。同じ案の再ビルドでは同じ枠(Bundle ID・App Group)を使い、Build Number を増やします。アーカイブした案の枠は解放され、次の新しい案が使います。
-2. App Store Connect API: 3つの App ID の存在確認、登録済み端末と配布証明書の取得、端末一覧が変わったときの Ad Hoc profile の作成。profile に App Group が含まれていることを検査します。
+2. App Store Connect API: 2つの App ID の存在確認、登録済み端末と配布証明書の取得、端末一覧が変わったときの Ad Hoc profile の作成。profile に App Group が含まれていることを検査します。
 3. 作業コピーだけでの識別情報の変更: 表示名(例 `2A Struis`)、アイコンの帯(`#2 A`)、拡張ポイントの宣言。リポジトリ上の本番設定は変更しません。
 4. `STRUIS_BUNDLE_ID_BASE` / `STRUIS_APP_GROUP` を渡した archive と、`release-testing`(Ad Hoc)export。署名・Bundle ID・App Group・profile・拡張ポイントを IPA 上で検証します。
 5. IPA と `build.json`(Issue、Prototype ID、Bundle ID、Version、Build Number、Commit、生成日時、結果)を R2 に保存し、期限付きのインストールページ、QR コード、Simulator の起動画面を Issue に投稿します。失敗時は段階・原因・再実行方法を投稿します。
@@ -68,14 +68,14 @@ App Store Connect API キーでは App Group の作成と App ID への割当が
 
 | 枠 | 本体 | extension | App Group |
 |---|---|---|---|
-| `s01`〜 | `com.digiloglab.strius.preview.sNN` | `.runtime`、`.exec` | `group.com.digiloglab.strius.preview.sNN` |
+| `s01`〜 | `com.digiloglab.strius.preview.sNN` | `.exec` | `group.com.digiloglab.strius.preview.sNN` |
 
 枠は名前順に割り当てるので、ポータルと Anthropic Console の登録を済ませた枠(現在 s01〜s05)が先に使われます。実機で Claude を使うには、枠の Bundle ID を Anthropic Console の App integration にも追加しておく必要があります(App Attest)。
 
 枠を追加するときは `agent-prototype.yml` を `operation=register-slots`、`slot_count` に新しい合計数で実行します(App ID と App Groups capability を API で作成し、summary にポータルでの残り作業を表示します)。その後 Developer ポータルで次の2つを行います。
 
-1. App Group を登録し、3つの App ID の App Groups に割り当てる。
-2. `.runtime` と `.exec` の App ID で **Enhanced Security** を有効にする(本番の extension と同じ。`com.apple.security.hardened-process` 系の entitlement に必要で、API では設定できません)。
+1. App Group を登録し、2つの App ID の App Groups に割り当てる。
+2. `.exec` の App ID で **Enhanced Security** を有効にする(本番の extension と同じ。`com.apple.security.hardened-process` 系の entitlement に必要で、API では設定できません)。
 
 空いている枠が無い場合や、profile に App Group・Enhanced Security が含まれない場合、ビルドは原因を Issue に報告して止まります。
 

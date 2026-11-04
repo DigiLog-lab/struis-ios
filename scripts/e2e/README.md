@@ -30,7 +30,6 @@
 | `compare_runners.py --server … --outcomes … --out …` | 移行のときの比較(以前の Codex 版と直結版)を模擬サーバーの記録と `RunnerComparisonLiveTests` の結果から `report.md` にまとめる |
 | `makematerials.py 出力先` / `makepaper.py out.jpg 行...` / `makedng.py out.dng` | 教材(PDF・画像の境界ケース) / 手書き風の答案画像 / ProRAW の代わりの大きな DNG |
 | `keytype 文字` / `pick8` / `pickfile 名前` | 別プロセスのキーボードを座標でたたく / 写真 8 枚を添える / Files から選ぶ |
-| `newest` | 以前の Codex の rollout を探す道具。今のアプリは rollout を作らないので使わない |
 
 ## 基準シナリオ
 

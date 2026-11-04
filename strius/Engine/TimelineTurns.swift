@@ -5,7 +5,7 @@ import OSLog
 private let timelineTurnLog = Logger(subsystem: "com.digiloglab.strius", category: "timeline-turns")
 
 /// 学習タイムラインの AI のターン(Issue #46「5枚をまとめて作る呼び出し」「採点」「知識グラフ」)。今の構造化ターン
-/// (`TurnPlan` → 端末の Codex → OpenAI / `ClaudeResponsesProxy`)に種類を足して回す。
+/// (`TurnPlan` → `ClaudeTurnRunner` → Messages API)に種類を足して回す。
 ///
 /// 採点・出題・見直しは、キャッシュに乗せるため同じ順に並べる(2026-10-27):
 /// 1. 基本指示(`prompt:base`・理想の動き・起こり得ること・道具の説明)= Claude の system の 1 つ目。3 つで 1 バイトも違わない
@@ -14,7 +14,7 @@ private let timelineTurnLog = Logger(subsystem: "com.digiloglab.strius", categor
 /// 3. 出力の形(JSON Schema の文)= 記録の後ろ
 /// 4. 今回の仕事(1〜2 行)と、今回の材料 = 会話の最初の発話
 /// 1 と 2 の最後に 1 時間のキャッシュの印を置く(`ClaudeRequestTranslator` の版 4)。作業フォルダの場所(処理ごとに違う)は
-/// 先頭に入れない: 前の版は Skill を作業フォルダに置いていて、その場所が Codex の Skill の一覧として system に入り、毎回外れていた。
+/// 先頭に入れない: 前の版は Skill を作業フォルダに置いていて、その場所が Skill の一覧として system に入り、毎回外れていた。
 nonisolated enum TimelineTurns {
     static let batchFailure = "次の問題を作れませんでした。"
     static let gradingFailure = "採点できませんでした。もう一度撮ってください。"
@@ -94,12 +94,12 @@ nonisolated enum TimelineTurns {
     }
 
     /// 採点・出題・見直しのスレッド。基本指示(system の 1 つ目: `prompt:base`・`timeline_shared`・道具の説明)は 3 つで
-    /// 1 バイトも違わない。今日の記録は Codex の developer 指示に入れる(system の 2 つ目以降、1 件 1 ブロック)。
+    /// 1 バイトも違わない。今日の記録は developer 指示に入れる(system の 2 つ目以降、1 件 1 ブロック)。
     static func tutorThread(composer: TurnComposer, planID: String, workbook: WorkbookMachine, timeline: TimelineMachine) async throws -> TurnPlan.ThreadSpec {
         let model = await composer.assets.model(TimelineModels.role)
         let effort = tutorEffort
         let shared = try await composer.assets.text("prompt:timeline_shared")
-        // 道具の説明は今日の記録の前に置く(`CodexTurnRunner.configureThread` は採点・出題・見直しでは developer 指示に足さない)。
+        // 道具の説明は今日の記録の前に置く(採点・出題・見直しでは developer 指示に足さない)。
         let base = try await composer.assets.ref("prompt:base", append: shared + "\n\n" + NativeToolRouter.instructions)
         return TurnPlan.ThreadSpec(
             codexThreadID: nil, mode: .start, cwd: TurnPlan.guestWorkspace(id: planID), model: model.model, effort: effort,

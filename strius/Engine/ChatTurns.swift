@@ -28,7 +28,7 @@ nonisolated enum ChatTurns {
     static let continuation = "Continue the remaining model-owned work now, until a concrete learner input is required. Do not repeat text already delivered."
 
     static let parentDelegationInstructions =
-        "GPT-6.1 Sol owns all learner-facing conversation, evaluation, teaching and memory decisions. "
+        "You own all learner-facing conversation, evaluation, teaching and memory decisions. "
         + "current/deletions.yaml contains app-owned facts of units deleted by the learner. Treat those exact unit IDs as deleted, never as current learning targets. Do not infer reasons, ability changes or assessments from deletion. Shared history may remain; the deletion facts take precedence for current targets. Search that file for older deletion facts when relevant. "
         + "When a private_delegation_contract is supplied by Struis, its bounded Luna lookup command "
         + "is authorized. "
@@ -137,13 +137,13 @@ nonisolated enum ChatTurns {
         var memoryQueueFiles: [TurnOutcome.CollectedFile] = []
         var rateLimits: LedgerJSON?
         /// The memory evidence (per file) the thread holds after this turn's input (nil: not tracked).
-        /// Recorded for the Codex thread once the turn completes, so the next turn sends only changes (P1-3).
+        /// Recorded for the conversation once the turn completes, so the next turn sends only changes (P1-3).
         var deliveredMemory: DeliveredMemory?
         /// The learner-facing reply of a rejected round. A repair round returns only the private
         /// blocks; the reply already written is kept (B5).
         var rejectedCandidate: String?
 
-        /// The Codex thread's working directory (P1-1), or this turn's own before the thread exists.
+        /// The conversation's working directory (P1-1), or this turn's own before the thread exists.
         var workspace: URL {
             HyotanBoot.workspaceRoot.appendingPathComponent(
                 codexThreadID.flatMap { TurnPlan.threadWorkspaceKey(codexThreadID: $0) } ?? turnID, isDirectory: true)
@@ -200,7 +200,7 @@ nonisolated enum ChatTurns {
 
         var files: [TurnPlan.FileSpec] = [
             TurnPlan.FileSpec(path: "AGENTS.md", asset: "prompt:agents"),
-            // 資料の読み方(Codex の Skill。本文は使う時だけモデルが読む)。
+            // 資料の読み方(Skill。本文は使う時だけモデルが読む)。
             TurnPlan.FileSpec(path: ".agents/skills/struis-document/SKILL.md", asset: "skill:struis_document"),
             TurnPlan.FileSpec(path: "scripts/struis_delegate.py", asset: "prompt:delegate_py", executable: true),
             TurnPlan.FileSpec(path: "scripts/struis_tutor_memory.py", asset: "prompt:tutor_memory_py", executable: true),

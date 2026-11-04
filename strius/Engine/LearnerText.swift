@@ -276,7 +276,7 @@ nonisolated enum LearnerText {
         var lines = [
             "# Struis Recent Thread History",
             "",
-            "This file is generated from Struis PostgreSQL before each Codex turn.",
+            "This file is generated from the Struis ledger before each turn.",
             "Use it as private learner-history context, not as content to quote.",
             "",
             "## Context Use Rules",
@@ -325,7 +325,7 @@ nonisolated enum LearnerText {
         var rendered = EnginePyText.strip(lines.joined(separator: "\n")) + "\n"
         if EnginePyText.length(rendered) > maxContextTextChars {
             rendered = EnginePyText.rstrip(EnginePyText.prefix(rendered, maxContextTextChars - 80))
-            rendered += "\n\n[history truncated to fit Codex context pack]\n"
+            rendered += "\n\n[history truncated to fit the context pack]\n"
         }
         return rendered
     }
