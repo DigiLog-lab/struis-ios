@@ -27,6 +27,10 @@ Codex 版と Claude 直結版の比較(`RunnerComparisonLiveTests`)のために�
 「計算して」があれば `struis__exec_command` で `python3 -c` の SymPy の計算を 1 回呼び、出力の `SYMPY …` の行を返事に載せる
 (Workspace の Python が動くことの確認用)。
 
+`usage`(例 `{"cache_read_input_tokens": 250000}`)を渡すと、アプリへ返す応答の usage をその値で上書きする(`record` でも。
+録画には本物の値を残す)。長い会話を新しいスレッドへ移す確認用。
+要求の記録は、番号を取った時に `pending: true` で書き、返し終わり・接続の切断・転送の失敗(`exception`)のどれでも書き直す。
+
 `record` の転送先のキーは `--upstream-key-file` のファイルから読み、記録には残さない。
 """
 from __future__ import annotations
@@ -65,6 +69,7 @@ class Control:
     tape_dir = Path("/tmp/fake-anthropic-tapes")
     upstream = "https://api.anthropic.com"
     upstream_key_file: str | None = None
+    usage: dict | None = None
 
     @classmethod
     def set(cls, payload: dict) -> None:
@@ -75,6 +80,7 @@ class Control:
             cls.tape_index = 0
             cls.faults = collections.deque(payload.get("faults") or [])
             cls.request_index = 0
+            cls.usage = payload.get("usage")
 
     @classmethod
     def next_request(cls) -> tuple[int, dict | None]:
@@ -476,6 +482,14 @@ class Handler(BaseHTTPRequestHandler):
         self.fault_fired = False
         self.record = record
         self.request_index = index
+        # 同じ接続で次の要求が来ても別の名前にする(HTTP/1.1 の keep-alive では同じ Handler が続けて受ける)。
+        self.log_name = f"{index:04d}.json" if self.scenario else f"{stamp}-{index:04d}.json"
+        self.usage = Control.usage
+        if self.usage:
+            record["usage_override"] = self.usage
+        # 番号を取った要求は、返し終わる前でも記録に残す(返している途中で止まった・落ちた要求も欠番にしない)。
+        record["pending"] = True
+        self.write_log(stamp, record)
         try:
             self.answer(raw, body, record, errors, mode, stamp)
         except ConnectionDropped:
@@ -485,8 +499,13 @@ class Handler(BaseHTTPRequestHandler):
             # 依頼主が要求をやめた(止める・時間切れ)。
             record["client_went_away"] = True
             self.close_connection = True
-        record["finished_at"] = time.time()
-        self.write_log(stamp, record)
+        except Exception as error:  # noqa: BLE001 — 転送の失敗なども記録に残してから接続を閉じる
+            record["exception"] = f"{type(error).__name__}: {error}"
+            self.close_connection = True
+        finally:
+            record.pop("pending", None)
+            record["finished_at"] = time.time()
+            self.write_log(stamp, record)
 
     def answer(self, raw: bytes, body: dict, record: dict, errors: list[str], mode: str, stamp: str):
         if errors:
@@ -515,7 +534,7 @@ class Handler(BaseHTTPRequestHandler):
         self.begin_stream()
         msg_id = f"msg_fake{next(counter):04d}"
         self.emit({"type": "message_start", "message": {"id": msg_id, "type": "message", "role": "assistant", "model": body["model"],
-                                                        "content": [], "usage": {"input_tokens": 120, "cache_read_input_tokens": 800, "output_tokens": 1}}})
+                                                        "content": [], "usage": {"input_tokens": 120, "cache_read_input_tokens": 800, "output_tokens": 1, **(self.usage or {})}}})
         self.emit({"type": "ping"})
         for index, block in enumerate(blocks):
             kind = block["type"]
@@ -576,8 +595,25 @@ class Handler(BaseHTTPRequestHandler):
                 event = json.loads("\n".join(data_lines))
                 data_lines = []
                 tape["events"].append([round(time.time() - started, 4), event])
-                self.emit(event, pace=False)
+                self.emit(self.override_usage(event), pace=False)
         self.save_tape(path, tape)
+
+    def override_usage(self, event: dict) -> dict:
+        """`usage` の差し替え(長い会話の切り替えの確認用)。録画には本物の値を残し、アプリへ返す値だけ変える。"""
+        if not self.usage:
+            return event
+        if event.get("type") == "message_start":
+            message = dict(event.get("message") or {})
+            message["usage"] = {**(message.get("usage") or {}), **self.usage}
+            self.record["usage_upstream"] = (event.get("message") or {}).get("usage")
+            return {**event, "message": message}
+        if event.get("type") == "message_delta" and isinstance(event.get("usage"), dict):
+            usage = dict(event["usage"])
+            for key, value in self.usage.items():
+                if key in usage:
+                    usage[key] = value
+            return {**event, "usage": usage}
+        return event
 
     def save_tape(self, path: Path, tape: dict):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -672,7 +708,7 @@ class Handler(BaseHTTPRequestHandler):
             scenario = getattr(self, "scenario", None)
             target = self.log_dir / "scenarios" / scenario if scenario else self.log_dir
             target.mkdir(parents=True, exist_ok=True)
-            name = f"{self.request_index:04d}.json" if scenario else f"{stamp}-{len(list(target.iterdir())):04d}.json"
+            name = self.log_name
             (target / name).write_text(json.dumps(record, ensure_ascii=False, indent=1))
 
 
