@@ -66,7 +66,7 @@ final class E2EDriverUITests: XCTestCase {
             try? FileManager.default.removeItem(at: cmdURL)
             var result = "ok"
             // Querying a terminated app fails the whole run; report instead.
-            if !["launch", "activate", "quit", "sleep", "home", "screenshot", "alert"].contains(command.op), app.state == .notRunning {
+            if !["launch", "activate", "quit", "sleep", "home", "screenshot", "alert", "stap"].contains(command.op), app.state == .notRunning {
                 write("\(command.seq) app not running", to: resultURL)
                 continue
             }
@@ -82,6 +82,9 @@ final class E2EDriverUITests: XCTestCase {
                 app.terminate()
             case "tap":
                 point(command.x ?? 0, command.y ?? 0).tap()
+            case "stap":
+                // SpringBoard の座標でたたく。アプリが idle になるのを待たないので、返事が流れている途中の停止ボタンにも届く。
+                springboard.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: command.x ?? 0, dy: command.y ?? 0)).tap()
             case "press":
                 point(command.x ?? 0, command.y ?? 0).press(forDuration: command.duration ?? 1)
             case "drag":

@@ -18,7 +18,7 @@
 
 | 名前 | 役割 |
 |---|---|
-| `ui.py op key=value` | ランナーへ 1 コマンド(launch / tap / tapid / type / wait / drag / home / terminate / tree / quit) |
+| `ui.py op key=value` | ランナーへ 1 コマンド(launch / tap / stap(SpringBoard の座標でたたく。アプリの idle を待たない)/ tapid / type / wait / drag / home / terminate / tree / quit) |
 | `tr [n]` | アクセシビリティツリーの要約 |
 | `say "文"` / `turn "文" [秒]` | 入力欄に打って送る / 送って返事が終わるまで待ち、所要秒数を出す |
 | `shot 名前` | `simctl` で画面を撮る(`$E2E_DIR/ev/`) |
