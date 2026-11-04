@@ -27,6 +27,7 @@
 | `paths` | 台帳(`ledger.sqlite`)の場所。`turns.executions` の `requests[]` に要求ごとの記録(理由・状態・トークン・概算料金)が残る |
 | `fake_anthropic.py --port 8787 --log-dir 出力先` | Messages API の模擬サーバー(実モデルではない)。現行の Claude が拒む形の要求は 400 で返し、通った要求には決まった応答を SSE で返す。`POST /__control` で場面・`script`/`record`/`replay`・故障(`http`・`drop`・`stall`・`sse_error`・`first_byte_delay`・`trickle`)を切り替える。`trickle` は本文の差分を 1 秒に 1 つ流し続ける(止める操作の確認用)。`record` の転送先のキーは `--upstream-key-file`。`usage` でアプリへ返す usage を上書きする(長い会話の切り替えの確認用)。要求の記録は番号を取った時点で `pending` として書き、転送の失敗も `exception` に残す |
 | `standin_assets.py 出力先` | 配信データの代わりの最小の prompt・schema(配線確認用。本番の配信本文ではない) |
+| `redact_records.py --assets … --in … --out …` | 模擬サーバーの記録を、配信の本文(アプリの `Application Support/Struis/assets` の行)と認証情報を伏せて写す(artifact に入れる用) |
 | `compare_runners.py --server … --outcomes … --out …` | 移行のときの比較(以前の Codex 版と直結版)を模擬サーバーの記録と `RunnerComparisonLiveTests` の結果から `report.md` にまとめる |
 | `makematerials.py 出力先` / `makepaper.py out.jpg 行...` / `makedng.py out.dng` | 教材(PDF・画像の境界ケース) / 手書き風の答案画像 / ProRAW の代わりの大きな DNG |
 | `keytype 文字` / `pick8` / `pickfile 名前` | 別プロセスのキーボードを座標でたたく / 写真 8 枚を添える / Files から選ぶ |
