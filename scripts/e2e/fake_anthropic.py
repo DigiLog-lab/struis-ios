@@ -24,6 +24,8 @@ Codex 版と Claude 直結版の比較(`RunnerComparisonLiveTests`)のために�
 会話の返事は、学習者の今の発言(最後の `The learner's current message:` の後)で変わる。「調べて」があれば資料を探してから
 `struis__struis_delegate` に任せ、「続けて」があれば最初のラウンドで `disposition: continue` を返して続きのラウンドを起こす
 (続きのラウンドは `not_learning` で終える)。
+「計算して」があれば `struis__exec_command` で `python3 -c` の SymPy の計算を 1 回呼び、出力の `SYMPY …` の行を返事に載せる
+(Workspace の Python が動くことの確認用)。
 
 `record` の転送先のキーは `--upstream-key-file` のファイルから読み、記録には残さない。
 """
@@ -300,6 +302,14 @@ def plan_response(body: dict) -> tuple[list[dict], str]:
                 "task_type": "material_search", "purpose": "例題に近い問題を探す", "sources": found[:1] or ["struis_context/recent_thread_history.md"],
                 "search_scope": "指定したファイル全体", "conditions": "一次方程式", "count": 1, "return_information": "問題文"}})
             return blocks, "tool_use"
+    if "struis__exec_command" in tools and "計算して" in latest:
+        # Workspace の Python を確かめる: SymPy の計算を 1 回呼び、その出力を返事に載せる。
+        if not last_user_has_tool_result(body):
+            blocks.append({"type": "text", "text": "SymPy で計算します。"})
+            blocks.append({"type": "tool_use", "id": f"toolu_fake{n:04d}", "name": "struis__exec_command", "input": {"cmd": SYMPY_COMMAND}})
+            return blocks, "tool_use"
+        blocks.append({"type": "text", "text": chat_reply(body, computed=sympy_output(last_tool_result_text(body)))})
+        return blocks, "end_turn"
     if "struis__exec_command" in tools and not last_user_has_tool_result(body):
         blocks.append({"type": "text", "text": "作業フォルダを確認します。"})
         blocks.append({"type": "tool_use", "id": f"toolu_fake{n:04d}", "name": "struis__exec_command",
@@ -307,6 +317,23 @@ def plan_response(body: dict) -> tuple[list[dict], str]:
         return blocks, "tool_use"
     blocks.append({"type": "text", "text": chat_reply(body)})
     return blocks, "end_turn"
+
+
+SYMPY_COMMAND = ("python3 -c 'import sympy as s; x=s.symbols(\"x\"); "
+                 "print(\"SYMPY\", s.factor(x**2-5*x+6), s.integrate(x**2,(x,0,3)), s.solve(x**2-2,x))'")
+
+
+def sympy_output(result: str) -> str:
+    """道具の結果から `SYMPY ...` の行を取り出す。無ければ結果の先頭を返す(失敗も画面で見えるように)。"""
+    try:
+        decoded = json.loads(result)
+        result = decoded.get("output", result) if isinstance(decoded, dict) else result
+    except (ValueError, TypeError):
+        pass
+    for line in str(result).splitlines():
+        if line.startswith("SYMPY "):
+            return line
+    return "(SYMPY の行が無い) " + str(result)[:200]
 
 
 def user_texts(body: dict) -> list[str]:
@@ -362,16 +389,18 @@ def revision_of(text: str) -> int:
     return revision
 
 
-def chat_reply(body: dict) -> str:
-    """Struis のチャットの約束事(返事 + 非公開ブロック)に沿った最小の返事。"""
+def chat_reply(body: dict, computed: str | None = None) -> str:
+    """Struis のチャットの約束事(返事 + 非公開ブロック)に沿った最小の返事。`computed` は道具の計算結果。"""
     texts = user_texts(body)
     latest = "\n".join(texts[-3:])
+    reply = "Claude(検証用サーバー)からの返事です。一次方程式の文章題の単元を作りましょう。"
+    if computed is not None:
+        reply = "Claude(検証用サーバー)からの返事です。Python の計算結果: " + computed
     if "<struis_current_turn_source>" not in "\n".join(texts) and "progress" not in latest:
-        return "Claude(検証用サーバー)からの返事です。作業フォルダを確認しました。"
+        return reply if computed is not None else "Claude(検証用サーバー)からの返事です。作業フォルダを確認しました。"
     revision = 0
     for match in re.finditer(r'"revision"\s*:\s*(\d+)', latest):
         revision = int(match.group(1))
-    reply = "Claude(検証用サーバー)からの返事です。一次方程式の文章題の単元を作りましょう。"
     if "Your private blocks failed validation" in latest:
         # 修正の回: 書いた返事はそのまま、非公開ブロックだけを返す。
         update = {"schema_version": 1, "base_revision": revision_of(latest), "goals": [], "problems": [], "attempts": [],
