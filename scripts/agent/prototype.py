@@ -63,6 +63,16 @@ def workspace():
     return Path(os.environ.get('GITHUB_WORKSPACE', os.getcwd()))
 
 
+def components_of(project_text: str) -> dict[str, str]:
+    """The products this ref builds; a ref without the StruisRuntime target has no `.runtime` extension."""
+    return {product: suffix for product, suffix in COMPONENTS.items()
+            if product != 'StruisRuntime' or 'StruisRuntime.appex' in project_text}
+
+
+def built_components() -> dict[str, str]:
+    return components_of((workspace() / 'strius.xcodeproj/project.pbxproj').read_text())
+
+
 def home():
     path = Path(os.environ.get('RUNNER_TEMP', tempfile.gettempdir())) / 'prototype'
     path.mkdir(parents=True, exist_ok=True)
@@ -299,7 +309,7 @@ def ensure_profiles(asc, meta, serial, private):
     device_ids = sorted(device['id'] for device in devices)
     fingerprint = hashlib.sha256(('|'.join(device_ids) + certificate_id).encode()).hexdigest()[:8]
     profiles = {}
-    for product, suffix in COMPONENTS.items():
+    for product, suffix in built_components().items():
         identifier = meta['bundleId'] + suffix
         bundle = asc.find_bundle_id(identifier)
         if not bundle:
@@ -478,7 +488,8 @@ def cmd_build(args):
             point = (bundle_info.get('EXAppExtensionAttributes') or {}).get('EXExtensionPointIdentifier')
             if bundle is not app and point != f"{meta['bundleId']}.Runtime":
                 raise BuildError('verify', f'{bundle.name} の拡張ポイントが {point} です。')
-        if set(checks) != {app, app / 'Extensions/StruisRuntime.appex', app / 'Extensions/StruisExec.appex'}:
+        expected: set[Path] = {app / 'Extensions' / f'{product}.appex' for product, suffix in built_components().items() if suffix}
+        if set(checks) != {app} | expected:
             raise BuildError('verify', 'IPA の extension 構成が想定と異なります。')
 
         record['stage'] = 'upload'
