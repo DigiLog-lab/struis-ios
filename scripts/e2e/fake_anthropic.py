@@ -566,6 +566,7 @@ class Handler(BaseHTTPRequestHandler):
         request = urllib.request.Request(Control.upstream + "/v1/messages", data=raw, method="POST", headers={
             "content-type": "application/json", "anthropic-version": "2023-06-01", "accept": "text/event-stream", "x-api-key": key})
         path = Control.next_tape_path()
+        record["tape"] = str(path)
         started = time.time()
         tape: dict = {"events": []}
         try:
@@ -587,16 +588,31 @@ class Handler(BaseHTTPRequestHandler):
         tape["status"] = response.status
         self.begin_stream()
         data_lines: list[str] = []
-        for line in response:
-            text = line.decode("utf-8").rstrip("\r\n")
-            if text.startswith("data:"):
-                data_lines.append(text[5:].strip())
-            elif not text and data_lines:
-                event = json.loads("\n".join(data_lines))
-                data_lines = []
-                tape["events"].append([round(time.time() - started, 4), event])
-                self.emit(self.override_usage(event), pace=False)
-        self.save_tape(path, tape)
+        texts = 0
+        try:
+            for line in response:
+                text = line.decode("utf-8").rstrip("\r\n")
+                if text.startswith("data:"):
+                    data_lines.append(text[5:].strip())
+                elif not text and data_lines:
+                    event = json.loads("\n".join(data_lines))
+                    data_lines = []
+                    tape["events"].append([round(time.time() - started, 4), event])
+                    self.emit(self.override_usage(event), pace=False)
+                    if (event.get("delta") or {}).get("type") == "text_delta":
+                        # 転送の途中の進み具合(本文が流れ始めた時刻と、アプリへ渡した本文の差分の数)を記録に書き出す。
+                        texts += 1
+                        record["text_deltas"] = texts
+                        record["last_text_at"] = time.time()
+                        if texts == 1:
+                            record["first_text_at"] = record["last_text_at"]
+                        if texts == 1 or texts % 10 == 0:
+                            self.write_log("", record)
+        finally:
+            # アプリが要求をやめても、それまでに届いた分を録画に残す。
+            tape["complete"] = any(e[1].get("type") == "message_stop" for e in tape["events"])
+            self.save_tape(path, tape)
+            response.close()
 
     def override_usage(self, event: dict) -> dict:
         """`usage` の差し替え(長い会話の切り替えの確認用)。録画には本物の値を残し、アプリへ返す値だけ変える。"""
