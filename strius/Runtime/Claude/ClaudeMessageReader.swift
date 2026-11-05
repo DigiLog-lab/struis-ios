@@ -103,9 +103,9 @@ nonisolated final class ClaudeMessageReader {
 
     var toolUses: [[String: Any]] { content.filter { $0["type"] as? String == "tool_use" } }
 
-    /// 応答の最後の text(道具を使わずに終わった応答の、答えの本文)。
+    /// 応答の text 全部(道具を使わずに終わった応答の、答えの本文)。本文と非公開のブロックが別の text に分かれることがある。
     var finalText: String {
-        content.last { $0["type"] as? String == "text" }?["text"] as? String ?? ""
+        commentary.joined(separator: "\n\n")
     }
 
     /// 道具の前に書かれた text(待ちの間に見せる途中経過の文)。

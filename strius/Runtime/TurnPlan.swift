@@ -335,6 +335,7 @@ nonisolated struct TurnProgressEvent: Sendable, Hashable {
         self.label = label
         self.progressID = progressID
         self.allowDuplicate = allowDuplicate
+        self.items = items
     }
 }
 

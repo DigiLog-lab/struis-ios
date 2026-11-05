@@ -652,7 +652,9 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
         var reply: JSONObject
         do {
             if name == "view_image" { return viewImage(id: id, path: arguments["path"] as? String ?? "", item: item) }
-            let (answer, execution) = try await dependencies.tools.handle(["threadId": threadID, "turnId": turnID, "tool": name, "arguments": arguments, "callId": id])
+            let tools: NativeToolRouter = dependencies.tools
+            let owner: String = toolPlanID
+            let (answer, execution) = try await Self.watchingDeadline(deadline, onExpire: { await tools.cancel(planID: owner) }) { try await tools.handle(["threadId": threadID, "turnId": turnID, "tool": name, "arguments": arguments, "callId": id]) }
             reply = answer
             if let view = execution?["item"] as? JSONObject, view["type"] as? String == "captureView" {
                 var view: JSONObject = view
@@ -669,12 +671,35 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
             throw TurnRuntimeError.interrupted
         } catch {
             if Task.isCancelled { throw CancellationError() }
+            if (error as? TurnRuntimeError) == .timeout(ClaudeTurnRunner.deadlineDetail) { throw error }
             reply = ["success": false, "contentItems": [["type": "inputText", "text": String(describing: error)]]]
         }
         if let event = ClaudeTurnRunner.completedItemEvent(item, skills: skills) { progress(event) }
         var result: [String: Any] = ["type": "tool_result", "tool_use_id": id, "content": Self.toolContent(reply["contentItems"] as? [JSONObject] ?? [])]
         if reply["success"] as? Bool == false { result["is_error"] = true }
         return result
+    }
+
+    /// 道具の実行中も期限を見張る。ストリームの見張りはモデルの応答が終わると止まるので、止まらないコマンドはここで止める。
+    /// 期限を過ぎた後の失敗(止めた結果の中断を含む)は、期限切れとして返す。
+    static func watchingDeadline<Value>(_ deadline: TurnDeadline, onExpire: @escaping @Sendable () async -> Void,
+                                        _ body: () async throws -> Value) async throws -> Value {
+        let watchdog: Task<Void, Never> = Task {
+            while !Task.isCancelled {
+                if deadline.remaining <= 0 {
+                    await onExpire()
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+        }
+        defer { watchdog.cancel() }
+        do {
+            return try await body()
+        } catch {
+            if deadline.remaining <= 0 { throw TurnRuntimeError.timeout(ClaudeTurnRunner.deadlineDetail) }
+            throw error
+        }
     }
 
     /// `view_image`: 作業フォルダの中の画像だけを読んで、画像のまま返す。

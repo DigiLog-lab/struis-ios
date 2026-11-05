@@ -162,6 +162,35 @@ final class ClaudeRequestFormatTests: XCTestCase {
         XCTAssertEqual(reader.commentary, ["Let me look."])
     }
 
+    func testFinalAnswerKeepsEveryTextBlockInOrder() {
+        let reader: ClaudeMessageReader = ClaudeMessageReader()
+        _ = reader.consume(block(0, ["type": "text", "text": "説明の本文"]))
+        _ = reader.consume(block(1, ["type": "text", "text": "<struis_progress_update>{}</struis_progress_update>"]))
+        XCTAssertEqual(reader.finalText, "説明の本文\n\n<struis_progress_update>{}</struis_progress_update>")
+    }
+
+    func testPartialResultKeepsItsItems() {
+        let event: TurnProgressEvent = TurnProgressEvent(kind: .partialResult(done: 1, total: nil), label: "", progressID: nil,
+                                                         allowDuplicate: true, items: ["問題 1"])
+        XCTAssertEqual(event.items, ["問題 1"])
+    }
+
+    func testToolIsStoppedAndReportedAsTimedOutWhenTheDeadlinePasses() async {
+        let deadline: TurnDeadline = TurnDeadline(limitSeconds: 0)
+        deadline.start()
+        let stop: (stream: AsyncStream<Void>, continuation: AsyncStream<Void>.Continuation) = AsyncStream<Void>.makeStream()
+        let continuation: AsyncStream<Void>.Continuation = stop.continuation
+        do {
+            let _: Int = try await ClaudeTurn.watchingDeadline(deadline, onExpire: { continuation.finish() }) {
+                for await _ in stop.stream {}
+                throw TurnRuntimeError.interrupted
+            }
+            XCTFail("期限を過ぎた道具は止まる")
+        } catch {
+            XCTAssertEqual(error as? TurnRuntimeError, .timeout(ClaudeTurnRunner.deadlineDetail))
+        }
+    }
+
     func testFinalAnswerIsTheLastTextAndUnansweredToolCallsAreMergedBeforeTheNextInput() {
         let reader: ClaudeMessageReader = ClaudeMessageReader()
         _ = reader.consume(block(0, ["type": "redacted_thinking", "data": "opaque"]))
