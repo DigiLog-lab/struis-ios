@@ -160,20 +160,23 @@ struct MathRenderingTests {
     }
 
     /// 実 AI の続きのカードで `y=-\colorbox{#E9C8A6}{}^2-2` が文字のまま出た式。
-    @Test func chainHighlightStaysOneDisplayFormula() throws {
-        let style: NativeMathStyle = NativeMathStyle(color: .black, fontSize: 34, fontWeight: 500, scale: 2)
+    @Test func chainHighlightIsOneFormulaForKaTeX() {
         let cases: [(latex: String, changed: String)] = [("y=-(x+4)^2-2", "(x+4)"), ("y=x^2+6x+5", "x^2+6x+5"), ("y=\\frac{1}{2}x+1", "\\frac{1}{2}x")]
         for item: (latex: String, changed: String) in cases {
-            let latex: String = item.latex
-            let highlighted: String = TimelineMath.highlighting(latex, changed: item.changed)
-            #expect(highlighted.contains("\\colorbox{#E9C8A6}{"))
-            #expect(!highlighted.contains("$"))
-            #expect(MathTextLayout.blocks(highlighted, display: true) == [.display(highlighted, mark: 0)])
-            let colored: NativeMathGlyph = try #require(NativeMathRenderer.shared.glyph(latex: highlighted, display: true, style: style, highlighted: false))
-            let plain: NativeMathGlyph = try #require(NativeMathRenderer.shared.glyph(latex: latex, display: true, style: style, highlighted: false))
-            // 変えたところが消えていない(幅が空の箱の分まで縮まない)。
-            #expect(colored.size.width >= plain.size.width * 0.9)
+            let marked: String = item.latex.replacingOccurrences(of: item.changed, with: "\\colorbox{#E9C8A6}{$\\color{#1F1A17}{" + item.changed + "}$}")
+            let highlighted: String = TimelineMath.highlighting(item.latex, changed: item.changed)
+            #expect(highlighted == "$$" + marked + "$$")
+            #expect(MathTextLayout.blocks(highlighted, display: true) == [.display(marked, mark: 0)])
+            #expect(NativeMathDocument.make(highlighted, display: true) == nil)
         }
+    }
+
+    /// SwiftMath は色の命令を中身ごと捨てる。式の一部が黙って消えないように KaTeX に回す。
+    @Test func colorCommandsAreLeftToKaTeX() {
+        for latex: String in ["a+\\color{red}{b}", "a+\\textcolor{red}{b}", "a+\\colorbox{#E9C8A6}{b}"] {
+            #expect(NativeMathDocument.make("$" + latex + "$", display: false) == nil)
+        }
+        #expect(NativeMathDocument.make("$a+b$", display: false) != nil)
     }
 
     @Test func chainHighlightLeavesFormulaUnchangedWhenItCannotApply() {

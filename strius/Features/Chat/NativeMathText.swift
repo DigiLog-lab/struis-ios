@@ -173,6 +173,12 @@ final class NativeMathRenderer {
     func parse(_ latex: String) -> Result<Void, ParseError> {
         let prepared = MathSourceNormalizer.prepare(latex)
         if let known = parsed[prepared] { return known }
+        // SwiftMath は解析は通すのに、組む時に色の命令を中身ごと捨てる(式の一部が黙って消える)。KaTeX に回す。
+        if prepared.range(of: #"\\(?:color|textcolor|colorbox|fcolorbox)(?![A-Za-z])"#, options: .regularExpression) != nil {
+            let unsupported: Result<Void, ParseError> = .failure(ParseError(message: "色の命令は SwiftMath で組めない"))
+            parsed[prepared] = unsupported
+            return unsupported
+        }
         var error: NSError?
         let list = MTMathListBuilder.build(fromString: prepared, error: &error)
         let result: Result<Void, ParseError>
