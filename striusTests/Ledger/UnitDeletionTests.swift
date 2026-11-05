@@ -148,6 +148,31 @@ final class UnitDeletionTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("captures/shared.jpg")), image)
     }
 
+    func testConversationImagesUsedOnlyByTheDeletedConversationAreErased() async throws {
+        let ledger = try Ledger.inMemory()
+        let (first, _, _) = try await seed(ledger)
+        let directory: URL = ledger.deletionRoot.appendingPathComponent("conversation-images", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let own: String = String(repeating: "a", count: 64) + ".jpg"
+        let shared: String = String(repeating: "b", count: 64) + ".jpg"
+        let unrelated: String = String(repeating: "c", count: 64) + ".png"
+        for name in [own, shared, unrelated] { try Data("photo".utf8).write(to: directory.appendingPathComponent(name)) }
+        func content(_ names: [String]) -> String {
+            let blocks: [String] = names.map { #"{"type":"image","source":{"type":"struis_file","path":"\#($0)","media_type":"image/jpeg"}}"# }
+            return "[" + blocks.joined(separator: ",") + "]"
+        }
+        try await ledger.queue.write { db in
+            for (thread, names) in [("erased-thread", [own, shared]), ("kept-thread", [shared, unrelated])] {
+                try db.execute(sql: "INSERT INTO claude_conversation_messages (thread_id, seq, role, content, created_at) VALUES (?, 1, 'user', ?, '')",
+                               arguments: [thread, content(names)])
+            }
+        }
+        _ = try await ledger.deleteUnit(id: first, extraCodexIDs: ["erased-thread"])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent(own).path), "消した会話だけの写真")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent(shared).path), "残る会話も使う写真")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent(unrelated).path))
+    }
+
     func testDatabaseFailureRestoresMemoryAndUnitAndRetryCommitsOnce() async throws {
         let ledger = try Ledger.inMemory()
         let (first, _, _) = try await seed(ledger)

@@ -152,6 +152,8 @@ final class TimelineBatchWaitTests: XCTestCase {
         let old: String = LedgerClock.iso(now.addingTimeInterval(-25 * 3600))
         XCTAssertNil(TurnCoordinator.staleReason(createdAt: recent, now: now))
         XCTAssertNotNil(TurnCoordinator.staleReason(createdAt: old, now: now), "1 日を超えたプラン")
+        XCTAssertNotNil(TurnCoordinator.retiredModelReason("gpt-6.1-sol"), "ChatGPT の経路の頃のプラン")
+        XCTAssertNil(TurnCoordinator.retiredModelReason("claude-sonnet-5-5"))
     }
 
     // MARK: 待ちの画面の「止める」

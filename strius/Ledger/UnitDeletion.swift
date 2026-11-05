@@ -319,7 +319,26 @@ nonisolated enum UnitDeletion {
             let temp = FileManager.default.temporaryDirectory
             for url in (try? FileManager.default.contentsOfDirectory(at: temp, includingPropertiesForKeys: nil)) ?? [] where url.lastPathComponent.hasPrefix("struis-ledger-") && url.pathExtension == "zip" { files.append(url.path) }
         }
+        files += try conversationImages(db: db, root: root, erasing: scope.codexIDs)
         return Journal(fact: fact, events: events, changes: changes, files: Array(Set(files)))
+    }
+
+    /// 消す会話だけが使う画像のファイル(`conversation-images/<sha256>.<拡張子>`)。同じ画像は 1 つにまとまるので、
+    /// ほかの会話も使っている画像は残す。
+    private static func conversationImages(db: Database, root: URL, erasing threadIDs: Set<String>) throws -> [String] {
+        let name: NSRegularExpression = try NSRegularExpression(pattern: "[0-9a-f]{64}\\.[a-z0-9]+")
+        var erased: Set<String> = []
+        var kept: Set<String> = []
+        let rows: [Row] = try Row.fetchAll(db, sql: "SELECT thread_id, content FROM claude_conversation_messages WHERE content LIKE '%struis_file%'")
+        for row in rows {
+            let threadID: String = row["thread_id"]
+            let content: String = row["content"]
+            let matches: [NSTextCheckingResult] = name.matches(in: content, range: NSRange(content.startIndex..., in: content))
+            let names: [String] = matches.compactMap { match in Range(match.range, in: content).map { String(content[$0]) } }
+            if threadIDs.contains(threadID) { erased.formUnion(names) } else { kept.formUnion(names) }
+        }
+        let directory: URL = root.appendingPathComponent("conversation-images", isDirectory: true)
+        return erased.subtracting(kept).map { directory.appendingPathComponent($0).path }
     }
     static func write(_ change: Change, restoring: Bool = false) throws {
         let url = URL(fileURLWithPath: change.path)

@@ -782,7 +782,7 @@ actor TurnCoordinator {
                 await failUnresumedWorkbookTurn(turn, kind: kind, reason: "not resumed: the stored plan is unreadable")
                 continue
             }
-            if let reason = Self.staleReason(createdAt: turn.createdAt, now: Date()) {
+            if let reason = Self.staleReason(createdAt: turn.createdAt, now: Date()) ?? Self.retiredModelReason(plan.thread.model) {
                 await failUnresumedWorkbookTurn(turn, kind: kind, reason: reason)
                 continue
             }
@@ -800,6 +800,11 @@ actor TurnCoordinator {
     }
 
     /// 起動時に流し直さないプランの理由(流してよければ nil)。1 日を超えたプラン、組んだ時と今で実行先(Claude / ChatGPT)が違うプラン。
+    /// ChatGPT の経路の頃に組んだプランの GPT のモデルは、Claude へ送っても断られる。
+    nonisolated static func retiredModelReason(_ model: String) -> String? {
+        model.hasPrefix("gpt-") ? "not resumed: the stored plan names a retired model" : nil
+    }
+
     nonisolated static func staleReason(createdAt: String, now: Date) -> String? {
         if let created: Date = LedgerClock.parse(createdAt), now.timeIntervalSince(created) > 24 * 60 * 60 {
             return "not resumed: the stored plan is older than a day"
