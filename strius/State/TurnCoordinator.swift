@@ -128,8 +128,9 @@ actor TurnCoordinator {
         for task in unrelatedChats { await task.value }
         let settledScope = try await ledger.deletionScope(unitID: id)
         codexIDs = settledScope.codexIDs.union(codexIDs.subtracting(scope.codexIDs))
-        try await runner.forgetThreads(codexIDs)
+        // 台帳の削除が先: 消す会話の写真は、会話の行から探す(`UnitDeletion.conversationImages`)。行はこの削除で消える。
         let fact = try await ledger.deleteUnit(id: id, extraCodexIDs: codexIDs)
+        try? await runner.forgetThreads(codexIDs)
         ThreadContextStore.shared.remove(codexIDs)
         return fact
     }

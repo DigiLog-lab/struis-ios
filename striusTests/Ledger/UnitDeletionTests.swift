@@ -173,6 +173,16 @@ final class UnitDeletionTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: directory.appendingPathComponent(unrelated).path))
     }
 
+    /// 会話の行は写真を探すのに要るので、行を消す `forgetThreads` は台帳の削除の後(実機の順番)。
+    @MainActor func testTheCoordinatorForgetsConversationsAfterTheDeletion() async throws {
+        let ledger = try Ledger.inMemory()
+        let (first, _, _) = try await seed(ledger)
+        let runner: ForgetOrderRunner = ForgetOrderRunner(ledger: ledger, unitID: first)
+        let coordinator: TurnCoordinator = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
+        _ = try await coordinator.deleteUnit(id: first)
+        XCTAssertEqual(runner.unitWasGone, true)
+    }
+
     func testDatabaseFailureRestoresMemoryAndUnitAndRetryCommitsOnce() async throws {
         let ledger = try Ledger.inMemory()
         let (first, _, _) = try await seed(ledger)
@@ -372,6 +382,28 @@ extension UnitDeletionTests {
     func interrupt(planID: String) async { interrupted = true; await inner.interrupt(planID: planID) }
     func forgetThreads(_ ids: Set<String>) async throws { try await inner.forgetThreads(ids) }
     func release() { releaseContinuation?.resume(); releaseContinuation = nil }
+}
+
+@MainActor private final class ForgetOrderRunner: TurnRunning {
+    private let ledger: Ledger
+    private let unitID: String
+    private(set) var unitWasGone: Bool?
+
+    init(ledger: Ledger, unitID: String) {
+        self.ledger = ledger
+        self.unitID = unitID
+    }
+
+    func run(_ plan: TurnPlan, progress: @escaping @Sendable (TurnProgressEvent) -> Void) async throws -> TurnOutcome {
+        try await MockTurnRunner().run(plan, progress: progress)
+    }
+
+    func interrupt(planID: String) async {}
+
+    func forgetThreads(_ ids: Set<String>) async throws {
+        let id: String = unitID
+        unitWasGone = try await ledger.read { db in try WorkbookUnitRecord.fetchOne(db, key: id) == nil }
+    }
 }
 
 extension UnitDeletionTests {
