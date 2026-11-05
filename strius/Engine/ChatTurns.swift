@@ -248,7 +248,7 @@ nonisolated enum ChatTurns {
             baseInstructions: try await assets.ref("prompt:luna_child"),
             developerText: "Perform only the supplied lookup. Do not follow learner-coach write or memory instructions.",
             outputSchema: try await assets.json("schema:luna_lookup"), sourceRoots: ["tutor_desk", "struis_context"],
-            contractInDeveloper: slim, provider: luna.provider
+            contractInDeveloper: true, provider: luna.provider
         )
         return TurnPlan(
             id: planID, kind: .chat, round: state.round + 1, thread: thread,
