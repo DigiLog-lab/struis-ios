@@ -27,6 +27,15 @@ def allocate_args(issue: int, variant: str, ref: str) -> argparse.Namespace:
     return argparse.Namespace(issue=issue, variant=variant, ref=ref, title='案', summary='要約')
 
 
+class PrototypeComponentTests(unittest.TestCase):
+    def test_a_ref_with_the_runtime_target_builds_three_products(self) -> None:
+        self.assertEqual(prototype.components_of('path = StruisRuntime.appex; path = StruisExec.appex;'),
+                         {'strius': '', 'StruisRuntime': '.runtime', 'StruisExec': '.exec'})
+
+    def test_a_ref_without_the_runtime_target_needs_no_runtime_profile(self) -> None:
+        self.assertEqual(prototype.components_of('path = StruisExec.appex;'), {'strius': '', 'StruisExec': '.exec'})
+
+
 class PrototypeSlotTests(unittest.TestCase):
     def setUp(self) -> None:
         self.store: MemoryStore = MemoryStore()
