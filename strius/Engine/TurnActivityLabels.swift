@@ -130,7 +130,7 @@ nonisolated enum TurnActivityLabels {
     }
 }
 
-/// Skill ごとの待ちの言葉(`配信Skillの説明`)。
+/// Skill ごとの待ちの言葉(同梱の Skill の説明)。
 /// 各 Skill の `SKILL.md` の frontmatter `metadata.struis-waiting` に、添付の種類ごとの言葉を書く:
 /// `pdf`(そのターンに PDF が添えてある)、`image`(画像だけ)、`default`(それ以外)。それぞれ `started` と `finished`。
 nonisolated struct SkillWaiting: Sendable, Hashable {
@@ -147,7 +147,7 @@ nonisolated struct SkillWaiting: Sendable, Hashable {
     var labels: [String: [String: Pair]] = [:]
     var attachments: Attachments = .none
 
-    /// 配信した Skill はすべて言葉を持つ(単体テストで確かめる)。ここに来るのは、配信に無い Skill を読んだ時だけ。
+    /// 同梱した Skill はすべて言葉を持つ(単体テストで確かめる)。ここに来るのは、同梱していない Skill を読んだ時だけ。
     static let unknownSkill = Pair(started: "やり方を確かめています", finished: "やり方を確かめました")
 
     /// 作業フォルダに置く Skill のパス(`.agents/skills/<名前>/SKILL.md`)。

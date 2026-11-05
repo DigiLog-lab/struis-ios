@@ -14,10 +14,11 @@ nonisolated enum StruisPaths {
     static let ledger = root.appendingPathComponent("ledger.sqlite")
     static let captures = root.appendingPathComponent("captures", isDirectory: true)
     static let memory = root.appendingPathComponent("memory", isDirectory: true)
-    static let assets = root.appendingPathComponent("assets", isDirectory: true)
+    /// 指示文をサーバーから受け取っていた頃の置き場。起動時に消す(`HyotanBoot.removeRetiredData`)。
+    static let retiredAssets = root.appendingPathComponent("assets", isDirectory: true)
 
     static func prepare() throws {
-        for directory in [root, captures, memory, assets] {
+        for directory in [root, captures, memory] {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
     }
@@ -65,7 +66,7 @@ actor Ledger {
         let queue = try DatabaseQueue(path: path.path, configuration: configuration)
         try LedgerSchema.migrator.migrate(queue)
         self.deletionRoot = path.deletingLastPathComponent()
-        self.deletionRuntimeRoots = path.standardizedFileURL == StruisPaths.ledger.standardizedFileURL ? [HyotanBoot.codexHome, HyotanBoot.sharedCodexHome, HyotanBoot.workspaceRoot, HyotanBoot.legacyRoot, HyotanBoot.legacyRoot.deletingLastPathComponent().appendingPathComponent("agentcase")] : []
+        self.deletionRuntimeRoots = path.standardizedFileURL == StruisPaths.ledger.standardizedFileURL ? [HyotanBoot.workspaceRoot, HyotanBoot.legacyRoot, HyotanBoot.legacyRoot.deletingLastPathComponent().appendingPathComponent("agentcase")] : []
         self.queue = queue
         self.deviceID = try queue.write { db in
             let installation = try String.fetchOne(db, sql: "SELECT value FROM ledger_meta WHERE key = 'installation_id'")
@@ -235,6 +236,11 @@ actor Ledger {
         }
         for event in journal.events {
             seqs += try Int64.fetchAll(db, sql: "SELECT seq FROM ledger_events WHERE entity=? AND entity_id=?", arguments: [event.entity.rawValue, event.entityID])
+        }
+        // Claude に送る会話の控え(イベントの外の表)も消す。
+        for id in journal.fact.scope.codexIDs {
+            try db.execute(sql: "DELETE FROM claude_conversation_messages WHERE thread_id = ?", arguments: [id])
+            try db.execute(sql: "DELETE FROM claude_conversations WHERE thread_id = ?", arguments: [id])
         }
         for seq in Set(seqs) {
             try db.execute(sql: """

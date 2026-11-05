@@ -7,7 +7,7 @@ import Testing
 struct WorkbookStoreRefreshTests {
     private func makeStore() throws -> (Ledger, WorkbookStore) {
         let ledger = try Ledger.inMemory()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: MockTurnRunner())
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: MockTurnRunner())
         return (ledger, WorkbookStore(ledger: ledger, turns: turns))
     }
 

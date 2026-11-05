@@ -3,15 +3,14 @@ import UIKit
 import XCTest
 @testable import strius
 
-/// 続けて頼む採点・見直し・出題で Anthropic に送る本文を、実 Codex(端末の app-server)と模擬の Anthropic で記録して比べる。
+/// 続けて頼む採点・見直し・出題で Anthropic に送る本文を、`ClaudeTurnRunner` と模擬の Anthropic(`StubAnthropic`)で記録して比べる。
 /// 2026-10-25: 採点 25 回の cached_input_tokens が全部 0 だった(Skill を作業フォルダに置いていた)。
 /// 2026-10-27: 今日の答案の一覧が 1 つのブロックのまま伸び、出力の形の差し込みで依頼の種類ごとに先頭が変わっていた。
 /// 採点→採点、採点→見直し、見直し→出題の順に流し、前の依頼の印(基本指示の最後・今日の記録の最後)までが次の依頼の
 /// 先頭と 1 バイトも違わないかを見る。
 ///
-/// 手で流す測定: `scripts/e2e/fake_anthropic.py --port 8787 --log-dir <dir>` を起動し、`TEST_RUNNER_STRUIS_TIMELINE_CACHE_LIVE=<出力先>`・
-/// `TEST_RUNNER_STRUIS_ANTHROPIC_BASE_URL=http://127.0.0.1:8787`・`TEST_RUNNER_STRUIS_DEBUG_ANTHROPIC_KEY_FILE=<偽のキー>`・
-/// `TEST_RUNNER_STRUIS_DEVICE_RUNTIME=0` を渡す。
+/// 手で流す測定: `TEST_RUNNER_STRUIS_TIMELINE_CACHE_LIVE=<出力先>` を渡すと、比べた結果を `<出力先>/summary.json` に、
+/// 送った本文を `<出力先>/requests/` に残す。模擬の Anthropic は端末の中で答えるので、外のサーバーやキーは要らない。
 final class TimelineCacheLiveTests: XCTestCase {
     typealias F = TimelineFixture
 
@@ -20,21 +19,33 @@ final class TimelineCacheLiveTests: XCTestCase {
         let output = ProcessInfo.processInfo.environment["STRUIS_TIMELINE_CACHE_LIVE"] ?? ""
         try XCTSkipIf(output.isEmpty, "TEST_RUNNER_STRUIS_TIMELINE_CACHE_LIVE が無い (模擬の Anthropic での測定は手動)")
         let out = URL(fileURLWithPath: output, isDirectory: true)
-        let dump = out.appendingPathComponent("proxy-dump", isDirectory: true)
+        let dump = out.appendingPathComponent("requests", isDirectory: true)
         try? FileManager.default.removeItem(at: dump)
         try FileManager.default.createDirectory(at: dump, withIntermediateDirectories: true)
-        setenv("STRUIS_CLAUDE_PROXY_DUMP_DIR", dump.path, 1)
-        setenv("STRUIS_MODEL_PROVIDER", "anthropic", 1)
 
-        let runtime = DeviceRuntime()
-        await runtime.start()
-        do { try await runtime.ensureRunning() } catch {
-            XCTFail("app-server が起動しない: boot=\(runtime.boot.state) server=\(runtime.appServerState) error=\(error)")
-            return
+        let configuration: URLSessionConfiguration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StubAnthropic.self]
+        let recorder: RequestRecorder = RequestRecorder()
+        let reply: String = [
+            #"{"type":"message_start","message":{"id":"msg_live","model":"claude-sonnet-5-5","usage":{"input_tokens":10,"output_tokens":1}}}"#,
+            #"{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            #"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"{\"ok\":true}"}}"#,
+            #"{"type":"content_block_stop","index":0}"#,
+            #"{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":4}}"#,
+            #"{"type":"message_stop"}"#,
+        ].map { "event: x\ndata: \($0)\n\n" }.joined()
+        StubAnthropic.handler = { request in
+            let data: Data = StubAnthropic.body(of: request)
+            let index: Int = recorder.add((try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:])
+            try? data.write(to: dump.appendingPathComponent(String(format: "%04d-messages.json", index)))
+            return (200, reply)
         }
-        XCTAssertTrue(runtime.isRunning, "app-server が起動しない: \(runtime.appServerState)")
-        let assets = AssetCache(root: FileManager.default.temporaryDirectory.appendingPathComponent("cache-live-\(UUID().uuidString)"), lenient: true)
-        let runner = CodexTurnRunner(runtime: runtime, assets: assets)
+        defer { StubAnthropic.handler = nil }
+        let assets = AssetCache()
+        let upstream: ClaudeUpstream = ClaudeUpstream(baseURL: URL(string: "https://stub.invalid")!, apiKey: { "sk-test" },
+                                                      session: URLSession(configuration: configuration), gate: OpenUsageGate())
+        let runner: ClaudeTurnRunner = ClaudeTurnRunner(assets: assets, conversations: try ClaudeConversationStore.temporary(), upstream: upstream,
+                                                        contextStore: ThreadContextStore(url: nil), prepareCommands: {})
         let composer = TurnComposer(assets: assets)
 
         // 台帳: 単元、2 枚のカードと、それぞれの答案(画像)、次の 5 枚の依頼。
@@ -76,15 +87,13 @@ final class TimelineCacheLiveTests: XCTestCase {
             case .timelineReview: try await TimelineTurns.review(composer: composer, planID: planID, attemptID: step.target, workbook: workbook, timeline: timeline)
             default: try await TimelineTurns.batch(composer: composer, planID: planID, batchID: step.target, workbook: workbook, timeline: timeline)
             }
-            let before = Set((try? FileManager.default.contentsOfDirectory(atPath: dump.path)) ?? [])
-            try WorkspaceStager.prepare(plan: plan, assets: assets)
+            let before: Int = recorder.bodies.count
             let outcome = try await runner.run(plan) { _ in }
             WorkspaceStager.cleanup(plan: plan)
-            XCTAssertEqual(outcome.status, .completed, "\(step.name): \(outcome.error ?? "")")
-            let files = ((try? FileManager.default.contentsOfDirectory(atPath: dump.path)) ?? []).filter { !before.contains($0) && $0.hasSuffix("-messages.json") }.sorted()
+            XCTAssertEqual(outcome.status, .completed, "\(step.name): \(outcome.errorDetail ?? "")")
             // 依頼の最初の要求(道具を使った後の続きの要求は同じ依頼の中なので比べない)。
-            guard let file = files.first else { XCTFail("\(step.name): 本文が記録されていない"); return }
-            bodies.append(try JSONSerialization.jsonObject(with: Data(contentsOf: dump.appendingPathComponent(file))) as? [String: Any] ?? [:])
+            guard recorder.bodies.count > before else { XCTFail("\(step.name): 本文が記録されていない"); return }
+            bodies.append(recorder.bodies[before])
             // 結果を綴じたことにして、今日の記録を後ろに足す。
             try await ledger.commit { db in
                 var timeline = try TimelineMachine(loading: db)

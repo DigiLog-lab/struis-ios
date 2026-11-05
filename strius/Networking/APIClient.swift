@@ -516,10 +516,6 @@ final class APIClient {
         request.httpMethod = endpoint.method.rawValue
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        if let key = endpoint.deliveryAppKey, !key.isEmpty {
-            request.setValue(key, forHTTPHeaderField: "X-Struis-App-Key")
-        }
-
         if Body.self != EmptyBody.self {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try encoder.encode(body)

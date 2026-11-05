@@ -1,65 +1,57 @@
 import XCTest
 @testable import strius
 
-/// Claude の費用削減: 変換方式の版(キャッシュ・キー順)、要求ごとの料金と記録、送り直しの理由。
+/// Claude の費用削減: 変換方式の版(キャッシュの印と TTL)、要求ごとの料金と記録、送り直しの理由。
+/// 要求の本文の形(system・末尾の印・tools の順)は `ClaudeTurnRunnerTests` が模擬の Anthropic に届いた要求で確かめる。
 final class ClaudeCostTests: XCTestCase {
-    private func request(input: [[String: Any]], threadID: String = "thr_1", turnID: String = "turn_1", kind: String? = nil) -> [String: Any] {
-        var metadata: [String: Any] = ["thread_id": threadID, "turn_id": turnID, "session_id": threadID]
-        if let kind { metadata["request_kind"] = kind }
-        return [
-            "model": "claude-opus-5-5", "instructions": "BASE", "input": input, "tool_choice": "auto", "parallel_tool_calls": false,
-            "reasoning": ["effort": "medium", "summary": "auto"], "store": false, "stream": true, "client_metadata": metadata,
-            "tools": [["type": "function", "name": "zeta", "parameters": ["type": "object", "properties": ["b": ["type": "string"], "a": ["type": "string"]]]],
-                      ["type": "function", "name": "alpha", "parameters": ["type": "object", "properties": [String: Any]()]]],
-        ]
-    }
-
-    private let userTurn: [[String: Any]] = [
-        ["type": "message", "role": "developer", "content": [["type": "input_text", "text": "DEV"]]],
-        ["type": "message", "role": "user", "content": [["type": "input_text", "text": "hello"]]],
-        ["type": "function_call", "name": "zeta", "arguments": "{\"b\":\"2\",\"a\":\"1\"}", "call_id": "toolu_1"],
-        ["type": "function_call_output", "call_id": "toolu_1", "output": "ok"],
-    ]
-
     // MARK: - Translation versions
 
-    func testVersionTwoCachesTheFixedInstructionsForAnHourAndTheTailByTaskGroup() throws {
-        var options = ClaudeRequestTranslator.Options()
-        options.tailCacheTTL = ClaudeTranslation.tailCacheTTL(kind: "chat")
-        options.previousResponseID = "msg_prev"
-        let body = try ClaudeRequestTranslator.translate(request(input: userTurn), options: options).body
-        let system = try XCTUnwrap(body["system"] as? [[String: Any]])
-        XCTAssertEqual(system.count, 1)
-        XCTAssertEqual(system[0]["text"] as? String, "BASE\n\nDEV")
-        XCTAssertEqual(system[0]["cache_control"] as? [String: String], ["type": "ephemeral", "ttl": "1h"])
-        XCTAssertEqual(body["cache_control"] as? [String: String], ["type": "ephemeral", "ttl": "1h"])
-        XCTAssertEqual((body["diagnostics"] as? [String: Any])?["previous_message_id"] as? String, "msg_prev")
-
-        // 一度で終わる処理の固有の入力は 5 分(既定)で書く。
-        options.tailCacheTTL = ClaudeTranslation.tailCacheTTL(kind: "workbook_grading")
-        options.previousResponseID = nil
-        let oneShot = try ClaudeRequestTranslator.translate(request(input: userTurn), options: options).body
-        XCTAssertEqual(oneShot["cache_control"] as? [String: String], ["type": "ephemeral"])
-        XCTAssertTrue((oneShot["diagnostics"] as? [String: Any])?["previous_message_id"] is NSNull)
+    func testTailTTLFollowsTheTaskGroupAndTheFixedInstructionsAreCachedForAnHour() {
+        // 解答を考えて撮影する継続会話は 1 時間、一度で終わる処理は 5 分。
+        XCTAssertEqual(ClaudeTranslation.tailCacheTTL(kind: "chat"), "1h")
+        XCTAssertEqual(ClaudeTranslation.tailCacheTTL(kind: "thread_fork"), "1h")
+        XCTAssertEqual(ClaudeTranslation.tailCacheTTL(kind: "workbook_grading"), "5m")
+        XCTAssertEqual(ClaudeTranslation.tailCacheTTL(kind: "timeline_grading"), "5m")
+        XCTAssertEqual(ClaudeTranslation.tailCacheTTL(kind: nil), "5m")
+        // 5 分は既定なので ttl を書かない(書くと別の印になる)。
+        XCTAssertEqual(ClaudeTranslation.cacheControl(ttl: "1h") as? [String: String], ["type": "ephemeral", "ttl": "1h"])
+        XCTAssertEqual(ClaudeTranslation.cacheControl(ttl: "5m") as? [String: String], ["type": "ephemeral"])
+        XCTAssertEqual(ClaudeTranslation.cacheControl(ttl: nil) as? [String: String], ["type": "ephemeral"])
+        // system の印の TTL(実行監査の記録): 版 4 と版 2 は 1 時間、版 3 は末尾と同じ、版 1 は印なし。
+        XCTAssertEqual(ClaudeTranslation.systemCacheTTL(translation: 4, tail: "5m"), "1h")
+        XCTAssertEqual(ClaudeTranslation.systemCacheTTL(translation: 3, tail: "5m"), "5m")
+        XCTAssertEqual(ClaudeTranslation.systemCacheTTL(translation: 2, tail: "5m"), "1h")
+        XCTAssertNil(ClaudeTranslation.systemCacheTTL(translation: 1, tail: "5m"))
     }
 
-    func testVersionOneKeepsTheShapeExistingThreadsWereSentWith() throws {
-        let body = try ClaudeRequestTranslator.translate(request(input: userTurn), options: .init(translation: 1)).body
-        XCTAssertEqual(body["system"] as? String, "BASE\n\nDEV")
-        XCTAssertEqual(body["cache_control"] as? [String: String], ["type": "ephemeral"])
-        XCTAssertNil(body["diagnostics"])
+    func testTimelineThreadsStartOnVersionFourAndMarkTheTailOnlyAfterATool() {
+        XCTAssertEqual(ClaudeTranslation.version(kind: "chat"), ClaudeTranslation.current)
+        XCTAssertEqual(ClaudeTranslation.version(kind: "workbook_set"), 2)
+        for kind in ["timeline_batch", "timeline_grading", "timeline_review", "timeline_marks"] {
+            XCTAssertEqual(ClaudeTranslation.version(kind: kind), ClaudeTranslation.tutor, kind)
+        }
+        let first: [[String: Any]] = [["role": "user", "content": [["type": "text", "text": "今日の分"]]]]
+        let afterTool: [[String: Any]] = first + [
+            ["role": "assistant", "content": [["type": "tool_use", "id": "toolu_1", "name": "view_image", "input": [String: Any]()]]],
+            ["role": "user", "content": [["type": "tool_result", "tool_use_id": "toolu_1", "content": "ok"]]],
+        ]
+        // 版 4 の最初の要求は末尾に印を置かない(依頼をまたいで残す先頭は system の 1 時間の印)。
+        XCTAssertFalse(ClaudeTranslation.marksTail(translation: 4, messages: first))
+        XCTAssertTrue(ClaudeTranslation.marksTail(translation: 4, messages: afterTool))
+        XCTAssertFalse(ClaudeTranslation.marksTail(translation: 4, messages: []))
+        // 版 2 以前は毎回置く。
+        XCTAssertTrue(ClaudeTranslation.marksTail(translation: 2, messages: first))
+        // cache diagnostics は、タイムラインの依頼どうし(同じモデル)で比べる。
+        XCTAssertEqual(ClaudeTranslation.diagnosticsKey(threadID: "t1", kind: "chat", model: "claude-opus-5-5"), "t1")
+        XCTAssertEqual(ClaudeTranslation.diagnosticsKey(threadID: "t1", kind: "timeline_grading", model: "claude-opus-5-5"), "timeline-tutor:claude-opus-5-5")
+        XCTAssertEqual(ClaudeTranslation.diagnosticsKey(threadID: "t2", kind: "timeline_review"), "timeline-tutor")
     }
 
-    func testVersionTwoSendsTheSameBytesForTheSameContent() throws {
-        // 同じ内容でもキーの入れ方が違う(再起動後の辞書の順など)要求から、同じバイト列を作る。
-        var reordered = request(input: userTurn)
-        reordered["tools"] = Array(((reordered["tools"] as? [[String: Any]]) ?? []).reversed())
-        let first = try ClaudeRequestTranslator.translate(request(input: userTurn)).data()
-        let second = try ClaudeRequestTranslator.translate(reordered).data()
-        XCTAssertEqual(first, second)
-        let text = String(decoding: first, as: UTF8.self)
-        // tool の引数もキーの順に並ぶ。
-        XCTAssertTrue(text.contains("\"input\":{\"a\":\"1\",\"b\":\"2\"}"), text)
+    func testSchemaInstructionWritesTheSchemaWithSortedKeys() {
+        let schema: [String: Any] = ["type": "object", "required": ["ok"], "properties": ["ok": ["type": "boolean"]]]
+        XCTAssertEqual(ClaudeTranslation.schemaInstruction(schema),
+                       "Answer with exactly one JSON object and nothing else. It must validate against this JSON Schema:\n"
+                       + #"{"properties":{"ok":{"type":"boolean"}},"required":["ok"],"type":"object"}"#)
     }
 
     func testThreadsStartedBeforeTheProfileStayOnVersionOne() {
@@ -119,24 +111,18 @@ final class ClaudeCostTests: XCTestCase {
 
     // MARK: - Request log
 
-    func testRequestsAreGroupedPerTurnAndClassified() {
-        let log = ClaudeRequestLog()
-        let first = request(input: Array(userTurn.prefix(2)))
-        XCTAssertEqual(log.classify(request: first).reason, .turnStart)
-        // tool の結果を受けた続き。
-        XCTAssertEqual(log.classify(request: request(input: userTurn)).reason, .continuation)
-        // Codex が同じ入力を送り直した。
-        XCTAssertEqual(log.classify(request: request(input: userTurn)).reason, .codexRetry)
-        XCTAssertEqual(log.classify(request: request(input: userTurn, kind: "compaction")).reason, .compaction)
-        // 別のターンは最初から。
-        let next = log.classify(request: request(input: userTurn, turnID: "turn_2"))
-        XCTAssertEqual(next.reason, .turnStart)
-        XCTAssertEqual(next.key, .init(threadID: "thr_1", turnID: "turn_2"))
-
-        log.append(["reason": "turn_start", "estimated_cost_usd": 0.01], key: .init(threadID: "thr_1", turnID: "turn_1"))
-        log.append(["reason": "continuation", "estimated_cost_usd": 0.02], key: .init(threadID: "thr_1", turnID: "turn_1"))
+    func testRequestsAreGroupedPerTurnAndTakenOnce() {
+        let log: ClaudeRequestLog = ClaudeRequestLog()
+        log.append(["reason": ClaudeRequestReason.turnStart.rawValue, "estimated_cost_usd": 0.01], key: .init(threadID: "thr_1", turnID: "turn_1"))
+        log.append(["reason": ClaudeRequestReason.retry.rawValue], key: .init(threadID: "thr_1", turnID: "turn_2"))
+        log.append(["reason": ClaudeRequestReason.continuation.rawValue, "estimated_cost_usd": 0.02], key: .init(threadID: "thr_1", turnID: "turn_1"))
+        log.append(["reason": "ignored"], key: nil)
         XCTAssertEqual(log.take(threadID: "thr_1", turnID: "turn_1").map { $0["reason"] as? String }, ["turn_start", "continuation"])
         XCTAssertTrue(log.take(threadID: "thr_1", turnID: "turn_1").isEmpty)
+        XCTAssertEqual(log.take(threadID: "thr_1", turnID: "turn_2").map { $0["reason"] as? String }, ["retry"])
+        log.setPreviousResponseID("msg_1", threadID: "thr_1")
+        XCTAssertEqual(log.previousResponseID(threadID: "thr_1"), "msg_1")
+        XCTAssertNil(log.previousResponseID(threadID: "thr_2"))
     }
 
     func testThinkingRejectionsSeparateSignatureMismatchFromOtherErrors() {
@@ -159,26 +145,53 @@ final class ClaudeCostTests: XCTestCase {
         XCTAssertEqual(ClaudeCacheDiagnosis.summarize(["cache_miss_reason": NSNull()]) as? [String: String], ["result": "pending"])
     }
 
-    func testThinkingTokensArePassedOnlyWhenClaudeReportsThem() throws {
-        func completed(_ deltaUsage: [String: Any]) -> [String: Any]? {
-            let translator = ClaudeStreamTranslator(tools: ClaudeToolNames(responsesTools: []), responseID: "resp_t")
-            var out: [[String: Any]] = []
-            out += translator.consume(["type": "message_start", "message": ["id": "msg_1", "model": "claude-opus-5-5",
-                                                                           "usage": ["input_tokens": 10, "cache_creation": ["ephemeral_1h_input_tokens": 5]]]])
-            out += translator.consume(["type": "content_block_start", "index": 0, "content_block": ["type": "text", "text": ""]])
-            out += translator.consume(["type": "content_block_delta", "index": 0, "delta": ["type": "text_delta", "text": "hi"]])
-            out += translator.consume(["type": "content_block_stop", "index": 0])
-            out += translator.consume(["type": "message_delta", "delta": ["stop_reason": "end_turn"], "usage": deltaUsage])
-            out += translator.consume(["type": "message_stop"])
-            XCTAssertEqual(translator.messageID, "msg_1")
+    func testThinkingTokensAreRecordedOnlyWhenClaudeReportsThem() throws {
+        func finished(_ deltaUsage: [String: Any]) -> [String: Any] {
+            let status: ClaudeStreamStatus = ClaudeStreamStatus()
+            status.consume(["type": "message_start", "message": ["id": "msg_1", "model": "claude-opus-5-5",
+                                                                 "usage": ["input_tokens": 10, "cache_creation": ["ephemeral_1h_input_tokens": 5]]]])
+            status.consume(["type": "content_block_start", "index": 0, "content_block": ["type": "text", "text": ""]])
+            status.consume(["type": "content_block_delta", "index": 0, "delta": ["type": "text_delta", "text": "hi"]])
+            status.consume(["type": "content_block_stop", "index": 0])
+            status.consume(["type": "message_delta", "delta": ["stop_reason": "end_turn"], "usage": deltaUsage])
+            XCTAssertFalse(status.isFinished)
+            status.consume(["type": "message_stop"])
+            XCTAssertTrue(status.isFinished)
+            XCTAssertEqual(status.messageID, "msg_1")
+            XCTAssertEqual(status.model, "claude-opus-5-5")
+            XCTAssertEqual(status.stopReason, "end_turn")
+            XCTAssertNil(status.errorType)
             // message_start の内訳(TTL ごとの書き込み)は、message_delta の後も残る。
-            XCTAssertNotNil(translator.rawUsage["cache_creation"])
-            return (out.first { $0["type"] as? String == "response.completed" }?["response"] as? [String: Any])?["usage"] as? [String: Any]
+            XCTAssertNotNil(status.rawUsage["cache_creation"])
+            var attempt: ClaudeRequestAttempt = ClaudeRequestAttempt(reason: .turnStart, model: "claude-opus-5-5", translation: 2, tailTTL: "1h",
+                                                                     options: ClaudeRequestOptions())
+            return attempt.finish(status: "completed", translator: status, httpStatus: 200, error: nil)
         }
-        let reported = try XCTUnwrap(completed(["output_tokens": 30, "output_tokens_details": ["thinking_tokens": 12]]))
-        XCTAssertEqual((reported["output_tokens_details"] as? [String: Any])?["reasoning_tokens"] as? Int, 12)
-        let missing = try XCTUnwrap(completed(["output_tokens": 30]))
-        XCTAssertNil(missing["output_tokens_details"], "内訳が無い時に 0 を入れない")
+        let reported: [String: Any] = finished(["output_tokens": 30, "output_tokens_details": ["thinking_tokens": 12]])
+        XCTAssertEqual(reported["thinking_tokens"] as? Int, 12)
+        XCTAssertEqual(reported["thinking_breakdown"] as? String, "reported")
+        XCTAssertEqual((reported["tokens"] as? [String: Any])?["cache_write_1h"] as? Int, 5)
+        XCTAssertEqual(reported["cost_status"] as? String, "estimated")
+        let missing: [String: Any] = finished(["output_tokens": 30])
+        XCTAssertTrue(missing["thinking_tokens"] is NSNull, "内訳が無い時に 0 を入れない")
+        XCTAssertEqual(missing["thinking_breakdown"] as? String, "unavailable")
+    }
+
+    func testStreamErrorsAndRejectedRequestsAreNotBilled() {
+        let status: ClaudeStreamStatus = ClaudeStreamStatus()
+        status.consume(["type": "error", "error": ["type": "overloaded_error", "message": "busy"]])
+        XCTAssertTrue(status.isFinished)
+        XCTAssertEqual(status.errorType, "overloaded_error")
+        // 拒まれた要求(4xx)は課金されない。
+        var rejected: ClaudeRequestAttempt = ClaudeRequestAttempt(reason: .retry, model: "claude-opus-5-5", translation: 2, tailTTL: "5m",
+                                                                  options: ClaudeRequestOptions())
+        let record: [String: Any] = rejected.finish(status: "http_error", translator: nil, httpStatus: 400, error: ("invalid_request_error", "bad"))
+        XCTAssertEqual(record["reason"] as? String, "retry")
+        XCTAssertEqual(record["cost_status"] as? String, "not_billed")
+        XCTAssertTrue(record["estimated_cost_usd"] is NSNull)
+        XCTAssertEqual(ClaudeRequestAttempt.status(stopReason: "refusal"), "refusal")
+        XCTAssertEqual(ClaudeRequestAttempt.status(stopReason: "model_context_window_exceeded"), "context_window_exceeded")
+        XCTAssertEqual(ClaudeRequestAttempt.status(stopReason: "end_turn"), "completed")
     }
 
     // MARK: - Ledger summary
@@ -207,19 +220,5 @@ final class ClaudeCostTests: XCTestCase {
         XCTAssertEqual(opus.outputTokens, 70)
         XCTAssertEqual(opus.estimatedCostUSD ?? -1, 0.012, accuracy: 1e-9)
         XCTAssertTrue(opus.costIncomplete)
-    }
-
-    // MARK: - Codex の設定(毎要求に入るものを増やさない)
-
-    /// ChatGPT の Apps(コネクタ)・Plugins・tool_suggest を切る。Claude のモデルは Codex に未知で tool 定義が遅延されず、
-    /// サインイン中のアカウントの全コネクタの定義(実機で約 19 万トークン)が毎要求に入っていた。
-    func testCodexConfigurationDisablesAppsPluginsAndBundledSkills() {
-        let config = NativeToolRouter.configuration(["model_reasoning_effort": "medium"])
-        XCTAssertEqual(config["model_reasoning_effort"] as? String, "medium")
-        XCTAssertEqual(config["features.apps"] as? Bool, false)
-        XCTAssertEqual(config["features.plugins"] as? Bool, false)
-        XCTAssertEqual(config["features.tool_suggest"] as? Bool, false)
-        XCTAssertEqual(config["skills.bundled.enabled"] as? Bool, false)
-        XCTAssertEqual((config["features.code_mode"] as? [String: Any])?["enabled"] as? Bool, false)
     }
 }

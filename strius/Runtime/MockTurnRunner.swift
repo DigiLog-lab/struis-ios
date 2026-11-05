@@ -37,7 +37,7 @@ actor MockTurnRunner: TurnRunning {
     }
 
     func run(_ plan: TurnPlan, progress: @escaping @Sendable (TurnProgressEvent) -> Void) async throws -> TurnOutcome {
-        try? await Task.sleep(for: .milliseconds(plan.kind == .threadFork || plan.kind == .threadInject ? 50 : Self.delay))
+        try? await Task.sleep(for: .milliseconds(plan.kind == .threadFork ? 50 : Self.delay))
         counter += 1
         let request = Self.request(from: plan.turn?.text ?? "")
         let text: String
@@ -59,7 +59,7 @@ actor MockTurnRunner: TurnRunning {
                 }
             }
         case .lunaLookup: text = Self.json(["findings": [], "missing_information": [], "uncertainties": [], "failure_reasons": []])
-        case .threadFork, .threadInject: text = ""
+        case .threadFork: text = ""
         case .timelineBatch: text = Self.json(Self.timelineBatch(request, round: counter))
         case .timelineGrading: text = Self.json(Self.timelineGrading(request))
         case .timelineGraph: text = Self.json(Self.timelineGraph(request))
@@ -261,7 +261,7 @@ actor MockTurnRunner: TurnRunning {
         guard let range = text.range(of: "The learner's current message:\n") else { return "" }
         let rest = text[range.upperBound...]
         // The message is followed by a blank line and the private desk context (memory etc.).
-        let end = rest.range(of: "\n\n")?.lowerBound ?? rest.range(of: "\nStruis progress contract:")?.lowerBound ?? rest.endIndex
+        let end = rest.range(of: "\n\n")?.lowerBound ?? rest.range(of: "\nStruis progress context")?.lowerBound ?? rest.endIndex
         var body = String(rest[..<end])
         if let viewEnd = body.range(of: "</struis_current_view>\n") { body = String(body[viewEnd.upperBound...]) }
         return body.trimmingCharacters(in: .whitespacesAndNewlines)

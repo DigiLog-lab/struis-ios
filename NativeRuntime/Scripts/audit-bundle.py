@@ -13,9 +13,13 @@ p.add_argument('--link-map', action='append', required=True, type=Path)
 a = p.parse_args()
 app = a.app.resolve()
 workers = {
-    'StruisRuntime': 'com.digiloglab.strius.runtime',
     'StruisExec': 'com.digiloglab.strius.exec',
 }
+# The embedded agent runtime was removed: the app calls the model API from Swift.
+# None of its former products, archives or code may reach the bundle again.
+RETIRED_PATHS = re.compile(r'(^|/)(?:StruisRuntime\.appex|NativeCodex(?:Host)?\.(?:framework|xcframework)|libhyotan_codex\.a)(/|$)')
+RETIRED_SYMBOLS = re.compile(r'hyotan_codex|codex_app_server|codex_core|codex_exec_server|codex_protocol')
+RETIRED_BYTES = [b'hyotan_codex_', b'codex-rs/', b'NativeCodexHost']
 # Inspect definitions in the actual symbol table. LLVM nm's default dyld
 # supplement is quadratic for the large Rust executable; the link maps below
 # also independently check every linked input. Missing definitions fail closed.
@@ -26,15 +30,14 @@ for name in workers:
     symbols = subprocess.check_output(['nm', '--no-dyldinfo', '-g', '-U', str(binary)], text=True)
     def defines(symbol):
         return re.search(r'\b_' + re.escape(symbol) + r'\s*$', symbols, re.M) is not None
-    if name == 'StruisRuntime':
-        assert defines('hyotan_codex_start'), 'Codex entry point missing'
-        assert not re.search(r'/(?:Python|ios_system(?:-native)?|files(?:-native)?|text(?:-native)?|shell(?:-native)?|awk(?:-native)?|dash(?:-native)?)\.framework/', linked, re.I), 'Codex worker links command dependencies'
-        assert not any(defines(s) for s in ['StruisRunCommand', 'hyotan_python_main', 'hyotan_rg_run']), 'Codex worker contains command implementations'
-    else:
-        assert defines('hyotan_rg_run'), 'Exec search engine missing'
-        assert defines('hyotan_python_main'), 'Exec Python entry point missing'
-        assert not defines('hyotan_codex_start'), 'Exec worker contains Codex app-server'
+    assert defines('hyotan_rg_run'), 'Exec search engine missing'
+    assert defines('hyotan_python_main'), 'Exec Python entry point missing'
+    assert not defines('hyotan_codex_start'), 'Exec worker contains the retired agent runtime'
     worker_symbols[name] = True
+extensions = sorted(path.name for path in (app / 'Extensions').glob('*.appex'))
+assert extensions == sorted(name + '.appex' for name in workers), f'unexpected app extensions: {extensions}'
+assert not (app / 'Extensions/StruisRuntime.appex').exists(), 'retired StruisRuntime extension is present'
+assert not (app / 'Frameworks/NativeCodexHost.framework').exists(), 'retired NativeCodexHost framework is present'
 for name, bundle_id in workers.items():
     worker = app / 'Extensions' / (name + '.appex')
     assert worker.is_dir(), f'{name} extension is missing'
@@ -46,18 +49,8 @@ assert (app / 'python/lib/python3.14/encodings').is_dir()
 assert (app / 'PythonPackages/numpy').is_dir()
 subprocess.run(['codesign', '--verify', '--deep', '--strict', str(app)], check=True)
 info = plistlib.loads((app / 'Info.plist').read_bytes())
-# Codex runs in the app process from NativeCodexHost.framework. Neither the host
-# executable nor that framework may contain the native command runtime, which
-# stays in the Exec worker.
-codex_host = app / 'Frameworks/NativeCodexHost.framework/NativeCodexHost'
-assert codex_host.is_file(), 'in-process Codex framework missing'
-codex_host_symbols = subprocess.check_output(['nm', '--no-dyldinfo', '-g', '-U', str(codex_host)], text=True)
-codex_host_linked = subprocess.check_output(['otool', '-L', str(codex_host)], text=True)
-assert re.search(r'\b_hyotan_codex_start\s*$', codex_host_symbols, re.M), 'in-process Codex entry point missing'
-assert re.search(r'\b_hyotan_codex_install_operation_harness\s*$', codex_host_symbols, re.M), 'workspace capability entry point missing'
-for symbol in ['StruisRunCommand', 'hyotan_python_main', 'hyotan_rg_run']:
-    assert re.search(r'\b_' + re.escape(symbol) + r'\s*$', codex_host_symbols, re.M) is None, 'Codex framework contains command implementation: ' + symbol
-assert not re.search(r'/(?:Python|ios_system(?:-native)?|files(?:-native)?|text(?:-native)?|shell(?:-native)?|awk(?:-native)?|dash(?:-native)?)\.framework/', codex_host_linked, re.I), 'Codex framework links command dependencies'
+# The host links only the trusted workspace operations library (statically).
+# The native command runtime stays in the Exec worker.
 host_binary = app / info['CFBundleExecutable']
 host_symbols = subprocess.check_output(['nm', '--no-dyldinfo', '-g', '-U', str(host_binary)], text=True)
 host_linked = subprocess.check_output(['otool', '-L', str(host_binary)], text=True)
@@ -106,7 +99,10 @@ for name in workers:
         assert (notices / filename).stat().st_size > 0, name
     notice_counts[name] = len(ledger)
 macho = []
+retired_findings = []
 for path in app.rglob('*'):
+    if RETIRED_PATHS.search(path.relative_to(app).as_posix()):
+        retired_findings.append('path ' + path.relative_to(app).as_posix())
     if not path.is_file(): continue
     relative = path.relative_to(app).as_posix()
     assert path.suffix != '.a', f'static development library: {relative}'
@@ -118,6 +114,20 @@ for path in app.rglob('*'):
         macho.append(relative)
         linked = subprocess.check_output(['otool', '-L', str(path)], text=True)
         assert not re.search(r'lib(?:gfortran|gomp|readline|gdbm|openblas)', linked, re.I), relative
+        if re.search(r'NativeCodex|hyotan_codex', linked):
+            retired_findings.append('linked library in ' + relative)
+        # Every symbol table entry (local, global, undefined), not only exports.
+        names = subprocess.run(['nm', '--no-dyldinfo', '-a', '-j', str(path)], capture_output=True, text=True).stdout
+        found = sorted({match.group(0) for match in RETIRED_SYMBOLS.finditer(names)})
+        if found:
+            retired_findings.append(f'symbols {found} in {relative}')
+        data = path.read_bytes()
+        for marker in RETIRED_BYTES:
+            if marker in data:
+                retired_findings.append(f'bytes {marker!r} in {relative}')
+for finding in retired_findings:
+    print('FORBIDDEN retired agent runtime: ' + finding)
+assert not retired_findings, 'retired agent runtime code or products are in the bundle'
 worker_maps = {name: [] for name in workers}
 host_maps = []
 
@@ -146,22 +156,22 @@ for path in a.link_map:
     host_map_pattern = r'^# Path:.*[/\\]' + re.escape(app.name) + r'[/\\]' + re.escape(info['CFBundleExecutable']) + r'\s*$'
     if re.search(host_map_pattern, contents, re.M):
         host_maps.append(str(path))
-        # Codex reaches the host only as the dynamic NativeCodexHost framework, never statically.
-        forbid(r'NativeCodex\.xcframework|libhyotan_codex\.a|NativeSearch\.xcframework|libhyotan_search\.a|codex_app_server|RuntimeCommand\.o|PythonCommand\.o|SearchCommand\.o|GraphicsModule\.o', contents, 'host link map includes static AppServer or command code')
+        # Only the trusted workspace operations archive is linked into the host.
+        assert re.search(r'libhyotan_operations\.a', contents), 'host link map lacks the workspace operations library'
+        forbid(r'NativeSearch\.xcframework|libhyotan_search\.a|RuntimeCommand\.o|PythonCommand\.o|SearchCommand\.o|GraphicsModule\.o', contents, 'host link map includes command code')
+    forbid(r'NativeCodex|libhyotan_codex|hyotan_codex|codex_app_server|codex_core|codex_exec_server|codex_protocol|StruisRuntime', contents, 'link map includes the retired agent runtime')
     for name in workers:
         if not re.search(r'^# Path:.*[/\\]' + re.escape(name) + r'\.appex[/\\]' + re.escape(name) + r'\s*$', contents, re.M):
             continue
         worker_maps[name].append(str(path))
-        if name == 'StruisRuntime':
-            forbid(r'RuntimeCommand\.o|PythonCommand\.o|SearchCommand\.o|GraphicsModule\.o|libhyotan_search\.a', contents, 'Codex link map includes command code')
-        else:
-            forbid(r'NativeCodex\.xcframework|libhyotan_codex\.a|codex_app_server', contents, 'Exec link map includes app-server code')
-assert all(worker_maps.values()), 'actual link maps for both workers are required'
+        forbid(r'libhyotan_operations\.a', contents, 'Exec link map includes the host workspace operations library')
+assert all(worker_maps.values()), 'actual link maps for every worker are required'
 assert host_maps, 'actual host link map is required'
 print(json.dumps({'status':'PASS', 'app':str(app), 'signed':True,
                   'framework_minimum_os':framework_minimums,
                   'enhanced_security_extension':False, 'app_group':group,
                   'worker_bundle_ids':workers, 'notice_components':notice_counts, 'macho_files':len(macho),
-                  'worker_dependency_separation':worker_symbols, 'host_execution_dependencies_absent':True, 'codex_in_process_framework':True,
+                  'worker_dependency_separation':worker_symbols, 'host_execution_dependencies_absent':True,
+                  'retired_agent_runtime_absent':True,
                   'legacy_runtime_or_rootfs':False, 'ELF_files':0,
                   'link_maps':[str(x) for x in a.link_map]}, ensure_ascii=False, indent=2))

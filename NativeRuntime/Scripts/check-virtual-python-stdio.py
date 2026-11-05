@@ -125,7 +125,7 @@ globalThis.run=argv=>{globalThis.cancelJob=new AbortController();return runVirtu
 def main():
     ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('--assets',type=Path,default=Path('/tmp/hyotan-pyodide-feasibility/PythonResources'));ap.add_argument('--scratch',type=Path,default=Path('/workspace/hyotan-virtual-python-stdio'));args=ap.parse_args();args.scratch.mkdir(parents=True,exist_ok=True)
     subprocess.run(['cc','-shared','-fPIC','-O2','-pthread',str(ROOT/'Worker/VirtualPythonCommandBridge.c'),'-o',str(args.scratch/'libduplex.so')],check=True)
-    subprocess.run(['cargo','rustc','--offline','--locked','--manifest-path',str(ROOT/'NativeCodex/Cargo.toml'),'--no-default-features','--features','operations','--lib','--crate-type','cdylib','--target-dir',str(args.scratch/'target')],check=True)
+    subprocess.run(['cargo','rustc','--offline','--locked','--manifest-path',str(ROOT/'NativeLibrary/Cargo.toml'),'--no-default-features','--features','operations','--lib','--crate-type','cdylib','--target-dir',str(args.scratch/'target')],check=True)
     lib=library(args.scratch/'libduplex.so');inventory=json.loads((ROOT/'VirtualPython/resources.js').read_text().split('export const resources = ',1)[1].strip().removesuffix(';'))
     assets={n:(args.assets/n).read_bytes()for n in inventory}
     for n,b in assets.items():assert hashlib.sha256(b).hexdigest()==inventory[n]
@@ -137,7 +137,7 @@ def main():
         browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox','--disable-dev-shm-usage','--disable-background-networking'])
         def run(argv,data=b'',mode='normal',early=False,cancel=False):
             generation=len(jobs)+1;raw=[a.encode()if isinstance(a,str)else bytes(a)for a in argv];job=PipeJob(lib,raw,generation,mode);jobs.append(job)
-            operations=fs.Broker(args.scratch/'target/debug/libhyotan_codex.so',work)
+            operations=fs.Broker(args.scratch/'target/debug/libhyotan_native.so',work)
             class Handler(BaseHTTPRequestHandler):
                 def setup(self):self.request.settimeout(3);super().setup()
                 def log_message(self,*a):pass

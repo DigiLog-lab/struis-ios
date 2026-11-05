@@ -49,7 +49,7 @@ DerivedData はブランチ名・OS/architecture・Xcode 版・native 依存の 
 Claude は Issue の依頼に応じて `python3 "$AGENT_CTL" prototype-build <ID> [--ref <ブランチ>] --title … --summary … --wait` で `agent-prototype.yml` を起動します(`repository_dispatch` の `agent-prototype`)。ビルドするのはこのリポジトリのどのブランチでもよく(タグ・commit SHA・`refs/pull/` は不可)、今の作業を試すだけなら作業ブランチ `agent/issue-{番号}` をそのまま渡します。複数の案を並べて比べるときは、案ごとのブランチ(既定 `prototype/{Issue番号}/{ID}`)を作ります。人が起動するときは Actions → Agent prototype → Run workflow(branch は `main`、`operation=build`、Issue 番号、ID、ブランチ名)です。workflow は次を行います。
 
 1. 識別子の割当: 新しい案には空いている識別子枠を名前順に割り当て、`prototypes/{Issue}/{ID}/meta.json` に記録します。同じ案の再ビルドでは同じ枠(Bundle ID・App Group)を使い、Build Number を増やします。アーカイブした案の枠は解放され、次の新しい案が使います。
-2. App Store Connect API: 3つの App ID の存在確認、登録済み端末と配布証明書の取得、端末一覧が変わったときの Ad Hoc profile の作成。profile に App Group が含まれていることを検査します。
+2. App Store Connect API: 2つの App ID の存在確認、登録済み端末と配布証明書の取得、端末一覧が変わったときの Ad Hoc profile の作成。profile に App Group が含まれていることを検査します。
 3. 作業コピーだけでの識別情報の変更: 表示名(例 `2A Struis`)、アイコンの帯(`#2 A`)、拡張ポイントの宣言。リポジトリ上の本番設定は変更しません。
 4. `STRUIS_BUNDLE_ID_BASE` / `STRUIS_APP_GROUP` を渡した archive と、`release-testing`(Ad Hoc)export。署名・Bundle ID・App Group・profile・拡張ポイントを IPA 上で検証します。
 5. IPA と `build.json`(Issue、Prototype ID、Bundle ID、Version、Build Number、Commit、生成日時、結果)を R2 に保存し、期限付きのインストールページ、QR コード、Simulator の起動画面を Issue に投稿します。失敗時は段階・原因・再実行方法を投稿します。
@@ -68,22 +68,22 @@ App Store Connect API キーでは App Group の作成と App ID への割当が
 
 | 枠 | 本体 | extension | App Group |
 |---|---|---|---|
-| `s01`〜 | `com.digiloglab.strius.preview.sNN` | `.runtime`、`.exec` | `group.com.digiloglab.strius.preview.sNN` |
+| `s01`〜 | `com.digiloglab.strius.preview.sNN` | `.exec` | `group.com.digiloglab.strius.preview.sNN` |
 
 枠は名前順に割り当てるので、ポータルと Anthropic Console の登録を済ませた枠(現在 s01〜s05)が先に使われます。実機で Claude を使うには、枠の Bundle ID を Anthropic Console の App integration にも追加しておく必要があります(App Attest)。
 
 枠を追加するときは `agent-prototype.yml` を `operation=register-slots`、`slot_count` に新しい合計数で実行します(App ID と App Groups capability を API で作成し、summary にポータルでの残り作業を表示します)。その後 Developer ポータルで次の2つを行います。
 
-1. App Group を登録し、3つの App ID の App Groups に割り当てる。
-2. `.runtime` と `.exec` の App ID で **Enhanced Security** を有効にする(本番の extension と同じ。`com.apple.security.hardened-process` 系の entitlement に必要で、API では設定できません)。
+1. App Group を登録し、2つの App ID の App Groups に割り当てる。
+2. `.exec` の App ID で **Enhanced Security** を有効にする(本番の extension と同じ。`com.apple.security.hardened-process` 系の entitlement に必要で、API では設定できません)。
 
 空いている枠が無い場合や、profile に App Group・Enhanced Security が含まれない場合、ビルドは原因を Issue に報告して止まります。
 
 ### 配布ファイルの保護
 
 - IPA・manifest・インストールページは R2 の非公開バケットに置き、Worker が HMAC 署名付きの期限付き URL(既定7日)でだけ配信します。Ad Hoc の IPA は profile に含まれる登録端末にしかインストールできません。
-- インストールページの URL は Issue に投稿されるため、公開リポジトリでは期限内なら第三者も IPA を取得できます。IPA には配信キーが含まれます。より厳しくする場合は、`agent-struis.digiloglab.com/p/*` に Cloudflare Access を設定してください(manifest と IPA は署名 URL のままで動作します)。
-- 署名用の Secrets は `prototype-distribution` environment からだけ渡ります。この environment は `main` からの実行に限定しており、reviewer を設定すると署名・配布ごとに手動承認になります。xcodebuild のログには配信キーを含むビルド設定が出力されるため、artifact には `record.json` だけを保存します。
+- インストールページの URL は Issue に投稿されるため、公開リポジトリでは期限内なら第三者も IPA を取得できます。より厳しくする場合は、`agent-struis.digiloglab.com/p/*` に Cloudflare Access を設定してください(manifest と IPA は署名 URL のままで動作します)。
+- 署名用の Secrets は `prototype-distribution` environment からだけ渡ります。この environment は `main` からの実行に限定しており、reviewer を設定すると署名・配布ごとに手動承認になります。xcodebuild のログにはビルド設定が出力されるため、artifact には `record.json` だけを保存します。
 
 ## 導入手順
 
@@ -97,7 +97,7 @@ App Store Connect API キーでは App Group の作成と App ID への割当が
    ```
    Worker の URL が既定と異なる場合は Repository variable `AGENT_STORE_URL` に設定します。保存用の秘密値は GitHub に置きません。
 3. **GitHub**: ラベル `agent` を作成し、environment `prototype-distribution` を `main` 限定で作成します。エージェントに Pull Request を作らせる場合は、Settings → Actions → General → Workflow permissions の「Allow GitHub Actions to create and approve pull requests」を有効にします(無効のままだと、エージェントはブランチを push して PR の作成手順を Issue に返します)。任意の Repository variables は `AGENT_MODEL`(既定 `opus`)、`AGENT_EFFORT`、`AGENT_ALLOWED_USERS`、`AGENT_LABEL`、`AGENT_BUNDLE_PREFIX` です。
-4. **Apple**: 既存の署名用 Secrets(`BUILD_CERTIFICATE_BASE64`、`P12_PASSWORD`、`APP_STORE_CONNECT_*`、`STRUIS_DELIVERY_APP_KEY`)を使います。API キーは App ID と profile を作成できる権限が必要です。`register-slots` を実行し、Developer ポータルで App Group を登録・割り当てます。テスト端末は Apple Developer に登録しておきます(Ad Hoc の端末数上限に従います)。
+4. **Apple**: 既存の署名用 Secrets(`BUILD_CERTIFICATE_BASE64`、`P12_PASSWORD`、`APP_STORE_CONNECT_*`)を使います。API キーは App ID と profile を作成できる権限が必要です。`register-slots` を実行し、Developer ポータルで App Group を登録・割り当てます。テスト端末は Apple Developer に登録しておきます(Ad Hoc の端末数上限に従います)。
 5. `Native runtime cache` workflow を一度実行して cache を作ります。
 
 ## 制約

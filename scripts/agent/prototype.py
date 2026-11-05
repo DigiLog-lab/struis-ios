@@ -2,7 +2,8 @@
 """Ad Hoc prototype builds for .github/workflows/agent-prototype.yml.
 
 Each prototype (Issue number + variant) owns one identifier slot: an app
-Bundle ID with `.runtime` and `.exec` extension IDs and a dedicated App Group.
+Bundle ID with an `.exec` extension ID and a dedicated App Group. (Slots registered
+before the embedded agent runtime was removed also own an unused `.runtime` App ID.)
 App Store Connect API keys cannot create App Groups or attach them to App IDs
 (the Xcode provisioning endpoint `appGroups` answers 401 for API keys), so the
 App Groups of a slot are registered once on the developer portal. The same holds
@@ -43,12 +44,10 @@ PREFIX = os.environ.get('AGENT_BUNDLE_PREFIX', 'com.digiloglab.strius.preview')
 SLOTS_KEY = 'prototypes/slots.json'
 COMPONENTS = {  # Xcode product name -> bundle suffix
     'strius': '',
-    'StruisRuntime': '.runtime',
     'StruisExec': '.exec',
 }
 ENTITLEMENTS = {
     'strius': 'NativeRuntime/Runtime.entitlements',
-    'StruisRuntime': 'NativeRuntime/Worker/RuntimeWorker.entitlements',
     'StruisExec': 'NativeRuntime/Worker/RuntimeWorker.entitlements',
 }
 WORKER_SOURCE = 'NativeRuntime/Worker/RuntimeWorker.swift'
@@ -61,16 +60,6 @@ TOOLS = Path(__file__).resolve().parent
 
 def workspace():
     return Path(os.environ.get('GITHUB_WORKSPACE', os.getcwd()))
-
-
-def components_of(project_text: str) -> dict[str, str]:
-    """The products this ref builds; a ref without the StruisRuntime target has no `.runtime` extension."""
-    return {product: suffix for product, suffix in COMPONENTS.items()
-            if product != 'StruisRuntime' or 'StruisRuntime.appex' in project_text}
-
-
-def built_components() -> dict[str, str]:
-    return components_of((workspace() / 'strius.xcodeproj/project.pbxproj').read_text())
 
 
 def home():
@@ -141,11 +130,11 @@ def cmd_register_slots(args):
     lines = ['### Prototype slots',
              f'- App IDs created: {len(created)}',
              f"- slots: {', '.join(sorted(registry['slots']))}",
-             '- Developer portal (once per slot): register each App Group below and enable it on the three App IDs.',
+             '- Developer portal (once per slot): register each App Group below and enable it on the two App IDs.',
              f'  Also assign the iCloud container `{ICLOUD_CONTAINER}` to the app App ID (iCloud is enabled by this job).']
     for name in pending or names:
         record = registry['slots'][name]
-        lines.append(f"  - `{record['appGroup']}` → `{record['bundleBase']}`, `.runtime`, `.exec`")
+        lines.append(f"  - `{record['appGroup']}` → `{record['bundleBase']}`, `.exec`")
         lines.append(f"  - `{ICLOUD_CONTAINER}` → `{record['bundleBase']}`")
     append_summary('\n'.join(lines))
     print('\n'.join(lines))
@@ -309,7 +298,7 @@ def ensure_profiles(asc, meta, serial, private):
     device_ids = sorted(device['id'] for device in devices)
     fingerprint = hashlib.sha256(('|'.join(device_ids) + certificate_id).encode()).hexdigest()[:8]
     profiles = {}
-    for product, suffix in built_components().items():
+    for product, suffix in COMPONENTS.items():
         identifier = meta['bundleId'] + suffix
         bundle = asc.find_bundle_id(identifier)
         if not bundle:
@@ -472,6 +461,8 @@ def cmd_build(args):
         checks = {app: (meta['bundleId'], 'strius')}
         for extension in (app / 'Extensions').glob('*.appex'):
             product = extension.stem
+            if product not in COMPONENTS:
+                raise BuildError('verify', f'IPA に想定外の extension {extension.name} があります。')
             checks[extension] = (meta['bundleId'] + COMPONENTS[product], product)
         for bundle, (identifier, product) in checks.items():
             bundle_info = plistlib.loads((bundle / 'Info.plist').read_bytes())
@@ -488,8 +479,7 @@ def cmd_build(args):
             point = (bundle_info.get('EXAppExtensionAttributes') or {}).get('EXExtensionPointIdentifier')
             if bundle is not app and point != f"{meta['bundleId']}.Runtime":
                 raise BuildError('verify', f'{bundle.name} の拡張ポイントが {point} です。')
-        expected: set[Path] = {app / 'Extensions' / f'{product}.appex' for product, suffix in built_components().items() if suffix}
-        if set(checks) != {app} | expected:
+        if set(checks) != {app, app / 'Extensions/StruisExec.appex'}:
             raise BuildError('verify', 'IPA の extension 構成が想定と異なります。')
 
         record['stage'] = 'upload'

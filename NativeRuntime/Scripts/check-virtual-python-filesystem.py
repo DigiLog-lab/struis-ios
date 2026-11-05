@@ -113,13 +113,13 @@ class BoundedServer(ThreadingHTTPServer):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--library',type=Path,help='Use an already compiled actual operations C ABI for isolated preparation');parser.add_argument('--assets',type=Path,default=Path('/tmp/hyotan-pyodide-feasibility/PythonResources'));parser.add_argument('--target-dir',type=Path,default=Path('/workspace/hyotan-virtual-python-check/target'));parser.add_argument('--evidence',type=Path,default=Path('/workspace/hyotan-virtual-python-check/evidence.json'));args=parser.parse_args()
-    if args.library is None:subprocess.run(['cargo','rustc','--offline','--locked','--manifest-path',str(ROOT/'NativeCodex/Cargo.toml'),'--no-default-features','--features','operations','--lib','--crate-type','cdylib','--target-dir',str(args.target_dir)],check=True)
+    if args.library is None:subprocess.run(['cargo','rustc','--offline','--locked','--manifest-path',str(ROOT/'NativeLibrary/Cargo.toml'),'--no-default-features','--features','operations','--lib','--crate-type','cdylib','--target-dir',str(args.target_dir)],check=True)
     inventory=json.loads((ROOT/'VirtualPython/resources.js').read_text().split('export const resources = ',1)[1].rstrip(';\n'))
     for name,expected in inventory.items():
         if hashlib.sha256((args.assets/name).read_bytes()).hexdigest()!=expected:raise RuntimeError('pinned resource mismatch: '+name)
     with tempfile.TemporaryDirectory(prefix='hyotan-virtual-fs-')as directory:
         base=Path(directory);work=base/'workspace';work.mkdir();private=base/'private-canary';private.write_bytes(b'synthetic private');os.symlink(private,work/'escape');os.link(private,work/'hard');os.symlink(base,work/'ancestor')
-        broker=Broker(args.library or args.target_dir/'debug/libhyotan_codex.so',work)
+        broker=Broker(args.library or args.target_dir/'debug/libhyotan_native.so',work)
         scripts={name:(ROOT/'VirtualPython'/name).read_bytes() for name in ['main.js','worker.js','filesystem.js']}
         html=b'''<!doctype html><pre id=result>RUNNING</pre><script type=module>import{runVirtualPython}from'./main.js';globalThis.run=async code=>{const r=await runVirtualPython(code);document.querySelector('#result').textContent=JSON.stringify(r);return r;};</script>'''
         class Handler(BaseHTTPRequestHandler):

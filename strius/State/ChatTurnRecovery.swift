@@ -133,7 +133,7 @@ extension TurnCoordinator {
         }
         let threadID = source.assistant.threadId
         if isChatRunning(threadID: threadID) {
-            throw LedgerError.rejected(code: "codex_turn_in_progress", message: "前の返信を待っています")
+            throw LedgerError.rejected(code: "chat_turn_in_progress", message: "前の返信を待っています")
         }
         markChatReplyLive(assistantMessageID)
         // ここから台帳に書いてターンを登録するまでの間の「停止」も受け取る(小単元の読み出しの間も)。
@@ -189,7 +189,7 @@ extension TurnCoordinator {
             row.blocks = .emptyArray
             row.completedAt = nil
             row.metadata = .object([
-                "handled_as": .string("codex_app_server"),
+                "handled_as": .string("claude_messages"),
                 "retry_of_turn_id": source.previousTurn.map { .string($0.id) } ?? .null,
                 // Once resumed on its own, a later relaunch leaves the recovery to the learner.
                 "auto_resumed": .bool(automatic || row.metadata["auto_resumed"]?.boolValue == true),

@@ -100,7 +100,7 @@ final class TimelineGraphScheduleTests: XCTestCase {
             timeline.addEdge(skillID: "fourier.write_series", requires: "calc.product_rule", relation: "prerequisite", source: "initial", note: "")
             return (timeline.events, ())
         }
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: MockTurnRunner())
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: MockTurnRunner())
         let store = TimelineStore(ledger: ledger, turns: turns)
         await store.start()
         await store.reload()

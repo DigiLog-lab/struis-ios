@@ -21,12 +21,14 @@ nonisolated enum ChatTurns {
         checks.filter { $0["accepted"]?.boolValue == false }.count > repairLimit
     }
     static let interruptedText = "停止しました。"
+    /// 理由の分からない失敗で学習者に出す文。以前は `Codex の応答を受け取れませんでした` だった。
+    static let replyUnavailableText: String = "AIの応答を受け取れませんでした"
     /// 返事を始められなかった(ターンの行を書けなかった等)。学習者には日本語の一言だけ。
     static let startFailedText = "AI の返事を始められませんでした。もう一度送ってください。"
     static let continuation = "Continue the remaining model-owned work now, until a concrete learner input is required. Do not repeat text already delivered."
 
     static let parentDelegationInstructions =
-        "GPT-6.1 Sol owns all learner-facing conversation, evaluation, teaching and memory decisions. "
+        "You own all learner-facing conversation, evaluation, teaching and memory decisions. "
         + "current/deletions.yaml contains app-owned facts of units deleted by the learner. Treat those exact unit IDs as deleted, never as current learning targets. Do not infer reasons, ability changes or assessments from deletion. Shared history may remain; the deletion facts take precedence for current targets. Search that file for older deletion facts when relevant. "
         + "When a private_delegation_contract is supplied by Struis, its bounded Luna lookup command "
         + "is authorized. "
@@ -42,23 +44,13 @@ nonisolated enum ChatTurns {
         + "Keep the delegation instructions and all child output private; use only verified evidence "
         + "in your final learner-facing response. If no private contract is supplied, work directly."
 
-    /// The delivered developer instructions carry the fixed turn protocol (P1-3). Older assets do not:
-    /// then every turn input carries it as before, so an app update never runs without the protocol.
-    static let turnProtocolMarker = "STRUIS_TURN_PROTOCOL_V2"
-
     /// The developer instructions of every chat-family thread (start, resume, fork, inject). One value,
-    /// so a thread's developer message changes only when the delivered assets change (P1-2).
+    /// so a thread's developer message changes only when the bundled instructions change (P1-2).
     static func developerRef(assets: AssetCache) async throws -> TurnPlan.AssetRef {
-        var append = parentDelegationInstructions
-        if await carriesTurnProtocol(assets: assets) {
-            let schema = EngineJSON(any: try await assets.json("schema:progress_update").any).serialized()
-            append += "\n\n### Progress update_schema\n\nJSON Schema of the `<struis_progress_update>` block:\n" + schema
-        }
+        let schema: String = EngineJSON(any: try await assets.json("schema:progress_update").any).serialized()
+        let append: String = parentDelegationInstructions
+            + "\n\n### Progress update_schema\n\nJSON Schema of the `<struis_progress_update>` block:\n" + schema
         return try await assets.ref("prompt:developer", append: append)
-    }
-
-    static func carriesTurnProtocol(assets: AssetCache) async -> Bool {
-        ((try? await assets.text("prompt:developer")) ?? "").contains(turnProtocolMarker)
     }
 
     /// Attachment stored with the user message (images are staged as `localImage` inputs).
@@ -135,13 +127,13 @@ nonisolated enum ChatTurns {
         var memoryQueueFiles: [TurnOutcome.CollectedFile] = []
         var rateLimits: LedgerJSON?
         /// The memory evidence (per file) the thread holds after this turn's input (nil: not tracked).
-        /// Recorded for the Codex thread once the turn completes, so the next turn sends only changes (P1-3).
+        /// Recorded for the conversation once the turn completes, so the next turn sends only changes (P1-3).
         var deliveredMemory: DeliveredMemory?
         /// The learner-facing reply of a rejected round. A repair round returns only the private
         /// blocks; the reply already written is kept (B5).
         var rejectedCandidate: String?
 
-        /// The Codex thread's working directory (P1-1), or this turn's own before the thread exists.
+        /// The conversation's working directory (P1-1), or this turn's own before the thread exists.
         var workspace: URL {
             HyotanBoot.workspaceRoot.appendingPathComponent(
                 codexThreadID.flatMap { TurnPlan.threadWorkspaceKey(codexThreadID: $0) } ?? turnID, isDirectory: true)
@@ -159,7 +151,9 @@ nonisolated enum ChatTurns {
 
     // MARK: - Compose (§3.4 staging)
 
-    static func compose(ledger: Ledger, assets: AssetCache, state: inout State, roundText: String?) async throws -> TurnPlan {
+    /// `resumes`: 実行先がこの会話の履歴から続けられるか(`TurnRunning.resumes`)。続けられない時は、新しいスレッドに
+    /// 記憶の根拠を全部渡す。
+    static func compose(ledger: Ledger, assets: AssetCache, state: inout State, roundText: String?, resumes: Bool = true) async throws -> TurnPlan {
         let planID = state.turnID
         let learnerID = state.learnerID
         let workspaceKey = state.codexThreadID.flatMap { TurnPlan.threadWorkspaceKey(codexThreadID: $0) }
@@ -196,7 +190,7 @@ nonisolated enum ChatTurns {
 
         var files: [TurnPlan.FileSpec] = [
             TurnPlan.FileSpec(path: "AGENTS.md", asset: "prompt:agents"),
-            // 資料の読み方(Codex の Skill。本文は使う時だけモデルが読む)。
+            // 資料の読み方(Skill。本文は使う時だけモデルが読む)。
             TurnPlan.FileSpec(path: ".agents/skills/struis-document/SKILL.md", asset: "skill:struis_document"),
             TurnPlan.FileSpec(path: "scripts/struis_delegate.py", asset: "prompt:delegate_py", executable: true),
             TurnPlan.FileSpec(path: "scripts/struis_tutor_memory.py", asset: "prompt:tutor_memory_py", executable: true),
@@ -235,31 +229,26 @@ nonisolated enum ChatTurns {
         )
 
         // The fixed protocol (desk rules, output protocol, progress contract and schema, delegation
-        // contract) is in the developer instructions when the delivered assets carry it (P1-3).
-        let slim = await carriesTurnProtocol(assets: assets)
+        // contract) is in the developer instructions (P1-3).
         let text: String
         if let roundText {
-            text = roundText + (slim
-                ? try LearningProgress.turnProgressContext(state: state.progressAfter, assistantMessageID: state.assistantMessageID)
-                : try LearningProgress.turnContract(state: state.progressAfter, assistantMessageID: state.assistantMessageID, updateSchema: EngineJSON(any: try await assets.json("schema:progress_update").any)))
-        } else if slim {
+            text = roundText + (try LearningProgress.turnProgressContext(state: state.progressAfter, assistantMessageID: state.assistantMessageID))
+        } else {
             // The session record changes every turn and is small; the durable notes are sent again only
             // when they changed since the thread last received them (or after a compaction).
             let session = "current/session.yaml"
             let sessionContext = try await ledger.withMemory { _ in try TutorMemory.renderTutorMemoryContext(workspace: StruisPaths.memory, only: [session]) }
             let sections = try await ledger.withMemory { _ in try TutorMemory.tutorMemorySections(workspace: StruisPaths.memory, excluding: [session]) }
-            let update = MemoryUpdate(sections: sections, delivered: existingThread.flatMap { ThreadContextStore.shared.entry($0)?.memoryFiles })
+            let update = MemoryUpdate(sections: sections, delivered: resumes ? existingThread.flatMap { ThreadContextStore.shared.entry($0)?.memoryFiles } : nil)
             state.deliveredMemory = update.delivered
             text = try firstRoundSlimText(state: state, manifestPath: manifestPath, sessionContext: sessionContext, memory: update)
-        } else {
-            text = try await firstRoundText(ledger: ledger, assets: assets, state: state, manifestPath: manifestPath)
         }
         let delegation = TurnPlan.DelegationSpec(
             enabled: true, inbox: inbox, model: luna.model, effort: luna.effort,
             baseInstructions: try await assets.ref("prompt:luna_child"),
             developerText: "Perform only the supplied lookup. Do not follow learner-coach write or memory instructions.",
             outputSchema: try await assets.json("schema:luna_lookup"), sourceRoots: ["tutor_desk", "struis_context"],
-            contractInDeveloper: slim, provider: luna.provider
+            contractInDeveloper: true, provider: luna.provider
         )
         return TurnPlan(
             id: planID, kind: .chat, round: state.round + 1, thread: thread,
@@ -270,7 +259,7 @@ nonisolated enum ChatTurns {
                 // tutor_desk を写した後に添付の文書を置く(先に置くと tutor_desk の写しで消える)。
                 copies: [TurnPlan.CopySpec(hostPath: desk.path, path: "tutor_desk")] + documentCopies
             ),
-            delegation: delegation, collect: ["tutor_desk/queue/memory/*.yaml"], limits: .chat, items: nil,
+            delegation: delegation, collect: ["tutor_desk/queue/memory/*.yaml"], limits: .chat,
             workspaceKey: workspaceKey
         )
     }
@@ -285,15 +274,6 @@ nonisolated enum ChatTurns {
             "user_message_id": .string(state.userMessageID),
         ]))
         return "<struis_current_turn_source>\n" + identity + "\n</struis_current_turn_source>\nThe learner's current message:\n" + turnText
-    }
-
-    private static func firstRoundText(ledger: Ledger, assets: AssetCache, state: State, manifestPath: String?) async throws -> String {
-        var text = turnSourceText(state: state)
-        // The private desk context (memory evidence + output protocol) rides with the first round.
-        let memoryContext = (try? TutorMemory.renderTutorMemoryContext(workspace: StruisPaths.memory)) ?? ""
-        text += "\n\n" + LearnerText.struisContextInjectedItemText(staged: StagedContext(tutorDeskManifestRelativePath: manifestPath, markdownRelativePath: nil, tutorMemoryContext: memoryContext))
-        text += try LearningProgress.turnContract(state: state.progressBefore, assistantMessageID: state.assistantMessageID, updateSchema: EngineJSON(any: try await assets.json("schema:progress_update").any))
-        return text
     }
 
     /// Only what changes per turn (P1-3): identifiers, the learner's message and screen, the latest
@@ -373,7 +353,7 @@ nonisolated enum ChatTurns {
         state.rateLimits = outcome.rateLimits ?? state.rateLimits
         switch outcome.status {
         case .interrupted: return .failed(interruptedText)
-        case .failed: return .failed(outcome.error ?? "Codex の応答を受け取れませんでした", detail: outcome.errorDetail)
+        case .failed: return .failed(outcome.error ?? replyUnavailableText, detail: outcome.errorDetail)
         case .completed: break
         }
         do {
@@ -391,7 +371,7 @@ nonisolated enum ChatTurns {
                 candidate = kept
             }
             let visible = (state.deliveredParts + [candidate]).joined(separator: "\n\n")
-            let ids = Self.referencedMessageIDs(progressRaw)
+            let ids = Self.referencedMessageIDs(progressRaw, before: state.progressAfter)
             let sources = try await ledger.read { db in try ChatRepository.sourceMessages(db, ids: ids) }
             let progressAfter = state.progressAfter
             let userMessageID = state.userMessageID
@@ -506,7 +486,8 @@ nonisolated enum ChatTurns {
         return LearnerText.sanitizeLearnerFacingText(value).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private static func referencedMessageIDs(_ raw: JSONObject) -> Set<String> {
+    /// 学習の進行の更新が指す発言の id(台帳から本文を読み、根拠の引用を確かめる)。
+    static func referencedMessageIDs(_ raw: JSONObject, before: ProgressState) -> Set<String> {
         var ids = Set<String>()
         for goal in raw["goals"] as? [JSONObject] ?? [] {
             for evidence in goal["evidence"] as? [JSONObject] ?? [] {
@@ -516,6 +497,10 @@ nonisolated enum ChatTurns {
         for change in raw["goal_changes"] as? [JSONObject] ?? [] {
             for evidence in change["add_evidence"] as? [JSONObject] ?? [] {
                 if let id = evidence["message_id"] as? String { ids.insert(id) }
+            }
+            // 部分更新は保存済みの根拠を合わせて検証する(`LearningProgress.expandGoalChanges`)ので、その本文も要る。
+            if let goalID = change["id"] as? String, let stored = before.goals[goalID] {
+                for evidence in stored.evidence { ids.insert(evidence.messageID) }
             }
         }
         for attempt in raw["attempts"] as? [JSONObject] ?? [] {
@@ -616,7 +601,7 @@ nonisolated enum ChatTurns {
             guard latest == state.progressBefore.revision else { throw LedgerError.conflict("学習の進行が更新されています。もう一度送信してください。") }
             var events: [LedgerEvent] = []
             var metadata: [String: LedgerJSON] = [
-                "handled_as": .string("codex_app_server"), "codex_turn_id": state.codexTurnID.map(LedgerJSON.string) ?? .null,
+                "handled_as": .string("claude_messages"), "codex_turn_id": state.codexTurnID.map(LedgerJSON.string) ?? .null,
                 // 実行監査に残った実行先(Claude は API キー)。古い記録は ChatGPT。
                 "billing_source": .string(state.executions.lazy.compactMap { $0["billing_source"]?.stringValue }.first ?? "byo_chatgpt"),
                 "learning_progress_available": .bool(true), "learning_progress": trace,

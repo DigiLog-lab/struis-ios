@@ -29,11 +29,7 @@ nonisolated struct NativeRuntimeRequest: Codable, Sendable {
     /// The host's shared runtime directory. The Enhanced Security sandbox denies the worker
     /// `containermanagerd`, so the worker cannot look the app group up itself on a device.
     var sharedRoot: String? = nil
-    /// `start` only: false for the command worker, which never runs Codex.
-    var startsCodex: Bool? = nil
     #if DEBUG && targetEnvironment(simulator)
-    /// Trusted test bootstrap only. Never supplied by model tool arguments.
-    var operationHarnessTestRoot: String? = nil
     var virtualPythonJob: NativeVirtualPythonJob? = nil
     var virtualPythonControl: NativeVirtualPythonControl? = nil
     #endif
@@ -41,8 +37,6 @@ nonisolated struct NativeRuntimeRequest: Codable, Sendable {
 nonisolated struct NativeRuntimeReply: Codable, Sendable {
     var pid: Int32
     var workerID: String = ""
-    var port: UInt16 = 0
-    var token: String = ""
     var output: String = ""
     var exitCode: Int = 0
     var truncated: Bool = false
@@ -53,9 +47,6 @@ nonisolated struct NativeRuntimeReply: Codable, Sendable {
     var availableMemoryBytes: UInt64? = nil
     /// Optional for compatibility with older replies. Numeric diagnostics only.
     var memoryObservation: NativeMemoryObservation? = nil
-    /// Codex health only: latest panic source location (`file:line`) and panic count.
-    var panicSite: String? = nil
-    var panicCount: UInt32? = nil
     #if DEBUG && targetEnvironment(simulator)
     var virtualPython: NativeVirtualPythonReply? = nil
     /// Trusted native receipt: consumed one-shot signed Dash images require
@@ -65,7 +56,7 @@ nonisolated struct NativeRuntimeReply: Codable, Sendable {
 }
 /// A self-measurement. identity is issued by the trusted process, not a model path.
 nonisolated struct NativeMemoryObservation: Codable, Sendable, Equatable {
-    enum Role: String, Codable, Sendable { case host, codex, exec }
+    enum Role: String, Codable, Sendable { case host, exec }
     let pid: Int32
     let identity: String
     let role: Role

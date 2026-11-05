@@ -101,17 +101,20 @@ class StoreProfileTests(unittest.TestCase):
 
     def test_other_certificates_ad_hoc_profiles_and_missing_groups_are_not_reused(self):
         profiles, documents = self.all_reusable()
-        runtime = archive.PROFILE_BUNDLES['StruisRuntime']
-        profiles[runtime] = [resource('other-cert'), resource('adhoc', kind='IOS_APP_ADHOC'), resource('no-group')]
-        documents['other-cert'] = document('StruisRuntime', cert=b'other')
-        documents['adhoc'] = document('StruisRuntime', devices=['device'])
-        documents['no-group'] = document('StruisRuntime', group=False)
-        connect = FakeConnect(profiles, documents, created={runtime: document('StruisRuntime', container=False, uuid='runtime-new')})
-        self.assertEqual(ensure(connect)['StruisRuntime'][1]['UUID'], 'runtime-new', 'extensions do not need the container')
+        exec_bundle = archive.PROFILE_BUNDLES['StruisExec']
+        profiles[exec_bundle] = [resource('other-cert'), resource('adhoc', kind='IOS_APP_ADHOC'), resource('no-group')]
+        documents['other-cert'] = document('StruisExec', cert=b'other')
+        documents['adhoc'] = document('StruisExec', devices=['device'])
+        documents['no-group'] = document('StruisExec', group=False)
+        connect = FakeConnect(profiles, documents, created={exec_bundle: document('StruisExec', container=False, uuid='exec-new')})
+        self.assertEqual(ensure(connect)['StruisExec'][1]['UUID'], 'exec-new', 'extensions do not need the container')
 
     def test_no_profile_secrets_are_read(self):
         source = (Path(__file__).resolve().parents[1] / 'ci_archive.py').read_text()
         self.assertNotIn('BUILD_PROVISION_PROFILE', source)
+
+    def test_the_retired_runtime_extension_needs_no_profile(self):
+        self.assertEqual(set(archive.PROFILE_BUNDLES), {'strius', 'StruisExec'})
 
 
 if __name__ == '__main__':

@@ -7,7 +7,7 @@ import XCTest
 final class WaitingExperienceTests: XCTestCase {
     private func makeCoordinator() throws -> (Ledger, TurnCoordinator) {
         let ledger = try Ledger.inMemory()
-        return (ledger, TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: MockTurnRunner()))
+        return (ledger, TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: MockTurnRunner()))
     }
 
     private func seedSubunit(_ ledger: Ledger, stage: Int, n: Int = 5) async throws -> String {

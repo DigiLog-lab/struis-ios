@@ -319,7 +319,7 @@ nonisolated struct UnlimitedUsageGate: UsageGate {
     func record(_ attempt: [String: Any], requestBytes: Int) {}
 }
 
-/// 上限に達した時の返し方。Codex は 429・5xx を再試行するので、再試行されない 400 に `usage_limit_reached` を付ける。
+/// 上限に達した時の返し方(学習者向けの文と、記録に残す印 `usage_limit_reached`)。
 nonisolated enum UsageLimitResponse {
     static let code = "usage_limit_reached"
     static let message = "usage_limit_reached: 今週の利用枠を使い切りました。設定の「利用枠」で、戻る日時とプランを確かめてください。"

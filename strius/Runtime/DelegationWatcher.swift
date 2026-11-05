@@ -5,9 +5,10 @@ private let delegationLog = Logger(subsystem: "com.digiloglab.strius", category:
 
 /// Luna 委任 (design §3.5): watches `.struis_delegations/<hex>/` in the host
 /// workspace for `<id>.request.json`, validates the lookup request, copies the
-/// requested sources under `.lookup/<id>/`, runs an ephemeral Luna thread on the
-/// same app-server, and writes `<id>.response.json`. One child at a time; no
-/// retry after a failure; `closed` marker when the parent turn ends.
+/// requested sources under `.lookup/<id>/`, runs an ephemeral Luna turn (`runChild`, the
+/// Claude runner's child turn: no history, only `exec_command` and `document`), and writes
+/// `<id>.response.json`. One child at a time; no retry after a failure; `closed` marker when the
+/// parent turn ends.
 actor DelegationWatcher {
     nonisolated struct LookupRequest: Codable, Sendable {
         var taskType: String
@@ -33,10 +34,34 @@ actor DelegationWatcher {
         }
     }
 
+    /// 子のターン(下調べ)の依頼。履歴は無く、作業フォルダは `.lookup/<id>/`(頼まれた資料の写しだけ)。
+    nonisolated struct Child: Sendable {
+        let planID: String
+        let requestID: String
+        let cwd: String
+        let baseInstructions: String
+        let developerInstructions: String
+        let model: String
+        let effort: String
+        let outputSchema: LedgerJSON
+        let text: String
+        let taskType: String
+        let parentThreadID: String?
+        let parentTurnID: String?
+    }
+
+    /// 子のターンの結果。`executions` は子の実行監査(失敗した時も残す)。
+    nonisolated struct ChildResult: Sendable {
+        let text: String?
+        let executions: [LedgerJSON]
+        let error: String?
+    }
+
+    typealias ChildRunner = @Sendable (Child) async -> ChildResult
+
     private let plan: TurnPlan
     private let delegation: TurnPlan.DelegationSpec
-    private unowned let runner: CodexTurnRunner
-    private let session: CodexAppServerSession
+    private let runChildTurn: ChildRunner
     private let assets: AssetCache
     private var seen = Set<String>()
     private var pollTask: Task<Void, Never>?
@@ -52,22 +77,20 @@ actor DelegationWatcher {
     }
     private(set) var executions: [LedgerJSON] = []
 
-    init(plan: TurnPlan, delegation: TurnPlan.DelegationSpec, runner: CodexTurnRunner, session: CodexAppServerSession, assets: AssetCache) {
+    init(plan: TurnPlan, delegation: TurnPlan.DelegationSpec, assets: AssetCache, runChild: @escaping ChildRunner) {
         self.plan = plan
         self.delegation = delegation
-        self.runner = runner
-        self.session = session
         self.assets = assets
+        self.runChildTurn = runChild
     }
 
     nonisolated var inboxURL: URL { plan.hostWorkspace.appendingPathComponent(delegation.inbox, isDirectory: true) }
 
     /// The private contract appended to the parent turn text (port of `DelegationInbox.prompt`).
     nonisolated var prompt: String {
-        // Claude のスレッドでは、自分と子のモデル名を Claude の名前で伝える(GPT の名前のままだと自己紹介を誤る)。
-        let (parent, child) = delegation.provider == .anthropic
-            ? ("\(ClaudeModels.displayName(plan.thread.model)), \(plan.thread.effort) effort", "\(ClaudeModels.displayName(delegation.model)), \(delegation.effort) effort")
-            : ("GPT-6.1 Sol, medium effort", "GPT-5.6 Luna, low effort")
+        // 自分と子のモデル名を Claude の名前で伝える(別の名前のままだと自己紹介を誤る)。
+        let parent: String = "\(ClaudeModels.displayName(plan.thread.model)), \(plan.thread.effort) effort"
+        let child: String = "\(ClaudeModels.displayName(delegation.model)), \(delegation.effort) effort"
         return "\n<private_delegation_contract>\n"
             + "You are \(parent), and own every learner-facing response and all "
             + "teaching, evaluation and memory decisions. Answer short questions and ordinary "
@@ -89,7 +112,7 @@ actor DelegationWatcher {
     }
 
     func submit(_ object: JSONObject) async throws -> JSONObject {
-        guard !closed else { throw CodexAppServerError.interrupted }
+        guard !closed else { throw TurnRuntimeError.interrupted }
         let data = try JSONSerialization.data(withJSONObject: object)
         guard data.count <= 24_000 else { throw LedgerError.invalid("Delegation request is too large") }
         let request = try JSONDecoder().decode(LookupRequest.self, from: data)
@@ -105,7 +128,7 @@ actor DelegationWatcher {
             }
             try await Task.sleep(for: .milliseconds(100))
         }
-        throw CodexAppServerError.timeout("delegation")
+        throw TurnRuntimeError.timeout("delegation")
     }
 
     func start() {
@@ -201,83 +224,64 @@ actor DelegationWatcher {
     }
 
     private func runChild(request: LookupRequest, sources: [String], requestID: String) async throws -> JSONObject {
-        let started = Date()
+        let started: Date = Date()
         // Isolated cwd with only the requested sources (design §3.5 step 2).
-        let lookupRelative = ".lookup/\(requestID)"
-        let lookupRoot = plan.hostWorkspace.appendingPathComponent(lookupRelative, isDirectory: true)
+        let lookupRelative: String = ".lookup/\(requestID)"
+        let lookupRoot: URL = plan.hostWorkspace.appendingPathComponent(lookupRelative, isDirectory: true)
         try FileManager.default.createDirectory(at: lookupRoot, withIntermediateDirectories: true)
         // 添付の manifest を渡された時は、その添付(同じ inbox のフォルダ)も一緒に渡す。manifest だけでは
         // 子が PDF・画像を struis.document で開けない(信頼性計画 P3、C1)。同じボリュームなので複製(クローン)で済む。
-        let expanded = sources.map { source -> String in
+        let expanded: [String] = sources.map { source -> String in
             let parts = source.split(separator: "/")
             return parts.count == 4 && parts[0] == "tutor_desk" && parts[1] == "inbox" && parts[3] == "manifest.md"
                 ? parts.prefix(3).joined(separator: "/") : source
         }
         for source in Array(NSOrderedSet(array: expanded)) as? [String] ?? expanded {
-            let from = plan.hostWorkspace.appendingPathComponent(source)
-            let to = lookupRoot.appendingPathComponent(source)
+            let from: URL = plan.hostWorkspace.appendingPathComponent(source)
+            let to: URL = lookupRoot.appendingPathComponent(source)
             try FileManager.default.createDirectory(at: to.deletingLastPathComponent(), withIntermediateDirectories: true)
             if FileManager.default.fileExists(atPath: to.path) { try FileManager.default.removeItem(at: to) }
             try FileManager.default.copyItem(at: from, to: to)
         }
-        let cwd = plan.hostWorkspace.path + "/" + lookupRelative
-        var audit: [String: Any] = [
-            "execution_id": requestID, "thread_id": NSNull(), "turn_id": NSNull(), "parent_thread_id": parentThreadID ?? plan.thread.codexThreadID ?? NSNull(),
-            "parent_turn_id": parentTurnID ?? NSNull(), "task_type": request.taskType, "requested_model": delegation.model, "requested_effort": delegation.effort,
-            "actual_model": NSNull(), "actual_effort": NSNull(), "usage": NSNull(), "turn_tokens": NSNull(), "status": "starting",
-            "elapsed_ms": NSNull(), "billing_source": (delegation.provider ?? .openai).billingSource, "actual_charge": NSNull(),
-        ]
-        executions.append(LedgerJSON(any: audit))
+        let cwd: String = plan.hostWorkspace.path + "/" + lookupRelative
+        let parent: String? = parentThreadID ?? plan.thread.codexThreadID
         do {
-            let base = try await assets.text(delegation.baseInstructions)
-            var params: JSONObject = [
-                "dynamicTools": NativeToolRouter.lookupDefinitions,
-                "cwd": cwd, "model": delegation.model, "ephemeral": true, "approvalPolicy": "never", "sandbox": "danger-full-access",
-                "allowProviderModelFallback": false, "baseInstructions": base, "developerInstructions": delegation.developerText + "\n\n" + NativeToolRouter.lookupInstructions,
-                "config": NativeToolRouter.configuration([
-                    "model_reasoning_effort": delegation.effort, "features.multi_agent": false, "features.unified_exec": false,
-                    "features.apps": false, "features.browser_use": false, "features.computer_use": false, "web_search": "disabled",
-                ]),
-            ]
-            _ = try await CodexTurnRunner.applyProvider(delegation.provider, to: &params)
-            let configured = try await session.request("thread/start", params: params, timeout: .seconds(180))
-            let childID = (configured["thread"] as? JSONObject)?["id"] as? String ?? ""
-            guard !childID.isEmpty else { throw CodexAppServerError.malformed("thread/start returned no thread id") }
-            var schema = delegation.outputSchema.objectValue ?? [:]
+            let base: String = try await assets.text(delegation.baseInstructions)
+            var schema: [String: LedgerJSON] = delegation.outputSchema.objectValue ?? [:]
             if var properties = schema["properties"]?.objectValue, var findings = properties["findings"]?.objectValue {
                 findings["maxItems"] = .number(Double(request.count))
                 properties["findings"] = .object(findings)
                 schema["properties"] = .object(properties)
             }
-            let requestJSON = try String(data: JSONEncoder().encode(request), encoding: .utf8) ?? "{}"
-            let observed = try await runner.observeTurn(
-                session: session, planID: plan.id + ":" + requestID, threadID: childID, cwd: cwd, text: requestJSON, images: [],
-                model: delegation.model, effort: delegation.effort, outputSchema: .object(schema), sandboxPolicy: "dangerFullAccess",
-                configured: configured, configurationEvidence: "thread/start", taskType: request.taskType, timeoutS: 300,
-                parentThreadID: parentThreadID ?? plan.thread.codexThreadID, parentTurnID: parentTurnID, executionID: requestID,
-                provider: delegation.provider, progress: { _ in }
-            ) { execution in
-                if let index = self.executions.firstIndex(where: { $0["execution_id"]?.stringValue == requestID }) {
-                    self.executions[index] = execution
-                } else {
-                    self.executions.append(execution)
-                }
+            let requestJSON: String = try String(data: JSONEncoder().encode(request), encoding: .utf8) ?? "{}"
+            let child: Child = Child(
+                planID: plan.id + ":" + requestID, requestID: requestID, cwd: cwd, baseInstructions: base,
+                developerInstructions: delegation.developerText + "\n\n" + NativeToolRouter.lookupInstructions,
+                model: delegation.model, effort: delegation.effort, outputSchema: .object(schema), text: requestJSON,
+                taskType: request.taskType, parentThreadID: parent, parentTurnID: parentTurnID
+            )
+            let result: ChildResult = await runChildTurn(child)
+            executions.append(contentsOf: result.executions)
+            if Task.isCancelled || closed { throw CancellationError() }
+            guard let text = result.text else { throw TurnRuntimeError.turnFailed(result.error ?? "luna lookup failed") }
+            guard let data = text.data(using: .utf8), let parsed = try JSONSerialization.jsonObject(with: data) as? JSONObject else {
+                throw TurnRuntimeError.malformed("luna result is not JSON")
             }
-            // The child thread is used once: stop listening so Codex can unload it (P4-6, E3).
-            await runner.release(threadID: childID)
-            guard let data = observed.text.data(using: .utf8), let parsed = try JSONSerialization.jsonObject(with: data) as? JSONObject else {
-                throw CodexAppServerError.malformed("luna result is not JSON")
-            }
-            let findings = parsed["findings"] as? [Any] ?? []
+            let findings: [Any] = parsed["findings"] as? [Any] ?? []
             guard findings.count <= request.count else { throw LedgerError.invalid("Luna returned more findings than requested") }
-            let failures = parsed["failure_reasons"] as? [String] ?? []
+            let failures: [String] = parsed["failure_reasons"] as? [String] ?? []
             return ["success": failures.isEmpty, "result": parsed]
         } catch {
-            audit["status"] = error is CancellationError ? "interrupted" : "failed"
-            audit["error"] = String(describing: error).prefix(2000).description
-            audit["elapsed_ms"] = CodexTurnRunner.elapsed(started)
-            if let index = executions.firstIndex(where: { $0["execution_id"]?.stringValue == requestID }) {
-                executions[index] = LedgerJSON(any: audit)
+            if !executions.contains(where: { $0["execution_id"]?.stringValue == requestID }) {
+                // 子のターンを始める前に失敗した(指示文が読めないなど)。その事実だけを残す。
+                let audit: [String: Any] = [
+                    "execution_id": requestID, "thread_id": NSNull(), "turn_id": NSNull(), "parent_thread_id": parent ?? NSNull(),
+                    "parent_turn_id": parentTurnID ?? NSNull(), "task_type": request.taskType, "requested_model": delegation.model,
+                    "requested_effort": delegation.effort, "status": error is CancellationError ? "interrupted" : "failed",
+                    "error": String(describing: error).prefix(2000).description, "elapsed_ms": ClaudeTurnClock.elapsed(started),
+                    "billing_source": ModelProvider.anthropic.billingSource,
+                ]
+                executions.append(LedgerJSON(any: audit))
             }
             delegationLog.error("luna lookup failed: \(String(describing: error), privacy: .public)")
             throw error

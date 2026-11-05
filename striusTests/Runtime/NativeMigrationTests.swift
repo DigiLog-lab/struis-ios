@@ -3,88 +3,66 @@ import XCTest
 
 final class NativeMigrationTests: XCTestCase {
     func testInterruptedCopyRetriesPreservingOriginalsAndNewFiles() throws {
-        let fm = FileManager.default
-        let base = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let fm: FileManager = FileManager.default
+        let base: URL = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? fm.removeItem(at: base) }
-        let old = base.appendingPathComponent("agentcase")
-        let home = old.appendingPathComponent("rootfs-v2/data/root/.codex")
-        let target = base.appendingPathComponent("native")
-        try fm.createDirectory(at: home.appendingPathComponent("sessions/2026"), withIntermediateDirectories: true)
-        try fm.createDirectory(at: target.appendingPathComponent("codex"), withIntermediateDirectories: true)
-        let original = Data("migration-test-auth".utf8)
-        try original.write(to: home.appendingPathComponent("auth.json"))
-        try Data("original-session".utf8).write(to: home.appendingPathComponent("sessions/2026/test.jsonl"))
-        try Data("existing-native-setting".utf8).write(to: target.appendingPathComponent("codex/config.toml"))
-        try Data("older-setting".utf8).write(to: home.appendingPathComponent("config.toml"))
-        // An unsafe existing destination stops the migration without writing its completion marker.
-        try fm.createSymbolicLink(at: target.appendingPathComponent("codex/sessions"), withDestinationURL: home.appendingPathComponent("sessions"))
+        let old: URL = base.appendingPathComponent("agentcase")
+        let workspace: URL = old.appendingPathComponent("workspace")
+        // 以前の Linux 環境の Codex のデータ。端末内の Codex を外した後は写さない(2026-11-03)。
+        let home: URL = old.appendingPathComponent("rootfs-v2/data/root/.codex")
+        let target: URL = base.appendingPathComponent("native")
+        try fm.createDirectory(at: workspace.appendingPathComponent("thread-a"), withIntermediateDirectories: true)
+        try fm.createDirectory(at: workspace.appendingPathComponent("thread-b"), withIntermediateDirectories: true)
+        try fm.createDirectory(at: home, withIntermediateDirectories: true)
+        try fm.createDirectory(at: target.appendingPathComponent("workspace/thread-b"), withIntermediateDirectories: true)
+        try Data("migration-test-auth".utf8).write(to: home.appendingPathComponent("auth.json"))
+        let original: Data = Data("original-notes".utf8)
+        try original.write(to: workspace.appendingPathComponent("thread-a/notes.md"))
+        try Data("older-notes".utf8).write(to: workspace.appendingPathComponent("thread-b/notes.md"))
+        try Data("existing-native-notes".utf8).write(to: target.appendingPathComponent("workspace/thread-b/notes.md"))
+        // 書き先に既にあるリンクは移行を止め、完了の印を書かない。
+        try fm.createSymbolicLink(at: target.appendingPathComponent("workspace/thread-a"), withDestinationURL: base)
         XCTAssertThrowsError(try HyotanBoot.migrateLegacyData(from: [old], to: target))
         XCTAssertFalse(fm.fileExists(atPath: target.appendingPathComponent("migration-v1-complete").path))
-        try fm.removeItem(at: target.appendingPathComponent("codex/sessions"))
+        try fm.removeItem(at: target.appendingPathComponent("workspace/thread-a"))
         try HyotanBoot.migrateLegacyData(from: [old], to: target)
         try HyotanBoot.migrateLegacyData(from: [old], to: target)
-        XCTAssertEqual(try Data(contentsOf: home.appendingPathComponent("auth.json")), original)
-        XCTAssertEqual(try Data(contentsOf: target.appendingPathComponent("codex/auth.json")), original)
-        XCTAssertEqual(try String(contentsOf: target.appendingPathComponent("codex/config.toml"), encoding: .utf8), "existing-native-setting")
-        XCTAssertEqual(try String(contentsOf: target.appendingPathComponent("codex/sessions/2026/test.jsonl"), encoding: .utf8), "original-session")
-        let permissions = try fm.attributesOfItem(atPath: target.appendingPathComponent("codex/auth.json").path)[.posixPermissions] as? NSNumber
-        XCTAssertEqual(permissions?.intValue, 0o600)
+        XCTAssertEqual(try Data(contentsOf: workspace.appendingPathComponent("thread-a/notes.md")), original, "元のファイルは残す")
+        XCTAssertEqual(try Data(contentsOf: target.appendingPathComponent("workspace/thread-a/notes.md")), original)
+        XCTAssertEqual(try String(contentsOf: target.appendingPathComponent("workspace/thread-b/notes.md"), encoding: .utf8), "existing-native-notes",
+                       "移した後のファイルは上書きしない")
+        XCTAssertFalse(fm.fileExists(atPath: target.appendingPathComponent("codex").path), "Codex のデータは写さない")
         XCTAssertTrue(fm.fileExists(atPath: target.appendingPathComponent("migration-v1-complete").path))
-        print("NATIVE_MIGRATION retry=ok originals=retained auth_mode=0600 existing_native=retained")
+        print("NATIVE_MIGRATION retry=ok originals=retained existing_native=retained codex_copied=false")
     }
 
-    func testCodexHomeMovesIntoAppAndLeavesNoCredentialsInAppGroup() throws {
-        let fm = FileManager.default
-        let base = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    /// 端末内の Codex を外した(2026-11-03)後は、その home(ChatGPT の認証・会話の rollout・状態の DB)を消す。
+    /// 無い場所は飛ばし、ほかの場所は消し続ける。
+    func testRetiredCodexDataIsRemovedAndMissingHomesAreSkipped() throws {
+        let fm: FileManager = FileManager.default
+        let base: URL = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? fm.removeItem(at: base) }
-        let shared = base.appendingPathComponent("group/codex")
-        let home = base.appendingPathComponent("private/codex")
-        try fm.createDirectory(at: shared.appendingPathComponent("sessions/2026"), withIntermediateDirectories: true)
-        let auth = Data("migration-test-auth".utf8)
-        try auth.write(to: shared.appendingPathComponent("auth.json"))
-        try Data("token".utf8).write(to: shared.appendingPathComponent("transport-token"))
-        try Data("rollout".utf8).write(to: shared.appendingPathComponent("sessions/2026/test.jsonl"))
-        try Data("db".utf8).write(to: shared.appendingPathComponent("state_5.sqlite"))
-        try Data("db-wal".utf8).write(to: shared.appendingPathComponent("state_5.sqlite-wal"))
-        // Writable by model-directed commands in the app group: never trusted by the in-app Codex.
-        try Data("experimental_compact_prompt_file = \"auth.json\"".utf8).write(to: shared.appendingPathComponent("config.toml"))
-        try Data("instructions".utf8).write(to: shared.appendingPathComponent("AGENTS.md"))
-        try fm.createDirectory(at: shared.appendingPathComponent("skills/x"), withIntermediateDirectories: true)
-        // A copy that does not match stops before the app-group credentials are removed.
-        try fm.createDirectory(at: home, withIntermediateDirectories: true)
-        try Data("different".utf8).write(to: home.appendingPathComponent("auth.json"))
-        XCTAssertThrowsError(try HyotanBoot.moveCodexHomeIntoApp(from: shared, to: home))
-        XCTAssertTrue(fm.fileExists(atPath: shared.appendingPathComponent("auth.json").path))
-        XCTAssertFalse(fm.fileExists(atPath: home.appendingPathComponent(".moved-from-app-group").path))
-        try fm.removeItem(at: home.appendingPathComponent("auth.json"))
-        try HyotanBoot.moveCodexHomeIntoApp(from: shared, to: home)
-        try HyotanBoot.moveCodexHomeIntoApp(from: shared, to: home)
-        XCTAssertEqual(try Data(contentsOf: home.appendingPathComponent("auth.json")), auth)
-        let permissions = try fm.attributesOfItem(atPath: home.appendingPathComponent("auth.json").path)[.posixPermissions] as? NSNumber
-        XCTAssertEqual(permissions?.intValue, 0o600)
-        XCTAssertFalse(fm.fileExists(atPath: shared.appendingPathComponent("auth.json").path))
-        XCTAssertFalse(fm.fileExists(atPath: shared.appendingPathComponent("transport-token").path))
-        XCTAssertEqual(try String(contentsOf: home.appendingPathComponent("sessions/2026/test.jsonl"), encoding: .utf8), "rollout")
-        XCTAssertTrue(fm.fileExists(atPath: shared.appendingPathComponent("state_5.sqlite").path), "Other originals stay")
-        XCTAssertTrue(fm.fileExists(atPath: home.appendingPathComponent("state_5.sqlite").path))
-        XCTAssertTrue(fm.fileExists(atPath: home.appendingPathComponent("state_5.sqlite-wal").path))
-        for name in ["config.toml", "AGENTS.md", "skills"] {
-            XCTAssertFalse(fm.fileExists(atPath: home.appendingPathComponent(name).path), name)
+        let missing: URL = base.appendingPathComponent("missing/codex")
+        let shared: URL = base.appendingPathComponent("group/codex")
+        let home: URL = base.appendingPathComponent("private/codex")
+        for directory in [shared, home] {
+            try fm.createDirectory(at: directory.appendingPathComponent("sessions/2026"), withIntermediateDirectories: true)
+            try Data("migration-test-auth".utf8).write(to: directory.appendingPathComponent("auth.json"))
+            try Data("rollout".utf8).write(to: directory.appendingPathComponent("sessions/2026/test.jsonl"))
         }
-        // Later app-group credentials (a rollback build, or a model-directed command) are removed,
-        // never imported, and no app-group journal reaches the private databases.
-        try Data("planted-login".utf8).write(to: shared.appendingPathComponent("auth.json"))
-        try fm.setAttributes([.modificationDate: Date().addingTimeInterval(3600)], ofItemAtPath: shared.appendingPathComponent("auth.json").path)
-        try Data("token".utf8).write(to: shared.appendingPathComponent("transport-token"))
-        try fm.removeItem(at: home.appendingPathComponent("state_5.sqlite-wal"))
-        try Data("rollback-rollout".utf8).write(to: shared.appendingPathComponent("sessions/2026/new.jsonl"))
-        try HyotanBoot.moveCodexHomeIntoApp(from: shared, to: home)
-        XCTAssertEqual(try Data(contentsOf: home.appendingPathComponent("auth.json")), auth, "never replaced from the app group")
-        XCTAssertFalse(fm.fileExists(atPath: shared.appendingPathComponent("auth.json").path))
-        XCTAssertFalse(fm.fileExists(atPath: shared.appendingPathComponent("transport-token").path))
-        XCTAssertFalse(fm.fileExists(atPath: home.appendingPathComponent("state_5.sqlite-wal").path), "no journal applied to a moved database")
-        XCTAssertFalse(fm.fileExists(atPath: home.appendingPathComponent("sessions/2026/new.jsonl").path))
-        print("NATIVE_CODEX_HOME_MOVE copied=true config_instructions_skills_excluded=true shared_auth_removed=true shared_token_removed=true originals_retained=true later_credentials_removed_not_imported=true")
+        let sibling: URL = base.appendingPathComponent("group/workspace/keep.md")
+        try fm.createDirectory(at: sibling.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("keep".utf8).write(to: sibling)
+        HyotanBoot.removeRetiredData([missing, shared, home])
+        XCTAssertFalse(fm.fileExists(atPath: shared.path))
+        XCTAssertFalse(fm.fileExists(atPath: home.path))
+        XCTAssertFalse(fm.fileExists(atPath: missing.path))
+        XCTAssertEqual(try String(contentsOf: sibling, encoding: .utf8), "keep", "Codex の home の外は消さない")
+        // 2 回目(次の起動)は何も無いので何もしない。
+        HyotanBoot.removeRetiredData([missing, shared, home])
+        XCTAssertTrue(fm.fileExists(atPath: sibling.path))
+        XCTAssertEqual(HyotanBoot.retiredCodexHomes.map(\.lastPathComponent), ["codex", "codex"])
+        print("NATIVE_RETIRED_CODEX_DATA removed=true missing_skipped=true siblings_kept=true")
     }
 
     func testPersistentSimulatorLedgerArchiveRoundTrip() async throws {

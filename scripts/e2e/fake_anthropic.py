@@ -9,16 +9,43 @@ tool_result の対応、thinking の署名、structured outputs の schema 制�
     python3 scripts/e2e/fake_anthropic.py --port 8787 --log-dir /tmp/fake-anthropic
 
 アプリは `STRUIS_ANTHROPIC_BASE_URL=http://127.0.0.1:8787` で起動する。
+
+Codex 版と Claude 直結版の比較(`RunnerComparisonLiveTests`)のために、次を `POST /__control` で切り替える。
+
+    {"scenario": "codex/grading-1", "mode": "script", "faults": [{"kind": "http", "status": 500}]}
+
+- `scenario`: 要求の記録の置き場所(`<log-dir>/scenarios/<scenario>/NNNN.json`)。到着と返し終わりの時刻も残す。
+- `mode`: `script`(決まった応答)、`record`(本物の API へ転送して応答を時刻付きで `<tape-dir>/<tape>/NNNN.json` に録る)、
+  `replay`(録った応答を同じ間隔で順に返す)。録画と再生は要求の中身ではなく順番で対応させる(比べる 2 つの本文は同じとは限らない)。
+- `faults`: 要求ごとに 1 つ消費する故障の列(`http`・`drop`・`stall`・`sse_error`・`first_byte_delay`・`trickle`)。
+  `trickle` は最初の本文の前に、本文の差分を `interval` 秒(既定 1)ごとに 1 つ、最大 `seconds` 秒(既定 900)流し続ける
+  (止める操作の確認用。接続は切らないのでアプリは送り直さない)。送った差分の数と最後の時刻を記録の `trickle` に残す。
+
+会話の返事は、学習者の今の発言(最後の `The learner's current message:` の後)で変わる。「調べて」があれば資料を探してから
+`struis__struis_delegate` に任せ、「続けて」があれば最初のラウンドで `disposition: continue` を返して続きのラウンドを起こす
+(続きのラウンドは `not_learning` で終える)。
+「計算して」があれば `struis__exec_command` で `python3 -c` の SymPy の計算を 1 回呼び、出力の `SYMPY …` の行を返事に載せる
+(Workspace の Python が動くことの確認用)。
+
+`usage`(例 `{"cache_read_input_tokens": 250000}`)を渡すと、アプリへ返す応答の usage をその値で上書きする(`record` でも。
+録画には本物の値を残す)。長い会話を新しいスレッドへ移す確認用。
+要求の記録は、番号を取った時に `pending: true` で書き、返し終わり・接続の切断・転送の失敗(`exception`)のどれでも書き直す。
+
+`record` の転送先のキーは `--upstream-key-file` のファイルから読み、記録には残さない。
 """
 from __future__ import annotations
 
 import argparse
 import base64
+import collections
+import hashlib
 import itertools
 import json
 import re
 import threading
 import time
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -31,7 +58,48 @@ counter = itertools.count(1)
 lock = threading.Lock()
 
 
-def validate(body: dict) -> list[str]:
+class Control:
+    """`POST /__control` で決める、いまの比較の場面。"""
+    scenario: str | None = None
+    mode = "script"
+    tape: str | None = None
+    tape_index = 0
+    faults: collections.deque = collections.deque()
+    request_index = 0
+    tape_dir = Path("/tmp/fake-anthropic-tapes")
+    upstream = "https://api.anthropic.com"
+    upstream_key_file: str | None = None
+    usage: dict | None = None
+
+    @classmethod
+    def set(cls, payload: dict) -> None:
+        with lock:
+            cls.scenario = payload.get("scenario")
+            cls.mode = payload.get("mode", "script")
+            cls.tape = payload.get("tape")
+            cls.tape_index = 0
+            cls.faults = collections.deque(payload.get("faults") or [])
+            cls.request_index = 0
+            cls.usage = payload.get("usage")
+
+    @classmethod
+    def next_request(cls) -> tuple[int, dict | None]:
+        with lock:
+            cls.request_index += 1
+            return cls.request_index, (cls.faults.popleft() if cls.faults else None)
+
+    @classmethod
+    def next_tape_path(cls) -> Path:
+        with lock:
+            cls.tape_index += 1
+            return cls.tape_dir / (cls.tape or "default") / f"{cls.tape_index:04d}.json"
+
+
+class ConnectionDropped(Exception):
+    """故障の再現で、応答の途中で接続を切る。"""
+
+
+def validate(body: dict, recorded_signatures: bool = False) -> list[str]:
     errors: list[str] = []
     if body.get("model") not in MODELS:
         errors.append(f"model: unknown {body.get('model')!r}")
@@ -128,7 +196,7 @@ def validate(body: dict) -> list[str]:
                         errors.append(f"messages.{index}.content.{k}.input: must be an object")
                     open_tool_uses.append(block.get("id"))
                 elif kind == "thinking":
-                    if not str(block.get("signature", "")).startswith(SIGNATURE_PREFIX):
+                    if not recorded_signatures and not str(block.get("signature", "")).startswith(SIGNATURE_PREFIX):
                         errors.append(f"messages.{index}.content.{k}: Invalid `signature` in `thinking` block")
                 elif kind not in ("text", "redacted_thinking"):
                     errors.append(f"messages.{index}.content.{k}: {kind!r} is not allowed in an assistant message")
@@ -225,7 +293,8 @@ def plan_response(body: dict) -> tuple[list[dict], str]:
         schema = fmt["schema"]
         blocks.append({"type": "text", "text": json.dumps(sample(schema, schema.get("$defs", {})), ensure_ascii=False)})
         return blocks, "end_turn"
-    latest = "\n".join(user_texts(body)[-2:])
+    # 委任は学習者の今の発言で決める(前の回の発言や Codex の足す文の数で、送る範囲が変わらないように)。
+    latest = latest_learner_message(body) or "\n".join(user_texts(body)[-2:])
     if "struis__struis_delegate" in tools and "調べて" in latest:
         previous = last_tool_use(body)
         if not last_user_has_tool_result(body):
@@ -239,6 +308,14 @@ def plan_response(body: dict) -> tuple[list[dict], str]:
                 "task_type": "material_search", "purpose": "例題に近い問題を探す", "sources": found[:1] or ["struis_context/recent_thread_history.md"],
                 "search_scope": "指定したファイル全体", "conditions": "一次方程式", "count": 1, "return_information": "問題文"}})
             return blocks, "tool_use"
+    if "struis__exec_command" in tools and "計算して" in latest:
+        # Workspace の Python を確かめる: SymPy の計算を 1 回呼び、その出力を返事に載せる。
+        if not last_user_has_tool_result(body):
+            blocks.append({"type": "text", "text": "SymPy で計算します。"})
+            blocks.append({"type": "tool_use", "id": f"toolu_fake{n:04d}", "name": "struis__exec_command", "input": {"cmd": SYMPY_COMMAND}})
+            return blocks, "tool_use"
+        blocks.append({"type": "text", "text": chat_reply(body, computed=sympy_output(last_tool_result_text(body)))})
+        return blocks, "end_turn"
     if "struis__exec_command" in tools and not last_user_has_tool_result(body):
         blocks.append({"type": "text", "text": "作業フォルダを確認します。"})
         blocks.append({"type": "tool_use", "id": f"toolu_fake{n:04d}", "name": "struis__exec_command",
@@ -246,6 +323,23 @@ def plan_response(body: dict) -> tuple[list[dict], str]:
         return blocks, "tool_use"
     blocks.append({"type": "text", "text": chat_reply(body)})
     return blocks, "end_turn"
+
+
+SYMPY_COMMAND = ("python3 -c 'import sympy as s; x=s.symbols(\"x\"); "
+                 "print(\"SYMPY\", s.factor(x**2-5*x+6), s.integrate(x**2,(x,0,3)), s.solve(x**2-2,x))'")
+
+
+def sympy_output(result: str) -> str:
+    """道具の結果から `SYMPY ...` の行を取り出す。無ければ結果の先頭を返す(失敗も画面で見えるように)。"""
+    try:
+        decoded = json.loads(result)
+        result = decoded.get("output", result) if isinstance(decoded, dict) else result
+    except (ValueError, TypeError):
+        pass
+    for line in str(result).splitlines():
+        if line.startswith("SYMPY "):
+            return line
+    return "(SYMPY の行が無い) " + str(result)[:200]
 
 
 def user_texts(body: dict) -> list[str]:
@@ -260,6 +354,40 @@ def user_texts(body: dict) -> list[str]:
     return texts
 
 
+LEARNER_MARK = "The learner's current message:\n"
+CONTINUATION = "Continue the remaining model-owned work"
+
+
+def latest_turn_text(body: dict) -> str:
+    """いまのラウンドの依頼文(学習者の発言を載せた文か、続きの依頼)。無ければ空。"""
+    for text in reversed(user_texts(body)):
+        if LEARNER_MARK in text or CONTINUATION in text:
+            return text
+    return ""
+
+
+def latest_learner_message(body: dict) -> str:
+    """最後の `The learner's current message:` の後の、学習者の発言だけ(後ろに付く進行の文脈や記憶は除く)。"""
+    for text in reversed(user_texts(body)):
+        if LEARNER_MARK in text:
+            message = text.rsplit(LEARNER_MARK, 1)[1]
+            for end in ("\n\n", "\nStruis progress context"):
+                message = message.split(end, 1)[0]
+            return message
+    return ""
+
+
+def continue_goal() -> dict:
+    """`disposition: continue` に要る、いま進めている一番小さい目標(モデルの目標、繰り返しなし)。"""
+    return {
+        "id": "fake-continue", "parent_id": None, "title": "平方完成の手順を確かめる", "outcome": "平方完成の手順を説明できる",
+        "learner_action": "説明を読む", "model_action": "手順を続けて説明する", "completion_condition": "手順を最後まで説明した",
+        "kind": "model", "status": "active", "next_action": "続きの手順を説明する", "child_order": [], "evidence": [],
+        "loop": {"enabled": False, "unit": "説明", "repeat_when": "なし", "exit_when": "説明を終えた", "after_exit": "質問を待つ",
+                 "stagnation_attempts": 2, "max_attempts": 1},
+    }
+
+
 def revision_of(text: str) -> int:
     revision = 0
     for match in re.finditer(r'"revision"\s*:\s*(\d+)', text):
@@ -267,16 +395,18 @@ def revision_of(text: str) -> int:
     return revision
 
 
-def chat_reply(body: dict) -> str:
-    """Struis のチャットの約束事(返事 + 非公開ブロック)に沿った最小の返事。"""
+def chat_reply(body: dict, computed: str | None = None) -> str:
+    """Struis のチャットの約束事(返事 + 非公開ブロック)に沿った最小の返事。`computed` は道具の計算結果。"""
     texts = user_texts(body)
     latest = "\n".join(texts[-3:])
+    reply = "Claude(検証用サーバー)からの返事です。一次方程式の文章題の単元を作りましょう。"
+    if computed is not None:
+        reply = "Claude(検証用サーバー)からの返事です。Python の計算結果: " + computed
     if "<struis_current_turn_source>" not in "\n".join(texts) and "progress" not in latest:
-        return "Claude(検証用サーバー)からの返事です。作業フォルダを確認しました。"
+        return reply if computed is not None else "Claude(検証用サーバー)からの返事です。作業フォルダを確認しました。"
     revision = 0
     for match in re.finditer(r'"revision"\s*:\s*(\d+)', latest):
         revision = int(match.group(1))
-    reply = "Claude(検証用サーバー)からの返事です。一次方程式の文章題の単元を作りましょう。"
     if "Your private blocks failed validation" in latest:
         # 修正の回: 書いた返事はそのまま、非公開ブロックだけを返す。
         update = {"schema_version": 1, "base_revision": revision_of(latest), "goals": [], "problems": [], "attempts": [],
@@ -284,6 +414,15 @@ def chat_reply(body: dict) -> str:
         return "<struis_progress_update>" + json.dumps(update, ensure_ascii=False) + "</struis_progress_update>\n<struis_memory_update>NO_UPDATE</struis_memory_update>"
     update = {"schema_version": 1, "base_revision": revision, "goals": [], "problems": [], "attempts": [],
               "current_goal_id": None, "disposition": "not_learning", "next_action": "", "reply_quotes": [reply]}
+    # 学習者が「続けて」と書いた最初のラウンドは、続きのラウンド(`disposition: continue`)を頼む。続きのラウンドは終える。
+    continuing = CONTINUATION in latest_turn_text(body) and LEARNER_MARK not in latest_turn_text(body)
+    if "続けて" in latest_learner_message(body) and not continuing:
+        reply = "Claude(検証用サーバー)からの返事です。続きの説明に進みます。"
+        update.update(goals=[continue_goal()], current_goal_id="fake-continue", disposition="continue",
+                      next_action="続きの手順を説明する", reply_quotes=[reply])
+    elif continuing:
+        reply = "Claude(検証用サーバー)からの返事です。続きの説明はここまでです。"
+        update["reply_quotes"] = [reply]
     blocks = [reply,
               "<struis_progress_update>" + json.dumps(update, ensure_ascii=False) + "</struis_progress_update>",
               "<struis_memory_update>NO_UPDATE</struis_memory_update>"]
@@ -303,14 +442,26 @@ def sse(event: dict) -> bytes:
 class Handler(BaseHTTPRequestHandler):
     log_dir: Path = Path("/tmp/fake-anthropic")
     delay = 0.02
+    protocol_version = "HTTP/1.1"
 
     def log_message(self, *args):  # noqa: D401
         pass
 
+    def do_GET(self):
+        if self.path == "/__health":
+            self.reply(200, {"ok": True})
+            return
+        self.reply(404, {"type": "error", "error": {"type": "not_found_error", "message": self.path}})
+
     def do_POST(self):
         length = int(self.headers.get("content-length", "0"))
         raw = self.rfile.read(length)
-        stamp = f"{time.time():.3f}"
+        arrived = time.time()
+        stamp = f"{arrived:.3f}"
+        if self.path == "/__control":
+            Control.set(json.loads(raw or b"{}"))
+            self.reply(200, {"ok": True})
+            return
         if self.path != "/v1/messages":
             self.reply(404, {"type": "error", "error": {"type": "not_found_error", "message": self.path}})
             return
@@ -318,22 +469,72 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(401, {"type": "error", "error": {"type": "authentication_error", "message": "invalid x-api-key"}})
             return
         body = json.loads(raw)
-        errors = validate(body)
-        record = {"path": self.path, "errors": errors, "request": scrub(body)}
-        if errors:
+        index, fault = Control.next_request()
+        mode = Control.mode
+        # 置き場所は着いた時の場面で決める(直結版は最後のイベントで返るので、書き終わる前に次の場面へ切り替わることがある)。
+        self.scenario = Control.scenario
+        errors = [] if mode == "record" else validate(body, recorded_signatures=mode == "replay")
+        # 送り手(アプリの URLSession は CFNetwork、以前の端末内プロキシ経由は Codex の HTTP クライアント)を見分ける。
+        record = {"path": self.path, "errors": errors, "request": scrub(body), "arrived_at": arrived, "bytes": len(raw), "fault": fault, "mode": mode,
+                  "user_agent": self.headers.get("user-agent"), "peer": self.client_address[0]}
+        self.fault = fault
+        self.events_sent = 0
+        self.fault_fired = False
+        self.record = record
+        self.request_index = index
+        # 同じ接続で次の要求が来ても別の名前にする(HTTP/1.1 の keep-alive では同じ Handler が続けて受ける)。
+        self.log_name = f"{index:04d}.json" if self.scenario else f"{stamp}-{index:04d}.json"
+        self.usage = Control.usage
+        if self.usage:
+            record["usage_override"] = self.usage
+        # 番号を取った要求は、返し終わる前でも記録に残す(返している途中で止まった・落ちた要求も欠番にしない)。
+        record["pending"] = True
+        self.write_log(stamp, record)
+        try:
+            self.answer(raw, body, record, errors, mode, stamp)
+        except ConnectionDropped:
+            record["dropped"] = True
+            self.close_connection = True
+        except (BrokenPipeError, ConnectionResetError):
+            # 依頼主が要求をやめた(止める・時間切れ)。
+            record["client_went_away"] = True
+            self.close_connection = True
+        except Exception as error:  # noqa: BLE001 — 転送の失敗なども記録に残してから接続を閉じる
+            record["exception"] = f"{type(error).__name__}: {error}"
+            self.close_connection = True
+        finally:
+            record.pop("pending", None)
+            record["finished_at"] = time.time()
             self.write_log(stamp, record)
+
+    def answer(self, raw: bytes, body: dict, record: dict, errors: list[str], mode: str, stamp: str):
+        if errors:
+            record["status"] = 400
             self.reply(400, {"type": "error", "error": {"type": "invalid_request_error", "message": "; ".join(errors)}})
+            return
+        fault = self.fault
+        if fault and fault.get("kind") == "http":
+            status = int(fault.get("status", 500))
+            record["status"] = status
+            kind = fault.get("type") or {429: "rate_limit_error", 529: "overloaded_error", 401: "authentication_error", 400: "invalid_request_error"}.get(status, "api_error")
+            headers = {"retry-after": str(fault["retry_after"])} if "retry_after" in fault else {}
+            self.reply(status, {"type": "error", "error": {"type": kind, "message": fault.get("message", f"fake {status}")}}, headers)
+            return
+        if fault and fault.get("kind") == "first_byte_delay":
+            time.sleep(float(fault.get("seconds", 1)))
+        if mode == "record":
+            self.forward(raw, record)
+            return
+        if mode == "replay":
+            self.replay(record)
             return
         blocks, stop = plan_response(body)
         record["response"] = {"blocks": blocks, "stop_reason": stop}
-        self.write_log(stamp, record)
-        self.send_response(200)
-        self.send_header("content-type", "text/event-stream")
-        self.send_header("cache-control", "no-cache")
-        self.end_headers()
+        record["status"] = 200
+        self.begin_stream()
         msg_id = f"msg_fake{next(counter):04d}"
         self.emit({"type": "message_start", "message": {"id": msg_id, "type": "message", "role": "assistant", "model": body["model"],
-                                                        "content": [], "usage": {"input_tokens": 120, "cache_read_input_tokens": 800, "output_tokens": 1}}})
+                                                        "content": [], "usage": {"input_tokens": 120, "cache_read_input_tokens": 800, "output_tokens": 1, **(self.usage or {})}}})
         self.emit({"type": "ping"})
         for index, block in enumerate(blocks):
             kind = block["type"]
@@ -343,6 +544,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.emit({"type": "content_block_delta", "index": index, "delta": {"type": "signature_delta", "signature": block["signature"]}})
             elif kind == "text":
                 self.emit({"type": "content_block_start", "index": index, "content_block": {"type": "text", "text": ""}})
+                self.trickle(index)
                 text = block["text"]
                 for start in range(0, len(text), 12):
                     self.emit({"type": "content_block_delta", "index": index, "delta": {"type": "text_delta", "text": text[start:start + 12]}})
@@ -356,24 +558,174 @@ class Handler(BaseHTTPRequestHandler):
         self.emit({"type": "message_delta", "delta": {"stop_reason": stop, "stop_sequence": None}, "usage": {"output_tokens": 64}})
         self.emit({"type": "message_stop"})
 
-    def emit(self, event: dict):
+    # MARK: 録画と再生
+
+    def forward(self, raw: bytes, record: dict):
+        """本物の API へ転送し、届いた順と間隔のまま返して録る。キーは記録に残さない。"""
+        key = Path(Control.upstream_key_file).read_text().strip() if Control.upstream_key_file else ""
+        request = urllib.request.Request(Control.upstream + "/v1/messages", data=raw, method="POST", headers={
+            "content-type": "application/json", "anthropic-version": "2023-06-01", "accept": "text/event-stream", "x-api-key": key})
+        path = Control.next_tape_path()
+        record["tape"] = str(path)
+        started = time.time()
+        tape: dict = {"events": []}
+        try:
+            response = urllib.request.urlopen(request, timeout=600)
+        except urllib.error.HTTPError as error:
+            payload = error.read()
+            tape.update(status=error.code, body=payload.decode("utf-8", "replace"), retry_after=error.headers.get("retry-after"))
+            self.save_tape(path, tape)
+            record["status"] = error.code
+            self.send_response(error.code)
+            self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(payload)))
+            if error.headers.get("retry-after"):
+                self.send_header("retry-after", error.headers["retry-after"])
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+        record["status"] = response.status
+        tape["status"] = response.status
+        self.begin_stream()
+        data_lines: list[str] = []
+        texts = 0
+        try:
+            for line in response:
+                text = line.decode("utf-8").rstrip("\r\n")
+                if text.startswith("data:"):
+                    data_lines.append(text[5:].strip())
+                elif not text and data_lines:
+                    event = json.loads("\n".join(data_lines))
+                    data_lines = []
+                    tape["events"].append([round(time.time() - started, 4), event])
+                    self.emit(self.override_usage(event), pace=False)
+                    if (event.get("delta") or {}).get("type") == "text_delta":
+                        # 転送の途中の進み具合(本文が流れ始めた時刻と、アプリへ渡した本文の差分の数)を記録に書き出す。
+                        texts += 1
+                        record["text_deltas"] = texts
+                        record["last_text_at"] = time.time()
+                        if texts == 1:
+                            record["first_text_at"] = record["last_text_at"]
+                        if texts == 1 or texts % 10 == 0:
+                            self.write_log("", record)
+        finally:
+            # アプリが要求をやめても、それまでに届いた分を録画に残す。
+            tape["complete"] = any(e[1].get("type") == "message_stop" for e in tape["events"])
+            self.save_tape(path, tape)
+            response.close()
+
+    def override_usage(self, event: dict) -> dict:
+        """`usage` の差し替え(長い会話の切り替えの確認用)。録画には本物の値を残し、アプリへ返す値だけ変える。"""
+        if not self.usage:
+            return event
+        if event.get("type") == "message_start":
+            message = dict(event.get("message") or {})
+            message["usage"] = {**(message.get("usage") or {}), **self.usage}
+            self.record["usage_upstream"] = (event.get("message") or {}).get("usage")
+            return {**event, "message": message}
+        if event.get("type") == "message_delta" and isinstance(event.get("usage"), dict):
+            usage = dict(event["usage"])
+            for key, value in self.usage.items():
+                if key in usage:
+                    usage[key] = value
+            return {**event, "usage": usage}
+        return event
+
+    def save_tape(self, path: Path, tape: dict):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(tape, ensure_ascii=False))
+
+    def replay(self, record: dict):
+        path = Control.next_tape_path()
+        if not path.exists():
+            record["status"] = 409
+            self.reply(409, {"type": "error", "error": {"type": "invalid_request_error", "message": f"tape ended: {path.name}"}})
+            return
+        tape = json.loads(path.read_text())
+        record["status"] = tape.get("status", 200)
+        record["tape"] = str(path)
+        if tape.get("status", 200) != 200:
+            headers = {"retry-after": tape["retry_after"]} if tape.get("retry_after") else {}
+            self.reply(tape["status"], json.loads(tape.get("body") or "{}"), headers)
+            return
+        self.begin_stream()
+        started = time.time()
+        for offset, event in tape["events"]:
+            wait = started + offset - time.time()
+            if wait > 0:
+                time.sleep(wait)
+            self.emit(event, pace=False)
+
+    # MARK: 送信
+
+    def begin_stream(self):
+        self.send_response(200)
+        self.send_header("content-type", "text/event-stream")
+        self.send_header("cache-control", "no-cache")
+        self.send_header("connection", "close")
+        self.end_headers()
+        self.close_connection = True
+
+    def trickle(self, index: int):
+        fault = self.fault
+        if not fault or self.fault_fired or fault.get("kind") != "trickle":
+            return
+        self.fault_fired = True
+        interval = float(fault.get("interval", 1))
+        until = time.time() + float(fault.get("seconds", 900))
+        state = {"sent": 0, "started_at": time.time(), "last_at": None}
+        self.record["trickle"] = state
+        while time.time() < until:
+            state["sent"] += 1
+            self.emit({"type": "content_block_delta", "index": index, "delta": {"type": "text_delta", "text": f"流れ続ける本文の {state['sent']} 番目。"}}, pace=False)
+            state["last_at"] = time.time()
+            time.sleep(interval)
+        state["finished"] = True
+
+    def fault_due(self, event: dict) -> bool:
+        fault = self.fault
+        if not fault or self.fault_fired or fault.get("kind") not in ("drop", "stall", "sse_error"):
+            return False
+        if "after_events" in fault:
+            return self.events_sent >= int(fault["after_events"])
+        wanted = fault.get("after", "text_delta")
+        return (event.get("delta") or {}).get("type") == wanted
+
+    def emit(self, event: dict, pace: bool = True):
         self.wfile.write(sse(event))
         self.wfile.flush()
-        time.sleep(self.delay)
+        self.events_sent += 1
+        if self.fault_due(event):
+            self.fault_fired = True
+            kind = self.fault["kind"]
+            if kind == "stall":
+                time.sleep(float(self.fault.get("seconds", 30)))
+                raise ConnectionDropped()
+            if kind == "sse_error":
+                self.wfile.write(sse({"type": "error", "error": {"type": self.fault.get("type", "overloaded_error"), "message": "fake stream error"}}))
+                self.wfile.flush()
+                raise ConnectionDropped()
+            raise ConnectionDropped()
+        if pace:
+            time.sleep(self.delay)
 
-    def reply(self, status: int, payload: dict):
+    def reply(self, status: int, payload: dict, headers: dict | None = None):
         data = json.dumps(payload, ensure_ascii=False).encode()
         self.send_response(status)
         self.send_header("content-type", "application/json")
         self.send_header("content-length", str(len(data)))
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(data)
 
     def write_log(self, stamp: str, record: dict):
         with lock:
-            self.log_dir.mkdir(parents=True, exist_ok=True)
-            (self.log_dir / f"{stamp}-{len(list(self.log_dir.iterdir())):04d}.json").write_text(
-                json.dumps(record, ensure_ascii=False, indent=1))
+            scenario = getattr(self, "scenario", None)
+            target = self.log_dir / "scenarios" / scenario if scenario else self.log_dir
+            target.mkdir(parents=True, exist_ok=True)
+            name = self.log_name
+            (target / name).write_text(json.dumps(record, ensure_ascii=False, indent=1))
 
 
 def scrub(value):
@@ -381,7 +733,8 @@ def scrub(value):
         return [scrub(v) for v in value]
     if isinstance(value, dict):
         if value.get("type") == "base64" and "data" in value:
-            return {**value, "data": f"…({len(value['data'])} chars)"}
+            digest = hashlib.sha256(value["data"].encode()).hexdigest()[:16]
+            return {**value, "data": f"…({len(value['data'])} chars sha256={digest})"}
         return {k: scrub(v) for k, v in value.items()}
     return value
 
@@ -390,8 +743,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--log-dir", default="/tmp/fake-anthropic")
+    parser.add_argument("--tape-dir", default=None, help="録画の置き場所(既定 <log-dir>/tapes)")
+    parser.add_argument("--upstream", default="https://api.anthropic.com", help="mode=record の転送先")
+    parser.add_argument("--upstream-key-file", default=None, help="mode=record で使う API キーのファイル")
     args = parser.parse_args()
     Handler.log_dir = Path(args.log_dir)
+    Control.tape_dir = Path(args.tape_dir) if args.tape_dir else Path(args.log_dir) / "tapes"
+    Control.upstream = args.upstream
+    Control.upstream_key_file = args.upstream_key_file
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     print(f"fake anthropic on 127.0.0.1:{args.port}", flush=True)
     server.serve_forever()

@@ -4,10 +4,9 @@ import OSLog
 
 nonisolated private let contextStoreLog = Logger(subsystem: "com.digiloglab.strius", category: "thread-context")
 
-/// Codex のスレッドに何を渡し済みかの控え(信頼性計画 P1)。
+/// 会話のスレッドに何を渡し済みかの控え(信頼性計画 P1)。
 ///
-/// Codex の rollout(スレッドの履歴)はアプリ内の Codex home にあり、台帳の書き出しには入らない。
-/// この控えも同じく Codex 側の状態の写しなので、Codex home の隣に置く(台帳には入れない)。
+/// 会話の履歴(`ClaudeConversationStore`)と同じく、台帳の書き出しと同期には入らない端末の控え。
 /// - `developer`: そのスレッドの履歴に入っている developer 指示のハッシュ。版が変わった時だけ渡し直す。
 /// - `memory`: 直近のターンの入力に載せた記憶の根拠のハッシュ。変わらなければ次のターンでは載せない。
 /// - `notices`: 次のターンの前にスレッドへ入れる Struis からの注記(期限で止めた、など)。

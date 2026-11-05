@@ -97,6 +97,39 @@ final class GoalChangesTests: XCTestCase {
         }
     }
 
+    /// 前のターンの根拠(model と learner)を持つ目標に、根拠を足さない `goal_changes` を送る。チャットのターンは
+    /// `ChatTurns.referencedMessageIDs` が集めた id の本文だけを台帳から読むので、合成された保存済みの根拠の id も
+    /// 集めないと `model evidence must refer to an owned assistant reply` で落ちる(例題の 2 回目の答えで起きた)。
+    func testGoalChangesLoadTheStoredEvidenceOfTheChangedGoal() throws {
+        var base = try base()
+        // 前のターン: 返事(model)と学習者の答え(learner)を根拠に持つ目標。
+        let priorUser: String = "a0000000-0000-4000-8000-0000000000a1"
+        var goal: Goal = base.state.goals.values[0]
+        goal.evidence = [
+            GoalEvidence(messageID: base.assistant, kind: "model", summary: "理由を説明した", quote: "操作の理由を説明しました"),
+            GoalEvidence(messageID: priorUser, kind: "learner", summary: "第5項を答えた", quote: "a_5 = 162"),
+        ]
+        base.state.goals[goal.id] = goal
+        let stored: [String: LearningProgress.SourceMessage] = [
+            base.assistant: (role: "assistant", plainText: base.reply),
+            priorUser: (role: "user", plainText: "a_5 = 2·3^4 = a_5 = 162"),
+        ]
+        // 今のターン: 根拠を足さずに次の行動だけ変える。
+        var raw = base.raw
+        raw["goal_changes"] = .array([.object(EngineObject([("id", .string(goal.id)), ("next_action", .string("類題へ進む"))]))])
+        let json: JSONObject = try XCTUnwrap(EngineJSON.object(raw).anyValue as? JSONObject)
+        let ids: Set<String> = ChatTurns.referencedMessageIDs(json, before: base.state)
+        XCTAssertTrue(Set(stored.keys).isSubset(of: ids), "missing: \(Set(stored.keys).subtracting(ids).sorted())")
+        // 台帳から読むのと同じく、集めた id の本文だけを渡す。
+        let loaded: [String: LearningProgress.SourceMessage] = stored.filter { ids.contains($0.key) }
+        let next: ProgressState = try LearningProgress.applyUpdate(
+            before: base.state, raw: .object(raw), reply: base.reply, userMessageID: "a0000000-0000-4000-8000-0000000000b1",
+            assistantMessageID: "a0000000-0000-4000-8000-0000000000b2", sourceMessages: loaded, now: base.now
+        )
+        XCTAssertEqual(next.goals[goal.id]?.nextAction, "類題へ進む")
+        XCTAssertEqual(next.goals[goal.id]?.evidence, goal.evidence)
+    }
+
     func testUpdatesWithoutGoalChangesAreUntouched() throws {
         let raw = EngineJSON.object(EngineObject([("schema_version", .integer(1)), ("goals", .array([]))]))
         XCTAssertEqual(try LearningProgress.expandGoalChanges(raw, before: .init()), raw)

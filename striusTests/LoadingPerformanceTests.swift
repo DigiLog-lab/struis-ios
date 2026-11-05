@@ -51,7 +51,7 @@ struct LoadingPerformanceTests {
     /// thread's rows, a new ledger event reaches the open thread, and logout clears it.
     @Test func conversationFollowsLedgerAndClearsOnReset() async throws {
         let ledger = try Ledger.inMemory()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: MockTurnRunner())
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: MockTurnRunner())
         let store = ChatStore(ledger: ledger, turns: turns)
         let first = try await seedThread(ledger, n: 1, text: "最初の内容")
         let second = try await seedThread(ledger, n: 2, text: "別の内容")

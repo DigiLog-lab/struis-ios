@@ -36,7 +36,7 @@ final class TimelineReviewFindingsTests: XCTestCase {
 
     @MainActor
     private func store(_ ledger: Ledger) -> TimelineStore {
-        TimelineStore(ledger: ledger, turns: TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: FailingRunner()))
+        TimelineStore(ledger: ledger, turns: TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: FailingRunner()))
     }
 
     private func grading(_ grade: String, skills: [String]) throws -> TimelineMachine.Grading {

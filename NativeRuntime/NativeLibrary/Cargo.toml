@@ -1,0 +1,37 @@
+[package]
+name = "hyotan-native"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["staticlib"]
+
+[features]
+default = []
+# Each feature is built into its own archive (libhyotan_search.a for the Exec
+# worker, libhyotan_operations.a for the app); never both in one archive.
+operations = ["dep:libc", "dep:hyotan-operation-harness"]
+search = ["dep:grep-regex", "dep:grep-searcher", "dep:ignore", "dep:libc"]
+# Metadata only: pins the reviewed source build-ca.py encodes into
+# Resources/cacert.pem. No library build enables it, so nothing is linked.
+ca-bundle = ["dep:webpki-root-certs"]
+
+[dependencies]
+grep-regex = { version = "=0.1.14", optional = true }
+grep-searcher = { version = "=0.1.17", optional = true }
+ignore = { version = "0.4", optional = true }
+libc = { version = "0.2", optional = true }
+hyotan-operation-harness = { path = "../OperationHarness", optional = true }
+webpki-root-certs = { version = "=1.0.9", optional = true }
+
+[profile.release]
+opt-level = "s"
+codegen-units = 1
+
+# macOS 27 rejects misaligned LINKEDIT data produced when Rust strips
+# host proc-macro dylibs. Keep their debug info; device code is unchanged.
+[profile.release.build-override]
+debug = true
+strip = "none"

@@ -70,7 +70,7 @@ final class TimelineBatchWaitTests: XCTestCase {
     func testBatchRequestedWithNoCardOnHandIsNotAPrefetch() async throws {
         let ledger: Ledger = try await unitLedger()
         let runner = HangingRunner()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         let store = TimelineStore(ledger: ledger, turns: turns)
         await store.start()
         XCTAssertEqual(store.phase, .waiting)
@@ -102,7 +102,7 @@ final class TimelineBatchWaitTests: XCTestCase {
             return (timeline.events, id)
         }
         let runner = HangingRunner()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         await turns.resumeUnfinished()
         let store = TimelineStore(ledger: ledger, turns: turns)
         await store.start()
@@ -128,7 +128,7 @@ final class TimelineBatchWaitTests: XCTestCase {
             createdAt: LedgerClock.now(), startedAt: nil, completedAt: nil
         ))])
         let runner = HangingRunner()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         let before: Bool = await turns.isWorking(on: batchID)
         XCTAssertTrue(before, "起動時の後始末の前は、残った行をこれから組み直されるものとして数える")
         // 後始末: 前のプロセスのプランは流さず、行を閉じて今の設定で組み直す(まだ requested の依頼なので)。
@@ -150,11 +150,10 @@ final class TimelineBatchWaitTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_793_404_800)
         let recent: String = LedgerClock.iso(now.addingTimeInterval(-3600))
         let old: String = LedgerClock.iso(now.addingTimeInterval(-25 * 3600))
-        XCTAssertNil(TurnCoordinator.staleReason(createdAt: recent, planProvider: .anthropic, current: .anthropic, now: now))
-        XCTAssertNil(TurnCoordinator.staleReason(createdAt: recent, planProvider: nil, current: .openai, now: now))
-        XCTAssertNotNil(TurnCoordinator.staleReason(createdAt: old, planProvider: .anthropic, current: .anthropic, now: now), "1 日を超えたプラン")
-        XCTAssertNotNil(TurnCoordinator.staleReason(createdAt: recent, planProvider: nil, current: .anthropic, now: now), "ChatGPT で組んだプランを Claude の設定で流さない")
-        XCTAssertNotNil(TurnCoordinator.staleReason(createdAt: recent, planProvider: .anthropic, current: .openai, now: now))
+        XCTAssertNil(TurnCoordinator.staleReason(createdAt: recent, now: now))
+        XCTAssertNotNil(TurnCoordinator.staleReason(createdAt: old, now: now), "1 日を超えたプラン")
+        XCTAssertNotNil(TurnCoordinator.retiredModelReason("gpt-6.1-sol"), "ChatGPT の経路の頃のプラン")
+        XCTAssertNil(TurnCoordinator.retiredModelReason("claude-sonnet-5-5"))
     }
 
     // MARK: 待ちの画面の「止める」
@@ -163,7 +162,7 @@ final class TimelineBatchWaitTests: XCTestCase {
     func testStoppingTheWaitShowsTheRetry() async throws {
         let ledger: Ledger = try await unitLedger()
         let runner = HangingRunner()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         let store = TimelineStore(ledger: ledger, turns: turns)
         await store.start()
         let batchID: String = try XCTUnwrap(store.awaitedBatchID)
@@ -223,7 +222,7 @@ final class TimelineBatchWaitTests: XCTestCase {
     @MainActor
     func testAcquireReportsTheWaitAndItsEnd() async throws {
         let ledger: Ledger = try Ledger.inMemory()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: HangingRunner())
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: HangingRunner())
         let first: Bool = await turns.acquire(kind: .timelineGrading, turnID: "a")
         let second: Bool = await turns.acquire(kind: .timelineGraph, turnID: "b")
         XCTAssertTrue(first && second)

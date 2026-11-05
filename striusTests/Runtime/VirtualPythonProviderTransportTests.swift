@@ -79,7 +79,7 @@ final class VirtualPythonProviderTransportTests: XCTestCase {
         if let root = NativeRuntimePaths.sharedRoot {
             try FileManager.default.createDirectory(at: root.deletingLastPathComponent().appendingPathComponent("Library"), withIntermediateDirectories: true)
         }
-        _ = try await host.start { _ in }
+        host.prepareForCommands()
         let workspace = HyotanBoot.workspaceRoot.appendingPathComponent("provider-transport-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
         return (host, workspace)

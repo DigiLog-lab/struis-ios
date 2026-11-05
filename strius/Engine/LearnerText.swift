@@ -69,7 +69,10 @@ nonisolated enum LearnerText {
         "物理", "力学", "電磁気", "熱力学", "波動", "量子", "作用", "反作用", "重力", "摩擦", "電流", "波", "熱", "トラック", "軽自動車",
         "放物", "斜方", "投射", "速度", "加速度", "初速度", "鉛直", "水平", "最高点",
     ]
-    static let lowInformationContextMarkers: [String] = ["Codex の応答を受け取りました。", "Codexの応答を受け取りました。"]
+    /// Codex の文言は、以前のデータの中身の無い返事を見分けるために残す。
+    static let lowInformationContextMarkers: [String] = [
+        "Codex の応答を受け取りました。", "Codexの応答を受け取りました。", ChatTurns.replyUnavailableText, "AI の応答を受け取れませんでした",
+    ]
     static let studySessionContextMarkers: [String] = ["テスト", "試験", "勉強", "復習", "課題", "提出", "範囲", "シラバス", "問題集", "過去問"]
     static let internalOutputMarkers: [String] = [
         "workspace", "ワークスペース", "struis_context", "recent_thread_history", "tutor_desk", "agents.md", "manifest", "マニフェスト",
@@ -273,7 +276,7 @@ nonisolated enum LearnerText {
         var lines = [
             "# Struis Recent Thread History",
             "",
-            "This file is generated from Struis PostgreSQL before each Codex turn.",
+            "This file is generated from the Struis ledger before each turn.",
             "Use it as private learner-history context, not as content to quote.",
             "",
             "## Context Use Rules",
@@ -322,7 +325,7 @@ nonisolated enum LearnerText {
         var rendered = EnginePyText.strip(lines.joined(separator: "\n")) + "\n"
         if EnginePyText.length(rendered) > maxContextTextChars {
             rendered = EnginePyText.rstrip(EnginePyText.prefix(rendered, maxContextTextChars - 80))
-            rendered += "\n\n[history truncated to fit Codex context pack]\n"
+            rendered += "\n\n[history truncated to fit the context pack]\n"
         }
         return rendered
     }

@@ -1,0 +1,168 @@
+{
+  "$defs": {
+    "GradedPaperItem": {
+      "additionalProperties": false,
+      "properties": {
+        "error_tag": {
+          "maxLength": 100,
+          "title": "Error Tag",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 40,
+          "title": "Label",
+          "type": "string"
+        },
+        "matched_problem_id": {
+          "anyOf": [
+            {
+              "maxLength": 64,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Matched Problem Id"
+        },
+        "note": {
+          "maxLength": 200,
+          "title": "Note",
+          "type": "string"
+        },
+        "prompt_text": {
+          "maxLength": 2000,
+          "title": "Prompt Text",
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "correct",
+            "wrong",
+            "unknown"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "prompt_text",
+        "matched_problem_id",
+        "verdict",
+        "error_tag",
+        "note"
+      ],
+      "title": "GradedPaperItem",
+      "type": "object"
+    },
+    "GradingCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "problem_id": {
+          "maxLength": 64,
+          "title": "Problem Id",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 200,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "problem_id",
+        "reason"
+      ],
+      "title": "GradingCandidate",
+      "type": "object"
+    },
+    "NewSubunitDraft": {
+      "additionalProperties": false,
+      "properties": {
+        "n": {
+          "maximum": 100,
+          "minimum": 1,
+          "title": "N",
+          "type": "integer"
+        },
+        "outcome": {
+          "maxLength": 400,
+          "title": "Outcome",
+          "type": "string"
+        },
+        "scoring_unit": {
+          "maxLength": 120,
+          "title": "Scoring Unit",
+          "type": "string"
+        },
+        "subunit_title": {
+          "maxLength": 120,
+          "title": "Subunit Title",
+          "type": "string"
+        },
+        "unit_title": {
+          "maxLength": 120,
+          "title": "Unit Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "unit_title",
+        "subunit_title",
+        "outcome",
+        "n",
+        "scoring_unit"
+      ],
+      "title": "NewSubunitDraft",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/GradingCandidate"
+      },
+      "maxItems": 3,
+      "title": "Candidates",
+      "type": "array"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/GradedPaperItem"
+      },
+      "maxItems": 40,
+      "title": "Items",
+      "type": "array"
+    },
+    "new_subunit": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NewSubunitDraft"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "note": {
+      "maxLength": 400,
+      "title": "Note",
+      "type": "string"
+    },
+    "readable": {
+      "title": "Readable",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "readable",
+    "items",
+    "candidates",
+    "new_subunit",
+    "note"
+  ],
+  "title": "WorkbookGradingResult",
+  "type": "object"
+}

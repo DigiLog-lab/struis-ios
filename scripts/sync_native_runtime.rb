@@ -4,11 +4,52 @@ require 'pathname'
 root = File.expand_path('..', __dir__)
 project = Xcodeproj::Project.open(File.join(root, 'strius.xcodeproj'))
 app = project.targets.find { |t| t.name == 'strius' }
-# Two extensions from the same worker code: StruisRuntime runs Codex, StruisExec runs Python and shell
-# for Codex's tool calls. Each extension process has its own memory limit on a device.
+# One extension: StruisExec runs Python and shell for the model's tool calls in its own process,
+# with its own memory limit on a device. The model API is called directly from the app.
 # Bundle ID は本体の STRUIS_BUNDLE_ID_BASE から導く(dbd38e3: プロトタイプ配信は preview.sNN の ID に切り替える)。
 # 固定の文字列を書くと、再同期のたびに切り替えが外れて Ad Hoc の profile と合わなくなる(2026-10-18 の Prototype #4 b)。
-WORKERS = { 'StruisRuntime' => ['$(STRUIS_BUNDLE_ID_BASE).runtime', 'Struis Runtime'], 'StruisExec' => ['$(STRUIS_BUNDLE_ID_BASE).exec', 'Struis Exec'] }
+WORKERS = { 'StruisExec' => ['$(STRUIS_BUNDLE_ID_BASE).exec', 'Struis Exec'] }
+# Retired targets and app frameworks. Their removal is part of every regeneration,
+# so a project restored from an older revision converges to the same file.
+RETIRED_WORKERS = %w[StruisRuntime]
+RETIRED_VENDOR = %w[Vendor/NativeCodex.xcframework Vendor/NativeCodexHost.xcframework]
+RETIRED_SOURCES = %w[Worker/AudioDuration.m Worker/CodexBridge.h Worker/Codex-Bridging-Header.h Worker/Worker-Bridging-Header.h]
+RETIRED_WORKERS.each do |name|
+  target = project.targets.find { |t| t.name == name }
+  next unless target
+  product = target.product_reference
+  project.targets.each do |other|
+    other.dependencies.to_a.each do |dependency|
+      next unless dependency.target == target || dependency.target_proxy&.remote_global_id_string == target.uuid
+      dependency.target_proxy&.remove_from_project
+      dependency.remove_from_project
+    end
+    other.build_phases.each do |phase|
+      phase.files.to_a.each { |file| file.remove_from_project if product && file.file_ref == product }
+    end
+  end
+  project.objects.select { |object| object.isa == 'PBXContainerItemProxy' && object.remote_global_id_string == target.uuid }.each(&:remove_from_project)
+  project.root_object.attributes['TargetAttributes']&.delete(target.uuid)
+  target.build_configuration_list.build_configurations.to_a.each(&:remove_from_project)
+  target.build_configuration_list.remove_from_project
+  # Xcodeproj compares objects by contents, so removing a build file through the
+  # API also drops identical build files (same source, no settings) from other
+  # targets. Detach this target's build files by identity instead.
+  target.build_phases.to_a.each do |phase|
+    phase.files.to_a.each do |build_file|
+      build_file.file_ref&.referrers&.delete_if { |referrer| referrer.equal?(build_file) }
+      project.objects_by_uuid.delete(build_file.uuid)
+    end
+    Array.instance_method(:clear).bind(phase.files).call
+    phase.remove_from_project
+  end
+  target.remove_from_project
+  product&.remove_from_project
+end
+project.files.select { |file| (RETIRED_VENDOR + RETIRED_SOURCES).include?(file.path.to_s) }.each do |file|
+  file.build_files.to_a.each(&:remove_from_project)
+  file.remove_from_project
+end
 workers = WORKERS.keys.map do |name|
   project.targets.find { |t| t.name == name } || project.new_target(:app_extension, name, :ios, '26.4').tap do |t|
     t.product_type = 'com.apple.product-type.extensionkit-extension'
@@ -20,10 +61,9 @@ native.path = 'NativeRuntime'
 def reference(group, path)
   group.files.find { |f| f.path == path } || group.new_file(path)
 end
-# The host runs Codex in its own process from a dynamic framework that also
-# exports the trusted workspace operations. Commands (Python, shell) remain in
-# the Exec worker.
-app_native = 'Vendor/NativeCodexHost.xcframework'
+# The host links only the trusted workspace operations, statically (not embedded).
+# Commands (Python, shell) remain in the Exec worker.
+app_native = 'Vendor/NativeOperations.xcframework'
 app.frameworks_build_phase.files.to_a.each do |file|
   path = file.file_ref&.path.to_s
   next unless path.start_with?('Vendor/')
@@ -33,10 +73,9 @@ operations = reference(native, app_native)
 matching = app.frameworks_build_phase.files.select { |file| file.file_ref == operations }
 matching.drop(1).each(&:remove_from_project)
 app.frameworks_build_phase.add_file_reference(operations, true) unless app.frameworks_build_phase.files.any? { |file| file.file_ref == operations }
-host_embed = app.copy_files_build_phases.find { |p| p.name == 'Embed Native Frameworks' } || app.new_copy_files_build_phase('Embed Native Frameworks')
-host_embed.dst_subfolder_spec = '10'
-host_build = host_embed.files.find { |file| file.file_ref == operations } || host_embed.add_file_reference(operations, true)
-host_build.settings = { 'ATTRIBUTES' => ['CodeSignOnCopy', 'RemoveHeadersOnCopy'] }
+app.copy_files_build_phases.each do |phase|
+  phase.files.to_a.each { |file| file.remove_from_project if file.file_ref == operations }
+end
 host_ca = reference(native, 'Resources/cacert.pem')
 app.resources_build_phase.add_file_reference(host_ca, true) unless app.resources_build_phase.files.any? { |file| file.file_ref == host_ca }
 notices = reference(native, 'Licenses')
@@ -55,11 +94,9 @@ app.source_build_phase.add_file_reference(shared, true)
 # Remove previous shared build entries before applying explicit role ownership.
 # Re-running this script must not retain dependencies from the former combined worker.
 WORKER_SOURCES = {
-  'StruisRuntime' => %w[RuntimeWorker.swift WorkerSupport.m NativeMemory.m AudioDuration.m],
   'StruisExec' => %w[RuntimeWorker.swift WorkerSupport.m NativeMemory.m RuntimeCommand.m PythonCommand.m GraphicsModule.m SearchCommand.m VirtualPythonCommandBridge.c VirtualPythonCommandBridgeAppleProbe.c VirtualPythonProviderAdapter.m]
 }
 WORKER_FRAMEWORKS = {
-  'StruisRuntime' => %w[NativeCodex],
   'StruisExec' => %w[NativeSearch ios_system-native files-native text-native shell-native awk-native dash-native Python]
 }
 workers.each do |worker|
@@ -101,10 +138,6 @@ workers.each do |worker|
   end
   %w[Resources/cacert.pem Resources/commandDictionary.plist Licenses].each do |path|
     ref = reference(native, path)
-    if path == 'Resources/commandDictionary.plist' && worker.name == 'StruisRuntime'
-      worker.resources_build_phase.files.to_a.each { |file| file.remove_from_project if file.file_ref == ref }
-      next
-    end
     matching = worker.resources_build_phase.files.select { |file| file.file_ref == ref }
     matching.drop(1).each(&:remove_from_project)
     ref.last_known_file_type = 'folder' if File.directory?(File.join(root, 'NativeRuntime', path))
@@ -117,7 +150,7 @@ workers.each do |worker|
   WORKER_FRAMEWORKS.fetch(worker.name).each do |name|
     ref = reference(native, "Vendor/#{name}.xcframework")
     worker.frameworks_build_phase.add_file_reference(ref, true) unless worker.frameworks_build_phase.files.any? { |file| file.file_ref == ref }
-    unless %w[NativeCodex NativeSearch].include?(name)
+    unless %w[NativeSearch].include?(name)
       phase = app.copy_files_build_phases.find { |p| p.name == 'Embed Native Frameworks' } || app.new_copy_files_build_phase('Embed Native Frameworks')
       phase.dst_subfolder_spec = '10'
       build = phase.files.find { |file| file.file_ref == ref } || phase.add_file_reference(ref, true)
@@ -147,9 +180,9 @@ worker.build_configurations.each do |config|
     # Prebuilt CPython/Rust dependencies provide arm64, not an arm64e slice.
     # The extension point does not request EnhancedSecurity: that sandbox denies the app group.
     'ENABLE_POINTER_AUTHENTICATION'=>'NO', 'LD_GENERATE_MAP_FILE'=>'YES',
-    'SWIFT_OBJC_BRIDGING_HEADER'=>"NativeRuntime/Worker/#{worker.name == 'StruisRuntime' ? 'Codex' : 'Exec'}-Bridging-Header.h",
-    'SWIFT_ACTIVE_COMPILATION_CONDITIONS'=>['$(inherited)', (config.name == 'Debug' ? 'DEBUG' : nil), (worker.name == 'StruisRuntime' ? 'STRUIS_CODEX_WORKER' : 'STRUIS_EXEC_WORKER')].compact,
-    'GCC_PREPROCESSOR_DEFINITIONS'=>['$(inherited)', (config.name == 'Debug' ? 'DEBUG=1' : nil), (worker.name == 'StruisRuntime' ? 'STRUIS_CODEX_WORKER=1' : 'STRUIS_EXEC_WORKER=1')].compact,
+    'SWIFT_OBJC_BRIDGING_HEADER'=>'NativeRuntime/Worker/Exec-Bridging-Header.h',
+    'SWIFT_ACTIVE_COMPILATION_CONDITIONS'=>['$(inherited)', (config.name == 'Debug' ? 'DEBUG' : nil), 'STRUIS_EXEC_WORKER'].compact,
+    'GCC_PREPROCESSOR_DEFINITIONS'=>['$(inherited)', (config.name == 'Debug' ? 'DEBUG=1' : nil), 'STRUIS_EXEC_WORKER=1'].compact,
     'OTHER_LDFLAGS'=>['$(inherited)', '-Wl,-export_dynamic','-lc++','-liconv','-lz','-lresolv','-framework','UIKit','-framework','AVFoundation','-framework','Security','-framework','SystemConfiguration'],
     'LD_RUNPATH_SEARCH_PATHS'=>['$(inherited)','@executable_path/Frameworks','@executable_path/../../Frameworks'],
     'TARGETED_DEVICE_FAMILY'=>'1,2', 'CURRENT_PROJECT_VERSION'=>app.build_configurations.first.build_settings['CURRENT_PROJECT_VERSION'], 'MARKETING_VERSION'=>app.build_configurations.first.build_settings['MARKETING_VERSION']
@@ -184,7 +217,8 @@ app.build_configurations.each do |config|
   config.build_settings['ENABLE_USER_SCRIPT_SANDBOXING'] = 'NO'
   config.build_settings['EX_ENABLE_EXTENSION_POINT_GENERATION'] = 'YES'
   config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'NativeRuntime/Runtime.entitlements'
-  config.build_settings['OTHER_LDFLAGS'] = ['$(inherited)', '-lsqlite3', '-lz']
+  # libhyotan_operations.a (Rust std) needs libiconv; the rest is in libSystem.
+  config.build_settings['OTHER_LDFLAGS'] = ['$(inherited)', '-lsqlite3', '-lz', '-liconv']
   config.build_settings['HEADER_SEARCH_PATHS'] = '$(inherited)'
   config.build_settings.delete('LIBRARY_SEARCH_PATHS[sdk=iphoneos*]')
   config.build_settings.delete('LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]')

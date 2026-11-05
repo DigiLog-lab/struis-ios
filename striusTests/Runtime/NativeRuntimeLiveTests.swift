@@ -1,121 +1,12 @@
 import XCTest
 import UIKit
-import PDFKit
-import Network
 import CryptoKit
 import ImageIO
 @testable import strius
 
-/// Test-owned HTTP endpoint, bound only to loopback. It drains the actual JSON
-/// request without retaining its body, then returns a complete HTTP 503. No
-/// model response or app-server protocol is simulated.
-nonisolated private final class NativePdfFailureEndpoint: @unchecked Sendable {
-    private let listener: NWListener
-    private let queue = DispatchQueue(label: "native.pdf.failure-endpoint")
-    private let lock = NSLock()
-    private var connections: [NWConnection] = []
-    private var didReceiveRequest = false
-    private var stopped = false
-    private var startResolved = false
-    var receivedRequest: Bool { lock.lock(); defer { lock.unlock() }; return didReceiveRequest }
-
-    init() throws {
-        let parameters = NWParameters.tcp
-        parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
-        listener = try NWListener(using: parameters)
-    }
-
-    func start() async throws -> UInt16 {
-        try await withCheckedThrowingContinuation { continuation in
-            listener.stateUpdateHandler = { [weak self] state in
-                guard let self else { return }
-                let result: Result<UInt16, Error>
-                switch state {
-                case .ready:
-                    if let port = self.listener.port { result = .success(port.rawValue) }
-                    else { result = .failure(CodexAppServerError.malformed("loopback listener has no port")) }
-                case .failed(let error), .waiting(let error): result = .failure(error)
-                default: return
-                }
-                self.lock.lock()
-                guard !self.startResolved else { self.lock.unlock(); return }
-                self.startResolved = true
-                self.lock.unlock()
-                self.listener.stateUpdateHandler = nil
-                if case .failure = result { self.listener.cancel() }
-                continuation.resume(with: result)
-            }
-            listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
-            listener.start(queue: queue)
-        }
-    }
-
-    func stop() {
-        lock.lock()
-        stopped = true
-        let active = connections
-        connections.removeAll()
-        lock.unlock()
-        listener.cancel()
-        active.forEach { $0.cancel() }
-    }
-
-    nonisolated private final class Request: @unchecked Sendable {
-        // All request parsing runs on the endpoint's serial queue.
-        var header = Data()
-        var remaining: Int?
-    }
-
-    private func accept(_ connection: NWConnection) {
-        lock.lock()
-        if stopped { lock.unlock(); connection.cancel(); return }
-        connections.append(connection)
-        lock.unlock()
-        connection.start(queue: queue)
-        receive(connection, request: Request())
-    }
-
-    private func receive(_ connection: NWConnection, request: Request) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { [weak self] data, _, complete, error in
-            guard let self else { connection.cancel(); return }
-            if let data {
-                if let remaining = request.remaining {
-                    request.remaining = remaining - data.count
-                } else {
-                    request.header.append(data)
-                    guard request.header.count <= 128 * 1024 else { connection.cancel(); return }
-                    if let end = request.header.range(of: Data("\r\n\r\n".utf8)) {
-                        let header = String(decoding: request.header[..<end.lowerBound], as: UTF8.self)
-                        let length = header.components(separatedBy: "\r\n").compactMap { line -> Int? in
-                            let pair = line.split(separator: ":", maxSplits: 1)
-                            guard pair.count == 2, pair[0].lowercased() == "content-length" else { return nil }
-                            return Int(pair[1].trimmingCharacters(in: .whitespaces))
-                        }.first
-                        guard header.hasPrefix("POST /v1/responses "), let length, (1...32 * 1024 * 1024).contains(length) else {
-                            connection.cancel(); return
-                        }
-                        request.remaining = length - (request.header.count - end.upperBound)
-                        request.header.removeAll(keepingCapacity: false)
-                    }
-                }
-                if let remaining = request.remaining, remaining <= 0 {
-                    self.lock.lock(); self.didReceiveRequest = true; self.lock.unlock()
-                    let body = Data("{\"error\":{\"message\":\"Intentional local test failure\",\"type\":\"server_error\"}}".utf8)
-                    var response = Data("HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n".utf8)
-                    response.append(body)
-                    connection.send(content: response, isComplete: true, completion: .contentProcessed { _ in connection.cancel() })
-                    return
-                }
-            }
-            guard error == nil, !complete else { connection.cancel(); return }
-            self.receive(connection, request: request)
-        }
-    }
-}
-
 /// Runs the shipped native worker on Simulator. No command output is mocked.
 final class NativeRuntimeLiveTests: XCTestCase {
-    private enum MemoryPhase: String { case start, beforeImage = "before_image", afterImage = "after_image", afterMath = "after_math" }
+    private enum MemoryPhase: String { case afterMath = "after_math" }
 
     @MainActor
     private func recordMemory(_ reply: NativeRuntimeReply, role: NativeMemoryObservation.Role, phase: MemoryPhase) throws {
@@ -295,7 +186,7 @@ final class NativeRuntimeLiveTests: XCTestCase {
             ChatRepository.createMessage(id: userID, threadID: threadID, role: "user", status: "completed", plainText: "fixture question",
                                          blocks: .emptyArray, metadata: metadata).1,
         ])
-        let assets = AssetCache(root: directory.appendingPathComponent("assets", isDirectory: true), lenient: true)
+        let assets = AssetCache()
         var previousImage: TurnPlan.ImageRef?
         var derivedURL: URL?
         defer {
@@ -349,308 +240,13 @@ final class NativeRuntimeLiveTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(rowsAfterCompose.first { $0.id == userID }).metadata, metadata)
     }
 
-    /// Real pinned fs/readFile supplies a response beyond Foundation's default
-    /// 1 MiB limit. Compare the old failure and configured production transport;
-    /// no model authentication or mocked WebSocket is involved.
-    @MainActor
-    func testLargeNativeRpcResponseKeepsSessionConnected() async throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["STRUIS_NATIVE_LIVE"] == "1", "native Simulator integration is opt-in")
-        let boot = HyotanBoot()
-        await boot.start()
-        let directory = HyotanBoot.workspaceRoot.appendingPathComponent("large-rpc-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let file = directory.appendingPathComponent("fixture.bin")
-        let expected = Data(repeating: 0x5a, count: 1_000_000)
-        try expected.write(to: file)
-        defer { try? FileManager.default.removeItem(at: directory) }
-
-        let old = CodexAppServerSession(clientVersion: "native-large-rpc", launcher: CodexAppServerSession.nativeLauncher(boot: boot, maximumMessageSize: 1_048_576))
-        do {
-            try await old.start()
-            do {
-                _ = try await old.request("fs/readFile", params: ["path": file.path])
-                XCTFail("1 MiBの旧上限が1.33 MiBの実RPC応答を受理した")
-            } catch let error as CodexAppServerError {
-                guard case .closed(let diagnostic) = error else { throw error }
-                XCTAssertTrue(diagnostic.contains("stage=receive"), diagnostic)
-                XCTAssertTrue(diagnostic.contains("receive_limit=1048576"), diagnostic)
-                print("NATIVE_RPC_OLD_LIMIT_FAILURE \(diagnostic)")
-            }
-        } catch {
-            await old.close()
-            NativeRuntimeHost.shared.stop()
-            await NativeRuntimeHost.shared.waitForRetirement()
-            throw error
-        }
-        await old.close()
-        NativeRuntimeHost.shared.stop()
-        await NativeRuntimeHost.shared.waitForRetirement()
-
-        let session = CodexAppServerSession(clientVersion: "native-large-rpc", launcher: CodexAppServerSession.nativeLauncher(boot: boot))
-        do {
-            try await session.start()
-            let generation = await session.generation
-            let response = try await session.request("fs/readFile", params: ["path": file.path])
-            let base64 = try XCTUnwrap(response["dataBase64"] as? String)
-            XCTAssertGreaterThan(base64.utf8.count, 1_048_576)
-            XCTAssertEqual(Data(base64Encoded: base64), expected)
-            _ = try await session.request("account/read", params: ["refreshToken": false])
-            let after = await session.generation
-            XCTAssertEqual(after, generation, "大きな応答の後にも同じsessionで応答する")
-            print("NATIVE_RPC_LARGE_RESPONSE bytes=\(expected.count) base64_bytes=\(base64.utf8.count) same_generation=\(after == generation)")
-        } catch {
-            await session.close()
-            NativeRuntimeHost.shared.stop()
-            await NativeRuntimeHost.shared.waitForRetirement()
-            throw error
-        }
-        await session.close()
-        NativeRuntimeHost.shared.stop()
-        await NativeRuntimeHost.shared.waitForRetirement()
-    }
-
-    /// Exercise real PDF rasterization, Codex image preparation and persistent
-    /// resume. The provider deliberately returns an owned loopback HTTP failure, so a
-    /// sampling failure is expected and is never counted as a model response.
-    @MainActor
-    func testPdfImagePreparationAndColdResumeKeepNativeServerAlive() async throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["STRUIS_NATIVE_LIVE"] == "1", "native Simulator integration is opt-in")
-        let boot = HyotanBoot()
-        await boot.start()
-        let directory = HyotanBoot.workspaceRoot.appendingPathComponent("pdf-probe-" + UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let bounds = CGRect(x: 0, y: 0, width: 612, height: 792)
-        let pdf = UIGraphicsPDFRenderer(bounds: bounds).pdfData { context in
-            context.beginPage()
-            UIColor.white.setFill()
-            context.cgContext.fill(bounds)
-            for row in 0..<80 {
-                for column in 0..<60 {
-                    UIColor(red: CGFloat((row * 17 + column * 31) % 255) / 255, green: CGFloat((row * 37 + column * 13) % 255) / 255, blue: CGFloat((row * 23 + column * 47) % 255) / 255, alpha: 1).setFill()
-                    context.cgContext.fill(CGRect(x: CGFloat(column * 10), y: CGFloat(row * 9), width: 7, height: 6))
-                }
-            }
-        }
-        let page = try XCTUnwrap(PDFDocument(data: pdf)?.page(at: 0))
-        let thumbnailSize = CGSize(width: bounds.width * 1600 / bounds.height, height: 1600)
-        let thumbnail = page.thumbnail(of: thumbnailSize, for: .mediaBox)
-        let thumbnailPixels = try XCTUnwrap(thumbnail.cgImage)
-        print("NATIVE_PDF_THUMBNAIL pixels=\(thumbnailPixels.width)x\(thumbnailPixels.height) scale=\(thumbnail.scale)")
-        let pdfURL = directory.appendingPathComponent("source.pdf")
-        try pdf.write(to: pdfURL)
-        let pages = ChatStore.pdfPageImages(at: pdfURL)
-        XCTAssertEqual(pages.count, 1)
-        let jpeg = try XCTUnwrap(pages.first?.jpeg)
-        let inputPixels = try XCTUnwrap(UIImage(data: jpeg)?.cgImage)
-        print("NATIVE_PDF_INPUT pixels=\(inputPixels.width)x\(inputPixels.height) jpeg_bytes=\(jpeg.count)")
-        XCTAssertTrue(DocumentReader.fitsModelBudget(width: inputPixels.width, height: inputPixels.height), "PDFのページ画像はJPEGの実pixelでCodexの枠に収める")
-        let image = directory.appendingPathComponent("page.jpg")
-        try jpeg.write(to: image)
-        let endpoint = try NativePdfFailureEndpoint()
-        let port = try await endpoint.start()
-        defer { endpoint.stop() }
-        let config: JSONObject = [
-            "model_provider": "image_probe",
-            "model_providers.image_probe": ["name": "Unavailable loopback probe", "base_url": "http://127.0.0.1:\(port)/v1", "wire_api": "responses", "requires_openai_auth": false, "supports_websockets": false, "request_max_retries": 0, "stream_max_retries": 0],
-        ]
-        let session = CodexAppServerSession(clientVersion: "native-pdf-probe", launcher: CodexAppServerSession.nativeLauncher(boot: boot))
-        var threadID = ""
-        var rolloutPath: String?
-        do {
-            try await session.start()
-            try recordMemory(try await NativeRuntimeHost.shared.codexWorkerHealth(), role: .codex, phase: .beforeImage)
-            let generation = await session.generation
-            let started = try await session.request("thread/start", params: ["cwd": directory.path, "model": "gpt-6-astra", "modelProvider": "image_probe", "allowProviderModelFallback": false, "approvalPolicy": "never", "sandbox": "danger-full-access", "ephemeral": false, "persistExtendedHistory": true, "config": config])
-            XCTAssertEqual(started["modelProvider"] as? String, "image_probe", "検査用loopback providerが実際に選ばれたことを確認する")
-            print("NATIVE_PDF_PROVIDER configured=\(started["modelProvider"] as? String == "image_probe")")
-            let thread = try XCTUnwrap(started["thread"] as? JSONObject)
-            threadID = try XCTUnwrap(thread["id"] as? String)
-            let rollout = try XCTUnwrap(thread["path"] as? String)
-            rolloutPath = rollout
-            let response = try await session.request("turn/start", params: ["threadId": threadID, "input": [["type": "text", "text": "Image processing probe; the model endpoint is unavailable."], ["type": "localImage", "path": image.path]]])
-            let turnID = try XCTUnwrap((response["turn"] as? JSONObject)?["id"] as? String)
-            let expectedThread = threadID
-            let deadline = Date().addingTimeInterval(90)
-            var completion: CodexAppServerSession.Notification?
-            while completion == nil {
-                let remaining = deadline.timeIntervalSinceNow
-                guard remaining > 0 else { throw CodexAppServerError.timeout("turn/completed") }
-                let event = try await session.waitForNotification(methods: ["turn/started", "item/started", "item/completed", "error", "turn/completed"], timeout: .milliseconds(Int(remaining * 1000))) {
-                    $0["threadId"] as? String == expectedThread
-                }
-                // Only fixed method names, known item kinds and booleans are logged.
-                let item = (event.params["item"] as? JSONObject)?["type"] as? String ?? "none"
-                let safeItem = ["userMessage", "agentMessage", "reasoning", "plan", "commandExecution", "none"].contains(item) ? item : "other"
-                print("NATIVE_PDF_EVENT method=\(event.method) item=\(safeItem) will_retry=\(event.params["willRetry"] as? Bool == true)")
-                if event.method == "turn/completed", (event.params["turn"] as? JSONObject)?["id"] as? String == turnID { completion = event }
-            }
-            let completed = try XCTUnwrap(completion)
-            XCTAssertTrue(endpoint.receivedRequest, "実Codexが検査用loopback endpointへ要求したことを必須にする")
-            print("NATIVE_PDF_ENDPOINT request_received=\(endpoint.receivedRequest)")
-            XCTAssertEqual((completed.params["turn"] as? JSONObject)?["status"] as? String, "failed", "接続できない検査用providerを実応答の成功にしない")
-            // The rollout lives in the app's private Codex home, outside the workspace capability
-            // that serves fs/*; the trusted app reads it directly.
-            let data = try Data(contentsOf: URL(fileURLWithPath: rollout))
-            var preparedImages = 0
-            for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
-                guard let entry = try JSONSerialization.jsonObject(with: Data(line.utf8)) as? JSONObject,
-                      entry["type"] as? String == "response_item", let payload = entry["payload"] as? JSONObject,
-                      payload["type"] as? String == "message", payload["role"] as? String == "user" else { continue }
-                for item in payload["content"] as? [JSONObject] ?? [] {
-                    guard item["type"] as? String == "input_image", let url = item["image_url"] as? String else { continue }
-                    XCTAssertTrue(url.hasPrefix("data:image/jpeg;base64,"), "実image loaderの準備済みJPEGを確認する")
-                    let bytes = try XCTUnwrap(Data(base64Encoded: String(url.split(separator: ",", maxSplits: 1).last ?? "")))
-                    let prepared = try XCTUnwrap(UIImage(data: bytes))
-                    XCTAssertGreaterThan(prepared.size.width, 0)
-                    XCTAssertGreaterThan(prepared.size.height, 0)
-                    let pixels = try XCTUnwrap(prepared.cgImage)
-                    print("NATIVE_PDF_PREPARED pixels=\(pixels.width)x\(pixels.height)")
-                    preparedImages += 1
-                }
-            }
-            XCTAssertGreaterThanOrEqual(preparedImages, 1, "実Codexが画像を処理しrolloutへ保持した証拠を必須にする")
-            _ = try await session.request("account/read", params: ["refreshToken": false])
-            let after = await session.generation
-            XCTAssertEqual(after, generation)
-            print("NATIVE_PDF_IMAGE_PREPARED jpeg_bytes=\(jpeg.count) prepared_images=\(preparedImages) sampling_failed_expected=true same_generation=\(after == generation)")
-            try recordMemory(try await NativeRuntimeHost.shared.codexWorkerHealth(), role: .codex, phase: .afterImage)
-        } catch {
-            print("NATIVE_PDF_FAILURE endpoint_request_received=\(endpoint.receivedRequest)")
-            let failureGeneration = await session.generation
-            let running = await session.isRunning
-            if running {
-                do {
-                    _ = try await session.request("account/read", params: ["refreshToken": false], timeout: .seconds(5))
-                    let after = await session.generation
-                    print("NATIVE_PDF_FAILURE account_read=true same_generation=\(after == failureGeneration)")
-                } catch { print("NATIVE_PDF_FAILURE account_read=false") }
-            } else { print("NATIVE_PDF_FAILURE running=false") }
-            if let rolloutPath, let data = try? Data(contentsOf: URL(fileURLWithPath: rolloutPath)) {
-                var images = 0
-                for line in String(decoding: data, as: UTF8.self).split(separator: "\n") {
-                    guard let entry = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? JSONObject,
-                          entry["type"] as? String == "response_item", let payload = entry["payload"] as? JSONObject else { continue }
-                    images += (payload["content"] as? [JSONObject] ?? []).filter { $0["type"] as? String == "input_image" }.count
-                }
-                print("NATIVE_PDF_FAILURE rollout_bytes=\(data.count) recorded_images=\(images)")
-            }
-            let stderr = HyotanBoot.root.deletingLastPathComponent().appendingPathComponent("Library/worker-stderr.log")
-            if let data = try? Data(contentsOf: stderr), let text = String(data: data.suffix(256 * 1024), encoding: .utf8) {
-                print("NATIVE_PDF_FAILURE stderr_tail_may_include_previous_tests=true stderr_tail_missing_credentials=\(text.localizedCaseInsensitiveContains("missing credentials") || text.localizedCaseInsensitiveContains("missing api key")) stderr_tail_connection_refused=\(text.localizedCaseInsensitiveContains("connection refused")) stderr_tail_prewarm=\(text.localizedCaseInsensitiveContains("prewarm"))")
-            }
-            await session.close()
-            NativeRuntimeHost.shared.stop()
-            await NativeRuntimeHost.shared.waitForRetirement()
-            throw error
-        }
-        await session.close()
-        NativeRuntimeHost.shared.stop()
-        await NativeRuntimeHost.shared.waitForRetirement()
-        let resumed = CodexAppServerSession(clientVersion: "native-pdf-resume", launcher: CodexAppServerSession.nativeLauncher(boot: boot))
-        do {
-            try await resumed.start()
-            let response = try await resumed.request("thread/resume", params: ["threadId": threadID, "cwd": directory.path, "modelProvider": "image_probe", "allowProviderModelFallback": false, "config": config, "persistExtendedHistory": true, "excludeTurns": true])
-            let thread = try XCTUnwrap(response["thread"] as? JSONObject)
-            XCTAssertEqual(thread["id"] as? String, threadID)
-            XCTAssertTrue((thread["turns"] as? [JSONObject] ?? []).isEmpty, "未使用の返信履歴を展開しない")
-            // Query persisted history separately to prove excludeTurns did not erase it.
-            let restored = try await resumed.request("thread/read", params: ["threadId": threadID, "includeTurns": true])
-            let restoredThread = try XCTUnwrap(restored["thread"] as? JSONObject)
-            XCTAssertFalse((restoredThread["turns"] as? [JSONObject] ?? []).isEmpty, "画像turnの履歴保存・復元を維持する")
-            _ = try await resumed.request("account/read", params: ["refreshToken": false])
-            print("NATIVE_PDF_COLD_RESUME history_present=true account_read=true")
-        } catch {
-            await resumed.close()
-            NativeRuntimeHost.shared.stop()
-            await NativeRuntimeHost.shared.waitForRetirement()
-            throw error
-        }
-        await resumed.close()
-        NativeRuntimeHost.shared.stop()
-        await NativeRuntimeHost.shared.waitForRetirement()
-    }
-
-    /// Opening unit creation warms the server before the learner finishes the questions.
-    /// Exercise that idle interval without a model response or an authentication fixture.
-    @MainActor
-    func testAppServerRemainsConnectedAfterIdle() async throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["STRUIS_NATIVE_LIVE"] == "1", "native Simulator integration is opt-in")
-        let boot = HyotanBoot()
-        let session = CodexAppServerSession(clientVersion: "native-idle-test", launcher: CodexAppServerSession.nativeLauncher(boot: boot))
-        do {
-            try await session.start()
-            let generation = await session.generation
-            _ = try await session.request("account/read", params: ["refreshToken": false])
-            try await Task.sleep(for: .seconds(8))
-            try await session.ensureHealthy()
-            _ = try await session.request("account/read", params: ["refreshToken": false])
-            let after = await session.generation
-            XCTAssertEqual(after, generation, "待機中にapp-serverの接続が閉じ、再起動された")
-            print("NATIVE_APP_SERVER_IDLE seconds=8 same_generation=\(after == generation)")
-        } catch {
-            await session.close()
-            NativeRuntimeHost.shared.stop()
-            throw error
-        }
-        await session.close()
-        NativeRuntimeHost.shared.stop()
-    }
-
-    /// iOS reclaims a suspended app's listening socket while the in-process server keeps running.
-    /// Moving to a new listener must keep open connections and accept new ones on the new port only.
-    @MainActor
-    func testInProcessServerListensAgainAfterListenerReplacement() async throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["STRUIS_NATIVE_LIVE"] == "1", "native Simulator integration is opt-in")
-        let boot = HyotanBoot()
-        let kept = CodexAppServerSession(clientVersion: "native-rebind-open", launcher: CodexAppServerSession.nativeLauncher(boot: boot))
-        let next = CodexAppServerSession(clientVersion: "native-rebind-next", launcher: CodexAppServerSession.nativeLauncher(boot: boot))
-        do {
-            try await kept.start()
-            _ = try await kept.request("account/read", params: ["refreshToken": false])
-            let first = try XCTUnwrap(NativeRuntimeHost.shared.rebindInProcessListener())
-            let second = try XCTUnwrap(NativeRuntimeHost.shared.rebindInProcessListener())
-            XCTAssertNotEqual(first, second)
-            var refused = false
-            for _ in 0..<50 where !refused {
-                refused = !Self.loopbackAccepts(port: first)
-                if !refused { try await Task.sleep(for: .milliseconds(100)) }
-            }
-            XCTAssertTrue(refused, "置き換え前の待受がまだ接続を受け付けている")
-            _ = try await kept.request("account/read", params: ["refreshToken": false])
-            try await next.start()
-            _ = try await next.request("account/read", params: ["refreshToken": false])
-            print("NATIVE_LISTENER_REPLACED old_refused=\(refused) open_connection_kept=1 new_port_accepts=1")
-        } catch {
-            await kept.close(); await next.close()
-            NativeRuntimeHost.shared.stop()
-            throw error
-        }
-        await kept.close(); await next.close()
-        NativeRuntimeHost.shared.stop()
-    }
-
-    private static func loopbackAccepts(port: UInt16) -> Bool {
-        let descriptor = socket(AF_INET, SOCK_STREAM, 0)
-        guard descriptor >= 0 else { return false }
-        defer { close(descriptor) }
-        var address = sockaddr_in()
-        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-        address.sin_family = sa_family_t(AF_INET)
-        address.sin_port = port.bigEndian
-        address.sin_addr.s_addr = inet_addr("127.0.0.1")
-        return withUnsafePointer(to: &address) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) == 0 }
-        }
-    }
-
     @MainActor
     func testSimulatorFileBoundaryObservation() async throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["STRUIS_NATIVE_LIVE"] == "1", "native Simulator integration is opt-in")
         let boot = HyotanBoot()
         await boot.start()
         let host = NativeRuntimeHost.shared
-        _ = try await host.start { _ in }
+        host.prepareForCommands()
         defer { host.stop() }
         let workspace = HyotanBoot.workspaceRoot.appendingPathComponent("boundary-" + UUID().uuidString)
         let canary = FileManager.default.temporaryDirectory.appendingPathComponent("private-boundary-" + UUID().uuidString)
@@ -705,7 +301,7 @@ final class NativeRuntimeLiveTests: XCTestCase {
         let boot = HyotanBoot()
         await boot.start()
         let host = NativeRuntimeHost.shared
-        _ = try await host.start { _ in }
+        host.prepareForCommands()
         defer { host.stop() }
         let workspace = HyotanBoot.workspaceRoot.appendingPathComponent("native-pipe-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
@@ -733,7 +329,7 @@ final class NativeRuntimeLiveTests: XCTestCase {
         await boot.start()
         XCTAssertTrue(boot.state.isReady)
         let host = NativeRuntimeHost.shared
-        _ = try await host.start { _ in }
+        host.prepareForCommands()
         defer { host.stop() }
         let workspace = HyotanBoot.workspaceRoot.appendingPathComponent("native-thread-" + UUID().uuidString)
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
@@ -769,18 +365,12 @@ final class NativeRuntimeLiveTests: XCTestCase {
     @MainActor
     func testPythonPackagesCommandsInterruptionAndRestart() async throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["STRUIS_NATIVE_LIVE"] == "1", "native Simulator integration is opt-in")
-        for name in ["struis_tutor_memory.py", "struis_reply_lint.py"] {
-            try XCTSkipUnless(Bundle(for: NativeRuntimeLiveTests.self).url(forResource: name, withExtension: nil) != nil,
-                "STRUIS_TEST_DELIVERY_SCRIPTS_DIR is unset; delivered Python scripts are external inputs")
-        }
         let boot = HyotanBoot()
         await boot.start()
         XCTAssertTrue(boot.state.isReady)
         let host = NativeRuntimeHost.shared
-        let (first, epoch) = try await host.start { _ in }
+        host.prepareForCommands()
         defer { host.stop() }
-        XCTAssertEqual(first.pid, getpid(), "Codex runs in the app process")
-        try recordMemory(first, role: .codex, phase: .start)
         let workspace = HyotanBoot.workspaceRoot.appendingPathComponent("native-live-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workspace) }
@@ -796,7 +386,7 @@ final class NativeRuntimeLiveTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: workspace.appendingPathComponent("日本語.txt"), encoding: .utf8), "保存できました")
         let execHealth = try await host.commandWorkerHealth()
         XCTAssertEqual(execHealth.pid, math.pid)
-        XCTAssertNotEqual(execHealth.pid, first.pid)
+        XCTAssertNotEqual(execHealth.pid, getpid(), "commands run in the Exec extension, not the app")
         XCTAssertNil(execHealth.error)
         try recordMemory(execHealth, role: .exec, phase: .afterMath)
         let grep = try await run("rg '保存' 日本語.txt")
@@ -809,10 +399,8 @@ final class NativeRuntimeLiveTests: XCTestCase {
         let nextEnvironment = try await run("python3 -c 'import os; print(os.getenv(\"STRUIS_COMMAND_ONLY\",\"absent\"))'")
         XCTAssertEqual(nextEnvironment.output.trimmingCharacters(in: .whitespacesAndNewlines), "absent")
         print("NATIVE_ENV first=\(environment.output.debugDescription) next=\(nextEnvironment.output.debugDescription)")
-        for filename in ["struis_tutor_memory.py", "struis_reply_lint.py"] {
-            let source = try XCTUnwrap(Bundle(for: NativeRuntimeLiveTests.self).url(
-                forResource: filename, withExtension: nil
-            ), "Missing bundled delivered script: \(filename)")
+        for (name, filename) in [("prompt:tutor_memory_py", "struis_tutor_memory.py"), ("prompt:reply_lint_py", "struis_reply_lint.py")] {
+            let source: URL = try XCTUnwrap(BundledAssets.main.url(name), "Missing bundled script: \(filename)")
             try FileManager.default.copyItem(at: source, to: workspace.appendingPathComponent(filename))
         }
         let lint = try await run("printf '%s' '計算結果は $x^2$ です。' | python3 struis_reply_lint.py --stdin")
@@ -841,22 +429,14 @@ final class NativeRuntimeLiveTests: XCTestCase {
         XCTAssertTrue(bounded.truncated)
         XCTAssertLessThanOrEqual(bounded.output.utf8.count, 96000)
         print("NATIVE_RESTART_STAGE stopping_host")
-        host.stop(ifEpoch: epoch)
-        let (second, _) = try await host.start { _ in }
-        print("NATIVE_RESTART_STAGE host_started")
-        // The in-process server keeps running: a restart is a new connection identity to it.
-        XCTAssertNotEqual(first.workerID, second.workerID)
-        XCTAssertEqual(first.port, second.port)
-        host.stop(ifEpoch: epoch) // A late close must not terminate the replacement worker.
-        do {
-            _ = try await host.send(.init(operation: .shutdown, workerID: first.workerID))
-            XCTFail("旧workerの停止要求が受理された")
-        } catch { }
-        print("NATIVE_RESTART_STAGE requesting_command")
+        host.stop()
+        host.prepareForCommands()
+        print("NATIVE_RESTART_STAGE host_prepared")
         let restarted = try await run("python3 -c 'import numpy; print(numpy.sum([20,22]))'")
         XCTAssertEqual(restarted.exitCode, 0, restarted.output)
         XCTAssertEqual(restarted.output.trimmingCharacters(in: .whitespacesAndNewlines), "42")
-        print("NATIVE_RESTART old=\(first.workerID) new=\(second.workerID) same_server=\(first.port == second.port) result=42")
+        XCTAssertNotEqual(restarted.pid, math.pid, "停止の後は新しいコマンド worker で動く")
+        print("NATIVE_RESTART old_pid=\(math.pid) new_pid=\(restarted.pid) result=42")
         let cOwner = UUID().uuidString
         let cStarted = Date()
         let cWork = Task { try await run("python3 -c 'import hashlib; hashlib.pbkdf2_hmac(\"sha256\",b\"a\",b\"b\",2000000000)'", owner: cOwner) }
@@ -871,14 +451,11 @@ final class NativeRuntimeLiveTests: XCTestCase {
             XCTAssertLessThan(Date().timeIntervalSince(cStarted), 12)
             print("NATIVE_C_INTERRUPT_STAGE command_failed error=\(String(reflecting: error))")
         }
-        // Do not restart Codex here: only the stuck command worker should be retired.
-        let afterC = try await host.send(.init(operation: .health))
-        print("NATIVE_C_INTERRUPT_STAGE codex_health_replied")
-        XCTAssertEqual(afterC.pid, second.pid, "コマンドの強制停止でCodexまで終了した")
+        // Only the stuck command worker is retired; the next command launches a new one.
         let afterCResult = try await run("python3 -c 'print(6*7)'")
         XCTAssertNotEqual(afterCResult.pid, restarted.pid, "終了したコマンドworkerが交換されていない")
         XCTAssertEqual(afterCResult.exitCode, 0, afterCResult.output)
         XCTAssertEqual(afterCResult.output.trimmingCharacters(in: .whitespacesAndNewlines), "42")
-        print("NATIVE_C_INTERRUPT codex_retained=\(afterC.pid == second.pid) worker_replaced=\(afterCResult.pid != restarted.pid) next_output=42")
+        print("NATIVE_C_INTERRUPT worker_replaced=\(afterCResult.pid != restarted.pid) next_output=42")
     }
 }

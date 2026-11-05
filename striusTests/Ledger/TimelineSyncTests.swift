@@ -222,7 +222,7 @@ final class TimelineSyncTests: XCTestCase {
         try await a.engine.sync()
         try await b.engine.sync()
         // B でタイムラインを開いている。
-        let storeB = TimelineStore(ledger: b.ledger, turns: TurnCoordinator(ledger: b.ledger, assets: AssetCache(lenient: true), runner: MockTurnRunner()))
+        let storeB = TimelineStore(ledger: b.ledger, turns: TurnCoordinator(ledger: b.ledger, assets: AssetCache(), runner: MockTurnRunner()))
         await storeB.start()
         try await b.engine.sync()
         try await a.engine.sync()
@@ -241,7 +241,7 @@ final class TimelineSyncTests: XCTestCase {
         XCTAssertEqual(askedOnB, 0, "他端末の単元が届いただけで、B は知識グラフを頼まない")
 
         // A がタイムラインを開くと、A が頼む。2台で1回だけ。
-        let storeA = TimelineStore(ledger: a.ledger, turns: TurnCoordinator(ledger: a.ledger, assets: AssetCache(lenient: true), runner: MockTurnRunner()))
+        let storeA = TimelineStore(ledger: a.ledger, turns: TurnCoordinator(ledger: a.ledger, assets: AssetCache(), runner: MockTurnRunner()))
         await storeA.start()
         let askedOnA = try await eventually { try await graphRequests(a.ledger) == 1 }
         XCTAssertTrue(askedOnA)
@@ -274,7 +274,7 @@ final class TimelineSyncTests: XCTestCase {
         let arrived = try await timeline(b.ledger)
         XCTAssertEqual(arrived.pendingBatch(purpose: "cards")?.id, pendingOnA)
 
-        let storeB = TimelineStore(ledger: b.ledger, turns: TurnCoordinator(ledger: b.ledger, assets: AssetCache(lenient: true), runner: MockTurnRunner()))
+        let storeB = TimelineStore(ledger: b.ledger, turns: TurnCoordinator(ledger: b.ledger, assets: AssetCache(), runner: MockTurnRunner()))
         await storeB.start()
         let gotCards = try await eventually { try await self.timeline(b.ledger).queue.count > 0 }
         XCTAssertTrue(gotCards, "B は自分で5枚を頼んで解き始められる")

@@ -352,36 +352,6 @@ struct APIClientTests {
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer initial-access-token")
     }
 
-    @Test func deliveryUsesAppKeyWithoutAUserAndNeverSendsItToPrivateAPIs() async throws {
-        StubURLProtocol.reset()
-        let manifestPath = "/v1/device-runtime/manifest"
-        let assetPath = "/v1/device-runtime/assets/prompt:base"
-        let body = Data("{\"codex_version\":\"0.153.4\",\"rootfs_min_version\":1,\"models\":{},\"assets\":{}}".utf8)
-        StubURLProtocol.register(path: manifestPath, sequence: [.status(200, body: body)])
-        StubURLProtocol.register(path: assetPath, sequence: [.status(200, body: Data("配信本文".utf8))])
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [StubURLProtocol.self]
-        let client = APIClient(session: URLSession(configuration: configuration))
-        let provider = StubTokenProvider()
-        if Auth0Config.authenticationRequired { client.setTokenProvider(provider) }
-        let source = ServerAssetSource(client: client)
-        _ = try await source.fetchManifest()
-        #expect(try await source.fetchAsset("prompt:base") == Data("配信本文".utf8))
-        for request in StubURLProtocol.recordedRequests() {
-            if Auth0Config.authenticationRequired {
-                #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer initial-access-token")
-                #expect(request.value(forHTTPHeaderField: "X-Struis-App-Key") == nil)
-            } else {
-                #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
-                #expect(request.value(forHTTPHeaderField: "X-Struis-App-Key") == ServerConfig.deliveryAppKey)
-            }
-        }
-        client.setTokenProvider(provider)
-        StubURLProtocol.register(path: "/v1/bootstrap", sequence: [.status(200, body: Self.bootstrapBody)])
-        let _: BootstrapResponse = try await client.send(.bootstrap)
-        #expect(StubURLProtocol.recordedRequests().last?.value(forHTTPHeaderField: "X-Struis-App-Key") == nil)
-    }
-
     @Test func authPolicyKeepsUnknownValuesAuthenticated() {
         for value in [nil, "", "YES", "TRUE", "1", "unexpected", "$(STRUIS_AUTH_REQUIRED)"] {
             #expect(Auth0Config.authenticationRequired(for: value))

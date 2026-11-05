@@ -1,6 +1,6 @@
 import XCTest
 
-/// 端末完結の問題集ループ (design §6.4 / §9 M4) を hyotan 上の実 Codex で回す:
+/// 端末完結の問題集ループ (design §6.4 / §9 M4) を実 Claude(端末から Anthropic へ直接)で回す:
 /// 一枚を作る → 撮る → 判定 → マスに綴じる。固定応答で同じ道筋を通す確認は
 /// `WorkbookE2EFixesUITests.testSetCaptureOpensResultAndPassShowsImmediately` が持つ
 /// (結果の文言・演習・合格まで確かめるので、固定応答版はここに置かない)。
@@ -11,22 +11,19 @@ final class DeviceWorkbookUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
     }
 
-    /// `TEST_RUNNER_STRUIS_REAL_CODEX_AUTH` が必要。
+    /// `TEST_RUNNER_STRUIS_REAL_CLAUDE_KEY_FILE`(Anthropic の API キーのファイル)が必要。
     @MainActor
-    func testSetGenerationCaptureAndGradingWithRealCodex() throws {
-        let auth = ProcessInfo.processInfo.environment["STRUIS_REAL_CODEX_AUTH"] ?? ""
-        try XCTSkipIf(auth.isEmpty, "TEST_RUNNER_STRUIS_REAL_CODEX_AUTH が無い (実 Codex 検証は手動)")
+    func testSetGenerationCaptureAndGradingWithRealClaude() throws {
+        let auth = ProcessInfo.processInfo.environment["STRUIS_REAL_CLAUDE_KEY_FILE"] ?? ""
+        try XCTSkipIf(auth.isEmpty, "TEST_RUNNER_STRUIS_REAL_CLAUDE_KEY_FILE が無い (実 Claude 検証は手動)")
         let app = XCUIApplication.struisUnits()
         app.launchArguments += ["-skip-onboarding"]
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "1"
         app.launchEnvironment["STRUIS_LEDGER"] = "persistent"
-        app.launchEnvironment["STRUIS_DEBUG_CODEX_AUTH_FILE"] = auth
-        let assets = ProcessInfo.processInfo.environment["STRUIS_REAL_CODEX_ASSETS_DIR"] ?? ""
-        try XCTSkipIf(assets.isEmpty, "TEST_RUNNER_STRUIS_REAL_CODEX_ASSETS_DIR が無い (既定単元の実AI試験には外部配信資産が必要)")
-        app.launchEnvironment["STRUIS_DEVICE_ASSETS_DIR"] = assets
+        app.launchEnvironment["STRUIS_DEBUG_ANTHROPIC_KEY_FILE"] = auth
         app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = UITestSupport.paperImagePath
         app.launch()
-        try runLoop(app, generationTimeout: 300, gradingTimeout: 300, name: "verdict-real-codex")
+        try runLoop(app, generationTimeout: 300, gradingTimeout: 300, name: "verdict-real-claude")
     }
 
     @MainActor

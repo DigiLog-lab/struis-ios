@@ -3,10 +3,8 @@ import ExtensionFoundation
 import XPC
 import Darwin
 
-#if STRUIS_CODEX_WORKER && STRUIS_EXEC_WORKER
-#error("A worker must have exactly one role")
-#elseif !STRUIS_CODEX_WORKER && !STRUIS_EXEC_WORKER
-#error("A worker role must be configured")
+#if !STRUIS_EXEC_WORKER
+#error("The Exec worker role must be configured")
 #endif
 
 final class RuntimeService: @unchecked Sendable {
@@ -31,12 +29,7 @@ final class RuntimeService: @unchecked Sendable {
             reply.memoryFootprintBytes = memory["footprint"]?.uint64Value
             reply.availableMemoryBytes = memory["available"]?.uint64Value
             reply.workerID = workerID
-            #if STRUIS_CODEX_WORKER
-            let role = NativeMemoryObservation.Role.codex
-            #else
-            let role = NativeMemoryObservation.Role.exec
-            #endif
-            reply.memoryObservation = NativeMemoryObservation(snapshot: memory, identity: workerID, role: role)
+            reply.memoryObservation = NativeMemoryObservation(snapshot: memory, identity: workerID, role: .exec)
         }
         return reply
     }
@@ -53,20 +46,11 @@ final class RuntimeService: @unchecked Sendable {
             switch request.operation {
             case .shutdown:
                 // Invalidation alone permits ExtensionKit to reuse the still-live process.
-                // Native Codex's OnceLock and Python state require an actual process exit.
+                // Python's process-wide state requires an actual process exit.
                 StruisTerminateWorker(0)
                 return NativeRuntimeReply(pid: getpid(), error: "worker termination failed")
             case .start:
                 startLock.lock(); defer { startLock.unlock() }
-                #if STRUIS_CODEX_WORKER
-                guard request.startsCodex != false else {
-                    return NativeRuntimeReply(pid: getpid(), error: "Codex worker role mismatch")
-                }
-                #else
-                guard request.startsCodex == false else {
-                    return NativeRuntimeReply(pid: getpid(), error: "Exec worker role mismatch")
-                }
-                #endif
                 if let endpoint { return endpoint }
                 guard let canary = request.privateBoundaryCanary else {
                     return NativeRuntimeReply(pid: getpid(), error: "private boundary canary missing")
@@ -82,61 +66,19 @@ final class RuntimeService: @unchecked Sendable {
                 }
                 #endif
                 #if DEBUG
-                // Device diagnostics: the worker's stderr (Python and Codex fatal messages) in the shared root.
+                // Device diagnostics: the worker's stderr (Python fatal messages) in the shared root.
                 if freopen(root.deletingLastPathComponent().appendingPathComponent("Library/worker-stderr.log").path, "a", stderr) != nil { setvbuf(stderr, nil, _IONBF, 0) }
                 #endif
                 guard let certificate = Bundle.main.url(forResource: "cacert", withExtension: "pem") else { throw NativeRuntimeStartError("cacert.pem missing from the worker bundle") }
                 setenv("SSL_CERT_FILE", certificate.path, 1)
                 setenv("REQUESTS_CA_BUNDLE", certificate.path, 1)
-                #if STRUIS_EXEC_WORKER
                 let result = NativeRuntimeReply(pid: getpid(), workerID: workerID)
                 endpoint = result
                 return result
-                #else
-                let home = root.appendingPathComponent("codex", isDirectory: true)
-                try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
-                setenv("CODEX_HOME", home.path, 1)
-                let token = UUID().uuidString + UUID().uuidString
-                let tokenFile = home.appendingPathComponent("transport-token")
-                try Data(token.utf8).write(to: tokenFile, options: .atomic)
-                try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: tokenFile.path)
-                #if DEBUG && targetEnvironment(simulator)
-                if let testRoot = request.operationHarnessTestRoot {
-                    let workspace = root.appendingPathComponent("workspace", isDirectory: true).resolvingSymlinksInPath()
-                    let directory = URL(fileURLWithPath: testRoot, isDirectory: true).resolvingSymlinksInPath()
-                    guard directory.path.hasPrefix(workspace.path + "/") else { throw NativeRuntimeStartError("invalid operation harness test root") }
-                    let descriptor = open(directory.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
-                    guard descriptor >= 0 else { throw NativeRuntimeStartError("operation harness test root unavailable") }
-                    defer { close(descriptor) }
-                    let installed = directory.path.withCString { path in
-                        workerID.withCString { owner in hyotan_codex_install_operation_harness(descriptor, path, owner, 1) }
-                    }
-                    guard installed == 0 else { throw NativeRuntimeStartError("operation harness installation failed") }
-                }
-                #endif
-                let status = tokenFile.path.withCString { hyotan_codex_start(0, $0) }
-                guard status == 0 else { return NativeRuntimeReply(pid: getpid(), error: "native start \(status)") }
-                let port = hyotan_codex_port()
-                guard port != 0 else { return NativeRuntimeReply(pid: getpid(), error: "native listener port missing") }
-                let result = NativeRuntimeReply(pid: getpid(), workerID: workerID, port: port, token: token)
-                endpoint = result
-                return result
-                #endif
             case .health:
-                #if STRUIS_CODEX_WORKER
-                var buffer = [CChar](repeating: 0, count: 4096)
-                let length = hyotan_codex_error(&buffer, buffer.count)
-                var reply = NativeRuntimeReply(pid: getpid(), error: length == 0 ? nil : String(cString: buffer))
-                var site = [CChar](repeating: 0, count: 512)
-                if hyotan_codex_panic_site(&site, site.count) > 0 { reply.panicSite = String(cString: site) }
-                reply.panicCount = hyotan_codex_panic_count()
-                return reply
-                #else
                 return NativeRuntimeReply(pid: getpid())
-                #endif
             #if DEBUG && targetEnvironment(simulator)
             case .virtualPythonControl:
-                #if STRUIS_EXEC_WORKER
                 guard let control = request.virtualPythonControl,
                       control.stdinCapacity >= 0, control.stdinCapacity <= 16384,
                       control.stdout.count <= 16384, control.stderr.count <= 16384 else {
@@ -177,21 +119,13 @@ final class RuntimeService: @unchecked Sendable {
                     }
                 }
                 return NativeRuntimeReply(pid: getpid(), workerID: workerID, virtualPython: result)
-                #else
-                return NativeRuntimeReply(pid: getpid(), error: "Codex worker cannot control a provider")
-                #endif
             case .virtualPythonBridgeProbe:
-                #if STRUIS_EXEC_WORKER
                 // Synthetic owned pipes only. C retires this entire test
                 // worker if a real transfer assertion or cleanup fails.
                 let result = StruisVPAppleProbe()
                 return NativeRuntimeReply(pid: getpid(), output: String(result), exitCode: result == STRUIS_VP_APPLE_PROBE_ALL ? 0 : 125)
-                #else
-                return NativeRuntimeReply(pid: getpid(), error: "Codex worker cannot run a command bridge probe")
-                #endif
             #endif
             case .interrupt:
-                #if STRUIS_EXEC_WORKER
                 #if DEBUG && targetEnvironment(simulator)
                 if let job = request.virtualPythonJob {
                     guard job.owner == request.owner,
@@ -223,11 +157,7 @@ final class RuntimeService: @unchecked Sendable {
                     }
                 }
                 return NativeRuntimeReply(pid: getpid())
-                #else
-                return NativeRuntimeReply(pid: getpid(), error: "Codex worker cannot interrupt commands")
-                #endif
             case .command:
-                #if STRUIS_EXEC_WORKER
                 #if DEBUG && targetEnvironment(simulator)
                 if request.virtualPythonJob != nil {
                     guard commandLock.try() else { return NativeRuntimeReply(pid: getpid(), error: "command worker busy") }
@@ -292,9 +222,6 @@ final class RuntimeService: @unchecked Sendable {
                 }
                 #endif
                 return reply
-                #else
-                return NativeRuntimeReply(pid: getpid(), error: "Codex worker cannot execute commands")
-                #endif
             }
         } catch { return NativeRuntimeReply(pid: getpid(), error: String(describing: error)) }
     }

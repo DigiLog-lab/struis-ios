@@ -1,0 +1,108 @@
+{
+  "$defs": {
+    "LookupFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "condition_match": {
+          "title": "Condition Match",
+          "type": "string"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "content_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Content Hash"
+        },
+        "location": {
+          "title": "Location",
+          "type": "string"
+        },
+        "problem_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Problem Id"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Revision"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "content",
+        "source",
+        "location",
+        "problem_id",
+        "revision",
+        "content_hash",
+        "condition_match"
+      ],
+      "title": "LookupFinding",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "failure_reasons": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Failure Reasons",
+      "type": "array"
+    },
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/LookupFinding"
+      },
+      "title": "Findings",
+      "type": "array"
+    },
+    "missing_information": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Missing Information",
+      "type": "array"
+    },
+    "uncertainties": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Uncertainties",
+      "type": "array"
+    }
+  },
+  "required": [
+    "findings",
+    "missing_information",
+    "uncertainties",
+    "failure_reasons"
+  ],
+  "title": "LookupResult",
+  "type": "object"
+}

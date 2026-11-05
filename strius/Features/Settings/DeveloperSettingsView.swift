@@ -27,11 +27,9 @@ nonisolated enum InternalBuild {
     }
 }
 
-/// 開発者向け: AI モデル・料金・トークン・実行環境・配信データ・調べる用の書き出し。本番には出さない。
+/// 開発者向け: AI モデル・料金・トークン・実行環境・調べる用の書き出し。本番には出さない。
 struct DeveloperSettingsView: View {
     @Environment(SettingsStore.self) private var settings
-    @Environment(LearnerData.self) private var learnerData
-    @Environment(APIClient.self) private var apiClient
 
     var body: some View {
         SettingsScreen(title: "開発者向け") {
@@ -39,7 +37,6 @@ struct DeveloperSettingsView: View {
             costSection
             tokenSection
             runtimeSection
-            deliverySection
             exportSection
         }
         .task { await settings.loadLedgerSummary() }
@@ -51,48 +48,32 @@ struct DeveloperSettingsView: View {
     private var modelSection: some View {
         @Bindable var bindable: SettingsStore = settings
         SettingsSection(header: "AI モデル") {
-            if SettingsView.showsCodexEntry {
-                Picker("実行先", selection: $bindable.modelProvider) {
-                    ForEach(ModelProvider.allCases, id: \.self) { (provider: ModelProvider) in
-                        Text(provider.displayName).tag(provider)
+            HStack(spacing: 12) {
+                Text("タイムライン")
+                    .font(Typography.body)
+                    .foregroundStyle(Theme.primaryText)
+                Spacer(minLength: 12)
+                Picker("タイムライン", selection: $bindable.timelineClaudeModel) {
+                    ForEach(TimelineModelPreference.choices, id: \.self) { (model: String) in
+                        Text(Self.shortName(model)).tag(model)
                     }
                 }
+                .labelsHidden()
                 .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .accessibilityIdentifier("settings-model-provider")
-                SettingsDivider()
+                .frame(maxWidth: 200)
+                .accessibilityIdentifier("settings-timeline-model")
             }
-            if settings.modelProvider == .anthropic {
-                HStack(spacing: 12) {
-                    Text("タイムライン")
-                        .font(Typography.body)
-                        .foregroundStyle(Theme.primaryText)
-                    Spacer(minLength: 12)
-                    Picker("タイムライン", selection: $bindable.timelineClaudeModel) {
-                        ForEach(TimelineModelPreference.choices, id: \.self) { (model: String) in
-                            Text(Self.shortName(model)).tag(model)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 200)
-                    .accessibilityIdentifier("settings-timeline-model")
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                SettingsDivider()
-                SettingsValueRow(title: "質問", value: Self.shortName(ClaudeModels.astraModel))
-                SettingsDivider()
-                SettingsValueRow(title: "下調べ", value: Self.shortName(ClaudeModels.lunaModel))
-                SettingsDivider()
-                SettingsValueRow(
-                    title: "知識グラフ",
-                    value: Self.shortName(TimelineModels.fallback(role: TimelineModels.graphRole, provider: .anthropic)?.model ?? "-")
-                )
-            } else {
-                SettingsValueRow(title: "質問", value: CodexModels.astraModel)
-            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            SettingsDivider()
+            SettingsValueRow(title: "質問", value: Self.shortName(ClaudeModels.astraModel))
+            SettingsDivider()
+            SettingsValueRow(title: "下調べ", value: Self.shortName(ClaudeModels.lunaModel))
+            SettingsDivider()
+            SettingsValueRow(
+                title: "知識グラフ",
+                value: Self.shortName(TimelineModels.fallback(role: TimelineModels.graphRole)?.model ?? "-")
+            )
         }
     }
 
@@ -249,37 +230,15 @@ struct DeveloperSettingsView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("settings-runtime-hyotan")
             SettingsDivider()
-            SettingsValueRow(title: "Codex / Python", value: runtime.codexVersion.map { "\($0) / 3.14" } ?? "-")
-            SettingsDivider()
             SettingsValueRow(title: "起動", value: runtime.bootState + Self.duration(runtime.installSeconds, label: "準備") + Self.duration(runtime.bootSeconds, label: "起動"))
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("settings-runtime-boot")
-            SettingsDivider()
-            SettingsValueRow(title: "app-server", value: runtime.appServerState + Self.duration(runtime.initializeSeconds, label: "initialize"))
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("settings-runtime-appserver")
         }
     }
 
     private static func duration(_ seconds: Double?, label: String) -> String {
         guard let seconds else { return "" }
         return "・\(label) \(String(format: "%.1f", seconds))s"
-    }
-
-    // MARK: - 配信データ
-
-    private var deliverySection: some View {
-        SettingsSection(header: "配信データ") {
-            SettingsValueRow(title: "状態", value: learnerData.deliverySummary)
-            SettingsDivider()
-            SettingsButtonRow(
-                title: learnerData.isDeliveryRefreshing ? "更新中" : "更新する",
-                disabled: learnerData.isDeliveryRefreshing || !learnerData.requiresDelivery
-            ) {
-                Task { await learnerData.refreshAssets(client: apiClient) }
-            }
-            .accessibilityIdentifier("settings-delivery-refresh")
-        }
     }
 
     // MARK: - 調べる用の書き出し

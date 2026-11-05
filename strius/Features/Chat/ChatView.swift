@@ -326,7 +326,7 @@ struct ChatView: View {
         }
         if bootstrap.user == nil { await bootstrap.refresh() }
         guard !Task.isCancelled else { return }
-        // 会話は台帳と端末の Codex だけで動く。サーバーの bootstrap が通らない(圏外・認証切れ)ときも台帳の会話一覧で開く。
+        // 会話は台帳と Claude への直接の送信だけで動く。サーバーの bootstrap が通らない(圏外・認証切れ)ときも台帳の会話一覧で開く。
         if bootstrap.user == nil { await bootstrap.refreshThreads() }
         // 質問は開くたびに空の新しい会話で始める(前に開いていた会話・いちばん新しい会話は出さない)。
         // 前の会話は消さず、左上の履歴から開ける。
@@ -359,9 +359,6 @@ struct ChatView: View {
 
     private var composerInset: some View {
         VStack(spacing: 8) {
-            if learnerData.requiresDelivery && !learnerData.isDeliveryReady {
-                deliveryNotice
-            }
             if let sendError = chat.sendError {
                 errorPill(sendError)
             }
@@ -380,7 +377,6 @@ struct ChatView: View {
                 focused: $composerFocused,
                 // 返事が見える本文を書き終えて記録だけを書いている間は、停止ボタンにせず送れるままにする(送った質問は記録の後に答える)。
                 isSending: chat.isReplyBusy,
-                deliveryReady: learnerData.isDeliveryReady,
                 learningSessionAvailable: activeLearningSessionID != nil,
                 learningContextEnabled: $learningContextEnabled,
                 onSend: handleSend,
@@ -640,50 +636,7 @@ struct ChatView: View {
             .padding(.horizontal, 14)
     }
 
-    private var deliveryNotice: some View {
-        HStack(alignment: .center, spacing: 9) {
-            Image(systemName: learnerData.isDeliveryRefreshing ? "arrow.triangle.2.circlepath" : "exclamationmark.triangle")
-                .foregroundStyle(Theme.accent(scheme))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(learnerData.isDeliveryRefreshing ? "質問の準備中" : "質問の準備が必要です")
-                    .font(Typography.caption)
-                    .foregroundStyle(Theme.textPrimary(scheme))
-                Text(embedded ? "ホームの設定を開いて「更新する」を押してください" : learnerData.deliveryDetail)
-                    .font(Typography.micro)
-                    .foregroundStyle(Theme.textSecondary(scheme))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 4)
-
-            if learnerData.isDeliveryRefreshing {
-                ProgressView()
-                    .progressViewStyle(StruisProgressViewStyle())
-                    .controlSize(.small)
-            } else if !embedded {
-                Button("設定で更新") {
-                    isSettingsPresented = true
-                }
-                .font(Typography.caption)
-                .foregroundStyle(Theme.accent(scheme))
-                .accessibilityIdentifier("chat-open-delivery-settings")
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: Capsule())
-        .padding(.horizontal, 14)
-        .accessibilityIdentifier("chat-delivery-not-ready")
-    }
-
     private func handleSend() {
-        guard learnerData.isDeliveryReady else {
-            if !embedded {
-                isSettingsPresented = true
-            }
-            return
-        }
         // 前の送信(返事を止めてから送る間も含む)が終わるまで、次の送信は受けない。入力欄の下書きはそのまま残る。
         guard !isSubmitting else { return }
         isSubmitting = true

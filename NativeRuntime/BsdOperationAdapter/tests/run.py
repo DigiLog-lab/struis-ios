@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix="bsd-descriptors-") as tmp:
     scratch = Path(tmp)
     (scratch / "src").mkdir()
     core = NATIVE / "OperationHarness"
-    operations = NATIVE / "NativeCodex/src/operations.rs"
+    operations = NATIVE / "NativeLibrary/src/operations.rs"
     (scratch / "Cargo.toml").write_text(f'''[package]
 name = "bsd-descriptor-operations-probe"
 version = "0.0.0"
@@ -38,7 +38,7 @@ hyotan-operation-harness = {{ path = "{core}" }}
         if caller == "streams":
             sources.append(str(ADAPTER / "HyotanBsdStreams.c"))
         subprocess.run([os.environ.get("CC", "cc"), "-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread",
-                        "-I", str(NATIVE / "NativeCodex/include-operations"), "-I", str(ADAPTER),
+                        "-I", str(NATIVE / "NativeLibrary/include-operations"), "-I", str(ADAPTER),
                         *sources, str(ADAPTER / f"tests/{caller}.c"),
                         str(library), "-ldl", "-lm", "-o", str(binary)], check=True)
         workspace = scratch / f"{caller}-workspace"

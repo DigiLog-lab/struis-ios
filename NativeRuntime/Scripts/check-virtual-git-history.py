@@ -125,7 +125,7 @@ globalThis.run=argv=>{globalThis.cancelJob=new AbortController();return runVirtu
 def main():
     ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('--assets',type=Path,default=Path('/tmp/hyotan-pyodide-feasibility/PythonResources'));ap.add_argument('--scratch',type=Path,default=Path('/workspace/hyotan-virtual-git-apple-proof'));args=ap.parse_args();args.scratch.mkdir(parents=True,exist_ok=True)
     subprocess.run(['cc','-shared','-fPIC','-O2','-pthread',str(ROOT/'Worker/VirtualPythonCommandBridge.c'),'-o',str(args.scratch/'libduplex.so')],check=True)
-    subprocess.run(['cargo','rustc','--offline','--locked','--manifest-path',str(ROOT/'NativeCodex/Cargo.toml'),'--no-default-features','--features','operations','--lib','--crate-type','cdylib','--target-dir',str(args.scratch/'target')],check=True)
+    subprocess.run(['cargo','rustc','--offline','--locked','--manifest-path',str(ROOT/'NativeLibrary/Cargo.toml'),'--no-default-features','--features','operations','--lib','--crate-type','cdylib','--target-dir',str(args.scratch/'target')],check=True)
     lib=library((args.scratch/'libduplex.so'));inventory=json.loads((ROOT/'VirtualPython/resources.js').read_text().split('export const resources = ',1)[1].strip().removesuffix(';'))
     assets={n:(args.assets/n).read_bytes()for n in inventory}
     for n,b in assets.items():assert hashlib.sha256(b).hexdigest()==inventory[n]
@@ -154,7 +154,7 @@ def main():
         browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox','--disable-dev-shm-usage','--disable-background-networking'])
         def run(argv,data=b'',mode='normal',early=False,cancel=False):
             generation=len(jobs)+1;raw=[a.encode()if isinstance(a,str)else bytes(a)for a in argv];job=PipeJob(lib,raw,generation,mode);jobs.append(job)
-            operations=fs.Broker((args.scratch/'target/debug/libhyotan_codex.so'),work)
+            operations=fs.Broker((args.scratch/'target/debug/libhyotan_native.so'),work)
             operations.synthetic_denials=[]
             class Handler(BaseHTTPRequestHandler):
                 def setup(self):self.request.settimeout(3);super().setup()
@@ -258,7 +258,7 @@ def main():
             (work/'日本語.txt').unlink();(work/'日本語.txt').write_bytes(final)
             job,r=run(['git','blame','日本語.txt']);assert r['exitCode']==0
             assert private.read_bytes()==b'synthetic private'
-            args.scratch.joinpath('evidence.json').write_text(json.dumps({'actual_browser_cpython':True,'trusted_git_entry':2,'product_switch':False,'apple_pending':True,'fixture':{'root':first,'parent':middle,'head':latest},'resources':inventory,'source_sha256':{n:hashlib.sha256(b).hexdigest()for n,b in scripts.items()},'core_sha256':{str(f.relative_to(ROOT)):hashlib.sha256(f.read_bytes()).hexdigest()for folder in ['OperationHarness/src','NativeCodex/src']for f in (ROOT/folder).glob('*.rs')},'binary_sha256':{n:hashlib.sha256((args.scratch/n).read_bytes()).hexdigest()for n in ['libduplex.so','target/debug/libhyotan_codex.so']},'probe_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'private_canary_unchanged':True,'reports':reports},ensure_ascii=False,indent=2)+'\n')
+            args.scratch.joinpath('evidence.json').write_text(json.dumps({'actual_browser_cpython':True,'trusted_git_entry':2,'product_switch':False,'apple_pending':True,'fixture':{'root':first,'parent':middle,'head':latest},'resources':inventory,'source_sha256':{n:hashlib.sha256(b).hexdigest()for n,b in scripts.items()},'core_sha256':{str(f.relative_to(ROOT)):hashlib.sha256(f.read_bytes()).hexdigest()for folder in ['OperationHarness/src','NativeLibrary/src']for f in (ROOT/folder).glob('*.rs')},'binary_sha256':{n:hashlib.sha256((args.scratch/n).read_bytes()).hexdigest()for n in ['libduplex.so','target/debug/libhyotan_native.so']},'probe_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),'private_canary_unchanged':True,'reports':reports},ensure_ascii=False,indent=2)+'\n')
             print('GIT PREPARATION EVIDENCE',args.scratch/'evidence.json')
         finally:
             for job in jobs:

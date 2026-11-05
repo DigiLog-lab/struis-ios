@@ -17,7 +17,7 @@ final class TurnPlanCodingTests: XCTestCase {
                 text: "採点", images: [TurnPlan.ImageRef(path: "tutor_desk/inbox/a.jpg", hostPath: "/captures/a.jpg")],
                 outputSchema: .object(["type": .string("object")]), sandboxPolicy: "dangerFullAccess"
             ),
-            workspace: TurnPlan.WorkspaceSpec(files: [], dirs: []), delegation: nil, collect: [], limits: .structured, items: nil
+            workspace: TurnPlan.WorkspaceSpec(files: [], dirs: []), delegation: nil, collect: [], limits: .structured
         )
         // 台帳に入る形(`turn.plan`)は snake_case。
         XCTAssertEqual(plan.json["limits"]?["turn_timeout_s"]?.intValue, 600)

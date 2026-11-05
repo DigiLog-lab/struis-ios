@@ -87,7 +87,7 @@ final class ReplyTailQueueTests: XCTestCase {
     func testSendDuringPrivateTailQueuesWithoutStoppingTheRecord() async throws {
         let ledger = try Ledger.inMemory()
         let runner = TailGateRunner { text in text.contains("最初の質問") ? .inTail : .none }
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         let threadID = try await makeThread(ledger)
         let store = ChatStore(ledger: ledger, turns: turns)
         await store.adoptThread(id: try XCTUnwrap(UUID(uuidString: threadID)))
@@ -133,7 +133,7 @@ final class ReplyTailQueueTests: XCTestCase {
     func testVisibleWritingStaysBusy() async throws {
         let ledger = try Ledger.inMemory()
         let runner = TailGateRunner { text in text.contains("最初の質問") ? .beforeTail : .none }
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         let threadID = try await makeThread(ledger)
         let store = ChatStore(ledger: ledger, turns: turns)
         await store.adoptThread(id: try XCTUnwrap(UUID(uuidString: threadID)))
@@ -154,7 +154,7 @@ final class ReplyTailQueueTests: XCTestCase {
             _ = try await turns.sendChat(TurnCoordinator.ChatSend(threadID: threadID, text: "並べない", attachments: [], workbookView: nil))
             XCTFail("並べる指定の無い送信は断る")
         } catch let error as LedgerError {
-            XCTAssertEqual(error.code, "codex_turn_in_progress")
+            XCTAssertEqual(error.code, "chat_turn_in_progress")
         }
         runner.release(try XCTUnwrap(runner.waiting.first))
         try await waitUntil("released turn waits again in tail or finishes") {
@@ -166,7 +166,7 @@ final class ReplyTailQueueTests: XCTestCase {
     func testNewThreadDuringReplySendsWithoutStoppingThePreviousReply() async throws {
         let ledger = try Ledger.inMemory()
         let runner = TailGateRunner { text in text.contains("最初の質問") ? .beforeTail : .none }
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         let threadID = try await makeThread(ledger)
         let store = ChatStore(ledger: ledger, turns: turns)
         await store.adoptThread(id: try XCTUnwrap(UUID(uuidString: threadID)))
@@ -206,7 +206,7 @@ final class ReplyTailQueueTests: XCTestCase {
     func testStoppingQueuedSendLeavesTheRecordRunning() async throws {
         let ledger = try Ledger.inMemory()
         let runner = TailGateRunner { text in text.contains("最初の質問") ? .inTail : .none }
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         let threadID = try await makeThread(ledger)
         _ = try await turns.sendChat(.init(threadID: threadID, text: "最初の質問", attachments: [], workbookView: nil))
         try await waitUntil("first reply reaches the private record") { !(runner.waiting.isEmpty) }
@@ -234,7 +234,7 @@ final class ReplyTailQueueTests: XCTestCase {
     func testExampleReadyIsRecordedBeforeTheTailFinishes() async throws {
         let ledger = try Ledger.inMemory()
         let runner = TailGateRunner { text in text.contains("できた") ? .inTail : .none }
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         let subunitID = try await ledger.commit { db in
             var machine = try WorkbookMachine(loading: db)
             let unitID = machine.createUnit(title: "二次関数", outcome: "", source: "consult", subunits: [.init(title: "頂点", outcome: "頂点を求める", n: 5)], firstStage: 2)
