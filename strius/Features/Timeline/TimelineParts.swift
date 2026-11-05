@@ -138,7 +138,7 @@ struct TimelineMath: View {
 
     var body: some View {
         // 長い式は小さくして、画面の幅に収める(横にはみ出させない)。
-        KaTeXMathText(TimelineMath.highlighting(latex, changed: changed), display: true, foregroundColor: UIColor(Theme.primaryText), fontSize: fitted, fontWeight: 500)
+        KaTeXMathText(TimelineMath.highlighting(latex, changed: changed), display: true, foregroundColor: UIColor(Theme.primaryText), fontSize: fitted, fontWeight: 500, placeholderLatex: latex)
             .accessibilityIdentifier("timeline-math")
     }
 

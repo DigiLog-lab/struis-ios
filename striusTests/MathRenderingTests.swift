@@ -168,6 +168,9 @@ struct MathRenderingTests {
             #expect(highlighted == "$$" + marked + "$$")
             #expect(MathTextLayout.blocks(highlighted, display: true) == [.display(marked, mark: 0)])
             #expect(NativeMathDocument.make(highlighted, display: true) == nil)
+            // WebView を待つ間の式(元の式)は SwiftMath で描ける。読み上げの文字に色の命令が混ざらない。
+            #expect(NativeMathDocument.make(item.latex, display: true) != nil)
+            #expect(MathPlainText.readable(highlighted) == MathPlainText.readable("$$" + item.latex + "$$"))
         }
     }
 
