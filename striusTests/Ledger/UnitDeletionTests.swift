@@ -174,14 +174,13 @@ final class UnitDeletionTests: XCTestCase {
     }
 
     /// 会話の行は写真を探すのに要るので、行を消す `forgetThreads` は台帳の削除の後(実機の順番)。
-    func testTheCoordinatorForgetsConversationsAfterTheDeletion() async throws {
+    @MainActor func testTheCoordinatorForgetsConversationsAfterTheDeletion() async throws {
         let ledger = try Ledger.inMemory()
         let (first, _, _) = try await seed(ledger)
         let runner: ForgetOrderRunner = ForgetOrderRunner(ledger: ledger, unitID: first)
         let coordinator: TurnCoordinator = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         _ = try await coordinator.deleteUnit(id: first)
-        let unitWasGone: Bool? = await runner.unitWasGone
-        XCTAssertEqual(unitWasGone, true)
+        XCTAssertEqual(runner.unitWasGone, true)
     }
 
     func testDatabaseFailureRestoresMemoryAndUnitAndRetryCommitsOnce() async throws {
@@ -385,7 +384,7 @@ extension UnitDeletionTests {
     func release() { releaseContinuation?.resume(); releaseContinuation = nil }
 }
 
-private actor ForgetOrderRunner: TurnRunning {
+@MainActor private final class ForgetOrderRunner: TurnRunning {
     private let ledger: Ledger
     private let unitID: String
     private(set) var unitWasGone: Bool?
