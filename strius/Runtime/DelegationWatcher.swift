@@ -217,7 +217,7 @@ actor DelegationWatcher {
                     throw LedgerError.invalid("Symlink sources are not permitted")
                 }
             }
-            guard FileManager.default.fileExists(atPath: url.path) else { throw LedgerError.invalid("Source is outside this learner's workspace") }
+            guard FileManager.default.fileExists(atPath: url.path) else { throw LedgerError.invalid("Source does not exist in this learner's workspace") }
             result.append(parts.joined(separator: "/"))
         }
         return result
@@ -268,7 +268,7 @@ actor DelegationWatcher {
                 throw TurnRuntimeError.malformed("luna result is not JSON")
             }
             let findings: [Any] = parsed["findings"] as? [Any] ?? []
-            guard findings.count <= request.count else { throw LedgerError.invalid("Luna returned more findings than requested") }
+            guard findings.count <= request.count else { throw LedgerError.invalid("The lookup returned more findings than requested") }
             let failures: [String] = parsed["failure_reasons"] as? [String] ?? []
             return ["success": failures.isEmpty, "result": parsed]
         } catch {

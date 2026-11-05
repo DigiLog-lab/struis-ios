@@ -12,7 +12,7 @@ actor NativeToolRouter {
     private var cancelled: Set<String> = []
 
     nonisolated static let instructions = "Call struis.exec_command and struis.struis_delegate directly. The code-mode exec host is unavailable on iOS. Use POSIX dash commands or embedded Python; Python cannot launch OS subprocesses. Use struis.struis_delegate for private lookups, never a shell command that waits for a child."
-    nonisolated static let lookupInstructions = "Read and search the supplied files with struis.exec_command directly. The code-mode host is unavailable. Use POSIX shell commands, rg or embedded Python. Perform this lookup yourself; do not delegate again."
+    nonisolated static let lookupInstructions = "Read and search the supplied files with struis.exec_command directly. The code-mode host is unavailable. Use POSIX shell commands, rg or embedded Python. Every command starts in this working directory, which holds all the supplied files, and a cd does not carry over to the next command. Search only inside this directory; never search the whole filesystem. Perform this lookup yourself; do not delegate again."
 
     nonisolated static var lookupDefinitions: [JSONObject] {
         var namespace = definitions[0]

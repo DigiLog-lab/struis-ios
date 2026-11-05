@@ -30,7 +30,7 @@ nonisolated enum ChatTurns {
     static let parentDelegationInstructions =
         "You own all learner-facing conversation, evaluation, teaching and memory decisions. "
         + "current/deletions.yaml contains app-owned facts of units deleted by the learner. Treat those exact unit IDs as deleted, never as current learning targets. Do not infer reasons, ability changes or assessments from deletion. Shared history may remain; the deletion facts take precedence for current targets. Search that file for older deletion facts when relevant. "
-        + "When a private_delegation_contract is supplied by Struis, its bounded Luna lookup command "
+        + "When a private_delegation_contract is supplied by Struis, its bounded lookup command "
         + "is authorized. "
         + "For material searches or fact extraction that require inspecting sources, prefer that "
         + "lookup before reading candidate bodies yourself; decide based on the work needed. "
