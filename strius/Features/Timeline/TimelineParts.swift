@@ -142,10 +142,14 @@ struct TimelineMath: View {
             .accessibilityIdentifier("timeline-math")
     }
 
-    /// 変えたところを銅色の地にした式(見つからなければそのまま)。
+    /// 変えたところを銅色の地にした式(見つからない・SwiftMath で組めない時はそのまま)。
+    /// `$` は入れない。入れると `MathTextLayout` が式を本文と行中の数式に分けて、命令が文字のまま出る。
+    /// KaTeX の `\colorbox` の中は本文の扱いで `\frac` を組めないので、SwiftMath で組めない式には色を付けない。
     static func highlighting(_ latex: String, changed: String?) -> String {
-        guard let changed = changed?.trimmingCharacters(in: .whitespaces), !changed.isEmpty, let range = latex.range(of: changed) else { return latex }
-        return latex.replacingCharacters(in: range, with: "\\colorbox{#E9C8A6}{$\\color{#1F1A17}{" + changed + "}$}")
+        guard let changed: String = changed?.trimmingCharacters(in: .whitespaces), !changed.isEmpty, let range: Range<String.Index> = latex.range(of: changed) else { return latex }
+        let highlighted: String = latex.replacingCharacters(in: range, with: "\\colorbox{#E9C8A6}{\\color{#1F1A17}{" + changed + "}}")
+        guard case .success = NativeMathRenderer.shared.parse(highlighted) else { return latex }
+        return highlighted
     }
 
     private var fitted: CGFloat {

@@ -159,6 +159,30 @@ struct MathRenderingTests {
         #expect(MathTextLayout.blocks("$ $ だけ", display: false) == [.paragraph([.text(" だけ", bold: false, mark: nil)])])
     }
 
+    /// 実 AI の続きのカードで `y=-\colorbox{#E9C8A6}{}^2-2` が文字のまま出た式。
+    @Test func chainHighlightStaysOneDisplayFormula() throws {
+        let style: NativeMathStyle = NativeMathStyle(color: .black, fontSize: 34, fontWeight: 500, scale: 2)
+        let cases: [(latex: String, changed: String)] = [("y=-(x+4)^2-2", "(x+4)"), ("y=x^2+6x+5", "x^2+6x+5"), ("y=\\frac{1}{2}x+1", "\\frac{1}{2}x")]
+        for item: (latex: String, changed: String) in cases {
+            let latex: String = item.latex
+            let highlighted: String = TimelineMath.highlighting(latex, changed: item.changed)
+            #expect(highlighted.contains("\\colorbox{#E9C8A6}{"))
+            #expect(!highlighted.contains("$"))
+            #expect(MathTextLayout.blocks(highlighted, display: true) == [.display(highlighted, mark: 0)])
+            let colored: NativeMathGlyph = try #require(NativeMathRenderer.shared.glyph(latex: highlighted, display: true, style: style, highlighted: false))
+            let plain: NativeMathGlyph = try #require(NativeMathRenderer.shared.glyph(latex: latex, display: true, style: style, highlighted: false))
+            // 変えたところが消えていない(幅が空の箱の分まで縮まない)。
+            #expect(colored.size.width >= plain.size.width * 0.9)
+        }
+    }
+
+    @Test func chainHighlightLeavesFormulaUnchangedWhenItCannotApply() {
+        #expect(TimelineMath.highlighting("y=x^2", changed: nil) == "y=x^2")
+        #expect(TimelineMath.highlighting("y=x^2", changed: "z") == "y=x^2")
+        // `\pi` の途中を変えた所にすると、命令が壊れて SwiftMath で組めない。
+        #expect(TimelineMath.highlighting("y=\\pi", changed: "i") == "y=\\pi")
+    }
+
     // MARK: - 画像
 
     @Test func inlineGlyphCarriesABaselineAndDisplayGlyphIsTaller() throws {
