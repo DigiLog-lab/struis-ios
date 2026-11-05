@@ -25,7 +25,7 @@ nonisolated struct TurnComposer {
         return (try? encoder.encode(value)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
     }
 
-    private func structuredThread(planID: String, instructions asset: String, model: DeliveryManifest.Model) async throws -> TurnPlan.ThreadSpec {
+    private func structuredThread(planID: String, instructions asset: String, model: TurnModel) async throws -> TurnPlan.ThreadSpec {
         TurnPlan.ThreadSpec(
             codexThreadID: nil, mode: .start, cwd: TurnPlan.guestWorkspace(id: planID), model: model.model, effort: model.effort,
             ephemeral: true, baseInstructions: try await assets.ref(asset), developerInstructions: nil,

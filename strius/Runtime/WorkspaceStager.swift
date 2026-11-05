@@ -180,11 +180,11 @@ nonisolated enum WorkspaceStager {
     }
 }
 
-/// Synchronous bridge for reading cached asset text from non-async code.
+/// Synchronous bridge for reading asset text from non-async code.
 nonisolated enum AssetCacheSync {
     static func text(_ cache: AssetCache, name: String) throws -> String {
         let semaphore = DispatchSemaphore(value: 0)
-        nonisolated(unsafe) var result: Result<String, Error> = .failure(DeliveryError.notCached(name))
+        nonisolated(unsafe) var result: Result<String, Error> = .failure(AssetError.missing(name))
         Task.detached {
             do { result = .success(try await cache.text(name)) } catch { result = .failure(error) }
             semaphore.signal()

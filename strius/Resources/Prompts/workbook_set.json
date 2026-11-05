@@ -1,0 +1,52 @@
+{
+  "$defs": {
+    "SetProblemDraft": {
+      "additionalProperties": false,
+      "properties": {
+        "answer_key": {
+          "maxLength": 2000,
+          "title": "Answer Key",
+          "type": "string"
+        },
+        "checkpoints": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Checkpoints",
+          "type": "array"
+        },
+        "prompt": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        }
+      },
+      "required": [
+        "prompt",
+        "answer_key",
+        "checkpoints"
+      ],
+      "title": "SetProblemDraft",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "problems": {
+      "items": {
+        "$ref": "#/$defs/SetProblemDraft"
+      },
+      "maxItems": 100,
+      "minItems": 1,
+      "title": "Problems",
+      "type": "array"
+    }
+  },
+  "required": [
+    "problems"
+  ],
+  "title": "WorkbookSetDraft",
+  "type": "object"
+}

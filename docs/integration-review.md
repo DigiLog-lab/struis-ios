@@ -50,7 +50,7 @@ App Attest の失敗(`AppAttestClient.Failure` と `com.apple.devicecheck.error`
 | 401 `authentication_error` | errors | `ClaudeTurn.ask`(App Attest 経路は token を捨てて 1 回だけ送り直す。API キー経路はターンの失敗) | 単体: 表 1 の最後から 2 行目 |
 | 402 `billing_error` | errors | ターンの失敗(個別の扱いなし) | 未対応 |
 | 403 `permission_error` | errors | ターンの失敗(個別の扱いなし) | 未対応 |
-| 404 `not_found_error`(モデル名の誤りはここ) | errors | ターンの失敗。モデル名は配信 manifest の `claude:astra` 等、無ければ `ClaudeModels` の既定 | 未対応 |
+| 404 `not_found_error`(モデル名の誤りはここ) | errors | ターンの失敗。モデル名は `ClaudeModels`・`TimelineModels` | 未対応 |
 | 409 `conflict_error` | errors | ターンの失敗 | 未対応 |
 | 413 `request_too_large` | errors | 送る前に止める: `ClaudeUpstream.maxRequestBytes`(20 MiB)を超える本文は送らず、要求の記録に `status: oversized` を残してターンの失敗にする | 単体: `ClaudeTurnRunnerTests.testRequestSizeCapSitsBelowAnthropicsLimitAndAboveNormalTurns` |
 | 429 `rate_limit_error`(+ `retry-after`) | errors | **送り直さない**(ターンの失敗)。`retry-after` は読むが、使うのは 5xx の待ちだけ | 未対応(テストなし)。模擬: `fake_anthropic.py` の `faults` で 429 |

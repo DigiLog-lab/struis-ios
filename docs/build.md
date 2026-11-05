@@ -8,7 +8,7 @@ Vendor、PackageCache、PythonPackages、.buildは生成・取得領域です。
 
 Xcodeの参照とターゲットはソースに含まれており、通常の導入でプロジェクトの再生成は不要です。Swift sourceやtargetを追加する開発では、Rubyの`xcodeproj` gemを準備して`scripts/sync_project.py`で登録できます。`sync_test_resources.py`は同梱可能な合成入力と、存在する任意test資産を登録します。backend checkoutはビルド入力ではありません。
 
-配信キーは`Config/Local.xcconfig`へ設定します。`Config/Build.xcconfig`の公開既定値は空です。Info.plistは`STRUIS_DELIVERY_APP_KEY`をビルド時に取り込みます。キーは配信サービスの利用条件です。AIはAnthropicのMessages APIを端末から直接呼び、実機はApp Attestで認証します。そのためのClaude ConsoleのApp integrationのclient ID(`STRUIS_CLAUDE_CLIENT_ID`、`clid_...`)は秘密値ではなく、`Config/Build.xcconfig`に記載しています。App Attestはclient IDに登録したTeam IDとBundle IDの組だけを通します。DEBUGのSimulatorはApp Attestを使えないため、`STRUIS_DEBUG_ANTHROPIC_KEY_FILE`に置いたAPIキーのファイルで検証します。
+AIはAnthropicのMessages APIを端末から直接呼び、実機はApp Attestで認証します。そのためのClaude ConsoleのApp integrationのclient ID(`STRUIS_CLAUDE_CLIENT_ID`、`clid_...`)は秘密値ではなく、`Config/Build.xcconfig`に記載しています。App Attestはclient IDに登録したTeam IDとBundle IDの組だけを通します。DEBUGのSimulatorはApp Attestを使えないため、`STRUIS_DEBUG_ANTHROPIC_KEY_FILE`に置いたAPIキーのファイルで検証します。
 
 実機archiveにはApple Developerの署名チーム、`com.digiloglab.strius`とExec拡張(`com.digiloglab.strius.exec`)のBundle ID、`group.com.digiloglab.struis.runtime`のApp Groups entitlementを設定します。既存データの検証では同じ識別子を維持してください。
 

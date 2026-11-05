@@ -1,10 +1,8 @@
 import Foundation
-import OSLog
 import UIKit
 
-private let dataLog = Logger(subsystem: "com.digiloglab.strius", category: "learner-data")
 
-/// The learner's on-device data stack: ledger, delivery cache and turn queue
+/// The learner's on-device data stack: ledger, bundled assets and turn queue
 /// (design §2). Created once at launch and shared with the stores.
 @Observable
 @MainActor
@@ -15,15 +13,8 @@ final class LearnerData {
     let runner: any TurnRunning
     let iCloud: ICloudSync
     let isEphemeral: Bool
-    let requiresDelivery: Bool
-    private(set) var deliveryState: DeliveryState = .idle
-
-    enum DeliveryState: Equatable {
-        case idle
-        case refreshing
-        case ready(String)
-        case failed(String)
-    }
+    /// DEBUG の模擬のターンで動いている(実 AI に繋がない)。
+    let usesMockTurns: Bool
 
     init(runtime: DeviceRuntime?) {
         var ephemeral = false
@@ -53,27 +44,26 @@ final class LearnerData {
         #if DEBUG
         useMock = MockTurnRunner.isEnabled || runtime == nil || (SimulatorFixtures.isEnabled && !DeviceRuntime.isForcedInFixtures)
         #endif
-        let cache: AssetCache = AssetCache(lenient: useMock)
+        let cache: AssetCache = AssetCache()
         assets = cache
         let conversations: ClaudeConversationStore = ClaudeConversationStore(queue: ledger.queue)
         let claude: (DeviceRuntime) -> ClaudeTurnRunner = { runtime in
             ClaudeTurnRunner(assets: cache, conversations: conversations) { await runtime.start() }
         }
         #if DEBUG
-        // Simulator の実 AI の検証では `STRUIS_DEVICE_RUNTIME=1`(無いとモック)と `STRUIS_DEVICE_ASSETS_DIR`(配信の写し、または
-        // `scripts/e2e/standin_assets.py`)も要る。
+        // Simulator の実 AI の検証では `STRUIS_DEVICE_RUNTIME=1` も要る(無いとモック)。
         runner = useMock ? MockTurnRunner() : claude(runtime!)
         #else
         runner = claude(runtime!)
         #endif
-        requiresDelivery = !useMock
+        usesMockTurns = useMock
         turns = TurnCoordinator(ledger: ledger, assets: assets, runner: runner)
         TimelineQueryHost.install(ledger)
     }
 
     private var usageReporter: UsageReporter?
 
-    /// Seed fixtures (DEBUG) and refresh the delivery cache.
+    /// Start the usage reporter and seed fixtures (DEBUG).
     func prepare(client: APIClient) async {
         if usageReporter == nil {
             let reporter = UsageReporter(ledger: ledger, client: client)
@@ -85,96 +75,6 @@ final class LearnerData {
             await LedgerFixtures.seedWorkbookIfEmpty(ledger)
             await LedgerFixtures.seedChatIfEmpty(ledger)
         }
-        if let local = LocalDirectoryAssetSource.fromEnvironment {
-            await refreshAssets(from: local)
-            return
-        }
-        if SimulatorFixtures.isEnabled { return }
         #endif
-        await refreshAssets(client: client)
-    }
-
-    /// Refresh the authenticated delivery cache from the server. This is shared
-    /// by the authenticated launch path and the Settings recovery path.
-    func refreshAssets(client: APIClient) async {
-        guard requiresDelivery else { return }
-        #if DEBUG
-        if let local = LocalDirectoryAssetSource.fromEnvironment {
-            await refreshAssets(from: local)
-            return
-        }
-        if SimulatorFixtures.isEnabled { return }
-        #endif
-        await refreshAssets(from: ServerAssetSource(client: client))
-    }
-
-    func refreshAssets(from source: any AssetSource) async {
-        guard requiresDelivery, deliveryState != .refreshing else { return }
-        deliveryState = .refreshing
-        do {
-            let manifest = try await assets.refresh(from: source)
-            deliveryState = .ready(manifest.fetchedAt ?? "")
-        } catch {
-            dataLog.error("delivery refresh failed: \(String(describing: error), privacy: .public)")
-            // An older complete cache is still valid because turns never fetch
-            // from the server. Keep it usable while reporting the refresh issue.
-            if await assets.isReady {
-                deliveryState = .ready("cached")
-            } else {
-                deliveryState = .failed(Self.deliveryMessage(for: error))
-            }
-        }
-    }
-
-    var isDeliveryReady: Bool {
-        guard requiresDelivery else { return true }
-        if case .ready = deliveryState { return true }
-        return false
-    }
-
-    /// 更新に失敗して質問できない(設定のホームの知らせに出す)。
-    var isDeliveryFailed: Bool {
-        guard requiresDelivery else { return false }
-        if case .failed = deliveryState { return true }
-        return false
-    }
-
-    var isDeliveryRefreshing: Bool {
-        if case .refreshing = deliveryState { return true }
-        return false
-    }
-
-    var deliverySummary: String {
-        guard requiresDelivery else { return "この環境では準備済み" }
-        switch deliveryState {
-        case .idle: return "未準備"
-        case .refreshing: return "更新中"
-        case .ready: return "利用できます"
-        case .failed: return "更新が必要です"
-        }
-    }
-
-    var deliveryDetail: String {
-        guard requiresDelivery else { return "試験用データで質問できます" }
-        switch deliveryState {
-        case .idle: return "質問に必要なデータを確認します"
-        case .refreshing: return "質問に必要なデータを更新しています"
-        case .ready: return "質問を送信できます"
-        case .failed: return "設定を開いて「更新する」を押してください"
-        }
-    }
-
-    private static func deliveryMessage(for error: Error) -> String {
-        guard let apiError = error as? APIError else {
-            return "配信データを更新できませんでした。もう一度お試しください"
-        }
-        switch apiError {
-        case .unauthorized:
-            return "ログイン状態を確認してから、もう一度更新してください"
-        case .transport:
-            return "ネットワークに接続できません。接続を確認して、もう一度更新してください"
-        case .server, .decoding, .invalidResponse:
-            return "配信データを更新できませんでした。もう一度お試しください"
-        }
     }
 }

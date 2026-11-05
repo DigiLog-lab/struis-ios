@@ -119,7 +119,7 @@ def run(command, log=None):
             result = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
         if result.returncode:
             sensitive = [part for key, value in os.environ.items()
-                         if key in ('P12_PASSWORD', 'STRUIS_DELIVERY_APP_KEY', 'APP_STORE_CONNECT_PRIVATE_KEY')
+                         if key in ('P12_PASSWORD', 'APP_STORE_CONNECT_PRIVATE_KEY')
                          for part in value.splitlines() if part]
             for line in log.read_text(errors='replace').splitlines():
                 if 'error:' in line.lower():
@@ -147,8 +147,8 @@ def main():
     args = parser.parse_args()
     if args.build_number and not re.fullmatch(r'[1-9][0-9]*', args.build_number):
         raise RuntimeError('Build number must be a positive integer')
-    if args.upload and (not args.build_number or not os.environ.get('STRUIS_DELIVERY_APP_KEY')):
-        raise RuntimeError('Upload requires an explicit build number and service configuration')
+    if args.upload and not args.build_number:
+        raise RuntimeError('Upload requires an explicit build number')
     auth_names = ('APP_STORE_CONNECT_PRIVATE_KEY', 'APP_STORE_CONNECT_KEY_ID', 'APP_STORE_CONNECT_ISSUER_ID')
     if not all(os.environ.get(name) for name in auth_names):
         raise RuntimeError('App Store Connect authentication (all three inputs) is required for the signing profiles')
@@ -161,8 +161,6 @@ def main():
     archive = output / 'Struis.xcarchive'
     if archive.exists():
         raise RuntimeError('Use a new output directory for each archive')
-    local = ROOT / 'Config/Local.xcconfig'
-    local_original = local.read_bytes() if local.exists() else None
     original_keychains = shlex.split(run(['security', 'list-keychains', '-d', 'user']).decode())
     installed = {}
     protected = {}
@@ -217,11 +215,6 @@ def main():
         if len(teams) != 1:
             raise RuntimeError('Signing profiles use different teams')
         team = next(iter(teams))
-        delivery = os.environ.get('STRUIS_DELIVERY_APP_KEY', '')
-        if '\n' in delivery or '\r' in delivery or '//' in delivery:
-            raise RuntimeError('Service setting cannot be represented in this configuration')
-        local.write_text(f'STRUIS_DELIVERY_APP_KEY = {delivery}\n')
-        local.chmod(0o600)
         command = ['xcodebuild', 'archive', '-project', 'strius.xcodeproj', '-scheme', 'strius',
                    '-configuration', 'Release', '-destination', 'generic/platform=iOS',
                    '-derivedDataPath', str(output / 'DerivedData'), '-archivePath', str(archive),
@@ -238,12 +231,10 @@ def main():
             subprocess.run([sys.executable, 'NativeRuntime/Scripts/audit-cloud-archive.py'], cwd=ROOT,
                            env=audit_environment, stdout=stream, stderr=subprocess.STDOUT, check=True)
         info = plistlib.loads((app / 'Info.plist').read_bytes())
-        if info.get('StruisDeliveryAppKey', '') != delivery:
-            raise RuntimeError('Archive service configuration differs from the private input')
         record = {'sourceCommit': commit, 'version': info['CFBundleShortVersionString'],
                   'build': info['CFBundleVersion'], 'bundleIdentifier': info['CFBundleIdentifier'],
                   'signedArchiveVerified': True, 'bundleAuditPassed': True,
-                  'serviceConfigured': bool(delivery), 'uploaded': False}
+                  'uploaded': False}
         if args.upload:
             options = private / 'ExportOptions.plist'
             options.write_bytes(plistlib.dumps({'method': 'app-store-connect', 'destination': 'upload',
@@ -270,11 +261,6 @@ def main():
                 destination.unlink(missing_ok=True)
             else:
                 destination.write_bytes(original)
-        if local_original is None:
-            local.unlink(missing_ok=True)
-        else:
-            local.write_bytes(local_original)
-            local.chmod(0o600)
         temporary.cleanup()
 
 

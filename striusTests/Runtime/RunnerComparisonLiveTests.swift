@@ -16,12 +16,9 @@ import XCTest
 ///     TEST_RUNNER_STRUIS_RUNNER_COMPARE_SETS=record,normal,replay,faults,structured,chat(既定 normal,faults)
 ///     TEST_RUNNER_STRUIS_ANTHROPIC_BASE_URL=http://127.0.0.1:8787 TEST_RUNNER_STRUIS_DEBUG_ANTHROPIC_KEY_FILE=<偽のキー>
 ///     TEST_RUNNER_STRUIS_DEVICE_RUNTIME=0 TEST_RUNNER_STRUIS_PLAN=generous TEST_RUNNER_STRUIS_USAGE_PERCENT=0
-///     [TEST_RUNNER_STRUIS_DEVICE_ASSETS_DIR=<配信の形の prompt・schema>]
 ///
 /// `STRUIS_PLAN`・`STRUIS_USAGE_PERCENT` は端末の利用枠をメモリの中だけの枠に替える。付けないと Keychain に週ごとに溜まる
 /// お試しの枠($0.25)を数回で使い切り、以降の依頼が全部「利用枠を使い切りました」で止まる。
-/// `STRUIS_DEVICE_ASSETS_DIR` があれば、そこにある本物の配信物(`LocalDirectoryAssetSource` の並び)で指示文と schema を作る。
-/// 無ければ、足りない指示文を仮の文で埋める緩い置き場を使う。
 ///
 /// 組(`STRUIS_RUNNER_COMPARE_SETS`):
 /// - `record`・`normal`・`replay`・`faults`: タイムラインの判定・見直し・5枚の依頼(`faults` は故障ごとに 1 回と、待っている間の停止)。
@@ -81,7 +78,7 @@ final class RunnerComparisonLiveTests: XCTestCase {
         let sets = (environment["STRUIS_RUNNER_COMPARE_SETS"] ?? "normal,faults").split(separator: ",").map(String.init)
         let iterations = Int(environment["STRUIS_RUNNER_COMPARE_ITERATIONS"] ?? "") ?? 5
 
-        let assets: AssetCache = try await Self.makeAssets(environment: environment)
+        let assets: AssetCache = AssetCache()
         self.assets = assets
         let composer = TurnComposer(assets: assets)
         let before = StruisMemorySnapshot()
@@ -135,16 +132,6 @@ final class RunnerComparisonLiveTests: XCTestCase {
 
     private static func memory(_ snapshot: [String: NSNumber]) -> [String: Any] {
         ["footprint": snapshot["footprint"]?.uint64Value ?? 0, "lifetime_peak": snapshot["lifetimePeak"]?.uint64Value ?? 0]
-    }
-
-    /// 配信物の置き場。`STRUIS_DEVICE_ASSETS_DIR` があれば本物の配信物を取り込む。
-    private static func makeAssets(environment: [String: String]) async throws -> AssetCache {
-        let root: URL = FileManager.default.temporaryDirectory.appendingPathComponent("compare-\(UUID().uuidString)")
-        let delivered: String = environment["STRUIS_DEVICE_ASSETS_DIR"] ?? ""
-        guard !delivered.isEmpty else { return AssetCache(root: root, lenient: true) }
-        let cache: AssetCache = AssetCache(root: root)
-        _ = try await cache.refresh(from: LocalDirectoryAssetSource(root: URL(fileURLWithPath: delivered, isDirectory: true)))
-        return cache
     }
 
     @MainActor

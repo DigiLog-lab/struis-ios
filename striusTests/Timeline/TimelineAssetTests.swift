@@ -1,14 +1,8 @@
 import XCTest
 @testable import strius
 
-/// Issue #46「プロンプトとスキーマは、このリポに埋め込む」: 配信に無い名前は同梱版を使い、配信にあれば配信版が優先される。
+/// 指示文・schema・Skill はすべてアプリに同梱する。
 final class TimelineAssetTests: XCTestCase {
-    private func emptyRoot() -> URL {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("timeline-assets-\(UUID().uuidString)")
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return root
-    }
-
     func testEveryBundledAssetShipsWithTheApp() throws {
         for name in BundledAssets.names {
             let data = try XCTUnwrap(BundledAssets.main.data(name), "\(name) が同梱されていない")
@@ -21,13 +15,18 @@ final class TimelineAssetTests: XCTestCase {
         }
     }
 
-    func testBundledAssetsAreNotRequiredByTheManifest() {
-        // 必須の一覧に入れると、サーバーが対応するまで refresh が manifestMissing で失敗し、配信の更新が全部止まる。
-        XCTAssertTrue(Set(DeliveryManifest.assetNames).isDisjoint(with: BundledAssets.names))
+    func testNoBundledAssetNamesTheRetiredRuntime() throws {
+        for name in BundledAssets.names {
+            let data: Data = try XCTUnwrap(BundledAssets.main.data(name), name)
+            let text: String = String(decoding: data, as: UTF8.self).lowercased()
+            for retired in ["codex", "gpt-", "openai", "chatgpt"] {
+                XCTAssertFalse(text.contains(retired), "\(name) に \(retired) が残っている")
+            }
+        }
     }
 
-    func testFallsBackToTheBundledCopyAndHashesIt() async throws {
-        let cache = AssetCache(root: emptyRoot())
+    func testReadsTheBundledCopyAndHashesIt() async throws {
+        let cache = AssetCache()
         let text = try await cache.text("prompt:timeline_instructions")
         XCTAssertTrue(text.contains("次の5枚"))
         let ref = try await cache.ref("prompt:timeline_instructions")
@@ -35,31 +34,28 @@ final class TimelineAssetTests: XCTestCase {
         XCTAssertEqual(ref.sha256, AssetCache.sha256Hex(data))
         let schema = try await cache.json("schema:timeline_batch")
         XCTAssertNotNil(schema["properties"]?["cards"])
-        // 同梱に無い名前は今まで通り未取得。
+        // 表に無い名前は読めない。
         do {
-            _ = try await cache.text("prompt:base")
-            XCTFail("prompt:base は同梱しない")
-        } catch DeliveryError.notCached {}
+            _ = try await cache.text("prompt:unknown")
+            XCTFail("prompt:unknown は同梱していない")
+        } catch AssetError.missing {}
     }
 
-    func testDeliveredCopyWins() async throws {
-        let root = emptyRoot()
-        let body = Data("配信版の指示".utf8)
-        let sha = AssetCache.sha256Hex(body)
-        try body.write(to: root.appendingPathComponent("prompt-timeline_instructions-" + sha.prefix(16)))
-        var assets: [String: DeliveryManifest.Asset] = [:]
-        assets["prompt:timeline_instructions"] = DeliveryManifest.Asset(sha256: sha, bytes: body.count, updatedAt: "now")
-        let manifest = DeliveryManifest(codexVersion: "0", rootfsMinVersion: 1, models: [:], assets: assets, fetchedAt: nil)
-        try AssetCache.encoder.encode(manifest).write(to: root.appendingPathComponent("manifest.json"))
-        let cache = AssetCache(root: root)
-        let text = try await cache.text("prompt:timeline_instructions")
-        XCTAssertEqual(text, "配信版の指示")
-        let ref = try await cache.ref("prompt:timeline_instructions")
-        XCTAssertEqual(ref.sha256, sha)
+    func testTheProtocolAndWorkspaceFilesAreBundled() async throws {
+        let cache = AssetCache()
+        let developer = try await cache.text("prompt:developer")
+        XCTAssertTrue(developer.contains("STRUIS_TURN_PROTOCOL_V2"), "受け答えの決まりは指示文の側にある")
+        let reference = try await ChatTurns.developerRef(assets: cache)
+        XCTAssertTrue(reference.append?.contains("Progress update_schema") == true)
+        for name in ["prompt:base", "prompt:agents", "prompt:luna_child", "prompt:delegate_py", "prompt:tutor_memory_py",
+                     "prompt:reply_lint_py", "skill:struis_document"] {
+            let body = try await cache.text(name)
+            XCTAssertFalse(body.isEmpty, name)
+        }
     }
 
     func testTimelineModelAliases() async throws {
-        let cache = AssetCache(root: emptyRoot())
+        let cache = AssetCache()
         let claude = await cache.model(TimelineModels.role)
         XCTAssertEqual(claude.model, "claude-sonnet-5-5")
         XCTAssertEqual(claude.provider, .anthropic)
@@ -73,19 +69,8 @@ final class TimelineAssetTests: XCTestCase {
         XCTAssertEqual(luna.model, ClaudeModels.lunaModel)
     }
 
-    func testManifestAliasOverridesTheTimelineModel() async throws {
-        let root = emptyRoot()
-        let manifest = DeliveryManifest(codexVersion: "0", rootfsMinVersion: 1, models: [
-            "claude:timeline": DeliveryManifest.Model(model: "claude-opus-5-5", effort: "medium"),
-            "timeline": DeliveryManifest.Model(model: "gpt-6.2", effort: "low"),
-        ], assets: [:], fetchedAt: nil)
-        try AssetCache.encoder.encode(manifest).write(to: root.appendingPathComponent("manifest.json"))
-        let cache = AssetCache(root: root)
-        // 前の配信の GPT のキー(`timeline`)は読まない。
-        let graphDefault = await cache.model(TimelineModels.graphRole)
-        XCTAssertEqual(graphDefault.model, "claude-opus-5-5")
-        // Claude は設定で選んだモデル(既定は Sonnet 5.5)が manifest の `claude:timeline` より優先する。
-        let haiku = AssetCache(root: root, timelineClaudeModel: { "claude-haiku-5-5" })
+    func testTheChosenTimelineModelAppliesToTheTimelineOnly() async throws {
+        let haiku = AssetCache(timelineClaudeModel: { "claude-haiku-5-5" })
         let model = await haiku.model(TimelineModels.role)
         XCTAssertEqual(model.model, "claude-haiku-5-5")
         XCTAssertEqual(model.provider, .anthropic)

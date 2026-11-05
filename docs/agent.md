@@ -82,8 +82,8 @@ App Store Connect API キーでは App Group の作成と App ID への割当が
 ### 配布ファイルの保護
 
 - IPA・manifest・インストールページは R2 の非公開バケットに置き、Worker が HMAC 署名付きの期限付き URL(既定7日)でだけ配信します。Ad Hoc の IPA は profile に含まれる登録端末にしかインストールできません。
-- インストールページの URL は Issue に投稿されるため、公開リポジトリでは期限内なら第三者も IPA を取得できます。IPA には配信キーが含まれます。より厳しくする場合は、`agent-struis.digiloglab.com/p/*` に Cloudflare Access を設定してください(manifest と IPA は署名 URL のままで動作します)。
-- 署名用の Secrets は `prototype-distribution` environment からだけ渡ります。この environment は `main` からの実行に限定しており、reviewer を設定すると署名・配布ごとに手動承認になります。xcodebuild のログには配信キーを含むビルド設定が出力されるため、artifact には `record.json` だけを保存します。
+- インストールページの URL は Issue に投稿されるため、公開リポジトリでは期限内なら第三者も IPA を取得できます。より厳しくする場合は、`agent-struis.digiloglab.com/p/*` に Cloudflare Access を設定してください(manifest と IPA は署名 URL のままで動作します)。
+- 署名用の Secrets は `prototype-distribution` environment からだけ渡ります。この environment は `main` からの実行に限定しており、reviewer を設定すると署名・配布ごとに手動承認になります。xcodebuild のログにはビルド設定が出力されるため、artifact には `record.json` だけを保存します。
 
 ## 導入手順
 
@@ -97,7 +97,7 @@ App Store Connect API キーでは App Group の作成と App ID への割当が
    ```
    Worker の URL が既定と異なる場合は Repository variable `AGENT_STORE_URL` に設定します。保存用の秘密値は GitHub に置きません。
 3. **GitHub**: ラベル `agent` を作成し、environment `prototype-distribution` を `main` 限定で作成します。エージェントに Pull Request を作らせる場合は、Settings → Actions → General → Workflow permissions の「Allow GitHub Actions to create and approve pull requests」を有効にします(無効のままだと、エージェントはブランチを push して PR の作成手順を Issue に返します)。任意の Repository variables は `AGENT_MODEL`(既定 `opus`)、`AGENT_EFFORT`、`AGENT_ALLOWED_USERS`、`AGENT_LABEL`、`AGENT_BUNDLE_PREFIX` です。
-4. **Apple**: 既存の署名用 Secrets(`BUILD_CERTIFICATE_BASE64`、`P12_PASSWORD`、`APP_STORE_CONNECT_*`、`STRUIS_DELIVERY_APP_KEY`)を使います。API キーは App ID と profile を作成できる権限が必要です。`register-slots` を実行し、Developer ポータルで App Group を登録・割り当てます。テスト端末は Apple Developer に登録しておきます(Ad Hoc の端末数上限に従います)。
+4. **Apple**: 既存の署名用 Secrets(`BUILD_CERTIFICATE_BASE64`、`P12_PASSWORD`、`APP_STORE_CONNECT_*`)を使います。API キーは App ID と profile を作成できる権限が必要です。`register-slots` を実行し、Developer ポータルで App Group を登録・割り当てます。テスト端末は Apple Developer に登録しておきます(Ad Hoc の端末数上限に従います)。
 5. `Native runtime cache` workflow を一度実行して cache を作ります。
 
 ## 制約

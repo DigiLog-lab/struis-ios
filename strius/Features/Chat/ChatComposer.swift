@@ -29,7 +29,6 @@ struct ChatComposer: View {
     @Binding var attachments: [ComposerAttachment]
     let focused: FocusState<Bool>.Binding
     let isSending: Bool
-    var deliveryReady = true
     let learningSessionAvailable: Bool
     @Binding var learningContextEnabled: Bool
     let onSend: () -> Void
@@ -405,7 +404,7 @@ struct ChatComposer: View {
     }
 
     private var canSend: Bool {
-        hasDraft && (!isSending || sendsWhileBusy) && deliveryReady && importsInFlight == 0 && lockedPDF == nil
+        hasDraft && (!isSending || sendsWhileBusy) && importsInFlight == 0 && lockedPDF == nil
     }
 
     /// 下書きと添付を空にするのは呼び手(受け付けた時だけ空にする。止めてから送る待ちの間に打った下書きを消さない)。

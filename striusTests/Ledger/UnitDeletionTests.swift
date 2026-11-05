@@ -356,7 +356,7 @@ extension UnitDeletionTests {
     func testLateGradingGenerationChatAndPrefetchNeverRestoreDeletedUnit() async throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["STRUIS_UNIT_DELETION_LIVE"] == "1", "端末の台帳に書く検証は明示的に起動する")
         try StruisPaths.prepare()
-        let assets: AssetCache = AssetCache(lenient: true)
+        let assets: AssetCache = AssetCache()
         let ledger = try Ledger(path: StruisPaths.ledger)
         for mode in ["grading", "generation", "chat", "prefetch"] {
             let inner: MockTurnRunner = MockTurnRunner()

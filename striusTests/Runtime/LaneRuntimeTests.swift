@@ -7,7 +7,7 @@ import XCTest
 /// 期限で止めた記録と次のターンへの注記は `ClaudeTurnRunnerTests` が確かめる。
 final class LaneRuntimeTests: XCTestCase {
     private static func assets() -> AssetCache {
-        AssetCache(root: FileManager.default.temporaryDirectory.appendingPathComponent("lane-a-\(UUID().uuidString)"), lenient: true)
+        AssetCache()
     }
 
     private static func chatPlan(threadID: String?, limit: Int = 5, inject: Bool = true) -> TurnPlan {
@@ -147,7 +147,7 @@ final class LaneRecoveryTests: XCTestCase {
         let ledger = try Ledger.inMemory()
         let seeded = try await Self.seed(ledger, userMetadata: ["hidden": .bool(true), "source": .string("struis_kickoff")])
         let runner = CountingRunner()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         await turns.resumeUnfinished()
         try await Self.waitIdle(turns, threadID: seeded.threadID, runner: runner, runs: 1)
         XCTAssertEqual(runner.runs, 1, "resumed without the learner")
@@ -162,7 +162,7 @@ final class LaneRecoveryTests: XCTestCase {
         let ledger = try Ledger.inMemory()
         let seeded = try await Self.seed(ledger, userMetadata: ["hidden": .bool(true), "source": .string("struis_kickoff")])
         let runner = CountingRunner()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         await turns.resumeUnfinished()
         try await Self.waitIdle(turns, threadID: seeded.threadID, runner: runner, runs: 1)
         let reply = try await ledger.read { db in try MessageRecord.fetchOne(db, key: seeded.assistantID) }
@@ -235,7 +235,7 @@ final class LaneRecoveryTests: XCTestCase {
         let ledger = try Ledger.inMemory()
         let seeded = try await Self.seed(ledger, userMetadata: ["model_text": .string("単元づくりの依頼")], replyMetadata: ["auto_resumed": .bool(true)])
         let runner = CountingRunner()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         await turns.resumeUnfinished()
         try await Task.sleep(for: .milliseconds(300))
         XCTAssertEqual(runner.runs, 0)
@@ -247,7 +247,7 @@ final class LaneRecoveryTests: XCTestCase {
         let ledger = try Ledger.inMemory()
         _ = try await Self.seed(ledger, userMetadata: [:])
         let runner = CountingRunner()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         await turns.resumeUnfinished()
         try await Task.sleep(for: .milliseconds(300))
         XCTAssertEqual(runner.runs, 0)

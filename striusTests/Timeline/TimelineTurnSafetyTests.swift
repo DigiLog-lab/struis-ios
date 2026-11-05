@@ -56,7 +56,7 @@ final class TimelineTurnSafetyTests: XCTestCase {
         _ = await ledger.observe { events in
             if events.contains(where: { $0.kind == "turn.completed" }) { counts.append(BackgroundTurnActivity.shared.runningCount) }
         }
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: MockTurnRunner())
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: MockTurnRunner())
         let batchID = try await cardsBatch(ledger)
         await turns.startTimeline(kind: .timelineBatch, targetID: batchID)
         try await waitUntil { !counts.values.isEmpty }
@@ -68,7 +68,7 @@ final class TimelineTurnSafetyTests: XCTestCase {
     @MainActor func testHangingGradingFailsAtTheLimitAndReopensTheCard() async throws {
         let ledger = try Ledger.inMemory()
         let runner = HangingRunner()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         await turns.setTimeLimits([TurnPlan.Kind.timelineGrading.rawValue: .milliseconds(300)])
         let attemptID: String = try await ledger.commit { db in
             var timeline = try TimelineMachine(loading: db)
@@ -100,7 +100,7 @@ final class TimelineTurnSafetyTests: XCTestCase {
 
     @MainActor func testStagesSurviveTheCompletedTurn() async throws {
         let ledger = try Ledger.inMemory()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: StagedRunner())
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: StagedRunner())
         let batchID = try await cardsBatch(ledger)
         await turns.startTimeline(kind: .timelineBatch, targetID: batchID)
         try await waitUntil {

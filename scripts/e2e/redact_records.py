@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """模擬サーバーの記録(scenarios・tapes)を、配信の本文と認証情報を伏せて写す(artifact に入れる用)。
 
-    python3 scripts/e2e/redact_records.py --assets <アプリの Application Support/Struis/assets> \
+    python3 scripts/e2e/redact_records.py --assets strius/Resources/Prompts \
         --in <log-dir> --out <出力先>
 
 - 配信の本文: `--assets` の各ファイルの 20 文字以上の行(JSON の資産は中の文字列の値)が文字列の中に現れたら `‹配信の本文›` に置き換える

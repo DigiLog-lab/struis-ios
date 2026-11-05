@@ -261,7 +261,7 @@ actor MockTurnRunner: TurnRunning {
         guard let range = text.range(of: "The learner's current message:\n") else { return "" }
         let rest = text[range.upperBound...]
         // The message is followed by a blank line and the private desk context (memory etc.).
-        let end = rest.range(of: "\n\n")?.lowerBound ?? rest.range(of: "\nStruis progress contract:")?.lowerBound ?? rest.endIndex
+        let end = rest.range(of: "\n\n")?.lowerBound ?? rest.range(of: "\nStruis progress context")?.lowerBound ?? rest.endIndex
         var body = String(rest[..<end])
         if let viewEnd = body.range(of: "</struis_current_view>\n") { body = String(body[viewEnd.upperBound...]) }
         return body.trimmingCharacters(in: .whitespacesAndNewlines)

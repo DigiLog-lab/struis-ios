@@ -128,17 +128,14 @@ struct TurnActivityTests {
         #expect(TurnSilence.statement(for: activity, now: start.addingTimeInterval(25))?.text == "会話が長くなったので、整理に時間がかかっています")
     }
 
-    // MARK: Skill ごとの待ちの言葉(配信Skillの説明)
+    // MARK: Skill ごとの待ちの言葉
 
-    private static var coachSkills: URL? {
-        guard let path = ProcessInfo.processInfo.environment["STRUIS_TEST_SKILLS_DIR"], !path.isEmpty else { return nil }
-        return URL(fileURLWithPath: path, isDirectory: true)
-    }
+    private static var coachSkills: URL? { BundledAssets.main.root?.appendingPathComponent("skills", isDirectory: true) }
 
     /// 配信する Skill はすべて、添付が無い時の言葉(default)を持ち、本文を読む間に抽象的な言葉へ落ちない。
-    @Test(.enabled(if: Self.coachSkills != nil, "STRUIS_TEST_SKILLS_DIR is unset; delivery skills are external inputs"))
+    @Test
     func everyDeliveredSkillHasItsOwnWaitingWords() throws {
-        let names = try FileManager.default.contentsOfDirectory(atPath: try #require(Self.coachSkills).path).filter { !$0.hasPrefix(".") }
+        let names = try FileManager.default.contentsOfDirectory(atPath: try #require(Self.coachSkills).path).filter { !$0.hasPrefix(".") && $0 != "timeline-query" }
         #expect(!names.isEmpty)
         for name in names {
             let text = try String(contentsOf: try #require(Self.coachSkills).appendingPathComponent("\(name)/SKILL.md"), encoding: .utf8)
@@ -147,11 +144,11 @@ struct TurnActivityTests {
                 #expect(pair != SkillWaiting.unknownSkill)
                 #expect(!pair.started.contains("手元で確かめ"))
             }
-            #expect(DeliveryManifest.assetNames.contains("skill:" + name.replacingOccurrences(of: "-", with: "_")))
+            #expect(BundledAssets.files["skill:" + name.replacingOccurrences(of: "-", with: "_")] != nil)
         }
     }
 
-    @Test(.enabled(if: Self.coachSkills != nil, "STRUIS_TEST_SKILLS_DIR is unset; delivery skills are external inputs"))
+    @Test
     func readingTheDocumentSkillShowsItsWordsByAttachment() throws {
         let text = try String(contentsOf: try #require(Self.coachSkills).appendingPathComponent("struis-document/SKILL.md"), encoding: .utf8)
         var skills = SkillWaiting()

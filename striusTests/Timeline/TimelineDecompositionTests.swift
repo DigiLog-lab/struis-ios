@@ -162,7 +162,7 @@ final class TimelineDecompositionTests: XCTestCase {
             let unitID = workbook.createUnit(title: "二次関数", outcome: "", source: "consult", subunits: [.init(title: "最大と最小", n: 2)], firstStage: 1)
             return (workbook.events, workbook.orderedSubunits(unitID: unitID)[0].id)
         }
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: MockTurnRunner())
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: MockTurnRunner())
         let buildID: String? = try await ledger.commit { db in
             var timeline = try TimelineMachine(loading: db)
             let workbook = try WorkbookMachine(loading: db)

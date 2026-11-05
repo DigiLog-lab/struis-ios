@@ -186,7 +186,7 @@ final class NativeRuntimeLiveTests: XCTestCase {
             ChatRepository.createMessage(id: userID, threadID: threadID, role: "user", status: "completed", plainText: "fixture question",
                                          blocks: .emptyArray, metadata: metadata).1,
         ])
-        let assets = AssetCache(root: directory.appendingPathComponent("assets", isDirectory: true), lenient: true)
+        let assets = AssetCache()
         var previousImage: TurnPlan.ImageRef?
         var derivedURL: URL?
         defer {
@@ -365,10 +365,6 @@ final class NativeRuntimeLiveTests: XCTestCase {
     @MainActor
     func testPythonPackagesCommandsInterruptionAndRestart() async throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["STRUIS_NATIVE_LIVE"] == "1", "native Simulator integration is opt-in")
-        for name in ["struis_tutor_memory.py", "struis_reply_lint.py"] {
-            try XCTSkipUnless(Bundle(for: NativeRuntimeLiveTests.self).url(forResource: name, withExtension: nil) != nil,
-                "STRUIS_TEST_DELIVERY_SCRIPTS_DIR is unset; delivered Python scripts are external inputs")
-        }
         let boot = HyotanBoot()
         await boot.start()
         XCTAssertTrue(boot.state.isReady)
@@ -403,10 +399,8 @@ final class NativeRuntimeLiveTests: XCTestCase {
         let nextEnvironment = try await run("python3 -c 'import os; print(os.getenv(\"STRUIS_COMMAND_ONLY\",\"absent\"))'")
         XCTAssertEqual(nextEnvironment.output.trimmingCharacters(in: .whitespacesAndNewlines), "absent")
         print("NATIVE_ENV first=\(environment.output.debugDescription) next=\(nextEnvironment.output.debugDescription)")
-        for filename in ["struis_tutor_memory.py", "struis_reply_lint.py"] {
-            let source = try XCTUnwrap(Bundle(for: NativeRuntimeLiveTests.self).url(
-                forResource: filename, withExtension: nil
-            ), "Missing bundled delivered script: \(filename)")
+        for (name, filename) in [("prompt:tutor_memory_py", "struis_tutor_memory.py"), ("prompt:reply_lint_py", "struis_reply_lint.py")] {
+            let source: URL = try XCTUnwrap(BundledAssets.main.url(name), "Missing bundled script: \(filename)")
             try FileManager.default.copyItem(at: source, to: workspace.appendingPathComponent(filename))
         }
         let lint = try await run("printf '%s' '計算結果は $x^2$ です。' | python3 struis_reply_lint.py --stdin")

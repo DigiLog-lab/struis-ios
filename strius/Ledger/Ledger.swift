@@ -14,10 +14,11 @@ nonisolated enum StruisPaths {
     static let ledger = root.appendingPathComponent("ledger.sqlite")
     static let captures = root.appendingPathComponent("captures", isDirectory: true)
     static let memory = root.appendingPathComponent("memory", isDirectory: true)
-    static let assets = root.appendingPathComponent("assets", isDirectory: true)
+    /// 指示文をサーバーから受け取っていた頃の置き場。起動時に消す(`HyotanBoot.removeRetiredData`)。
+    static let retiredAssets = root.appendingPathComponent("assets", isDirectory: true)
 
     static func prepare() throws {
-        for directory in [root, captures, memory, assets] {
+        for directory in [root, captures, memory] {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
     }

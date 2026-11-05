@@ -6,7 +6,7 @@ nonisolated enum ModelProvider: String, Codable, CaseIterable, Sendable {
     /// App Attest で端末を確かめ、Anthropic の API を端末から直接使う。
     case anthropic
 
-    /// 保存したプランや配信 manifest の値は何でも Claude として読む(前の `"openai"` や知らない値も落とさない)。
+    /// 保存したプランの値は何でも Claude として読む(前の `"openai"` や知らない値も落とさない)。
     /// 値が無い(nil)時は、持ち主の型が `ModelProvider?` のまま nil として読む。
     init(from decoder: any Decoder) throws {
         let container: any SingleValueDecodingContainer = try decoder.singleValueContainer()
@@ -18,15 +18,10 @@ nonisolated enum ModelProvider: String, Codable, CaseIterable, Sendable {
 
     /// 実行監査の `billing_source`。
     var billingSource: String { "anthropic_app_attest" }
-
-    /// 配信 manifest がこの provider のモデルを渡すときのキー(`models["claude:astra"]` など)。
-    func manifestKey(role: String) -> String {
-        "claude:" + role
-    }
 }
 
-/// 設定で選んだタイムライン(出題・採点・見直し)の Claude のモデル。検証のための設定なので、配信 manifest の
-/// `claude:timeline` より優先する(2026-10-28 の指示)。知識グラフ(`timeline_graph`)は対象外。
+/// 設定で選んだタイムライン(出題・採点・見直し)の Claude のモデル。検証のための設定(2026-10-28 の指示)。
+/// 知識グラフ(`timeline_graph`)は対象外。
 nonisolated enum TimelineModelPreference {
     static let defaultsKey = "settings.timelineClaudeModel"
     static let choices = ["claude-sonnet-5-5", "claude-haiku-5-5"]
@@ -43,7 +38,7 @@ nonisolated enum TimelineModelPreference {
     }
 }
 
-/// Claude の既定のモデル。配信 manifest に `claude:astra` / `claude:luna` があればそちらを使う。
+/// Claude のモデル。
 nonisolated enum ClaudeModels {
     static let astraModel = "claude-opus-5-5"
     static let astraEffort = "medium"

@@ -27,11 +27,9 @@ nonisolated enum InternalBuild {
     }
 }
 
-/// 開発者向け: AI モデル・料金・トークン・実行環境・配信データ・調べる用の書き出し。本番には出さない。
+/// 開発者向け: AI モデル・料金・トークン・実行環境・調べる用の書き出し。本番には出さない。
 struct DeveloperSettingsView: View {
     @Environment(SettingsStore.self) private var settings
-    @Environment(LearnerData.self) private var learnerData
-    @Environment(APIClient.self) private var apiClient
 
     var body: some View {
         SettingsScreen(title: "開発者向け") {
@@ -39,7 +37,6 @@ struct DeveloperSettingsView: View {
             costSection
             tokenSection
             runtimeSection
-            deliverySection
             exportSection
         }
         .task { await settings.loadLedgerSummary() }
@@ -242,22 +239,6 @@ struct DeveloperSettingsView: View {
     private static func duration(_ seconds: Double?, label: String) -> String {
         guard let seconds else { return "" }
         return "・\(label) \(String(format: "%.1f", seconds))s"
-    }
-
-    // MARK: - 配信データ
-
-    private var deliverySection: some View {
-        SettingsSection(header: "配信データ") {
-            SettingsValueRow(title: "状態", value: learnerData.deliverySummary)
-            SettingsDivider()
-            SettingsButtonRow(
-                title: learnerData.isDeliveryRefreshing ? "更新中" : "更新する",
-                disabled: learnerData.isDeliveryRefreshing || !learnerData.requiresDelivery
-            ) {
-                Task { await learnerData.refreshAssets(client: apiClient) }
-            }
-            .accessibilityIdentifier("settings-delivery-refresh")
-        }
     }
 
     // MARK: - 調べる用の書き出し

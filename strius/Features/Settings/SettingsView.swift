@@ -4,7 +4,6 @@ import UniformTypeIdentifiers
 /// 設定のホーム。本番は利用者が決めることだけを並べ、内部の情報は「開発者向け」にまとめる。
 struct SettingsView: View {
     @Environment(SettingsStore.self) private var settings
-    @Environment(APIClient.self) private var apiClient
     @Environment(LearnerData.self) private var learnerData
     @State private var usage: UsageStatus = UsageStatus()
     /// 内部の配布か。TestFlight は開いてから分かるので、最初は Bundle ID とビルドで決める。
@@ -65,24 +64,12 @@ struct SettingsView: View {
         .task {
             usage.refresh()
             isInternalBuild = await InternalBuild.resolve()
-            await learnerData.refreshAssets(client: apiClient)
         }
     }
 
     /// 利用者が動かないと直らないことだけを、一番上に出す。普段は何も出ない。
     @ViewBuilder
     private var notices: some View {
-        if learnerData.isDeliveryFailed {
-            SettingsNotice(
-                title: "質問の準備ができていません",
-                detail: "必要なデータを更新できませんでした",
-                actionTitle: "更新する",
-                actionDisabled: learnerData.isDeliveryRefreshing
-            ) {
-                Task { await learnerData.refreshAssets(client: apiClient) }
-            }
-            .accessibilityIdentifier("settings-delivery-notice")
-        }
         if !settings.claudeAvailable {
             SettingsNotice(title: "この端末では使えません", detail: ModelProviderError.claudeUnavailable.localizedDescription)
                 .accessibilityIdentifier("settings-model-claude-unavailable")

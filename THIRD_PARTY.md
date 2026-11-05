@@ -42,6 +42,7 @@ python3.14 NativeRuntime/Scripts/bootstrap.py --platform both
 | KaTeX 0.16.45 | `strius/Resources/KaTeX/`(`LICENSE` 同梱) | MIT | SwiftMath で解析できない数式の退避先(WebView) |
 | Zen Kaku Gothic New | `strius/Resources/Fonts/`(`OFL-ZenKakuGothic.txt` 同梱) | SIL OFL 1.1 | 本文フォント |
 | Cormorant Garamond | `strius/Resources/Fonts/`(`OFL-CormorantGaramond.txt` 同梱) | SIL OFL 1.1 | 欧文フォント |
+| OpenAI Codex の基本指示文 | `strius/Resources/Prompts/base_instructions.md`(commit `e017e93aceafb2fe04bed1c926e448a5fb4f913d` の `default.md` を改変。`LICENSE-base-instructions.txt` 同梱) | Apache-2.0 | AIへの基本指示文 |
 | libsqlite3, libresolv | iOS SDK(システム) | Apple SDK | リンクのみ。再配布しない |
 
 SPM パッケージの版は `strius.xcodeproj` の package reference で解決します(SwiftMath は revision 固定、ほかは up to next major)。

@@ -70,7 +70,7 @@ final class TimelineBatchWaitTests: XCTestCase {
     func testBatchRequestedWithNoCardOnHandIsNotAPrefetch() async throws {
         let ledger: Ledger = try await unitLedger()
         let runner = HangingRunner()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         let store = TimelineStore(ledger: ledger, turns: turns)
         await store.start()
         XCTAssertEqual(store.phase, .waiting)
@@ -102,7 +102,7 @@ final class TimelineBatchWaitTests: XCTestCase {
             return (timeline.events, id)
         }
         let runner = HangingRunner()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         await turns.resumeUnfinished()
         let store = TimelineStore(ledger: ledger, turns: turns)
         await store.start()
@@ -128,7 +128,7 @@ final class TimelineBatchWaitTests: XCTestCase {
             createdAt: LedgerClock.now(), startedAt: nil, completedAt: nil
         ))])
         let runner = HangingRunner()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         let before: Bool = await turns.isWorking(on: batchID)
         XCTAssertTrue(before, "起動時の後始末の前は、残った行をこれから組み直されるものとして数える")
         // 後始末: 前のプロセスのプランは流さず、行を閉じて今の設定で組み直す(まだ requested の依頼なので)。
@@ -160,7 +160,7 @@ final class TimelineBatchWaitTests: XCTestCase {
     func testStoppingTheWaitShowsTheRetry() async throws {
         let ledger: Ledger = try await unitLedger()
         let runner = HangingRunner()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         let store = TimelineStore(ledger: ledger, turns: turns)
         await store.start()
         let batchID: String = try XCTUnwrap(store.awaitedBatchID)
@@ -220,7 +220,7 @@ final class TimelineBatchWaitTests: XCTestCase {
     @MainActor
     func testAcquireReportsTheWaitAndItsEnd() async throws {
         let ledger: Ledger = try Ledger.inMemory()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: HangingRunner())
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: HangingRunner())
         let first: Bool = await turns.acquire(kind: .timelineGrading, turnID: "a")
         let second: Bool = await turns.acquire(kind: .timelineGraph, turnID: "b")
         XCTAssertTrue(first && second)

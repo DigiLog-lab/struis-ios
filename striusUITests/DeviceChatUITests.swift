@@ -37,9 +37,6 @@ final class DeviceChatUITests: XCTestCase {
         app.launchEnvironment["STRUIS_LEDGER"] = "memory"
         if let stdio = ProcessInfo.processInfo.environment["STRUIS_STDIO_LOG"] { app.launchEnvironment["STRUIS_STDIO_LOG"] = stdio }
         app.launchEnvironment["STRUIS_DEBUG_ANTHROPIC_KEY_FILE"] = auth
-        let assets = ProcessInfo.processInfo.environment["STRUIS_REAL_AI_ASSETS_DIR"] ?? ""
-        try XCTSkipIf(assets.isEmpty, "TEST_RUNNER_STRUIS_REAL_AI_ASSETS_DIR が無い (既定単元の実AI試験には外部配信資産が必要)")
-        app.launchEnvironment["STRUIS_DEVICE_ASSETS_DIR"] = assets
         app.launch()
         let reply = try ask(app, "y = x^2 - 4x + 1 を平方完成すると、どうして -3 が出てくるのですか？", timeout: 240)
         XCTAssertFalse(reply.isEmpty)
@@ -65,9 +62,6 @@ final class DeviceChatUITests: XCTestCase {
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "1"
         app.launchEnvironment["STRUIS_LEDGER"] = "memory"
         app.launchEnvironment["STRUIS_DEBUG_ANTHROPIC_KEY_FILE"] = auth
-        let assets = ProcessInfo.processInfo.environment["STRUIS_REAL_AI_ASSETS_DIR"] ?? ""
-        try XCTSkipIf(assets.isEmpty, "TEST_RUNNER_STRUIS_REAL_AI_ASSETS_DIR が無い (既定単元の実AI試験には外部配信資産が必要)")
-        app.launchEnvironment["STRUIS_DEVICE_ASSETS_DIR"] = assets
         app.launch()
         let reply = try ask(app, "春休みに三角比を一から予習したいです。計画を立ててください。", timeout: 240)
         assertTurnSucceeded(reply, "計画の依頼")
@@ -96,9 +90,6 @@ final class DeviceChatUITests: XCTestCase {
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "1"
         app.launchEnvironment["STRUIS_LEDGER"] = "persistent"
         app.launchEnvironment["STRUIS_DEBUG_ANTHROPIC_KEY_FILE"] = auth
-        let assets = ProcessInfo.processInfo.environment["STRUIS_REAL_AI_ASSETS_DIR"] ?? ""
-        try XCTSkipIf(assets.isEmpty, "TEST_RUNNER_STRUIS_REAL_AI_ASSETS_DIR が無い (既定単元の実AI試験には外部配信資産が必要)")
-        app.launchEnvironment["STRUIS_DEVICE_ASSETS_DIR"] = assets
         app.launch()
         assertTurnSucceeded(try ask(app, "y = (x-3)^2 + 5 の頂点を一言で教えてください。", timeout: 240), "本流の返信")
 

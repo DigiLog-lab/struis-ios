@@ -35,7 +35,7 @@ struct OnboardingFlowView: View {
     static func claudeAvailable(learnerData: LearnerData) -> Bool {
         #if DEBUG
         if let forced = ProcessInfo.processInfo.environment["STRUIS_CLAUDE_AVAILABLE"] { return forced == "1" }
-        if !learnerData.requiresDelivery { return true }
+        if learnerData.usesMockTurns { return true }
         #endif
         return ClaudeAccess.isAvailable
     }

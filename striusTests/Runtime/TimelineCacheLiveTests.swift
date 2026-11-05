@@ -41,7 +41,7 @@ final class TimelineCacheLiveTests: XCTestCase {
             return (200, reply)
         }
         defer { StubAnthropic.handler = nil }
-        let assets = AssetCache(root: FileManager.default.temporaryDirectory.appendingPathComponent("cache-live-\(UUID().uuidString)"), lenient: true)
+        let assets = AssetCache()
         let upstream: ClaudeUpstream = ClaudeUpstream(baseURL: URL(string: "https://stub.invalid")!, apiKey: { "sk-test" },
                                                       session: URLSession(configuration: configuration), gate: OpenUsageGate())
         let runner: ClaudeTurnRunner = ClaudeTurnRunner(assets: assets, conversations: try ClaudeConversationStore.temporary(), upstream: upstream,

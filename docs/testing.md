@@ -5,9 +5,6 @@ Engine vector、Learning Feed、台帳・規則の合成入力は同梱します
 | 設定 | 必要な入力・用途 |
 |---|---|
 | `TEST_RUNNER_STRUIS_REAL_CLAUDE_KEY_FILE` | AnthropicのAPIキーを書いたファイルの作業コピー(0600)。UI実AIテスト(`…WithRealClaude`)のopt-in |
-| `TEST_RUNNER_STRUIS_REAL_AI_ASSETS_DIR` | 既定単元を使うUI実AIテストの外部配信資産ディレクトリ。未設定時は理由付きskip |
-| `TEST_RUNNER_STRUIS_TEST_SKILLS_DIR` | TurnActivityTestsの2件が読む外部Skillディレクトリ |
-| `STRUIS_TEST_DELIVERY_SCRIPTS_DIR` | build前に与える配信Pythonスクリプト2件のディレクトリ |
 | `TEST_RUNNER_STRUIS_NATIVE_LIVE=1` | native Simulator統合テストのopt-in |
 | `TEST_RUNNER_STRUIS_TIMELINE_CACHE_LIVE` | `TimelineCacheLiveTests`の出力先。タイムラインの依頼の本文を模擬のAnthropicで記録して比べる手動の測定 |
 | `TEST_RUNNER_STRUIS_RUNNER_COMPARE_OUT` | `RunnerComparisonLiveTests`の出力先。`scripts/e2e/fake_anthropic.py`に向けた手動の測定(手順はテストの説明) |
@@ -33,7 +30,7 @@ HTTP bootstrapの同時読込テストは認証有効のビルドを前提にし
 
 `ClaudeTurnRunnerTests` は、模擬の Anthropic(`StubAnthropic`)に届いた要求で、要求の形(system・キャッシュの印・tools・structured outputs の schema と、拒まれた時に指示文へ移す送り直し)、会話の履歴の保存と再開(thinking の署名の往復)、分岐、停止と期限の印、前の履歴が無い会話の続け方を確認します。`ClaudeRequestFormatTests` は tool 名の対応・schema の制約外し・画像・ストリームから履歴を組み立てる部品を、`ClaudeCostTests` はキャッシュの TTL・料金・要求ごとの記録を確認します。
 
-実キーなしで Simulator の配線を確かめる場合は、`scripts/e2e/fake_anthropic.py`(現行の Claude が拒む要求の形を 400 で返す模擬サーバー)と `scripts/e2e/standin_assets.py`(配信の代わりの最小の prompt・schema)を使い、DEBUG の Simulator に `STRUIS_ANTHROPIC_BASE_URL=http://127.0.0.1:8787`・`STRUIS_DEVICE_ASSETS_DIR=<出力先>` を渡します。模擬サーバーの返事は決まった文で、Claude の答えの質の確認にはなりません。Simulator は App Attest を使えないため、実キーで確認する場合は 0600 の作業コピーを `STRUIS_DEBUG_ANTHROPIC_KEY_FILE` で渡します(DEBUG の Simulator のみ。端末向けのビルドにはこの経路が入りません)。実機は App Attest で Anthropic から token を受け取ります。token 取得の手順(チャレンジ・登録・交換・401 での取り直し)は `ClaudeAppAttestTests` が模擬の Apple・Anthropic で確かめ、Apple の本物の attestation は実機で確かめます。
+実キーなしで Simulator の配線を確かめる場合は、`scripts/e2e/fake_anthropic.py`(現行の Claude が拒む要求の形を 400 で返す模擬サーバー)を使い、DEBUG の Simulator に `STRUIS_ANTHROPIC_BASE_URL=http://127.0.0.1:8787` を渡します。模擬サーバーの返事は決まった文で、Claude の答えの質の確認にはなりません。Simulator は App Attest を使えないため、実キーで確認する場合は 0600 の作業コピーを `STRUIS_DEBUG_ANTHROPIC_KEY_FILE` で渡します(DEBUG の Simulator のみ。端末向けのビルドにはこの経路が入りません)。実機は App Attest で Anthropic から token を受け取ります。token 取得の手順(チャレンジ・登録・交換・401 での取り直し)は `ClaudeAppAttestTests` が模擬の Apple・Anthropic で確かめ、Apple の本物の attestation は実機で確かめます。
 
 ## マージ前に回すテストの範囲(2026-10-22 の方針)
 

@@ -48,7 +48,7 @@ final class TurnRecoveryTests: XCTestCase {
     @MainActor func testLaunchRecoveryMarksAbandonedChatTurnInterrupted() async throws {
         let ledger = try Ledger.inMemory()
         let seeded = try await Self.seedAbandonedChat(ledger)
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: StubRunner())
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: StubRunner())
 
         await turns.resumeUnfinished()
 
@@ -69,7 +69,7 @@ final class TurnRecoveryTests: XCTestCase {
         let ledger = try Ledger.inMemory()
         let seeded = try await Self.seedAbandonedChat(ledger)
         let runner = StubRunner()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: runner)
         await turns.resumeUnfinished()
 
         let result = try await turns.retryChat(assistantMessageID: seeded.assistantID)
@@ -93,7 +93,7 @@ final class TurnRecoveryTests: XCTestCase {
     // MARK: - Fixtures
 
     private static func assets() -> AssetCache {
-        AssetCache(root: FileManager.default.temporaryDirectory.appendingPathComponent("turn-recovery-\(UUID().uuidString)"), lenient: true)
+        AssetCache()
     }
 
     private static func plan(threadID: String?, text: String = "問題を作って") -> TurnPlan {

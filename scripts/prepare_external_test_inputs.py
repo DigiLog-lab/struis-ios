@@ -20,26 +20,6 @@ def external_source(value, destination):
         raise SystemExit("Generated test destination must not be a symlink")
     return source
 
-scripts = os.environ.get("STRUIS_TEST_DELIVERY_SCRIPTS_DIR")
-destination = ROOT / "striusTests/Fixtures/DeliveredScripts"
-source_dir = external_source(scripts, destination)
-if source_dir:
-    for name in ("struis_tutor_memory.py", "struis_reply_lint.py"):
-        if not (source_dir / name).is_file():
-            raise SystemExit(f"Missing external test input: {name}")
-if destination.is_symlink():
-    raise SystemExit("Generated test destination must not be a symlink")
-if destination.exists():
-    shutil.rmtree(destination)
-if scripts:
-    destination.mkdir(parents=True)
-    for name in ("struis_tutor_memory.py", "struis_reply_lint.py"):
-        source = source_dir / name
-        if not source.is_file():
-            raise SystemExit(f"Missing external test input: {name}")
-        shutil.copy2(source, destination / name)
-else:
-    print("SKIP delivered-script tests: STRUIS_TEST_DELIVERY_SCRIPTS_DIR is unset")
 threaded = os.environ.get("STRUIS_THREADED_PYTHON_ASSETS_DIR")
 destination = ROOT / "NativeRuntime/ThreadedPythonFoundationTestAssets"
 source_dir = external_source(threaded, destination)

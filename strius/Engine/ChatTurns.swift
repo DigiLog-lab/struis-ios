@@ -44,23 +44,13 @@ nonisolated enum ChatTurns {
         + "Keep the delegation instructions and all child output private; use only verified evidence "
         + "in your final learner-facing response. If no private contract is supplied, work directly."
 
-    /// The delivered developer instructions carry the fixed turn protocol (P1-3). Older assets do not:
-    /// then every turn input carries it as before, so an app update never runs without the protocol.
-    static let turnProtocolMarker = "STRUIS_TURN_PROTOCOL_V2"
-
     /// The developer instructions of every chat-family thread (start, resume, fork, inject). One value,
-    /// so a thread's developer message changes only when the delivered assets change (P1-2).
+    /// so a thread's developer message changes only when the bundled instructions change (P1-2).
     static func developerRef(assets: AssetCache) async throws -> TurnPlan.AssetRef {
-        var append = parentDelegationInstructions
-        if await carriesTurnProtocol(assets: assets) {
-            let schema = EngineJSON(any: try await assets.json("schema:progress_update").any).serialized()
-            append += "\n\n### Progress update_schema\n\nJSON Schema of the `<struis_progress_update>` block:\n" + schema
-        }
+        let schema: String = EngineJSON(any: try await assets.json("schema:progress_update").any).serialized()
+        let append: String = parentDelegationInstructions
+            + "\n\n### Progress update_schema\n\nJSON Schema of the `<struis_progress_update>` block:\n" + schema
         return try await assets.ref("prompt:developer", append: append)
-    }
-
-    static func carriesTurnProtocol(assets: AssetCache) async -> Bool {
-        ((try? await assets.text("prompt:developer")) ?? "").contains(turnProtocolMarker)
     }
 
     /// Attachment stored with the user message (images are staged as `localImage` inputs).
@@ -239,14 +229,11 @@ nonisolated enum ChatTurns {
         )
 
         // The fixed protocol (desk rules, output protocol, progress contract and schema, delegation
-        // contract) is in the developer instructions when the delivered assets carry it (P1-3).
-        let slim = await carriesTurnProtocol(assets: assets)
+        // contract) is in the developer instructions (P1-3).
         let text: String
         if let roundText {
-            text = roundText + (slim
-                ? try LearningProgress.turnProgressContext(state: state.progressAfter, assistantMessageID: state.assistantMessageID)
-                : try LearningProgress.turnContract(state: state.progressAfter, assistantMessageID: state.assistantMessageID, updateSchema: EngineJSON(any: try await assets.json("schema:progress_update").any)))
-        } else if slim {
+            text = roundText + (try LearningProgress.turnProgressContext(state: state.progressAfter, assistantMessageID: state.assistantMessageID))
+        } else {
             // The session record changes every turn and is small; the durable notes are sent again only
             // when they changed since the thread last received them (or after a compaction).
             let session = "current/session.yaml"
@@ -255,8 +242,6 @@ nonisolated enum ChatTurns {
             let update = MemoryUpdate(sections: sections, delivered: resumes ? existingThread.flatMap { ThreadContextStore.shared.entry($0)?.memoryFiles } : nil)
             state.deliveredMemory = update.delivered
             text = try firstRoundSlimText(state: state, manifestPath: manifestPath, sessionContext: sessionContext, memory: update)
-        } else {
-            text = try await firstRoundText(ledger: ledger, assets: assets, state: state, manifestPath: manifestPath)
         }
         let delegation = TurnPlan.DelegationSpec(
             enabled: true, inbox: inbox, model: luna.model, effort: luna.effort,
@@ -289,15 +274,6 @@ nonisolated enum ChatTurns {
             "user_message_id": .string(state.userMessageID),
         ]))
         return "<struis_current_turn_source>\n" + identity + "\n</struis_current_turn_source>\nThe learner's current message:\n" + turnText
-    }
-
-    private static func firstRoundText(ledger: Ledger, assets: AssetCache, state: State, manifestPath: String?) async throws -> String {
-        var text = turnSourceText(state: state)
-        // The private desk context (memory evidence + output protocol) rides with the first round.
-        let memoryContext = (try? TutorMemory.renderTutorMemoryContext(workspace: StruisPaths.memory)) ?? ""
-        text += "\n\n" + LearnerText.struisContextInjectedItemText(staged: StagedContext(tutorDeskManifestRelativePath: manifestPath, markdownRelativePath: nil, tutorMemoryContext: memoryContext))
-        text += try LearningProgress.turnContract(state: state.progressBefore, assistantMessageID: state.assistantMessageID, updateSchema: EngineJSON(any: try await assets.json("schema:progress_update").any))
-        return text
     }
 
     /// Only what changes per turn (P1-3): identifiers, the learner's message and screen, the latest

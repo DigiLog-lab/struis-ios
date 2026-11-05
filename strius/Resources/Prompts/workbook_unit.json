@@ -1,0 +1,69 @@
+{
+  "$defs": {
+    "ProposalSubunitDraft": {
+      "additionalProperties": false,
+      "properties": {
+        "n": {
+          "maximum": 100,
+          "minimum": 1,
+          "title": "N",
+          "type": "integer"
+        },
+        "outcome": {
+          "maxLength": 400,
+          "title": "Outcome",
+          "type": "string"
+        },
+        "scoring_unit": {
+          "maxLength": 120,
+          "title": "Scoring Unit",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "outcome",
+        "n",
+        "scoring_unit"
+      ],
+      "title": "ProposalSubunitDraft",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "outcome": {
+      "maxLength": 400,
+      "title": "Outcome",
+      "type": "string"
+    },
+    "subunits": {
+      "items": {
+        "$ref": "#/$defs/ProposalSubunitDraft"
+      },
+      "maxItems": 12,
+      "minItems": 1,
+      "title": "Subunits",
+      "type": "array"
+    },
+    "unit_title": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Unit Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "unit_title",
+    "outcome",
+    "subunits"
+  ],
+  "title": "WorkbookUnitDraft",
+  "type": "object"
+}

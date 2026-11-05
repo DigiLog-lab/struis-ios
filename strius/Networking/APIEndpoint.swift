@@ -12,7 +12,6 @@ struct APIEndpoint {
     let path: String
     var requiresAuth: Bool = true
     var queryItems: [URLQueryItem] = []
-    var deliveryAppKey: String?
 
     static let appleExchange = APIEndpoint(method: .post, path: "/v1/auth/apple/exchange", requiresAuth: false)
     static let refresh = APIEndpoint(method: .post, path: "/v1/auth/refresh", requiresAuth: false)

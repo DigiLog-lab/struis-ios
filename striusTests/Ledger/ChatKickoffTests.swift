@@ -7,7 +7,7 @@ import XCTest
 final class ChatKickoffTests: XCTestCase {
     private func makeCoordinator() throws -> (Ledger, TurnCoordinator, String) {
         let ledger = try Ledger.inMemory()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: MockTurnRunner())
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: MockTurnRunner())
         return (ledger, turns, "")
     }
 
@@ -83,7 +83,7 @@ final class ChatKickoffTests: XCTestCase {
 
     @MainActor func testFailureReleasesConversationBeforeAnotherSend() async throws {
         let ledger = try Ledger.inMemory()
-        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(lenient: true), runner: ChatFailingRunner())
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: ChatFailingRunner())
         let threadID = LedgerID.make()
         try await ledger.append([ChatRepository.createThread(id: threadID, title: "failure fixture").1])
         let store = ChatStore(ledger: ledger, turns: turns)

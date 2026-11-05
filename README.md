@@ -2,14 +2,14 @@
 
 紙に解いた答案を取り込み、質問・例題・演習と学習記録をつなぐiOSアプリです。このリポジトリでは、端末側の画面、学習規則、台帳、通信、Hyotan-v2の実行環境とビルド手順を公開します。
 
-ソースの閲覧、ローカルでのビルド、実サービスの利用にはそれぞれ条件があります。ビルドには下記のツールが必要です。実サービスには配信サーバーの利用設定と、AIのためのAnthropicのApp Attest(Claude Consoleに登録したclient IDとBundle ID)が必要で、公開テンプレートだけでは利用できません。AIはAnthropicのMessages APIを端末から直接呼びます。backend・Web・配信プロンプト・スキーマ・Skill本文はこのリポジトリに含みません。
+ソースの閲覧、ローカルでのビルド、実サービスの利用にはそれぞれ条件があります。ビルドには下記のツールが必要です。実サービスには、AIのためのAnthropicのApp Attest(Claude Consoleに登録したclient IDとBundle ID)が必要で、公開テンプレートだけでは利用できません。AIはAnthropicのMessages APIを端末から直接呼びます。backend・Web・配信プロンプト・スキーマ・Skill本文はこのリポジトリに含みません。
 
 | 場所 | 内容 |
 |---|---|
 | `strius/Features/`・`strius/App/` | 画面とアプリ起動 |
 | `strius/Engine/`・`strius/Ledger/` | 学習規則、応答検証、端末台帳 |
 | `strius/Runtime/`・`NativeRuntime/` | Claude(Messages API)への要求、端末のtool、Python、BSD/dashとworker |
-| `strius/Delivery/`・`Networking/`・`Auth/` | 配信、通信、認証 |
+| `strius/Delivery/`・`Networking/`・`Auth/` | 同梱の指示文の読み込み、通信、認証 |
 | `striusTests/`・`striusUITests/` | 単体テスト、画面テスト、任意の実AIテスト |
 
 ## ビルド
@@ -27,8 +27,6 @@ xcodebuild build -project strius.xcodeproj -scheme strius \
   -destination 'generic/platform=iOS Simulator' ARCHS=arm64 CODE_SIGNING_ALLOWED=NO
 ```
 
-配信サービスを使う場合は`Config/Local.xcconfig.example`を`Config/Local.xcconfig`へコピーし、運営者から取得した`STRUIS_DELIVERY_APP_KEY`を設定してください。値をGitへ追加しないでください。実機・archiveには自分の署名チームとApp Groups・extensionの署名設定も必要です。既存のBundle IDとApp Groupsは保存互換性のため維持しています。
-
 ```sh
 xcodebuild archive -project strius.xcodeproj -scheme strius \
   -destination 'generic/platform=iOS' -archivePath /path/out/Struis.xcarchive
@@ -44,9 +42,9 @@ xcodebuild test -project strius.xcodeproj -scheme strius \
   -only-testing:striusTests -parallel-testing-enabled NO STRUIS_AUTH_REQUIRED=YES
 ```
 
-実AI・非公開配信入力・実験用bundleを要するテストは任意です。未設定時は理由付きでskipし、mockの画面テストとは区別します。[テストの条件](docs/testing.md)を参照してください。カメラUI用の同梱画像は個人情報を含まない生成答案で、実機で紙を撮影した証拠にはなりません。
+実AI・実験用bundleを要するテストは任意です。未設定時は理由付きでskipし、mockの画面テストとは区別します。[テストの条件](docs/testing.md)を参照してください。カメラUI用の同梱画像は個人情報を含まない生成答案で、実機で紙を撮影した証拠にはなりません。
 
-通信先と送信項目、端末内の保存先、使用量報告は[通信と保存](docs/communication-and-storage.md)に記載します。サーバーから配信される本文が非公開である範囲も明記しています。
+通信先と送信項目、端末内の保存先、使用量報告は[通信と保存](docs/communication-and-storage.md)に記載します。
 
 ## 開発エージェント
 

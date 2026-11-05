@@ -1,14 +1,14 @@
 # 通信と端末内の保存
 
-端末側の学習処理は`strius/Engine`、保存は`strius/Ledger`、実AIの要求は`strius/Runtime/Claude`から追えます。配信本文とサーバーの実装はこのリポジトリに含まれません。
+端末側の学習処理は`strius/Engine`、保存は`strius/Ledger`、実AIの要求は`strius/Runtime/Claude`から追えます。AIへの指示文は`strius/Resources/Prompts`にあり、アプリに同梱します。サーバーの実装はこのリポジトリに含まれません。
 
 ## 通信先と送信の契機
 
 | 通信先 | 契機と送信項目 | ソース |
 |---|---|---|
-| `https://api-struis.digiloglab.com` | 起動・設定からの配信更新。manifest・prompt・schema・Skill等をGETします。認証必須構成はBearer、認証任意構成は`X-Struis-App-Key`を用います。使用量報告(下の節)もここへ送ります | [ServerConfig](../strius/Networking/ServerConfig.swift)、[ServerAssetSource](../strius/Delivery/AssetCache.swift)、[UsageReporter](../strius/State/UsageReporter.swift) |
+| `https://api-struis.digiloglab.com` | 使用量報告(下の節)を送ります | [ServerConfig](../strius/Networking/ServerConfig.swift)、[ServerAssetSource](../strius/Delivery/AssetCache.swift)、[UsageReporter](../strius/State/UsageReporter.swift) |
 | `auth-struis.digiloglab.com` | Struisのアカウントログイン、認証更新・ログアウト。Auth0のWeb認証を使います。公開client IDは秘密値ではありません | [Auth0Config](../strius/Auth/Auth0Config.swift)、[AuthStore](../strius/Auth/AuthStore.swift) |
-| `https://api.anthropic.com` | 実AIのすべてのターン。学習者の入力、会話の履歴、配信指示、必要な学習記録、添付画像・資料から読み取った内容、tool結果、要求モデルとeffort等をMessages API(`/v1/messages`)へHTTPSで送り、SSEで受け取ります。端末から直接送り、Struisのサーバーは経由しません。実機はApp Attestで正規のStruisアプリであることを示し(`/v1/oauth/app-attest/challenge`・`/v1/oauth/app-attest/register`・`/v1/oauth/token`)、Anthropicが発行する期限付きのtokenをBearerにします。端末にAPIキーは置きません。利用料はStruisのAnthropicワークスペースに請求されます。Info.plistの`NSPinnedDomains`でこのホストの証明書の発行元を固定しています | [ClaudeTurnRunner](../strius/Runtime/Claude/ClaudeTurnRunner.swift)、[ClaudeUpstream](../strius/Runtime/Claude/ClaudeUpstream.swift)、[AppAttestClient](../strius/Runtime/Claude/AppAttestClient.swift)、[TurnComposer](../strius/Engine/TurnComposer.swift) |
+| `https://api.anthropic.com` | 実AIのすべてのターン。学習者の入力、会話の履歴、同梱の指示文、必要な学習記録、添付画像・資料から読み取った内容、tool結果、要求モデルとeffort等をMessages API(`/v1/messages`)へHTTPSで送り、SSEで受け取ります。端末から直接送り、Struisのサーバーは経由しません。実機はApp Attestで正規のStruisアプリであることを示し(`/v1/oauth/app-attest/challenge`・`/v1/oauth/app-attest/register`・`/v1/oauth/token`)、Anthropicが発行する期限付きのtokenをBearerにします。端末にAPIキーは置きません。利用料はStruisのAnthropicワークスペースに請求されます。Info.plistの`NSPinnedDomains`でこのホストの証明書の発行元を固定しています | [ClaudeTurnRunner](../strius/Runtime/Claude/ClaudeTurnRunner.swift)、[ClaudeUpstream](../strius/Runtime/Claude/ClaudeUpstream.swift)、[AppAttestClient](../strius/Runtime/Claude/AppAttestClient.swift)、[TurnComposer](../strius/Engine/TurnComposer.swift) |
 | Apple App Attest | Claudeを初めて使う時、端末の鍵の生成とattestationでAppleのサーバーと通信します(DeviceCheckの仕組み) | [AppAttestClient](../strius/Runtime/Claude/AppAttestClient.swift) |
 | iCloud(CloudKit)のプライベートデータベース | 設定の「iCloud 同期」がオン(既定)の時、学習記録とファイルを利用者自身のiCloudへ送り、同じApple IDの端末から取り込みます。下の「iCloud 同期」の節を参照してください。Struisのサーバーは経由しません | [ICloudSync](../strius/Sync/ICloudSync.swift)、[CloudKitSyncTransport](../strius/Sync/CloudKitSyncTransport.swift) |
 | App Store(StoreKit) | 料金プランの商品の読み込み、購入、契約状態の受け取り。Appleのサーバーと通信します | [SubscriptionStore](../strius/State/SubscriptionStore.swift) |
@@ -66,7 +66,7 @@ StruisのAPI base URLは`STRUIS_API_BASE_URL`で上書きできます(手元の�
 | アプリ私有`Application Support/Struis/ledger.sqlite` | 会話、単元、例題、演習、採点、進捗、イベントと実行監査。iCloud 同期の保留(`sync_pending`)・送信状態(`sync_files`・`sync_tombstones`)も持ちます | [Ledger](../strius/Ledger/Ledger.swift)、[LedgerSchema](../strius/Ledger/LedgerSchema.swift) |
 | 同`ledger.sqlite`の`claude_conversations`・`claude_conversation_messages` | Claudeに送り直す会話の履歴(Messagesの形のまま。署名付きのthinkingも残します)。移行`v6-claude-conversations`で作ります。`ledger_events`の外の表なので、iCloud 同期と台帳の書き出しには入りません。単元を削除すると、その会話の行も消します | [ClaudeConversationStore](../strius/Runtime/Claude/ClaudeConversationStore.swift)、[Ledger](../strius/Ledger/Ledger.swift) |
 | 同`conversation-images/<sha256>.<ext>` | 会話の履歴の画像。表にはファイル名だけを残し、送る時に読み戻します | [ClaudeConversationStore](../strius/Runtime/Claude/ClaudeConversationStore.swift) |
-| 同`captures/`・`attachments/`・`memory/`・`assets/` | 取り込んだ画像等、添付、canonical学習memory、sha256を照合する配信cache | [StruisPaths](../strius/Ledger/Ledger.swift)、[AssetCache](../strius/Delivery/AssetCache.swift) |
+| 同`captures/`・`attachments/`・`memory/` | 取り込んだ画像等、添付、canonical学習memory | [StruisPaths](../strius/Ledger/Ledger.swift) |
 | 同`sync/engine-state.json`・`backups/` | `CKSyncEngine`の状態(変更token)、台帳をiCloudの内容で置き換える前のZIP(1つだけ) | [CloudKitSyncTransport](../strius/Sync/CloudKitSyncTransport.swift)、[LedgerSync](../strius/Sync/LedgerSync.swift) |
 | App Group `group.com.digiloglab.struis.runtime`のruntime領域 | Exec workerが使うhome・workspace、ターンへ渡した添付・context・toolファイル、会話ごとの渡し済みの控え`thread-context.json`(この端末だけ)。バックアップ対象外 | [NativeRuntimePaths](../NativeRuntime/Shared/RuntimeProtocol.swift)、[WorkspaceStager](../strius/Runtime/WorkspaceStager.swift)、[ThreadContextStore](../strius/Runtime/ThreadContextStore.swift) |
 | Keychain・UserDefaults | Struisアカウント認証、App Attestの鍵のIDとAnthropicのtoken(この端末だけに保存し、鍵そのものはSecure Enclaveから出ません)、オンボーディング回答や設定等 | [AuthStore](../strius/Auth/AuthStore.swift)、[AppAttestClient](../strius/Runtime/Claude/AppAttestClient.swift)、[OnboardingProfile](../strius/Features/Onboarding/OnboardingProfile.swift) |
@@ -79,4 +79,4 @@ StruisのAPI base URLは`STRUIS_API_BASE_URL`で上書きできます(手元の�
 
 ## 公開ソースで確認できる範囲
 
-配信名、hash検証、cache、読込先、ターンへ渡す処理、AI要求の組み立て、応答検証、台帳更新は公開コードから追えます。サーバーがその時点で返すprompt・schema・Skillの本文と、サーバー・AIサービス内の保存・運用は非公開の範囲です。このリポジトリは、それら閲覧できない内容まで検証できるとするものではありません。
+指示文・schema・Skillの本文、ターンへ渡す処理、AI要求の組み立て、応答検証、台帳更新は公開コードから追えます。サーバー・AIサービス内の保存・運用は非公開の範囲です。このリポジトリは、それら閲覧できない内容まで検証できるとするものではありません。

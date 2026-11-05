@@ -1,0 +1,572 @@
+{
+  "$defs": {
+    "Attempt": {
+      "additionalProperties": false,
+      "properties": {
+        "assisted": {
+          "title": "Assisted",
+          "type": "boolean"
+        },
+        "correction_reason": {
+          "anyOf": [
+            {
+              "maxLength": 2000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correction Reason"
+        },
+        "error_tag": {
+          "default": "",
+          "maxLength": 100,
+          "title": "Error Tag",
+          "type": "string"
+        },
+        "feedback": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Feedback",
+          "type": "string"
+        },
+        "problem_id": {
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$",
+          "title": "Problem Id",
+          "type": "string"
+        },
+        "score": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Score",
+          "type": "number"
+        },
+        "submission_id": {
+          "format": "uuid",
+          "title": "Submission Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "problem_id",
+        "submission_id",
+        "score",
+        "assisted",
+        "feedback"
+      ],
+      "title": "Attempt",
+      "type": "object"
+    },
+    "Evaluation": {
+      "additionalProperties": false,
+      "properties": {
+        "assistance": {
+          "const": "independent_first",
+          "default": "independent_first",
+          "title": "Assistance",
+          "type": "string"
+        },
+        "difficulty": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Difficulty",
+          "type": "string"
+        },
+        "n": {
+          "maximum": 100,
+          "minimum": 1,
+          "title": "N",
+          "type": "integer"
+        },
+        "scoring_unit": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Scoring Unit",
+          "type": "string"
+        },
+        "target_scope": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Target Scope",
+          "type": "string"
+        },
+        "threshold": {
+          "const": 0.8,
+          "default": 0.8,
+          "title": "Threshold",
+          "type": "number"
+        }
+      },
+      "required": [
+        "n",
+        "target_scope",
+        "scoring_unit",
+        "difficulty"
+      ],
+      "title": "Evaluation",
+      "type": "object"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "learner",
+            "model"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "message_id": {
+          "format": "uuid",
+          "title": "Message Id",
+          "type": "string"
+        },
+        "quote": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        },
+        "summary": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "message_id",
+        "kind",
+        "summary",
+        "quote"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "Goal": {
+      "additionalProperties": false,
+      "properties": {
+        "branch_condition": {
+          "default": "",
+          "maxLength": 2000,
+          "title": "Branch Condition",
+          "type": "string"
+        },
+        "child_order": {
+          "items": {
+            "pattern": "^[a-zA-Z0-9_-]{1,100}$",
+            "type": "string"
+          },
+          "title": "Child Order",
+          "type": "array"
+        },
+        "completion_condition": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Completion Condition",
+          "type": "string"
+        },
+        "evaluation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Evaluation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "exit_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "achieved",
+                "stagnation",
+                "attempt_limit",
+                "time_limit",
+                "interrupted",
+                "goal_changed"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exit Reason"
+        },
+        "id": {
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "model",
+            "learner"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "learner_action": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Learner Action",
+          "type": "string"
+        },
+        "loop": {
+          "$ref": "#/$defs/Loop"
+        },
+        "model_action": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Model Action",
+          "type": "string"
+        },
+        "next_action": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Next Action",
+          "type": "string"
+        },
+        "outcome": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Outcome",
+          "type": "string"
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Parent Id"
+        },
+        "replaces_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Replaces Id"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "active",
+            "completed",
+            "paused"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "parent_id",
+        "title",
+        "outcome",
+        "learner_action",
+        "model_action",
+        "completion_condition",
+        "kind",
+        "status",
+        "next_action",
+        "loop"
+      ],
+      "title": "Goal",
+      "type": "object"
+    },
+    "Loop": {
+      "additionalProperties": false,
+      "properties": {
+        "after_exit": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "After Exit",
+          "type": "string"
+        },
+        "count_by": {
+          "default": "graded_attempt",
+          "enum": [
+            "graded_attempt",
+            "independent_attempt",
+            "child_completion",
+            "model_action"
+          ],
+          "title": "Count By",
+          "type": "string"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "exit_when": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Exit When",
+          "type": "string"
+        },
+        "max_attempts": {
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Max Attempts",
+          "type": "integer"
+        },
+        "max_minutes": {
+          "anyOf": [
+            {
+              "maximum": 1440,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Minutes"
+        },
+        "repeat_when": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Repeat When",
+          "type": "string"
+        },
+        "stagnation_attempts": {
+          "maximum": 100,
+          "minimum": 2,
+          "title": "Stagnation Attempts",
+          "type": "integer"
+        },
+        "time_basis": {
+          "const": "server_elapsed",
+          "default": "server_elapsed",
+          "title": "Time Basis",
+          "type": "string"
+        },
+        "unit": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "unit",
+        "repeat_when",
+        "exit_when",
+        "after_exit",
+        "stagnation_attempts",
+        "max_attempts"
+      ],
+      "title": "Loop",
+      "type": "object"
+    },
+    "Problem": {
+      "additionalProperties": false,
+      "properties": {
+        "goal_id": {
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$",
+          "title": "Goal Id",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "independent": {
+          "title": "Independent",
+          "type": "boolean"
+        },
+        "prompt": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "goal_id",
+        "prompt",
+        "independent"
+      ],
+      "title": "Problem",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "attempts": {
+      "items": {
+        "$ref": "#/$defs/Attempt"
+      },
+      "maxItems": 10,
+      "title": "Attempts",
+      "type": "array"
+    },
+    "base_revision": {
+      "minimum": 0,
+      "title": "Base Revision",
+      "type": "integer"
+    },
+    "current_goal_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Current Goal Id"
+    },
+    "disposition": {
+      "enum": [
+        "waiting",
+        "continue",
+        "completed",
+        "paused",
+        "not_learning"
+      ],
+      "title": "Disposition",
+      "type": "string"
+    },
+    "goals": {
+      "items": {
+        "$ref": "#/$defs/Goal"
+      },
+      "maxItems": 40,
+      "title": "Goals",
+      "type": "array"
+    },
+    "next_action": {
+      "maxLength": 2000,
+      "title": "Next Action",
+      "type": "string"
+    },
+    "policy_change_reason": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Policy Change Reason"
+    },
+    "problems": {
+      "items": {
+        "$ref": "#/$defs/Problem"
+      },
+      "maxItems": 10,
+      "title": "Problems",
+      "type": "array"
+    },
+    "reply_quotes": {
+      "items": {
+        "maxLength": 2000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 30,
+      "minItems": 1,
+      "title": "Reply Quotes",
+      "type": "array"
+    },
+    "return_stack": {
+      "items": {
+        "pattern": "^[a-zA-Z0-9_-]{1,100}$",
+        "type": "string"
+      },
+      "title": "Return Stack",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "wait_reason": {
+      "default": "",
+      "maxLength": 2000,
+      "title": "Wait Reason",
+      "type": "string"
+    },
+    "waiting_for": {
+      "anyOf": [
+        {
+          "enum": [
+            "answer",
+            "choice",
+            "reading"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Waiting For"
+    },
+    "waiting_problem_id": {
+      "anyOf": [
+        {
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Waiting Problem Id"
+    }
+  },
+  "required": [
+    "schema_version",
+    "base_revision",
+    "current_goal_id",
+    "disposition",
+    "next_action",
+    "reply_quotes"
+  ],
+  "title": "ProgressUpdate",
+  "type": "object"
+}

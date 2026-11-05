@@ -1,12 +1,6 @@
 import Foundation
 
 enum ServerConfig {
-    static let deliveryAppKey: String = {
-        guard let key = Bundle.main.object(forInfoDictionaryKey: "StruisDeliveryAppKey") as? String,
-              !key.hasPrefix("$(") else { return "" }
-        return key
-    }()
-
     private static let productionURL = URL(string: "https://api-struis.digiloglab.com")!
 
     /// Base URL for the Struis backend.

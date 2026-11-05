@@ -15,9 +15,15 @@ final class ClaudeTurnRunnerTests: XCTestCase {
         StubAnthropic.handler = nil
         let directory: URL = FileManager.default.temporaryDirectory.appendingPathComponent("claude-runner-\(UUID().uuidString)", isDirectory: true)
         let source: URL = directory.appendingPathComponent("source", isDirectory: true)
-        for (name, relative) in LocalDirectoryAssetSource.files {
+        // 質問の会話・ワークブックの指示文は短い仮の文に替え、ほかは本物の同梱版を使う。
+        let bundled: BundledAssets = .main
+        for (name, relative) in BundledAssets.files {
             let url: URL = source.appendingPathComponent(relative)
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            if name.contains("timeline") || name.contains("onboarding") {
+                try XCTUnwrap(bundled.data(name), name).write(to: url)
+                continue
+            }
             let text: String = switch name {
             case "prompt:base": "BASE"
             case "prompt:developer": "DEVELOPER"
@@ -27,8 +33,7 @@ final class ClaudeTurnRunnerTests: XCTestCase {
             }
             try text.write(to: url, atomically: true, encoding: .utf8)
         }
-        let cache: AssetCache = AssetCache(root: directory.appendingPathComponent("cache", isDirectory: true))
-        _ = try await cache.refresh(from: LocalDirectoryAssetSource(root: source))
+        let cache: AssetCache = AssetCache(bundled: BundledAssets(root: source))
         assets = cache
         conversations = try ClaudeConversationStore.temporary()
         context = ThreadContextStore(url: nil)

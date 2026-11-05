@@ -20,7 +20,7 @@ private let bootLog = Logger(subsystem: "com.digiloglab.strius", category: "hyot
     nonisolated static let legacyRoot = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("hyotan", isDirectory: true)
     nonisolated static var root: URL { NativeRuntimePaths.sharedRoot ?? legacyRoot.appendingPathComponent("native-unavailable") }
     nonisolated static var workspaceRoot: URL { root.appendingPathComponent("workspace", isDirectory: true) }
-    /// The retired Codex home in the app's container and its former app-group location (`removeRetiredCodexData`).
+    /// The retired Codex home in the app's container and its former app-group location (`removeRetiredData`).
     nonisolated static var retiredCodexHomes: [URL] {
         [FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("StruisRuntime/codex", isDirectory: true),
          root.appendingPathComponent("codex", isDirectory: true)]
@@ -51,7 +51,7 @@ private let bootLog = Logger(subsystem: "com.digiloglab.strius", category: "hyot
                 var values = URLResourceValues(); values.isExcludedFromBackup = true
                 try root.setResourceValues(values)
                 try Self.migrateLegacyData(from: [Self.legacyRoot, Self.legacyRoot.deletingLastPathComponent().appendingPathComponent("agentcase")], to: Self.root)
-                Self.removeRetiredCodexData(Self.retiredCodexHomes)
+                Self.removeRetiredData(Self.retiredCodexHomes + [StruisPaths.retiredAssets])
             }.value
             installDuration = Date().timeIntervalSince(began)
             state = .ready
@@ -72,15 +72,16 @@ private let bootLog = Logger(subsystem: "com.digiloglab.strius", category: "hyot
         try Data("1".utf8).write(to: marker, options: .atomic)
     }
 
-    /// The in-app Codex runtime was removed (2026-11-03): its home (ChatGPT credentials, conversation rollouts,
-    /// state databases) is never read again. Conversations continue from the Ledger (`recent_thread_history.md`).
-    nonisolated static func removeRetiredCodexData(_ homes: [URL]) {
+    /// Data that is never read again. The in-app Codex runtime was removed (2026-11-03): its home (ChatGPT
+    /// credentials, conversation rollouts, state databases) goes, and conversations continue from the Ledger
+    /// (`recent_thread_history.md`). The prompts now ship with the app, so their old download cache goes too.
+    nonisolated static func removeRetiredData(_ directories: [URL]) {
         let fm: FileManager = FileManager.default
-        for home in homes where fm.fileExists(atPath: home.path) {
+        for directory in directories where fm.fileExists(atPath: directory.path) {
             do {
-                try fm.removeItem(at: home)
+                try fm.removeItem(at: directory)
             } catch {
-                bootLog.error("retired Codex data not removed: \(String(describing: error), privacy: .public)")
+                bootLog.error("retired data not removed: \(String(describing: error), privacy: .public)")
             }
         }
     }

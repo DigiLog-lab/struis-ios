@@ -261,7 +261,7 @@ final class LedgerTests: XCTestCase {
 
         let turns = TurnCoordinator(
             ledger: ledger,
-            assets: AssetCache(lenient: true),
+            assets: AssetCache(),
             runner: MockTurnRunner()
         )
         await turns.startGrading(captureID: captureID)

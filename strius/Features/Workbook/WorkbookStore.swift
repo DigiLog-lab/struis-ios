@@ -561,7 +561,7 @@ final class WorkbookStore {
             if let code = ledgerError.code, let localized = localized(code: code) { return localized }
             return ledgerError.localizedDescription
         }
-        if let delivery = error as? DeliveryError { return delivery.localizedDescription }
+        if let asset = error as? AssetError { return asset.localizedDescription }
         return error.localizedDescription
     }
 

@@ -524,10 +524,10 @@ final class LedgerSyncTests: XCTestCase {
         let upstream: ClaudeUpstream = ClaudeUpstream(baseURL: URL(string: "https://stub.invalid")!, apiKey: { "sk-test" },
                                                       session: URLSession(configuration: configuration), gate: OpenUsageGate())
         let runner: ClaudeTurnRunner = ClaudeTurnRunner(
-            assets: AssetCache(root: FileManager.default.temporaryDirectory.appendingPathComponent("sync-\(UUID().uuidString)"), lenient: true),
+            assets: AssetCache(),
             conversations: conversations, upstream: upstream, contextStore: ThreadContextStore(url: nil), prepareCommands: {}
         )
-        let turns = TurnCoordinator(ledger: b.ledger, assets: AssetCache(lenient: true), runner: runner)
+        let turns = TurnCoordinator(ledger: b.ledger, assets: AssetCache(), runner: runner)
         _ = try await turns.sendChat(TurnCoordinator.ChatSend(threadID: thread.id, text: "続きを教えて", attachments: [], workbookView: nil))
         for _ in 0..<400 {
             let last = try await b.ledger.read { db in try ChatRepository.messages(db, threadID: thread.id) }.last

@@ -138,7 +138,7 @@ final class UsageGateTests: XCTestCase {
         defer { StubAnthropic.handler = nil }
         let upstream: ClaudeUpstream = ClaudeUpstream(baseURL: URL(string: "https://stub.invalid")!, apiKey: { "sk-test" },
                                                       session: URLSession(configuration: configuration), gate: ClosedGate())
-        let assets: AssetCache = AssetCache(root: FileManager.default.temporaryDirectory.appendingPathComponent("usage-gate-\(UUID().uuidString)"), lenient: true)
+        let assets: AssetCache = AssetCache()
         let runner: ClaudeTurnRunner = ClaudeTurnRunner(assets: assets, conversations: try ClaudeConversationStore.temporary(), upstream: upstream,
                                                         contextStore: ThreadContextStore(url: nil), prepareCommands: {})
         let plan: TurnPlan = TurnPlan(
