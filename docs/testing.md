@@ -71,6 +71,7 @@ PR の検証は GitHub の `iOS` workflow(`verify` ジョブ)で、ビルド1回
 - テストの時は署名を外しません(`CODE_SIGNING_ALLOWED=NO` を渡さない)。外した試行で `ClaudeAppAttestTests` が1件落ちたためです(2026-10-22)。
 - Simulator は1台、並列にしません(`xcode-27` の runner は3コア・7GBで、1台の中で並列にすると遅く、不安定になった)。
 - 結果は `ios-test-results-<実行ID>-<再実行番号>` の artifact に保存します(xcresult と、落ちた時の画面の写真・要素の木 `ui-probe`)。
+- `ui_tier=unit`(手動実行の選択肢、または `verify` の `client_payload`)は、UIテストを流さず、ビルド・単体テスト全部・Release archive だけを流します。`Struis / verify` の説明に「UIテストなし」と出ます。main の手動実行(配信)には効かず、全件のままです。
 - 手動の全件実行(`ui_tier=full`、または main での手動実行)は、従来どおり3台の runner に分けて流します(`build` + `ui-tests` ジョブ)。
 
 ### 時間を縮めるための fixture

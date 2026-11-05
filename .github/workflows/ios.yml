@@ -1,21 +1,23 @@
 name: iOS
 run-name: >-
-  ${{ github.event_name == 'repository_dispatch' && format('Verify PR #{0} {1}', github.event.client_payload.pr, github.event.client_payload.sha) || 'iOS' }}
+  ${{ github.event_name == 'repository_dispatch' && format('Verify PR #{0} {1}{2}', github.event.client_payload.pr, github.event.client_payload.sha, github.event.client_payload.ui_tier == 'unit' && ' (単体テストのみ)' || '') || 'iOS' }}
 
 on:
   # The verification of a PR: `agentctl ready` (or the web Claude after a direct fix) sends the PR's exact
   # HEAD. It runs main's definition of this file on that commit; its last job calls agent.yml's `report`,
-  # which writes the commit status `Struis / verify` and wakes the Issue when it is red.
+  # which writes the commit status `Struis / verify` and wakes the Issue when it is red. The payload's
+  # `ui_tier: unit` runs the build, every unit test and the Release archive without UI tests.
   repository_dispatch:
     types: [verify]
   # Manual runs: on main, every UI test, then `signed-archive` and the optional TestFlight upload; on any
-  # other branch, the same checks as a PR verification (or every UI test with ui_tier=full).
+  # other branch, the same checks as a PR verification (no UI test with ui_tier=unit, every UI test with
+  # ui_tier=full).
   workflow_dispatch:
     inputs:
       ui_tier:
-        description: UIテストの範囲(pr = 変更に関係する分、full = 全件)
+        description: UIテストの範囲(pr = 変更に関係する分、unit = 流さない、full = 全件)
         type: choice
-        options: [pr, full]
+        options: [pr, unit, full]
         default: pr
       upload:
         description: App Store Connectへアップロードする
@@ -151,7 +153,7 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           REF: ${{ github.ref }}
-          REQUESTED_TIER: ${{ inputs.ui_tier }}
+          REQUESTED_TIER: ${{ inputs.ui_tier || github.event.client_payload.ui_tier }}
         run: |
           set -euo pipefail
           # Manual main runs (release) get every UI test.
@@ -165,6 +167,12 @@ jobs:
           fi
           echo "tier=pr" >> "$GITHUB_OUTPUT"
           echo "matrix=[]" >> "$GITHUB_OUTPUT"
+          # Unit tests only, on request. An empty list skips the UI test step of `verify`.
+          if [[ "$REQUESTED_TIER" == "unit" ]]; then
+            echo "ui=" >> "$GITHUB_OUTPUT"
+            echo "### UIテスト: 流さない (単体テストのみ)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           args=()
           if git rev-parse --verify --quiet origin/main >/dev/null; then
             git diff --name-only --no-renames "origin/main...HEAD" > "$RUNNER_TEMP/changed.txt"

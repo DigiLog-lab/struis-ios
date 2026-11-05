@@ -27,7 +27,7 @@ def from_dispatch(event, conclusion, url, run_id):
     """The shape report() reads, from the verification run's own repository_dispatch payload."""
     payload = event.get('client_payload') or {}
     return {'workflow_run': {'id': run_id, 'display_title': f"Verify PR #{payload.get('pr')} {payload.get('sha')}",
-                             'conclusion': conclusion, 'html_url': url}}
+                             'conclusion': conclusion, 'html_url': url, 'ui_tier': payload.get('ui_tier')}}
 
 
 def failed_steps(gh, run_id):
@@ -52,9 +52,10 @@ def report(event, gh, store):
     green = conclusion == 'success'
     # A cancelled run (replaced or stopped by hand) says nothing about the code: an error status, no wake-up.
     status = 'success' if green else 'error' if conclusion == 'cancelled' else 'failure'
+    tested = '全単体テストのみ(UIテストなし)' if run.get('ui_tier') == 'unit' else '全単体テスト＋変更に関係するUIテスト'
     gh.request('POST', f'/repos/{gh.repository}/statuses/{sha}', {
         'state': status, 'context': CONTEXT, 'target_url': run['html_url'],
-        'description': 'ios.yml: 全単体テスト＋変更に関係するUIテスト' if green else f'ios.yml: {conclusion}'})
+        'description': f'ios.yml: {tested}' if green else f'ios.yml: {conclusion}'})
     pr = gh.get(f'/repos/{gh.repository}/pulls/{number}')
     match = PR_ISSUE.search(pr.get('body') or '')
     current = pr['state'] == 'open' and pr['head']['sha'] == sha

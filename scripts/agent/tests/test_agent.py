@@ -394,6 +394,13 @@ class VerifyReportTests(unittest.TestCase):
         self.assertNotIn('verifyFailure', store.objects['sessions/4/state.json'])
         self.assertIn('マージできます', gh.comment.call_args.args[1])
 
+    def test_a_unit_only_run_says_so_in_its_status(self):
+        gh, store = self.gh(), FakeStore()
+        event = verify_report.from_dispatch({'client_payload': {'pr': '3', 'sha': SHA, 'ui_tier': 'unit'}}, 'success', 'u', 9)
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.report(event, gh, store)
+        self.assertIn('UIテストなし', gh.request.call_args_list[0].args[2]['description'])
+
     def test_a_stale_head_only_gets_its_status(self):
         gh, store = self.gh(head='b' * 40), FakeStore()
         with mock.patch.object(verify_report, 'append_summary'):
