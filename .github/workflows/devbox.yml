@@ -14,7 +14,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: devbox
+  # The first preflight run (42249529088) is stuck until its time limit; this run must not wait behind it.
+  group: devbox-preflight-2
   cancel-in-progress: false
 
 jobs:
@@ -63,13 +64,16 @@ jobs:
                       print(device["udid"]); sys.exit()
           sys.exit("iPhone 17 simulator not found")')
           echo "SIMULATOR_UDID=$udid" >> "$GITHUB_ENV"
-          xcrun simctl boot "$udid" 2>/dev/null || true
+          # Build first, then boot (as ios.yml does): the first run booted during the build and took 21.6 min.
           started=$(date +%s)
           xcodebuild build-for-testing -project strius.xcodeproj -scheme strius \
             -destination "id=$udid" -derivedDataPath "$RUNNER_TEMP/DerivedData" ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES \
             -quiet
           echo "warm_build_seconds=$(( $(date +%s) - started ))" > "$RUNNER_TEMP/devbox/warm.txt"
+          started=$(date +%s)
+          xcrun simctl boot "$udid" 2>/dev/null || true
           xcrun simctl bootstatus "$udid" -b
+          echo "boot_seconds=$(( $(date +%s) - started ))" >> "$RUNNER_TEMP/devbox/warm.txt"
           echo "warm_ready=$(date +%s)" >> "$RUNNER_TEMP/devbox/warm.txt"
           cat "$RUNNER_TEMP/devbox/warm.txt"
       - name: 命令を待って実行する

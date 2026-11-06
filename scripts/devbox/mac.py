@@ -8,7 +8,8 @@ answers with one force-pushed commit on `devbox/out`. Both are watched with `git
     mac.py run --async -- xcrun simctl io booted recordVideo rec.mp4
     mac.py wait <id>                                     # the result of an --async command
     mac.py ready                                         # waits until a Dev Box has said it is ready
-    mac.py stop                                          # ends the Dev Box now
+    mac.py kill                                          # ends the running command
+    mac.py stop                                          # ends the running command and the Dev Box
 Files the command writes to "$DEVBOX_FILES" are copied to ./devbox-out/<id>/.
 """
 from __future__ import annotations
@@ -115,7 +116,10 @@ def wait(command_id: str | None, timeout: float, poll: float, quiet: bool) -> Re
                     print(f"[devbox {command_id} running] {last_line}", file=sys.stderr, flush=True)
                     printed = result.log_tail
         time.sleep(poll)
-    raise TimeoutError(f"no result for {command_id or 'ready'} within {timeout:.0f}s")
+    raise TimeoutError(
+        f"no result for {command_id or 'ready'} within {timeout:.0f}s"
+        + (f" (still running? `mac.py wait {command_id}`, or `mac.py kill`)" if command_id else "")
+    )
 
 
 def main(argv: list[str]) -> int:
@@ -131,14 +135,15 @@ def main(argv: list[str]) -> int:
     ready = sub.add_parser("ready")
     ready.add_argument("--timeout", type=float, default=600.0)
     sub.add_parser("stop")
+    sub.add_parser("kill")
     args = parser.parse_args(argv)
 
     if args.action == "ready":
         result: Result = wait(None, args.timeout, 3.0, True)
         print(f"ready: {result.id} {result.times}")
         return 0
-    if args.action == "stop":
-        print(send("__devbox_stop__"))
+    if args.action in ("stop", "kill"):
+        print(send(f"__devbox_{args.action}__"))
         return 0
     if args.action == "wait":
         command_id: str = args.id

@@ -9,6 +9,12 @@
 # Before each command the work tree is moved to the latest commit of DEVBOX_WORK_BRANCH, so a build after a
 # push is incremental (DerivedData lives outside the work tree). The server stops by itself after
 # DEVBOX_IDLE_SECONDS without a command, at DEVBOX_DEADLINE_EPOCH, or on the command `__devbox_stop__`.
+#
+# A running command can be ended with `__devbox_kill__` (or `__devbox_stop__`, which then ends the server),
+# and is ended after DEVBOX_COMMAND_SECONDS or at the deadline. Commands run with job control on, in their
+# own process group, and `set -m` is on inside them too: without it, bash starts a background command with
+# SIGINT ignored, and `kill -INT` of `simctl io recordVideo` inside it never stops the recording (2026-11-07,
+# the first preflight run held its runner until the job's time limit).
 set -uo pipefail
 
 : "${DEVBOX_WORK_BRANCH:?}"
@@ -18,6 +24,7 @@ IDLE=${DEVBOX_IDLE_SECONDS:-900}
 POLL=${DEVBOX_POLL_SECONDS:-3}
 DEADLINE=${DEVBOX_DEADLINE_EPOCH:-$(( $(date +%s) + 19800 ))}
 PROGRESS=${DEVBOX_PROGRESS_SECONDS:-15}
+COMMAND_MAX=${DEVBOX_COMMAND_SECONDS:-3600}
 STATE=${RUNNER_TEMP:-/tmp}/devbox
 mkdir -p "$STATE"
 
@@ -78,6 +85,12 @@ while :; do
     publish "$out" "devbox $id stop"
     echo "devbox: stop requested"; break
   fi
+  if [[ "$cmd" == "__devbox_kill__" ]]; then
+    status "$out" "$id" done 0
+    echo "received=$received" > "$out/times"
+    publish "$out" "devbox $id kill (nothing running)"
+    continue
+  fi
 
   # The latest commit of the work branch, keeping ignored and untracked build output.
   sync_log=$(git fetch -q --depth 1 origin "refs/heads/$DEVBOX_WORK_BRANCH" 2>&1 && git checkout -q --force --detach FETCH_HEAD 2>&1)
@@ -89,15 +102,43 @@ while :; do
   { [[ -n "$sync_log" ]] && echo "$sync_log"; } > "$log"
   publish "$out" "devbox $id running"
 
-  DEVBOX_FILES="$out/files" DEVBOX_ID="$id" bash -c "$cmd" >> "$log" 2>&1 < /dev/null &
+  set -m
+  DEVBOX_FILES="$out/files" DEVBOX_ID="$id" bash -c "set -m; $cmd" >> "$log" 2>&1 < /dev/null &
   pid=$!
+  set +m
   next=$(( $(date +%s) + PROGRESS ))
+  peeked=$last
+  stop_after=""
+  killed=""
   while kill -0 "$pid" 2>/dev/null; do
     sleep 1
-    if (( $(date +%s) >= next )); then
+    now=$(date +%s)
+    if [[ -z "$killed" ]] && (( now - started > COMMAND_MAX || now > DEADLINE )); then
+      echo "devbox: command $id ended by the time limit" >> "$log"
+      killed=time
+    fi
+    if (( now >= next )); then
       tail -n 200 "$log" > "$out/log.tail.txt"
       publish "$out" "devbox $id running"
-      next=$(( $(date +%s) + PROGRESS ))
+      next=$(( now + PROGRESS ))
+      # A kill or stop sent while this command runs. Other commands wait for their turn.
+      sha=$(git ls-remote origin "$CMD_REF" | cut -f1)
+      if [[ -n "$sha" && "$sha" != "$peeked" ]] && git fetch -q --depth 1 origin "$CMD_REF"; then
+        peeked=$sha
+        control=$(git show FETCH_HEAD:cmd.sh 2>/dev/null)
+        if [[ "$control" == "__devbox_kill__" || "$control" == "__devbox_stop__" ]]; then
+          last=$sha
+          [[ "$control" == "__devbox_stop__" ]] && stop_after=yes
+          echo "devbox: command $id ended by $control" >> "$log"
+          killed=request
+        fi
+      fi
+    fi
+    if [[ -n "$killed" && "$killed" != done ]]; then
+      kill -TERM -- "-$pid" 2>/dev/null
+      sleep 5
+      kill -KILL -- "-$pid" 2>/dev/null
+      killed=done
     fi
   done
   wait "$pid"; code=$?
@@ -109,4 +150,5 @@ while :; do
   publish "$out" "devbox $id exit $code"
   echo "devbox: $id exit $code in $(( finished - started ))s"
   idle_since=$(date +%s)
+  if [[ -n "$stop_after" ]]; then echo "devbox: stop requested"; break; fi
 done
