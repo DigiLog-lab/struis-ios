@@ -85,6 +85,36 @@ final class UsageGateTests: XCTestCase {
         XCTAssertEqual(meter.snapshot().spentUSD, 0.40, accuracy: 1e-9)
     }
 
+    func testTheChargeSurvivesAReinstallAfterThePlanEnds() {
+        let now = date("2026-11-06T13:31:00+09:00")
+        let local = MemoryValueStore()
+        let cloud = MemoryValueStore()
+        let first = meter(plan: nil, local: local, cloud: cloud, now: now)
+        first.setPlan(.light, chargeID: 7, chargedAt: now.addingTimeInterval(-86_400), expiresAt: now.addingTimeInterval(29 * 86_400))
+        first.add(0.40)
+        first.setPlan(nil) // 返金・期限切れ
+
+        // 入れ直し: UserDefaults は空になり、StoreKit からは切れた契約の取引が届かない。
+        let reinstalled = meter(plan: nil, local: local, cloud: cloud, now: now)
+        XCTAssertEqual(reinstalled.chargeID, 7, "課金は Keychain と iCloud に残る")
+        XCTAssertEqual(reinstalled.snapshot().spentUSD, 0.40, accuracy: 1e-9, "その期間の使用額を引き継ぐ(お試しの枠が戻らない)")
+        XCTAssertFalse(DeviceUsageGate(meter: reinstalled).admit(), "お試しの枠($0.25 + カード 1 枚分)を超えたまま")
+    }
+
+    func testTheNewerChargeOfKeychainAndICloudIsUsed() {
+        let now = date("2026-11-06T13:31:00+09:00")
+        let local = MemoryValueStore()
+        let cloud = MemoryValueStore()
+        let iphone = meter(plan: nil, local: local, cloud: MemoryValueStore(), now: now)
+        iphone.setPlan(.light, chargeID: 7, chargedAt: now.addingTimeInterval(-86_400))
+        // 別の端末が、あとの課金(上げた)を iCloud に書いた。
+        let ipad = meter(plan: nil, local: MemoryValueStore(), cloud: cloud, now: now)
+        ipad.setPlan(.standard, chargeID: 8, chargedAt: now.addingTimeInterval(-60))
+        let merged = meter(plan: nil, local: local, cloud: cloud, now: now)
+        XCTAssertEqual(merged.chargeID, 8)
+        XCTAssertEqual(merged.chargedAt, now.addingTimeInterval(-60))
+    }
+
     func testResetsAtIsNotAfterTheRenewal() {
         let now = date("2026-11-06T13:31:00+09:00")
         let meter = meter(plan: nil, now: now)
