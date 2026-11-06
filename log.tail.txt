@@ -1,0 +1,4 @@
+usagegate_test=57s
+com.digiloglab.strius: 60202
+Note: No display specified. Defaulting to display: 2213F5EF-05A0-412F-8A70-01E83820BECE (screenID: 1, name: LCD)
+Recording started
