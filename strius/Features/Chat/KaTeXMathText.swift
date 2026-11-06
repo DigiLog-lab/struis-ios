@@ -22,6 +22,8 @@ struct KaTeXMathText: View {
     /// 先頭から何個の数式・強調に淡い面の色をつけるか(§6: 要点から例題へ運ぶ語の元の箇所)。
     /// 数え方は `StruisMarkedSpans.spans` と同じ。描き直さずに色だけを変える。
     let highlightCount: Int
+    /// WebView が描き終えるまで SwiftMath で出す式(`raw` が色の命令を含み、WebView でしか描けない時)。
+    let placeholderLatex: String?
 
     init(
         _ raw: String,
@@ -29,7 +31,8 @@ struct KaTeXMathText: View {
         foregroundColor: UIColor,
         fontSize: CGFloat = 15,
         fontWeight: Int = 500,
-        highlightCount: Int = 0
+        highlightCount: Int = 0,
+        placeholderLatex: String? = nil
     ) {
         self.raw = raw
         self.display = display
@@ -37,6 +40,7 @@ struct KaTeXMathText: View {
         self.fontSize = fontSize
         self.fontWeight = fontWeight
         self.highlightCount = highlightCount
+        self.placeholderLatex = placeholderLatex
     }
 
     var body: some View {
@@ -46,7 +50,7 @@ struct KaTeXMathText: View {
             } else {
                 KaTeXRenderedText(
                     raw: raw, display: display, foregroundColor: foregroundColor, fontSize: fontSize,
-                    fontWeight: fontWeight, highlightCount: highlightCount
+                    fontWeight: fontWeight, highlightCount: highlightCount, placeholderLatex: placeholderLatex
                 )
             }
         } else if highlightCount > 0 {
@@ -97,6 +101,7 @@ private struct KaTeXRenderedText: View {
     let fontSize: CGFloat
     let fontWeight: Int
     let highlightCount: Int
+    let placeholderLatex: String?
 
     @Environment(\.displayScale) private var displayScale
     @State private var width: CGFloat = 0
@@ -172,15 +177,20 @@ private struct KaTeXRenderedText: View {
             }
     }
 
-    /// WebView が描き終えるまでの仮の文字。空の吹き出しにしない(K1)。
-    private var placeholder: some View {
-        Text(readable)
-            .font(Typography.sans(size: fontSize, weight: fontWeight >= 500 ? .medium : .regular))
-            .foregroundStyle(Color(foregroundColor))
-            .lineSpacing(fontSize * 0.25)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityIdentifier("katex-placeholder")
+    /// WebView が描き終えるまでの仮の表示。空の吹き出しにしない(K1)。
+    @ViewBuilder private var placeholder: some View {
+        if let placeholderLatex, let document: NativeMathDocument = NativeMathDocument.make(placeholderLatex, display: display) {
+            NativeMathText(document: document, foregroundColor: foregroundColor, fontSize: fontSize, fontWeight: fontWeight, highlightCount: 0)
+                .accessibilityIdentifier("katex-placeholder")
+        } else {
+            Text(readable)
+                .font(Typography.sans(size: fontSize, weight: fontWeight >= 500 ? .medium : .regular))
+                .foregroundStyle(Color(foregroundColor))
+                .lineSpacing(fontSize * 0.25)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("katex-placeholder")
+        }
     }
 }
 

@@ -193,6 +193,11 @@ nonisolated enum MathPlainText {
             case "begin", "end":
                 _ = parseArgument()  // 環境の名前は出さない
                 return " "
+            case "color", "textcolor", "colorbox", "fcolorbox":
+                _ = parseArgument()  // 色の値は出さない
+                if name == "fcolorbox" { _ = parseArgument() }
+                // `\colorbox{…}{$…$}` の中の `$` も出さない。
+                return parseArgument().replacingOccurrences(of: "$", with: "")
             default:
                 if MathPlainText.ignored.contains(name) { return "" }
                 if MathPlainText.passthrough.contains(name) { return parseArgument() }

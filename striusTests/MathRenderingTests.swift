@@ -159,6 +159,36 @@ struct MathRenderingTests {
         #expect(MathTextLayout.blocks("$ $ だけ", display: false) == [.paragraph([.text(" だけ", bold: false, mark: nil)])])
     }
 
+    /// 実 AI の続きのカードで `y=-\colorbox{#E9C8A6}{}^2-2` が文字のまま出た式。
+    @Test func chainHighlightIsOneFormulaForKaTeX() {
+        let cases: [(latex: String, changed: String)] = [("y=-(x+4)^2-2", "(x+4)"), ("y=x^2+6x+5", "x^2+6x+5"), ("y=\\frac{1}{2}x+1", "\\frac{1}{2}x")]
+        for item: (latex: String, changed: String) in cases {
+            let marked: String = item.latex.replacingOccurrences(of: item.changed, with: "\\colorbox{#E9C8A6}{$\\color{#1F1A17}{" + item.changed + "}$}")
+            let highlighted: String = TimelineMath.highlighting(item.latex, changed: item.changed)
+            #expect(highlighted == "$$" + marked + "$$")
+            #expect(MathTextLayout.blocks(highlighted, display: true) == [.display(marked, mark: 0)])
+            #expect(NativeMathDocument.make(highlighted, display: true) == nil)
+            // WebView を待つ間の式(元の式)は SwiftMath で描ける。読み上げの文字に色の命令が混ざらない。
+            #expect(NativeMathDocument.make(item.latex, display: true) != nil)
+            #expect(MathPlainText.readable(highlighted) == MathPlainText.readable("$$" + item.latex + "$$"))
+        }
+    }
+
+    /// SwiftMath は色の命令を中身ごと捨てる。式の一部が黙って消えないように KaTeX に回す。
+    @Test func colorCommandsAreLeftToKaTeX() {
+        for latex: String in ["a+\\color{red}{b}", "a+\\textcolor{red}{b}", "a+\\colorbox{#E9C8A6}{b}"] {
+            #expect(NativeMathDocument.make("$" + latex + "$", display: false) == nil)
+        }
+        #expect(NativeMathDocument.make("$a+b$", display: false) != nil)
+    }
+
+    @Test func chainHighlightLeavesFormulaUnchangedWhenItCannotApply() {
+        #expect(TimelineMath.highlighting("y=x^2", changed: nil) == "y=x^2")
+        #expect(TimelineMath.highlighting("y=x^2", changed: "z") == "y=x^2")
+        // `\pi` の途中を変えた所にすると、命令が壊れて SwiftMath で組めない。
+        #expect(TimelineMath.highlighting("y=\\pi", changed: "i") == "y=\\pi")
+    }
+
     // MARK: - 画像
 
     @Test func inlineGlyphCarriesABaselineAndDisplayGlyphIsTaller() throws {

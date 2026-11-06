@@ -138,14 +138,18 @@ struct TimelineMath: View {
 
     var body: some View {
         // 長い式は小さくして、画面の幅に収める(横にはみ出させない)。
-        KaTeXMathText(TimelineMath.highlighting(latex, changed: changed), display: true, foregroundColor: UIColor(Theme.primaryText), fontSize: fitted, fontWeight: 500)
+        KaTeXMathText(TimelineMath.highlighting(latex, changed: changed), display: true, foregroundColor: UIColor(Theme.primaryText), fontSize: fitted, fontWeight: 500, placeholderLatex: latex)
             .accessibilityIdentifier("timeline-math")
     }
 
-    /// 変えたところを銅色の地にした式(見つからなければそのまま)。
+    /// 変えたところを銅色の地にした式(見つからない・命令の途中を指している時はそのまま)。
+    /// SwiftMath は色の命令の中身を捨てるので KaTeX で描く(`NativeMathRenderer.parse`)。KaTeX の `\colorbox` の中は本文の扱いで、
+    /// 数式に戻す `$` が要る。`$` が入ると 1 本の式に見なされないので、全体を `$$` で包む。
     static func highlighting(_ latex: String, changed: String?) -> String {
-        guard let changed = changed?.trimmingCharacters(in: .whitespaces), !changed.isEmpty, let range = latex.range(of: changed) else { return latex }
-        return latex.replacingCharacters(in: range, with: "\\colorbox{#E9C8A6}{$\\color{#1F1A17}{" + changed + "}$}")
+        guard let changed: String = changed?.trimmingCharacters(in: .whitespaces), !changed.isEmpty,
+              let range: Range<String.Index> = latex.range(of: changed),
+              case .success = NativeMathRenderer.shared.parse(latex.replacingCharacters(in: range, with: "{" + changed + "}")) else { return latex }
+        return "$$" + latex.replacingCharacters(in: range, with: "\\colorbox{#E9C8A6}{$\\color{#1F1A17}{" + changed + "}$}") + "$$"
     }
 
     private var fitted: CGFloat {
