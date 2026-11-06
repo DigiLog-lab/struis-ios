@@ -435,10 +435,16 @@ extension Ledger {
                     }
                     continue
                 }
-                let data = try Data(contentsOf: file.fileURL)
+                var data = try Data(contentsOf: file.fileURL)
                 guard SyncNames.sha256(data) == file.sha256 else {
                     syncLog.error("sync file content does not match its checksum")
                     continue
+                }
+                // 前の版の端末が書いた学習メモの、端末ごとの学習者の ID は、固定の ID にして置く(#78。Anthropic に送らない)。
+                // 同期の記録は届いた内容のまま残すので、送り直しは起きない。
+                if file.path.hasPrefix("memory/"), let text = String(data: data, encoding: .utf8),
+                   let replaced = TutorMemory.replacingLearnerIDs(in: text) {
+                    data = Data(replaced.utf8)
                 }
                 try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try data.write(to: target, options: .atomic)
