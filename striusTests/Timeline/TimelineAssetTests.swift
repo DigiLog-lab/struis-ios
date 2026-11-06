@@ -45,6 +45,9 @@ final class TimelineAssetTests: XCTestCase {
         let cache = AssetCache()
         let developer = try await cache.text("prompt:developer")
         XCTAssertTrue(developer.contains("STRUIS_TURN_PROTOCOL_V2"), "受け答えの決まりは指示文の側にある")
+        // 質問画面は学習の話に絞る。つらい気持ちはこの決まりの対象にしない(#77)。
+        XCTAssertTrue(developer.contains("「ここでは勉強のことだけお手伝いできます。」"))
+        XCTAssertTrue(developer.contains("This rule does not apply when the learner writes about distress"))
         let reference = try await ChatTurns.developerRef(assets: cache)
         XCTAssertTrue(reference.append?.contains("Progress update_schema") == true)
         for name in ["prompt:base", "prompt:agents", "prompt:luna_child", "prompt:delegate_py", "prompt:tutor_memory_py",
