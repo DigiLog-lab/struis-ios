@@ -56,7 +56,9 @@ concurrency:
 
 jobs:
   # Lets a PR into the merge queue: `Struis / verify: success` on its HEAD, described as an admission.
-  # Nothing of the PR runs (no checkout). A Draft PR and a PR from a fork are not admitted.
+  # Nothing of the PR runs (no checkout). Only the current HEAD of an open, non-Draft PR from this
+  # repository is admitted, so a dispatch cannot put the status on any other commit (a merge queue
+  # commit in particular: its `Struis / verify` is written only by `queue-status`).
   admit:
     if: >-
       (github.event_name == 'repository_dispatch' && github.event.action == 'admit') ||
@@ -66,10 +68,12 @@ jobs:
     timeout-minutes: 5
     permissions:
       statuses: write
+      pull-requests: read
     steps:
       - name: マージキューに入れられる印をPRのHEADに付ける
         env:
           GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.client_payload.pr || github.event.pull_request.number }}
           SHA: ${{ github.event.client_payload.sha || github.event.pull_request.head.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           DESCRIPTION: >-
@@ -77,6 +81,13 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha must be a full commit SHA"; exit 1; }
+          [[ "$PR" =~ ^[1-9][0-9]*$ ]] || { echo "::error::pr must be a PR number"; exit 1; }
+          current=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" \
+            --jq '[.state, (.draft | tostring), .head.repo.full_name, .head.sha, .base.ref] | join(" ")')
+          if [[ "$current" != "open false $GITHUB_REPOSITORY $SHA main" ]]; then
+            echo "::error::PR #$PR の今のHEADではありません(open・Draftでない・このリポジトリ・mainへ、のどれかを満たさない): $current"
+            exit 1
+          fi
           gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" -f state=success -f context='Struis / verify' \
             -f target_url="$RUN_URL" -f description="$DESCRIPTION" --silent
 

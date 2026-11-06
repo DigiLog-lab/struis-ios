@@ -24,7 +24,7 @@ class CosmeticTests(unittest.TestCase):
 
     def test_chat_onboarding_and_billing_screens_always_need_the_full_verification(self):
         for path in ('strius/Features/Chat/MessageBubble.swift', 'strius/Features/Onboarding/PaywallView.swift',
-                     'strius/Features/Settings/UsageViews.swift'):
+                     'strius/Features/Settings/UsageViews.swift', 'strius/Features/Workbook/WorkbookSubunitView.swift'):
             self.assertEqual(cosmetic.blocking_path([path]), path)
 
     def test_an_empty_diff_is_not_light(self):

@@ -10,6 +10,8 @@ Reads the changed paths (one per line) on stdin. Exit 0: light path. Exit 1: ful
 first path that decided it on stderr.
 """
 from fnmatch import fnmatchcase
+import json
+from pathlib import Path
 import sys
 
 LABEL = '見た目だけ'
@@ -26,12 +28,24 @@ ALLOWED = (
     'README.md',
 )
 
-# Screens that always get the full verification, even for a look-only change (Issue #81).
-FULL = (
+# Screens that always get the full verification, even for a look-only change (Issue #81): the conversation
+# (scrolling, freezing, the reply's tail, attachments), onboarding and billing. Their files are the paths
+# of these UI test contracts in ui-test-plan.json (the conversation also lives in the workbook's subunit
+# screen), plus their folders.
+FULL_CONTRACTS = ('conversation-scroll', 'reply-tail', 'camera-attachment', 'onboarding', 'usage-reset')
+FULL_FOLDERS = (
     'strius/Features/Chat/*',
     'strius/Features/Onboarding/*',
-    'strius/Features/Settings/UsageViews.swift',
 )
+PLAN = Path(__file__).resolve().with_name('ui-test-plan.json')
+
+
+def full_patterns(plan=PLAN):
+    contracts = json.loads(plan.read_text())['contracts']
+    return FULL_FOLDERS + tuple(path.replace('**', '*') for name in FULL_CONTRACTS for path in contracts[name]['paths'])
+
+
+FULL = full_patterns()
 
 
 def blocking_path(paths):
