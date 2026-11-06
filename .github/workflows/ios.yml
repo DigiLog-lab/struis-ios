@@ -53,14 +53,33 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: write
+      pull-requests: write
     steps:
-      - name: PRのHEADの検証を起動する
+      # A PR branch that does not contain the latest main is brought up to date first (GitHub's "Update
+      # branch", no runner), so what is verified is what would merge, as `agentctl ready` requires of agents.
+      # The update is made with GITHUB_TOKEN, so it raises no pull_request event: its new HEAD is verified here.
+      - name: 最新のmainを取り込み、PRのHEADの検証を起動する
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
+          behind=$(gh api "repos/$GITHUB_REPOSITORY/compare/main...$SHA" --jq .behind_by)
+          if (( behind > 0 )); then
+            if ! gh api -X PUT "repos/$GITHUB_REPOSITORY/pulls/$PR/update-branch" -f expected_head_sha="$SHA" --silent; then
+              echo "::error::PR #$PR に最新のmainを取り込めません(衝突か、HEADが先に動いた)。取り込んでからpushしてください。"
+              exit 1
+            fi
+            for _ in $(seq 1 30); do
+              head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .head.sha)
+              [[ "$head" != "$SHA" ]] && break
+              sleep 2
+            done
+            [[ "$head" != "$SHA" ]] || { echo "::error::取り込み後のHEADが見えません"; exit 1; }
+            echo "mainが$behind commit進んでいたので取り込みました: $SHA -> $head"
+            SHA=$head
+          fi
           gh api "repos/$GITHUB_REPOSITORY/dispatches" -f event_type=verify \
             -f "client_payload[pr]=$PR" -f "client_payload[sha]=$SHA" --silent
 
