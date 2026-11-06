@@ -65,7 +65,7 @@ UIテストが0件の時は `-only-testing:striusTests` だけを渡します。
 
 ### 実行の形
 
-PR の検証は GitHub の `iOS` workflow の `verify` ジョブで、マージキューが作った commit(最新の main＋先に並んだ PR＋この PR)に対して流します([verification-and-delivery-policy.md](verification-and-delivery-policy.md))。ビルド1回のあと、単体テスト → 選んだ UI テストの順です。エージェントの手元検証(`scripts/agent/agentctl.py` の `local_verify`)も同じテストを流します。
+PR の検証は GitHub の `iOS` workflow(`verify` ジョブ)で、ビルド1回のあと、単体テスト → 選んだ UI テストの順に流します。エージェントの手元検証(`scripts/agent/agentctl.py` の `local_verify`)も同じテストを流します。
 
 - `build-for-testing` を1回、`test-without-building` を1回。単体テストと選んだUIテストを1つのコマンドで流します。
 - テストの時は署名を外しません(`CODE_SIGNING_ALLOWED=NO` を渡さない)。外した試行で `ClaudeAppAttestTests` が1件落ちたためです(2026-10-22)。

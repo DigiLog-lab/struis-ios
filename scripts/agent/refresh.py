@@ -1,10 +1,11 @@
-"""After main moves, wake the agent of every PR waiting for review that can no longer take main.
+"""After main moves, bring every PR waiting for review up to date and verify it again.
 
-Runs on Linux in agent.yml on a push to main (a merge, usually by the merge queue). The verification that
-decides a merge runs in the merge queue on the latest main (Issue #81), so a waiting PR is no longer
-brought up to date and verified again here: updating its branch would only drop its admission to the
-queue. A PR that conflicts with the new main cannot enter the queue, so its Issue's agent is woken to
-resolve the conflict (the worker merges main first and reports the conflicting files).
+Runs on Linux in agent.yml on a push to main (a merge). A PR's green `Struis / verify` only holds for
+the main it was verified on, so each open, non-Draft agent PR that no longer contains main is updated
+on GitHub's side (the "Update branch" merge, no runner) and its new HEAD is sent to ios.yml again. A PR
+that cannot take main without conflicts wakes its Issue's agent to resolve them. A person's PR (no
+agent Issue) is updated and verified the same way; a conflict on it is only written to the summary.
+With main's ruleset requiring `Struis / verify`, the updated HEAD cannot be merged until it is green.
 """
 import json
 import os
@@ -18,46 +19,67 @@ PR_ISSUE = re.compile(r'<!-- struis-agent:issue=([1-9]\d*) -->')
 
 
 def waiting_prs(gh):
-    """Open, non-Draft PRs into main from this repository that belong to an agent Issue."""
+    """Open, non-Draft PRs into main from this repository, with their agent Issue (None for a person's PR)."""
     result = []
     for pr in gh.paginate(f'/repos/{gh.repository}/pulls?state=open&base=main'):
         match = PR_ISSUE.search(pr.get('body') or '')
-        if pr.get('draft') or not match or (pr['head'].get('repo') or {}).get('full_name') != gh.repository:
+        if pr.get('draft') or (pr['head'].get('repo') or {}).get('full_name') != gh.repository:
             continue
-        result.append((pr, int(match[1])))
+        result.append((pr, int(match[1]) if match else None))
     return result
 
 
-def mergeable(gh, number, attempts=10, wait=3):
-    """GitHub computes `mergeable` in the background after main moves: None until it is known."""
+def contains(gh, main_sha, head_sha):
+    return gh.get(f'/repos/{gh.repository}/compare/{main_sha}...{head_sha}')['behind_by'] == 0
+
+
+def new_head(gh, number, old, attempts=30, wait=2):
+    """The update is asynchronous: wait until the PR's head moves off the old commit."""
     for _ in range(attempts):
-        pr = gh.get(f'/repos/{gh.repository}/pulls/{number}')
-        if pr.get('mergeable') is not None:
-            return pr['mergeable'], pr['head']['sha']
+        head = gh.get(f'/repos/{gh.repository}/pulls/{number}')['head']['sha']
+        if head != old:
+            return head
         time.sleep(wait)
-    return None, None
+    return None
 
 
-def refresh(gh, store, main_sha, wait=3):
+def refresh(gh, store, main_sha, wait=2):
     lines = []
     for pr, issue in waiting_prs(gh):
-        number = pr['number']
-        clean, head = mergeable(gh, number, wait=wait)
-        if clean is None:
-            lines.append(f'- PR #{number}: mergeability not known yet')
+        number, head = pr['number'], pr['head']['sha']
+        if contains(gh, main_sha, head):
+            lines.append(f'- PR #{number}: already contains main')
             continue
-        if clean:
-            lines.append(f'- PR #{number}: takes main without conflicts')
-            continue
-        failure = {'pr': number, 'sha': head, 'conflict': True, 'main': main_sha, 'at': iso()}
+        try:
+            gh.request_once('PUT', f'/repos/{gh.repository}/pulls/{number}/update-branch', {'expected_head_sha': head})
+        except RuntimeError as error:
+            if 'HTTP 422' not in str(error) or 'expected' in str(error).lower():
+                lines.append(f'- PR #{number}: not updated ({error})')
+                continue
+            if issue is None:
+                lines.append(f'- PR #{number}: conflict (a person\'s PR: not verified until it takes main)')
+                continue
+            failure = {'pr': number, 'sha': head, 'conflict': True, 'main': main_sha, 'at': iso()}
 
-        def record(state):
-            state['verifyFailure'] = failure
-            return state
-        store.update_json(session_key(issue, 'state.json'), record, default={})
-        dispatch(gh, 'agent-issue', {'issue': issue})
-        gh.comment(issue, f'{REPLY_MARKER}\n\n⚠️ mainが進み、PR #{number} はmainと衝突するのでマージキューに入れられません。エージェントに解消させます。')
-        lines.append(f'- PR #{number}: conflict, Issue #{issue} woken')
+            def record(state):
+                state['verifyFailure'] = failure
+                return state
+            store.update_json(session_key(issue, 'state.json'), record, default={})
+            dispatch(gh, 'agent-issue', {'issue': issue})
+            gh.comment(issue, f'{REPLY_MARKER}\n\n⚠️ mainが進みましたが、PR #{number} へ取り込むと衝突します。エージェントに解消させます。')
+            lines.append(f'- PR #{number}: conflict, Issue #{issue} woken')
+            continue
+        updated = new_head(gh, number, head, wait=wait)
+        if not updated:
+            lines.append(f'- PR #{number}: update accepted, new head not visible yet')
+            continue
+        dispatch(gh, 'verify', {'pr': number, 'sha': updated, **({'issue': issue} if issue else {})})
+        if issue is None:
+            lines.append(f'- PR #{number}: updated to {updated[:12]}, verification started')
+            continue
+        gh.comment(issue, f'{REPLY_MARKER}\n\nmainが進んだので、PR #{number} に取り込み(`{updated[:12]}`)、検証し直しています。'
+                          '緑になるまでマージは待ってください。')
+        lines.append(f'- PR #{number}: updated to {updated[:12]}, verification started')
     append_summary('\n'.join([f'### main `{main_sha[:12]}`', *lines]) if lines else f'main `{main_sha[:12]}`: no agent PR waiting')
 
 
