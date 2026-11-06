@@ -6,7 +6,7 @@ Each command is its own branch `devbox-cmd/<id>` and its result its own branch `
 result stays readable for an hour after it finished (`mac.py wait <id>`); the Dev Box deletes it then.
 
     mac.py start <branch>                                # starts a Dev Box for <branch> (main's devbox.yml)
-    mac.py ready                                         # waits until a Dev Box is waiting for commands
+    mac.py ready --branch <branch>                       # waits until a Dev Box of <branch> waits for commands
     mac.py run -- xcodebuild test-without-building ...   # waits, prints the log tail, exits with its code
     mac.py run -- 'xcrun simctl io booted screenshot "$DEVBOX_FILES/home.png"'
     mac.py run --async -- <command>                      # prints the id and returns
@@ -92,8 +92,9 @@ def read_result(sha: str, destination: pathlib.Path | None) -> Result:
         times[key] = value
     exit_text: str = show("exit")
     if destination is not None:
-        listing: str = git("ls-tree", "-r", "--name-only", sha, "files")
-        for name in filter(None, listing.splitlines()):
+        # -z: without it Git quotes names with non-ASCII characters (画面.png), and `git show` cannot find them.
+        listing: str = git("ls-tree", "-r", "-z", "--name-only", sha, "files")
+        for name in filter(None, listing.split("\0")):
             target: pathlib.Path = destination / name.removeprefix("files/")
             target.parent.mkdir(parents=True, exist_ok=True)
             data: bytes = subprocess.run(
@@ -109,8 +110,11 @@ def read_result(sha: str, destination: pathlib.Path | None) -> Result:
     )
 
 
-def wait(name: str, timeout: float, poll: float, want: str, quiet: bool) -> Result:
-    """Waits until devbox-out/<name> shows the state `want` ("done" or "ready")."""
+def wait(name: str, timeout: float, poll: float, want: str, quiet: bool, branch: str | None = None) -> Result:
+    """Waits until devbox-out/<name> shows the state `want` ("done" or "ready").
+
+    For "ready", a branch makes it wait for a Dev Box of that branch: another Dev Box may still be running
+    (one at a time; a new one waits behind it), and commands sent to it would run on its branch."""
     deadline: float = time.monotonic() + timeout
     seen: str = ""
     printed_line: str = ""
@@ -119,7 +123,7 @@ def wait(name: str, timeout: float, poll: float, want: str, quiet: bool) -> Resu
         if sha and sha != seen:
             seen = sha
             result: Result = read_result(sha, None)
-            if result.state == want:
+            if result.state == want and (branch is None or result.times.get("branch") == branch):
                 if want == "done":
                     # The Dev Box deletes the branch an hour later; this token cannot delete branches.
                     result = read_result(sha, pathlib.Path("devbox-out") / name)
@@ -159,16 +163,18 @@ def main(argv: list[str]) -> int:
     wait_parser.add_argument("--timeout", type=float, default=540.0)
     ready = sub.add_parser("ready")
     ready.add_argument("--timeout", type=float, default=600.0)
+    ready.add_argument("--branch", help="wait for a Dev Box of this branch (the one `start` asked for)")
     sub.add_parser("stop")
     sub.add_parser("kill")
     args = parser.parse_args(argv)
 
     if args.action == "start":
         start(args.branch, args.idle_minutes)
-        print(f"Dev Box requested for {args.branch}; `mac.py ready` waits for it", file=sys.stderr)
+        print(f"Dev Box requested for {args.branch}; `mac.py ready --branch {args.branch}` waits for it",
+              file=sys.stderr)
         return 0
     if args.action == "ready":
-        result: Result = wait("ready", args.timeout, 3.0, "ready", True)
+        result: Result = wait("ready", args.timeout, 3.0, "ready", True, args.branch)
         print("ready: " + " ".join(f"{key}={value}" for key, value in result.times.items()))
         return 0
     if args.action in ("stop", "kill"):

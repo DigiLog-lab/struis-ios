@@ -87,6 +87,46 @@ class DevBoxRoundTripTests(unittest.TestCase):
         self.assertEqual(len(files), 1)
         self.assertEqual(files[0].read_text(), "shot\n")
 
+    def test_a_file_with_a_japanese_name_comes_back(self) -> None:
+        result = self.mac("run", "--", 'echo shot > "$DEVBOX_FILES/画面.png"')
+        self.assertEqual(result.returncode, 0)
+        files: list[pathlib.Path] = list((self.client / "devbox-out").glob("*/画面.png"))
+        self.assertEqual(len(files), 1)
+
+    def test_a_command_is_not_run_when_the_work_branch_cannot_be_had(self) -> None:
+        origin: pathlib.Path = self.root / "origin.git"
+        head: str = subprocess.run(["git", "rev-parse", "refs/heads/work"], cwd=origin,
+                                   capture_output=True, text=True, check=True).stdout.strip()
+        sh("git", "update-ref", "-d", "refs/heads/work", cwd=origin)
+        try:
+            marker: pathlib.Path = self.root / "ran.txt"
+            result = self.mac("run", "--", f"touch {marker}", check=False)
+            self.assertEqual(result.returncode, 125)
+            self.assertIn("the command was not run", result.stdout)
+            self.assertFalse(marker.exists())
+        finally:
+            sh("git", "update-ref", "refs/heads/work", head, cwd=origin)
+
+    def test_kill_ends_jobs_the_command_started(self) -> None:
+        pid_file: pathlib.Path = self.root / "child.pid"
+        command_id: str = self.mac(
+            "run", "--async", "--", f"sleep 120 & echo $! > {pid_file}; wait"
+        ).stdout.strip()
+        for _ in range(30):
+            if pid_file.exists() and pid_file.read_text().strip():
+                break
+            time.sleep(1)
+        self.mac("kill")
+        self.mac("wait", command_id, "--timeout", "40", check=False)
+        child: int = int(pid_file.read_text().strip())
+        alive: bool = subprocess.run(["kill", "-0", str(child)], capture_output=True).returncode == 0
+        self.assertFalse(alive, "the job started inside the command is still running")
+
+    def test_ready_waits_for_the_requested_branch(self) -> None:
+        self.mac("ready", "--branch", "work", "--timeout", "15")
+        other = self.mac("ready", "--branch", "another-branch", "--timeout", "5", check=False)
+        self.assertNotEqual(other.returncode, 0)
+
     def test_several_arguments_are_kept_as_arguments(self) -> None:
         result = self.mac("run", "--", "printf", "%s|", "a b", "c")
         self.assertIn("a b|c|", result.stdout)

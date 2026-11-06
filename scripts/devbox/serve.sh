@@ -55,7 +55,18 @@ publish() {
   echo "::warning::devbox: could not publish $name"
 }
 
-delete_ref() { git push -q origin ":$1" 2>/dev/null || true; }
+delete_ref() {
+  local attempt
+  for attempt in 1 2 3; do
+    git push -q origin ":$1" 2>/dev/null && return 0
+    sleep "$attempt"
+  done
+  return 1
+}
+
+# Ids this server has taken. A command whose branch could not be deleted is still never run twice.
+consumed=$STATE/consumed.txt
+touch "$consumed"
 
 # status DIR ID STATE [EXIT]: the small files of a result.
 status() {
@@ -66,11 +77,25 @@ status() {
   return 0
 }
 
-# The waiting commands, oldest first: "<sha> <id>" per line.
+# The waiting commands, oldest first: "<sha> <id>" per line. Taken ones whose branch is still there (a
+# failed delete) are deleted again instead of listed.
 pending() {
+  local sha ref id
   git ls-remote origin "${CMD_PREFIX}*" | while read -r sha ref; do
-    printf '%s %s\n' "$sha" "${ref#"$CMD_PREFIX"}"
+    id=${ref#"$CMD_PREFIX"}
+    if grep -qxF "$id" "$consumed"; then delete_ref "$ref"; continue; fi
+    printf '%s %s\n' "$sha" "$id"
   done | sort -k2
+}
+
+# signal_tree SIGNAL PID: PID, its process group and every descendant with its group. Commands run with
+# `set -m`, so a job started inside one is in a group of its own and `kill -- -PID` alone misses it.
+signal_tree() {
+  local signal=$1 pid=$2 child
+  for child in $(pgrep -P "$pid" 2>/dev/null); do signal_tree "$signal" "$child"; done
+  kill "-$signal" -- "-$pid" 2>/dev/null
+  kill "-$signal" "$pid" 2>/dev/null
+  return 0
 }
 
 # Results of this Dev Box, KEEP_RESULTS after they finished: "<finished epoch> <id>" per line.
@@ -126,7 +151,8 @@ while :; do
   received=$(date +%s)
   if ! git fetch -q --depth 1 origin "$sha"; then sleep "$POLL"; continue; fi
   cmd=$(git show "$sha:cmd.sh" 2>/dev/null)
-  delete_ref "$CMD_PREFIX$id"
+  echo "$id" >> "$consumed"
+  delete_ref "$CMD_PREFIX$id" || echo "::warning::devbox: could not delete the branch of $id (it will not run again)"
   [[ "$id" =~ ^[A-Za-z0-9_-]+$ ]] || continue
   out=$STATE/out-$id
   rm -rf "$out"; mkdir -p "$out/files"
@@ -139,11 +165,21 @@ while :; do
     continue
   fi
 
-  # The latest commit of the work branch, keeping ignored and untracked build output.
-  sync_log=$(git fetch -q --depth 1 origin "refs/heads/$DEVBOX_WORK_BRANCH" 2>&1 && git checkout -q --force --detach FETCH_HEAD 2>&1)
-  synced=$(git rev-parse HEAD)
+  # The latest commit of the work branch, keeping ignored and untracked build output. If it cannot be had,
+  # the command is not run: its result would be about older code.
   started=$(date +%s)
   log=$STATE/log-$id.txt
+  if ! sync_log=$(git fetch -q --depth 1 origin "refs/heads/$DEVBOX_WORK_BRANCH" 2>&1 && git checkout -q --force --detach FETCH_HEAD 2>&1); then
+    { echo "$sync_log"; echo "devbox: could not move to the latest commit of $DEVBOX_WORK_BRANCH; the command was not run"; } > "$log"
+    { echo "received=$received"; echo "started=$started"; echo "finished=$(date +%s)"; } > "$out/times"
+    cp "$log" "$out/log.tail.txt"
+    status "$out" "$id" done 125
+    publish "$out" "$id" "devbox $id not run"
+    echo "$(date +%s) $id" >> "$finished_list"
+    idle_since=$(date +%s)
+    continue
+  fi
+  synced=$(git rev-parse HEAD)
   { [[ -n "$sync_log" ]] && echo "$sync_log"; } > "$log"
   status "$out" "$id" running
   { echo "received=$received"; echo "started=$started"; echo "commit=$synced"; } > "$out/times"
@@ -177,9 +213,9 @@ while :; do
       done < <(pending)
     fi
     if [[ "$killed" == pending ]]; then
-      kill -TERM -- "-$pid" 2>/dev/null
+      signal_tree TERM "$pid"
       sleep 5
-      kill -KILL -- "-$pid" 2>/dev/null
+      signal_tree KILL "$pid"
       killed=done
     fi
   done
