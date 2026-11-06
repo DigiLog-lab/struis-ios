@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import os
 import pathlib
 import shlex
 import subprocess
@@ -42,9 +43,17 @@ class Result:
     log_tail: str
 
 
+# Command commits carry a fixed identity: a clone without user.name/user.email (CI) cannot make commits.
+IDENTITY: dict[str, str] = {
+    "GIT_AUTHOR_NAME": "devbox", "GIT_AUTHOR_EMAIL": "devbox@users.noreply.github.com",
+    "GIT_COMMITTER_NAME": "devbox", "GIT_COMMITTER_EMAIL": "devbox@users.noreply.github.com",
+}
+
+
 def git(*args: str, input_text: str | None = None) -> str:
     completed: subprocess.CompletedProcess[str] = subprocess.run(
-        ["git", *args], input=input_text, text=True, capture_output=True, check=True
+        ["git", *args], input=input_text, text=True, capture_output=True, check=True,
+        env={**os.environ, **IDENTITY},
     )
     return completed.stdout.strip()
 
@@ -55,7 +64,10 @@ def remote_sha(ref: str) -> str:
 
 
 def new_id(suffix: str = "") -> str:
-    return time.strftime("%Y%m%dT%H%M%S", time.gmtime()) + "-" + uuid.uuid4().hex[:6] + suffix
+    """<UTC second>-<microsecond>-<random><suffix>: sorting the names is the order they were sent."""
+    now: float = time.time()
+    second: str = time.strftime("%Y%m%dT%H%M%S", time.gmtime(now))
+    return f"{second}-{int(now % 1 * 1_000_000):06d}-{uuid.uuid4().hex[:6]}{suffix}"
 
 
 def send(command: str, command_id: str) -> None:
