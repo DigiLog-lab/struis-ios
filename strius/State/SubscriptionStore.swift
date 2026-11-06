@@ -89,7 +89,8 @@ final class SubscriptionStore {
                 if let statuses = try? await product.subscription?.status, !statuses.isEmpty {
                     update(statuses: statuses)
                 } else {
-                    apply(plans: UsagePlan(productID: transaction.productID).map { [$0] } ?? [])
+                    let bought: [UsagePlan] = UsagePlan(productID: transaction.productID).map { [$0] } ?? []
+                    apply(plans: bought, charges: Dictionary(uniqueKeysWithValues: bought.map { ($0, Charge(transaction)) }))
                     cancelsAt = nil
                 }
                 return true
@@ -117,10 +118,15 @@ final class SubscriptionStore {
             storeLog.error("restore failed: \(String(describing: error), privacy: .public)")
         }
         var plans: [UsagePlan] = []
+        var charges: [UsagePlan: Charge] = [:]
         for await result in Transaction.currentEntitlements {
-            if case .verified(let transaction) = result, transaction.revocationDate == nil, let plan = UsagePlan(productID: transaction.productID) { plans.append(plan) }
+            if case .verified(let transaction) = result, transaction.revocationDate == nil, !transaction.isUpgraded,
+               let plan = UsagePlan(productID: transaction.productID) {
+                plans.append(plan)
+                charges[plan] = Charge(transaction)
+            }
         }
-        apply(plans: plans)
+        apply(plans: plans, charges: charges)
         if plans.isEmpty { errorMessage = "復元できる購入が見つかりませんでした。" }
     }
 
@@ -138,23 +144,41 @@ final class SubscriptionStore {
     func update(statuses: [Product.SubscriptionInfo.Status]) {
         var plans: [UsagePlan] = []
         var endDates: [UsagePlan: Date] = [:]
+        var charges: [UsagePlan: Charge] = [:]
         for status in statuses {
             guard status.state == .subscribed || status.state == .inGracePeriod,
                   case .verified(let transaction) = status.transaction,
                   let plan = UsagePlan(productID: transaction.productID) else { continue }
             plans.append(plan)
+            charges[plan] = Charge(transaction)
             if case .verified(let renewal) = status.renewalInfo, !renewal.willAutoRenew {
                 endDates[plan] = transaction.expirationDate
             }
         }
-        apply(plans: plans, replacing: true)
+        apply(plans: plans, charges: charges, replacing: true)
         cancelsAt = UsagePlan.best(of: plans).flatMap { endDates[$0] }
     }
 
-    private func apply(plans: [UsagePlan], replacing: Bool = false) {
-        let best = UsagePlan.best(of: plans)
+    /// 取引から読む、課金の時刻と期限。利用枠の 7 日はこの課金の時刻から数える(購入・上げた時・更新で 0 から始まる)。
+    struct Charge: Equatable {
+        var chargedAt: Date
+        var expiresAt: Date?
+
+        init(chargedAt: Date, expiresAt: Date?) {
+            self.chargedAt = chargedAt
+            self.expiresAt = expiresAt
+        }
+
+        init(_ transaction: Transaction) {
+            self.init(chargedAt: transaction.purchaseDate, expiresAt: transaction.expirationDate)
+        }
+    }
+
+    private func apply(plans: [UsagePlan], charges: [UsagePlan: Charge], replacing: Bool = false) {
+        let best: UsagePlan? = UsagePlan.best(of: plans)
         guard replacing || best != nil else { return }
-        meter.setPlan(best)
+        let charge: Charge? = best.flatMap { charges[$0] }
+        meter.setPlan(best, chargedAt: charge?.chargedAt, expiresAt: charge?.expiresAt)
         plan = meter.plan
     }
 

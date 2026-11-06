@@ -1,7 +1,7 @@
 import XCTest
 @testable import strius
 
-/// 利用枠(#62): 週の区切り・保存先の大きい方・プランごとの上限とソフトリミット・料金が分からない要求の見積もり・
+/// 利用枠(#62): 期間の区切り(課金した時刻から 7 日ごと、課金したことが無ければ月曜 0:00)・保存先の大きい方・プランごとの上限とソフトリミット・料金が分からない要求の見積もり・
 /// 上限に達した時の止め方(送らずにターンを失敗にする)。
 @MainActor
 final class UsageGateTests: XCTestCase {
@@ -33,6 +33,53 @@ final class UsageGateTests: XCTestCase {
         XCTAssertEqual(UsageRules.weekStart(for: date("2026-11-02T00:00:00+09:00"), calendar: tokyo), date("2026-11-02T00:00:00+09:00"))
         XCTAssertEqual(UsageRules.weekKey(for: date("2026-11-01T23:59:00+09:00"), calendar: tokyo), "usage.week.2026-10-26")
         XCTAssertEqual(UsageRules.weekKey(for: date("2026-11-02T00:00:00+09:00"), calendar: tokyo), "usage.week.2026-11-02")
+    }
+
+    func testAfterAChargeThePeriodIsSevenDaysFromTheChargeTime() {
+        // 2026-11-06(金)13:31 に課金。期間は金曜 13:31 から 7 日ごと(月曜 0:00 ではない)。
+        let charged = date("2026-11-06T13:31:00+09:00")
+        XCTAssertEqual(UsageRules.periodStart(for: date("2026-11-06T13:31:00+09:00"), chargedAt: charged, calendar: tokyo), charged)
+        XCTAssertEqual(UsageRules.periodStart(for: date("2026-11-13T13:30:00+09:00"), chargedAt: charged, calendar: tokyo), charged)
+        XCTAssertEqual(UsageRules.periodEnd(for: date("2026-11-09T00:00:00+09:00"), chargedAt: charged, calendar: tokyo), date("2026-11-13T13:31:00+09:00"),
+                       "月曜 0:00 では戻らない")
+        XCTAssertEqual(UsageRules.periodStart(for: date("2026-11-20T14:00:00+09:00"), chargedAt: charged, calendar: tokyo), date("2026-11-20T13:31:00+09:00"))
+        XCTAssertNotEqual(UsageRules.periodKey(for: date("2026-11-13T13:30:00+09:00"), chargedAt: charged, calendar: tokyo),
+                          UsageRules.periodKey(for: date("2026-11-13T13:31:00+09:00"), chargedAt: charged, calendar: tokyo))
+        // 課金したことが無ければ、これまでどおり月曜 0:00 区切り(端末に残っている今週の使用額をそのまま読む)。
+        XCTAssertEqual(UsageRules.periodKey(for: date("2026-11-06T13:31:00+09:00"), chargedAt: nil, calendar: tokyo), "usage.week.2026-11-02")
+    }
+
+    func testAChargeStartsANewPeriodFromZeroButAnOlderChargeDoesNotGoBack() {
+        let now = date("2026-11-06T13:31:00+09:00")
+        let meter = meter(plan: nil, now: now)
+        meter.add(0.30)
+        XCTAssertEqual(meter.snapshot().spentUSD, 0.30, accuracy: 1e-9)
+
+        // 購入した: その時刻から新しい期間で、使用額は 0 から。
+        meter.setPlan(.light, chargedAt: now.addingTimeInterval(-60), expiresAt: now.addingTimeInterval(30 * 86_400))
+        XCTAssertEqual(meter.snapshot().spentUSD, 0, "課金したら 0 から")
+        XCTAssertEqual(meter.snapshot().resetsAt, now.addingTimeInterval(-60 + 7 * 86_400))
+        meter.add(0.50)
+
+        // 遅れて届いた古い契約の状態(前の課金の時刻)では、期間を戻さない。
+        meter.setPlan(.light, chargedAt: now.addingTimeInterval(-3_600), expiresAt: now.addingTimeInterval(30 * 86_400))
+        XCTAssertEqual(meter.snapshot().spentUSD, 0.50, accuracy: 1e-9)
+
+        // 上げた(新しい取引): また 0 から。
+        meter.setPlan(.standard, chargedAt: now, expiresAt: now.addingTimeInterval(30 * 86_400))
+        XCTAssertEqual(meter.snapshot().spentUSD, 0)
+        XCTAssertEqual(meter.snapshot().limitUSD, UsagePlan.standard.weeklyLimitUSD)
+    }
+
+    func testResetsAtIsNotAfterTheRenewal() {
+        let now = date("2026-11-06T13:31:00+09:00")
+        let meter = meter(plan: nil, now: now)
+        // 期間の途中(3 日後)で契約が更新される: そこで新しい期間になるので、戻る日時は更新の時刻。
+        meter.setPlan(.light, chargedAt: now.addingTimeInterval(-86_400), expiresAt: now.addingTimeInterval(2 * 86_400))
+        XCTAssertEqual(meter.snapshot().resetsAt, now.addingTimeInterval(2 * 86_400))
+        // プランが切れたら期限で切らない(お試しの枠は課金の時刻から 7 日ごと)。
+        meter.setPlan(nil)
+        XCTAssertEqual(meter.snapshot().resetsAt, now.addingTimeInterval(-86_400 + 7 * 86_400))
     }
 
     func testPlansFollowTheDecidedTable() {
