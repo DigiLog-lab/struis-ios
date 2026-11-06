@@ -70,6 +70,69 @@ final class OnboardingTests: XCTestCase {
         XCTAssertEqual(records.age?.declaration, "guardianDeclared")
     }
 
+    // MARK: - 規約の版(#78)
+
+    func testConsentWithoutAVersionCountsAsNotAccepted() {
+        let local = MemoryValueStore([OnboardingRecords.legacyTermsKey: "2026-10-31T00:00:00Z"])
+        let records = OnboardingRecords(values: MirroredValues(local: local, cloud: MemoryValueStore()))
+        XCTAssertFalse(records.hasAcceptedCurrentTerms, "版の記録が無い同意(規約の本文が無い時に押された同意)は数えない")
+        XCTAssertNil(records.termsAcceptedAt)
+        XCTAssertFalse(records.allowsAI, "同意するまで AI を使えない")
+    }
+
+    func testConsentToAnOlderVersionIsAskedAgainAndTheVersionIsKeptWithTheDate() throws {
+        let local = MemoryValueStore()
+        let cloud = MemoryValueStore()
+        let records = OnboardingRecords(values: MirroredValues(local: local, cloud: cloud))
+        let earlier = Date(timeIntervalSince1970: 1_790_000_000)
+        records.acceptTerms(at: earlier, version: "2026-01-01")
+        XCTAssertFalse(records.hasAcceptedCurrentTerms, "前の版への同意は、今の版の同意に数えない")
+        XCTAssertEqual(records.termsAcceptance?.version, "2026-01-01")
+
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        records.acceptTerms(at: now)
+        XCTAssertTrue(records.hasAcceptedCurrentTerms)
+        XCTAssertEqual(records.termsAcceptedAt, now)
+        let stored = try XCTUnwrap(cloud.string(OnboardingRecords.termsKey))
+        XCTAssertTrue(stored.contains(LegalVersion.terms), "iCloud にも版と日時を書く: \(stored)")
+        XCTAssertEqual(local.string(OnboardingRecords.termsKey), stored, "Keychain と iCloud の両方に書く")
+    }
+
+    func testAcceptanceOfTheCurrentVersionOnAnotherDeviceIsNotHiddenByThisDevicesOlderOne() {
+        let local = MemoryValueStore()
+        let cloud = MemoryValueStore()
+        OnboardingRecords(values: MirroredValues(local: local, cloud: MemoryValueStore())).acceptTerms(at: Date(), version: "2026-01-01")
+        OnboardingRecords(values: MirroredValues(local: MemoryValueStore(), cloud: cloud)).acceptTerms()
+        let records = OnboardingRecords(values: MirroredValues(local: local, cloud: cloud))
+        XCTAssertTrue(records.hasAcceptedCurrentTerms, "別の端末で今の版に同意したら、この端末でも同意した扱い")
+    }
+
+    func testReconsentShowsTheTermsAndWhatIsSentThenFinishesWithoutTouchingTheOnboarding() {
+        let records = records()
+        var profile = profile(trial: 1, resume: .notify)
+        profile.termsAcceptedAt = "2026-10-31T00:00:00Z"
+        let model = OnboardingModel(profile: profile, records: records, hasPlan: { true }, isClaudeAvailable: { true }, reconsent: true)
+        var finished = false
+        model.onReconsented = { finished = true }
+        XCTAssertEqual(model.step, .terms)
+        model.acceptTerms()
+        XCTAssertTrue(records.hasAcceptedCurrentTerms)
+        XCTAssertEqual(model.step, .consent, "送る内容の文面が変わったので、前に同意していても読み直してもらう")
+        model.acceptPhotoConsent()
+        XCTAssertTrue(finished)
+        XCTAssertEqual(model.profile.resumeStep, OnboardingStep.notify.rawValue, "終わったオンボーディングの続きの画面を書き換えない")
+    }
+
+    func testOnboardingAsksForWhatIsSentAfterTheTermsEvenWhenConsentedBefore() {
+        let records = records()
+        records.saveAge(AgeResult(band: .adult, declaration: "selfDeclared", checkedAt: Date()))
+        records.values.set("2026-10-31T00:00:00Z", OnboardingRecords.legacyTermsKey)
+        let model = OnboardingModel(profile: profile(), records: records, hasPlan: { false }, isClaudeAvailable: { true })
+        XCTAssertEqual(model.step, .terms, "版の記録が無い同意は、規約から聞き直す")
+        model.acceptTerms()
+        XCTAssertEqual(model.step, .consent)
+    }
+
     // MARK: - お試しの見本
 
     func testEighteenSamplesThreePerGradeWithAnswersAndRubrics() {

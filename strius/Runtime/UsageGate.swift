@@ -495,22 +495,92 @@ nonisolated final class UsageMeter: @unchecked Sendable {
     }
 }
 
-/// 上限の判定(#62)。中継が送る前に `admit`、応答の料金が分かったら `record`。Enclave に移る時は、この実装と
+/// 送る要求の種類(#62・#78)。上限に達した後も通すのは、途中の作業を終わらせる要求だけ。
+nonisolated struct UsageRequest: Sendable, Equatable {
+    var kind: TurnPlan.Kind
+    /// 途中の作業を終わらせる要求: 解いている途中の答案の採点と、通ったチャットの返事の続き。上限を超えても `graceUSD` まで通す。
+    /// それ以外(出題・見直し・知識グラフ・赤ペン・単元づくり・新しい質問)は新しい作業で、上限で止める
+    /// (裏の出題が余裕分を先に使って、途中の答案の採点が止まらないように)。
+    var finishing: Bool
+
+    /// 解いている途中の答案の採点。
+    static let gradingKinds: Set<TurnPlan.Kind> = [.workbookGrading, .timelineGrading, .onboardingGrading]
+
+    /// - Parameter turnAdmitted: このターンの要求が前に通った(チャットの返事の続き・子の調べもの・直させる回・送り直し)。
+    static func of(kind: TurnPlan.Kind, turnAdmitted: Bool) -> UsageRequest {
+        UsageRequest(kind: kind, finishing: gradingKinds.contains(kind) || (kind == .chat && turnAdmitted))
+    }
+
+    /// 新しい作業を始める要求(画面が先に確かめる時の代表)。
+    static let newWork = UsageRequest(kind: .timelineBatch, finishing: false)
+}
+
+/// 要求を送らない理由。
+nonisolated enum UsageDenial: String, Sendable, Equatable {
+    /// 今の期間の枠を使い切った。
+    case limitReached
+    /// プランが無く、お試しの 3 問も使い切った(契約が切れた後を含む)。購入の画面へ案内する。
+    case noPlan
+    /// 今の版の規約に同意していない(#78)。
+    case consentRequired
+
+    /// ターンの失敗として記録する文(学習者に見せる文は `TurnRuntimeError.errorDescription`)。
+    var message: String {
+        switch self {
+        case .limitReached: UsageLimitResponse.message
+        case .noPlan: UsageLimitResponse.noPlanMessage
+        case .consentRequired: UsageLimitResponse.consentMessage
+        }
+    }
+}
+
+extension UsageRules {
+    /// 枠の決まりだけで決める(規約の同意は見ない)。
+    /// - プランが無く、お試しの残りが 0: 送ったお試しの採点(その答案の続き)だけを通す。
+    /// - 新しい作業は上限まで、途中の作業を終わらせる要求は上限 + `graceUSD` まで通す。
+    static func denial(for request: UsageRequest, snapshot: UsageSnapshot, trialRemaining: Int) -> UsageDenial? {
+        if snapshot.plan == nil, trialRemaining <= 0, !(request.finishing && request.kind == .onboardingGrading) { return .noPlan }
+        let allowance: Double = snapshot.limitUSD + (request.finishing ? graceUSD : 0)
+        return snapshot.spentUSD < allowance ? nil : .limitReached
+    }
+}
+
+extension Notification.Name {
+    /// 利用枠で要求を止めた(`object` は `UsageLimitHit`)。質問・単元づくりの画面が案内のシートを出す。
+    nonisolated static let usageLimitReached = Notification.Name("struis.usageLimitReached")
+}
+
+/// 止めた要求の種類と理由(`usageLimitReached` の `object`)。
+nonisolated struct UsageLimitHit: Sendable {
+    var kind: TurnPlan.Kind
+    var denial: UsageDenial
+}
+
+/// 上限の判定(#62)。送る前に `denial(for:)`、応答の料金が分かったら `record`。Enclave に移る時は、この実装と
 /// `ClaudeUpstream` の送り先だけを差し替える。
 nonisolated protocol UsageGate: Sendable {
-    /// この要求を送ってよいか。
-    func admit() -> Bool
+    /// この要求を送らない理由(nil なら送ってよい)。
+    func denial(for request: UsageRequest) -> UsageDenial?
     /// 使った金額を記録する(`Attempt.finish` の記録と、送った本文の大きさ)。
     func record(_ attempt: [String: Any], requestBytes: Int)
 }
 
-/// 端末内で数える判定。ソフトリミットとして、上限を超えてもカード 1 枚分(`graceUSD`)までは通す。
+/// 端末内で数える判定。ソフトリミットとして、途中の作業を終わらせる要求だけは上限を超えてもカード 1 枚分(`graceUSD`)まで通す。
 nonisolated struct DeviceUsageGate: UsageGate {
     var meter: UsageMeter = .shared
+    /// お試しの残りの数(プランが無い時に見る)。
+    var trialRemaining: @Sendable () -> Int = { OnboardingRecords.shared.trialRemaining }
+    /// 今の版の規約に同意しているか(#78。同意するまで AI の機能は使えない)。
+    var consented: @Sendable () -> Bool = { OnboardingRecords.shared.allowsAI }
 
-    func admit() -> Bool {
-        let snapshot = meter.snapshot()
-        return snapshot.spentUSD < snapshot.limitUSD + UsageRules.graceUSD
+    func denial(for request: UsageRequest) -> UsageDenial? {
+        guard consented() else { return .consentRequired }
+        return usageDenial(for: request)
+    }
+
+    /// 枠の決まりだけの判定(画面が新しいカードを出す前に確かめる。同意は取り直しの画面が受け持つ)。
+    func usageDenial(for request: UsageRequest = .newWork) -> UsageDenial? {
+        UsageRules.denial(for: request, snapshot: meter.snapshot(), trialRemaining: trialRemaining())
     }
 
     func record(_ attempt: [String: Any], requestBytes: Int) {
@@ -520,7 +590,7 @@ nonisolated struct DeviceUsageGate: UsageGate {
 
 /// 数えない判定(中継のテスト)。
 nonisolated struct UnlimitedUsageGate: UsageGate {
-    func admit() -> Bool { true }
+    func denial(for request: UsageRequest) -> UsageDenial? { nil }
     func record(_ attempt: [String: Any], requestBytes: Int) {}
 }
 
@@ -528,4 +598,18 @@ nonisolated struct UnlimitedUsageGate: UsageGate {
 nonisolated enum UsageLimitResponse {
     static let code = "usage_limit_reached"
     static let message = "usage_limit_reached: 今週の利用枠を使い切りました。設定の「利用枠」で、戻る日時とプランを確かめてください。"
+    /// プランが無く、お試しも使い切った時の印(`code` に続けて書く)。
+    static let noPlanCode = "no_plan"
+    static let noPlanMessage = "usage_limit_reached: no_plan: お試しの3問を使い切りました。続けるにはプランを選んでください。"
+    /// 今の版の規約に同意していない時の印。
+    static let consentCode = "terms_consent_required"
+    static let consentMessage = "terms_consent_required: 今の版の利用規約に同意していません。"
+
+    /// ターンの失敗の記録(`error_detail`)から、止めた理由を読む。
+    static func denial(in detail: String?) -> UsageDenial? {
+        guard let detail else { return nil }
+        if detail.contains(consentCode) { return .consentRequired }
+        guard detail.contains(code) else { return nil }
+        return detail.contains(noPlanCode) ? .noPlan : .limitReached
+    }
 }

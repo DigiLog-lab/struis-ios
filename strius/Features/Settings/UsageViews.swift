@@ -184,9 +184,11 @@ struct UsageSettingsView: View {
 }
 
 /// 利用枠を使い切った時のシート(下から)。解いている途中のカードは採点まで終わらせてから出す(ソフトリミット)。
+/// プランが無く、お試しも使い切った時(`.noPlan`。契約が切れた後を含む)は、戻る日時ではなく購入の画面へ案内する(#78)。
 /// Apple Intelligence(PCC)への切り替えは、アプリにその経路がまだ無いので出さない。
 struct UsageLimitSheet: View {
     let snapshot: UsageSnapshot
+    var denial: UsageDenial = .limitReached
     let store: SubscriptionStore
     let onClose: () -> Void
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -195,7 +197,7 @@ struct UsageLimitSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top) {
-                Text("今週の利用枠を使い切りました")
+                Text(denial == .noPlan ? "お試しの3問を使い切りました" : "今週の利用枠を使い切りました")
                     .font(Typography.sans(size: 22, weight: .bold))
                     .foregroundStyle(Theme.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -208,15 +210,24 @@ struct UsageLimitSheet: View {
                 .padding(.top, -8)
                 .padding(.trailing, -10)
             }
-            UsageBar(fraction: 1)
-            Text("\(UsageStatus.resetText(snapshot.resetsAt)) に 0% に戻ります。プランを上げると、すぐに続けられます。")
-                .font(Typography.sans(size: 15, weight: .medium))
-                .foregroundStyle(Theme.primaryText)
-                .lineSpacing(4)
-                .fixedSize(horizontal: false, vertical: true)
-            if let next = snapshot.plan?.upgrade ?? (snapshot.plan == nil ? .light : nil) {
-                OnboardingPrimaryButton(title: "\(next.displayName)にする（\(store.price(of: next)) / 月）", isEnabled: store.purchasing == nil, identifier: "usage-limit-upgrade") {
-                    Task { if await store.purchase(next) { onClose() } }
+            if denial == .noPlan {
+                Text("続けるには、プランを選んでください。どのプランも使える機能は同じで、1週間に使える量だけが違います。")
+                    .font(Typography.sans(size: 15, weight: .medium))
+                    .foregroundStyle(Theme.primaryText)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                OnboardingPrimaryButton(title: "プランを選ぶ", identifier: "usage-limit-plans") { isPaywallPresented = true }
+            } else {
+                UsageBar(fraction: 1)
+                Text("\(UsageStatus.resetText(snapshot.resetsAt)) に 0% に戻ります。プランを上げると、すぐに続けられます。")
+                    .font(Typography.sans(size: 15, weight: .medium))
+                    .foregroundStyle(Theme.primaryText)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let next = snapshot.plan?.upgrade ?? (snapshot.plan == nil ? .light : nil) {
+                    OnboardingPrimaryButton(title: "\(next.displayName)にする（\(store.price(of: next)) / 月）", isEnabled: store.purchasing == nil, identifier: "usage-limit-upgrade") {
+                        Task { if await store.purchase(next) { onClose() } }
+                    }
                 }
             }
             if let error = store.errorMessage { TrialErrorText(text: error) }
@@ -228,5 +239,51 @@ struct UsageLimitSheet: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("usage-limit-sheet")
         .task { await store.loadProducts() }
+        .sheet(isPresented: $isPaywallPresented) {
+            OnboardingPaywallView(store: store, isPad: TimelineLayout.isPad(sizeClass), onClose: { isPaywallPresented = false }) {
+                isPaywallPresented = false
+                onClose()
+            }
+        }
+    }
+}
+
+/// 案内のシートに渡す中身(出すたびに別のもの)。
+struct UsageLimitPrompt: Identifiable {
+    let id = UUID()
+    var denial: UsageDenial
+    var snapshot: UsageSnapshot = UsageMeter.shared.snapshot()
+}
+
+/// 質問・単元づくりの画面で、その画面の要求が利用枠で止まったら案内のシートを出す(#78)。止まった返事の吹き出しには、
+/// 理由の一文も残る。規約の同意で止まった時は、取り直しの画面が受け持つので出さない。
+private struct UsageLimitGuide: ViewModifier {
+    let kinds: Set<TurnPlan.Kind>
+    /// 出している間に 1 回だけ出す(裏の先回りの要求でも止まる画面で、繰り返し出さない)。
+    let once: Bool
+    @Environment(SubscriptionStore.self) private var subscriptions
+    @State private var prompt: UsageLimitPrompt?
+    @State private var shown = false
+
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: .usageLimitReached)) { notification in
+                guard prompt == nil, !(once && shown), let hit = notification.object as? UsageLimitHit, kinds.contains(hit.kind),
+                      hit.denial != .consentRequired else { return }
+                shown = true
+                prompt = UsageLimitPrompt(denial: hit.denial)
+            }
+            .sheet(item: $prompt) { prompt in
+                UsageLimitSheet(snapshot: prompt.snapshot, denial: prompt.denial, store: subscriptions) { self.prompt = nil }
+                    .presentationDetents([.height(380)])
+                    .presentationDragIndicator(.visible)
+            }
+    }
+}
+
+extension View {
+    /// `kinds` の要求が利用枠で止まったら、案内のシートを出す。
+    func usageLimitGuide(_ kinds: Set<TurnPlan.Kind>, once: Bool = false) -> some View {
+        modifier(UsageLimitGuide(kinds: kinds, once: once))
     }
 }
