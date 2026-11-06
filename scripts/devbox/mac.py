@@ -14,7 +14,7 @@ result stays readable for an hour after it finished (`mac.py wait <id>`); the De
     mac.py kill                                          # ends the running command
     mac.py stop                                          # ends the running command and the Dev Box
 One argument is run as a shell line; several are run as exactly those arguments. Files the command writes
-to "$DEVBOX_FILES" are copied to ./devbox-out/<id>/.
+to "$DEVBOX_FILES", and the whole log (log.txt.gz), are copied to ./devbox-out/<id>/.
 """
 from __future__ import annotations
 
@@ -101,6 +101,13 @@ def read_result(sha: str, destination: pathlib.Path | None) -> Result:
                 ["git", "show", f"{sha}:{name}"], capture_output=True, check=True
             ).stdout
             target.write_bytes(data)
+        # The whole log (the result only carries its last 400 lines).
+        full_log: bytes = subprocess.run(
+            ["git", "show", f"{sha}:log.txt.gz"], capture_output=True
+        ).stdout
+        if full_log:
+            destination.mkdir(parents=True, exist_ok=True)
+            (destination / "log.txt.gz").write_bytes(full_log)
     return Result(
         id=show("id"),
         state=show("state"),

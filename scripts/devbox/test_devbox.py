@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import gzip
 import os
 import pathlib
 import subprocess
@@ -126,6 +127,35 @@ class DevBoxRoundTripTests(unittest.TestCase):
         self.mac("ready", "--branch", "work", "--timeout", "15")
         other = self.mac("ready", "--branch", "another-branch", "--timeout", "5", check=False)
         self.assertNotEqual(other.returncode, 0)
+
+    def test_the_whole_log_comes_back(self) -> None:
+        command_id: str = self.mac("run", "--async", "--", "seq 1 500").stdout.strip()
+        result = self.mac("wait", command_id, "--timeout", "40")
+        self.assertNotIn("\n1\n", "\n" + result.stdout)
+        full: str = gzip.decompress((self.client / "devbox-out" / command_id / "log.txt.gz").read_bytes()).decode()
+        self.assertEqual(full.split(), [str(n) for n in range(1, 501)])
+
+    def test_a_restarted_box_keeps_results_by_their_finish_time(self) -> None:
+        # A result sent two hours ago that finished just now survives an earlier box's cleanup.
+        script: str = (
+            f"source <(sed -n '/^cleanup_old_results()/,/^}}/p;/^delete_ref()/,/^}}/p' {SERVE}); "
+            "OUT_PREFIX=refs/heads/devbox-out/; KEEP_RESULTS=3600; cleanup_old_results"
+        )
+        old_id: str = "20000101T000000-000000-aaaaaa"
+        blob: str = subprocess.run(["git", "hash-object", "-w", "--stdin"], cwd=self.client, check=True,
+                                   input=f"finished={int(time.time())}\n", capture_output=True, text=True).stdout.strip()
+        tree: str = subprocess.run(["git", "mktree"], cwd=self.client, check=True,
+                                   input=f"100644 blob {blob}\ttimes\n", capture_output=True, text=True).stdout.strip()
+        commit: str = subprocess.run(["git", "commit-tree", tree, "-m", "old"], cwd=self.client, check=True,
+                                     capture_output=True, text=True,
+                                     env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                                          "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}).stdout.strip()
+        ref: str = f"refs/heads/devbox-out/{old_id}"
+        sh("git", "push", "-q", "origin", f"{commit}:{ref}", cwd=self.client)
+        subprocess.run(["bash", "-c", script], cwd=self.client, check=True, capture_output=True)
+        listed: str = subprocess.run(["git", "ls-remote", "origin", ref], cwd=self.client,
+                                     capture_output=True, text=True, check=True).stdout
+        self.assertTrue(listed, "a result that finished just now was deleted")
 
     def test_several_arguments_are_kept_as_arguments(self) -> None:
         result = self.mac("run", "--", "printf", "%s|", "a b", "c")

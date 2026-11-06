@@ -111,15 +111,25 @@ cleanup_finished() {
   mv "$rest" "$finished_list"
 }
 
-# Results left by an earlier Dev Box, older than KEEP_RESULTS by the time in their id.
+# Results left by an earlier Dev Box, KEEP_RESULTS after they finished (their `times`). A result that never
+# finished (its Dev Box ended while it ran) goes by the time in its id.
 cleanup_old_results() {
-  local now ref id stamp when
+  local now ref id sha finished stamp when
   now=$(date +%s)
-  git ls-remote origin "${OUT_PREFIX}*" | while read -r _ ref; do
+  git ls-remote origin "${OUT_PREFIX}*" | while read -r sha ref; do
     id=${ref#"$OUT_PREFIX"}
-    stamp=${id%%-*}
-    [[ "$stamp" =~ ^[0-9]{8}T[0-9]{6}$ ]] || continue
-    when=$(date -j -u -f '%Y%m%dT%H%M%S' "$stamp" +%s 2>/dev/null || date -u -d "${stamp:0:8} ${stamp:9:2}:${stamp:11:2}:${stamp:13:2}" +%s 2>/dev/null) || continue
+    [[ "$id" == ready ]] && continue
+    finished=""
+    if git fetch -q --depth 1 origin "$sha" 2>/dev/null; then
+      finished=$(git show "$sha:times" 2>/dev/null | sed -n 's/^finished=\([0-9]*\)$/\1/p')
+    fi
+    if [[ -n "$finished" ]]; then
+      when=$finished
+    else
+      stamp=${id%%-*}
+      [[ "$stamp" =~ ^[0-9]{8}T[0-9]{6}$ ]] || continue
+      when=$(date -j -u -f '%Y%m%dT%H%M%S' "$stamp" +%s 2>/dev/null || date -u -d "${stamp:0:8} ${stamp:9:2}:${stamp:11:2}:${stamp:13:2}" +%s 2>/dev/null) || continue
+    fi
     (( now - when > KEEP_RESULTS )) && delete_ref "$ref"
   done
 }
