@@ -161,16 +161,18 @@ final class SubscriptionStore {
 
     /// 取引から読む、課金の時刻と期限。利用枠の 7 日はこの課金の時刻から数える(購入・上げた時・更新で 0 から始まる)。
     struct Charge: Equatable {
+        var id: UInt64
         var chargedAt: Date
         var expiresAt: Date?
 
-        init(chargedAt: Date, expiresAt: Date?) {
+        init(id: UInt64, chargedAt: Date, expiresAt: Date?) {
+            self.id = id
             self.chargedAt = chargedAt
             self.expiresAt = expiresAt
         }
 
         init(_ transaction: StoreKit.Transaction) {
-            self.init(chargedAt: transaction.purchaseDate, expiresAt: transaction.expirationDate)
+            self.init(id: transaction.id, chargedAt: transaction.purchaseDate, expiresAt: transaction.expirationDate)
         }
     }
 
@@ -178,7 +180,7 @@ final class SubscriptionStore {
         let best: UsagePlan? = UsagePlan.best(of: plans)
         guard replacing || best != nil else { return }
         let charge: Charge? = best.flatMap { charges[$0] }
-        meter.setPlan(best, chargedAt: charge?.chargedAt, expiresAt: charge?.expiresAt)
+        meter.setPlan(best, chargeID: charge?.id, chargedAt: charge?.chargedAt, expiresAt: charge?.expiresAt)
         plan = meter.plan
     }
 

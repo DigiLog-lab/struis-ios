@@ -134,11 +134,13 @@ nonisolated enum UsageRules {
         return periodStart(for: date, chargedAt: chargedAt, calendar: calendar).addingTimeInterval(periodSeconds)
     }
 
-    /// 期間の使用額を保存する鍵。課金したことが無ければ `weekKey`、あれば期間の始まりの UNIX 秒。
-    static func periodKey(for date: Date, chargedAt: Date?, calendar: Calendar = .current) -> String {
+    /// 期間の使用額を保存する鍵。課金したことが無ければ `weekKey`、あれば課金の取引 ID と期間の始まりの UNIX 秒
+    /// (取引 ID も入れるのは、同じ秒に 2 回課金されても別の期間にするため)。
+    static func periodKey(for date: Date, chargedAt: Date?, chargeID: UInt64? = nil, calendar: Calendar = .current) -> String {
         guard chargedAt != nil else { return weekKey(for: date, calendar: calendar) }
         let start: Date = periodStart(for: date, chargedAt: chargedAt, calendar: calendar)
-        return "usage.period.\(Int64(start.timeIntervalSince1970.rounded(.down)))"
+        let id: String = chargeID.map { "\($0)." } ?? ""
+        return "usage.period.\(id)\(Int64(start.timeIntervalSince1970.rounded(.down)))"
     }
 
     /// 料金が分からない要求(`usage_unavailable`・`unknown_model`)の見積もり。少なく数えない側に倒す:
@@ -260,6 +262,8 @@ nonisolated final class UsageMeter: @unchecked Sendable {
     /// 最後に課金された時刻(購入・上げた時・更新。StoreKit の `Transaction.purchaseDate`)。期間はここから 7 日ごと。
     /// プランが切れても残す(切れた直後に、その期間の使用額をお試しの枠へ引き継ぐため)。
     static let chargedAtKey = "usage.chargedAt.v1"
+    /// 最後に課金された取引の ID(`Transaction.id`)。
+    static let chargeIDKey = "usage.chargeID.v1"
     /// 今の契約の期限(`Transaction.expirationDate`)。更新されるとその時刻から新しい期間になるので、戻る日時はこれより後にしない。
     static let expiresAtKey = "usage.expiresAt.v1"
 
@@ -298,15 +302,21 @@ nonisolated final class UsageMeter: @unchecked Sendable {
         return Date(timeIntervalSince1970: defaults.double(forKey: Self.chargedAtKey))
     }
 
+    /// 最後に課金された取引の ID(課金したことが無ければ nil)。
+    var chargeID: UInt64? {
+        guard forcedPlan == nil else { return nil }
+        return defaults.string(forKey: Self.chargeIDKey).flatMap(UInt64.init)
+    }
+
     private var expiresAt: Date? {
         guard forcedPlan == nil, defaults.object(forKey: Self.expiresAtKey) != nil else { return nil }
         return Date(timeIntervalSince1970: defaults.double(forKey: Self.expiresAtKey))
     }
 
-    /// 今の契約を受け取る。`chargedAt` は一番上のプランの最新の取引の `purchaseDate`(購入・上げた時・更新で変わる)。
-    /// 今の値より新しい時だけ進める(遅れて届いた古い契約の状態で、前の期間に戻さない)。下げる予約・解約の予約は課金ではないので
-    /// 取引が変わらず、期間もそのまま。
-    func setPlan(_ plan: UsagePlan?, chargedAt: Date? = nil, expiresAt: Date? = nil) {
+    /// 今の契約を受け取る。`chargedAt`・`chargeID` は一番上のプランの最新の取引の `purchaseDate`・`id`(購入・上げた時・
+    /// 更新で新しい取引になる)。今の取引より新しい時だけ進める(遅れて届いた古い契約の状態で、前の期間に戻さない)。
+    /// 時刻が同じ時は取引 ID の大きい方を新しいとみなす。下げる予約・解約の予約は課金ではないので取引が変わらず、期間もそのまま。
+    func setPlan(_ plan: UsagePlan?, chargeID: UInt64? = nil, chargedAt: Date? = nil, expiresAt: Date? = nil) {
         guard forcedPlan == nil else { return }
         var changed: Bool = false
         if plan != self.plan {
@@ -314,10 +324,19 @@ nonisolated final class UsageMeter: @unchecked Sendable {
             usageLog.info("plan is now \(plan?.rawValue ?? "none", privacy: .public)")
             changed = true
         }
-        if let chargedAt, self.chargedAt.map({ chargedAt > $0 }) ?? true {
-            defaults.set(chargedAt.timeIntervalSince1970, forKey: Self.chargedAtKey)
-            usageLog.info("charged at \(chargedAt.timeIntervalSince1970, privacy: .public): a new period starts")
-            changed = true
+        if let chargedAt {
+            let isNewer: Bool
+            if let current = self.chargedAt {
+                isNewer = chargedAt > current || (chargedAt == current && (chargeID ?? 0) > (self.chargeID ?? 0))
+            } else {
+                isNewer = true
+            }
+            if isNewer {
+                defaults.set(chargedAt.timeIntervalSince1970, forKey: Self.chargedAtKey)
+                defaults.set(chargeID.map(String.init), forKey: Self.chargeIDKey)
+                usageLog.info("charged at \(chargedAt.timeIntervalSince1970, privacy: .public): a new period starts")
+                changed = true
+            }
         }
         let expires: Date? = plan == nil ? nil : expiresAt
         if expires != self.expiresAt {
@@ -330,7 +349,8 @@ nonisolated final class UsageMeter: @unchecked Sendable {
     func snapshot() -> UsageSnapshot {
         let date: Date = now()
         let charged: Date? = chargedAt
-        let spent: Double = lock.withLock { values.number(UsageRules.periodKey(for: date, chargedAt: charged)) }
+        let key: String = UsageRules.periodKey(for: date, chargedAt: charged, chargeID: chargeID)
+        let spent: Double = lock.withLock { values.number(key) }
         let plan: UsagePlan? = plan
         var resetsAt: Date = UsageRules.periodEnd(for: date, chargedAt: charged)
         // 期間の途中で契約が更新されると、更新の時刻から新しい期間になる。
@@ -341,7 +361,7 @@ nonisolated final class UsageMeter: @unchecked Sendable {
     /// 使った金額を足す(Keychain と iCloud の大きい方に足して、両方に書く)。
     func add(_ usd: Double) {
         guard usd > 0 else { return }
-        let key: String = UsageRules.periodKey(for: now(), chargedAt: chargedAt)
+        let key: String = UsageRules.periodKey(for: now(), chargedAt: chargedAt, chargeID: chargeID)
         lock.withLock {
             values.setNumber(values.number(key) + usd, key)
         }

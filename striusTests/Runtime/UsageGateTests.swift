@@ -71,6 +71,20 @@ final class UsageGateTests: XCTestCase {
         XCTAssertEqual(meter.snapshot().limitUSD, UsagePlan.standard.weeklyLimitUSD)
     }
 
+    func testAChargeInTheSameSecondIsToldApartByTheTransactionID() {
+        let now = date("2026-11-06T13:31:00+09:00")
+        let meter = meter(plan: nil, now: now)
+        meter.setPlan(.standard, chargeID: 10, chargedAt: now, expiresAt: now.addingTimeInterval(30 * 86_400))
+        meter.add(1.00)
+        // 同じ秒に上げた(取引 ID が大きい): 新しい期間。
+        meter.setPlan(.generous, chargeID: 11, chargedAt: now, expiresAt: now.addingTimeInterval(30 * 86_400))
+        XCTAssertEqual(meter.snapshot().spentUSD, 0, "同じ秒でも、新しい取引なら 0 から")
+        meter.add(0.40)
+        // 遅れて届いた前の取引(ID が小さい)では戻さない。
+        meter.setPlan(.generous, chargeID: 10, chargedAt: now, expiresAt: now.addingTimeInterval(30 * 86_400))
+        XCTAssertEqual(meter.snapshot().spentUSD, 0.40, accuracy: 1e-9)
+    }
+
     func testResetsAtIsNotAfterTheRenewal() {
         let now = date("2026-11-06T13:31:00+09:00")
         let meter = meter(plan: nil, now: now)

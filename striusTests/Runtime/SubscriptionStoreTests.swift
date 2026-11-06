@@ -194,12 +194,12 @@ final class SubscriptionStoreTests: XCTestCase {
         _ = await store.purchase(.standard)
         meter.add(1.50)
         _ = await store.purchase(.light)
-        let before: Date = try XCTUnwrap(meter.chargedAt)
+        let before: UInt64 = try XCTUnwrap(meter.chargeID)
         try await deliverStatuses(to: store) { try session.forceRenewalOfSubscription(productIdentifier: UsagePlan.standard.productID) }
         XCTAssertEqual(store.plan, .light)
 
         let snapshot = meter.snapshot()
-        XCTAssertGreaterThan(try XCTUnwrap(meter.chargedAt), before, "更新の取引から新しい期間")
+        XCTAssertNotEqual(try XCTUnwrap(meter.chargeID), before, "更新の取引から新しい期間")
         XCTAssertEqual(snapshot.spentUSD, 0, "更新(課金)したら 0 から。スタンダードで使った $1.50 でライトの枠が埋まったままにならない")
         XCTAssertEqual(snapshot.limitUSD, UsagePlan.light.weeklyLimitUSD)
         XCTAssertTrue(DeviceUsageGate(meter: meter).admit())
