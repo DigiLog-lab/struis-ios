@@ -8,6 +8,8 @@ on:
       - '.github/actionlint.yaml'
       - 'scripts/agent/**'
       - 'scripts/ci/**'
+      - 'scripts/devbox/**'
+      - '.github/workflows/devbox.yml'
       - 'strius.xcodeproj/xcshareddata/xcschemes/**'
       - 'striusUITests/**'
       - '.github/workflows/ios.yml'
@@ -18,6 +20,8 @@ on:
       - '.github/actionlint.yaml'
       - 'scripts/agent/**'
       - 'scripts/ci/**'
+      - 'scripts/devbox/**'
+      - '.github/workflows/devbox.yml'
       - 'strius.xcodeproj/xcshareddata/xcschemes/**'
       - 'striusUITests/**'
       - '.github/workflows/ios.yml'
@@ -42,6 +46,8 @@ jobs:
         run: python3 -m unittest discover -s scripts/agent/tests -v
       - name: UIテストの割り当てスクリプトの単体テスト
         run: python3 -m unittest discover -s scripts/ci -p 'test_*.py' -v
+      - name: Dev Box の命令と結果のやり取り(手元の bare リポジトリで)
+        run: python3 -m unittest discover -s scripts/devbox -p 'test_*.py' -v
       - name: Actions定義の構文と式を検証
         run: |
           set -euo pipefail

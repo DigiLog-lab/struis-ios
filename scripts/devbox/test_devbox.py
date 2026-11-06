@@ -1,0 +1,125 @@
+"""The Dev Box round trip on Linux: serve.sh and mac.py against a local bare repository.
+
+    python3 -m unittest discover -s scripts/devbox -p 'test_*.py' -v
+"""
+from __future__ import annotations
+
+import os
+import pathlib
+import subprocess
+import sys
+import tempfile
+import unittest
+
+HERE: pathlib.Path = pathlib.Path(__file__).resolve().parent
+SERVE: pathlib.Path = HERE / "serve.sh"
+MAC: pathlib.Path = HERE / "mac.py"
+
+
+def sh(*args: str, cwd: pathlib.Path) -> None:
+    subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True)
+
+
+class DevBoxRoundTripTests(unittest.TestCase):
+    root: pathlib.Path
+    client: pathlib.Path
+    server: subprocess.Popen[str]
+    _tmp: tempfile.TemporaryDirectory[str]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._tmp = tempfile.TemporaryDirectory()
+        cls.root = pathlib.Path(cls._tmp.name)
+        origin: pathlib.Path = cls.root / "origin.git"
+        sh("git", "init", "-q", "--bare", str(origin), cwd=cls.root)
+        work: pathlib.Path = cls.root / "server"
+        sh("git", "clone", "-q", str(origin), str(work), cwd=cls.root)
+        for key, value in (("user.name", "test"), ("user.email", "test@example.com")):
+            sh("git", "config", key, value, cwd=work)
+        (work / "hello.txt").write_text("v1\n")
+        sh("git", "add", "hello.txt", cwd=work)
+        sh("git", "commit", "-q", "-m", "v1", cwd=work)
+        sh("git", "push", "-q", "origin", "HEAD:refs/heads/work", cwd=work)
+        cls.client = cls.root / "client"
+        sh("git", "clone", "-q", "--branch", "work", str(origin), str(cls.client), cwd=cls.root)
+        env: dict[str, str] = dict(
+            os.environ,
+            RUNNER_TEMP=str(cls.root / "runner-temp"),
+            DEVBOX_WORK_BRANCH="work",
+            DEVBOX_IDLE_SECONDS="120",
+            DEVBOX_POLL_SECONDS="1",
+            DEVBOX_PROGRESS_SECONDS="2",
+            DEVBOX_COMMAND_SECONDS="15",
+        )
+        cls.server = subprocess.Popen(
+            ["bash", str(SERVE)], cwd=work, env=env, text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        )
+        cls.mac("ready", "--timeout", "30")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        if cls.server.poll() is None:
+            cls.mac("stop")
+            try:
+                cls.server.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                cls.server.kill()
+        cls._tmp.cleanup()
+
+    @classmethod
+    def mac(cls, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+        completed: subprocess.CompletedProcess[str] = subprocess.run(
+            [sys.executable, str(MAC), *args], cwd=cls.client, capture_output=True, text=True, timeout=120
+        )
+        if check and completed.returncode != 0:
+            raise AssertionError(f"mac {args}: {completed.returncode}\n{completed.stdout}\n{completed.stderr}")
+        return completed
+
+    def test_output_exit_code_and_files_come_back(self) -> None:
+        result = self.mac("run", "--", 'echo out; echo err >&2; echo shot > "$DEVBOX_FILES/a.png"; exit 3', check=False)
+        self.assertEqual(result.returncode, 3)
+        self.assertIn("out", result.stdout)
+        self.assertIn("err", result.stdout)
+        files: list[pathlib.Path] = list((self.client / "devbox-out").glob("*/a.png"))
+        self.assertEqual(len(files), 1)
+        self.assertEqual(files[0].read_text(), "shot\n")
+
+    def test_several_arguments_are_kept_as_arguments(self) -> None:
+        result = self.mac("run", "--", "printf", "%s|", "a b", "c")
+        self.assertIn("a b|c|", result.stdout)
+
+    def test_command_runs_on_the_latest_commit_of_the_work_branch(self) -> None:
+        (self.client / "hello.txt").write_text("v2\n")
+        for key, value in (("user.name", "test"), ("user.email", "test@example.com")):
+            sh("git", "config", key, value, cwd=self.client)
+        sh("git", "commit", "-q", "-am", "v2", cwd=self.client)
+        sh("git", "push", "-q", "origin", "HEAD:refs/heads/work", cwd=self.client)
+        self.assertIn("v2", self.mac("run", "--", "cat hello.txt").stdout)
+
+    def test_commands_sent_back_to_back_all_run(self) -> None:
+        first: str = self.mac("run", "--async", "--", "echo first").stdout.strip()
+        second: str = self.mac("run", "--async", "--", "echo second").stdout.strip()
+        self.assertIn("first", self.mac("wait", first, "--timeout", "40").stdout)
+        self.assertIn("second", self.mac("wait", second, "--timeout", "40").stdout)
+
+    def test_interrupt_reaches_a_background_child(self) -> None:
+        # `simctl io recordVideo` stops on SIGINT; without job control bash starts it with SIGINT ignored.
+        result = self.mac("run", "--", "sleep 60 & r=$!; sleep 1; kill -INT $r; wait $r; echo rc=$?")
+        self.assertIn("rc=130", result.stdout)
+
+    def test_a_running_command_can_be_killed(self) -> None:
+        command_id: str = self.mac("run", "--async", "--", "sleep 60").stdout.strip()
+        self.mac("kill")
+        result = self.mac("wait", command_id, "--timeout", "40", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertRegex(result.stdout, r"ended by \S+-kill")
+
+    def test_a_command_is_ended_at_its_time_limit(self) -> None:
+        result = self.mac("run", "--timeout", "60", "--", "sleep 60", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("ended by the time limit", result.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main()
