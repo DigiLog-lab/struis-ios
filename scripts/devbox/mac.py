@@ -2,7 +2,8 @@
 """The web Claude's side of the Dev Box: `mac.py run -- <command>` runs <command> on the macOS runner.
 
 Each command is its own branch `devbox-cmd/<id>` and its result its own branch `devbox-out/<id>`
-(scripts/devbox/serve.sh). Both are watched with `git ls-remote`, from the clone of this repository.
+(scripts/devbox/serve.sh). Both are watched with `git ls-remote`, from the clone of this repository. A
+result stays readable for an hour after it finished (`mac.py wait <id>`); the Dev Box deletes it then.
 
     mac.py start <branch>                                # starts a Dev Box for <branch> (main's devbox.yml)
     mac.py ready                                         # waits until a Dev Box is waiting for commands
@@ -108,8 +109,8 @@ def wait(name: str, timeout: float, poll: float, want: str, quiet: bool) -> Resu
             result: Result = read_result(sha, None)
             if result.state == want:
                 if want == "done":
+                    # The Dev Box deletes the branch an hour later; this token cannot delete branches.
                     result = read_result(sha, pathlib.Path("devbox-out") / name)
-                    git("push", "-q", "origin", f":{OUT_PREFIX}{name}")
                 return result
             lines: list[str] = result.log_tail.splitlines()
             if not quiet and lines and lines[-1] != printed_line:

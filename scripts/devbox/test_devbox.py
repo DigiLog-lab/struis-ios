@@ -9,6 +9,7 @@ import pathlib
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 HERE: pathlib.Path = pathlib.Path(__file__).resolve().parent
@@ -50,6 +51,7 @@ class DevBoxRoundTripTests(unittest.TestCase):
             DEVBOX_POLL_SECONDS="1",
             DEVBOX_PROGRESS_SECONDS="2",
             DEVBOX_COMMAND_SECONDS="15",
+            DEVBOX_KEEP_RESULTS_SECONDS="5",
         )
         cls.server = subprocess.Popen(
             ["bash", str(SERVE)], cwd=work, env=env, text=True,
@@ -102,6 +104,18 @@ class DevBoxRoundTripTests(unittest.TestCase):
         second: str = self.mac("run", "--async", "--", "echo second").stdout.strip()
         self.assertIn("first", self.mac("wait", first, "--timeout", "40").stdout)
         self.assertIn("second", self.mac("wait", second, "--timeout", "40").stdout)
+
+    def test_results_are_deleted_by_the_dev_box_after_a_while(self) -> None:
+        command_id: str = self.mac("run", "--async", "--", "true").stdout.strip()
+        self.mac("wait", command_id, "--timeout", "40")
+        ref: str = f"refs/heads/devbox-out/{command_id}"
+        for _ in range(90):
+            listed = subprocess.run(["git", "ls-remote", "origin", ref], cwd=self.client,
+                                    capture_output=True, text=True, check=True).stdout
+            if not listed:
+                return
+            time.sleep(1)
+        self.fail(f"{ref} was not deleted")
 
     def test_interrupt_reaches_a_background_child(self) -> None:
         # `simctl io recordVideo` stops on SIGINT; without job control bash starts it with SIGINT ignored.

@@ -44,21 +44,23 @@
 
 ## 5. Dev Box(Claude のリモート開発環境)
 - **いつ立てるか**: アプリのコードに触る作業を始めたら、最初に立てる。
-- **起動**: `.github/workflows/devbox.yml` を main の定義のまま `workflow_dispatch` で起動し、入力の作業ブランチを checkout する。作業ブランチの定義で起動すると、そのブランチがジョブの権限を書き換えられるため。
-- **立ち上がり**: キャッシュ(ネイティブ依存、作業ブランチまたは main の DerivedData)を戻して1回ビルドし、シミュレータを起動したまま待機する。かかる時間は「14. 見込み」。
+- **起動**: `mac.py start <branch>` が `repository_dispatch`(型 `devbox`)を送り、`.github/workflows/devbox.yml` が main の定義のまま動いて、作業ブランチを checkout する。作業ブランチの定義で起動すると、そのブランチがジョブの権限を書き換えられるため。serve.sh も main のものを作業ツリーの外にコピーして動かす(bash は実行中のスクリプトを少しずつ読むので、作業ブランチへの切り替えで書き換わると壊れる)。
+- **立ち上がり**: ネイティブ依存のキャッシュを戻して1回ビルドし、それからシミュレータを起動して待機する。ビルド中に起動すると、メモリ(7GB)の取り合いでビルドが4倍に延びた。DerivedData のキャッシュは未検証(「15. 未検証の前提」)。かかる時間は「14. 見込み」。
 - **リモート実行(`mac` コマンド)**: `scripts/devbox/mac.py`。手元の端末と同じ感覚で使う。
-  - 例: `mac run -- xcodebuild test-without-building -only-testing:striusTests/UsageGateTests`、`mac run -- 'xcrun simctl io booted screenshot "$DEVBOX_FILES/home.png"'`。
+  - 例: `mac.py run -- xcodebuild test-without-building -only-testing:striusTests/UsageGateTests`、`mac.py run -- 'xcrun simctl io booted screenshot "$DEVBOX_FILES/home.png"'`。命令の中では `$SIMULATOR_UDID`(起動済みの iPhone 17)と `$DERIVED_DATA` が使える。
   - 引数が1つならシェルの1行として、2つ以上ならそのままの引数として実行する。
   - 命令を実行する前に、Dev Box は作業ブランチの最新を取り込む。DerivedData は作業ツリーの外に置くので、2回目以降はインクリメンタルビルドになる。
   - 返ってくるもの: ログの末尾(全文は gzip)、終了コード、時刻、命令が `$DEVBOX_FILES` に置いたファイル(手元の `devbox-out/<id>/` に入る)。
-  - 長い命令は15秒ごとにログの末尾を返すので、終わる前から進み具合が見える。`mac run --async` で裏で走らせ、`mac wait <id>` で後から結果を取る。
-- **やり取りの経路**: 命令は `devbox/cmd` ブランチの1コミット、結果は `devbox/out` ブランチの1コミット(毎回 force push で上書き)。両側とも `git ls-remote` で数秒おきに見る。git の操作は GITHUB_TOKEN の REST の上限(1リポジトリにつき1時間1,000回)に数えられない。3秒おきに REST で見ると1時間1,200回になり、上限を超える。
-  - ファイルも Artifact ではなく `devbox/out` で返す。Artifact はステップとしてしか置けず、命令を待つ1つのステップの途中では置けないため。
+  - 長い命令は15秒ごとにログの末尾を返すので、終わる前から進み具合が見える。`mac.py run --async` で裏で走らせ、`mac.py wait <id>` で後から結果を取る(Claude の環境の1回の待ちは10分まで)。
+- **やり取りの経路**: 命令は1件ごとのブランチ `devbox-cmd/<id>`、結果も1件ごとのブランチ `devbox-out/<id>`(実行中は15秒ごとに force push で更新)。id は送った時刻で始まるので、名前の順に実行する。1本のブランチを使い回すと、Dev Box が拾う前に次の命令で上書きされたり、続けて終わった結果が上書きし合ったりする(事前検証で起きた)。両側とも `git ls-remote` で数秒おきに見る。git の操作は GITHUB_TOKEN の REST の上限(1リポジトリにつき1時間1,000回)に数えられない。3秒おきに REST で見ると1時間1,200回になり、上限を超える。
+  - ブランチを消すのは Dev Box だけ(Claude の環境はブランチを消せない)。命令のブランチは拾った時に、結果のブランチは終わってから1時間後に、前の Dev Box が残した結果は次の Dev Box が起動した時に消す。
+  - 実行中の命令は `mac.py kill` で止める。1つの命令は1時間で打ち切る。命令は job control を有効にして動かす(録画を SIGINT で止めるため)。
+  - ファイルも Artifact ではなく結果のブランチで返す。Artifact はステップとしてしか置けず、命令を待つ1つのステップの途中では置けないため。
   - `devbox/*` への push で動くワークフローは無い(どのワークフローも、push で動くのは main だけ)。
-- **アイドルタイムアウト**: 命令が15分来なければ、Dev Box は自分で終わる。必要になったら立て直す。`mac stop` ですぐ終わらせることもできる。
+- **アイドルタイムアウト**: 命令が15分来なければ、Dev Box は自分で終わる。必要になったら立て直す。`mac.py stop` ですぐ終わらせることもできる。Claude の環境からは実行を取り消せないので、命令が終わらなくなった時は `mac.py kill` が唯一の止め方になる。
 - **6時間の上限**: 1本のジョブは6時間で切れるので、近づいたら DerivedData を保存し、次の Dev Box に引き継ぐ。
 - **ランナーの割り当て**: Dev Box 1台、マージキューの検証2台、残り2台を Ad Hoc のプロトタイプのビルドやネイティブ依存のキャッシュ作りに回す。
-- **ゲートには使わない**: Dev Box で作ったビルドは、マージのゲートには使わない。命令で何でも実行できるので、push したコードと同じものから作られた保証が無いため。Dev Box のジョブには `statuses: write` を持たせない(`Struis / verify` を書けないようにする)。権限は `devbox/out` への push に要る `contents: write` だけ。
+- **ゲートには使わない**: Dev Box で作ったビルドは、マージのゲートには使わない。命令で何でも実行できるので、push したコードと同じものから作られた保証が無いため。Dev Box のジョブには `statuses: write` を持たせない(`Struis / verify` を書けないようにする)。権限は結果のブランチの push と命令のブランチの削除に要る `contents: write` だけ。
 - **公開されること**: リポジトリは公開なので、命令と出力は誰でも読める。秘密の値を命令や出力に出さない。Dev Box のジョブには、ビルドとテストに要らない秘密の値を渡さない。
 
 ## 6. テストの選び方(テスト影響分析)
@@ -145,23 +147,45 @@
 - **名義**: Claude の環境は GitHub で `DigiLog-lab`(持ち主のアカウント)を名乗る。Claude が作る PR・コメント・push は持ち主の名前になる。commit の作者は `claude`。
 - **ルールセット**: 作成・変更は、通信の中継に書き込みを拒否される。読み取りはできる。
 - **ブランチ保護**: 読み取りも「Resource not accessible by integration」で通らない。
-- **Actions**: 実行・ジョブ・ログ・Artifact の読み取りはできる。キャッシュ、ランナー(`/actions/runners`)、変数(`/actions/variables`)の API は、通信の中継に拒否される(2026-11-07)。
+- **Actions**: 実行・ジョブ・ログ・Artifact の読み取りはできる。キャッシュ、ランナー(`/actions/runners`)、変数(`/actions/variables`)の API は、通信の中継に拒否される。`workflow_dispatch` と実行の取り消しは「Resource not accessible by integration」で拒否される(2026-11-07)。キャッシュの使用量は `agent-tests` のログで読む。
+- **ブランチの削除**: git の push による削除は通信の中継に 403 で拒否され、REST の削除は安全確認に止められる(2026-11-07)。
 - **GraphQL**: 拒否されるので REST を使う。
 - **iOS 向けのビルド**: Claude の環境ではできない。だから Dev Box を使う。
-- **できること**: clone と push(`.github/workflows/` の変更も含む)、Issue・PR・コメント・ラベル、Issue の依存関係の読み書き、`repository_dispatch` の送信、Actions の実行とログの読み取り、Artifact のダウンロード、ffmpeg、持ち主へのファイル送信(SendUserFile)、プッシュ通知。
+- **できること**: clone と push(`.github/workflows/` の変更も含む、ブランチの作成と force push)、Issue・PR・コメント・ラベル、Issue の依存関係の読み書き、`repository_dispatch` の送信、Actions の実行とログの読み取り、Artifact のダウンロード、ffmpeg、持ち主へのファイル送信(SendUserFile)、プッシュ通知。
 
 ## 14. 見込み
-DEVBOX_NUMBERS
+2026-11-07 の事前検証(`xcode-27`、Xcode 27.1、macOS 27.0.1、実行 42249529088・42255903507)で測った値。
+- Dev Box の立ち上がり(DerivedData のキャッシュ無し): 起動から待機まで約8分(初回のビルド323秒、シミュレータの起動156秒)。ビルド中にシミュレータを起動すると、初回のビルドが1,296秒(21.6分)に延びた。だからビルドしてから起動する。
+- リモート実行1回の上乗せ: 10〜13秒(6回)。
+- 何も変えずにもう一度ビルド: 約91秒。Swift のファイルを1つ変えてビルド: 105秒。ビルドのたびに「Package Python」の段階が走るため(#93)。
+- 単体テスト1クラス(`UsageGateTests`)の `test-without-building`: 57秒。
+- 単体テスト全部: 直列で5分27秒(マージキューの前身の検証の記録)、並列(`-parallel-testing-enabled YES`)で490秒。3コアのランナーでは直列のままにする。
+- DerivedData は1.6GB、ビルド成果物(`Build/Products`)は442MB。Artifact に置くのに30秒、別のランナーで取るのに9秒。別のランナーで `test-without-building` が通った(シミュレータの起動込みで347秒)。
+- iPad のシミュレータ: iPad (A16)、iPad Air 11・13インチ(M4)、iPad mini(A17 Pro・A20 Pro)、iPad Pro 11・13インチ(M5)がある。iPhone のシミュレータを動かしたまま iPad を起動すると624秒かかった。前後比較で iPad を撮る時は、iPhone のシミュレータを止めてから起動する。
+- マージキューの検証(小さい PR): ビルド約5〜6分＋単体テスト約5.5分＋関係する UI テスト数分で、12〜15分の見込み(未測定)。1時間に4本前後。
 
 ## 15. 未検証の前提(実装の前に、この順番で試す)
-UNVERIFIED_LIST
+確かめたもの(2026-11-07):
+- Dev Box: ブランチ経由で命令と結果をやり取りできる。上乗せは10〜13秒。`git ls-remote` で数秒おきに見ても REST の上限に関係しない。命令を続けて送っても、1件ごとのブランチなので消えない(手元の bare リポジトリでの単体テスト、`scripts/devbox/test_devbox.py`)。
+- 録画: `simctl io recordVideo` は SIGINT で止まる。命令の中で job control(`set -m`)を有効にしないと、裏で起動した録画に SIGINT が届かない(1本目の事前検証で、録画が止まらず命令が終わらなくなった)。
+- ビルド成果物の大きさと、Artifact の置き取りの時間、別のランナーでの `test-without-building`、iPad のシミュレータ(「14. 見込み」)。
+- Claude の環境から: `repository_dispatch` の送信、Issue の依存関係(Blocked by)の書き込み、ブランチの作成と force push はできる。ブランチの削除(git の push は 403、REST は安全確認に止められる)、`workflow_dispatch`、実行の取り消しはできない。だから Dev Box は `repository_dispatch` で起動し、ブランチの後片付けは Dev Box がする。
+- Actions のキャッシュの使用量は、`agent-tests` のログ(`scripts/ci/cache_usage.py`)で読める。2026-11-06 時点で約1.07GB・3件(上限10GB)。
+
+未検証(この順で試す):
+1. 自動マージ: 持ち主が「Allow auto-merge」を有効にした後、文書だけの害のない PR で、`pull_request_target` の `auto_merge_enabled` でキューが起動するか、キューの `Struis / verify` で自動マージが動くか、Claude の push で自動マージが外れないか、マージ後に main への push で動くワークフローが起動するか。
+2. `require_extra_approval_for_unattributed_changes`(ルールセットで有効)が、キューの Update branch が作るコミットで承認を求めないか。今の #89(コミットの作者は `github-actions[bot]`)・#88(作者は `claude`)は承認待ちで止まっていなかった。
+3. main に `.github/workflows/` の変更が入った後、キューの GITHUB_TOKEN で Update branch ができるか。
+4. 前後比較の「前」: main のシミュレータ向けのビルドを、Dev Box のシミュレータに入れて撮れるか(別のランナーで Artifact のビルドを入れて起動するのは確かめた)。
+5. テスト結果の時刻で、録画をテストごとに切り出せるか。
+6. Dev Box の DerivedData をキャッシュに置いて、次の Dev Box の立ち上がりを縮められるか。git の checkout はファイルの更新時刻を今にするので、そのままでは全部ビルドし直しになる見込み。キャッシュに1.6GB を足すと、上限10GB のうち約2.7GB になる。
+7. `send_later` で1分後に起き、入れ直せるか。
 
 ## 16. 残る弱点
 - Dev Box は、Claude が考えている間もランナーを1台握る。握るのは Claude が作業している間だけで、待っている間はアイドルタイムアウトで返す。
 - Dev Box を使えるのは Claude が動いている間だけ。夜中はスケジュール実行で起きた時にまとめて回す。
 - マージキューは1本ずつしか通らない。
 - 2本の PR が合わさった時の不具合が、選ばれなかった画面で出ると見逃す。
-- Actions のキャッシュの使用量が Claude の環境から見えない。
 - 自動マージが押されていない PR は、持ち主が押すまで止まる。
 - `Struis / verify` を書けるのがキューだけであることは、決まりで守っていて、ルールセットでは強制していない。
 

@@ -5,8 +5,10 @@
 # `devbox-out/<id>` (files `id`, `state`, `exit`, `times`, `log.tail.txt`, `log.txt.gz` and whatever the
 # command put in "$DEVBOX_FILES"), force-pushed while it runs. One branch per command, so a command sent
 # while another waits, or a result finished right after another, never overwrites it. Ids start with the
-# time (scripts/devbox/mac.py), so sorting the names runs commands in the order they were sent. The server
-# deletes a command's branch when it takes it; mac.py deletes a result's branch when it has read it.
+# time (scripts/devbox/mac.py), so sorting the names runs commands in the order they were sent. Only the
+# server deletes branches (the web Claude's token cannot: a deleting push is refused with 403, 2026-11-07):
+# a command's branch when it takes it, a result's branch DEVBOX_KEEP_RESULTS_SECONDS after it finished, and
+# results left by an earlier Dev Box when it starts.
 # Branches are watched with `git ls-remote`, which does not count against the REST API limit of
 # GITHUB_TOKEN (1,000 requests an hour per repository).
 #
@@ -32,7 +34,7 @@ POLL=${DEVBOX_POLL_SECONDS:-3}
 DEADLINE=${DEVBOX_DEADLINE_EPOCH:-$(( $(date +%s) + 19800 ))}
 PROGRESS=${DEVBOX_PROGRESS_SECONDS:-15}
 COMMAND_MAX=${DEVBOX_COMMAND_SECONDS:-3600}
-KEEP_RESULTS=${DEVBOX_KEEP_RESULTS_SECONDS:-86400}
+KEEP_RESULTS=${DEVBOX_KEEP_RESULTS_SECONDS:-3600}
 STATE=${RUNNER_TEMP:-/tmp}/devbox
 mkdir -p "$STATE"
 
@@ -71,7 +73,20 @@ pending() {
   done | sort -k2
 }
 
-# Results nobody read within KEEP_RESULTS (an --async command never waited for).
+# Results of this Dev Box, KEEP_RESULTS after they finished: "<finished epoch> <id>" per line.
+finished_list=$STATE/finished.txt
+: > "$finished_list"
+cleanup_finished() {
+  local now when id rest=$STATE/finished.rest
+  now=$(date +%s)
+  : > "$rest"
+  while read -r when id; do
+    if (( now - when > KEEP_RESULTS )); then delete_ref "$OUT_PREFIX$id"; else echo "$when $id" >> "$rest"; fi
+  done < "$finished_list"
+  mv "$rest" "$finished_list"
+}
+
+# Results left by an earlier Dev Box, older than KEEP_RESULTS by the time in their id.
 cleanup_old_results() {
   local now ref id stamp when
   now=$(date +%s)
@@ -102,7 +117,10 @@ while :; do
   if (( now - idle_since > IDLE )); then echo "devbox: idle for ${IDLE}s, stopping"; break; fi
   if (( now > DEADLINE )); then echo "devbox: deadline reached, stopping"; break; fi
   next_command=$(pending | head -n 1)
-  if [[ -z "$next_command" ]]; then sleep "$POLL"; continue; fi
+  if [[ -z "$next_command" ]]; then
+    (( now % 60 < POLL )) && cleanup_finished
+    sleep "$POLL"; continue
+  fi
   sha=${next_command%% *}
   id=${next_command#* }
   received=$(date +%s)
@@ -116,6 +134,7 @@ while :; do
     status "$out" "$id" done 0
     echo "received=$received" > "$out/times"
     publish "$out" "$id" "devbox $id (nothing running)"
+    echo "$(date +%s) $id" >> "$finished_list"
     if [[ "$id" == *-stop ]]; then echo "devbox: stop requested"; break; fi
     continue
   fi
@@ -171,6 +190,7 @@ while :; do
   gzip -c "$log" > "$out/log.txt.gz"
   status "$out" "$id" done "$code"
   publish "$out" "$id" "devbox $id exit $code"
+  echo "$finished $id" >> "$finished_list"
   echo "devbox: $id exit $code in $(( finished - started ))s"
   idle_since=$(date +%s)
   if [[ -n "$stop_after" ]]; then echo "devbox: stop requested"; break; fi

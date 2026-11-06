@@ -41,3 +41,6 @@ strius.xcodeproj/xcshareddata/xcodecloud/
 # Cloudflare Worker dependencies and local state
 cloudflare/agent/node_modules/
 cloudflare/agent/.wrangler/
+
+# The web Claude's Dev Box results (scripts/devbox/mac.py)
+devbox-out/
