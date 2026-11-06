@@ -238,6 +238,7 @@
     "strius/Assets.xcassets/**",
     "strius/striusApp.swift",
     "strius/*.h",
+    "strius/PrivacyInfo.xcprivacy",
     "Info.plist",
     "Config/**",
     "strius/Runtime/MockTurnRunner.swift",
