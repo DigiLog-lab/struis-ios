@@ -5,7 +5,7 @@ import UIKit
 
 private let onboardingLog = Logger(subsystem: "com.digiloglab.strius", category: "onboarding")
 
-/// オンボーディングの画面(#40)。学年 → 年齢 → 規約 → 写真の扱い → お試しの1問 → 採点 → 購入 → 何をするか → 計画 → 通知。
+/// オンボーディングの画面(#40)。学年 → 年齢 → 規約 → 写真の扱い →(16歳未満は)保護者の同意(#76)→ お試しの1問 → 採点 → 購入 → 何をするか → 計画 → 通知。
 nonisolated enum OnboardingStep: String, CaseIterable, Codable, Sendable {
     /// App Attest が使えない(Mac・想定外の失敗)。
     case unsupported
@@ -13,6 +13,8 @@ nonisolated enum OnboardingStep: String, CaseIterable, Codable, Sendable {
     case birthdate
     case terms
     case consent
+    /// 16 歳未満の保護者の同意(#76)。
+    case guardian
     case trial
     case grading
     case result
@@ -36,7 +38,7 @@ nonisolated enum OnboardingStep: String, CaseIterable, Codable, Sendable {
     /// 左上の戻るを出すか(デザインのとおり)。
     var showsBack: Bool {
         switch self {
-        case .birthdate, .terms, .consent, .trial, .unit, .untilTest, .pages, .weak, .topic, .material, .goal: true
+        case .birthdate, .terms, .consent, .guardian, .trial, .unit, .untilTest, .pages, .weak, .topic, .material, .goal: true
         default: false
         }
     }
@@ -44,12 +46,15 @@ nonisolated enum OnboardingStep: String, CaseIterable, Codable, Sendable {
 
 /// 途中で閉じた時に、次に開いて続ける画面(#40 の 15)。年齢の結果・規約の同意・お試しの数は端末の記録に残る。
 nonisolated enum OnboardingResume {
-    static func step(profile: OnboardingProfile, age: AgeResult?, termsAccepted: Bool, trialUsed: Int, hasPlan: Bool, hasDraft: Bool, now: Date = Date()) -> OnboardingStep {
+    /// `needsGuardianConsent`: 16 歳未満で、今の版の保護者の同意の控えが無い。
+    static func step(profile: OnboardingProfile, age: AgeResult?, termsAccepted: Bool, trialUsed: Int, hasPlan: Bool, hasDraft: Bool,
+                     needsGuardianConsent: Bool = false, now: Date = Date()) -> OnboardingStep {
         guard profile.grade != nil else { return .grade }
         guard let age, !age.needsRecheck(now: now) else { return .grade }
         _ = age
         guard termsAccepted else { return .terms }
         guard profile.photoConsentAt != nil else { return .consent }
+        guard !needsGuardianConsent else { return .guardian }
         let saved = profile.resumeStep.flatMap(OnboardingStep.init(rawValue:))
         switch saved {
         case .notify:
@@ -93,6 +98,8 @@ final class OnboardingModel {
     let isClaudeAvailable: () -> Bool
     /// 購入しているか(StoreKit の今の契約)。
     let hasPlan: () -> Bool
+    /// 保護者の同意の記録を運営者側へ送る(送れなければ未送信の印を残し、起動時と iCloud のサインインの後に送り直す)。
+    let consentUploader: GuardianConsentUploader
     /// 計画を作ろうとした時に購入画面を挟んだ(買えたら計画づくりに戻る)。
     private var plansAfterPurchase = false
 
@@ -133,9 +140,11 @@ final class OnboardingModel {
         Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()) - 15, month: 4, day: 15)) ?? Date()
     }
 
-    init(profile: OnboardingProfile? = nil, records: OnboardingRecords = .shared, hasPlan: @escaping () -> Bool, isClaudeAvailable: @escaping () -> Bool, start: OnboardingStep? = nil) {
+    init(profile: OnboardingProfile? = nil, records: OnboardingRecords = .shared, consentUploader: GuardianConsentUploader = .shared,
+         hasPlan: @escaping () -> Bool, isClaudeAvailable: @escaping () -> Bool, start: OnboardingStep? = nil) {
         var profile = profile ?? OnboardingProfile.load() ?? OnboardingProfile()
         self.records = records
+        self.consentUploader = consentUploader
         self.isClaudeAvailable = isClaudeAvailable
         self.hasPlan = hasPlan
         // 端末の記録(年齢・規約)は、サインアウトで消えた回答にも戻す。
@@ -154,7 +163,7 @@ final class OnboardingModel {
         draft = saved
         let resumed = start ?? OnboardingResume.step(
             profile: profile, age: records.age, termsAccepted: records.termsAcceptedAt != nil, trialUsed: records.trialUsed,
-            hasPlan: hasPlan(), hasDraft: saved != nil
+            hasPlan: hasPlan(), hasDraft: saved != nil, needsGuardianConsent: records.needsGuardianConsent(band: records.age?.band ?? profile.ageBand)
         )
         step = isClaudeAvailable() ? resumed : .unsupported
         if step == .trial || step == .grading || step == .result { problem = nextProblem(after: nil) }
@@ -182,7 +191,7 @@ final class OnboardingModel {
     func recheckAvailability() {
         guard isClaudeAvailable() else { return }
         step = OnboardingResume.step(profile: profile, age: records.age, termsAccepted: records.termsAcceptedAt != nil,
-                                     trialUsed: records.trialUsed, hasPlan: hasPlan(), hasDraft: draft != nil)
+                                     trialUsed: records.trialUsed, hasPlan: hasPlan(), hasDraft: draft != nil, needsGuardianConsent: needsGuardianConsent)
         if step == .trial { problem = nextProblem(after: nil) }
     }
 
@@ -260,8 +269,26 @@ final class OnboardingModel {
         afterConsent()
     }
 
-    /// 同意の後: お試しへ(大学生・それ以外は見本が無いので、お試しを飛ばして購入画面へ)。
+    /// 写真の扱いへの同意の後: 16 歳未満で今の版の保護者の同意が無ければ、保護者の同意へ。
     func afterConsent() {
+        if needsGuardianConsent { go(.guardian) } else { afterGuardianConsent() }
+    }
+
+    // MARK: - 保護者の同意
+
+    /// 16 歳未満で、今の版の保護者の同意の控えが無い(AI へ答案を送る前に必ず通す)。
+    var needsGuardianConsent: Bool { records.needsGuardianConsent(band: records.age?.band ?? profile.ageBand) }
+
+    /// スワイプで同意した: 端末に控えを残し、運営者側へ送る(送れなくても止めずにお試しへ進む)。
+    func acceptGuardianConsent() {
+        records.recordGuardianConsent()
+        let uploader = consentUploader
+        Task { await uploader.sendPending() }
+        afterGuardianConsent()
+    }
+
+    /// 同意の後: お試しへ(大学生・それ以外は見本が無いので、お試しを飛ばして購入画面へ)。
+    private func afterGuardianConsent() {
         if profile.isUniversity {
             go(hasPlan() ? .topic : .paywall)
         } else if records.trialRemaining == 0 {
@@ -297,7 +324,7 @@ final class OnboardingModel {
 
     /// 撮った答案(紙の写真)か、書いた答案(iPad の手書き)を採点に送る。
     func submitAnswer(_ data: Data, fromInk: Bool, assets: AssetCache, turns: TurnCoordinator, runner: any TurnRunning) {
-        guard let problem, records.trialRemaining > 0 else { return }
+        guard let problem, records.trialRemaining > 0, !needsGuardianConsent else { return }
         trialError = nil
         let path: String
         do {

@@ -1,9 +1,10 @@
 import StoreKitTest
 import XCTest
 
-/// オンボーディング(#40): 学年 → 年齢 → 規約 → 写真の扱い → お試しの1問 → 採点 → 購入(StoreKit の設定ファイル)→
+/// オンボーディング(#40): 学年 → 年齢 → 規約 → 写真の扱い → 保護者の同意(16歳未満、#76)→ お試しの1問 → 採点 → 購入(StoreKit の設定ファイル)→
 /// A ルート → 計画 → 通知 → タイムライン。再起動で繰り返さない。Simulator では Apple の年齢の確認を出せないので
 /// `STRUIS_AGE_RANGE` で結果を差し替え、AI の返事は模擬(`STRUIS_DEVICE_TURNS=mock`)、カメラはテスト用紙の画像。
+/// 保護者の同意の記録は偽の送り先で失敗させ(`STRUIS_GUARDIAN_CONSENT_STORE=fail`)、送れなくても学習に進むことを確かめる。
 final class OnboardingFlowUITests: XCTestCase {
     private var storeSession: SKTestSession?
 
@@ -86,9 +87,9 @@ final class OnboardingFlowUITests: XCTestCase {
 
     @MainActor
     func testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain() throws {
-        var app = launch(["-reset-onboarding", "-workbook-empty"], environment: ["STRUIS_AGE_RANGE": "under18"])
+        var app = launch(["-reset-onboarding", "-workbook-empty"], environment: ["STRUIS_AGE_RANGE": "under16", "STRUIS_GUARDIAN_CONSENT_STORE": "fail"])
 
-        // 1 学年。年齢の結果(18歳未満)の後、規約には保護者の方への一文が出る。
+        // 1 学年。年齢の結果(16歳未満)の後、規約には保護者の方への一文が出る。
         XCTAssertTrue(text(app, containing: "まず1問、解いてみましょう").appears(timeout: 20), "最初に学年の画面が出ない")
         XCTAssertFalse(element(app, "onboarding-grade-next").isEnabled, "学年を選ぶ前に次へが押せる")
         app.buttons["中3"].firstMatch.tap()
@@ -98,6 +99,19 @@ final class OnboardingFlowUITests: XCTestCase {
         tap(app, "onboarding-terms-accept")
         XCTAssertTrue(text(app, containing: "写真の扱いについて").appears(timeout: 10))
         tap(app, "onboarding-consent-accept")
+
+        // 16歳未満: 保護者の同意(版 v1 の文面)。押すだけでは進まず、右へスワイプで同意する。送れなくても進む。
+        XCTAssertTrue(element(app, "onboarding-guardian").appears(timeout: 10), "16歳未満なのに保護者の同意が出ない")
+        for line in ["保護者の方へ", "米国の Anthropic に送られます", "運営者は読めません", "間違えることがあります"] {
+            XCTAssertTrue(text(app, containing: line).exists, "保護者の同意の文面に「\(line)」が無い")
+        }
+        attach(app, "guardian")
+        let swipe = element(app, "onboarding-guardian-swipe")
+        XCTAssertEqual(swipe.label, "保護者として同意する")
+        swipe.tap()
+        XCTAssertFalse(element(app, "onboarding-trial-badge").appears(timeout: 2), "押しただけで同意になった")
+        swipe.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: 0.5))
+            .press(forDuration: 0.1, thenDragTo: swipe.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.5)))
 
         // お試しの1問: 撮って採点(模擬は正解)。
         XCTAssertTrue(element(app, "onboarding-trial-badge").appears(timeout: 10))
@@ -156,5 +170,17 @@ final class OnboardingFlowUITests: XCTestCase {
         app = launch(["-workbook-empty"])
         XCTAssertTrue(element(app, "timeline-screen").appears(timeout: 20), "再起動後にタイムラインが出ない")
         XCTAssertFalse(text(app, containing: "まず1問、解いてみましょう").exists, "再起動でオンボーディングがまた出た")
+        app.terminate()
+
+        // 保護者の同意の文面の版が上がった(v0 に同意した 16歳未満): オンボーディングの後でも、開いた時に出し直す。
+        app = launch(["-workbook-empty"], environment: ["STRUIS_GUARDIAN_CONSENT_VERSION": "v0", "STRUIS_GUARDIAN_CONSENT_STORE": "ok"])
+        let renewal = element(app, "guardian-consent-renewal")
+        XCTAssertTrue(renewal.appears(timeout: 20), "版が上がったのに保護者の同意を出し直さない")
+        attach(app, "guardian-renewal")
+        let renewalSwipe = element(app, "onboarding-guardian-swipe")
+        renewalSwipe.coordinate(withNormalizedOffset: CGVector(dx: 0.06, dy: 0.5))
+            .press(forDuration: 0.1, thenDragTo: renewalSwipe.coordinate(withNormalizedOffset: CGVector(dx: 0.99, dy: 0.5)))
+        XCTAssertTrue(renewal.waitForNonExistence(timeout: 10), "同意しても出し直しの画面が消えない")
+        XCTAssertTrue(element(app, "timeline-units-button").isHittable, "同意の後にタイムラインが使えない")
     }
 }
