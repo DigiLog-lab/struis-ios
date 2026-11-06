@@ -140,17 +140,21 @@
       ]
     },
     "home-deletion": {
-      "property": "ホームと単元の削除: 最近の行と撮影ボタン、削除の確認と取消、空の状態",
+      "property": "ホームと単元の削除: 最近の行と撮影ボタン、削除の確認と取消、空の状態。設定からすべての学習記録を消す(確認と取消、消した後は空の状態)",
       "tests": [
         "WorkbookHomeUITests/testRecentRowsStageAndCaptureButton",
         "UnitDeletionUITests/testLargeTextConfirmationAndCancel",
-        "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState"
+        "UnitDeletionUITests/testLongPressCancelDeleteLastUnitAndEmptyState",
+        "LearningRecordErasureUITests/testEraseAllFromSettingsAsksFirstThenLeavesNoUnit"
       ],
       "paths": [
         "strius/Features/Workbook/WorkbookHomeView.swift",
         "strius/Features/Workbook/UnitCatalog.swift",
         "strius/Features/Workbook/WorkbookProposalCard.swift",
-        "strius/Ledger/UnitDeletion.swift"
+        "strius/Ledger/UnitDeletion.swift",
+        "strius/Ledger/LearningErasure.swift",
+        "strius/State/LearnerData.swift",
+        "strius/Features/Settings/SettingsView.swift"
       ]
     },
     "chat-wiring": {

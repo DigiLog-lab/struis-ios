@@ -182,6 +182,11 @@ final class ICloudSync {
             await refreshCounts()
             return
         }
+        // 学習記録を消している途中(#78): ゾーンを作り直すまでは、何も送らない(消す前の記録を残さない)。
+        guard await finishPendingErasure(engine) else {
+            await refreshCounts()
+            return
+        }
         do {
             let outcome = try await engine.sync(fetchFirst: fetchFirst)
             if outcome.deletedByLearner {
@@ -204,6 +209,45 @@ final class ICloudSync {
             message = "同期できませんでした。次の同期でもう一度試します"
         }
         await refreshCounts()
+    }
+
+    // MARK: - 学習記録の消去(#78)
+
+    /// 消している途中なら、iCloud のゾーンを作り直して消去を終える。同期を続けてよければ true。
+    /// 端末の記録を消し終える前・作り直せなかった時は false(送らない)。別の端末の消去を受けた時は、ゾーンを作り直さない。
+    private func finishPendingErasure(_ engine: LedgerSyncEngine) async -> Bool {
+        guard let journal = ledger.pendingErasure() else { return true }
+        guard journal.localDone else { return false }
+        do {
+            if !journal.remote { try await engine.eraseZone() }
+            try await ledger.finishErasure()
+            message = journal.remote ? "ほかの端末で学習記録が消されたため、この端末の記録も消しました" : "iCloud の学習記録も消しました"
+            return true
+        } catch {
+            iCloudLog.error("erasing the iCloud records failed: \(String(describing: error), privacy: .public)")
+            message = "iCloud の学習記録を消せませんでした。次に iCloud に繋がった時に、もう一度消します"
+            return false
+        }
+    }
+
+    /// 学習記録をまとめて消した後に、iCloud の記録を消す。同期をオフにしていても消す(前に送った記録が残っているため)。
+    /// 消せたら true。iCloud を使えない環境(テスト・fixture)では、消すものが無いので true。
+    func eraseCloud() async -> Bool {
+        guard isSupported, let engine else {
+            try? await ledger.finishErasure()
+            return true
+        }
+        while let running = current { await running.value }
+        account = await cloud?.account() ?? .unknown
+        guard account == .available else {
+            message = "iCloud の学習記録は、次に iCloud に繋がった時に消します"
+            return false
+        }
+        isSyncing = true
+        let finished = await finishPendingErasure(engine)
+        isSyncing = false
+        await refreshCounts()
+        return finished
     }
 
     private func markSynced() {

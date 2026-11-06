@@ -212,6 +212,7 @@
 		E8AB611B40BA97E9EBCA99AD /* ClaudeTurnRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8EB52472FDFFAB6DEE6656E /* ClaudeTurnRunner.swift */; };
 		E8ABE2E5BD8F2A2E61E39237 /* LearningProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8B38629B54E9F836AA83DEB /* LearningProgress.swift */; };
 		E8B0FBDF517BCA5B73A4C8FB /* UnitDeletion.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81327548E7FFD263698CB52 /* UnitDeletion.swift */; };
+		D894492EC6D44216AE79399D /* LearningErasure.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51E3ADEFFEC463598C12543 /* LearningErasure.swift */; };
 		E8B16BEEE878BC8359B90A2B /* WorkspaceStager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E84B9E4A212B2A53E8699532 /* WorkspaceStager.swift */; };
 		E8B231E5B019E2366775B590 /* EngineJSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8142AA1A6A4E8CC68342E91 /* EngineJSON.swift */; };
 		E8B28D79EF20C1E36737CA56 /* OnboardingPlanViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD271CC56E601499F0AB077 /* OnboardingPlanViews.swift */; };
@@ -464,6 +465,7 @@
 		E80D75EDD06056FC3A419A48 /* TurnActivityLabels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnActivityLabels.swift; sourceTree = "<group>"; };
 		E80E40FFA2BBDE73B8F29D32 /* RootfsInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootfsInstaller.swift; sourceTree = "<group>"; };
 		E81327548E7FFD263698CB52 /* UnitDeletion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitDeletion.swift; sourceTree = "<group>"; };
+		F51E3ADEFFEC463598C12543 /* LearningErasure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningErasure.swift; sourceTree = "<group>"; };
 		E8142AA1A6A4E8CC68342E91 /* EngineJSON.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineJSON.swift; sourceTree = "<group>"; };
 		E814CCB551BDE754864052CA /* MockTurnRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockTurnRunner.swift; sourceTree = "<group>"; };
 		E81A6DA88837524D4B9F383A /* ChatRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatRepository.swift; sourceTree = "<group>"; };
@@ -984,6 +986,7 @@
 				E841779F967FE6357A8ABC9B /* LedgerID.swift */,
 				E835D58E1FDDF3C6520FE58D /* LedgerArchive.swift */,
 				E81327548E7FFD263698CB52 /* UnitDeletion.swift */,
+				F51E3ADEFFEC463598C12543 /* LearningErasure.swift */,
 			);
 			path = Ledger;
 			sourceTree = "<group>";
@@ -1624,6 +1627,7 @@
 				E8079ACF2E0CF07CA6CF78E0 /* TurnActivity.swift in Sources */,
 				E87ABECC414E69C935E94562 /* UnitPrefetch.swift in Sources */,
 				E8B0FBDF517BCA5B73A4C8FB /* UnitDeletion.swift in Sources */,
+				D894492EC6D44216AE79399D /* LearningErasure.swift in Sources */,
 				E81A7AA9A52594B3BD687D55 /* MathSourceNormalizer.swift in Sources */,
 				E892811F3C03E625616D3D6F /* MathTextLayout.swift in Sources */,
 				E89B468DA3281DB0A31598F3 /* NativeMathText.swift in Sources */,

@@ -112,6 +112,15 @@ extension Ledger {
     func ingest(_ records: [SyncEventRecord], build: String) throws -> IngestResult {
         try ensureDeletionReady()
         var result = IngestResult()
+        // 学習記録を消した後に、消す前の記録が遅れて届いた: 受け取らず、iCloud からも消す(#78)。
+        let erased = Self.erasedRecords(records, before: appliedErasure())
+        let records = records.filter { !erased.contains($0.recordName) }
+        if !erased.isEmpty {
+            try queue.write { db in
+                for name in erased { try db.execute(sql: "INSERT OR IGNORE INTO sync_tombstones (record_name) VALUES (?)", arguments: [name]) }
+            }
+            result.dropped += erased.count
+        }
         for fact in records where fact.kind == "unit.deleted" {
             if try ingestUnitDeletion(fact, build: build) { result.deletedUnits += 1 }
         }
@@ -135,7 +144,7 @@ extension Ledger {
         result.applied = counts.applied
         result.stored = counts.stored
         result.pending = counts.pending
-        result.dropped = counts.dropped
+        result.dropped += counts.dropped
         if !applied.isEmpty { notify(applied, remote: true) }
         return result
     }
@@ -408,6 +417,7 @@ extension Ledger {
         try ensureDeletionReady()
         UnitDeletion.gate.lock(); defer { UnitDeletion.gate.unlock() }
         let root = deletionRoot.standardizedFileURL
+        let erasedBefore: String? = appliedErasure()?.ledgerTime
         return try queue.write { db -> Int in
             var changed = 0
             for file in files {
@@ -415,6 +425,8 @@ extension Ledger {
                     syncLog.error("ignored sync file outside the synced roots")
                     continue
                 }
+                // 学習記録を消す前のファイルが遅れて届いた: 受け取らない(#78)。
+                if let erasedBefore, file.modifiedAt < erasedBefore { continue }
                 let target = root.appendingPathComponent(file.path)
                 let row = try Row.fetchOne(db, sql: "SELECT * FROM sync_files WHERE path = ?", arguments: [file.path])
                 // The file as it is now: changed since the last scan counts with its own time and contents.
@@ -494,16 +506,20 @@ extension Ledger {
 
     /// Another device uploaded its ledger again: keep one ZIP of this ledger in `backups/`, then empty the
     /// ledger and the synced files so the zone's contents replace them.
+    /// 記録が無ければ ZIP を作らない(学習記録を消した端末・消去の印を受けて消した端末。#78)。
     @discardableResult
-    func replaceWithCloud() throws -> URL {
+    func replaceWithCloud() throws -> URL? {
         try ensureDeletionReady()
         UnitDeletion.gate.lock(); defer { UnitDeletion.gate.unlock() }
         let root = deletionRoot
         let backups = root.appendingPathComponent("backups", isDirectory: true)
-        try? FileManager.default.removeItem(at: backups)
-        try FileManager.default.createDirectory(at: backups, withIntermediateDirectories: true)
         let stored = try queue.read { db in try StoredLedgerEvent.order(Column("seq")).fetchAll(db) }
-        let backup = try LedgerArchive.exportSnapshot(stored: stored, deviceID: deviceID, root: root, directory: backups)
+        var backup: URL?
+        if !stored.isEmpty {
+            try? FileManager.default.removeItem(at: backups)
+            try FileManager.default.createDirectory(at: backups, withIntermediateDirectories: true)
+            backup = try LedgerArchive.exportSnapshot(stored: stored, deviceID: deviceID, root: root, directory: backups)
+        }
         try queue.write { db in
             try db.execute(sql: "PRAGMA secure_delete=ON")
             try db.execute(sql: "DELETE FROM ledger_events")

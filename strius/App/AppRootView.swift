@@ -54,8 +54,20 @@ struct AppRootView: View {
         #endif
     }
 
+    #if DEBUG
+    /// UI テスト用(`-reconsent-legacy`): オンボーディングを終え、版の記録の無い同意(#78 より前の形)だけが残っている状態から始める。
+    /// オンボーディングを出すかを決める前に、1 回だけ行う。
+    private static let debugLegacyConsent: Void = {
+        guard ProcessInfo.processInfo.arguments.contains("-reconsent-legacy") else { return }
+        UserDefaults.standard.set(true, forKey: OnboardingProfile.completedKey)
+        OnboardingRecords.shared.values.set(nil, OnboardingRecords.termsKey)
+        OnboardingRecords.shared.values.set(ISO8601DateFormatter().string(from: Date()), OnboardingRecords.legacyTermsKey)
+    }()
+    #endif
+
     private static var initiallyShowsOnboarding: Bool {
         #if DEBUG
+        _ = debugLegacyConsent
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("-reset-onboarding") {
             UserDefaults.standard.removeObject(forKey: OnboardingProfile.completedKey)
@@ -73,12 +85,7 @@ struct AppRootView: View {
     /// (`DeviceUsageGate` も、同意していない間は送らない)。
     private static var needsReconsent: Bool {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-reconsent-legacy") {
-            // UI テスト用: オンボーディングを終え、版の記録の無い同意(#78 より前の形)だけが残っている状態から始める。
-            UserDefaults.standard.set(true, forKey: OnboardingProfile.completedKey)
-            OnboardingRecords.shared.values.set(nil, OnboardingRecords.termsKey)
-            OnboardingRecords.shared.values.set(ISO8601DateFormatter().string(from: Date()), OnboardingRecords.legacyTermsKey)
-        }
+        _ = debugLegacyConsent
         if OnboardingRecords.debugAssumesConsent { return false }
         #endif
         return OnboardingProfile.isCompleted() && !OnboardingRecords.shared.hasAcceptedCurrentTerms
@@ -156,6 +163,8 @@ struct AppRootView: View {
             await learnerData.prepare(client: apiClient)
             // Fixtures may have just seeded the ledger; re-read the thread list.
             await bootstrap.refreshThreads()
+            // 途中で止まった学習記録の消去の続きと、別の端末で消された印(#78)。同期とターンの組み直しより先に。
+            await learnerData.resumeErasure()
             await learnerData.turns.resumeUnfinished()
             await learnerData.iCloud.start()
         }
