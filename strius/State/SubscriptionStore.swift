@@ -169,7 +169,7 @@ final class SubscriptionStore {
             self.expiresAt = expiresAt
         }
 
-        init(_ transaction: Transaction) {
+        init(_ transaction: StoreKit.Transaction) {
             self.init(chargedAt: transaction.purchaseDate, expiresAt: transaction.expirationDate)
         }
     }
