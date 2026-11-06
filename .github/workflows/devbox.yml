@@ -1,0 +1,145 @@
+name: Dev Box
+
+# The web Claude's remote Mac (docs/development-method.md, Dev Box). One macOS runner checks out the work
+# branch, builds once, boots the Simulator and then runs the commands Claude sends (scripts/devbox/serve.sh)
+# until it has been idle for 15 minutes. A Dev Box build is never a gate: commands can run anything.
+#
+# PREFLIGHT: this version starts on a push to claude/devbox-preflight only, to measure the round trip, the
+# build times, the artifact reuse on another runner and the iPad Simulator before the real Dev Box is built.
+on:
+  push:
+    branches: [claude/devbox-preflight]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: devbox
+  cancel-in-progress: false
+
+jobs:
+  devbox:
+    runs-on: xcode-27
+    timeout-minutes: 120
+    permissions:
+      # Pushes devbox/out only. No statuses: write: a Dev Box must never be able to write `Struis / verify`.
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+      - name: Spotlight の索引を止める
+        run: |
+          sudo mdutil -a -i off >/dev/null 2>&1 || true
+          echo "memory: $(( $(sysctl -n hw.memsize) / 1073741824 )) GB, cpus: $(sysctl -n hw.ncpu)"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: Native Runtime cacheを復元
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          fail-on-cache-miss: true
+      - name: 1回ビルドし、Simulatorを起動しておく
+        timeout-minutes: 40
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/devbox"
+          xcrun simctl list devices available | grep -E 'iPhone|iPad' | sed 's/^ *//' | sort -u > "$RUNNER_TEMP/devbox/simulators.txt" || true
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          ios = sorted((key for key in runtimes if ".iOS-" in key),
+                       key=lambda key: [int(part) for part in key.rsplit(".iOS-", 1)[1].split("-") if part.isdigit()])
+          for key in reversed(ios):
+              for device in runtimes[key]:
+                  if device["name"] == "iPhone 17":
+                      print(device["udid"]); sys.exit()
+          sys.exit("iPhone 17 simulator not found")')
+          echo "SIMULATOR_UDID=$udid" >> "$GITHUB_ENV"
+          xcrun simctl boot "$udid" 2>/dev/null || true
+          started=$(date +%s)
+          xcodebuild build-for-testing -project strius.xcodeproj -scheme strius \
+            -destination "id=$udid" -derivedDataPath "$RUNNER_TEMP/DerivedData" ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES \
+            -quiet
+          echo "warm_build_seconds=$(( $(date +%s) - started ))" > "$RUNNER_TEMP/devbox/warm.txt"
+          xcrun simctl bootstatus "$udid" -b
+          echo "warm_ready=$(date +%s)" >> "$RUNNER_TEMP/devbox/warm.txt"
+          cat "$RUNNER_TEMP/devbox/warm.txt"
+      - name: 命令を待って実行する
+        env:
+          DEVBOX_WORK_BRANCH: ${{ github.ref_name }}
+          DEVBOX_IDLE_SECONDS: '900'
+        run: |
+          export DEVBOX_DEADLINE_EPOCH=$(( $(date +%s) + 85 * 60 ))
+          export DERIVED_DATA="$RUNNER_TEMP/DerivedData"
+          bash scripts/devbox/serve.sh
+      - name: ビルド成果物を Artifact に置く(別のランナーで使えるかを測る)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: devbox-preflight-products-${{ github.run_id }}
+          path: ${{ runner.temp }}/DerivedData/Build/Products
+          retention-days: 3
+          if-no-files-found: error
+
+  reuse:
+    needs: devbox
+    if: always() && needs.devbox.result != 'skipped'
+    runs-on: xcode-27
+    timeout-minutes: 40
+    steps:
+      - name: Artifact を取ってくる
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: devbox-preflight-products-${{ github.run_id }}
+          path: ${{ runner.temp }}/Products
+      - name: 別のランナーで test-without-building と iPad への入れ込みを試す
+        run: |
+          set -uo pipefail
+          cd "$RUNNER_TEMP"
+          du -sh Products
+          echo "--- simulators"; xcrun simctl list devices available | grep -E 'iPhone|iPad' | sed 's/^ *//' | sort -u
+          xctestrun=$(ls Products/*.xctestrun | head -1); echo "xctestrun=$xctestrun"
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          for key, devices in sorted(json.load(sys.stdin)["devices"].items(), reverse=True):
+              for device in devices:
+                  if device["name"] == "iPhone 17":
+                      print(device["udid"]); sys.exit()')
+          xcrun simctl boot "$udid" 2>/dev/null || true
+          started=$(date +%s)
+          xcodebuild test-without-building -xctestrun "$xctestrun" -destination "id=$udid" \
+            -only-testing:striusTests/UsageGateTests -collect-test-diagnostics never -parallel-testing-enabled NO
+          echo "test_without_building_exit=$? seconds=$(( $(date +%s) - started ))"
+          ipad=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          for key, devices in sorted(json.load(sys.stdin)["devices"].items(), reverse=True):
+              for device in devices:
+                  if device["name"].startswith("iPad"):
+                      print(device["udid"], device["name"]); sys.exit()')
+          echo "ipad=$ipad"
+          if [ -n "$ipad" ]; then
+            id=${ipad%% *}
+            xcrun simctl boot "$id" 2>/dev/null || true
+            xcrun simctl bootstatus "$id" -b
+            app=$(ls -d Products/Debug-iphonesimulator/strius.app)
+            xcrun simctl install "$id" "$app" && echo "ipad_install=ok"
+            bundle=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")
+            xcrun simctl launch "$id" "$bundle"; sleep 25
+            mkdir -p shots; xcrun simctl io "$id" screenshot shots/ipad.png && echo "ipad_screenshot=ok"
+          fi
+      - name: スクショを置く
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: devbox-preflight-shots-${{ github.run_id }}
+          path: ${{ runner.temp }}/shots
+          retention-days: 3
+          if-no-files-found: ignore
