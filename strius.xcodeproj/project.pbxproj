@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A49586D05F6448099E80EB50 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 15C8C9CE807E44599EBF72E3 /* PrivacyInfo.xcprivacy */; };
+		27938BC2DDDC4A75B40FF2C5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B4D776509AEF42EEB3A59D7A /* PrivacyInfo.xcprivacy */; };
 		01C63A5AEFA4AE1111D3C131 /* PythonCommand.m in Sources */ = {isa = PBXBuildFile; fileRef = A147F65FD153DE7E33C86E7C /* PythonCommand.m */; };
 		10464D9E20A587D3F9E8AA35 /* files-native.xcframework in Embed Native Frameworks */ = {isa = PBXBuildFile; fileRef = 39F603ED2BB0D6E350A71DA6 /* files-native.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		17C8266FA86E6432F1F0C8C5 /* TimelineMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FEBAE568FDA5E20EBE7967 /* TimelineMachine.swift */; };
@@ -306,6 +308,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		15C8C9CE807E44599EBF72E3 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		B4D776509AEF42EEB3A59D7A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Worker/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		0D3C05E10B1D418B8FDF5E0A /* SubscriptionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionStore.swift; sourceTree = "<group>"; };
 		0F4A7AC74B1BCF3A36A1C32F /* awk-native.xcframework */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = wrapper.xcframework; name = "awk-native.xcframework"; path = "Vendor/awk-native.xcframework"; sourceTree = "<group>"; };
 		1605DCA98A0A9CC460934DDF /* Licenses */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; path = Licenses; sourceTree = "<group>"; };
@@ -611,6 +615,7 @@
 				D19BE22FF326801AF9596B48 /* SearchCommand.m */,
 				A758AC2BFD20F6616C9CFDF0 /* cacert.pem */,
 				DB2B45F1B944E983DCD2261D /* commandDictionary.plist */,
+				B4D776509AEF42EEB3A59D7A /* PrivacyInfo.xcprivacy */,
 				B90F4C073D17D0649F6435C9 /* PythonModules */,
 				1605DCA98A0A9CC460934DDF /* Licenses */,
 				C708FB4913FA457422391CCA /* ios_system-native.xcframework */,
@@ -685,6 +690,7 @@
 			isa = PBXGroup;
 			children = (
 				A20000000000000000000023 /* Assets.xcassets */,
+				15C8C9CE807E44599EBF72E3 /* PrivacyInfo.xcprivacy */,
 				A30000000000000000000001 /* App */,
 				A30000000000000000000002 /* Auth */,
 				A30000000000000000000003 /* DTO */,
@@ -1372,6 +1378,7 @@
 			files = (
 				E514CEE8E85559824C96A52E /* Prompts in Resources */,
 				A10000000000000000000023 /* Assets.xcassets in Resources */,
+				A49586D05F6448099E80EB50 /* PrivacyInfo.xcprivacy in Resources */,
 				A10000000000000000000027 /* CormorantGaramond.ttf in Resources */,
 				A10000000000000000000028 /* CormorantGaramond-Italic.ttf in Resources */,
 				A1000000000000000000002A /* KaTeX in Resources */,
@@ -1411,6 +1418,7 @@
 				6F201D479F43D730B80512FB /* cacert.pem in Resources */,
 				B334A418B2674C07514C137C /* Licenses in Resources */,
 				4A78D880B2BEEAD8BE285185 /* commandDictionary.plist in Resources */,
+				27938BC2DDDC4A75B40FF2C5 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

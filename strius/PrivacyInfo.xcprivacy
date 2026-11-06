@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  Struis のプライバシーマニフェスト(#78)。追跡はしない。理由の申告が要る API は、アプリの本体と、アプリの中に組み込む
+  フレームワーク(Python・ios_system・files・shell・text・dash と Python の拡張モジュール)が使うものを、アプリの分として申告する。
+  - ファイルの日時(stat・lstat・fstat・getattrlist・更新日時の鍵): アプリのコンテナと App Group の中のファイルだけ(同期の変更検出・
+    添付と表示の控えの片付け・書き出しの期間・作業フォルダのコマンド)。
+  - 起動からの時間(systemUptime・mach_absolute_time): アプリの中の出来事の間の時間を測る(ターンの時間・学習の記録・Python の時計)。
+  - ディスクの空き(statfs・fstatfs): 組み込みの Python とコマンドが、書く前に空きを確かめる。
+  - UserDefaults: アプリの中だけで読み書きする(App Group では共有しない)。
+-->
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>35F9.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>E174.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
