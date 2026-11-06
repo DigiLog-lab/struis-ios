@@ -196,6 +196,19 @@
         "strius/Features/Timeline/TimelineStore.swift"
       ]
     },
+    "usage-reset": {
+      "property": "利用枠: 使い切った状態から購入・プランを上げると、設定の「利用枠」のゲージが 0% に戻る(StoreKit の設定ファイル)",
+      "tests": [
+        "UsageResetUITests/testBuyingAPlanAfterTheTrialRunsOutResetsTheGaugeToZero",
+        "UsageResetUITests/testUpgradingAfterThePlanRunsOutResetsTheGaugeToZero"
+      ],
+      "paths": [
+        "strius/State/SubscriptionStore.swift",
+        "strius/Runtime/UsageGate.swift",
+        "strius/Features/Settings/UsageViews.swift",
+        "strius/Features/Onboarding/PaywallView.swift"
+      ]
+    },
     "timeline": {
       "property": "学習タイムライン: 起動したらタイムラインが出る、単元ホームを重ねて戻る、撮る・指で書く・飛ばす・2択カード・やめどき、誤答の画面の2つの答えと判定への申し出",
       "tests": [
@@ -385,6 +398,8 @@
     "TimelineUITests/testWrongAnswerShowsBothAnswersAndOffersADisputeFromAsk": 40,
     "OnboardingFlowUITests/testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain": 55,
     "OnboardingScreenshotUITests/testIPhoneScreens": 0,
-    "OnboardingScreenshotUITests/testIPadLandscapeScreens": 0
+    "OnboardingScreenshotUITests/testIPadLandscapeScreens": 0,
+    "UsageResetUITests/testBuyingAPlanAfterTheTrialRunsOutResetsTheGaugeToZero": 30,
+    "UsageResetUITests/testUpgradingAfterThePlanRunsOutResetsTheGaugeToZero": 30
   }
 }

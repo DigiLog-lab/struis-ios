@@ -168,6 +168,8 @@ nonisolated enum UsageRules {
 nonisolated protocol DeviceValueStore: Sendable {
     func string(_ key: String) -> String?
     func set(_ value: String?, _ key: String)
+    /// `prefix` で始まる鍵の一覧。iCloud(全端末の値が集まる)でだけ使う。
+    func keys(withPrefix prefix: String) -> [String]
 }
 
 nonisolated struct KeychainValueStore: DeviceValueStore {
@@ -176,10 +178,15 @@ nonisolated struct KeychainValueStore: DeviceValueStore {
     func set(_ value: String?, _ key: String) {
         if let value { keychain.set(value, for: key) } else { keychain.delete(key) }
     }
+    /// Keychain にはこの端末の値しか無いので、一覧は使わない。
+    func keys(withPrefix prefix: String) -> [String] { [] }
 }
 
 nonisolated struct CloudValueStore: DeviceValueStore {
     func string(_ key: String) -> String? { NSUbiquitousKeyValueStore.default.string(forKey: key) }
+    func keys(withPrefix prefix: String) -> [String] {
+        NSUbiquitousKeyValueStore.default.dictionaryRepresentation.keys.filter { $0.hasPrefix(prefix) }
+    }
     func set(_ value: String?, _ key: String) {
         if let value { NSUbiquitousKeyValueStore.default.set(value, forKey: key) } else { NSUbiquitousKeyValueStore.default.removeObject(forKey: key) }
         NSUbiquitousKeyValueStore.default.synchronize()
@@ -193,7 +200,32 @@ nonisolated final class MemoryValueStore: DeviceValueStore, @unchecked Sendable 
     init(_ values: [String: String] = [:]) { self.values = values }
     func string(_ key: String) -> String? { lock.withLock { values[key] } }
     func set(_ value: String?, _ key: String) { lock.withLock { values[key] = value } }
+    func keys(withPrefix prefix: String) -> [String] { lock.withLock { values.keys.filter { $0.hasPrefix(prefix) } } }
 }
+
+#if DEBUG
+/// UI テスト用(`STRUIS_USAGE_SEED_PREFIX`・`STRUIS_USAGE_SEED_USD`): `prefix` で始まる期間の鍵がまだ書かれていなければ、
+/// その期間に `usd` を使った状態として読ませる(端末ごとの鍵は除く)。課金で期間が替わった時に 0 に戻るかを画面で確かめる。
+nonisolated final class SeededValueStore: DeviceValueStore, @unchecked Sendable {
+    private let base: MemoryValueStore = MemoryValueStore()
+    private let prefix: String
+    private let usd: Double
+
+    init(prefix: String, usd: Double) {
+        self.prefix = prefix
+        self.usd = usd
+    }
+
+    func string(_ key: String) -> String? {
+        if let value = base.string(key) { return value }
+        guard key.hasPrefix(prefix), !key.contains(UsageMeter.deviceMarker) else { return nil }
+        return String(usd)
+    }
+
+    func set(_ value: String?, _ key: String) { base.set(value, key) }
+    func keys(withPrefix prefix: String) -> [String] { base.keys(withPrefix: prefix) }
+}
+#endif
 
 /// Keychain と iCloud の Key-Value ストアの組。
 nonisolated struct MirroredValues: Sendable {
@@ -202,7 +234,7 @@ nonisolated struct MirroredValues: Sendable {
 
     static let device = MirroredValues(local: KeychainValueStore(), cloud: CloudValueStore())
 
-    /// 数は大きい方を採る(使用額・お試しの数を、入れ直しや別の端末で戻さない)。
+    /// 数は大きい方を採る(お試しの数・使用額を、入れ直しで戻さない)。
     func number(_ key: String) -> Double {
         max(local.string(key).flatMap(Double.init) ?? 0, cloud.string(key).flatMap(Double.init) ?? 0)
     }
@@ -248,6 +280,10 @@ extension Notification.Name {
 }
 
 /// 期間ごとの使用額と今のプラン。中継(主スレッドの外)と画面の両方から使うので、鍵で守る。
+///
+/// 使用額は端末ごとに分けて書く(期間の鍵 + `.device.` + 端末の ID)。各端末は自分の値だけを足し、読む時は iCloud に
+/// 集まった全端末の値を合計する。iPhone と iPad で同期の前に同時に使っても、どちらかの分が消えない(大きい方だけを採ると、
+/// 小さい方の端末で使った分が消える)。期間の鍵そのものに書かれた値(端末ごとに分ける前の記録)も合計に足す。
 nonisolated final class UsageMeter: @unchecked Sendable {
     static let shared = UsageMeter.makeShared()
 
@@ -265,12 +301,33 @@ nonisolated final class UsageMeter: @unchecked Sendable {
     static let chargeKey = "usage.charge.v1"
     /// 今の契約の期限(`Transaction.expirationDate`)。更新されるとその時刻から新しい期間になるので、戻る日時はこれより後にしない。
     static let expiresAtKey = "usage.expiresAt.v1"
+    /// この端末の ID。Keychain だけに置く(入れ直しても同じ ID のまま、自分の値に足し続ける)。
+    static let deviceKey = "usage.device.v1"
+    /// 端末ごとの使用額の鍵の印(期間の鍵 + この印 + 端末の ID)。
+    static let deviceMarker = ".device."
 
-    init(values: MirroredValues = .device, defaults: UserDefaults = .standard, forcedPlan: UsagePlan?? = nil, now: @escaping @Sendable () -> Date = { Date() }) {
+    private let cloudObserver: NSObjectProtocol?
+
+    /// `observesCloud`: 別の端末の使用額が iCloud から届いたら、画面に読み直させる(本番の共有の計器だけ)。
+    init(values: MirroredValues = .device, defaults: UserDefaults = .standard, forcedPlan: UsagePlan?? = nil, observesCloud: Bool = false,
+         now: @escaping @Sendable () -> Date = { Date() }) {
         self.values = values
         self.defaults = defaults
         self.forcedPlan = forcedPlan
         self.now = now
+        if observesCloud {
+            cloudObserver = NotificationCenter.default.addObserver(forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+                                                                   object: NSUbiquitousKeyValueStore.default, queue: nil) { _ in
+                Self.notifyChanged()
+            }
+            NSUbiquitousKeyValueStore.default.synchronize()
+        } else {
+            cloudObserver = nil
+        }
+    }
+
+    deinit {
+        if let cloudObserver { NotificationCenter.default.removeObserver(cloudObserver) }
     }
 
     private static func makeShared() -> UsageMeter {
@@ -278,15 +335,22 @@ nonisolated final class UsageMeter: @unchecked Sendable {
         // 画面の確認用: `STRUIS_PLAN=none|light|standard|generous`・`STRUIS_USAGE_PERCENT=0〜100` で差し替える(端末の記録は触らない)。
         let environment = ProcessInfo.processInfo.environment
         let forced: UsagePlan?? = environment["STRUIS_PLAN"].map { value -> UsagePlan? in value == "none" ? nil : UsagePlan(rawValue: value) }
+        // UI テスト用: `STRUIS_USAGE_SEED_PREFIX` で始まる期間を `STRUIS_USAGE_SEED_USD` 使った状態から始める
+        // (端末の Keychain と iCloud は触らない。プランは StoreKit の設定ファイルの契約から受け取る)。
+        if let prefix = environment["STRUIS_USAGE_SEED_PREFIX"], let usd = environment["STRUIS_USAGE_SEED_USD"].flatMap(Double.init) {
+            let seeded = MirroredValues(local: SeededValueStore(prefix: prefix, usd: usd), cloud: MemoryValueStore())
+            let suite = "struis.usage.seeded.\(UUID().uuidString)"
+            return UsageMeter(values: seeded, defaults: UserDefaults(suiteName: suite) ?? .standard)
+        }
         if let percent = environment["STRUIS_USAGE_PERCENT"].flatMap(Double.init) {
             let plan = forced ?? nil
             let memory = MirroredValues(local: MemoryValueStore(), cloud: MemoryValueStore())
             memory.setNumber(UsageRules.limitUSD(plan: plan) * percent / 100, UsageRules.periodKey(for: Date(), chargedAt: nil))
             return UsageMeter(values: memory, defaults: UserDefaults(suiteName: "struis.usage.debug") ?? .standard, forcedPlan: forced)
         }
-        if forced != nil { return UsageMeter(forcedPlan: forced) }
+        if forced != nil { return UsageMeter(forcedPlan: forced, observesCloud: true) }
         #endif
-        return UsageMeter()
+        return UsageMeter(observesCloud: true)
     }
 
     /// 今のプラン(購入していなければ nil)。StoreKit の契約から `setPlan` で受け取り、起動直後のために端末にも控える。
@@ -370,11 +434,37 @@ nonisolated final class UsageMeter: @unchecked Sendable {
         if changed { Self.notifyChanged() }
     }
 
+    /// この端末の ID(無ければ作って Keychain に置く。ロックの中で呼ぶ)。
+    private func deviceID() -> String {
+        if let id = values.local.string(Self.deviceKey) { return id }
+        let id: String = UUID().uuidString.lowercased()
+        values.local.set(id, Self.deviceKey)
+        return id
+    }
+
+    /// 今の期間の鍵と、この端末の分の鍵(ロックの中で呼ぶ)。
+    private func periodKeys(at date: Date) -> (period: String, own: String) {
+        let charge: Charge? = storedCharge()
+        let period: String = UsageRules.periodKey(for: date, chargedAt: charge?.at, chargeID: charge?.id)
+        return (period, period + Self.deviceMarker + deviceID())
+    }
+
+    /// 期間の使用額: 端末ごとに分ける前の記録 + 全端末の分の合計(ロックの中で呼ぶ)。
+    /// この端末の分は Keychain と iCloud の大きい方(iCloud に届く前の分も数える)。ほかの端末の分は iCloud から読む。
+    private func spentUSD(period: String, own: String) -> Double {
+        var devices: [String: Double] = [:]
+        for key in values.cloud.keys(withPrefix: period + Self.deviceMarker) {
+            devices[key] = values.cloud.string(key).flatMap(Double.init) ?? 0
+        }
+        devices[own] = values.number(own)
+        return values.number(period) + devices.values.reduce(0, +)
+    }
+
     func snapshot() -> UsageSnapshot {
         let date: Date = now()
         let (charged, spent): (Date?, Double) = lock.withLock {
-            let charge: Charge? = storedCharge()
-            return (charge?.at, values.number(UsageRules.periodKey(for: date, chargedAt: charge?.at, chargeID: charge?.id)))
+            let keys = periodKeys(at: date)
+            return (storedCharge()?.at, spentUSD(period: keys.period, own: keys.own))
         }
         let plan: UsagePlan? = plan
         var resetsAt: Date = UsageRules.periodEnd(for: date, chargedAt: charged)
@@ -383,15 +473,14 @@ nonisolated final class UsageMeter: @unchecked Sendable {
         return UsageSnapshot(plan: plan, spentUSD: spent, limitUSD: UsageRules.limitUSD(plan: plan), resetsAt: resetsAt)
     }
 
-    /// 使った金額を足す(Keychain と iCloud の大きい方に足して、両方に書く)。
+    /// 使った金額を、この端末の分に足す(Keychain と iCloud の大きい方に足して、両方に書く)。
     func add(_ usd: Double) {
         guard usd > 0 else { return }
         let date: Date = now()
         lock.withLock {
             // 保存の鍵を決めるのと足すのを同じロックの中で行い、課金の更新と混ざらないようにする。
-            let charge: Charge? = storedCharge()
-            let key: String = UsageRules.periodKey(for: date, chargedAt: charge?.at, chargeID: charge?.id)
-            values.setNumber(values.number(key) + usd, key)
+            let own: String = periodKeys(at: date).own
+            values.setNumber(values.number(own) + usd, own)
         }
         Self.notifyChanged()
     }

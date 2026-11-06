@@ -148,16 +148,69 @@ final class UsageGateTests: XCTestCase {
         XCTAssertNil(UsagePlan.best(of: []))
     }
 
-    func testSpentIsTheLargerOfKeychainAndICloudAndAddsToBoth() {
+    func testRecordsFromBeforeThePerDeviceSplitStillCountAndNewSpendingGoesToThisDevice() throws {
         let now = date("2026-10-31T09:00:00+09:00")
         let key = UsageRules.weekKey(for: now)
         let local = MemoryValueStore([key: "0.10"])
         let cloud = MemoryValueStore([key: "0.30"])
         let meter = meter(plan: .light, local: local, cloud: cloud, now: now)
-        XCTAssertEqual(meter.snapshot().spentUSD, 0.30, accuracy: 1e-9, "入れ直した端末(Keychain が少ない)でも iCloud の分を数える")
+        XCTAssertEqual(meter.snapshot().spentUSD, 0.30, accuracy: 1e-9, "端末ごとに分ける前の記録は、Keychain と iCloud の大きい方")
         meter.add(0.05)
-        XCTAssertEqual(Double(local.string(key) ?? ""), 0.35)
-        XCTAssertEqual(Double(cloud.string(key) ?? ""), 0.35)
+        XCTAssertEqual(meter.snapshot().spentUSD, 0.35, accuracy: 1e-9)
+        XCTAssertEqual(local.string(key), "0.10", "前の記録には書き足さない")
+        let device = try XCTUnwrap(local.string(UsageMeter.deviceKey))
+        let own = key + UsageMeter.deviceMarker + device
+        XCTAssertEqual(Double(local.string(own) ?? ""), 0.05, "この端末の分を Keychain と iCloud の両方に書く")
+        XCTAssertEqual(Double(cloud.string(own) ?? ""), 0.05)
+    }
+
+    func testReinstallKeepsTheDeviceAndItsSpending() {
+        let now = date("2026-10-31T09:00:00+09:00")
+        let local = MemoryValueStore()
+        let cloud = MemoryValueStore()
+        meter(plan: .light, local: local, cloud: cloud, now: now).add(0.20)
+        // 入れ直し: Keychain に端末の ID と使用額が残る。iCloud に届いていなくても戻らない。
+        let reinstalled = meter(plan: .light, local: local, cloud: MemoryValueStore(), now: now)
+        XCTAssertEqual(reinstalled.snapshot().spentUSD, 0.20, accuracy: 1e-9)
+    }
+
+    func testTwoDevicesUsedBeforeICloudSyncsAreBothCounted() {
+        let now = date("2026-11-06T13:31:00+09:00")
+        // 同期の前: iPhone と iPad はそれぞれ自分の iCloud の写しに書く。
+        let phoneCloud = MemoryValueStore()
+        let padCloud = MemoryValueStore()
+        let phone = meter(plan: nil, local: MemoryValueStore(), cloud: phoneCloud, now: now)
+        let pad = meter(plan: nil, local: MemoryValueStore(), cloud: padCloud, now: now)
+        for device in [phone, pad] {
+            device.setPlan(.standard, chargeID: 21, chargedAt: now.addingTimeInterval(-3_600), expiresAt: now.addingTimeInterval(29 * 86_400))
+        }
+        phone.add(0.20)
+        pad.add(0.10)
+        XCTAssertEqual(phone.snapshot().spentUSD, 0.20, accuracy: 1e-9)
+        XCTAssertEqual(pad.snapshot().spentUSD, 0.10, accuracy: 1e-9)
+
+        // 同期: iCloud の Key-Value ストアは鍵ごとに揃う。端末ごとに鍵が違うので、どちらの分も残る。
+        for key in padCloud.keys(withPrefix: "") { phoneCloud.set(padCloud.string(key), key) }
+        for key in phoneCloud.keys(withPrefix: "") { padCloud.set(phoneCloud.string(key), key) }
+        XCTAssertEqual(phone.snapshot().spentUSD, 0.30, accuracy: 1e-9, "大きい方の 0.20 ではなく、合計の 0.30")
+        XCTAssertEqual(pad.snapshot().spentUSD, 0.30, accuracy: 1e-9)
+
+        // 同期の後に足した分も、相手に届けば合計に入る。
+        pad.add(0.05)
+        for key in padCloud.keys(withPrefix: "") { phoneCloud.set(padCloud.string(key), key) }
+        XCTAssertEqual(phone.snapshot().spentUSD, 0.35, accuracy: 1e-9)
+    }
+
+    func testSeededStoreStartsTheMatchingPeriodAsSpentAndANewPeriodFromZero() {
+        // UI テストの準備(`STRUIS_USAGE_SEED_PREFIX`): お試しの週を使い切った状態から購入すると 0 から。
+        let now = date("2026-11-06T13:31:00+09:00")
+        let seeded = MirroredValues(local: SeededValueStore(prefix: "usage.week.", usd: 0.40), cloud: MemoryValueStore())
+        let meter = UsageMeter(values: seeded, defaults: UserDefaults(suiteName: "usage-tests-\(UUID().uuidString)")!, now: { now })
+        XCTAssertEqual(meter.snapshot().spentUSD, 0.40, accuracy: 1e-9)
+        XCTAssertFalse(DeviceUsageGate(meter: meter).admit())
+        meter.setPlan(.light, chargeID: 5, chargedAt: now, expiresAt: now.addingTimeInterval(30 * 86_400))
+        XCTAssertEqual(meter.snapshot().spentUSD, 0)
+        XCTAssertTrue(DeviceUsageGate(meter: meter).admit())
     }
 
     func testSnapshotShowsPercentRemainingProblemsAndResetDate() {
