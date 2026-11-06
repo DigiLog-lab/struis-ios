@@ -43,10 +43,6 @@ final class SettingsStore {
     /// 書き出しに答案の写真・質問の添付・記憶を入れるか(「すべて」の時はいつも入れる)。
     var exportIncludesFiles = false
 
-    /// 既定オフ。オンのときだけ終わったターンの統計を送る (`UsageReporter`)。
-    var usageReportingEnabled: Bool = UsageReporter.isEnabled {
-        didSet { UsageReporter.isEnabled = usageReportingEnabled }
-    }
 
     /// 今月のトークン使用量(台帳の `turns.executions` の `turn_tokens` をモデルごとに合計)。
     private(set) var monthlyTokenUsage: TokenUsageSummary?

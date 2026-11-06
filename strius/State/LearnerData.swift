@@ -61,15 +61,8 @@ final class LearnerData {
         TimelineQueryHost.install(ledger)
     }
 
-    private var usageReporter: UsageReporter?
-
-    /// Start the usage reporter and seed fixtures (DEBUG).
-    func prepare(client: APIClient) async {
-        if usageReporter == nil {
-            let reporter = UsageReporter(ledger: ledger, client: client)
-            usageReporter = reporter
-            await reporter.start()
-        }
+    /// Seed fixtures (DEBUG).
+    func prepare() async {
         #if DEBUG
         if SimulatorFixtures.isEnabled || (isEphemeral && ProcessInfo.processInfo.environment["STRUIS_UNIT_DELETION_UI_TEST"] == "1") {
             await LedgerFixtures.seedWorkbookIfEmpty(ledger)

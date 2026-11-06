@@ -11,7 +11,7 @@
 | iCloud(CloudKit)のプライベートデータベース | 設定の「iCloud 同期」がオン(既定)の時、学習記録とファイルを利用者自身のiCloudへ送り、同じApple IDの端末から取り込みます。下の「iCloud 同期」の節を参照してください。Struisのサーバーは経由しません | [ICloudSync](../strius/Sync/ICloudSync.swift)、[CloudKitSyncTransport](../strius/Sync/CloudKitSyncTransport.swift) |
 | App Store(StoreKit) | 料金プランの商品の読み込み、購入、契約状態の受け取り。Appleのサーバーと通信します | [SubscriptionStore](../strius/State/SubscriptionStore.swift) |
 
-Struisの運営者のサーバー(`api-struis.digiloglab.com`)へは通信しません。以前の配信(指示文・schema・Skill・モデル設定の取得)と使用量報告は削除しました。
+Struisの運営者のサーバー(`api-struis.digiloglab.com`)へは通信しません。以前の配信(指示文・schema・Skill・モデル設定の取得)、使用量報告(`POST /v1/device-runtime/usage`)、realtime の接続は削除しました。
 
 設定の「利用規約」「プライバシーポリシー」は`https://struis.digiloglab.com/terms`・`/privacy`を外部のブラウザで開きます。アプリ自身は取得しません。
 
@@ -21,7 +21,7 @@ AnthropicのURLはDEBUGビルドだけ`STRUIS_ANTHROPIC_BASE_URL`で上書きで
 
 端末の単元・会話・答案の主要経路は台帳と`ClaudeTurnRunner`を使用します。チャット、会話の分岐、下調べの子ターン、単元・一枚・採点、タイムライン(出題・採点・見直し・赤ペン・知識グラフ)、オンボーディング(採点・計画)のすべてがこの経路です。モデルが求めたtoolは端末で実行します(`NativeToolRouter`。shell・Python・rgは`StruisExec`拡張、台帳の問い合わせ、資料の読み取り)。
 
-[APIEndpoint](../strius/Networking/APIEndpoint.swift)・[APIClient](../strius/Networking/APIClient.swift)には、以前のStruisサーバー向けの経路(Learning Feed、ファイルの一覧、画像の取得、DEBUGだけの実験画面)がまだ残っています。どれもStruisアカウントの認証が必須の構成(`StruisAuthRequired = YES`。開発・CIのビルド)でだけ動き、本番の構成(`StruisAuthRequired = NO`)では画面に出ないか、認証のtokenが無いため送信の前に止まります。送り先は[ServerConfig](../strius/Networking/ServerConfig.swift)で、`STRUIS_API_BASE_URL`で手元のサーバーに向けられます。
+[APIEndpoint](../strius/Networking/APIEndpoint.swift)・[APIClient](../strius/Networking/APIClient.swift)には、以前のStruisサーバー向けの経路(アカウント情報の取得、Learning Feed、ファイルの一覧、画像の取得、DEBUGだけの実験画面)がまだ残っています。どれもStruisアカウントの認証が必須の構成(`StruisAuthRequired = YES`。開発・CIのビルド)でだけ動き、本番の構成(`StruisAuthRequired = NO`)では画面に出ないか、認証のtokenが無いため送信の前に止まります。送り先は[ServerConfig](../strius/Networking/ServerConfig.swift)で、`STRUIS_API_BASE_URL`で手元のサーバーに向けられます。
 
 Auth0(`auth-struis.digiloglab.com`)のログインも、認証が必須の構成でだけ使います([Auth0Config](../strius/Auth/Auth0Config.swift)、[AuthStore](../strius/Auth/AuthStore.swift))。本番の構成ではログインの画面を出さず、Auth0へ通信しません。公開client IDは秘密値ではありません。
 

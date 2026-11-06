@@ -27,15 +27,4 @@ enum ServerConfig {
     #else
     private static func debugLaunchArgument(_ name: String) -> String? { nil }
     #endif
-
-    static var realtimeURL: URL {
-        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
-        components.scheme = baseURL.scheme == "https" ? "wss" : "ws"
-        components.path = "/v1/realtime"
-        return components.url!
-    }
-
-    /// Stable seeded problem bundle for local E2E smoke testing.
-    /// Matches `BUNDLE_ID` in `backend/scripts/seed_problems.py`.
-    static let debugSeededBundleID = UUID(uuidString: "00000000-0000-0000-0000-00000000E001")!
 }

@@ -139,30 +139,6 @@ final class LedgerTests: XCTestCase {
         } catch {}
     }
 
-    func testUsageReportDropsContentKeys() {
-        let executions: [LedgerJSON] = [.object([
-            "execution_id": .string("e1"), "requested_model": .string("gpt-6-astra"), "text": .string("秘密"),
-            "usage": .object(["input_tokens": .number(10), "final_text": .string("x")]),
-            "files": .array([.string("a")]),
-        ])]
-        let cleaned = UsageReporter.sanitized(executions)
-        let object = cleaned[0].objectValue!
-        XCTAssertNil(object["text"])
-        XCTAssertNil(object["files"])
-        XCTAssertNil(object["usage"]?.objectValue?["final_text"])
-        XCTAssertEqual(object["requested_model"]?.stringValue, "gpt-6-astra")
-    }
-
-    func testUsageReportRejectsInvalidStatisticValues() {
-        let cleaned = UsageReporter.sanitized([.object([
-            "requested_model": .string("gpt-6\n"), "actual_model": .object(["text": .string("secret")]),
-            "status": .string("secret"), "task_type": .string("secret"), "elapsed_ms": .number(-1),
-            "usage": .object(["inputTokens": .bool(true), "outputTokens": .number(0.5),
-                              "total": .object(["totalTokens": .number(13), "text": .string("secret")])]),
-        ])])
-        XCTAssertEqual(cleaned, [.object(["usage": .object(["total": .object(["totalTokens": .number(13)])])])])
-    }
-
     func testArchiveRejectsTruncatedAndOutOfBoundsZipEntries() throws {
         var writer = ZipWriter()
         writer.add(path: "manifest.json", data: Data("{}".utf8))

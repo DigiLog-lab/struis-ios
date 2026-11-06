@@ -189,7 +189,6 @@ private struct LearningRecordSettingsDetail: View {
     @State private var isImporterPresented: Bool = false
 
     var body: some View {
-        @Bindable var bindable: SettingsStore = settings
         let count: Int? = settings.ledgerEventCount
         SettingsScreen(title: "学習記録") {
             SettingsSection(header: "別の端末に移す", footer: "iCloud 同期がオンなら、同じ Apple ID の端末には自動で届きます。") {
@@ -212,19 +211,6 @@ private struct LearningRecordSettingsDetail: View {
                 }
                 .accessibilityIdentifier("settings-ledger-import")
                 LedgerExportResultRows()
-            }
-            if Auth0Config.authenticationRequired {
-                SettingsSection(footer: "モデル名・所要時間・トークン数だけです。会話やファイルは送りません。") {
-                    Toggle(isOn: $bindable.usageReportingEnabled) {
-                        Text("使用量を送る")
-                            .font(Typography.body)
-                            .foregroundStyle(Theme.primaryText)
-                    }
-                    .tint(Theme.accentColor)
-                    .padding(.horizontal, 16)
-                    .frame(minHeight: 48)
-                    .accessibilityIdentifier("settings-usage-reporting")
-                }
             }
         }
         .task { await settings.loadLedgerSummary() }

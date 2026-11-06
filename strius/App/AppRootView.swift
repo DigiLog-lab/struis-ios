@@ -8,7 +8,6 @@ struct AppRootView: View {
     @Environment(AuthStore.self) private var auth
     @Environment(BootstrapStore.self) private var bootstrap
     @Environment(ChatStore.self) private var chat
-    @Environment(APIClient.self) private var apiClient
     @Environment(LearnerData.self) private var learnerData
     @Environment(WorkbookStore.self) private var workbook
     @Environment(WorkbookCoordinator.self) private var coordinator
@@ -131,7 +130,7 @@ struct AppRootView: View {
         }
         .task(id: auth.canUseApp) {
             guard auth.canUseApp else { return }
-            await learnerData.prepare(client: apiClient)
+            await learnerData.prepare()
             // Fixtures may have just seeded the ledger; re-read the thread list.
             await bootstrap.refreshThreads()
             await learnerData.turns.resumeUnfinished()

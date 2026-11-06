@@ -261,37 +261,4 @@ struct DTODecodingTests {
             URLQueryItem(name: "page", value: "2"),
         ])
     }
-
-    @Test func decodeRealtimeEvent() {
-        let completed = RealtimeEvent.decode(
-            from: #"{"type":"thread.message.completed","data":{"thread_id":"22222222-0000-0000-0000-000000000000","message_id":"33333333-0000-0000-0000-000000000000"}}"#
-        )
-        if case .threadMessageCompleted(let threadID, let messageID) = completed {
-            #expect(threadID.uuidString == "22222222-0000-0000-0000-000000000000")
-            #expect(messageID.uuidString == "33333333-0000-0000-0000-000000000000")
-        } else {
-            Issue.record("Expected threadMessageCompleted, got \(String(describing: completed))")
-        }
-
-        #expect(RealtimeEvent.decode(from: "pong") == .pong)
-
-        let attempt = RealtimeEvent.decode(
-            from: #"{"type":"attempt.updated","data":{"thread_id":"22222222-0000-0000-0000-000000000000","attempt_id":"44444444-0000-0000-0000-000000000002"}}"#
-        )
-        if case .attemptUpdated(let threadID, let attemptID) = attempt {
-            #expect(threadID?.uuidString == "22222222-0000-0000-0000-000000000000")
-            #expect(attemptID.uuidString == "44444444-0000-0000-0000-000000000002")
-        } else {
-            Issue.record("Expected attemptUpdated, got \(String(describing: attempt))")
-        }
-
-        let unknown = RealtimeEvent.decode(
-            from: #"{"type":"legacy.event","data":{"id":"44444444-0000-0000-0000-000000000000"}}"#
-        )
-        if case .unknown(let type) = unknown {
-            #expect(type == "legacy.event")
-        } else {
-            Issue.record("Expected unknown, got \(String(describing: unknown))")
-        }
-    }
 }

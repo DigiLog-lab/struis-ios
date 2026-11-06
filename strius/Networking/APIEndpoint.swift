@@ -15,7 +15,6 @@ struct APIEndpoint {
 
     static let appleExchange = APIEndpoint(method: .post, path: "/v1/auth/apple/exchange", requiresAuth: false)
     static let refresh = APIEndpoint(method: .post, path: "/v1/auth/refresh", requiresAuth: false)
-    static let realtimeTicket = APIEndpoint(method: .post, path: "/v1/auth/realtime-ticket")
     static let bootstrap = APIEndpoint(method: .get, path: "/v1/bootstrap")
     static let listThreads = APIEndpoint(method: .get, path: "/v1/threads")
     static let createThread = APIEndpoint(method: .post, path: "/v1/threads")

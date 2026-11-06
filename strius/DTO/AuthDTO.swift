@@ -22,8 +22,3 @@ struct RefreshResponse: Decodable {
     let accessToken: String
     let refreshToken: String
 }
-
-struct RealtimeTicketResponse: Decodable {
-    let token: String
-    let expiresAt: Int
-}

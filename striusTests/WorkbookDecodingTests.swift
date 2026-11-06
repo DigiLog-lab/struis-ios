@@ -76,12 +76,4 @@ struct WorkbookDecodingTests {
         #expect(APIEndpoint.workbookStartProposal(id: "p1").path == "/v1/workbook/proposals/p1/start")
         #expect(APIEndpoint.workbookCaptures(only: "triage").queryItems.contains { $0.name == "only" && $0.value == "triage" })
     }
-
-    @Test
-    func realtimeWorkbookEventsDecode() {
-        let text = """
-        {"type":"workbook.capture.updated","user_id":"u","data":{"capture_id":"c1","status":"graded"},"created_at":"2026-09-16T07:48:00Z"}
-        """
-        #expect(RealtimeEvent.decode(from: text) == .workbookCaptureUpdated(captureID: "c1", status: "graded"))
-    }
 }
