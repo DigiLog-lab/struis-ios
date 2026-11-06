@@ -12,8 +12,8 @@ GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Cla
 | macOS Worker | 同 `worker` job(`xcode-27`) | 作業ブランチの準備と main の取り込み、受け渡しファイルの展開、Claude Code の実行、返信・使用量・記録の保存 |
 | Claude Code | `anthropics/claude-code-action`(commit 固定) | 自動化モード(`prompt` 指定)。毎回新しいセッションで、Issue のやり取りを履歴として渡す |
 | 制御スクリプト | `scripts/agent/agentctl.py`、`agentlib.py` | 経路判定、prompt 生成、実行結果の解析、Issue への返信、Claude から使う補助コマンド |
-| 検証の報告 | 同 `report` job と `queue-report` job(ubuntu)、`scripts/agent/verify_report.py` | `report` は `ios.yml` の `Verify PR #<n> <sha>`(キューに入れる前に1つの HEAD を確かめる時)の結果を commit status `Struis / verify` にする。`queue-report` はマージキューの検証が赤だった時に失敗を記録してエージェントを起こす |
-| 衝突の確認 | 同 `refresh` job(ubuntu)、`scripts/agent/refresh.py` | main が進んだら、レビュー待ちのエージェントの PR のうち main と衝突するもののエージェントを起こす。あわせて、閉じた Issue の `agent/issue-<n>`(`-wip` などの付いた枝も含む)を、そこから開いた PR が無ければ削除する |
+| 検証の報告 | 同 `report` job(ubuntu)、`scripts/agent/verify_report.py` | `ios.yml` の `Verify PR #<n> <sha>` の結果を commit status `Struis / verify` にし、赤ならエージェントを起こす |
+| PR の取り込み直し | 同 `refresh` job(ubuntu)、`scripts/agent/refresh.py` | main が進んだら、レビュー待ちのエージェントの PR に GitHub 側で main を取り込み(「Update branch」と同じ)、新しい HEAD を検証し直す。衝突したらエージェントを起こす。あわせて、閉じた Issue の `agent/issue-<n>`(`-wip` などの付いた枝も含む)を、そこから開いた PR が無ければ削除する |
 | 後片付け | 同 `cleanup` job(ubuntu)、`scripts/agent/cleanup.py` | Issue が閉じたら、作業ブランチの DerivedData cache、作業ブランチ(そこから開いた PR が無い時だけ。マージ済み・閉じた PR のページから復元できる)、`handoff/issue-<n>` を削除 |
 | 固定システムプロンプト | `scripts/agent/system-prompt.md` | エージェントの作業規則。会話ごとに変わる情報は含めない |
 | 保存先 | `cloudflare/agent`(Worker)+ R2 バケット `struis-agent` | 状態、使用量、返信の添付画像、プロトタイプの記録と IPA。CI は GitHub OIDC で認証(受け付けるのは `agent.yml` と `agent-prototype.yml`) |
@@ -26,10 +26,10 @@ GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Cla
 2. `route` が、投稿者がリポジトリの OWNER / MEMBER / COLLABORATOR であること(Repository variable `AGENT_ALLOWED_USERS` を設定した場合はその一覧)と、未処理のコメントがあることを確認します。Bot の投稿とエージェント自身の返信は対象外です。
 3. `worker` が作業ブランチ(`agent/issue-<n>`)を origin から取り、最新の main を取り込みます。衝突したら取り込みを中止し、最初に解消するよう Claude に伝えます。`handoff/issue-<n>` があれば `$AGENT_HOME/handoff` に展開します。
 4. Claude は毎回新しいセッションで、Issue 本文・それまでのやり取り・記録済みの設計判断(`decision`)・新しいコメントを受け取ります。
-5. 作業を終えたら push 済み HEAD で `local-verify`(全単体テスト＋変更に関係する UI テスト)を流し、緑なら `ready` で PR をレビュー待ちにし、マージキューに入れられるようにします(`ios.yml` の `admit`)。そこでセッションを終えます。
-6. 人がレビューして「Merge when ready」でキューに入れると、キューが「最新の main＋先に並んだ PR＋この PR」の commit を作り、`ios.yml` が検証します。緑ならそのまま main にマージされます。赤なら PR はキューから外れ、`queue-report` が失敗の内容を記録してエージェントを起こします。
-7. main が進むと、`refresh` がレビュー待ちの PR のうち main と衝突するもののエージェントを起こして解消させます。衝突しない PR はそのまま待ちます(キューが最新の main と合わせて検証するため)。
-8. Issue の本文に `前提: #<n>` があると、作業ブランチを前提の作業ブランチから切ります([verification-and-delivery-policy.md](verification-and-delivery-policy.md))。
+5. 作業を終えたら push 済み HEAD で `local-verify`(全単体テスト＋変更に関係する UI テスト)を流し、緑なら `ready` で PR をレビュー待ちにして `ios.yml` の検証を起動します。結果は待たずにセッションを終えます。
+6. `report` が検証の結果を commit status にします。緑なら Issue にマージできる旨を投稿し、赤なら失敗の内容を記録してエージェントを起こします。マージは人が行います。
+7. PR がマージされて main が進むと、`refresh` が他のレビュー待ちの PR(人の PR も含む)に最新の main を取り込み、検証し直します。取り込みが衝突したエージェントの PR は、そのエージェントを起こして解消させます。
+8. Issue の本文に `前提: #<n>` があると、作業ブランチを前提の作業ブランチから切ります。見た目だけの変更の扱いも含め、[verification-and-delivery-policy.md](verification-and-delivery-policy.md) にあります。
 
 実行が途中で止まっても自動では再開しません。push 済みの commit は作業ブランチに残り、Issue へのコメントで新しく始めます。失敗した実行が扱っていたコメントは未処理のまま残るので、次の実行で一緒に扱います。Claude の step は300分、job は340分です。
 
@@ -39,7 +39,7 @@ GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Cla
 - **ファイル**: コメントに載せられないもの(参考スクリーンショット、デザインの寸法、AI 応答の固定データ)は、Issue ごとの `handoff/issue-<n>` に置きます。main と履歴を共有しない空のブランチで、workflow を含まないので push しても何も起動しません。中身は常に1コミットに上書きし、Issue が閉じたら `cleanup` が削除します。
 - **結果**: 返信と、そこに貼られるスクリーンショット(`agentctl shot`)。run の artifact(`agent-issue-<n>-run-…`、14日保存)には、`screens.json`(画面名・起動引数・commit)、手元検証の結果と失敗の一覧(`failures.json`)、アプリのログ(`agentctl applog`)、模擬 Claude サーバーの要求と応答、Claude Code のセッション記録が入ります。Claude の説明・ツール呼出し・結果は Actions のログにも逐次出ます。
 - **公開範囲**: リポジトリは公開なので、artifact も Actions のログも公開です。保存前に、認証情報の値(環境変数の値そのものと、トークン・鍵の形)を伏せ字にします(`agentlib.redact_tree`、`live-log.cjs`)。
-- **直接修正**: web 版の Claude は作業ブランチへ直接 commit することがあります。エージェントの実行中は push せず、強制 push は使いません。コミットメッセージは `hotfix:` で始め、Issue に「hotfix: <SHA> 何を・なぜ」を残します。push した HEAD は `repository_dispatch` の `admit` でキューに入れられるようにします(キューに入れる前に確かめたい時は `verify`)。
+- **直接修正**: web 版の Claude は作業ブランチへ直接 commit することがあります。エージェントの実行中は push せず、強制 push は使いません。コミットメッセージは `hotfix:` で始め、Issue に「hotfix: <SHA> 何を・なぜ」を残します。push した HEAD の検証は `repository_dispatch` の `verify` で起動します。
 
 ## DerivedData と cache
 
