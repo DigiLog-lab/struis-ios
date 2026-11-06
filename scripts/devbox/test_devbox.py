@@ -157,6 +157,27 @@ class DevBoxRoundTripTests(unittest.TestCase):
                                      capture_output=True, text=True, check=True).stdout
         self.assertTrue(listed, "a result that finished just now was deleted")
 
+    def test_a_result_that_could_not_be_published_is_published_later(self) -> None:
+        origin: pathlib.Path = self.root / "origin.git"
+        flag: pathlib.Path = self.root / "reject-results"
+        hook: pathlib.Path = origin / "hooks" / "pre-receive"
+        hook.write_text(
+            "#!/bin/sh\n"
+            f"[ -e {flag} ] || exit 0\n"
+            "while read old new ref; do case \"$ref\" in refs/heads/devbox-out/*-[0-9a-f]*) "
+            "git cat-file -p \"$new:state\" 2>/dev/null | grep -qx done && exit 1;; esac; done\n"
+            "exit 0\n"
+        )
+        hook.chmod(0o755)
+        flag.touch()
+        try:
+            command_id: str = self.mac("run", "--async", "--", "echo published-later").stdout.strip()
+            time.sleep(20)  # finished; its three publications of "done" are refused
+        finally:
+            flag.unlink()
+        result = self.mac("wait", command_id, "--timeout", "40")
+        self.assertIn("published-later", result.stdout)
+
     def test_several_arguments_are_kept_as_arguments(self) -> None:
         result = self.mac("run", "--", "printf", "%s|", "a b", "c")
         self.assertIn("a b|c|", result.stdout)

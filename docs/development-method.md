@@ -45,7 +45,7 @@
 ## 5. Dev Box(Claude のリモート開発環境)
 - **いつ立てるか**: アプリのコードに触る作業を始めたら、最初に立てる。
 - **起動**: `mac.py start <branch>` が `repository_dispatch`(型 `devbox`)を送り、`.github/workflows/devbox.yml` が main の定義のまま動いて、作業ブランチを checkout する。作業ブランチの定義で起動すると、そのブランチがジョブの権限を書き換えられるため。serve.sh も main のものを作業ツリーの外にコピーして動かす(bash は実行中のスクリプトを少しずつ読むので、作業ブランチへの切り替えで書き換わると壊れる)。
-- **立ち上がり**: ネイティブ依存のキャッシュを戻して1回ビルドし、それからシミュレータを起動して待機する。ビルド中に起動すると、メモリ(7GB)の取り合いでビルドが4倍に延びた。DerivedData のキャッシュは未検証(「15. 未検証の前提」)。かかる時間は「14. 見込み」。
+- **立ち上がり**: ネイティブ依存のキャッシュを戻して(作業ブランチが `NativeRuntime` を変えていてキャッシュが無ければ、先に `agent-native-cache.yml` が作る。約50分)1回ビルドし、それからシミュレータを起動して待機する。ビルド中に起動すると、メモリ(7GB)の取り合いでビルドが4倍に延びた。DerivedData のキャッシュは未検証(「15. 未検証の前提」)。かかる時間は「14. 見込み」。
 - **リモート実行(`mac` コマンド)**: `scripts/devbox/mac.py`。手元の端末と同じ感覚で使う。
   - 例: `mac.py run -- xcodebuild test-without-building -only-testing:striusTests/UsageGateTests`、`mac.py run -- 'xcrun simctl io booted screenshot "$DEVBOX_FILES/home.png"'`。命令の中では `$SIMULATOR_UDID`(起動済みの iPhone 17)と `$DERIVED_DATA` が使える。
   - 引数が1つならシェルの1行として、2つ以上ならそのままの引数として実行する。

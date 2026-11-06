@@ -53,6 +53,24 @@ publish() {
     sleep $(( attempt * 2 ))
   done
   echo "::warning::devbox: could not publish $name"
+  return 1
+}
+
+# Final results whose publication failed: "<dir> <name>" per line, published again while waiting, so a
+# push outage does not leave `mac.py wait` looking at "running" for ever.
+unpublished=$STATE/unpublished.txt
+: > "$unpublished"
+publish_final() {
+  publish "$1" "$2" "$3" || echo "$1 $2" >> "$unpublished"
+}
+retry_unpublished() {
+  local dir name rest=$STATE/unpublished.rest
+  [[ -s "$unpublished" ]] || return 0
+  : > "$rest"
+  while read -r dir name; do
+    publish "$dir" "$name" "devbox $name (published again)" || echo "$dir $name" >> "$rest"
+  done < "$unpublished"
+  mv "$rest" "$unpublished"
 }
 
 delete_ref() {
@@ -153,6 +171,7 @@ while :; do
   if (( now > DEADLINE )); then echo "devbox: deadline reached, stopping"; break; fi
   next_command=$(pending | head -n 1)
   if [[ -z "$next_command" ]]; then
+    retry_unpublished
     (( now % 60 < POLL )) && cleanup_finished
     sleep "$POLL"; continue
   fi
@@ -169,7 +188,7 @@ while :; do
   if [[ "$id" == *-stop || "$id" == *-kill ]]; then
     status "$out" "$id" done 0
     echo "received=$received" > "$out/times"
-    publish "$out" "$id" "devbox $id (nothing running)"
+    publish_final "$out" "$id" "devbox $id (nothing running)"
     echo "$(date +%s) $id" >> "$finished_list"
     if [[ "$id" == *-stop ]]; then echo "devbox: stop requested"; break; fi
     continue
@@ -184,7 +203,7 @@ while :; do
     { echo "received=$received"; echo "started=$started"; echo "finished=$(date +%s)"; } > "$out/times"
     cp "$log" "$out/log.tail.txt"
     status "$out" "$id" done 125
-    publish "$out" "$id" "devbox $id not run"
+    publish_final "$out" "$id" "devbox $id not run"
     echo "$(date +%s) $id" >> "$finished_list"
     idle_since=$(date +%s)
     continue
@@ -235,9 +254,10 @@ while :; do
   tail -n 400 "$log" > "$out/log.tail.txt"
   gzip -c "$log" > "$out/log.txt.gz"
   status "$out" "$id" done "$code"
-  publish "$out" "$id" "devbox $id exit $code"
+  publish_final "$out" "$id" "devbox $id exit $code"
   echo "$finished $id" >> "$finished_list"
   echo "devbox: $id exit $code in $(( finished - started ))s"
   idle_since=$(date +%s)
   if [[ -n "$stop_after" ]]; then echo "devbox: stop requested"; break; fi
 done
+retry_unpublished

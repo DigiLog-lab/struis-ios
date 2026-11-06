@@ -22,7 +22,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The Native Runtime cache of the work branch: agent-native-cache.yml is its only builder, as for ios.yml.
+  # With the cache already there (the usual case) it only looks it up; a branch that changes NativeRuntime
+  # gets its cache built here (about 50 minutes) instead of a Dev Box that cannot start.
+  native:
+    uses: ./.github/workflows/agent-native-cache.yml
+    with:
+      ref: ${{ github.event.client_payload.branch }}
+
   devbox:
+    needs: native
     runs-on: xcode-27
     timeout-minutes: 360
     permissions:
