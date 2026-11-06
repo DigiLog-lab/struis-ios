@@ -4,7 +4,7 @@ import OSLog
 nonisolated private let usageLog = Logger(subsystem: "com.digiloglab.strius", category: "usage")
 
 /// 料金プラン(#62、2026-10-30 決定)。プラン間で機能の差はつけず、1 週間に使える Claude 代だけが違う。
-/// 上限は内部的に週ごとのドルで持つ(Claude 代は手取りの 50% 以内、1 ドル 160 円)。問題数は 1 問 ¥10 で割って切り下げた目安。
+/// 上限は内部的に 7 日ごとのドルで持つ(Claude 代は手取りの 50% 以内、1 ドル 160 円)。7 日は課金した時刻から数える。問題数は 1 問 ¥10 で割って切り下げた目安。
 nonisolated enum UsagePlan: String, CaseIterable, Codable, Sendable {
     case light, standard, generous
 
@@ -97,23 +97,50 @@ nonisolated enum UsageRules {
 
     static func limitUSD(plan: UsagePlan?) -> Double { plan?.weeklyLimitUSD ?? trialLimitUSD }
 
-    /// 週の始まり(端末の時刻で月曜 0:00)。購読の開始日を起点にした週は #62 の後続で替える。
+    /// 1 期間の長さ(7 日)。課金した時刻から数えるので、暦や時間帯によらず秒で持つ。
+    static let periodSeconds: TimeInterval = 7 * 86_400
+
+    /// 週の始まり(端末の時刻で月曜 0:00)。課金したことが無い時(お試しだけ)の区切り。
     static func weekStart(for date: Date, calendar: Calendar = .current) -> Date {
         var calendar = calendar
         calendar.firstWeekday = 2
         return calendar.dateInterval(of: .weekOfYear, for: date)?.start ?? calendar.startOfDay(for: date)
     }
 
-    /// 次に枠が戻る日時(次の月曜 0:00)。
+    /// 次に枠が戻る日時(次の月曜 0:00)。課金したことが無い時の区切り。
     static func resetDate(after date: Date, calendar: Calendar = .current) -> Date {
         calendar.date(byAdding: .day, value: 7, to: weekStart(for: date, calendar: calendar)) ?? date
     }
 
-    /// 保存の鍵(週の始まりの日付)。
+    /// 保存の鍵(週の始まりの日付)。課金したことが無い時の区切り。
     static func weekKey(for date: Date, calendar: Calendar = .current) -> String {
         let start = weekStart(for: date, calendar: calendar)
         let parts = calendar.dateComponents([.year, .month, .day], from: start)
         return String(format: "usage.week.%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    /// `date` を含む期間の始まり。`chargedAt`(最後に課金された時刻: 購入・上げた時・更新)があれば、そこから 7 日ごとに
+    /// 区切る(課金すると使用額が 0 から始まる)。無ければ月曜 0:00 区切り。
+    static func periodStart(for date: Date, chargedAt: Date?, calendar: Calendar = .current) -> Date {
+        guard let chargedAt else { return weekStart(for: date, calendar: calendar) }
+        let elapsed: TimeInterval = date.timeIntervalSince(chargedAt)
+        let count: Double = (elapsed / periodSeconds).rounded(.down)
+        return chargedAt.addingTimeInterval(count * periodSeconds)
+    }
+
+    /// 期間の終わり(次に枠が戻る日時)。
+    static func periodEnd(for date: Date, chargedAt: Date?, calendar: Calendar = .current) -> Date {
+        guard chargedAt != nil else { return resetDate(after: date, calendar: calendar) }
+        return periodStart(for: date, chargedAt: chargedAt, calendar: calendar).addingTimeInterval(periodSeconds)
+    }
+
+    /// 期間の使用額を保存する鍵。課金したことが無ければ `weekKey`、あれば課金の取引 ID と期間の始まりの UNIX 秒
+    /// (取引 ID も入れるのは、同じ秒に 2 回課金されても別の期間にするため)。
+    static func periodKey(for date: Date, chargedAt: Date?, chargeID: UInt64? = nil, calendar: Calendar = .current) -> String {
+        guard chargedAt != nil else { return weekKey(for: date, calendar: calendar) }
+        let start: Date = periodStart(for: date, chargedAt: chargedAt, calendar: calendar)
+        let id: String = chargeID.map { "\($0)." } ?? ""
+        return "usage.period.\(id)\(Int64(start.timeIntervalSince1970.rounded(.down)))"
     }
 
     /// 料金が分からない要求(`usage_unavailable`・`unknown_model`)の見積もり。少なく数えない側に倒す:
@@ -141,18 +168,27 @@ nonisolated enum UsageRules {
 nonisolated protocol DeviceValueStore: Sendable {
     func string(_ key: String) -> String?
     func set(_ value: String?, _ key: String)
+    /// `prefix` で始まる鍵の一覧。iCloud(全端末の値が集まる)でだけ使う。
+    func keys(withPrefix prefix: String) -> [String]
 }
 
 nonisolated struct KeychainValueStore: DeviceValueStore {
     var keychain = KeychainStore(service: "com.digiloglab.strius.device-record")
+    /// バックアップから別の端末へ移さない鍵。端末の ID が 2 台で同じになると、2 台の使用額が同じ鍵で上書きし合い、合計されない。
+    var deviceOnlyKeys: Set<String> = [UsageMeter.deviceKey]
     func string(_ key: String) -> String? { keychain.get(key) }
     func set(_ value: String?, _ key: String) {
-        if let value { keychain.set(value, for: key) } else { keychain.delete(key) }
+        if let value { keychain.set(value, for: key, thisDeviceOnly: deviceOnlyKeys.contains(key)) } else { keychain.delete(key) }
     }
+    /// Keychain にはこの端末の値しか無いので、一覧は使わない。
+    func keys(withPrefix prefix: String) -> [String] { [] }
 }
 
 nonisolated struct CloudValueStore: DeviceValueStore {
     func string(_ key: String) -> String? { NSUbiquitousKeyValueStore.default.string(forKey: key) }
+    func keys(withPrefix prefix: String) -> [String] {
+        NSUbiquitousKeyValueStore.default.dictionaryRepresentation.keys.filter { $0.hasPrefix(prefix) }
+    }
     func set(_ value: String?, _ key: String) {
         if let value { NSUbiquitousKeyValueStore.default.set(value, forKey: key) } else { NSUbiquitousKeyValueStore.default.removeObject(forKey: key) }
         NSUbiquitousKeyValueStore.default.synchronize()
@@ -166,7 +202,32 @@ nonisolated final class MemoryValueStore: DeviceValueStore, @unchecked Sendable 
     init(_ values: [String: String] = [:]) { self.values = values }
     func string(_ key: String) -> String? { lock.withLock { values[key] } }
     func set(_ value: String?, _ key: String) { lock.withLock { values[key] = value } }
+    func keys(withPrefix prefix: String) -> [String] { lock.withLock { values.keys.filter { $0.hasPrefix(prefix) } } }
 }
+
+#if DEBUG
+/// UI テスト用(`STRUIS_USAGE_SEED_PREFIX`・`STRUIS_USAGE_SEED_USD`): `prefix` で始まる期間の鍵がまだ書かれていなければ、
+/// その期間に `usd` を使った状態として読ませる(端末ごとの鍵は除く)。課金で期間が替わった時に 0 に戻るかを画面で確かめる。
+nonisolated final class SeededValueStore: DeviceValueStore, @unchecked Sendable {
+    private let base: MemoryValueStore = MemoryValueStore()
+    private let prefix: String
+    private let usd: Double
+
+    init(prefix: String, usd: Double) {
+        self.prefix = prefix
+        self.usd = usd
+    }
+
+    func string(_ key: String) -> String? {
+        if let value = base.string(key) { return value }
+        guard key.hasPrefix(prefix), !key.contains(UsageMeter.deviceMarker) else { return nil }
+        return String(usd)
+    }
+
+    func set(_ value: String?, _ key: String) { base.set(value, key) }
+    func keys(withPrefix prefix: String) -> [String] { base.keys(withPrefix: prefix) }
+}
+#endif
 
 /// Keychain と iCloud の Key-Value ストアの組。
 nonisolated struct MirroredValues: Sendable {
@@ -175,7 +236,7 @@ nonisolated struct MirroredValues: Sendable {
 
     static let device = MirroredValues(local: KeychainValueStore(), cloud: CloudValueStore())
 
-    /// 数は大きい方を採る(使用額・お試しの数を、入れ直しや別の端末で戻さない)。
+    /// 数は大きい方を採る(お試しの数・使用額を、入れ直しで戻さない)。
     func number(_ key: String) -> Double {
         max(local.string(key).flatMap(Double.init) ?? 0, cloud.string(key).flatMap(Double.init) ?? 0)
     }
@@ -221,6 +282,10 @@ extension Notification.Name {
 }
 
 /// 期間ごとの使用額と今のプラン。中継(主スレッドの外)と画面の両方から使うので、鍵で守る。
+///
+/// 使用額は端末ごとに分けて書く(期間の鍵 + `.device.` + 端末の ID)。各端末は自分の値だけを足し、読む時は iCloud に
+/// 集まった全端末の値を合計する。iPhone と iPad で同期の前に同時に使っても、どちらかの分が消えない(大きい方だけを採ると、
+/// 小さい方の端末で使った分が消える)。期間の鍵そのものに書かれた値(端末ごとに分ける前の記録)も合計に足す。
 nonisolated final class UsageMeter: @unchecked Sendable {
     static let shared = UsageMeter.makeShared()
 
@@ -232,12 +297,40 @@ nonisolated final class UsageMeter: @unchecked Sendable {
     private let forcedPlan: UsagePlan??
 
     static let planKey = "usage.plan.v1"
+    /// 最後の課金(購入・上げた時・更新)。値は「`Transaction.purchaseDate` の UNIX 秒|`Transaction.id`」の 1 つの文字列で、
+    /// 期間はこの時刻から 7 日ごと。時刻と ID を 1 つの値にして、片方だけ新しい組み合わせで鍵を作らないようにする。
+    /// 使用額と同じ Keychain と iCloud に置く(入れ直しても、プランが切れた後のその期間の使用額を引き継ぐため)。
+    static let chargeKey = "usage.charge.v1"
+    /// 次の更新の予定日時(自動更新が続いている時の `Transaction.expirationDate`)。更新されるとその時刻から新しい期間になるので、
+    /// 戻る日時はこれより後にしない。解約の予約中は更新されず期間も替わらないので、持たない。
+    static let renewsAtKey = "usage.renewsAt.v1"
+    /// この端末の ID。Keychain だけに置き、バックアップから別の端末へは移さない(入れ直しても同じ ID のまま、自分の値に足し続ける)。
+    static let deviceKey = "usage.device.v1"
+    /// 端末ごとの使用額の鍵の印(期間の鍵 + この印 + 端末の ID)。
+    static let deviceMarker = ".device."
 
-    init(values: MirroredValues = .device, defaults: UserDefaults = .standard, forcedPlan: UsagePlan?? = nil, now: @escaping @Sendable () -> Date = { Date() }) {
+    private let cloudObserver: NSObjectProtocol?
+
+    /// `observesCloud`: 別の端末の使用額が iCloud から届いたら、画面に読み直させる(本番の共有の計器だけ)。
+    init(values: MirroredValues = .device, defaults: UserDefaults = .standard, forcedPlan: UsagePlan?? = nil, observesCloud: Bool = false,
+         now: @escaping @Sendable () -> Date = { Date() }) {
         self.values = values
         self.defaults = defaults
         self.forcedPlan = forcedPlan
         self.now = now
+        if observesCloud {
+            cloudObserver = NotificationCenter.default.addObserver(forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+                                                                   object: NSUbiquitousKeyValueStore.default, queue: nil) { _ in
+                Self.notifyChanged()
+            }
+            NSUbiquitousKeyValueStore.default.synchronize()
+        } else {
+            cloudObserver = nil
+        }
+    }
+
+    deinit {
+        if let cloudObserver { NotificationCenter.default.removeObserver(cloudObserver) }
     }
 
     private static func makeShared() -> UsageMeter {
@@ -245,15 +338,22 @@ nonisolated final class UsageMeter: @unchecked Sendable {
         // 画面の確認用: `STRUIS_PLAN=none|light|standard|generous`・`STRUIS_USAGE_PERCENT=0〜100` で差し替える(端末の記録は触らない)。
         let environment = ProcessInfo.processInfo.environment
         let forced: UsagePlan?? = environment["STRUIS_PLAN"].map { value -> UsagePlan? in value == "none" ? nil : UsagePlan(rawValue: value) }
+        // UI テスト用: `STRUIS_USAGE_SEED_PREFIX` で始まる期間を `STRUIS_USAGE_SEED_USD` 使った状態から始める
+        // (端末の Keychain と iCloud は触らない。プランは StoreKit の設定ファイルの契約から受け取る)。
+        if let prefix = environment["STRUIS_USAGE_SEED_PREFIX"], let usd = environment["STRUIS_USAGE_SEED_USD"].flatMap(Double.init) {
+            let seeded = MirroredValues(local: SeededValueStore(prefix: prefix, usd: usd), cloud: MemoryValueStore())
+            let suite = "struis.usage.seeded.\(UUID().uuidString)"
+            return UsageMeter(values: seeded, defaults: UserDefaults(suiteName: suite) ?? .standard)
+        }
         if let percent = environment["STRUIS_USAGE_PERCENT"].flatMap(Double.init) {
             let plan = forced ?? nil
             let memory = MirroredValues(local: MemoryValueStore(), cloud: MemoryValueStore())
-            memory.setNumber(UsageRules.limitUSD(plan: plan) * percent / 100, UsageRules.weekKey(for: Date()))
+            memory.setNumber(UsageRules.limitUSD(plan: plan) * percent / 100, UsageRules.periodKey(for: Date(), chargedAt: nil))
             return UsageMeter(values: memory, defaults: UserDefaults(suiteName: "struis.usage.debug") ?? .standard, forcedPlan: forced)
         }
-        if forced != nil { return UsageMeter(forcedPlan: forced) }
+        if forced != nil { return UsageMeter(forcedPlan: forced, observesCloud: true) }
         #endif
-        return UsageMeter()
+        return UsageMeter(observesCloud: true)
     }
 
     /// 今のプラン(購入していなければ nil)。StoreKit の契約から `setPlan` で受け取り、起動直後のために端末にも控える。
@@ -262,25 +362,130 @@ nonisolated final class UsageMeter: @unchecked Sendable {
         return defaults.string(forKey: Self.planKey).flatMap(UsagePlan.init(rawValue:))
     }
 
-    func setPlan(_ plan: UsagePlan?) {
-        guard forcedPlan == nil, plan != self.plan else { return }
-        defaults.set(plan?.rawValue, forKey: Self.planKey)
-        usageLog.info("plan is now \(plan?.rawValue ?? "none", privacy: .public)")
-        Self.notifyChanged()
+    /// 課金の時刻と取引 ID の組。
+    private struct Charge {
+        var at: Date
+        var id: UInt64?
+
+        init(at: Date, id: UInt64?) {
+            self.at = at
+            self.id = id
+        }
+
+        init?(_ text: String?) {
+            guard let parts = text?.split(separator: "|", omittingEmptySubsequences: false), let seconds = parts.first.flatMap({ Double($0) }) else { return nil }
+            self.init(at: Date(timeIntervalSince1970: seconds), id: parts.count > 1 ? UInt64(parts[1]) : nil)
+        }
+
+        var text: String { "\(at.timeIntervalSince1970)|\(id.map(String.init) ?? "")" }
+
+        /// 時刻が新しい方。同じ時刻なら取引 ID の大きい方。
+        func isNewer(than other: Charge?) -> Bool {
+            guard let other else { return true }
+            return at > other.at || (at == other.at && (id ?? 0) > (other.id ?? 0))
+        }
+    }
+
+    /// 最後の課金。Keychain と iCloud の新しい方(鍵の中で呼ぶ)。
+    private func storedCharge() -> Charge? {
+        guard forcedPlan == nil else { return nil }
+        let local: Charge? = Charge(values.local.string(Self.chargeKey))
+        let cloud: Charge? = Charge(values.cloud.string(Self.chargeKey))
+        guard let local else { return cloud }
+        return cloud.map { $0.isNewer(than: local) ? $0 : local } ?? local
+    }
+
+    /// 最後に課金された時刻(課金したことが無ければ nil)。
+    var chargedAt: Date? { lock.withLock { storedCharge()?.at } }
+
+    /// 最後に課金された取引の ID(課金したことが無ければ nil)。
+    var chargeID: UInt64? { lock.withLock { storedCharge()?.id } }
+
+    /// 次の更新の予定日時(自動更新が続いていなければ nil)。
+    var renewsAt: Date? {
+        guard forcedPlan == nil, defaults.object(forKey: Self.renewsAtKey) != nil else { return nil }
+        return Date(timeIntervalSince1970: defaults.double(forKey: Self.renewsAtKey))
+    }
+
+    /// 今の契約を受け取る。`chargedAt`・`chargeID` は一番上のプランの最新の取引の `purchaseDate`・`id`(購入・上げた時・
+    /// 更新で新しい取引になる)。今の取引より新しい時だけ進める(遅れて届いた古い契約の状態で、前の期間に戻さない)。
+    /// 時刻が同じ時は取引 ID の大きい方を新しいとみなす。下げる予約・解約の予約は課金ではないので取引が変わらず、期間もそのまま。
+    /// `renewsAt` は自動更新が続いている時だけ渡す(解約の予約中は、期限が来てもプランが終わるだけで使用額は戻らない)。
+    func setPlan(_ plan: UsagePlan?, chargeID: UInt64? = nil, chargedAt: Date? = nil, renewsAt: Date? = nil) {
+        guard forcedPlan == nil else { return }
+        var changed: Bool = false
+        if plan != self.plan {
+            defaults.set(plan?.rawValue, forKey: Self.planKey)
+            usageLog.info("plan is now \(plan?.rawValue ?? "none", privacy: .public)")
+            changed = true
+        }
+        if let chargedAt {
+            let charge: Charge = Charge(at: chargedAt, id: chargeID)
+            let moved: Bool = lock.withLock {
+                guard charge.isNewer(than: storedCharge()) else { return false }
+                values.set(charge.text, Self.chargeKey)
+                return true
+            }
+            if moved {
+                usageLog.info("charged at \(chargedAt.timeIntervalSince1970, privacy: .public): a new period starts")
+                changed = true
+            }
+        }
+        let renews: Date? = plan == nil ? nil : renewsAt
+        if renews != self.renewsAt {
+            if let renews { defaults.set(renews.timeIntervalSince1970, forKey: Self.renewsAtKey) } else { defaults.removeObject(forKey: Self.renewsAtKey) }
+            changed = true
+        }
+        if changed { Self.notifyChanged() }
+    }
+
+    /// この端末の ID(無ければ作って Keychain に置く。ロックの中で呼ぶ)。
+    private func deviceID() -> String {
+        if let id = values.local.string(Self.deviceKey) { return id }
+        let id: String = UUID().uuidString.lowercased()
+        values.local.set(id, Self.deviceKey)
+        return id
+    }
+
+    /// 今の期間の鍵と、この端末の分の鍵(ロックの中で呼ぶ)。
+    private func periodKeys(at date: Date) -> (period: String, own: String) {
+        let charge: Charge? = storedCharge()
+        let period: String = UsageRules.periodKey(for: date, chargedAt: charge?.at, chargeID: charge?.id)
+        return (period, period + Self.deviceMarker + deviceID())
+    }
+
+    /// 期間の使用額: 端末ごとに分ける前の記録 + 全端末の分の合計(ロックの中で呼ぶ)。
+    /// この端末の分は Keychain と iCloud の大きい方(iCloud に届く前の分も数える)。ほかの端末の分は iCloud から読む。
+    private func spentUSD(period: String, own: String) -> Double {
+        var devices: [String: Double] = [:]
+        for key in values.cloud.keys(withPrefix: period + Self.deviceMarker) {
+            devices[key] = values.cloud.string(key).flatMap(Double.init) ?? 0
+        }
+        devices[own] = values.number(own)
+        return values.number(period) + devices.values.reduce(0, +)
     }
 
     func snapshot() -> UsageSnapshot {
-        let date = now()
-        let spent = lock.withLock { values.number(UsageRules.weekKey(for: date)) }
-        return UsageSnapshot(plan: plan, spentUSD: spent, limitUSD: UsageRules.limitUSD(plan: plan), resetsAt: UsageRules.resetDate(after: date))
+        let date: Date = now()
+        let (charged, spent): (Date?, Double) = lock.withLock {
+            let keys = periodKeys(at: date)
+            return (storedCharge()?.at, spentUSD(period: keys.period, own: keys.own))
+        }
+        let plan: UsagePlan? = plan
+        var resetsAt: Date = UsageRules.periodEnd(for: date, chargedAt: charged)
+        // 期間の途中で契約が更新されると、更新の時刻から新しい期間になる。
+        if plan != nil, let renews = renewsAt, renews > date, renews < resetsAt { resetsAt = renews }
+        return UsageSnapshot(plan: plan, spentUSD: spent, limitUSD: UsageRules.limitUSD(plan: plan), resetsAt: resetsAt)
     }
 
-    /// 使った金額を足す(Keychain と iCloud の大きい方に足して、両方に書く)。
+    /// 使った金額を、この端末の分に足す(Keychain と iCloud の大きい方に足して、両方に書く)。
     func add(_ usd: Double) {
         guard usd > 0 else { return }
-        let key = UsageRules.weekKey(for: now())
+        let date: Date = now()
         lock.withLock {
-            values.setNumber(values.number(key) + usd, key)
+            // 保存の鍵を決めるのと足すのを同じロックの中で行い、課金の更新と混ざらないようにする。
+            let own: String = periodKeys(at: date).own
+            values.setNumber(values.number(own) + usd, own)
         }
         Self.notifyChanged()
     }

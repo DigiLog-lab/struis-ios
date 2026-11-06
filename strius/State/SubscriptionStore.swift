@@ -89,7 +89,9 @@ final class SubscriptionStore {
                 if let statuses = try? await product.subscription?.status, !statuses.isEmpty {
                     update(statuses: statuses)
                 } else {
-                    apply(plans: UsagePlan(productID: transaction.productID).map { [$0] } ?? [])
+                    let bought: [UsagePlan] = UsagePlan(productID: transaction.productID).map { [$0] } ?? []
+                    // 買った直後は自動更新が続く。
+                    apply(plans: bought, charges: Dictionary(uniqueKeysWithValues: bought.map { ($0, Charge(transaction, renews: true)) }))
                     cancelsAt = nil
                 }
                 return true
@@ -117,10 +119,19 @@ final class SubscriptionStore {
             storeLog.error("restore failed: \(String(describing: error), privacy: .public)")
         }
         var plans: [UsagePlan] = []
+        var charges: [UsagePlan: Charge] = [:]
         for await result in Transaction.currentEntitlements {
-            if case .verified(let transaction) = result, transaction.revocationDate == nil, let plan = UsagePlan(productID: transaction.productID) { plans.append(plan) }
+            if case .verified(let transaction) = result, transaction.revocationDate == nil, !transaction.isUpgraded,
+               let plan = UsagePlan(productID: transaction.productID) {
+                plans.append(plan)
+                // 自動更新が続いているかは、その取引の契約の状態から読む(読めなければ、続いていない側に倒す)。
+                let status: Product.SubscriptionInfo.Status? = await transaction.subscriptionStatus
+                var renews: Bool = false
+                if let status, case .verified(let renewal) = status.renewalInfo { renews = renewal.willAutoRenew }
+                charges[plan] = Charge(transaction, renews: renews)
+            }
         }
-        apply(plans: plans)
+        apply(plans: plans, charges: charges)
         if plans.isEmpty { errorMessage = "復元できる購入が見つかりませんでした。" }
     }
 
@@ -138,23 +149,46 @@ final class SubscriptionStore {
     func update(statuses: [Product.SubscriptionInfo.Status]) {
         var plans: [UsagePlan] = []
         var endDates: [UsagePlan: Date] = [:]
+        var charges: [UsagePlan: Charge] = [:]
         for status in statuses {
             guard status.state == .subscribed || status.state == .inGracePeriod,
                   case .verified(let transaction) = status.transaction,
                   let plan = UsagePlan(productID: transaction.productID) else { continue }
             plans.append(plan)
+            var renews: Bool = true
             if case .verified(let renewal) = status.renewalInfo, !renewal.willAutoRenew {
                 endDates[plan] = transaction.expirationDate
+                renews = false
             }
+            charges[plan] = Charge(transaction, renews: renews)
         }
-        apply(plans: plans, replacing: true)
+        apply(plans: plans, charges: charges, replacing: true)
         cancelsAt = UsagePlan.best(of: plans).flatMap { endDates[$0] }
     }
 
-    private func apply(plans: [UsagePlan], replacing: Bool = false) {
-        let best = UsagePlan.best(of: plans)
+    /// 取引から読む、課金の時刻と次の更新の予定日時。利用枠の 7 日はこの課金の時刻から数える(購入・上げた時・更新で 0 から始まる)。
+    struct Charge: Equatable {
+        var id: UInt64
+        var chargedAt: Date
+        /// 自動更新が続いている時の期限(その時刻に更新され、新しい期間になる)。解約の予約中・分からない時は nil。
+        var renewsAt: Date?
+
+        init(id: UInt64, chargedAt: Date, renewsAt: Date?) {
+            self.id = id
+            self.chargedAt = chargedAt
+            self.renewsAt = renewsAt
+        }
+
+        init(_ transaction: StoreKit.Transaction, renews: Bool) {
+            self.init(id: transaction.id, chargedAt: transaction.purchaseDate, renewsAt: renews ? transaction.expirationDate : nil)
+        }
+    }
+
+    private func apply(plans: [UsagePlan], charges: [UsagePlan: Charge], replacing: Bool = false) {
+        let best: UsagePlan? = UsagePlan.best(of: plans)
         guard replacing || best != nil else { return }
-        meter.setPlan(best)
+        let charge: Charge? = best.flatMap { charges[$0] }
+        meter.setPlan(best, chargeID: charge?.id, chargedAt: charge?.chargedAt, renewsAt: charge?.renewsAt)
         plan = meter.plan
     }
 

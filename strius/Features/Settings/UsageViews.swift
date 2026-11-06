@@ -52,7 +52,7 @@ struct UsageBar: View {
     }
 }
 
-/// 設定 › 利用枠: 今週の使用率のゲージ・残りの目安の問題数・戻る日時・今のプラン・「プランを変える」・解約(契約中だけ)。
+/// 設定 › 利用枠: 今の 7 日間(課金した時刻から数える)の使用率のゲージ・残りの目安の問題数・戻る日時・今のプラン・「プランを変える」・解約(契約中だけ)。
 /// 解約は Apple の管理シートの中で行う(アプリから直接解約する API は無い)。
 struct UsageSettingsView: View {
     @Environment(SubscriptionStore.self) private var subscriptions
@@ -114,9 +114,9 @@ struct UsageSettingsView: View {
         .accessibilityLabel("今週の使用量 \(snapshot.percent)%。残り 約\(snapshot.remainingProblems)問。\(until)")
     }
 
-    /// 枠が戻る前にプランが終わる時は、戻る日時を出さない(その日にはもう使えないため)。
+    /// 枠が戻る前(または戻るのと同時)にプランが終わる時は、戻る日時を出さない(その日にはもう使えないため)。
     private func untilText(_ snapshot: UsageSnapshot) -> String {
-        if let cancelsAt: Date = subscriptions.cancelsAt, cancelsAt < snapshot.resetsAt {
+        if let cancelsAt: Date = subscriptions.cancelsAt, cancelsAt <= snapshot.resetsAt {
             return "\(UsageStatus.dayText(cancelsAt))まで使えます"
         }
         return "\(UsageStatus.resetText(snapshot.resetsAt)) に 0% に戻ります"
