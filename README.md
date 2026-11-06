@@ -2,7 +2,7 @@
 
 紙に解いた答案を取り込み、質問・例題・演習と学習記録をつなぐiOSアプリです。このリポジトリでは、端末側の画面、学習規則、台帳、通信、Hyotan-v2の実行環境とビルド手順を公開します。
 
-ソースの閲覧、ローカルでのビルド、実サービスの利用にはそれぞれ条件があります。ビルドには下記のツールが必要です。実サービスには、AIのためのAnthropicのApp Attest(Claude Consoleに登録したclient IDとBundle ID)が必要で、公開テンプレートだけでは利用できません。AIはAnthropicのMessages APIを端末から直接呼びます。backend・Web・配信プロンプト・スキーマ・Skill本文はこのリポジトリに含みません。
+ソースの閲覧、ローカルでのビルド、実サービスの利用にはそれぞれ条件があります。ビルドには下記のツールが必要です。実サービスには、AIのためのAnthropicのApp Attest(Claude Consoleに登録したclient IDとBundle ID)が必要で、公開テンプレートだけでは利用できません。AIはAnthropicのMessages APIを端末から直接呼びます。AIへの指示文・スキーマ・Skill本文とモデルの設定はアプリに同梱し(`strius/Resources/Prompts`)、運営者のサーバーからは取得しません。backend・Webはこのリポジトリに含みません。
 
 | 場所 | 内容 |
 |---|---|
@@ -44,7 +44,7 @@ xcodebuild test -project strius.xcodeproj -scheme strius \
 
 実AI・実験用bundleを要するテストは任意です。未設定時は理由付きでskipし、mockの画面テストとは区別します。[テストの条件](docs/testing.md)を参照してください。カメラUI用の同梱画像は個人情報を含まない生成答案で、実機で紙を撮影した証拠にはなりません。
 
-通信先と送信項目、端末内の保存先、使用量報告は[通信と保存](docs/communication-and-storage.md)に記載します。
+通信先と送信項目、端末内の保存先、使用量の記録は[通信と保存](docs/communication-and-storage.md)に記載します。
 
 ## 開発エージェント
 

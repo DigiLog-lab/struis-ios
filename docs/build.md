@@ -15,7 +15,7 @@ AIはAnthropicのMessages APIを端末から直接呼び、実機はApp Attest�
 GitHub Actionsの`.github/workflows/ios.yml`は標準の`xcode-27` runnerを使用します(PRの検証と手動の配布。mainへのpushでは動きません)。Native Runtimeは`agent-native-cache.yml`を呼び出し、cacheが無ければそこでREADMEのbootstrapを実行して保存し、あれば再生成を省略します。いずれの場合もarm64 Simulator buildと単体テストを実施し、`-collect-test-diagnostics never`で長時間のSimulator診断収集を抑制します。mainでの手動実行では、Actions Secretsから署名を供給してdevice archiveを作成し、実bundleの署名・同梱資源・リンクマップを監査します。pull requestのコードには署名・配信の秘密値を渡しません。archive、IPA、秘密設定と実行ログは公開artifactへアップロードしません。CIのsummaryに元commit、version、buildと検証結果だけを記録します。
 
 
-署名用のSecretsは`BUILD_CERTIFICATE_BASE64`、`P12_PASSWORD`と、App Store Connect APIの`APP_STORE_CONNECT_PRIVATE_KEY`、`APP_STORE_CONNECT_KEY_ID`、`APP_STORE_CONNECT_ISSUER_ID`です。2つ(アプリとExec拡張)のApp Store配布用プロファイルは`scripts/ci_archive.py`がAPIで取得し、配布証明書が一致して`ACTIVE`で期限まで7日以上あり、App Group(本体はiCloudコンテナ`iCloud.com.digiloglab.strius`も)が入っているものを再利用し、無ければ作ります。App IDに機能を足してプロファイルが無効になっても、Secretsの差し替えは要りません。配信サービス設定は`STRUIS_DELIVERY_APP_KEY`を使用します。値はコードへ記載しません。
+署名用のSecretsは`BUILD_CERTIFICATE_BASE64`、`P12_PASSWORD`と、App Store Connect APIの`APP_STORE_CONNECT_PRIVATE_KEY`、`APP_STORE_CONNECT_KEY_ID`、`APP_STORE_CONNECT_ISSUER_ID`です。2つ(アプリとExec拡張)のApp Store配布用プロファイルは`scripts/ci_archive.py`がAPIで取得し、配布証明書が一致して`ACTIVE`で期限まで7日以上あり、App Group(本体はiCloudコンテナ`iCloud.com.digiloglab.strius`も)が入っているものを再利用し、無ければ作ります。App IDに機能を足してプロファイルが無効になっても、Secretsの差し替えは要りません。アプリは配信サーバーを使わないため、配信のキーは要りません。
 
 通常のCIはarchiveまでです。次の配布時は`main`を対象に手動実行し、`upload`を有効にして未使用の`build_number`を指定します。`scripts/ci_archive.py`が同じcheckoutから署名とアップロードを行い、元commit・version・buildを記録します。アップロード成功後はApp Store Connectで処理完了と内部配布先を確認し、公開ソースの対応表を更新してください。審査提出は自動実行しません。
 
