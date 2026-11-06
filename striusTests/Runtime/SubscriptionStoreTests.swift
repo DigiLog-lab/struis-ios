@@ -208,19 +208,22 @@ final class SubscriptionStoreTests: XCTestCase {
     // MARK: - 解約
 
     func testCancellingKeepsThePlanUntilTheEndOfThePeriodAndUndoingClearsTheDate() async throws {
-        let (store, _) = install()
+        let (store, meter) = install()
         _ = await store.purchase(.standard)
         XCTAssertNil(store.cancelsAt, "自動更新が続いている間は解約の日付を出さない")
+        XCTAssertNotNil(meter.renewsAt, "自動更新が続いている間は、更新の予定日時で期間が替わる")
         let purchase = try XCTUnwrap(transaction(for: .standard))
 
         try await refreshUntilCancelsAtChanges(on: store) { try session.disableAutoRenewForTransaction(identifier: purchase.identifier) }
         let cancelsAt = try XCTUnwrap(store.cancelsAt, "解約したら、使える最後の日時が分かる")
         XCTAssertGreaterThan(cancelsAt, Date())
         XCTAssertEqual(store.plan, .standard, "解約しても期間の終わりまでは今のプラン")
+        XCTAssertNil(meter.renewsAt, "解約の予約中は、期限が来ても使用額は戻らないので、戻る日時を期限で縮めない")
 
         try await refreshUntilCancelsAtChanges(on: store) { try session.enableAutoRenewForTransaction(identifier: purchase.identifier) }
         XCTAssertNil(store.cancelsAt, "解約を取り消したら出さない")
         XCTAssertEqual(store.plan, .standard)
+        XCTAssertNotNil(meter.renewsAt, "解約を取り消したら、また更新の予定日時で期間が替わる")
     }
 
     // MARK: - 期限切れ・返金

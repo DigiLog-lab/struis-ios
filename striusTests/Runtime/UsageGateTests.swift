@@ -56,17 +56,17 @@ final class UsageGateTests: XCTestCase {
         XCTAssertEqual(meter.snapshot().spentUSD, 0.30, accuracy: 1e-9)
 
         // 購入した: その時刻から新しい期間で、使用額は 0 から。
-        meter.setPlan(.light, chargedAt: now.addingTimeInterval(-60), expiresAt: now.addingTimeInterval(30 * 86_400))
+        meter.setPlan(.light, chargedAt: now.addingTimeInterval(-60), renewsAt: now.addingTimeInterval(30 * 86_400))
         XCTAssertEqual(meter.snapshot().spentUSD, 0, "課金したら 0 から")
         XCTAssertEqual(meter.snapshot().resetsAt, now.addingTimeInterval(-60 + 7 * 86_400))
         meter.add(0.50)
 
         // 遅れて届いた古い契約の状態(前の課金の時刻)では、期間を戻さない。
-        meter.setPlan(.light, chargedAt: now.addingTimeInterval(-3_600), expiresAt: now.addingTimeInterval(30 * 86_400))
+        meter.setPlan(.light, chargedAt: now.addingTimeInterval(-3_600), renewsAt: now.addingTimeInterval(30 * 86_400))
         XCTAssertEqual(meter.snapshot().spentUSD, 0.50, accuracy: 1e-9)
 
         // 上げた(新しい取引): また 0 から。
-        meter.setPlan(.standard, chargedAt: now, expiresAt: now.addingTimeInterval(30 * 86_400))
+        meter.setPlan(.standard, chargedAt: now, renewsAt: now.addingTimeInterval(30 * 86_400))
         XCTAssertEqual(meter.snapshot().spentUSD, 0)
         XCTAssertEqual(meter.snapshot().limitUSD, UsagePlan.standard.weeklyLimitUSD)
     }
@@ -74,14 +74,14 @@ final class UsageGateTests: XCTestCase {
     func testAChargeInTheSameSecondIsToldApartByTheTransactionID() {
         let now = date("2026-11-06T13:31:00+09:00")
         let meter = meter(plan: nil, now: now)
-        meter.setPlan(.standard, chargeID: 10, chargedAt: now, expiresAt: now.addingTimeInterval(30 * 86_400))
+        meter.setPlan(.standard, chargeID: 10, chargedAt: now, renewsAt: now.addingTimeInterval(30 * 86_400))
         meter.add(1.00)
         // 同じ秒に上げた(取引 ID が大きい): 新しい期間。
-        meter.setPlan(.generous, chargeID: 11, chargedAt: now, expiresAt: now.addingTimeInterval(30 * 86_400))
+        meter.setPlan(.generous, chargeID: 11, chargedAt: now, renewsAt: now.addingTimeInterval(30 * 86_400))
         XCTAssertEqual(meter.snapshot().spentUSD, 0, "同じ秒でも、新しい取引なら 0 から")
         meter.add(0.40)
         // 遅れて届いた前の取引(ID が小さい)では戻さない。
-        meter.setPlan(.generous, chargeID: 10, chargedAt: now, expiresAt: now.addingTimeInterval(30 * 86_400))
+        meter.setPlan(.generous, chargeID: 10, chargedAt: now, renewsAt: now.addingTimeInterval(30 * 86_400))
         XCTAssertEqual(meter.snapshot().spentUSD, 0.40, accuracy: 1e-9)
     }
 
@@ -90,7 +90,7 @@ final class UsageGateTests: XCTestCase {
         let local = MemoryValueStore()
         let cloud = MemoryValueStore()
         let first = meter(plan: nil, local: local, cloud: cloud, now: now)
-        first.setPlan(.light, chargeID: 7, chargedAt: now.addingTimeInterval(-86_400), expiresAt: now.addingTimeInterval(29 * 86_400))
+        first.setPlan(.light, chargeID: 7, chargedAt: now.addingTimeInterval(-86_400), renewsAt: now.addingTimeInterval(29 * 86_400))
         first.add(0.40)
         first.setPlan(nil) // 返金・期限切れ
 
@@ -115,11 +115,20 @@ final class UsageGateTests: XCTestCase {
         XCTAssertEqual(merged.chargedAt, now.addingTimeInterval(-60))
     }
 
+    func testWhileCancellationIsReservedTheExpiryDoesNotShortenTheReset() {
+        let now = date("2026-11-06T13:31:00+09:00")
+        let meter = meter(plan: nil, now: now)
+        // 解約の予約中(自動更新なし)で、2 日後に期限が来る: 期限が来てもプランが終わるだけで使用額は戻らない。
+        meter.setPlan(.light, chargeID: 3, chargedAt: now.addingTimeInterval(-86_400), renewsAt: nil)
+        XCTAssertNil(meter.renewsAt)
+        XCTAssertEqual(meter.snapshot().resetsAt, now.addingTimeInterval(-86_400 + 7 * 86_400), "戻るのは課金から 7 日後のまま")
+    }
+
     func testResetsAtIsNotAfterTheRenewal() {
         let now = date("2026-11-06T13:31:00+09:00")
         let meter = meter(plan: nil, now: now)
         // 期間の途中(3 日後)で契約が更新される: そこで新しい期間になるので、戻る日時は更新の時刻。
-        meter.setPlan(.light, chargedAt: now.addingTimeInterval(-86_400), expiresAt: now.addingTimeInterval(2 * 86_400))
+        meter.setPlan(.light, chargedAt: now.addingTimeInterval(-86_400), renewsAt: now.addingTimeInterval(2 * 86_400))
         XCTAssertEqual(meter.snapshot().resetsAt, now.addingTimeInterval(2 * 86_400))
         // プランが切れたら期限で切らない(お試しの枠は課金の時刻から 7 日ごと)。
         meter.setPlan(nil)
@@ -182,7 +191,7 @@ final class UsageGateTests: XCTestCase {
         let phone = meter(plan: nil, local: MemoryValueStore(), cloud: phoneCloud, now: now)
         let pad = meter(plan: nil, local: MemoryValueStore(), cloud: padCloud, now: now)
         for device in [phone, pad] {
-            device.setPlan(.standard, chargeID: 21, chargedAt: now.addingTimeInterval(-3_600), expiresAt: now.addingTimeInterval(29 * 86_400))
+            device.setPlan(.standard, chargeID: 21, chargedAt: now.addingTimeInterval(-3_600), renewsAt: now.addingTimeInterval(29 * 86_400))
         }
         phone.add(0.20)
         pad.add(0.10)
@@ -208,7 +217,7 @@ final class UsageGateTests: XCTestCase {
         let meter = UsageMeter(values: seeded, defaults: UserDefaults(suiteName: "usage-tests-\(UUID().uuidString)")!, now: { now })
         XCTAssertEqual(meter.snapshot().spentUSD, 0.40, accuracy: 1e-9)
         XCTAssertFalse(DeviceUsageGate(meter: meter).admit())
-        meter.setPlan(.light, chargeID: 5, chargedAt: now, expiresAt: now.addingTimeInterval(30 * 86_400))
+        meter.setPlan(.light, chargeID: 5, chargedAt: now, renewsAt: now.addingTimeInterval(30 * 86_400))
         XCTAssertEqual(meter.snapshot().spentUSD, 0)
         XCTAssertTrue(DeviceUsageGate(meter: meter).admit())
     }

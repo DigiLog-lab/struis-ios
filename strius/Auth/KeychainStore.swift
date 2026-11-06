@@ -4,7 +4,8 @@ import Security
 nonisolated struct KeychainStore: Sendable {
     let service: String
 
-    func set(_ value: String, for account: String) {
+    /// `thisDeviceOnly`: バックアップから別の端末へ移さない(端末ごとに違うべき値)。
+    func set(_ value: String, for account: String, thisDeviceOnly: Bool = false) {
         guard let data = value.data(using: .utf8) else { return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -14,7 +15,7 @@ nonisolated struct KeychainStore: Sendable {
         SecItemDelete(query as CFDictionary)
         var attributes = query
         attributes[kSecValueData as String] = data
-        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        attributes[kSecAttrAccessible as String] = thisDeviceOnly ? kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly : kSecAttrAccessibleAfterFirstUnlock
         SecItemAdd(attributes as CFDictionary, nil)
     }
 

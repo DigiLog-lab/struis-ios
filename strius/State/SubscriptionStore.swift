@@ -90,7 +90,8 @@ final class SubscriptionStore {
                     update(statuses: statuses)
                 } else {
                     let bought: [UsagePlan] = UsagePlan(productID: transaction.productID).map { [$0] } ?? []
-                    apply(plans: bought, charges: Dictionary(uniqueKeysWithValues: bought.map { ($0, Charge(transaction)) }))
+                    // 買った直後は自動更新が続く。
+                    apply(plans: bought, charges: Dictionary(uniqueKeysWithValues: bought.map { ($0, Charge(transaction, renews: true)) }))
                     cancelsAt = nil
                 }
                 return true
@@ -123,7 +124,8 @@ final class SubscriptionStore {
             if case .verified(let transaction) = result, transaction.revocationDate == nil, !transaction.isUpgraded,
                let plan = UsagePlan(productID: transaction.productID) {
                 plans.append(plan)
-                charges[plan] = Charge(transaction)
+                // 自動更新が続いているかは分からないので、更新の予定日時は渡さない(契約の状態が届けば入る)。
+                charges[plan] = Charge(transaction, renews: false)
             }
         }
         apply(plans: plans, charges: charges)
@@ -150,29 +152,32 @@ final class SubscriptionStore {
                   case .verified(let transaction) = status.transaction,
                   let plan = UsagePlan(productID: transaction.productID) else { continue }
             plans.append(plan)
-            charges[plan] = Charge(transaction)
+            var renews: Bool = true
             if case .verified(let renewal) = status.renewalInfo, !renewal.willAutoRenew {
                 endDates[plan] = transaction.expirationDate
+                renews = false
             }
+            charges[plan] = Charge(transaction, renews: renews)
         }
         apply(plans: plans, charges: charges, replacing: true)
         cancelsAt = UsagePlan.best(of: plans).flatMap { endDates[$0] }
     }
 
-    /// 取引から読む、課金の時刻と期限。利用枠の 7 日はこの課金の時刻から数える(購入・上げた時・更新で 0 から始まる)。
+    /// 取引から読む、課金の時刻と次の更新の予定日時。利用枠の 7 日はこの課金の時刻から数える(購入・上げた時・更新で 0 から始まる)。
     struct Charge: Equatable {
         var id: UInt64
         var chargedAt: Date
-        var expiresAt: Date?
+        /// 自動更新が続いている時の期限(その時刻に更新され、新しい期間になる)。解約の予約中・分からない時は nil。
+        var renewsAt: Date?
 
-        init(id: UInt64, chargedAt: Date, expiresAt: Date?) {
+        init(id: UInt64, chargedAt: Date, renewsAt: Date?) {
             self.id = id
             self.chargedAt = chargedAt
-            self.expiresAt = expiresAt
+            self.renewsAt = renewsAt
         }
 
-        init(_ transaction: StoreKit.Transaction) {
-            self.init(id: transaction.id, chargedAt: transaction.purchaseDate, expiresAt: transaction.expirationDate)
+        init(_ transaction: StoreKit.Transaction, renews: Bool) {
+            self.init(id: transaction.id, chargedAt: transaction.purchaseDate, renewsAt: renews ? transaction.expirationDate : nil)
         }
     }
 
@@ -180,7 +185,7 @@ final class SubscriptionStore {
         let best: UsagePlan? = UsagePlan.best(of: plans)
         guard replacing || best != nil else { return }
         let charge: Charge? = best.flatMap { charges[$0] }
-        meter.setPlan(best, chargeID: charge?.id, chargedAt: charge?.chargedAt, expiresAt: charge?.expiresAt)
+        meter.setPlan(best, chargeID: charge?.id, chargedAt: charge?.chargedAt, renewsAt: charge?.renewsAt)
         plan = meter.plan
     }
 

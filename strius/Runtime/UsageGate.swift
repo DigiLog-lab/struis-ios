@@ -174,9 +174,11 @@ nonisolated protocol DeviceValueStore: Sendable {
 
 nonisolated struct KeychainValueStore: DeviceValueStore {
     var keychain = KeychainStore(service: "com.digiloglab.strius.device-record")
+    /// バックアップから別の端末へ移さない鍵。端末の ID が 2 台で同じになると、2 台の使用額が同じ鍵で上書きし合い、合計されない。
+    var deviceOnlyKeys: Set<String> = [UsageMeter.deviceKey]
     func string(_ key: String) -> String? { keychain.get(key) }
     func set(_ value: String?, _ key: String) {
-        if let value { keychain.set(value, for: key) } else { keychain.delete(key) }
+        if let value { keychain.set(value, for: key, thisDeviceOnly: deviceOnlyKeys.contains(key)) } else { keychain.delete(key) }
     }
     /// Keychain にはこの端末の値しか無いので、一覧は使わない。
     func keys(withPrefix prefix: String) -> [String] { [] }
@@ -299,9 +301,10 @@ nonisolated final class UsageMeter: @unchecked Sendable {
     /// 期間はこの時刻から 7 日ごと。時刻と ID を 1 つの値にして、片方だけ新しい組み合わせで鍵を作らないようにする。
     /// 使用額と同じ Keychain と iCloud に置く(入れ直しても、プランが切れた後のその期間の使用額を引き継ぐため)。
     static let chargeKey = "usage.charge.v1"
-    /// 今の契約の期限(`Transaction.expirationDate`)。更新されるとその時刻から新しい期間になるので、戻る日時はこれより後にしない。
-    static let expiresAtKey = "usage.expiresAt.v1"
-    /// この端末の ID。Keychain だけに置く(入れ直しても同じ ID のまま、自分の値に足し続ける)。
+    /// 次の更新の予定日時(自動更新が続いている時の `Transaction.expirationDate`)。更新されるとその時刻から新しい期間になるので、
+    /// 戻る日時はこれより後にしない。解約の予約中は更新されず期間も替わらないので、持たない。
+    static let renewsAtKey = "usage.renewsAt.v1"
+    /// この端末の ID。Keychain だけに置き、バックアップから別の端末へは移さない(入れ直しても同じ ID のまま、自分の値に足し続ける)。
     static let deviceKey = "usage.device.v1"
     /// 端末ごとの使用額の鍵の印(期間の鍵 + この印 + 端末の ID)。
     static let deviceMarker = ".device."
@@ -398,15 +401,17 @@ nonisolated final class UsageMeter: @unchecked Sendable {
     /// 最後に課金された取引の ID(課金したことが無ければ nil)。
     var chargeID: UInt64? { lock.withLock { storedCharge()?.id } }
 
-    private var expiresAt: Date? {
-        guard forcedPlan == nil, defaults.object(forKey: Self.expiresAtKey) != nil else { return nil }
-        return Date(timeIntervalSince1970: defaults.double(forKey: Self.expiresAtKey))
+    /// 次の更新の予定日時(自動更新が続いていなければ nil)。
+    var renewsAt: Date? {
+        guard forcedPlan == nil, defaults.object(forKey: Self.renewsAtKey) != nil else { return nil }
+        return Date(timeIntervalSince1970: defaults.double(forKey: Self.renewsAtKey))
     }
 
     /// 今の契約を受け取る。`chargedAt`・`chargeID` は一番上のプランの最新の取引の `purchaseDate`・`id`(購入・上げた時・
     /// 更新で新しい取引になる)。今の取引より新しい時だけ進める(遅れて届いた古い契約の状態で、前の期間に戻さない)。
     /// 時刻が同じ時は取引 ID の大きい方を新しいとみなす。下げる予約・解約の予約は課金ではないので取引が変わらず、期間もそのまま。
-    func setPlan(_ plan: UsagePlan?, chargeID: UInt64? = nil, chargedAt: Date? = nil, expiresAt: Date? = nil) {
+    /// `renewsAt` は自動更新が続いている時だけ渡す(解約の予約中は、期限が来てもプランが終わるだけで使用額は戻らない)。
+    func setPlan(_ plan: UsagePlan?, chargeID: UInt64? = nil, chargedAt: Date? = nil, renewsAt: Date? = nil) {
         guard forcedPlan == nil else { return }
         var changed: Bool = false
         if plan != self.plan {
@@ -426,9 +431,9 @@ nonisolated final class UsageMeter: @unchecked Sendable {
                 changed = true
             }
         }
-        let expires: Date? = plan == nil ? nil : expiresAt
-        if expires != self.expiresAt {
-            if let expires { defaults.set(expires.timeIntervalSince1970, forKey: Self.expiresAtKey) } else { defaults.removeObject(forKey: Self.expiresAtKey) }
+        let renews: Date? = plan == nil ? nil : renewsAt
+        if renews != self.renewsAt {
+            if let renews { defaults.set(renews.timeIntervalSince1970, forKey: Self.renewsAtKey) } else { defaults.removeObject(forKey: Self.renewsAtKey) }
             changed = true
         }
         if changed { Self.notifyChanged() }
@@ -469,7 +474,7 @@ nonisolated final class UsageMeter: @unchecked Sendable {
         let plan: UsagePlan? = plan
         var resetsAt: Date = UsageRules.periodEnd(for: date, chargedAt: charged)
         // 期間の途中で契約が更新されると、更新の時刻から新しい期間になる。
-        if plan != nil, let expires = expiresAt, expires > date, expires < resetsAt { resetsAt = expires }
+        if plan != nil, let renews = renewsAt, renews > date, renews < resetsAt { resetsAt = renews }
         return UsageSnapshot(plan: plan, spentUSD: spent, limitUSD: UsageRules.limitUSD(plan: plan), resetsAt: resetsAt)
     }
 
