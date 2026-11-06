@@ -213,12 +213,7 @@ def build_prompt(context, issue, history, pending, state, failure):
                       'ここから文脈を引き継いでください。\n' + '\n'.join(thread) + '\n</thread>')
     blocks.extend(f'<comment id="{c["id"]}" author="{c["user"]["login"]}" created="{c["created_at"]}">\n'
                   f'{c.get("body") or ""}\n</comment>' for c in pending)
-    if failure and failure.get('queue'):
-        blocks.append('<verify-failure>\nマージキューの検証(最新のmainと、キューで先に並んだPRを合わせたcommit)が赤で、PRはキューから外れました。'
-                      '作業ブランチには最新のmainを取り込んであります。原因を調べて直し、local-verify → ready をやり直してください。'
-                      'テストのskip・期待失敗化・判定の緩和・再実行だけで通すことはしません。\n'
-                      + json.dumps(failure, ensure_ascii=False) + '\n</verify-failure>')
-    elif failure and failure.get('conflict'):
+    if failure and failure.get('conflict'):
         blocks.append('<verify-failure>\nmainが進み、レビュー待ちのPRへ取り込むと衝突しました。`main:` の行の指示に従って衝突を解消し、'
                       'commit・push後に local-verify → ready をやり直してください。\n'
                       + json.dumps(failure, ensure_ascii=False) + '\n</verify-failure>')
@@ -877,10 +872,7 @@ def set_draft(gh, pr, value):
 
 
 def cmd_ready(_args):
-    """Hand the locally verified HEAD to review: PR out of Draft and admitted to the merge queue (ios.yml `admit`).
-
-    The verification that decides the merge runs in the queue, on the latest main + this PR (Issue #81).
-    """
+    """Hand the verified HEAD to review: PR out of Draft, and ios.yml verifies that exact commit."""
     home = agent_home()
     run = read_json(home / 'run.json')
     head = pushed_head(run['branch'])
@@ -901,10 +893,10 @@ def cmd_ready(_args):
     gh.request('PATCH', f'/repos/{gh.repository}/pulls/{pr["number"]}', {'body': body})
     if pr.get('draft'):
         set_draft(gh, pr, False)
-    dispatch(gh, 'admit', {'pr': pr['number'], 'sha': head, 'issue': run['issue']})
+    dispatch(gh, 'verify', {'pr': pr['number'], 'sha': head, 'issue': run['issue']})
     outbox_append({'type': 'pull-request', 'url': pr['html_url']})
-    print(f'PR #{pr["number"]} をレビュー待ちにし、HEAD {head[:12]} をマージキューに入れられるようにしました。'
-          'ターンを終えてください。人がキューに入れると最新のmainと合わせて検証され、赤ならこのIssueでエージェントが起こされます。')
+    print(f'PR #{pr["number"]} をレビュー待ちにし、HEAD {head[:12]} の検証(ios.yml)を起動しました。'
+          '結果は待たずにターンを終えてください。赤ならこのIssueでエージェントが起こされます。')
 
 
 def cmd_prototype_status(args):
@@ -1008,7 +1000,7 @@ def main():
     verify.add_argument('--run', action='store_true', help=argparse.SUPPRESS)
     verify.add_argument('--wait-minutes', type=float, default=9)
     verify.set_defaults(func=cmd_local_verify)
-    commands.add_parser('ready', help='手元検証済みのHEADのPRをレビュー待ちにし、マージキューに入れられるようにする').set_defaults(func=cmd_ready)
+    commands.add_parser('ready', help='手元検証済みのHEADのPRをレビュー待ちにし、ios.ymlの検証を起動する').set_defaults(func=cmd_ready)
     status = commands.add_parser('prototype-status', help='プロトタイプの状態を変更する')
     status.add_argument('variant')
     status.add_argument('status', choices=PROTOTYPE_STATES)

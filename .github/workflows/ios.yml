@@ -1,27 +1,16 @@
 name: iOS
 run-name: >-
-  ${{ github.event_name == 'repository_dispatch' && github.event.action == 'admit' && format('Admit PR #{0} {1}', github.event.client_payload.pr, github.event.client_payload.sha) ||
-      github.event_name == 'repository_dispatch' && format('Verify PR #{0} {1}{2}', github.event.client_payload.pr, github.event.client_payload.sha, github.event.client_payload.ui_tier == 'unit' && ' (単体テストのみ)' || '') ||
-      github.event_name == 'merge_group' && format('Merge queue {0}', github.event.merge_group.head_ref) ||
-      github.event_name == 'pull_request' && format('Admit PR #{0} {1}', github.event.pull_request.number, github.event.pull_request.head.sha) || 'iOS' }}
+  ${{ github.event_name == 'repository_dispatch' && format('Verify PR #{0} {1}{2}', github.event.client_payload.pr, github.event.client_payload.sha, github.event.client_payload.ui_tier == 'unit' && ' (単体テストのみ)' || '') || 'iOS' }}
 
 on:
-  # The gate into main is the merge queue (Issue #81): main's ruleset requires the queue and the commit
-  # status `Struis / verify`. A PR enters the queue once its HEAD carries that status (`admit` below);
-  # the queue then builds latest main + the PRs ahead of it + this PR, and only that commit is verified
-  # (`verify` and `release-archive`). `report` (agent.yml) writes `Struis / verify` on it, and wakes the
-  # Issue when it is red (the queue has already removed the PR). A PR labelled `見た目だけ` whose diff
-  # stays in the screen-drawing files (scripts/ci/cosmetic.py) only builds the Release archive.
-  merge_group:
-    types: [checks_requested]
-  # Admission to the queue: `agentctl ready` sends `admit` after the agent's local verification passed
-  # (an agent PR never triggers pull_request: it is made with GITHUB_TOKEN); a PR opened by a person
-  # (or the web Claude) is admitted by its pull_request events. Admission runs no code of the PR: it
-  # only lets the PR into the queue, where it is verified on top of the latest main.
-  # `verify` still verifies one PR HEAD on request (a check before queueing, by hand or by the web
-  # Claude); its result is the same status. The payload's `ui_tier: unit` runs no UI test.
+  # The verification of a PR: `agentctl ready` (or the web Claude after a direct fix) sends the PR's exact
+  # HEAD. It runs main's definition of this file on that commit; its last job calls agent.yml's `report`,
+  # which writes the commit status `Struis / verify` and wakes the Issue when it is red. The payload's
+  # `ui_tier: unit` runs the build, every unit test and the Release archive without UI tests.
   repository_dispatch:
-    types: [verify, admit]
+    types: [verify]
+  # A PR opened by a person (or the web Claude) is verified the same way: `request` sends `verify` for its
+  # HEAD. An agent PR never triggers pull_request (it is made with GITHUB_TOKEN); `agentctl ready` sends it.
   pull_request:
     types: [opened, reopened, synchronize, ready_for_review]
   # Manual runs: on main, every UI test, then `signed-archive` and the optional TestFlight upload; on any
@@ -49,53 +38,37 @@ permissions:
 concurrency:
   # Verifications of one PR run one after another (each is a different commit); main's manual release runs alone.
   group: >-
-    ${{ github.event_name == 'repository_dispatch' && github.event.action == 'verify' && format('ios-verify-{0}', github.event.client_payload.pr) ||
-        (github.event_name == 'repository_dispatch' || github.event_name == 'pull_request') && format('ios-admit-{0}', github.run_id) ||
-        format('ios-{0}', github.ref) }}
+    ${{ github.event_name == 'repository_dispatch' && format('ios-verify-{0}', github.event.client_payload.pr) ||
+        github.event_name == 'pull_request' && format('ios-request-{0}', github.run_id) || format('ios-{0}', github.ref) }}
   cancel-in-progress: false
 
 jobs:
-  # Lets a PR into the merge queue: `Struis / verify: success` on its HEAD, described as an admission.
-  # Nothing of the PR runs (no checkout). Only the current HEAD of an open, non-Draft PR from this
-  # repository is admitted, so a dispatch cannot put the status on any other commit (a merge queue
-  # commit in particular: its `Struis / verify` is written only by `queue-status`).
-  admit:
+  # A person's PR (not Draft, not from a fork): ask for the verification of its HEAD, as `agentctl ready`
+  # does for an agent PR. The run that verifies is main's ios.yml (repository_dispatch), never the PR's.
+  request:
     if: >-
-      (github.event_name == 'repository_dispatch' && github.event.action == 'admit') ||
-      (github.event_name == 'pull_request' && !github.event.pull_request.draft &&
-       github.event.pull_request.head.repo.full_name == github.repository)
+      github.event_name == 'pull_request' && !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      statuses: write
-      pull-requests: read
+      contents: write
     steps:
-      - name: マージキューに入れられる印をPRのHEADに付ける
+      - name: PRのHEADの検証を起動する
         env:
           GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.client_payload.pr || github.event.pull_request.number }}
-          SHA: ${{ github.event.client_payload.sha || github.event.pull_request.head.sha }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          DESCRIPTION: >-
-            ${{ github.event_name == 'repository_dispatch' && 'マージキューへ: 手元検証は緑。最新のmainと合わせてキューで検証します' || 'マージキューへ: 最新のmainと合わせてキューで検証します' }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sha must be a full commit SHA"; exit 1; }
-          [[ "$PR" =~ ^[1-9][0-9]*$ ]] || { echo "::error::pr must be a PR number"; exit 1; }
-          current=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" \
-            --jq '[.state, (.draft | tostring), .head.repo.full_name, .head.sha, .base.ref] | join(" ")')
-          if [[ "$current" != "open false $GITHUB_REPOSITORY $SHA main" ]]; then
-            echo "::error::PR #$PR の今のHEADではありません(open・Draftでない・このリポジトリ・mainへ、のどれかを満たさない): $current"
-            exit 1
-          fi
-          gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" -f state=success -f context='Struis / verify' \
-            -f target_url="$RUN_URL" -f description="$DESCRIPTION" --silent
+          gh api "repos/$GITHUB_REPOSITORY/dispatches" -f event_type=verify \
+            -f "client_payload[pr]=$PR" -f "client_payload[sha]=$SHA" --silent
 
   # A run started by repository_dispatch belongs to main, so GitHub shows nothing of it on the PR. Mark the
-  # verified commit `Struis / verify: pending` first, so the PR (or the merge queue) shows the verification
-  # in progress; `report` overwrites it with the result. No checkout: the PR's code never runs here.
+  # verified commit `Struis / verify: pending` first, so the PR shows the verification in progress (and not
+  # "ready to merge"); `report` overwrites it with the result. No checkout: the PR's code never runs here.
   pending:
-    if: (github.event_name == 'repository_dispatch' && github.event.action == 'verify') || github.event_name == 'merge_group'
+    if: github.event_name == 'repository_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -104,7 +77,7 @@ jobs:
       - name: 検証中であることをPRのcommitに付ける
         env:
           GH_TOKEN: ${{ github.token }}
-          SHA: ${{ github.event.client_payload.sha || github.sha }}
+          SHA: ${{ github.event.client_payload.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -115,7 +88,7 @@ jobs:
   # Builds the Native Runtime cache for this commit if it is missing (agent-native-cache.yml is the only
   # builder), so the build and UI test runners below can start in parallel and only restore it.
   native:
-    if: github.event.action != 'admit' && github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request'
     uses: ./.github/workflows/agent-native-cache.yml
     with:
       ref: ${{ github.event.client_payload.sha || github.sha }}
@@ -191,7 +164,7 @@ jobs:
   # every unit test plus the UI tests of the contracts the change touches (possibly none).
   # A manual run on main and a manual `full` run every UI test across runners (`build` + `ui-tests`).
   ui-plan:
-    if: github.event.action != 'admit' && github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -213,25 +186,22 @@ jobs:
           EVENT: ${{ github.event_name }}
           REF: ${{ github.ref }}
           REQUESTED_TIER: ${{ inputs.ui_tier || github.event.client_payload.ui_tier }}
-          QUEUE_REF: ${{ github.event.merge_group.head_ref }}
-          QUEUE_BASE: ${{ github.event.merge_group.base_sha }}
+          PR: ${{ github.event.client_payload.pr }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # The merge queue's light path (Issue #81): the last PR of the group is labelled `見た目だけ` and the
-          # group's own commits (base_sha..HEAD) stay in the screen-drawing files. Only the Release archive runs.
-          if [[ "$EVENT" == "merge_group" ]]; then
-            pr=$(sed -nE 's#^refs/heads/gh-readonly-queue/[^/]+/pr-([0-9]+)-.*#\1#p' <<< "$QUEUE_REF")
-            if [[ -n "$pr" ]] && gh api "repos/$GITHUB_REPOSITORY/issues/$pr/labels" --jq '.[].name' | grep -qx '見た目だけ'; then
-              if git diff --name-only --no-renames "$QUEUE_BASE" HEAD | python3 scripts/ci/cosmetic.py; then
-                echo "tier=cosmetic" >> "$GITHUB_OUTPUT"
-                echo "matrix=[]" >> "$GITHUB_OUTPUT"
-                echo "ui=" >> "$GITHUB_OUTPUT"
-                echo "### 見た目だけ (PR #$pr): Release archive だけを確かめます" >> "$GITHUB_STEP_SUMMARY"
-                exit 0
-              fi
-              echo "### PR #$pr は見た目だけのラベルですが、描画以外のファイルを含むので通常の検証に回します" >> "$GITHUB_STEP_SUMMARY"
+          # Look-only light path (Issue #81): the PR is labelled `見た目だけ` and its diff from main stays in the
+          # screen-drawing files (scripts/ci/cosmetic.py). Only the Release archive runs.
+          if [[ "$EVENT" == "repository_dispatch" && "$PR" =~ ^[1-9][0-9]*$ ]] && git rev-parse --verify --quiet origin/main >/dev/null &&
+             gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" --jq '.[].name' | grep -qx '見た目だけ'; then
+            if git diff --name-only --no-renames "origin/main...HEAD" | python3 scripts/ci/cosmetic.py; then
+              echo "tier=cosmetic" >> "$GITHUB_OUTPUT"
+              echo "matrix=[]" >> "$GITHUB_OUTPUT"
+              echo "ui=" >> "$GITHUB_OUTPUT"
+              echo "### 見た目だけ (PR #$PR): Release archive だけを確かめます" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
             fi
+            echo "### PR #$PR は見た目だけのラベルですが、描画以外のファイルを含むので通常の検証に回します" >> "$GITHUB_STEP_SUMMARY"
           fi
           # Manual main runs (release) get every UI test.
           if [[ "$EVENT" == "workflow_dispatch" && ( "$REQUESTED_TIER" == "full" || "$REF" == "refs/heads/main" ) ]]; then
@@ -591,7 +561,7 @@ jobs:
   # agent.yml's `report` job runs, with its own narrower permissions; the PR's code never runs in this job.
   report:
     needs: [native, ui-plan, verify, release-archive]
-    if: always() && github.event_name == 'repository_dispatch' && github.event.action == 'verify'
+    if: always() && github.event_name == 'repository_dispatch'
     permissions:
       contents: write
       statuses: write
@@ -601,46 +571,8 @@ jobs:
       id-token: write
     uses: ./.github/workflows/agent.yml
     with:
+      ui_tier: ${{ needs.ui-plan.outputs.tier }}
       verify_conclusion: >-
-        ${{ needs.verify.result == 'success' && needs.release-archive.result == 'success' && 'success' ||
+        ${{ (needs.verify.result == 'success' || (needs.ui-plan.outputs.tier == 'cosmetic' && needs.verify.result == 'skipped')) &&
+            needs.release-archive.result == 'success' && 'success' ||
             contains(needs.*.result, 'cancelled') && 'cancelled' || 'failure' }}
-
-  # The result of a merge queue run: `Struis / verify` on the merge group's commit (the queue merges it when
-  # green and removes the PR when red). A red result is sent to main's agent.yml (`queue-result`), which
-  # records it and wakes the PR's Issue: a job of this run belongs to the queue's temporary branch, and
-  # the agent store only accepts agent.yml from main. Nothing of the PR runs here (no checkout).
-  queue-status:
-    needs: [native, ui-plan, verify, release-archive]
-    if: always() && github.event_name == 'merge_group'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-      statuses: write
-    steps:
-      - name: 結果をマージキューのcommitに付け、赤ならIssueへ知らせる
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SHA: ${{ github.sha }}
-          QUEUE_REF: ${{ github.event.merge_group.head_ref }}
-          TIER: ${{ needs.ui-plan.outputs.tier }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          CONCLUSION: >-
-            ${{ (needs.verify.result == 'success' || (needs.ui-plan.outputs.tier == 'cosmetic' && needs.verify.result == 'skipped')) &&
-                needs.release-archive.result == 'success' && 'success' ||
-                contains(needs.*.result, 'cancelled') && 'cancelled' || 'failure' }}
-        run: |
-          set -euo pipefail
-          case "$CONCLUSION" in
-            success) state=success; description=$([[ "$TIER" == cosmetic ]] && echo 'マージキュー: 見た目だけ(Release archive)' || echo 'マージキュー: 全単体テスト＋変更に関係するUIテスト') ;;
-            cancelled) state=error; description='マージキュー: 取り消し' ;;
-            *) state=failure; description='マージキュー: 赤' ;;
-          esac
-          gh api "repos/$GITHUB_REPOSITORY/statuses/$SHA" -f state="$state" -f context='Struis / verify' \
-            -f target_url="$RUN_URL" -f description="$description" --silent
-          pr=$(sed -nE 's#^refs/heads/gh-readonly-queue/[^/]+/pr-([0-9]+)-.*#\1#p' <<< "$QUEUE_REF")
-          if [[ "$state" == failure && -n "$pr" ]]; then
-            gh api "repos/$GITHUB_REPOSITORY/dispatches" -f event_type=queue-result \
-              -f "client_payload[pr]=$pr" -f "client_payload[sha]=$SHA" \
-              -f "client_payload[run]=$GITHUB_RUN_ID" -f "client_payload[url]=$RUN_URL" --silent
-          fi

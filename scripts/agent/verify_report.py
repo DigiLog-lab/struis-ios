@@ -6,15 +6,10 @@ jobs (VERIFY_CONCLUSION). It writes the commit status
 `Struis / verify` on the verified SHA (shown on the PR), and when that SHA is still
 the head of the open PR: on green it tells the Issue the PR can be merged, on red it records the
 failure and wakes the Issue's agent to fix it.
-
-`verify_report.py queue` handles a red merge queue run instead (agent.yml's `queue-report`, sent by
-ios.yml's `queue-status` with the PR, the merge group's commit and the run). The status is already on
-that commit and the queue has removed the PR; this records the failure and wakes the PR's Issue.
 """
 import json
 import os
 import re
-import sys
 
 from agentlib import GitHub, REPLY_MARKER, Store, append_summary, dispatch, iso, run_url, session_key
 
@@ -28,11 +23,11 @@ def parse(title):
     return (int(match[1]), match[2]) if match else None
 
 
-def from_dispatch(event, conclusion, url, run_id):
+def from_dispatch(event, conclusion, url, run_id, tier=None):
     """The shape report() reads, from the verification run's own repository_dispatch payload."""
     payload = event.get('client_payload') or {}
     return {'workflow_run': {'id': run_id, 'display_title': f"Verify PR #{payload.get('pr')} {payload.get('sha')}",
-                             'conclusion': conclusion, 'html_url': url, 'ui_tier': payload.get('ui_tier')}}
+                             'conclusion': conclusion, 'html_url': url, 'ui_tier': payload.get('ui_tier'), 'tier': tier}}
 
 
 def failed_steps(gh, run_id):
@@ -57,7 +52,8 @@ def report(event, gh, store):
     green = conclusion == 'success'
     # A cancelled run (replaced or stopped by hand) says nothing about the code: an error status, no wake-up.
     status = 'success' if green else 'error' if conclusion == 'cancelled' else 'failure'
-    tested = '全単体テストのみ(UIテストなし)' if run.get('ui_tier') == 'unit' else '全単体テスト＋変更に関係するUIテスト'
+    tested = ('全単体テストのみ(UIテストなし)' if run.get('ui_tier') == 'unit'
+              else '見た目だけ(Release archiveのみ)' if run.get('tier') == 'cosmetic' else '全単体テスト＋変更に関係するUIテスト')
     gh.request('POST', f'/repos/{gh.repository}/statuses/{sha}', {
         'state': status, 'context': CONTEXT, 'target_url': run['html_url'],
         'description': f'ios.yml: {tested}' if green else f'ios.yml: {conclusion}'})
@@ -87,35 +83,10 @@ def report(event, gh, store):
     gh.comment(issue, f'{REPLY_MARKER}\n\n❌ PR #{number} の検証(`{sha[:12]}`)が赤でした。エージェントに直させます。\n\n- 検証: {run["html_url"]}')
 
 
-def queue_failure(payload, gh, store):
-    """A red merge queue run: record it for the PR's Issue and wake the agent (the PR left the queue)."""
-    number, sha, run_id = int(payload['pr']), payload['sha'], payload['run']
-    if not re.fullmatch(r'[0-9a-f]{40}', sha or ''):
-        raise ValueError(f'not a commit SHA: {sha!r}')
-    pr = gh.get(f'/repos/{gh.repository}/pulls/{number}')
-    match = PR_ISSUE.search(pr.get('body') or '')
-    append_summary(f'Merge queue red: PR #{number} `{sha[:12]}` (state {pr["state"]})')
-    if not match or pr['state'] != 'open':
-        return
-    issue = int(match[1])
-    failure = {'pr': number, 'sha': sha, 'queue': True, 'run': payload.get('url'), 'conclusion': 'failure',
-               'failed': failed_steps(gh, run_id), 'at': iso()}
-
-    def record(state):
-        state['verifyFailure'] = failure
-        return state
-    store.update_json(session_key(issue, 'state.json'), record, default={})
-    dispatch(gh, 'agent-issue', {'issue': issue})
-    gh.comment(issue, f'{REPLY_MARKER}\n\n❌ マージキューの検証(PR #{number} と最新のmainを合わせた `{sha[:12]}`)が赤で、'
-                      f'PR はキューから外れました。エージェントに直させます。\n\n- 検証: {payload.get("url")}')
-
-
 def main():
     event = json.loads(open(os.environ['GITHUB_EVENT_PATH']).read())
-    if sys.argv[1:] == ['queue']:
-        queue_failure(event.get('client_payload') or {}, GitHub(), Store())
-        return
-    report(from_dispatch(event, os.environ['VERIFY_CONCLUSION'], run_url(), os.environ['GITHUB_RUN_ID']), GitHub(), Store())
+    report(from_dispatch(event, os.environ['VERIFY_CONCLUSION'], run_url(), os.environ['GITHUB_RUN_ID'],
+                         os.environ.get('VERIFY_TIER')), GitHub(), Store())
 
 
 if __name__ == '__main__':
