@@ -310,6 +310,7 @@ final class SubscriptionStoreTests: XCTestCase {
         XCTAssertEqual(reinstalled.plan, .generous)
         XCTAssertNil(reinstalled.errorMessage)
         XCTAssertEqual(meter.snapshot().limitUSD, UsagePlan.generous.weeklyLimitUSD)
+        XCTAssertNotNil(meter.renewsAt, "復元でも、自動更新が続いていれば更新の予定日時を持つ")
     }
 
     // MARK: - 購入の失敗

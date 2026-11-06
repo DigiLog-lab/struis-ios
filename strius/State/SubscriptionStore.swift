@@ -124,8 +124,11 @@ final class SubscriptionStore {
             if case .verified(let transaction) = result, transaction.revocationDate == nil, !transaction.isUpgraded,
                let plan = UsagePlan(productID: transaction.productID) {
                 plans.append(plan)
-                // 自動更新が続いているかは分からないので、更新の予定日時は渡さない(契約の状態が届けば入る)。
-                charges[plan] = Charge(transaction, renews: false)
+                // 自動更新が続いているかは、その取引の契約の状態から読む(読めなければ、続いていない側に倒す)。
+                let status: Product.SubscriptionInfo.Status? = await transaction.subscriptionStatus
+                var renews: Bool = false
+                if let status, case .verified(let renewal) = status.renewalInfo { renews = renewal.willAutoRenew }
+                charges[plan] = Charge(transaction, renews: renews)
             }
         }
         apply(plans: plans, charges: charges)
