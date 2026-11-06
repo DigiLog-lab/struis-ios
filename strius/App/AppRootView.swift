@@ -246,7 +246,9 @@ struct AppRootView: View {
                     }
                     // 次のカードに替わる時(解いている途中のカードは採点まで終わっている)に使い切っていたら、タイムラインは新しいカードを
                     // 出さずに止まり、案内を下から出す(#62・#78)。閉じたら、枠が戻っていないか確かめ直す。
-                    .sheet(item: Binding(get: { timeline.limitPrompt }, set: { timeline.limitPrompt = $0 }), onDismiss: { timeline.recheckUsage() }) { prompt in
+                    // 設定の「利用枠」・DEBUG の案内を出している間(同じことが分かる)は重ねない。
+                    .sheet(item: Binding(get: { isUsagePreviewPresented || limitSnapshot != nil ? nil : timeline.limitPrompt }, set: { timeline.limitPrompt = $0 }),
+                           onDismiss: { timeline.recheckUsage() }) { prompt in
                         UsageLimitSheet(snapshot: prompt.snapshot, denial: prompt.denial, store: subscriptions) { timeline.limitPrompt = nil }
                             .presentationDetents([.height(380)])
                             .presentationDragIndicator(.visible)
