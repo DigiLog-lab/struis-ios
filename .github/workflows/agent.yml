@@ -2,6 +2,7 @@ name: Issue agent
 run-name: >-
   ${{ github.event_name == 'push' && 'Refresh agent PRs after main moved' ||
       github.event_name == 'issues' && github.event.action == 'closed' && format('Cleanup #{0}', github.event.issue.number) ||
+      github.event_name == 'repository_dispatch' && github.event.action == 'queue-result' && format('Merge queue red: PR #{0}', github.event.client_payload.pr) ||
       format('Issue agent #{0}', github.event.issue.number || inputs.issue || github.event.client_payload.issue) }}
 
 # Issues labeled `agent` are conversations with Claude Code. Each comment from an allowed person
@@ -28,8 +29,9 @@ on:
         required: true
         type: string
   # Sent with only contents: write (agentlib.dispatch): verify_report.py wakes an Issue after a red verification.
+  # `queue-result` comes from ios.yml's `queue-status` when a merge queue run was red (`queue-report` below).
   repository_dispatch:
-    types: [agent-issue]
+    types: [agent-issue, queue-result]
   issues:
     types: [opened, labeled, closed]
   issue_comment:
@@ -45,6 +47,7 @@ concurrency:
   group: >-
     ${{ inputs.verify_conclusion && format('agent-report-{0}', github.run_id) ||
         github.event_name == 'push' && 'agent-refresh' ||
+        github.event.action == 'queue-result' && format('agent-queue-{0}', github.run_id) ||
         github.event_name == 'issues' && github.event.action == 'closed' && format('agent-cleanup-{0}', github.event.issue.number) ||
         format('agent-issue-{0}', github.event.issue.number || inputs.issue || github.event.client_payload.issue) }}
   cancel-in-progress: false
@@ -60,7 +63,7 @@ jobs:
   route:
     if: >-
       !inputs.verify_conclusion && (
-      github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch' ||
+      github.event_name == 'workflow_dispatch' || (github.event_name == 'repository_dispatch' && github.event.action == 'agent-issue') ||
       (contains(fromJSON('["issues", "issue_comment"]'), github.event_name) && github.event.action != 'closed' &&
       !github.event.issue.pull_request && contains(github.event.issue.labels.*.name, vars.AGENT_LABEL || 'agent') &&
       (github.event_name != 'issue_comment' || github.event.comment.user.type != 'Bot')))
@@ -223,7 +226,30 @@ jobs:
           VERIFY_CONCLUSION: ${{ inputs.verify_conclusion }}
         run: python3 scripts/agent/verify_report.py
 
-  # main moved (a merge): every agent PR waiting for review takes main and is verified again.
+  # A merge queue run was red (sent by ios.yml's `queue-status`): the queue has removed the PR. Record the
+  # failure for its Issue and wake the agent. Runs main's code only, on main (the store's condition).
+  queue-report:
+    if: github.event_name == 'repository_dispatch' && github.event.action == 'queue-result'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: read
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          persist-credentials: false
+          sparse-checkout: scripts/agent
+      - name: マージキューの赤をIssueへ返す
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/agent/verify_report.py queue
+
+  # main moved (a merge): an agent PR waiting for review that can no longer take main wakes its agent.
   refresh:
     if: github.event_name == 'push' && !inputs.verify_conclusion
     runs-on: ubuntu-latest

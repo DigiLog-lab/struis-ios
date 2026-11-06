@@ -145,6 +145,20 @@ class BranchTests(unittest.TestCase):
         self.assertFalse(agentctl.checkout_branch('agent/issue-4'))
         self.assertEqual(agentctl.merge_main(), {'status': 'up-to-date'})
 
+    def test_a_declared_prerequisite_branch_is_the_start_of_a_new_branch(self):
+        git(self.work, 'checkout', '-b', 'agent/issue-3')
+        (self.work / 'pre.txt').write_text('prerequisite\n')
+        git(self.work, 'add', '.')
+        git(self.work, 'commit', '-m', 'prerequisite')
+        git(self.work, 'push', 'origin', 'agent/issue-3')
+        git(self.work, 'checkout', 'main')
+        self.assertEqual(agentctl.prerequisite_branch('やること\n\n前提: #3'), 'agent/issue-3')
+        self.assertEqual(agentctl.prerequisite_branch('前提：#3'), 'agent/issue-3')
+        self.assertIsNone(agentctl.prerequisite_branch('前提: #9'))  # merged and deleted: start from main
+        self.assertIsNone(agentctl.prerequisite_branch('やること'))
+        self.assertFalse(agentctl.checkout_branch('agent/issue-4', 'agent/issue-3'))
+        self.assertEqual((self.work / 'pre.txt').read_text(), 'prerequisite\n')
+
     def test_main_is_merged_into_an_existing_branch(self):
         git(self.work, 'checkout', '-b', 'agent/issue-4')
         (self.work / 'b.txt').write_text('work\n')
@@ -423,56 +437,78 @@ class CancelledVerifyTests(VerifyReportTests):
 class RefreshTests(unittest.TestCase):
     MAIN = 'm' * 40
 
-    def gh(self, behind, update_error=None, heads=('a' * 40, 'n' * 40)):
+    def gh(self, mergeable):
         gh = mock.Mock(repository='o/r')
         pr = {'number': 3, 'draft': False, 'body': '<!-- struis-agent:issue=4 -->',
-              'head': {'sha': heads[0], 'repo': {'full_name': 'o/r'}}}
+              'head': {'sha': 'a' * 40, 'repo': {'full_name': 'o/r'}}}
         draft = dict(pr, number=5, draft=True)
         gh.paginate.return_value = [pr, draft]
-        seen = iter(heads[1:] * 5)
-        def get(path):
-            if '/compare/' in path:
-                return {'behind_by': behind}
-            return {'head': {'sha': next(seen)}}
-        gh.get.side_effect = get
-        if update_error:
-            gh.request_once.side_effect = RuntimeError(update_error)
+        states = iter(mergeable)
+        gh.get.side_effect = lambda path: {'mergeable': next(states), 'head': {'sha': 'a' * 40}}
         return gh
 
     def run_refresh(self, gh, store):
         with mock.patch.object(refresh, 'append_summary'):
             refresh.refresh(gh, store, self.MAIN, wait=0)
 
-    def test_a_waiting_pr_takes_main_and_is_verified_again(self):
-        gh, store = self.gh(behind=2), FakeStore()
+    def test_a_pr_that_takes_main_is_left_alone(self):
+        gh, store = self.gh([None, True]), FakeStore()
         self.run_refresh(gh, store)
-        update = gh.request_once.call_args.args
-        self.assertEqual((update[1], update[2]), ('/repos/o/r/pulls/3/update-branch', {'expected_head_sha': 'a' * 40}))
-        dispatched = gh.request.call_args.args[2]
-        self.assertEqual(dispatched['event_type'], 'verify')
-        self.assertEqual(dispatched['client_payload'], {'pr': '3', 'sha': 'n' * 40, 'issue': '4'})
-        self.assertEqual(gh.request_once.call_count, 1)  # the Draft PR is left alone
-
-    def test_a_pr_that_already_contains_main_is_untouched(self):
-        gh, store = self.gh(behind=0), FakeStore()
-        self.run_refresh(gh, store)
-        gh.request_once.assert_not_called()
         gh.request.assert_not_called()
+        gh.request_once.assert_not_called()  # no branch update: it would drop the queue admission
+        self.assertEqual(store.objects, {})
+        self.assertEqual(gh.get.call_count, 2)  # the Draft PR is never looked at
 
     def test_a_conflict_wakes_the_agent_with_the_reason(self):
-        gh, store = self.gh(behind=1, update_error="GitHub PUT x: HTTP 422 b'merge conflict between base and head'"), FakeStore()
+        gh, store = self.gh([False]), FakeStore()
         self.run_refresh(gh, store)
         failure = store.objects['sessions/4/state.json']['verifyFailure']
         self.assertTrue(failure['conflict'])
         self.assertEqual(gh.request.call_args.args[2]['event_type'], 'agent-issue')
+        self.assertIn('マージキューに入れられません', gh.comment.call_args.args[1])
         prompt = agentctl.build_prompt('<ctx/>', ISSUE, [], [], {'issueBodyProcessed': True}, failure)
         self.assertIn('衝突', prompt)
 
-    def test_a_head_that_moved_meanwhile_is_not_treated_as_a_conflict(self):
-        gh, store = self.gh(behind=1, update_error="GitHub PUT x: HTTP 422 b'expected head sha didn't match current head ref.'"), FakeStore()
+    def test_unknown_mergeability_wakes_nobody(self):
+        gh, store = self.gh([None] * 10), FakeStore()
         self.run_refresh(gh, store)
-        self.assertEqual(store.objects, {})
         gh.request.assert_not_called()
+        self.assertEqual(store.objects, {})
+
+
+class QueueFailureTests(unittest.TestCase):
+    PAYLOAD = {'pr': '3', 'sha': SHA, 'run': '12', 'url': 'https://github.com/o/r/actions/runs/12'}
+
+    def gh(self, state='open'):
+        gh = mock.Mock(repository='o/r')
+        pr = {'state': state, 'head': {'sha': 'b' * 40}, 'body': 'x <!-- struis-agent:issue=4 -->'}
+        jobs = {'jobs': [{'name': 'verify', 'conclusion': 'failure', 'html_url': 'u',
+                          'steps': [{'name': '選んだUIテストを流す', 'conclusion': 'failure'}]}]}
+        gh.get.side_effect = lambda path: jobs if path.endswith('/actions/runs/12/jobs?per_page=100') else pr
+        return gh
+
+    def test_a_red_queue_run_records_and_wakes_the_agent(self):
+        gh, store = self.gh(), FakeStore()
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.queue_failure(self.PAYLOAD, gh, store)
+        failure = store.objects['sessions/4/state.json']['verifyFailure']
+        self.assertEqual((failure['pr'], failure['sha'], failure['queue']), (3, SHA, True))
+        self.assertEqual(failure['failed'][0]['steps'], ['選んだUIテストを流す'])
+        self.assertEqual(gh.request.call_args.args[2]['event_type'], 'agent-issue')
+        self.assertIn('キューから外れました', gh.comment.call_args.args[1])
+        prompt = agentctl.build_prompt('<ctx/>', ISSUE, [], [], {'issueBodyProcessed': True}, failure)
+        self.assertIn('マージキューの検証', prompt)
+
+    def test_a_closed_pr_wakes_nobody(self):
+        gh, store = self.gh(state='closed'), FakeStore()
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.queue_failure(self.PAYLOAD, gh, store)
+        gh.request.assert_not_called()
+        self.assertEqual(store.objects, {})
+
+    def test_the_commit_must_be_a_full_sha(self):
+        with self.assertRaises(ValueError):
+            verify_report.queue_failure(dict(self.PAYLOAD, sha='main'), self.gh(), FakeStore())
 
 
 class CleanupTests(unittest.TestCase):
