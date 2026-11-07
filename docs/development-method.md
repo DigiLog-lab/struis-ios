@@ -1,8 +1,8 @@
 # Struis 開発手法 仕様(struis-ios)
 
-- 版: 5(2026-11-07)。版4のレビューの指摘を反映した。マージキューを `pull_request_target` で動かす、並び順を毎回 GitHub の状態から計算する、古い緑を pending に戻す、Dev Box を main の定義で起動する、など。
+- 版: 6(2026-11-07)。マージキューを実装したとおりに書き直した。版5は、版4のレビューの指摘を反映した版。
 - 対象: `DigiLog-lab/struis-ios` の実装・検証・マージ・報告の回し方
-- 状態: Dev Box は事前検証を終え、実装中(#91)。マージキューは未実装(#92、#91 にブロックされる)。実装の前に、末尾の「未検証の前提」を試して確かめる。
+- 状態: Dev Box は実装済み(#94)。マージキューは #92 で実装中。自動マージの流れは、持ち主が「Allow auto-merge」を有効にした後に確かめる(「15. 未検証の前提」)。
 - 名前は業界で通じる言葉を使う。独自の GitHub のラベルは使わない。
 
 ---
@@ -70,39 +70,40 @@
 - 外すもの:
   - `scripts/ci/ui-test-plan.json`・`scripts/ci/ui_test_plan.py`: 選び方の変更は、選び方の単体テストで確かめる。
   - `strius/Auth/**`: ファイルごとに関係する画面のテストへ割り当てる。
-- 検証のワークフロー(`ios.yml` とキュー)の変更は外さない。「7. マージキュー」の「検証のワークフローに触る PR」のとおり、PR の定義で1回流す。
+- 検証のワークフローの変更は、「7. マージキュー」のとおり、PR の定義で1回流す。
 - 試算: 課金の処理を変えた PR(#84)で、48本(約44分)→6本(約3分)。
 
 ## 7. マージキュー(自前、main に入る前の唯一のゲート)
-- **起動**: `pull_request_target`(`auto_merge_enabled`・`auto_merge_disabled`・`synchronize`・`closed`)、main への `push`、検証の `workflow_run` の完了。`pull_request_target` は main の定義で動く(`pull_request` は PR のマージ用コミットの定義で動くので使わない)。
+実装: `.github/workflows/merge-queue.yml`(Linux)と `scripts/ci/merge_queue.py`(テストは `scripts/ci/test_merge_queue.py`)。
+- **起動**: `pull_request_target`(`auto_merge_enabled`・`auto_merge_disabled`・`synchronize`・`closed`・`reopened`・`ready_for_review`)、main への `push`、`iOS` と `Agent tests` の `workflow_run` の完了、30分ごとの `schedule`(届かなかったイベントの保険)。`pull_request_target` は main の定義で動く(`pull_request` は PR のマージ用コミットの定義で動くので使わない)。キューのジョブは PR のコードを checkout も実行もしない。API で読み書きするだけ。
 - **入口**: 持ち主が PR で「Enable auto-merge」を押すと、キューに入る。自動マージを押すことがマージの許可。
   - 合図にレビューの承認(Approve)は使わない。PR の作成者は自分の PR を承認できず、Claude が作る PR は持ち主のアカウント(`DigiLog-lab`)の名前で作られるため。
   - ルールセットが求める承認数は0なので、承認が無くてもマージの妨げにはならない。
-  - GitHub は、すぐマージできる PR には「Enable auto-merge」を出さない。だからキュー以外が `Struis / verify` を緑にしてはいけない(緑だとボタンが出ず、キューに入れない)。
-  - このリポジトリの PR だけを受ける。フォークからの PR はキューに入れない。
-- **状態を持たない**: キューは起動のたびに、GitHub の状態から次にやることを計算する。待ちのファイルもラベルも持たない。
+  - GitHub は、すぐマージできる PR には「Enable auto-merge」を出さない。だからキュー以外が `Struis / verify` を緑にしてはいけない(緑だとボタンが出ず、キューに入れない)。PR への push では、もう検証は起動しない(`ios.yml` の `pull_request` と `request` ジョブ、`agentctl ready` の検証の起動、main が進んだ時の `refresh` の再検証を外した)。
+  - このリポジトリの PR だけを受ける。フォークからの PR、Draft の PR はキューに入れない。
+- **状態を持たない**: キューは起動のたびに、GitHub の状態から次にやることを1段だけ進める。待ちのファイルもラベルも持たない。
   - キューの中身: 開いていて、main 向けで、自動マージが有効な PR。
-  - 並び順: 「自動マージを押した時刻」と「最後の push の時刻」の遅い方が早い順(Issue のタイムラインの `auto_merge_enabled` と、先頭のコミットの push の時刻)。赤を直して push した PR は、これで自然に最後に並ぶ。
-  - Issue に GitHub の依存関係(Blocked by)があり、ブロックしている Issue が閉じていない PR は飛ばし、次の PR を見る。先頭で止めない。
-  - 同時実行の制御(concurrency)は `queue: max` にする。既定だと待ちを1本しか持てず、新しい起動が待っている起動を取り消すため。
+  - 並び順: 「自動マージを押した時刻」(タイムラインの `auto_merge_enabled`)と「先頭のコミットの時刻」の遅い方が早い順。赤を直して push した PR は、これで自然に最後に並ぶ。
+  - PR 自身か、PR が閉じる Issue(本文の `Closes #n` など)が、閉じていない Issue に Blocked by されていたら飛ばし、次の PR を見る。先頭で止めない。
+  - 先頭のコミットの `Struis / verify` が赤の PR は、push されるまでキューの外で待つ。
+  - 同時実行の制御は既定のまま(待ちは1本)。新しい起動が待っている起動を取り消しても、新しい起動が GitHub の状態から全部を読み直すので、何も失わない。
 - **先頭に来たら**:
-  1. PR が最新の main を含んでいなければ、最新の main を取り込む(Update branch)。
-  2. アプリに触らない変更(スクリプト・文書だけ)なら、macOS を使わず Linux のテスト(`scripts/agent/tests`、`scripts/ci` の単体テスト、actionlint)だけで検証する。
-  3. 検証のワークフローに触る PR(`ios.yml`、キューのワークフロー、`devbox.yml` は除く)は、PR の定義で macOS の検証を1回流す。main の定義だけで流すと、検証を壊す変更が検証されずに main に入り、次からキューが全部赤になって、直す PR もマージできなくなるため。
-  4. UI だけの変更(差分が描画のファイルだけ。main の版の `cosmetic.py` の `ALLOWED`)なら、Release archive と、シミュレータ向けのビルド(前後比較の「前」に使う)だけを確かめる。会話のスクロールと固まり、オンボーディング、課金に関わる画面は、UI だけの変更でも通常の検証にする。この経路で入った変更は、TestFlight に出す前に実機で確かめる。
-  5. それ以外は、main の定義で `build-for-testing` → 単体テスト → 関係する UI テストを流し、並行して Release archive を1回流す。
-  6. 同じコミットがすでにキューで緑になっていて、そのコミットが今の main を含むなら、流し直さない。
-- **ビルドの再利用**: ビルド成果物を「tree の SHA＋Xcode の版」の名前で Artifact に置く(保存14日)。マージの方法は `merge` だけなので、マージ後の main のコミットの SHA は検証したコミットと違うが、tree の SHA は同じになる。UI テストが多い時は2台に配って半分ずつ流す(シャーディング)。ランナー側の失敗で流し直す時は、ビルドを省いて `test-without-building` で流す。
-- **緑**: キューが `Struis / verify` を書く。必須のステータスチェックが揃った時点で、GitHub の自動マージが、ボタンを押した持ち主の名前でマージする。マージは持ち主の名前の push になるので、main への push で動くワークフローは普段どおり起動する。main が進んだのを見て、キューは次の PR へ進む。
-  - 緑を書いてから10分たっても main が進まない(マージが失敗した)時は、Issue に理由を書いて次へ進む。
-- **古い緑を残さない**: ルールセットの「最新の main を含むことを求める」(strict)は無効なので、古い main の上の緑はマージできてしまう。main が進むたびに、キューは、他の開いている PR の先頭のコミットにある緑の `Struis / verify` を pending に書き直す。
+  1. PR が最新の main を含んでいなければ、GITHUB_TOKEN で最新の main を取り込む(Update branch)。衝突したら赤にして PR に理由を書き、次の PR へ進む。
+  2. 検証のワークフローに触る PR は、先に PR のブランチの定義のままで流す(`workflow_dispatch`)。`ios.yml`・`agent.yml`・`agent-native-cache.yml`・検証のスクリプトに触れば `ios.yml` を、`scripts/` や `cloudflare/`、キューのワークフローに触れば `agent-tests.yml` を流す。緑なら次へ進み、赤なら PR に理由を書いて外す。main の定義だけで流すと、検証を壊す変更が検証されずに main に入り、次からキューが全部赤になって、直す PR もマージできなくなるため(持ち主の判断で、ルールセットの例外は入れずにキュー側で防ぐ。2026-11-07)。
+  3. main の定義の `ios.yml` の検証を `repository_dispatch`(`verify`)で起動する。中身は変更で決まる。
+     - アプリに触らない変更(`scripts/ci/app_free.py`: 文書、`scripts/agent`・`scripts/ci`・`scripts/devbox`、`.github`、`cloudflare` だけ): macOS を使わない(段階 `none`)。スクリプトとワークフローは `agent-tests.yml` が確かめている。
+     - `見た目だけ` のラベルが付き、差分が描画のファイルだけ(PR の `cosmetic.py` と main の `cosmetic.py` の両方が認める): Release archive だけ。
+     - それ以外: `build-for-testing` → 単体テスト → 関係する UI テストを流し、並行して Release archive を1回流す。UI テストは、main の選び方のスクリプトで、main の規則と PR の規則の両方から選び、合わせたものを流す。
+- **緑**: `ios.yml` の `report` が `Struis / verify` を緑にする。GitHub の自動マージが、ボタンを押した持ち主の名前でマージする。マージは持ち主の名前の push になるので、main への push で動くワークフローは普段どおり起動する。main が進むと、キューは次の PR へ進む。
+  - 緑になってから10分たってもマージされない時は、赤にして PR に理由を書き、次へ進む。
+  - 検証が2時間たっても終わらない時は、赤にして PR に理由を書き、次へ進む。
+- **古い緑を残さない**: ルールセットの「最新の main を含むことを求める」(strict)は無効なので、古い main の上の緑はマージできてしまう。キューは起動のたびに、最新の main を含まない先頭のコミットにある緑の `Struis / verify` を pending に書き直す。
+- **赤**: `ios.yml` の検証が赤なら、キューはその先頭のコミットにつき1回だけ PR に理由を書く。自動マージは有効のまま残す。Claude が直して push したら、そのままキューの最後に並び直す。持ち主が押し直す必要は無い。
 - **マージするのは GitHub**: キューも Claude もマージの API は呼ばない。Claude の環境ではマージの API が止められる(2026-11-06・07 に確認)。
-- **強制の範囲**: `Struis / verify` はキューだけが書く決まり。ルールセットが強制しているのは「`Struis / verify` が緑でないとマージできない」ことだけで、誰が書いたかは見ていない(必須チェックに書き手の指定が無い。`statuses: write` を持つジョブや、持ち主の名前で動く Claude の環境も書ける)。キュー以外のジョブに `statuses: write` を持たせない。
-- **赤か衝突**: キューから外し、Issue に理由を書く。自動マージは有効のまま残す。Claude が直して push したら、そのままキューの最後に並び直す。持ち主が押し直す必要は無い。UI テストが落ちた時は、失敗した瞬間のスクショと、そのテストの区間の録画を残す。直すのは Claude。
-- **Update branch が拒否された時**: main に入った変更が `.github/workflows/` に触っていると、GITHUB_TOKEN による Update branch が拒否される可能性がある(未検証)。拒否されたら Issue に書き、Claude が次に起きた時に持ち主の名前で main を取り込んで push する。
+- **強制の範囲**: `Struis / verify` を書くのは、キューと、キューが起動した `ios.yml` の検証だけの決まり。ルールセットが強制しているのは「`Struis / verify` が緑でないとマージできない」ことだけで、誰が書いたかは見ていない(必須チェックに書き手の指定が無い)。他のジョブに `statuses: write` を持たせない。
+- **Update branch**: ワークフローの変更が main に入った後でも、GITHUB_TOKEN で Update branch ができる(2026-11-07、#94 のマージの後に #89 で確認。`github-actions[bot]` のコミット 4f64411)。
 - **push の禁止**: キューの先頭で検証中の PR のブランチには push しない。
-- **作り**: Linux のジョブで、起動のたびに1段進めて終わる。待っている間ランナーを握らない。
-- **非常口**: キューのワークフロー自体が壊れて直す PR も通らない時のために、持ち主をルールセットの例外(bypass)に入れるかは、持ち主の判断(「12. 持ち主の操作」)。
+- **まだ実装していないもの**: ビルド成果物の再利用(tree の SHA で Artifact に置き、`test-without-building` で流し直す)、UI テストのシャーディング、UI テストが落ちた瞬間のスクショと区間の録画、`見た目だけ` のラベルを使わずに差分だけで UI だけの変更を見分けること。
 
 ## 8. スクショと動画
 - **撮る場所**: 開発中は Dev Box で撮る(`$DEVBOX_FILES` に置けば手元に届く)。マージキューで UI テストが落ちた時は、キューが撮って Artifact に置く(保存14日)。
@@ -139,7 +140,7 @@
 - 最初に1回だけ: リポジトリの設定(Settings → General → Pull Requests)で「Allow auto-merge」を有効にする。2026-11-07 時点で無効。Claude が API(`PATCH /repos`)で有効にしようとしたが、安全確認に「共有の設定の変更」として止められた。マージキューの PR が main に入った後に有効にすれば足りる。
 - キューができるまでの PR(Dev Box の PR と、マージキューの PR)のマージ。キューがまだ無いので、持ち主の手でマージしてもらう。
 - PR ごと: 「Enable auto-merge」を押す(マージの許可)。
-- 決めること: 非常口として、持ち主をルールセットの例外(bypass)に入れるか。入れるなら、ルールセットの変更は持ち主の操作(Claude の環境ではルールセットを変えられない)。
+- ルールセットの例外(bypass)は入れない(2026-11-07、持ち主の判断)。検証を壊す変更は、キューが PR の定義で先に流して防ぐ。
 
 ## 13. Claude の環境の制約(試した結果)
 - **マージ**: PR のマージの API は、安全確認に「レビューなしのマージ」として止められる。持ち主の許可があっても止まる(2026-11-06、2026-11-07 に #88 で再確認)。
@@ -171,15 +172,18 @@
 - ビルド成果物の大きさと、Artifact の置き取りの時間、別のランナーでの `test-without-building`、iPad のシミュレータ(「14. 見込み」)。
 - Claude の環境から: `repository_dispatch` の送信、Issue の依存関係(Blocked by)の書き込み、ブランチの作成と force push はできる。ブランチの削除(git の push は 403、REST は安全確認に止められる)、`workflow_dispatch`、実行の取り消しはできない。だから Dev Box は `repository_dispatch` で起動し、ブランチの後片付けは Dev Box がする。
 - Actions のキャッシュの使用量は、`agent-tests` のログ(`scripts/ci/cache_usage.py`)で読める。2026-11-06 時点で約1.07GB・3件(上限10GB)。
+- main に `.github/workflows/` の変更が入った後でも、GITHUB_TOKEN で Update branch ができる(#89、4f64411)。
+- `send_later`: スケジュール実行で起こされた中から、次の一回限りのスケジュール実行を入れ直せる(2026-11-07 03:51)。
+- 本番の Dev Box(`repository_dispatch` で main の定義から起動): 依頼から待機まで13.5分。うちビルドと起動が9分20秒、前の Dev Box が残した結果5件の後片付けが約3分20秒(1件ずつ取ってきて消すので遅い)。上乗せは13秒。
 
 未検証(この順で試す):
 1. 自動マージ: 持ち主が「Allow auto-merge」を有効にした後、文書だけの害のない PR で、`pull_request_target` の `auto_merge_enabled` でキューが起動するか、キューの `Struis / verify` で自動マージが動くか、Claude の push で自動マージが外れないか、マージ後に main への push で動くワークフローが起動するか。
 2. `require_extra_approval_for_unattributed_changes`(ルールセットで有効)が、キューの Update branch が作るコミットで承認を求めないか。今の #89(コミットの作者は `github-actions[bot]`)・#88(作者は `claude`)は承認待ちで止まっていなかった。
-3. main に `.github/workflows/` の変更が入った後、キューの GITHUB_TOKEN で Update branch ができるか。
-4. 前後比較の「前」: main のシミュレータ向けのビルドを、Dev Box のシミュレータに入れて撮れるか(別のランナーで Artifact のビルドを入れて起動するのは確かめた)。
-5. テスト結果の時刻で、録画をテストごとに切り出せるか。
-6. Dev Box の DerivedData をキャッシュに置いて、次の Dev Box の立ち上がりを縮められるか。git の checkout はファイルの更新時刻を今にするので、そのままでは全部ビルドし直しになる見込み。キャッシュに1.6GB を足すと、上限10GB のうち約2.7GB になる。
-7. `send_later` で1分後に起き、入れ直せるか。
+3. 前後比較の「前」: main のシミュレータ向けのビルドを、Dev Box のシミュレータに入れて撮れるか(別のランナーで Artifact のビルドを入れて起動するのは確かめた)。
+4. テスト結果の時刻で、録画をテストごとに切り出せるか。
+5. Dev Box の DerivedData をキャッシュに置いて、次の Dev Box の立ち上がりを縮められるか。git の checkout はファイルの更新時刻を今にするので、そのままでは全部ビルドし直しになる見込み。キャッシュに1.6GB を足すと、上限10GB のうち約2.7GB になる。
+6. 検証のワークフローに触る PR を、キューが `workflow_dispatch` で PR のブランチの定義のまま流し、その結果を読めるか(`workflow_dispatch` は GITHUB_TOKEN からでも別の実行を起こせる例外の1つ、という GitHub の文書どおりか)。
+
 
 ## 16. 残る弱点
 - Dev Box は、Claude が考えている間もランナーを1台握る。握るのは Claude が作業している間だけで、待っている間はアイドルタイムアウトで返す。
@@ -191,7 +195,7 @@
 
 ## 17. 実装の段取り
 1. PR その1(#91): Dev Box とリモート実行(`mac` コマンド)、この仕様。以降の作業をこれで進めるので最初に作る。
-2. PR その2(#92): テストの選び方、マージキュー、古い流れ(`refresh` の再検証、PR ごとの `Struis / verify`、エージェントの手元検証→ready→検証)の撤去。撤去と同時に、開いている PR の先頭のコミットの緑の `Struis / verify` を pending に書き直す。
+2. PR その2(#92): テストの選び方、マージキュー、古い流れ(`refresh` の再検証、PR ごとの `Struis / verify`、`agentctl ready` の検証の起動)の撤去。キューは起動のたびに、最新の main を含まない緑を pending に書き直す。
 3. 持ち主が Allow auto-merge を有効にした後、文書だけの害のない PR で自動マージの流れを確かめる。
 
 ## 18. 用語

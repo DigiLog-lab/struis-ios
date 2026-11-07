@@ -13,7 +13,7 @@ GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Cla
 | Claude Code | `anthropics/claude-code-action`(commit 固定) | 自動化モード(`prompt` 指定)。毎回新しいセッションで、Issue のやり取りを履歴として渡す |
 | 制御スクリプト | `scripts/agent/agentctl.py`、`agentlib.py` | 経路判定、prompt 生成、実行結果の解析、Issue への返信、Claude から使う補助コマンド |
 | 検証の報告 | 同 `report` job(ubuntu)、`scripts/agent/verify_report.py` | `ios.yml` の `Verify PR #<n> <sha>` の結果を commit status `Struis / verify` にし、赤ならエージェントを起こす |
-| PR の取り込み直し | 同 `refresh` job(ubuntu)、`scripts/agent/refresh.py` | main が進んだら、レビュー待ちのエージェントの PR に GitHub 側で main を取り込み(「Update branch」と同じ)、新しい HEAD を検証し直す。衝突したらエージェントを起こす。あわせて、閉じた Issue の `agent/issue-<n>`(`-wip` などの付いた枝も含む)を、そこから開いた PR が無ければ削除する |
+| 閉じた Issue の後片付け | 同 `sweep` job(ubuntu)、`scripts/agent/sweep.py` | main が進んだら、閉じた Issue の `agent/issue-<n>`(`-wip` などの付いた枝も含む)を、そこから開いた PR が無ければ削除する。PR の取り込み直しと検証は、マージキュー(`merge-queue.yml`)の仕事 |
 | 後片付け | 同 `cleanup` job(ubuntu)、`scripts/agent/cleanup.py` | Issue が閉じたら、作業ブランチの DerivedData cache、作業ブランチ(そこから開いた PR が無い時だけ。マージ済み・閉じた PR のページから復元できる)、`handoff/issue-<n>` を削除 |
 | 固定システムプロンプト | `scripts/agent/system-prompt.md` | エージェントの作業規則。会話ごとに変わる情報は含めない |
 | 保存先 | `cloudflare/agent`(Worker)+ R2 バケット `struis-agent` | 状態、使用量、返信の添付画像、プロトタイプの記録と IPA。CI は GitHub OIDC で認証(受け付けるのは `agent.yml` と `agent-prototype.yml`) |
@@ -26,9 +26,9 @@ GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Cla
 2. `route` が、投稿者がリポジトリの OWNER / MEMBER / COLLABORATOR であること(Repository variable `AGENT_ALLOWED_USERS` を設定した場合はその一覧)と、未処理のコメントがあることを確認します。Bot の投稿とエージェント自身の返信は対象外です。
 3. `worker` が作業ブランチ(`agent/issue-<n>`)を origin から取り、最新の main を取り込みます。衝突したら取り込みを中止し、最初に解消するよう Claude に伝えます。`handoff/issue-<n>` があれば `$AGENT_HOME/handoff` に展開します。
 4. Claude は毎回新しいセッションで、Issue 本文・それまでのやり取り・記録済みの設計判断(`decision`)・新しいコメントを受け取ります。
-5. 作業を終えたら push 済み HEAD で `local-verify`(全単体テスト＋変更に関係する UI テスト)を流し、緑なら `ready` で PR をレビュー待ちにして `ios.yml` の検証を起動します。結果は待たずにセッションを終えます。
+5. 作業を終えたら push 済み HEAD で `local-verify`(全単体テスト＋変更に関係する UI テスト)を流し、緑なら `ready` で PR をレビュー待ちにします。結果は待たずにセッションを終えます。持ち主が自動マージを有効にすると、マージキューが最新の main の上で `ios.yml` の検証を流します。
 6. `report` が検証の結果を commit status にします。緑なら Issue にマージできる旨を投稿し、赤なら失敗の内容を記録してエージェントを起こします。マージは人が行います。
-7. PR がマージされて main が進むと、`refresh` が他のレビュー待ちの PR(人の PR も含む)に最新の main を取り込み、検証し直します。取り込みが衝突したエージェントの PR は、そのエージェントを起こして解消させます。
+7. PR がマージされて main が進むと、マージキューが次の PR に最新の main を取り込んで検証します。取り込みが衝突した PR は、キューが赤にして PR に理由を書きます。
 8. Issue の本文に `前提: #<n>` があると、作業ブランチを前提の作業ブランチから切ります。見た目だけの変更の扱いも含め、[verification-and-delivery-policy.md](verification-and-delivery-policy.md) にあります。
 
 実行が途中で止まっても自動では再開しません。push 済みの commit は作業ブランチに残り、Issue へのコメントで新しく始めます。失敗した実行が扱っていたコメントは未処理のまま残るので、次の実行で一緒に扱います。Claude の step は300分、job は340分です。

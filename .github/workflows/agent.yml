@@ -10,7 +10,7 @@ run-name: >-
 # this workflow at its end (workflow_call, `report` only) to write the commit status `Struis / verify`
 # and wake the Issue when it is red. A workflow_run trigger cannot be used for that: a run started
 # with GITHUB_TOKEN (the agent's repository_dispatch) never triggers workflow_run (Issue #68).
-# When main moves, `refresh` brings the agent PRs waiting for review up to date and verifies them again.
+# When main moves, `sweep` deletes the work branches of closed agent Issues (the merge queue verifies PRs).
 # The store (cloudflare/agent) accepts jobs of this workflow file, also when it is called from ios.yml,
 # so every job that reads or writes the Issue's state lives here.
 on:
@@ -48,7 +48,7 @@ concurrency:
   # One group per Issue for workers; reports and cleanups never wait on a worker.
   group: >-
     ${{ inputs.verify_conclusion && format('agent-report-{0}', github.run_id) ||
-        github.event_name == 'push' && 'agent-refresh' ||
+        github.event_name == 'push' && 'agent-sweep' ||
         github.event_name == 'issues' && github.event.action == 'closed' && format('agent-cleanup-{0}', github.event.issue.number) ||
         format('agent-issue-{0}', github.event.issue.number || inputs.issue || github.event.client_payload.issue) }}
   cancel-in-progress: false
@@ -228,8 +228,9 @@ jobs:
           VERIFY_TIER: ${{ inputs.ui_tier }}
         run: python3 scripts/agent/verify_report.py
 
-  # main moved (a merge): every agent PR waiting for review takes main and is verified again.
-  refresh:
+  # main moved (a merge): the work branches of closed agent Issues are deleted. Bringing PRs up to date and
+  # verifying them is the merge queue's job (merge-queue.yml).
+  sweep:
     if: github.event_name == 'push' && !inputs.verify_conclusion
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -244,10 +245,10 @@ jobs:
           ref: main
           persist-credentials: false
           sparse-checkout: scripts/agent
-      - name: レビュー待ちのPRに最新のmainを取り込み、検証し直す。閉じたIssueの作業ブランチを消す
+      - name: 閉じたIssueの作業ブランチを消す
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: python3 scripts/agent/refresh.py
+        run: python3 scripts/agent/sweep.py
 
   cleanup:
     if: >-
