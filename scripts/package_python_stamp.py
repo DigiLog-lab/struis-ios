@@ -7,8 +7,15 @@ because Xcode cannot know its inputs and outputs (`alwaysOutOfDate`). This recor
 what it read and what it left in the app; the next build skips the phase while both are the same, and
 otherwise says in the build log the first thing that changed.
 
-    package_python_stamp.py check STAMP SCRIPT   # exit 0: unchanged, skip the phase
-    package_python_stamp.py write STAMP SCRIPT   # after the phase ran
+    package_python_stamp.py check STAMP SCRIPT     # exit 0: unchanged, skip the phase
+    package_python_stamp.py write STAMP SCRIPT     # after the phase ran
+    python3.14 package_python_stamp.py compile-modules APP   # when skipped: see below
+
+The app's PythonModules is not compared: the target's Resources phase copies NativeRuntime/PythonModules
+(a folder reference) into the app again on every build, which drops its compiled caches. Its files are
+pure Python (an extension module there makes `check` fail, so the whole phase runs), so a skipped phase
+only compiles it again, as NativeRuntime/Scripts/compile-python.py does (test_package_python_stamp.py keeps
+the two the same).
 
 Files are compared by path, size, modification time and mode (a symbolic link by its target), not by
 content: an input that changes always gets a new modification time, and reading 400 MB on every build would
@@ -18,8 +25,10 @@ Reads Xcode's build settings from the environment (SRCROOT, CODESIGNING_FOLDER_P
 """
 from __future__ import annotations
 
+import compileall
 import hashlib
 import os
+import py_compile
 import pathlib
 import subprocess
 import sys
@@ -32,7 +41,8 @@ INPUTS: tuple[str, ...] = (
     "scripts/package_python_stamp.py",
 )
 # What it writes (or what it changes after another phase copied it), relative to the app.
-OUTPUTS: tuple[str, ...] = ("Frameworks", "python", "PythonModules", "PythonPackages")
+OUTPUTS: tuple[str, ...] = ("Frameworks", "python", "PythonPackages")
+EXTENSIONS: tuple[str, ...] = (".so", ".dylib", ".fwork")
 SETTINGS: tuple[str, ...] = (
     "PLATFORM_NAME", "EFFECTIVE_PLATFORM_NAME", "CONFIGURATION", "ARCHS", "EXPANDED_CODE_SIGN_IDENTITY",
     "EXPANDED_CODE_SIGN_IDENTITY_NAME", "CODESIGNING_FOLDER_PATH", "PROJECT_DIR",
@@ -84,7 +94,27 @@ def stamp(script: pathlib.Path) -> list[str]:
     return lines
 
 
+def native_modules(app: pathlib.Path) -> list[pathlib.Path]:
+    return sorted(path for path in (app / "PythonModules").rglob("*") if path.suffix in EXTENSIONS)
+
+
+def compile_modules(app: pathlib.Path) -> int:
+    """The PythonModules part of NativeRuntime/Scripts/compile-python.py, with the same settings."""
+    if sys.version_info[:2] != (3, 14):
+        print("The embedded CPython 3.14 requires a Python 3.14 bytecode compiler", file=sys.stderr)
+        return 1
+    app = app.resolve()
+    if not compileall.compile_dir(app / "PythonModules", quiet=1, optimize=0, force=True,
+                                  invalidation_mode=py_compile.PycInvalidationMode.CHECKED_HASH,
+                                  stripdir=str(app), prependdir="/"):
+        print(f"Python bytecode compilation failed: {app / 'PythonModules'}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv: list[str]) -> int:
+    if len(argv) == 2 and argv[0] == "compile-modules":
+        return compile_modules(pathlib.Path(argv[1]))
     if len(argv) != 3 or argv[0] not in ("check", "write"):
         print(__doc__, file=sys.stderr)
         return 2
@@ -98,6 +128,10 @@ def main(argv: list[str]) -> int:
         recorded = path.read_text().splitlines()
     except FileNotFoundError:
         print("Package Python runs: no record of an earlier run")
+        return 1
+    extensions = native_modules(pathlib.Path(os.environ["CODESIGNING_FOLDER_PATH"]))
+    if extensions:
+        print(f"Package Python runs: PythonModules has an extension module ({extensions[0].name})")
         return 1
     if recorded == current:
         return 0
