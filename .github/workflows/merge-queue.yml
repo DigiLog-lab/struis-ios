@@ -17,7 +17,14 @@ on:
   workflow_run:
     workflows: [iOS, Agent tests]
     types: [completed]
-  # A safety net for events GitHub did not deliver.
+  # The end of the queue's own runs (ios.yml's and agent-tests.yml's `wake-queue`): a run started with
+  # GITHUB_TOKEN triggers no workflow_run above.
+  repository_dispatch:
+    types: [merge-queue]
+  # By hand (the owner), when the queue sleeps for a reason no event covers.
+  workflow_dispatch:
+  # A safety net for events GitHub did not deliver. (No scheduled run had come by 2026-11-07 07:10 UTC, three
+  # hours after this was added: it is not relied on.)
   schedule:
     - cron: '17,47 * * * *'
 
