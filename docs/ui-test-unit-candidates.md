@@ -25,7 +25,7 @@
 | `WorkbookSubunitLayoutUITests/testSendingCollapsesExampleBar` | 20 | `WorkbookExampleBarState` | `WorkbookSubunitLayoutTests.testExampleBarCollapsesOnLearnerActivityAndReopensByTap` | 約18 |
 | `ChatImmediateImageSendUITests/testTwoImagesPersistAfterRelaunch` | 34 | `ChatStore.send`・`storeAttachments` を、台帳を開き直して読む | 見つからない | 約12 |
 | `WorkbookSubunitLayoutUITests/testUnitCardShowsCorrectOverNAndNothingForUntouched` | 9 | `WorkbookSubunitProgress` | `WorkbookSubunitLayoutTests` の単元カードの3本 | 約7 |
-| `DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff` | 22 | `SettingsStore.exportLedger`、`LedgerArchive` | `LedgerTests.testArchiveExportImportRoundTrip`(使用量の既定オフは無い) | 約4 |
+| `DeviceLedgerSettingsUITests/testExportLedgerWithoutUsageReporting` | 22 | `SettingsStore.exportLedger`、`LedgerArchive` | `LedgerTests.testArchiveExportImportRoundTrip`(使用量を送る設定が無いことは無い) | 約4 |
 | `ConversationExportUITests/testCopyConversation` | 19 | 書き出しの文(今は `ChatView` のボタンの中にあり、関数になっていない) | 見つからない | 約2 |
 | `DeviceRuntimeUITests/testRuntimeHelperBoots` | 68 | `DeviceRuntime.start`(helper の起動) | 実ランタイムが要り門では skip | 0〜10(起動の時間は単体テストにも残る) |
 

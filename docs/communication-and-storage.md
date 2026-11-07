@@ -1,31 +1,31 @@
 # 通信と端末内の保存
 
-端末側の学習処理は`strius/Engine`、保存は`strius/Ledger`、実AIの要求は`strius/Runtime/Claude`から追えます。AIへの指示文は`strius/Resources/Prompts`にあり、アプリに同梱します。サーバーの実装はこのリポジトリに含まれません。
+端末側の学習処理は`strius/Engine`、保存は`strius/Ledger`、実AIの要求は`strius/Runtime/Claude`から追えます。AIへの指示文・schema・Skill・端末で動かすスクリプトは`strius/Resources/Prompts`にあり、アプリに同梱します。モデルの設定はアプリの定数です([ModelProvider](../strius/Runtime/ModelProvider.swift)、[AssetCache](../strius/Delivery/AssetCache.swift))。起動時や設定から、これらを運営者のサーバーへ取りに行くことはありません。
 
 ## 通信先と送信の契機
 
 | 通信先 | 契機と送信項目 | ソース |
 |---|---|---|
-| `https://api-struis.digiloglab.com` | 使用量報告(下の節)を送ります | [ServerConfig](../strius/Networking/ServerConfig.swift)、[ServerAssetSource](../strius/Delivery/AssetCache.swift)、[UsageReporter](../strius/State/UsageReporter.swift) |
-| `auth-struis.digiloglab.com` | Struisのアカウントログイン、認証更新・ログアウト。Auth0のWeb認証を使います。公開client IDは秘密値ではありません | [Auth0Config](../strius/Auth/Auth0Config.swift)、[AuthStore](../strius/Auth/AuthStore.swift) |
 | `https://api.anthropic.com` | 実AIのすべてのターン。学習者の入力、会話の履歴、同梱の指示文、必要な学習記録、添付画像・資料から読み取った内容、tool結果、要求モデルとeffort等をMessages API(`/v1/messages`)へHTTPSで送り、SSEで受け取ります。端末から直接送り、Struisのサーバーは経由しません。実機はApp Attestで正規のStruisアプリであることを示し(`/v1/oauth/app-attest/challenge`・`/v1/oauth/app-attest/register`・`/v1/oauth/token`)、Anthropicが発行する期限付きのtokenをBearerにします。端末にAPIキーは置きません。利用料はStruisのAnthropicワークスペースに請求されます。Info.plistの`NSPinnedDomains`でこのホストの証明書の発行元を固定しています | [ClaudeTurnRunner](../strius/Runtime/Claude/ClaudeTurnRunner.swift)、[ClaudeUpstream](../strius/Runtime/Claude/ClaudeUpstream.swift)、[AppAttestClient](../strius/Runtime/Claude/AppAttestClient.swift)、[TurnComposer](../strius/Engine/TurnComposer.swift) |
 | Apple App Attest | Claudeを初めて使う時、端末の鍵の生成とattestationでAppleのサーバーと通信します(DeviceCheckの仕組み) | [AppAttestClient](../strius/Runtime/Claude/AppAttestClient.swift) |
 | iCloud(CloudKit)のプライベートデータベース | 設定の「iCloud 同期」がオン(既定)の時、学習記録とファイルを利用者自身のiCloudへ送り、同じApple IDの端末から取り込みます。下の「iCloud 同期」の節を参照してください。Struisのサーバーは経由しません | [ICloudSync](../strius/Sync/ICloudSync.swift)、[CloudKitSyncTransport](../strius/Sync/CloudKitSyncTransport.swift) |
 | App Store(StoreKit) | 料金プランの商品の読み込み、購入、契約状態の受け取り。Appleのサーバーと通信します | [SubscriptionStore](../strius/State/SubscriptionStore.swift) |
 
+Struisの運営者のサーバー(`api-struis.digiloglab.com`)へは通信しません。以前の配信(指示文・schema・Skill・モデル設定の取得)、使用量報告(`POST /v1/device-runtime/usage`)、realtime の接続は削除しました。
+
 設定の「利用規約」「プライバシーポリシー」は`https://struis.digiloglab.com/terms`・`/privacy`を外部のブラウザで開きます。アプリ自身は取得しません。
 
 以前は端末内のCodex(OpenAI)を使い、ChatGPTのログインと`127.0.0.1`の中継を経由していました。この経路は削除し、OpenAI・ChatGPTのホストへは通信しません。
 
-StruisのAPI base URLは`STRUIS_API_BASE_URL`で上書きできます(手元のサーバー`http://127.0.0.1:4040`等)。AnthropicのURLはDEBUGビルドだけ`STRUIS_ANTHROPIC_BASE_URL`で上書きでき、検証用の模擬サーバー(`scripts/e2e/fake_anthropic.py`)に向けます。DEBUGのSimulatorはApp Attestを使えないため、`STRUIS_DEBUG_ANTHROPIC_KEY_FILE`のAPIキーで送ります。端末向けのビルドにはこの経路が入りません。これらの手元のHTTPサーバーのため、Info.plistは`NSAllowsLocalNetworking`を有効にしています。端末の設定と依存を変更したビルドについて、上の既定値だけで通信先が限定されるとは扱えません。プロンプトから実行されるPython等の通信能力を含め、公開ソースが提供するのは実装を追えることです。
+AnthropicのURLはDEBUGビルドだけ`STRUIS_ANTHROPIC_BASE_URL`で上書きでき、検証用の模擬サーバー(`scripts/e2e/fake_anthropic.py`)に向けます。DEBUGのSimulatorはApp Attestを使えないため、`STRUIS_DEBUG_ANTHROPIC_KEY_FILE`のAPIキーで送ります。端末向けのビルドにはこの経路が入りません。これらの手元のHTTPサーバーのため、Info.plistは`NSAllowsLocalNetworking`を有効にしています。端末の設定と依存を変更したビルドについて、上の既定値だけで通信先が限定されるとは扱えません。プロンプトから実行されるPython等の通信能力を含め、公開ソースが提供するのは実装を追えることです。
 
-端末の単元・会話・答案の主要経路は台帳と`ClaudeTurnRunner`を使用します。チャット、会話の分岐、下調べの子ターン、単元・一枚・採点、タイムライン(出題・採点・見直し・赤ペン・知識グラフ)、オンボーディング(採点・計画)のすべてがこの経路です。モデルが求めたtoolは端末で実行します(`NativeToolRouter`。shell・Python・rgは`StruisExec`拡張、台帳の問い合わせ、資料の読み取り)。[APIEndpoint](../strius/Networking/APIEndpoint.swift)・[APIClient](../strius/Networking/APIClient.swift)には従来のserverメッセージ、画像・PDF upload、Learning Feed、realtime等の経路も残ります。それらの経路を使う場合は本文、添付ファイル、upload情報、学習イベント等がStruisサーバーへ送られます。実際の呼出元は各Feature・Stateから確認できます。Struisアカウント認証の有無は`StruisAuthRequired`で決まり、認証任意構成ではbootstrapの個人アカウント取得も行いません。
+端末の単元・会話・答案の主要経路は台帳と`ClaudeTurnRunner`を使用します。チャット、会話の分岐、下調べの子ターン、単元・一枚・採点、タイムライン(出題・採点・見直し・赤ペン・知識グラフ)、オンボーディング(採点・計画)のすべてがこの経路です。モデルが求めたtoolは端末で実行します(`NativeToolRouter`。shell・Python・rgは`StruisExec`拡張、台帳の問い合わせ、資料の読み取り)。
 
-## 使用量報告
+[APIEndpoint](../strius/Networking/APIEndpoint.swift)・[APIClient](../strius/Networking/APIClient.swift)には、以前のStruisサーバー向けの経路(アカウント情報の取得、Learning Feed、ファイルの一覧、画像の取得、DEBUGだけの実験画面)がまだ残っています。どれもStruisアカウントの認証が必須の構成(`StruisAuthRequired = YES`。開発・CIのビルド)でだけ動き、本番の構成(`StruisAuthRequired = NO`)では画面に出ないか、認証のtokenが無いため送信の前に止まります。送り先は[ServerConfig](../strius/Networking/ServerConfig.swift)で、`STRUIS_API_BASE_URL`で手元のサーバーに向けられます。
 
-[UsageReporter](../strius/State/UsageReporter.swift)は既定でオフです。設定の「使用量を送る」がオン、かつStruisアカウント認証が必須の構成で、完了・失敗・中断したターンの許可された統計だけを`POST /v1/device-runtime/usage`へ送ります。
+Auth0(`auth-struis.digiloglab.com`)のログインも、認証が必須の構成でだけ使います([Auth0Config](../strius/Auth/Auth0Config.swift)、[AuthStore](../strius/Auth/AuthStore.swift))。本番の構成ではログインの画面を出さず、Auth0へ通信しません。公開client IDは秘密値ではありません。
 
-送信対象はtask type、status、requested/resolved/actual modelとeffort、elapsed milliseconds、既知のtoken countersです。allowlist外のキー、本文、コマンド、path、写真、エラー内容はこの報告から除きます。actual model/effortを観測できない場合はnullを保持し、要求値から推定して埋めません。この設定はAIターンそのものの送信を止める設定ではありません。
+## 使用量の記録
 
 台帳の`turns.executions`には、実行ごとのトークン数(`turn_tokens`: 入力・キャッシュ読み出し・キャッシュ書き込み・出力)と、公開価格からの概算料金(`estimated_cost_usd`)を記録します。設定の「開発者向け」(TestFlight とプロトタイプだけ)に今月の合計を表示します。概算は請求額そのものではありません。
 

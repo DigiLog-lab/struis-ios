@@ -363,12 +363,6 @@ def patch_workspace(meta, build_number, root):
     info['CFBundleDisplayName'] = f'{label} Struis'
     info_path.write_bytes(plistlib.dumps(info))
     run(['swift', TOOLS / 'badge_icon.swift', root / ICON, f"#{meta['issue']} {meta['variant'].upper()}"])
-    local = root / 'Config/Local.xcconfig'
-    delivery = os.environ.get('STRUIS_DELIVERY_APP_KEY', '')
-    if any(character in delivery for character in '\r\n') or '//' in delivery:
-        raise BuildError('patch', '配信キーを xcconfig で表現できません。')
-    local.write_text(f'STRUIS_DELIVERY_APP_KEY = {delivery}\n')
-    local.chmod(0o600)
     return info['CFBundleDisplayName']
 
 
@@ -507,8 +501,6 @@ def cmd_build(args):
             subprocess.run(['security', 'delete-keychain', str(keychain)], capture_output=True)
         for path in installed:
             path.unlink(missing_ok=True)
-        local = root / 'Config/Local.xcconfig'
-        local.unlink(missing_ok=True)
         private_dir.cleanup()
 
 

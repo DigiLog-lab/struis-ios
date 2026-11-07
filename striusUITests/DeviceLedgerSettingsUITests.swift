@@ -10,7 +10,7 @@ final class DeviceLedgerSettingsUITests: XCTestCase {
     }
 
     @MainActor
-    func testExportLedgerAndUsageToggleDefaultOff() throws {
+    func testExportLedgerWithoutUsageReporting() throws {
         let app = XCUIApplication.struisUnits()
         app.launchArguments += ["-skip-onboarding"]
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
@@ -30,10 +30,9 @@ final class DeviceLedgerSettingsUITests: XCTestCase {
         XCTAssertTrue(learningRecord.appears(timeout: 10))
         learningRecord.tap()
 
-        // 使用量報告は既定オフ。
-        let toggle = app.switches.matching(NSPredicate(format: "label CONTAINS %@", "使用量を送る")).firstMatch
-        XCTAssertTrue(toggle.appears(timeout: 10), "使用量のトグルが無い")
-        XCTAssertEqual(toggle.value as? String, "0", "使用量報告が既定でオンになっている")
+        // 使用量をサーバーへ送る設定は無い(#77。運営者のサーバーへ通信しない)。
+        XCTAssertTrue(app.buttons["settings-ledger-export"].firstMatch.appears(timeout: 10))
+        XCTAssertFalse(app.switches.matching(NSPredicate(format: "label CONTAINS %@", "使用量を送る")).firstMatch.exists, "使用量を送る設定が残っている")
 
         // 台帳に記録がある端末では取り込みはできない (空の台帳だけ)。
         let importButton = app.buttons["settings-ledger-import"].firstMatch

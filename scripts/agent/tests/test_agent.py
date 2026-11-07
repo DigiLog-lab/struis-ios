@@ -551,7 +551,7 @@ class PrototypeTests(unittest.TestCase):
                 (root / relative).write_bytes((source / relative).read_bytes())
             (root / 'Config').mkdir()
             meta = {'issue': 2, 'variant': 'b', 'bundleId': 'com.example.preview.s01'}
-            with mock.patch.object(prototype, 'run') as run, mock.patch.dict(os.environ, {'STRUIS_DELIVERY_APP_KEY': ''}):
+            with mock.patch.object(prototype, 'run') as run:
                 name = prototype.patch_workspace(meta, 1, root)
             self.assertEqual(name, '2B Struis')
             self.assertIn('host: "com.example.preview.s01"', (root / prototype.WORKER_SOURCE).read_text())

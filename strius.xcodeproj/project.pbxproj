@@ -52,7 +52,6 @@
 		A10000000000000000000006 /* AuthDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* AuthDTO.swift */; };
 		A10000000000000000000007 /* BootstrapDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* BootstrapDTO.swift */; };
 		A10000000000000000000009 /* MessageDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* MessageDTO.swift */; };
-		A1000000000000000000000A /* RealtimeEventDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000A /* RealtimeEventDTO.swift */; };
 		A1000000000000000000000B /* ThreadDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000B /* ThreadDTO.swift */; };
 		A1000000000000000000000C /* GlassSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000C /* GlassSurface.swift */; };
 		A1000000000000000000000D /* LiquidWallpaper.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000D /* LiquidWallpaper.swift */; };
@@ -71,7 +70,6 @@
 		A1000000000000000000001B /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000001B /* APIClient.swift */; };
 		A1000000000000000000001C /* APIEndpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000001C /* APIEndpoint.swift */; };
 		A1000000000000000000001D /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000001D /* APIError.swift */; };
-		A1000000000000000000001F /* RealtimeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000001F /* RealtimeClient.swift */; };
 		A10000000000000000000020 /* ServerConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000020 /* ServerConfig.swift */; };
 		A10000000000000000000021 /* BootstrapStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000021 /* BootstrapStore.swift */; };
 		A10000000000000000000022 /* striusApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000022 /* striusApp.swift */; };
@@ -220,7 +218,6 @@
 		E8C8845500ED8EE71DCD79D5 /* LearnerText.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8915C459B984FB12D695D8E /* LearnerText.swift */; };
 		E8CC73CDE296FD442DA1349B /* WorkspaceOperationBroker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E80AE3819EE636AC63BFA77A /* WorkspaceOperationBroker.swift */; };
 		E8D12792851137A6AE9B65F6 /* MainThreadWatchdog.swift in Sources */ = {isa = PBXBuildFile; fileRef = E881F9F1746DE99882742C39 /* MainThreadWatchdog.swift */; };
-		E8D44BF4DEA1BDDBB4ED1346 /* UsageReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8E459EBD35886C255F2E0AF /* UsageReporter.swift */; };
 		E8DEC70A3391DCD9CA7422CB /* ICloudSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89091BD8077CE085B7BDCD8 /* ICloudSync.swift */; };
 		E8E514AD259C4BDDD7DA6048 /* WorkbookRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8D828328353B0A884DC414D /* WorkbookRules.swift */; };
 		E8E6CC9F33CA23A16F1D9B5B /* AppAttestClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C0D3E206D0D0B0702ADFCE /* AppAttestClient.swift */; };
@@ -351,7 +348,6 @@
 		A20000000000000000000006 /* AuthDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthDTO.swift; sourceTree = "<group>"; };
 		A20000000000000000000007 /* BootstrapDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BootstrapDTO.swift; sourceTree = "<group>"; };
 		A20000000000000000000009 /* MessageDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageDTO.swift; sourceTree = "<group>"; };
-		A2000000000000000000000A /* RealtimeEventDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeEventDTO.swift; sourceTree = "<group>"; };
 		A2000000000000000000000B /* ThreadDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadDTO.swift; sourceTree = "<group>"; };
 		A2000000000000000000000C /* GlassSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassSurface.swift; sourceTree = "<group>"; };
 		A2000000000000000000000D /* LiquidWallpaper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidWallpaper.swift; sourceTree = "<group>"; };
@@ -370,7 +366,6 @@
 		A2000000000000000000001B /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		A2000000000000000000001C /* APIEndpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIEndpoint.swift; sourceTree = "<group>"; };
 		A2000000000000000000001D /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
-		A2000000000000000000001F /* RealtimeClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealtimeClient.swift; sourceTree = "<group>"; };
 		A20000000000000000000020 /* ServerConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConfig.swift; sourceTree = "<group>"; };
 		A20000000000000000000021 /* BootstrapStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BootstrapStore.swift; sourceTree = "<group>"; };
 		A20000000000000000000022 /* striusApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = striusApp.swift; sourceTree = "<group>"; };
@@ -509,7 +504,6 @@
 		E8DC9C4E264B5A82DC7601DB /* OnboardingProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingProfile.swift; sourceTree = "<group>"; };
 		E8DDE18C0534231C468CB2A7 /* threaded-foundation-policy.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "NativeRuntime/threaded-foundation-policy.json"; sourceTree = SOURCE_ROOT; };
 		E8DE42321A7D3F680E6B8B27 /* LedgerRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerRows.swift; sourceTree = "<group>"; };
-		E8E459EBD35886C255F2E0AF /* UsageReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageReporter.swift; sourceTree = "<group>"; };
 		E8EB52472FDFFAB6DEE6656E /* ClaudeTurnRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeTurnRunner.swift; sourceTree = "<group>"; };
 		E8EC9663890942100FABAE20 /* NativeMathText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeMathText.swift; sourceTree = "<group>"; };
 		E8ED5D379356781B6AC48333 /* TurnCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnCoordinator.swift; sourceTree = "<group>"; };
@@ -741,7 +735,6 @@
 				A20000000000000000000007 /* BootstrapDTO.swift */,
 				A20000000000000000000009 /* MessageDTO.swift */,
 				A2000000000000000000002F /* LearningFeedV2DTO.swift */,
-				A2000000000000000000000A /* RealtimeEventDTO.swift */,
 				A2000000000000000000000B /* ThreadDTO.swift */,
 			);
 			path = DTO;
@@ -819,7 +812,6 @@
 				A2000000000000000000001B /* APIClient.swift */,
 				A2000000000000000000001C /* APIEndpoint.swift */,
 				A2000000000000000000001D /* APIError.swift */,
-				A2000000000000000000001F /* RealtimeClient.swift */,
 				A20000000000000000000020 /* ServerConfig.swift */,
 			);
 			path = Networking;
@@ -1046,7 +1038,6 @@
 				E8D692CE4E10B309FE9264FD /* LedgerFixtures.swift */,
 				E8ED5D379356781B6AC48333 /* TurnCoordinator.swift */,
 				E84246BD256600C1B8FA5CB8 /* ChatTurnCoordinator.swift */,
-				E8E459EBD35886C255F2E0AF /* UsageReporter.swift */,
 				E81DC6F9D6F51FC07EA463C6 /* ChatKickoff.swift */,
 				F85CA2A5A70985922B086575 /* ExamplePrefetch.swift */,
 				E8362B167631600E4A89F2AD /* ChatTurnRecovery.swift */,
@@ -1531,7 +1522,6 @@
 				A10000000000000000000009 /* MessageDTO.swift in Sources */,
 				A1000000000000000000002B /* AttemptViewDTO.swift in Sources */,
 				A1000000000000000000002F /* LearningFeedV2DTO.swift in Sources */,
-				A1000000000000000000000A /* RealtimeEventDTO.swift in Sources */,
 				A1000000000000000000000B /* ThreadDTO.swift in Sources */,
 				A1000000000000000000000C /* GlassSurface.swift in Sources */,
 				A1000000000000000000000D /* LiquidWallpaper.swift in Sources */,
@@ -1562,7 +1552,6 @@
 				A1000000000000000000001B /* APIClient.swift in Sources */,
 				A1000000000000000000001C /* APIEndpoint.swift in Sources */,
 				A1000000000000000000001D /* APIError.swift in Sources */,
-				A1000000000000000000001F /* RealtimeClient.swift in Sources */,
 				A10000000000000000000020 /* ServerConfig.swift in Sources */,
 				A10000000000000000000021 /* BootstrapStore.swift in Sources */,
 				A10000000000000000000022 /* striusApp.swift in Sources */,
@@ -1595,7 +1584,6 @@
 				E81BD91C8134C05A56EA23CB /* ChatTurnCoordinator.swift in Sources */,
 				E897C0AA72E3A8BE52626856 /* LedgerID.swift in Sources */,
 				E88D21F06058C0F0EC1CF5B2 /* LedgerArchive.swift in Sources */,
-				E8D44BF4DEA1BDDBB4ED1346 /* UsageReporter.swift in Sources */,
 				E86AA1D6DEB46031D7AFB5EB /* OnboardingProfile.swift in Sources */,
 				E84333F825645308E87163FB /* ChatKickoff.swift in Sources */,
 				F75CA2A5A70985922B086575 /* ExamplePrefetch.swift in Sources */,

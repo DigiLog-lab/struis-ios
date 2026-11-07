@@ -168,7 +168,7 @@
     "settings-runtime-export": {
       "property": "設定・ランタイム・書き出し: 使用量の既定オフ、台帳の書き出し、ランタイム起動、会話のコピー",
       "tests": [
-        "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff",
+        "DeviceLedgerSettingsUITests/testExportLedgerWithoutUsageReporting",
         "DeviceRuntimeUITests/testRuntimeHelperBoots",
         "ConversationExportUITests/testCopyConversation"
       ],
@@ -353,7 +353,7 @@
     "DeviceChatUITests/testQuestionTurnWithMockModel": 35,
     "DeviceChatUITests/testQuestionTurnWithRealClaude": 0,
     "DeviceChatUITests/testWorkbookProposalAndLookupWithRealClaude": 0,
-    "DeviceLedgerSettingsUITests/testExportLedgerAndUsageToggleDefaultOff": 24,
+    "DeviceLedgerSettingsUITests/testExportLedgerWithoutUsageReporting": 24,
     "DeviceRuntimeUITests/testRuntimeHelperBoots": 25,
     "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealClaude": 0,
     "E2EDriverUITests/testDrive": 0,
