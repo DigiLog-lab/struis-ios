@@ -14,6 +14,8 @@
 		1DEA0A25812BF3F82D8DB345 /* StudyReminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FA428F9A4D7933D9213149B /* StudyReminder.swift */; };
 		213F481E905465B5962C6FB5 /* math in Resources */ = {isa = PBXBuildFile; fileRef = 8AF46D7EECDE4B5EB431D081 /* math */; };
 		25D9388D6B8072AD70EB5F78 /* OnboardingRecords.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F92DDD645A904120FA57750 /* OnboardingRecords.swift */; };
+		421DF942DFF3FBAAF00A4DF4 /* GuardianConsentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54C3FF6C458D81D7A143FFB1 /* GuardianConsentView.swift */; };
+		B4FA112BD4634A45541C764E /* GuardianConsent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29632A47C5CD481792F9B3AB /* GuardianConsent.swift */; };
 		28A97A05E707E328626BB54C /* TimelineParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 833CCE513E78354E7FE8CB3E /* TimelineParts.swift */; };
 		2B7ECE02890F0AF50AA91B1A /* TimelineCardContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34208B315DFCB1CD386D3343 /* TimelineCardContent.swift */; };
 		3A89FB606BB76E53890A1F9D /* TimelineRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E0302BEB4AE02B1638D2E0A /* TimelineRows.swift */; };
@@ -323,6 +325,8 @@
 		58E451C924D6F060CB452D85 /* VirtualPythonCommandBridgeAppleProbe.c */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.c; name = VirtualPythonCommandBridgeAppleProbe.c; path = Worker/VirtualPythonCommandBridgeAppleProbe.c; sourceTree = "<group>"; };
 		59F3E85D7A45B73661243CC0 /* Python.xcframework */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = wrapper.xcframework; name = Python.xcframework; path = Vendor/Python.xcframework; sourceTree = "<group>"; };
 		5F92DDD645A904120FA57750 /* OnboardingRecords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingRecords.swift; sourceTree = "<group>"; };
+		54C3FF6C458D81D7A143FFB1 /* GuardianConsentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuardianConsentView.swift; sourceTree = "<group>"; };
+		29632A47C5CD481792F9B3AB /* GuardianConsent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuardianConsent.swift; sourceTree = "<group>"; };
 		600AAD1ADAD0EF23A2C863BC /* RuntimeWorker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RuntimeWorker.swift; path = Worker/RuntimeWorker.swift; sourceTree = "<group>"; };
 		61D94DD18103D2F659706E73 /* VirtualPythonCommandBridge.c */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.c; name = VirtualPythonCommandBridge.c; path = Worker/VirtualPythonCommandBridge.c; sourceTree = "<group>"; };
 		63FEBAE568FDA5E20EBE7967 /* TimelineMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineMachine.swift; sourceTree = "<group>"; };
@@ -867,6 +871,8 @@
 				A92509D417CAD3B707B836D0 /* OnboardingComponents.swift */,
 				CFEFCD816EAED0FA770EAA8F /* OnboardingCatalog.swift */,
 				5F92DDD645A904120FA57750 /* OnboardingRecords.swift */,
+				54C3FF6C458D81D7A143FFB1 /* GuardianConsentView.swift */,
+				29632A47C5CD481792F9B3AB /* GuardianConsent.swift */,
 				CABDC12EAE4AEF1D43231D48 /* OnboardingTurns.swift */,
 				4EA1A8F777CF7B9E24493BCF /* OnboardingModel.swift */,
 				CC56043C4829264E503A2805 /* OnboardingFlowView.swift */,
@@ -1628,6 +1634,8 @@
 				1A3357E3728A3E20338F27ED /* OnboardingModel.swift in Sources */,
 				3FDDE02DFE42E1CA620ABD93 /* OnboardingTurns.swift in Sources */,
 				25D9388D6B8072AD70EB5F78 /* OnboardingRecords.swift in Sources */,
+				421DF942DFF3FBAAF00A4DF4 /* GuardianConsentView.swift in Sources */,
+				B4FA112BD4634A45541C764E /* GuardianConsent.swift in Sources */,
 				C90A9BEA6E1AEDB683302487 /* OnboardingCatalog.swift in Sources */,
 				C3E2C4ECB3CD89A0FE228096 /* OnboardingComponents.swift in Sources */,
 				AE3119A26BBB3572837C187B /* OnboardingTrialViews.swift in Sources */,

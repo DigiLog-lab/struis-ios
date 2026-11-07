@@ -47,6 +47,7 @@ struct SettingsView: View {
                     }
                 }
             }
+            GuardianConsentSettingsSection()
             SettingsSection {
                 SettingsExternalLinkRow(title: "利用規約", url: LegalLinks.terms)
                 SettingsDivider()
@@ -361,5 +362,44 @@ private struct AccountSettingsDetail: View {
                 }
             }
         }
+    }
+}
+
+/// 保護者の同意の控え(#76)。問い合わせの時に読み上げられるように、同意番号を出す。同意していなければ何も出さない。
+private struct GuardianConsentSettingsSection: View {
+    @State private var consent = OnboardingRecords.shared.guardianConsent
+    @State private var isPending = OnboardingRecords.shared.pendingGuardianConsent != nil
+
+    var body: some View {
+        if let consent {
+            SettingsSection(header: "保護者の同意",
+                            footer: "問い合わせの時は、この同意番号をお伝えください。" + (isPending ? "運営者への同意の記録は、iCloud にサインインして通信できる時に送ります。" : "")) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("同意番号")
+                        .font(Typography.body)
+                        .foregroundStyle(Theme.primaryText)
+                    Text(consent.number)
+                        .font(.system(.callout, design: .monospaced))
+                        .foregroundStyle(Theme.secondaryText)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("settings-guardian-consent-number")
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                SettingsDivider()
+                SettingsValueRow(title: "同意した日時", value: consent.acceptedAt.formatted(date: .numeric, time: .shortened))
+                SettingsDivider()
+                SettingsValueRow(title: "運営者への記録", value: isPending ? "未送信" : "送信済み")
+                    .accessibilityIdentifier("settings-guardian-consent-sent")
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .guardianConsentChanged)) { _ in reload() }
+        }
+    }
+
+    private func reload() {
+        consent = OnboardingRecords.shared.guardianConsent
+        isPending = OnboardingRecords.shared.pendingGuardianConsent != nil
     }
 }

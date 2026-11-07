@@ -71,6 +71,8 @@ struct LearningTimelineView: View {
                     .accessibilityIdentifier("timeline-error")
             }
         }
+        // 16 歳未満の保護者の同意: 版が上がった時の出し直しと、送れていない記録の送り直し(#76)。
+        .modifier(GuardianConsentGate(isPad: layout.isPad))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("timeline-screen")
         .animation(.easeInOut(duration: Theme.Duration.standard), value: store.phase)
