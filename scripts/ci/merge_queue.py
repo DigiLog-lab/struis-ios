@@ -32,6 +32,7 @@ import urllib.error
 import urllib.request
 from typing import Any, Callable, Protocol
 
+# scripts/agent/verify_report.py reads PREFIX and STALE: a late result does not overwrite them.
 CONTEXT: str = "Struis / verify"
 PREFIX: str = "マージキュー: "
 STALE: str = PREFIX + "main が進んだので、キューで検証し直します"

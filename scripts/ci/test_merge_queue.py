@@ -305,6 +305,16 @@ class SelfTestTests(unittest.TestCase):
         self.assertEqual(len(gh.dispatched()), 1)
 
 
+class SharedWordingTests(unittest.TestCase):
+    def test_the_report_recognises_what_the_queue_writes(self) -> None:
+        # scripts/agent/verify_report.py does not overwrite the queue's red or its "main moved" pending.
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "agent"))
+        import verify_report  # noqa: E402
+        self.assertEqual(verify_report.QUEUE_PREFIX, mq.PREFIX)
+        self.assertEqual(verify_report.QUEUE_STALE, mq.STALE)
+        self.assertEqual(verify_report.CONTEXT, mq.CONTEXT)
+
+
 class AppFreeTests(unittest.TestCase):
     def test_scripts_docs_and_workflows_leave_the_app_alone(self) -> None:
         self.assertTrue(app_free.app_free(["docs/a.md", "scripts/ci/x.py", ".github/workflows/ios.yml", "README.md"]))

@@ -41,6 +41,23 @@ def failed_steps(gh, run_id):
     return failed
 
 
+# What the merge queue (scripts/ci/merge_queue.py) writes when it gives up on a commit or sets an old green back.
+QUEUE_PREFIX = 'マージキュー: '
+QUEUE_STALE = QUEUE_PREFIX + 'main が進んだので、キューで検証し直します'
+
+
+def abandoned_by_queue(gh, sha):
+    """The queue dropped this commit (red with its reason: e.g. the verification ran past two hours and the
+    next PR is being verified) or set its green back because main moved. A late result must not overwrite
+    that: a success would let auto-merge merge it beside the next PR's verification."""
+    for status in gh.get(f'/repos/{gh.repository}/commits/{sha}/status').get('statuses', []):
+        if status.get('context') == CONTEXT:
+            description = status.get('description') or ''
+            return description.startswith(QUEUE_PREFIX) and (
+                status.get('state') in ('failure', 'error') or description == QUEUE_STALE)
+    return False
+
+
 def report(event, gh, store):
     run = event['workflow_run']
     parsed = parse(run.get('display_title'))
@@ -48,6 +65,9 @@ def report(event, gh, store):
         print('Not a PR verification run')
         return
     number, sha = parsed
+    if abandoned_by_queue(gh, sha):
+        append_summary(f'PR #{number} `{sha[:12]}`: {run.get("conclusion")}, not written (the merge queue gave up on this commit)')
+        return
     conclusion = run.get('conclusion')
     green = conclusion == 'success'
     # A cancelled run (replaced or stopped by hand) says nothing about the code: an error status, no wake-up.

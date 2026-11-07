@@ -440,6 +440,34 @@ class CancelledVerifyTests(VerifyReportTests):
         gh.comment.assert_not_called()
 
 
+class AbandonedVerifyTests(VerifyReportTests):
+    def gh_with_status(self, state, description):
+        gh = self.gh()
+        default = gh.get.side_effect
+        status = {'statuses': [{'context': 'Struis / verify', 'state': state, 'description': description}]}
+        gh.get.side_effect = lambda path: status if path.endswith('/status') else default(path)
+        return gh
+
+    def test_a_late_success_does_not_overwrite_the_queues_red(self):
+        gh, store = self.gh_with_status('failure', 'マージキュー: 検証が2時間たっても終わりませんでした。'), FakeStore()
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.report(self.event('success'), gh, store)
+        gh.request.assert_not_called()
+        gh.comment.assert_not_called()
+
+    def test_a_late_success_does_not_overwrite_a_green_set_back_by_main(self):
+        gh, store = self.gh_with_status('pending', verify_report.QUEUE_STALE), FakeStore()
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.report(self.event('success'), gh, store)
+        gh.request.assert_not_called()
+
+    def test_the_result_of_the_queues_own_verification_is_written(self):
+        gh, store = self.gh_with_status('pending', 'マージキュー: 最新の main の上で検証中'), FakeStore()
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.report(self.event('success'), gh, store)
+        self.assertEqual(gh.request.call_args_list[0].args[2]['state'], 'success')
+
+
 class CleanupTests(unittest.TestCase):
     def test_missing_handoff_branch_is_not_an_error(self):
         gh = mock.Mock(repository='o/r')
