@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<!--
+  コマンドを実行する拡張(StruisExec)のプライバシーマニフェスト(#78)。追跡はしない。
+  - ファイルの日時(stat・lstat・fstat・fstatat): App Group の作業フォルダの中のファイルだけ(コマンドの入出力と Python の読み込み)。
+  起動からの時間・ディスクの空きを使う Python などのフレームワークはアプリの中に置き、アプリのマニフェストで申告する。
+-->
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

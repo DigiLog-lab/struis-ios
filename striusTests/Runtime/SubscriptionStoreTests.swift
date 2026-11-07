@@ -124,10 +124,16 @@ final class SubscriptionStoreTests: XCTestCase {
 
     // MARK: - 上げる・下げる
 
+    /// 途中の答案の採点を送れるか(上限 + カード 1 枚分まで)。お試しの残りと規約の同意は差し替える(端末の Keychain を読まない)。
+    private func admits(_ meter: UsageMeter, trialRemaining: Int = 3) -> Bool {
+        DeviceUsageGate(meter: meter, trialRemaining: { trialRemaining }, consented: { true })
+            .denial(for: UsageRequest(kind: .timelineGrading, finishing: true)) == nil
+    }
+
     func testFirstPurchaseStartsANewPeriodFromZero() async throws {
         let (store, meter) = install()
         meter.add(UsageRules.trialLimitUSD + UsageRules.graceUSD)
-        XCTAssertFalse(DeviceUsageGate(meter: meter).admit(), "お試しの枠を使い切った")
+        XCTAssertFalse(admits(meter), "お試しの枠を使い切った")
 
         let purchased = await store.purchase(.light)
         XCTAssertTrue(purchased)
@@ -137,7 +143,7 @@ final class SubscriptionStoreTests: XCTestCase {
         XCTAssertEqual(snapshot.limitUSD, UsagePlan.light.weeklyLimitUSD)
         XCTAssertEqual(snapshot.resetsAt.timeIntervalSince(try XCTUnwrap(meter.chargedAt)), UsageRules.periodSeconds, accuracy: 1,
                        "購入した時刻から 7 日後に戻る")
-        XCTAssertTrue(DeviceUsageGate(meter: meter).admit())
+        XCTAssertTrue(admits(meter))
     }
 
     func testUpgradeFromStandardToGenerousSwitchesNowAndStartsANewPeriodFromZero() async throws {
@@ -156,18 +162,18 @@ final class SubscriptionStoreTests: XCTestCase {
         let snapshot = meter.snapshot()
         XCTAssertEqual(snapshot.limitUSD, UsagePlan.generous.weeklyLimitUSD)
         XCTAssertEqual(snapshot.spentUSD, 0, "上げた(課金した)ら 0 から")
-        XCTAssertTrue(DeviceUsageGate(meter: meter).admit())
+        XCTAssertTrue(admits(meter))
     }
 
     func testUpgradeRightAfterReachingTheLimitLetsTheLearnerContinue() async throws {
         let (store, meter) = install()
         _ = await store.purchase(.standard)
         meter.add(UsagePlan.standard.weeklyLimitUSD + UsageRules.graceUSD)
-        XCTAssertFalse(DeviceUsageGate(meter: meter).admit())
+        XCTAssertFalse(admits(meter))
 
         _ = await store.purchase(.generous)
         try await deliverStatuses(to: store)
-        XCTAssertTrue(DeviceUsageGate(meter: meter).admit(), "上げた直後から続けられる")
+        XCTAssertTrue(admits(meter), "上げた直後から続けられる")
         XCTAssertEqual(meter.snapshot().spentUSD, 0, "上げたら 0 から")
     }
 
@@ -182,7 +188,7 @@ final class SubscriptionStoreTests: XCTestCase {
         XCTAssertEqual(store.plan, .standard, "契約の状態でも、更新日まではスタンダード")
         XCTAssertEqual(meter.snapshot().limitUSD, UsagePlan.standard.weeklyLimitUSD)
         XCTAssertEqual(meter.snapshot().spentUSD, 1.50, accuracy: 1e-9, "下げる予約は課金ではないので、使用額はそのまま")
-        XCTAssertTrue(DeviceUsageGate(meter: meter).admit())
+        XCTAssertTrue(admits(meter))
 
         // 次の更新日。
         try await deliverStatuses(to: store) { try session.forceRenewalOfSubscription(productIdentifier: UsagePlan.standard.productID) }
@@ -202,7 +208,7 @@ final class SubscriptionStoreTests: XCTestCase {
         XCTAssertNotEqual(try XCTUnwrap(meter.chargeID), before, "更新の取引から新しい期間")
         XCTAssertEqual(snapshot.spentUSD, 0, "更新(課金)したら 0 から。スタンダードで使った $1.50 でライトの枠が埋まったままにならない")
         XCTAssertEqual(snapshot.limitUSD, UsagePlan.light.weeklyLimitUSD)
-        XCTAssertTrue(DeviceUsageGate(meter: meter).admit())
+        XCTAssertTrue(admits(meter))
     }
 
     // MARK: - 解約
@@ -238,9 +244,10 @@ final class SubscriptionStoreTests: XCTestCase {
         let snapshot = meter.snapshot()
         XCTAssertEqual(snapshot.limitUSD, UsageRules.trialLimitUSD, "お試しの枠(週 $0.25)へ戻る")
         XCTAssertEqual(snapshot.spentUSD, 0.20, accuracy: 1e-9, "今の期間の使用額は引き継ぐ")
-        XCTAssertTrue(DeviceUsageGate(meter: meter).admit())
+        XCTAssertTrue(admits(meter), "お試しを残したまま購入していた人は、お試しの枠の中で使える")
+        XCTAssertFalse(admits(meter, trialRemaining: 0), "お試しを使い切っていれば、契約が切れたら止まる(#78)")
         meter.add(0.15)
-        XCTAssertFalse(DeviceUsageGate(meter: meter).admit(), "お試しの枠を超えたら止まる")
+        XCTAssertFalse(admits(meter), "お試しの枠を超えたら止まる")
     }
 
     func testAfterExpiryWithSpendingOverTheTrialAllowanceItStopsUntilThePeriodEnds() async throws {
@@ -251,12 +258,12 @@ final class SubscriptionStoreTests: XCTestCase {
 
         XCTAssertNil(store.plan)
         XCTAssertEqual(meter.snapshot().limitUSD, UsageRules.trialLimitUSD)
-        XCTAssertFalse(DeviceUsageGate(meter: meter).admit())
+        XCTAssertFalse(admits(meter))
         let end: Date = UsageRules.periodEnd(for: clock.date, chargedAt: meter.chargedAt)
         clock.date = end.addingTimeInterval(-60)
-        XCTAssertFalse(DeviceUsageGate(meter: meter).admit(), "期間の終わりの直前も止まったまま")
+        XCTAssertFalse(admits(meter), "期間の終わりの直前も止まったまま")
         clock.date = end
-        XCTAssertTrue(DeviceUsageGate(meter: meter).admit(), "期間の終わり(最後に課金した時刻から 7 日)からお試しの枠が使える")
+        XCTAssertTrue(admits(meter), "期間の終わり(最後に課金した時刻から 7 日)からお試しの枠が使える")
     }
 
     func testAfterARefundTheTrialAllowanceTakesOverThisWeeksSpending() async throws {

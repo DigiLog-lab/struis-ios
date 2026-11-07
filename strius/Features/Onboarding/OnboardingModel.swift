@@ -95,6 +95,9 @@ final class OnboardingModel {
     let hasPlan: () -> Bool
     /// 計画を作ろうとした時に購入画面を挟んだ(買えたら計画づくりに戻る)。
     private var plansAfterPurchase = false
+    /// 規約の版が上がった時の同意の取り直し(#78)。規約 → 送る内容の 2 画面だけを出し、同意したら `onReconsented`。
+    let isReconsent: Bool
+    var onReconsented: (() -> Void)?
 
     // 学年
     var selectedGrade: String?
@@ -133,9 +136,11 @@ final class OnboardingModel {
         Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()) - 15, month: 4, day: 15)) ?? Date()
     }
 
-    init(profile: OnboardingProfile? = nil, records: OnboardingRecords = .shared, hasPlan: @escaping () -> Bool, isClaudeAvailable: @escaping () -> Bool, start: OnboardingStep? = nil) {
+    init(profile: OnboardingProfile? = nil, records: OnboardingRecords = .shared, hasPlan: @escaping () -> Bool, isClaudeAvailable: @escaping () -> Bool,
+         start: OnboardingStep? = nil, reconsent: Bool = false) {
         var profile = profile ?? OnboardingProfile.load() ?? OnboardingProfile()
         self.records = records
+        self.isReconsent = reconsent
         self.isClaudeAvailable = isClaudeAvailable
         self.hasPlan = hasPlan
         // 端末の記録(年齢・規約)は、サインアウトで消えた回答にも戻す。
@@ -152,7 +157,7 @@ final class OnboardingModel {
         universityGoal = profile.universityGoal ?? ""
         let saved = UserDefaults.standard.data(forKey: Self.draftKey).flatMap { try? JSONDecoder().decode(OnboardingPlanDraft.self, from: $0) }
         draft = saved
-        let resumed = start ?? OnboardingResume.step(
+        let resumed = reconsent ? .terms : start ?? OnboardingResume.step(
             profile: profile, age: records.age, termsAccepted: records.termsAcceptedAt != nil, trialUsed: records.trialUsed,
             hasPlan: hasPlan(), hasDraft: saved != nil
         )
@@ -165,7 +170,8 @@ final class OnboardingModel {
     func go(_ next: OnboardingStep, remember: Bool = true) {
         if remember, step != next { history.append(step) }
         step = next
-        if ![.unsupported, .grading, .birthdate].contains(next) {
+        // 同意の取り直しは、終わったオンボーディングの続きの画面を書き換えない。
+        if !isReconsent, ![.unsupported, .grading, .birthdate].contains(next) {
             profile.resumeStep = next.rawValue
             profile.save()
         }
@@ -181,7 +187,7 @@ final class OnboardingModel {
     /// 「もう一度確かめる」(Claude を使えない端末の画面)。
     func recheckAvailability() {
         guard isClaudeAvailable() else { return }
-        step = OnboardingResume.step(profile: profile, age: records.age, termsAccepted: records.termsAcceptedAt != nil,
+        step = isReconsent ? .terms : OnboardingResume.step(profile: profile, age: records.age, termsAccepted: records.termsAcceptedAt != nil,
                                      trialUsed: records.trialUsed, hasPlan: hasPlan(), hasDraft: draft != nil)
         if step == .trial { problem = nextProblem(after: nil) }
     }
@@ -247,7 +253,8 @@ final class OnboardingModel {
         records.acceptTerms(at: now)
         profile.termsAcceptedAt = ISO8601DateFormatter().string(from: now)
         profile.save()
-        afterTerms()
+        // 同意し直した規約と合わせて、送る内容も読み直してもらう(前に同意した時の文面と違うことがある)。
+        go(.consent)
     }
 
     private func afterTerms() {
@@ -257,6 +264,10 @@ final class OnboardingModel {
     func acceptPhotoConsent() {
         profile.photoConsentAt = ISO8601DateFormatter().string(from: Date())
         profile.save()
+        if isReconsent {
+            onReconsented?()
+            return
+        }
         afterConsent()
     }
 

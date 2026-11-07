@@ -175,6 +175,8 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
     private var captureViews: [Any] = []
     private var lookupCommands: [Any] = []
     private var lastPromptTokens: Int?
+    /// このターンの要求が利用枠の判定を一度通った(続きの要求は途中の作業として数える)。
+    private var admitted: Bool = false
     /// このターンの入力を会話の履歴に保存した(止めた印はその後ろにだけ残す)。
     private var storedInput: Bool = false
     private var watcher: DelegationWatcher?
@@ -754,7 +756,14 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
         let diagnosticsKey: String = child == nil ? ClaudeTranslation.diagnosticsKey(threadID: threadID, kind: plan.kind.rawValue, model: model) : threadID
         while true {
             try Task.checkCancellation()
-            guard upstream.gate.admit() else { throw TurnRuntimeError.turnFailed(UsageLimitResponse.message) }
+            // 新しい作業は上限で止め、途中の作業(採点・通った返事の続き)だけが余裕分を使う(#62・#78)。
+            let usage: UsageRequest = UsageRequest.of(kind: plan.kind, turnAdmitted: admitted || child != nil || plan.round > 1)
+            if let denial = upstream.gate.denial(for: usage) {
+                let hit: UsageLimitHit = UsageLimitHit(kind: plan.kind, denial: denial)
+                DispatchQueue.main.async { NotificationCenter.default.post(name: .usageLimitReached, object: hit) }
+                throw TurnRuntimeError.turnFailed(denial.message)
+            }
+            admitted = true
             var options: ClaudeRequestOptions = ClaudeRequestOptions()
             options.schemaInInstructions = schemaInInstructions
             options.stripThinking = stripThinking

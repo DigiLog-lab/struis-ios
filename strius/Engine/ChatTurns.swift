@@ -165,6 +165,8 @@ nonisolated enum ChatTurns {
             guard latest == snapshot.progressBefore.revision else { throw LedgerError.conflict("学習の進行が更新されています。もう一度送信してください。") }
             // Canonical memory in the App container; the workspace gets a copy per turn.
             try FileManager.default.createDirectory(at: desk, withIntermediateDirectories: true)
+            // 前の版のメモと作業フォルダに残った端末ごとの ID を、固定の ID に書き換える(#78。起動して最初のターンで一度)。
+            try TutorMemory.replaceLearnerIDsOnce(roots: [desk, HyotanBoot.workspaceRoot])
             _ = try TutorMemory.ensureTutorMemoryFiles(desk: desk, learnerID: learnerID)
             try TutorMemory.stageSession(
                 desk: desk, learnerID: learnerID, threadID: snapshot.threadID, turnRunID: snapshot.turnID,

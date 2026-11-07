@@ -228,6 +228,18 @@ struct LearningTimelineView: View {
             }
             .accessibilityElement(children: .contain)
         .accessibilityIdentifier("timeline-batch-failed")
+        case .limitReached(let denial):
+            // 利用枠で止まった(#78): 新しいカードは出さず、案内のシートへ。閉じた後もここから開き直せる。
+            VStack(alignment: .leading, spacing: 12) {
+                Text(denial == .noPlan ? "お試しの3問を使い切りました" : "今週の利用枠を使い切りました")
+                    .font(Typography.sans(size: 17, weight: .bold)).foregroundStyle(Theme.primaryText)
+                Text(denial == .noPlan ? "続けるには、プランを選んでください。" : "枠が戻るか、プランを上げると、次の問題を出します。")
+                    .font(Typography.micro).foregroundStyle(Theme.secondaryText)
+                Button(denial == .noPlan ? "プランを選ぶ" : "利用枠を見る") { store.openUsageLimit() }
+                    .buttonStyle(.bordered).accessibilityIdentifier("timeline-usage-limit-open")
+            }
+            .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("timeline-usage-limit")
         case .finished:
             VStack(alignment: .leading, spacing: 16) {
                 Text("今日はここまで").font(Typography.sans(size: 26, weight: .bold))
