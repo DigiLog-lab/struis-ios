@@ -39,6 +39,8 @@ class FakeGitHub:
         self.blocked_by: dict[int, list[dict[str, Any]]] = {}
         self.runs: dict[tuple[str, str], list[dict[str, Any]]] = {}
         self.conflicts: set[int] = set()
+        self.renames: dict[int, list[tuple[str, str]]] = {}
+        self.reject_dispatch: set[str] = set()
         self.sent: list[tuple[str, str, dict[str, Any] | None]] = []
 
     def add(self, number: int, sha: str, *, auto_merge: bool = True, enabled: int = 30, pushed: int = 60,
@@ -82,7 +84,9 @@ class FakeGitHub:
         if path.startswith("/pulls?"):
             return copy.deepcopy(list(self.prs.values()))
         if path.endswith("/files"):
-            return [{"filename": name} for name in self.files[int(path.split("/")[2])]]
+            number = int(path.split("/")[2])
+            return ([{"filename": name} for name in self.files[number]] +
+                    [{"filename": new, "previous_filename": old} for old, new in self.renames.get(number, [])])
         if path.endswith("/comments"):
             number = int(path.split("/")[2])
             return [{"body": body} for n, body in self.comments() if n == number]
@@ -97,6 +101,8 @@ class FakeGitHub:
         if method == "POST" and path.startswith("/statuses/"):
             assert body is not None
             self.statuses[path.split("/")[2]] = dict(body, updated_at=stamp(0))
+        if method == "POST" and path.startswith("/actions/workflows/") and path.split("/")[3] in self.reject_dispatch:
+            raise urllib.error.HTTPError(path, 422, "no workflow_dispatch", {}, io.BytesIO(b""))  # type: ignore[arg-type]
         if method == "PUT" and path.endswith("/update-branch"):
             number = int(path.split("/")[2])
             if number in self.conflicts:
@@ -231,7 +237,33 @@ class QueueTests(unittest.TestCase):
         self.assertEqual(gh.dispatched()[0]["client_payload"]["sha"], "u" * 40)
 
 
+class OccupantTests(unittest.TestCase):
+    def test_the_pr_being_verified_after_its_update_stays_first(self) -> None:
+        gh = FakeGitHub()
+        gh.add(1, "a" * 40, behind=1, enabled=50)
+        gh.add(2, "b" * 40, enabled=10)
+        run(gh)      # #1 takes main (a new commit, committed now) and is verified
+        run(gh)      # #1 is now the latest by commit time; it must still hold the queue
+        self.assertEqual([d["client_payload"]["pr"] for d in gh.dispatched()], [1])
+
+
 class SelfTestTests(unittest.TestCase):
+    def test_a_renamed_workflow_is_self_tested_by_where_it_came_from(self) -> None:
+        gh = FakeGitHub()
+        gh.add(1, "a" * 40, files=[])
+        gh.renames[1] = [(".github/workflows/ios.yml", "docs/old-ios.yml")]
+        run(gh)
+        self.assertEqual([workflow for workflow, _ in gh.workflow_dispatched()], ["ios.yml"])
+
+    def test_a_self_test_that_cannot_be_started_drops_the_pr_and_the_next_goes(self) -> None:
+        gh = FakeGitHub()
+        gh.add(1, "a" * 40, files=[".github/workflows/ios.yml"], enabled=50)
+        gh.add(2, "b" * 40, enabled=10)
+        gh.reject_dispatch.add("ios.yml")
+        run(gh)
+        self.assertEqual(gh.statuses["a" * 40]["state"], "failure")
+        self.assertEqual([d["client_payload"]["pr"] for d in gh.dispatched()], [2])
+
     def test_a_workflow_change_runs_the_prs_own_definition_first(self) -> None:
         gh = FakeGitHub()
         gh.add(1, "a" * 40, files=[".github/workflows/ios.yml"])

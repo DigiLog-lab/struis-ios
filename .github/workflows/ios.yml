@@ -169,10 +169,10 @@ jobs:
           set -euo pipefail
           # main's rules decide too (docs/development-method.md, "6. テストの選び方"): a PR cannot widen its
           # own way out of tests. main's scripts/ci is unpacked aside; the PR's own copy is only ever added to.
-          main_ci="$RUNNER_TEMP/main-ci"
+          main_tree="$RUNNER_TEMP/main-tree"
+          main_ci="$main_tree"
           if git rev-parse --verify --quiet origin/main >/dev/null; then
-            mkdir -p "$main_ci"
-            git archive origin/main scripts/ci | tar -x -C "$main_ci"
+            git worktree add --detach -q "$main_tree" origin/main
           fi
           # A change that leaves the app alone (scripts, docs, workflows: scripts/ci/app_free.py) is verified on
           # Linux only: agent-tests.yml tested its scripts, and the merge queue ran a changed verification
@@ -226,26 +226,35 @@ jobs:
             # No base to compare with: every contract (never fewer tests than the change needs).
             args=(--no-diff)
           fi
-          # main's planner, on main's plan and on the PR's plan; the union runs. main's plan alone may not cover a
-          # file the PR adds (the PR's plan does), so only its failure is tolerated, and said in the summary.
+          # Two selections, and the union runs:
+          # - the PR's: main's planner (copied into the PR's tree) with the PR's plan, on the PR's tests;
+          # - main's: main's planner on main's own tree and plan, for this change's paths that exist on main
+          #   (a file or a test the PR adds is not on main: the PR's plan covers it), kept to the tests that
+          #   still exist in the PR. So a PR that adds a test and drops another from its plan still runs it.
           planner=scripts/ci/ui_test_plan.py
           if [[ -f "$main_ci/scripts/ci/ui_test_plan.py" ]]; then
             cp "$main_ci/scripts/ci/ui_test_plan.py" scripts/ci/ui_test_plan_main.py
             planner=scripts/ci/ui_test_plan_main.py
           fi
           python3 "$planner" --list "${args[@]}" --plan scripts/ci/ui-test-plan.json > "$RUNNER_TEMP/selection-pr.json"
-          if [[ -f "$main_ci/scripts/ci/ui-test-plan.json" ]] &&
-             python3 "$planner" --list "${args[@]}" --plan "$main_ci/scripts/ci/ui-test-plan.json" > "$RUNNER_TEMP/selection-main.json"; then
-            :
-          else
-            echo '{"reasons": {}, "uiTests": []}' > "$RUNNER_TEMP/selection-main.json"
-            echo "> main の選び方の規則ではこの変更を扱えなかったので、PR の規則だけで選びました" >> "$GITHUB_STEP_SUMMARY"
+          echo '{"reasons": {}, "uiTests": []}' > "$RUNNER_TEMP/selection-main.json"
+          if [[ -f "$main_ci/scripts/ci/ui_test_plan.py" && -f "$RUNNER_TEMP/changed.txt" ]]; then
+            while read -r path; do
+              if [[ -e "$main_tree/$path" ]]; then echo "$path"; fi
+            done < "$RUNNER_TEMP/changed.txt" > "$RUNNER_TEMP/changed-main.txt"
+            if ! python3 "$main_ci/scripts/ci/ui_test_plan.py" --list --changed-files "$RUNNER_TEMP/changed-main.txt" \
+                   --project-diff "$RUNNER_TEMP/project.diff" > "$RUNNER_TEMP/selection-main.json"; then
+              echo '{"reasons": {}, "uiTests": []}' > "$RUNNER_TEMP/selection-main.json"
+              echo "> main の選び方は main のツリーで失敗したので、PR の規則だけで選びました" >> "$GITHUB_STEP_SUMMARY"
+            fi
           fi
-          python3 - "$RUNNER_TEMP/selection-pr.json" "$RUNNER_TEMP/selection-main.json" > "$RUNNER_TEMP/selection.json" <<'PY'
+          python3 -c 'import json, sys; sys.path.insert(0, "scripts/ci"); import importlib; print(json.dumps(importlib.import_module(sys.argv[1]).discover()))' \
+            "$(basename "$planner" .py)" > "$RUNNER_TEMP/existing.json"
+          python3 - "$RUNNER_TEMP/selection-pr.json" "$RUNNER_TEMP/selection-main.json" "$RUNNER_TEMP/existing.json" > "$RUNNER_TEMP/selection.json" <<'PY'
           import json, sys
-          pr, main = (json.load(open(path)) for path in sys.argv[1:3])
+          pr, main, existing = (json.load(open(path)) for path in sys.argv[1:4])
           reasons = {**main.get('reasons', {}), **pr.get('reasons', {})}
-          tests = sorted(set(pr['uiTests']) | set(main['uiTests']))
+          tests = sorted(set(pr['uiTests']) | (set(main['uiTests']) & set(existing)))
           print(json.dumps({'changedFiles': pr.get('changedFiles'), 'reasons': reasons, 'uiTests': tests}, ensure_ascii=False))
           PY
           ui=$(python3 -c 'import json,sys; print(" ".join("-only-testing:striusUITests/" + t for t in json.load(open(sys.argv[1]))["uiTests"]))' "$RUNNER_TEMP/selection.json")

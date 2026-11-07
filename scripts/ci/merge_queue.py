@@ -136,7 +136,13 @@ class Queue:
         return int(self.gh.get(f"{self.repo}/compare/{main_sha}...{sha}")["behind_by"]) == 0
 
     def changed_files(self, number: int) -> list[str]:
-        return [str(item["filename"]) for item in self.gh.paginate(f"{self.repo}/pulls/{number}/files")]
+        """Every path the PR touches: for a rename, where it came from as well as where it went."""
+        names: list[str] = []
+        for item in self.gh.paginate(f"{self.repo}/pulls/{number}/files"):
+            names.append(str(item["filename"]))
+            if item.get("previous_filename"):
+                names.append(str(item["previous_filename"]))
+        return names
 
     def blocked(self, pr: dict[str, Any]) -> list[int]:
         """Open Issues that block this PR or the Issues it closes."""
@@ -219,7 +225,17 @@ class Queue:
                 self.log.append(f"#{pr['number']}: blocked by " + ", ".join(f"#{n}" for n in blockers))
                 continue
             entries.append(Entry(pr=pr, status=status, key=self.order_key(pr)))
-        return sorted(entries, key=lambda entry: (entry.key, entry.number))
+        # The PR the queue is already working on stays first: the Update branch it was given has a new commit
+        # time, and sorting it behind the others would start a second verification beside it.
+        return sorted(entries, key=lambda entry: (not self.occupies(entry), entry.key, entry.number))
+
+    @staticmethod
+    def occupies(entry: Entry) -> bool:
+        """Being verified (pending, not set back by a main that moved) or green and waiting for the merge."""
+        if not entry.status:
+            return False
+        state: str = str(entry.status.get("state"))
+        return state == "success" or (state == "pending" and entry.status.get("description") != STALE)
 
     def update(self, entry: Entry) -> str | None:
         """GitHub's Update branch; the new head, or None after dropping the PR."""
@@ -281,8 +297,16 @@ class Queue:
         for workflow in self.self_tests(entry):
             runs = self.self_test_runs(workflow, entry.sha)
             if not runs:
-                self.gh.send("POST", f"{self.repo}/actions/workflows/{workflow}/dispatches",
-                             {"ref": entry.pr["head"]["ref"], "inputs": {"ui_tier": "pr"} if workflow == "ios.yml" else {}})
+                try:
+                    self.gh.send("POST", f"{self.repo}/actions/workflows/{workflow}/dispatches",
+                                 {"ref": entry.pr["head"]["ref"], "inputs": {"ui_tier": "pr"} if workflow == "ios.yml" else {}})
+                except urllib.error.HTTPError as error:
+                    if error.code in (404, 422):
+                        # The PR's definition cannot be started that way (no workflow_dispatch, other inputs).
+                        self.drop(entry, f"PR の定義の {workflow} を workflow_dispatch で起動できませんでした"
+                                         f"(HTTP {error.code})。workflow_dispatch と入力 ui_tier を残してください。")
+                        return False
+                    raise
                 self.set_status(entry.sha, "pending", SELF_TEST)
                 self.log.append(f"#{entry.number}: {workflow} started with the PR's definition")
                 return True
