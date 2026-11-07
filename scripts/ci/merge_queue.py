@@ -388,15 +388,31 @@ class Queue:
         return self.log
 
 
+def wait_for_run(gh: GitHubLike, run_id: int, sleep: Callable[[float], None] = time.sleep,
+                 tries: int = 60, every: float = 5.0) -> bool:
+    """The run that woke the queue (`wake-queue`, its last job) is still in progress while it wakes it: the
+    queue reads a self-test's result from the run's status, so it waits for the run to end (seconds)."""
+    for _ in range(tries):
+        if gh.get(f"/repos/{gh.repository}/actions/runs/{run_id}").get("status") == "completed":
+            return True
+        sleep(every)
+    return False
+
+
 def main() -> int:
     gh = GitHub(os.environ["GITHUB_TOKEN"], os.environ["GITHUB_REPOSITORY"])
     closed: dict[str, Any] | None = None
     event_path: str | None = os.environ.get("GITHUB_EVENT_PATH")
-    if os.environ.get("GITHUB_EVENT_NAME") == "pull_request_target" and event_path:
+    event: dict[str, Any] = {}
+    if event_path and os.path.exists(event_path):
         with open(event_path) as handle:
-            event: dict[str, Any] = json.load(handle)
-        if event.get("action") == "closed":
-            closed = event.get("pull_request")
+            event = json.load(handle)
+    if os.environ.get("GITHUB_EVENT_NAME") == "pull_request_target" and event.get("action") == "closed":
+        closed = event.get("pull_request")
+    waker = str((event.get("client_payload") or {}).get("run_id") or "")
+    if os.environ.get("GITHUB_EVENT_NAME") == "repository_dispatch" and waker.isdigit():
+        if not wait_for_run(gh, int(waker)):
+            print(f"run {waker} did not end in 5 minutes; going on")
     log: list[str] = Queue(gh, lambda: datetime.datetime.now(datetime.timezone.utc)).run(closed)
     print("\n".join(log))
     summary: str | None = os.environ.get("GITHUB_STEP_SUMMARY")

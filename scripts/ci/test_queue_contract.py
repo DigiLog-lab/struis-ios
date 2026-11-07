@@ -77,6 +77,7 @@ class WakeUpContractTests(unittest.TestCase):
                 self.assertIn("always()", body)
                 self.assertIn("github.triggering_actor == 'github-actions[bot]'", body)
                 self.assertIn("event_type=merge-queue", body)
+                self.assertIn("client_payload[run_id]=$GITHUB_RUN_ID", body)
                 self.assertIn("contents: write", body)
 
     def test_the_wake_up_in_ios_yml_waits_for_every_job(self) -> None:

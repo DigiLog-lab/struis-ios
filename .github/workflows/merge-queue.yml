@@ -44,7 +44,7 @@ jobs:
       pull-requests: write   # Update branch
       statuses: write        # Struis / verify (pending, or red with the reason)
       issues: write          # the reason a PR left the queue
-      actions: write         # workflow_dispatch of a changed workflow with the PR's definition
+      actions: write         # workflow_dispatch of a changed workflow with the PR's definition; the run that woke it
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:

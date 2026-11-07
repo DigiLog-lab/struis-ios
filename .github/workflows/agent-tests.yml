@@ -85,4 +85,5 @@ jobs:
       - name: マージキューを起こす
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api "repos/$GITHUB_REPOSITORY/dispatches" -f event_type=merge-queue
+        # This run is still in progress until this job ends: the queue waits for it (scripts/ci/merge_queue.py).
+        run: gh api "repos/$GITHUB_REPOSITORY/dispatches" -f event_type=merge-queue -f "client_payload[run_id]=$GITHUB_RUN_ID"
