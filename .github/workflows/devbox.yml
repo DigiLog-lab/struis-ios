@@ -1,0 +1,109 @@
+name: Dev Box
+
+# The web Claude's remote Mac (docs/development-method.md, "5. Dev Box"). One macOS runner checks out the
+# work branch, builds once, boots the Simulator and then runs the commands Claude sends
+# (scripts/devbox/serve.sh, scripts/devbox/mac.py) until it has been idle for 15 minutes.
+#
+# Started by `mac.py start <branch>` with repository_dispatch, so it always runs main's definition of this
+# file and of serve.sh: a work branch cannot change what the Dev Box may do. (workflow_dispatch and run
+# cancellation are refused to the web Claude's token: "Resource not accessible by integration", 2026-11-07.)
+#
+# A Dev Box build is never a gate: commands can run anything. The job has no statuses: write, so it can never
+# write `Struis / verify`, and no secrets.
+on:
+  repository_dispatch:
+    types: [devbox]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: devbox
+  cancel-in-progress: false
+
+jobs:
+  # The Native Runtime cache of the work branch: agent-native-cache.yml is its only builder, as for ios.yml.
+  # With the cache already there (the usual case) it only looks it up; a branch that changes NativeRuntime
+  # gets its cache built here (about 50 minutes) instead of a Dev Box that cannot start.
+  native:
+    uses: ./.github/workflows/agent-native-cache.yml
+    with:
+      ref: ${{ github.event.client_payload.branch }}
+
+  devbox:
+    needs: native
+    runs-on: xcode-27
+    timeout-minutes: 360
+    permissions:
+      # Pushes devbox-out/* and deletes devbox-cmd/* only.
+      contents: write
+    env:
+      BRANCH: ${{ github.event.client_payload.branch }}
+      IDLE_MINUTES: ${{ github.event.client_payload.idle_minutes || '15' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+      - name: main の serve.sh を取っておき、作業ブランチに移る
+        run: |
+          set -euo pipefail
+          [[ "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ && "$BRANCH" != *..* ]] || { echo "::error::branch: $BRANCH"; exit 1; }
+          [[ "$IDLE_MINUTES" =~ ^[0-9]{1,3}$ ]] || { echo "::error::idle_minutes: $IDLE_MINUTES"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/devbox"
+          cp scripts/devbox/serve.sh "$RUNNER_TEMP/devbox/serve.sh"
+          git fetch -q --depth 1 origin "refs/heads/$BRANCH"
+          git checkout -q --force --detach FETCH_HEAD
+          git log -1 --format='work branch %H %s'
+      - name: Spotlight の索引を止める
+        run: |
+          sudo mdutil -a -i off >/dev/null 2>&1 || true
+          echo "memory: $(( $(sysctl -n hw.memsize) / 1073741824 )) GB, cpus: $(sysctl -n hw.ncpu)"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: Native Runtime cacheを復元
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            NativeRuntime/Vendor
+            NativeRuntime/PythonPackages
+            NativeRuntime/PackageCache
+            NativeRuntime/.build
+          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
+          fail-on-cache-miss: true
+      - name: 1回ビルドしてから、Simulatorを起動する
+        # Build first, then boot (as ios.yml does): booting during the build took the first build to 21.6 min.
+        timeout-minutes: 40
+        run: |
+          set -euo pipefail
+          udid=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          runtimes = json.load(sys.stdin)["devices"]
+          ios = sorted((key for key in runtimes if ".iOS-" in key),
+                       key=lambda key: [int(part) for part in key.rsplit(".iOS-", 1)[1].split("-") if part.isdigit()])
+          for key in reversed(ios):
+              for device in runtimes[key]:
+                  if device["name"] == "iPhone 17":
+                      print(device["udid"]); sys.exit()
+          sys.exit("iPhone 17 simulator not found")')
+          echo "SIMULATOR_UDID=$udid" >> "$GITHUB_ENV"
+          echo "DERIVED_DATA=$RUNNER_TEMP/DerivedData" >> "$GITHUB_ENV"
+          started=$(date +%s)
+          xcodebuild build-for-testing -project strius.xcodeproj -scheme strius \
+            -destination "id=$udid" -derivedDataPath "$RUNNER_TEMP/DerivedData" ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES \
+            -quiet
+          echo "warm_build_seconds=$(( $(date +%s) - started ))" > "$RUNNER_TEMP/devbox/warm.txt"
+          started=$(date +%s)
+          xcrun simctl boot "$udid" 2>/dev/null || true
+          xcrun simctl bootstatus "$udid" -b
+          echo "boot_seconds=$(( $(date +%s) - started ))" >> "$RUNNER_TEMP/devbox/warm.txt"
+          cat "$RUNNER_TEMP/devbox/warm.txt"
+      - name: 命令を待って実行する
+        env:
+          DEVBOX_WORK_BRANCH: ${{ github.event.client_payload.branch }}
+        run: |
+          # 20 minutes before the job's 6-hour limit, so the result of the last command still gets out.
+          export DEVBOX_DEADLINE_EPOCH=$(( $(date +%s) + 300 * 60 ))
+          export DEVBOX_IDLE_SECONDS=$(( IDLE_MINUTES * 60 ))
+          bash "$RUNNER_TEMP/devbox/serve.sh"
