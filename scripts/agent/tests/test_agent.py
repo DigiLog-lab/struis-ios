@@ -461,6 +461,12 @@ class AbandonedVerifyTests(VerifyReportTests):
             verify_report.report(self.event('success'), gh, store)
         gh.request.assert_not_called()
 
+    def test_a_late_success_does_not_overwrite_a_pr_that_left_the_queue(self):
+        gh, store = self.gh_with_status('pending', verify_report.QUEUE_LEFT), FakeStore()
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.report(self.event('success'), gh, store)
+        gh.request.assert_not_called()
+
     def test_a_success_for_a_closed_pr_is_not_written(self):
         gh, store = self.gh(state='closed'), FakeStore()
         with mock.patch.object(verify_report, 'append_summary'):

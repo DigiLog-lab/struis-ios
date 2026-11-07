@@ -254,9 +254,20 @@ class OccupantTests(unittest.TestCase):
         run(gh)                                   # #1 is being verified
         gh.prs[1]["auto_merge"] = None            # the owner disables auto-merge
         run(gh)                                   # #2 goes, but only after #1's verification is void
-        self.assertEqual(gh.statuses["a" * 40]["state"], "failure")
-        self.assertTrue(gh.statuses["a" * 40]["description"].startswith(mq.PREFIX))
+        self.assertEqual((gh.statuses["a" * 40]["state"], gh.statuses["a" * 40]["description"]), ("pending", mq.LEFT))
         self.assertEqual([d["client_payload"]["pr"] for d in gh.dispatched()], [1, 2])
+
+    def test_a_green_pr_leaving_the_queue_loses_its_green_and_is_verified_again_on_return(self) -> None:
+        gh = FakeGitHub()
+        gh.add(1, "a" * 40, status=("success", "ios.yml: ok", 2), enabled=50, auto_merge=False)
+        gh.add(2, "b" * 40, enabled=10)
+        run(gh)
+        self.assertEqual(gh.statuses["a" * 40]["description"], mq.LEFT)
+        self.assertEqual([d["client_payload"]["pr"] for d in gh.dispatched()], [2])
+        gh2 = FakeGitHub()                        # back in the queue, nothing else running: verified again
+        gh2.add(1, "a" * 40, status=("pending", mq.LEFT, 5))
+        run(gh2)
+        self.assertEqual([d["client_payload"]["pr"] for d in gh2.dispatched()], [1])
 
     def test_a_pr_closed_mid_verification_is_called_off_before_the_next_goes(self) -> None:
         gh = FakeGitHub()
@@ -265,7 +276,7 @@ class OccupantTests(unittest.TestCase):
         run(gh)
         closed = gh.prs.pop(1)
         mq.Queue(gh, lambda: NOW, wait=0).run(dict(closed, merged=False))
-        self.assertEqual(gh.statuses["a" * 40]["state"], "failure")
+        self.assertEqual(gh.statuses["a" * 40]["description"], mq.LEFT)
         self.assertEqual([d["client_payload"]["pr"] for d in gh.dispatched()], [1, 2])
 
     def test_a_conflict_on_an_agent_pr_is_said_on_its_issue_too(self) -> None:
@@ -305,7 +316,7 @@ class SelfTestTests(unittest.TestCase):
         gh = FakeGitHub()
         gh.add(1, "a" * 40, files=[".github/workflows/ios.yml"], status=("pending", mq.SELF_TEST, 20))
         for workflow in ("ios.yml", "agent-tests.yml"):
-            gh.runs[(workflow, "a" * 40)] = [{"status": "completed", "conclusion": "success", "created_at": stamp(20)}]
+            gh.runs[(workflow, "a" * 40)] = [{"status": "completed", "conclusion": "success", "created_at": stamp(20), "triggering_actor": {"login": mq.QUEUE_ACTOR}}]
         run(gh)
         self.assertEqual(gh.workflow_dispatched(), [])
         self.assertEqual([d["client_payload"]["pr"] for d in gh.dispatched()], [1])
@@ -313,11 +324,11 @@ class SelfTestTests(unittest.TestCase):
     def test_a_running_self_test_holds_and_a_red_one_drops(self) -> None:
         gh = FakeGitHub()
         gh.add(1, "a" * 40, files=[".github/workflows/ios.yml"], status=("pending", mq.SELF_TEST, 5))
-        gh.runs[("ios.yml", "a" * 40)] = [{"status": "in_progress", "created_at": stamp(5)}]
+        gh.runs[("ios.yml", "a" * 40)] = [{"status": "in_progress", "created_at": stamp(5), "triggering_actor": {"login": mq.QUEUE_ACTOR}}]
         run(gh)
         self.assertEqual((gh.dispatched(), gh.workflow_dispatched()), ([], []))
         gh.runs[("ios.yml", "a" * 40)] = [{"status": "completed", "conclusion": "failure", "created_at": stamp(5),
-                                          "html_url": "https://x"}]
+                                          "html_url": "https://x", "triggering_actor": {"login": mq.QUEUE_ACTOR}}]
         run(gh)
         self.assertEqual(gh.statuses["a" * 40]["state"], "failure")
 
@@ -325,10 +336,18 @@ class SelfTestTests(unittest.TestCase):
         gh = FakeGitHub()
         gh.add(1, "a" * 40, files=[".github/workflows/ios.yml"],
                status=("pending", mq.SELF_TEST, 20))
-        gh.runs[("ios.yml", "a" * 40)] = [{"status": "completed", "conclusion": "success", "created_at": stamp(20)}]
+        gh.runs[("ios.yml", "a" * 40)] = [{"status": "completed", "conclusion": "success", "created_at": stamp(20), "triggering_actor": {"login": mq.QUEUE_ACTOR}}]
         run(gh)
         self.assertEqual([workflow for workflow, _ in gh.workflow_dispatched()], ["agent-tests.yml"])
         self.assertEqual(gh.dispatched(), [])
+
+    def test_a_run_started_by_hand_is_not_taken_for_the_queues_self_test(self) -> None:
+        gh = FakeGitHub()
+        gh.add(1, "a" * 40, files=[".github/workflows/agent-native-cache.yml"])
+        gh.runs[("ios.yml", "a" * 40)] = [{"status": "completed", "conclusion": "success", "created_at": stamp(20),
+                                          "triggering_actor": {"login": "DigiLog-lab"}}]
+        run(gh)
+        self.assertEqual(gh.workflow_dispatched(), [("ios.yml", {"ref": "branch-1", "inputs": {"ui_tier": "pr"}})])
 
     def test_a_queue_or_script_change_runs_the_prs_linux_tests(self) -> None:
         gh = FakeGitHub()
@@ -351,6 +370,7 @@ class SharedWordingTests(unittest.TestCase):
         import verify_report  # noqa: E402
         self.assertEqual(verify_report.QUEUE_PREFIX, mq.PREFIX)
         self.assertEqual(verify_report.QUEUE_STALE, mq.STALE)
+        self.assertEqual(verify_report.QUEUE_LEFT, mq.LEFT)
         self.assertEqual(verify_report.CONTEXT, mq.CONTEXT)
 
 

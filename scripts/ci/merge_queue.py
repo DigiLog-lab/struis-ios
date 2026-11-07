@@ -32,10 +32,14 @@ import urllib.error
 import urllib.request
 from typing import Any, Callable, Protocol
 
-# scripts/agent/verify_report.py reads PREFIX and STALE: a late result does not overwrite them.
+# scripts/agent/verify_report.py reads PREFIX, STALE and LEFT: a late result does not overwrite them.
 CONTEXT: str = "Struis / verify"
 PREFIX: str = "マージキュー: "
 STALE: str = PREFIX + "main が進んだので、キューで検証し直します"
+# A PR that left the queue (auto-merge disabled, Draft, blocked, closed) while being verified or green.
+LEFT: str = PREFIX + "キューを離れたので、並び直したら検証し直します"
+# Pending, but nothing is running: the next time the PR is first, it is verified from the start.
+RESET: tuple[str, ...] = (STALE, LEFT)
 SELF_TEST: str = PREFIX + "PR の定義で検証中"
 VERIFYING: str = PREFIX + "最新の main の上で検証中"
 # A verification that takes longer than this is treated as lost (a runner that never came, a cancelled run).
@@ -43,6 +47,7 @@ VERIFY_LIMIT: datetime.timedelta = datetime.timedelta(hours=2)
 # Green, auto-merge on, and still not merged after this: something else blocks the merge.
 MERGE_LIMIT: datetime.timedelta = datetime.timedelta(minutes=10)
 COMMENT_MARKER: str = "<!-- struis-merge-queue -->"
+QUEUE_ACTOR: str = "github-actions[bot]"
 
 # Changes to these are verified with the PR's own definition of the workflow before main's.
 SELF_TESTS: dict[str, tuple[str, ...]] = {
@@ -173,9 +178,12 @@ class Queue:
         return max([pushed, *enabled])
 
     def self_test_runs(self, workflow: str, sha: str) -> list[dict[str, Any]]:
+        """The queue's own workflow_dispatch runs of this commit (started by GITHUB_TOKEN, with the inputs the
+        queue gives). A run started by hand may have other inputs (ui_tier=unit), so it does not count."""
         runs: dict[str, Any] = self.gh.get(
             f"{self.repo}/actions/workflows/{workflow}/runs?event=workflow_dispatch&head_sha={sha}")
-        return list(runs.get("workflow_runs", []))
+        return [run for run in runs.get("workflow_runs", [])
+                if (run.get("triggering_actor") or run.get("actor") or {}).get("login") == QUEUE_ACTOR]
 
     # --- writing -------------------------------------------------------------------------------------
     def set_status(self, sha: str, state: str, description: str, url: str | None = None) -> None:
@@ -200,13 +208,15 @@ class Queue:
         self.log.append(f"#{entry.number}: dropped ({reason})")
 
     def call_off(self, pr: dict[str, Any], reason: str) -> None:
-        """A PR that leaves the queue while it is being verified: its verification's result is made void (red
-        with the queue's reason, which verify_report.py does not overwrite) before the next PR is verified, so
-        enabling auto-merge again cannot merge it beside the next verification on an older main."""
+        """A PR that leaves the queue while it is being verified or green: before the next PR is verified, its
+        result is made void (pending LEFT, which verify_report.py does not overwrite), so enabling auto-merge
+        again cannot merge it beside the next verification on an older main. Back in the queue, it is verified
+        from the start without a push."""
         status = self.status(pr["head"]["sha"])
-        if status and status.get("state") == "pending" and status.get("description") != STALE:
-            self.set_status(pr["head"]["sha"], "failure", PREFIX + reason)
-            self.log.append(f"#{pr['number']}: verification called off ({reason})")
+        if status and (status.get("state") == "success" or
+                       (status.get("state") == "pending" and status.get("description") not in RESET)):
+            self.set_status(pr["head"]["sha"], "pending", LEFT)
+            self.log.append(f"#{pr['number']}: left the queue, its verification is void ({reason})")
 
     def tell_red(self, pr: dict[str, Any], status: dict[str, Any]) -> None:
         """A red verification (ios.yml) is said on the PR once per head. The queue's own reds say it already."""
@@ -255,7 +265,7 @@ class Queue:
         if not entry.status:
             return False
         state: str = str(entry.status.get("state"))
-        return state == "success" or (state == "pending" and entry.status.get("description") != STALE)
+        return state == "success" or (state == "pending" and entry.status.get("description") not in RESET)
 
     def update(self, entry: Entry) -> str | None:
         """GitHub's Update branch; the new head, or None after dropping the PR."""
@@ -288,7 +298,7 @@ class Queue:
             self.log.append(f"#{entry.number}: green, GitHub's auto-merge merges it")
             return True
         description: str = str(status.get("description") or "") if status else ""
-        if state == "pending" and up_to_date and description != STALE:
+        if state == "pending" and up_to_date and description not in RESET:
             assert updated_at is not None
             if self.now() - updated_at > VERIFY_LIMIT:
                 self.drop(entry, "検証が2時間たっても終わりませんでした。")

@@ -44,6 +44,7 @@ def failed_steps(gh, run_id):
 # What the merge queue (scripts/ci/merge_queue.py) writes when it gives up on a commit or sets an old green back.
 QUEUE_PREFIX = 'マージキュー: '
 QUEUE_STALE = QUEUE_PREFIX + 'main が進んだので、キューで検証し直します'
+QUEUE_LEFT = QUEUE_PREFIX + 'キューを離れたので、並び直したら検証し直します'
 
 
 def abandoned_by_queue(gh, sha):
@@ -54,7 +55,7 @@ def abandoned_by_queue(gh, sha):
         if status.get('context') == CONTEXT:
             description = status.get('description') or ''
             return description.startswith(QUEUE_PREFIX) and (
-                status.get('state') in ('failure', 'error') or description == QUEUE_STALE)
+                status.get('state') in ('failure', 'error') or description in (QUEUE_STALE, QUEUE_LEFT))
     return False
 
 
