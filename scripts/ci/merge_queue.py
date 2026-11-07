@@ -56,6 +56,7 @@ SELF_TESTS: dict[str, tuple[str, ...]] = {
         "scripts/", "cloudflare/",
     ),
 }
+AGENT_ISSUE: re.Pattern[str] = re.compile(r"<!-- struis-agent:issue=([1-9]\d*) -->")
 CLOSING: re.Pattern[str] = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#([1-9]\d*)", re.IGNORECASE)
 
 
@@ -185,11 +186,25 @@ class Queue:
         self.gh.send("POST", f"{self.repo}/issues/{number}/comments", {"body": f"{COMMENT_MARKER}\n{text}"})
 
     def drop(self, entry: Entry, reason: str) -> None:
-        """Out of the queue until the next push: red on its head, and the reason on the PR."""
+        """Out of the queue until the next push: red on its head, and the reason on the PR (and on the agent's
+        Issue for an agent PR: the queue cannot write the agent's state, so the reason is left where it reads)."""
         self.set_status(entry.sha, "failure", PREFIX + reason)
-        self.comment(entry.number, f"マージキューから外しました: {reason}\n\n"
-                                   "直して push すると、キューの最後に並び直します(自動マージは有効のままです)。")
+        text: str = (f"マージキューから外しました: {reason}\n\n"
+                     "直して push すると、キューの最後に並び直します(自動マージは有効のままです)。")
+        self.comment(entry.number, text)
+        agent_issue = AGENT_ISSUE.search(entry.pr.get("body") or "")
+        if agent_issue:
+            self.comment(int(agent_issue[1]), f"PR #{entry.number} を{text}")
         self.log.append(f"#{entry.number}: dropped ({reason})")
+
+    def call_off(self, pr: dict[str, Any], reason: str) -> None:
+        """A PR that leaves the queue while it is being verified: its verification's result is made void (red
+        with the queue's reason, which verify_report.py does not overwrite) before the next PR is verified, so
+        enabling auto-merge again cannot merge it beside the next verification on an older main."""
+        status = self.status(pr["head"]["sha"])
+        if status and status.get("state") == "pending" and status.get("description") != STALE:
+            self.set_status(pr["head"]["sha"], "failure", PREFIX + reason)
+            self.log.append(f"#{pr['number']}: verification called off ({reason})")
 
     def tell_red(self, pr: dict[str, Any], status: dict[str, Any]) -> None:
         """A red verification (ios.yml) is said on the PR once per head. The queue's own reds say it already."""
@@ -215,6 +230,7 @@ class Queue:
         entries: list[Entry] = []
         for pr in prs:
             if not pr.get("auto_merge") or pr.get("draft"):
+                self.call_off(pr, "自動マージが外されたか Draft に戻されたので、キューの検証を取りやめました。")
                 continue
             status = self.status(pr["head"]["sha"])
             if status and status.get("state") in ("failure", "error"):
@@ -223,6 +239,7 @@ class Queue:
                 continue
             blockers = self.blocked(pr)
             if blockers:
+                self.call_off(pr, "閉じていない Issue にブロックされたので、キューの検証を取りやめました。")
                 self.log.append(f"#{pr['number']}: blocked by " + ", ".join(f"#{n}" for n in blockers))
                 continue
             entries.append(Entry(pr=pr, status=status, key=self.order_key(pr)))

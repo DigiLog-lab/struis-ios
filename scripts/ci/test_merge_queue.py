@@ -247,6 +247,25 @@ class OccupantTests(unittest.TestCase):
         self.assertEqual([d["client_payload"]["pr"] for d in gh.dispatched()], [1])
 
 
+    def test_a_pr_whose_auto_merge_is_disabled_mid_verification_is_called_off_first(self) -> None:
+        gh = FakeGitHub()
+        gh.add(1, "a" * 40, enabled=50)
+        gh.add(2, "b" * 40, enabled=10)
+        run(gh)                                   # #1 is being verified
+        gh.prs[1]["auto_merge"] = None            # the owner disables auto-merge
+        run(gh)                                   # #2 goes, but only after #1's verification is void
+        self.assertEqual(gh.statuses["a" * 40]["state"], "failure")
+        self.assertTrue(gh.statuses["a" * 40]["description"].startswith(mq.PREFIX))
+        self.assertEqual([d["client_payload"]["pr"] for d in gh.dispatched()], [1, 2])
+
+    def test_a_conflict_on_an_agent_pr_is_said_on_its_issue_too(self) -> None:
+        gh = FakeGitHub()
+        gh.add(1, "a" * 40, behind=1, body="x <!-- struis-agent:issue=40 -->")
+        gh.conflicts.add(1)
+        run(gh)
+        self.assertEqual(sorted(number for number, _ in gh.comments()), [1, 40])
+
+
 class SelfTestTests(unittest.TestCase):
     def test_a_renamed_workflow_is_self_tested_by_where_it_came_from(self) -> None:
         gh = FakeGitHub()
