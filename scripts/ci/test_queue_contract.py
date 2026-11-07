@@ -61,3 +61,27 @@ class AgentWorkflowContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WakeUpContractTests(unittest.TestCase):
+    """Runs started with GITHUB_TOKEN trigger no workflow_run: the queue's own runs wake it at their end."""
+
+    def test_the_queue_listens_for_the_wake_up(self) -> None:
+        queue = (ROOT / ".github/workflows/merge-queue.yml").read_text()
+        self.assertRegex(queue, r"(?m)^  repository_dispatch:\n    types: \[merge-queue\]")
+
+    def test_the_queues_runs_wake_it_when_they_end(self) -> None:
+        for name in ("ios.yml", "agent-tests.yml"):
+            with self.subTest(workflow=name):
+                body = job((ROOT / ".github/workflows" / name).read_text(), "wake-queue")
+                self.assertIn("always()", body)
+                self.assertIn("github.triggering_actor == 'github-actions[bot]'", body)
+                self.assertIn("event_type=merge-queue", body)
+                self.assertIn("client_payload[run_id]=$GITHUB_RUN_ID", body)
+                self.assertIn("contents: write", body)
+
+    def test_the_wake_up_in_ios_yml_waits_for_every_job(self) -> None:
+        jobs = set(re.findall(r"(?m)^  ([A-Za-z0-9_-]+):\n", IOS.split("\njobs:\n", 1)[1])) - {"wake-queue"}
+        needs = re.search(r"needs: \[([^\]]*)\]", job(IOS, "wake-queue"))
+        assert needs is not None
+        self.assertEqual({name.strip() for name in needs[1].split(",")}, jobs)

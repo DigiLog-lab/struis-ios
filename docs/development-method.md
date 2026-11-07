@@ -76,7 +76,9 @@
 
 ## 7. マージキュー(自前、main に入る前の唯一のゲート)
 実装: `.github/workflows/merge-queue.yml`(Linux)と `scripts/ci/merge_queue.py`(テストは `scripts/ci/test_merge_queue.py`)。
-- **起動**: `pull_request_target`(`auto_merge_enabled`・`auto_merge_disabled`・`synchronize`・`closed`・`reopened`・`ready_for_review`)、main への `push`、`iOS` と `Agent tests` の `workflow_run` の完了、30分ごとの `schedule`(届かなかったイベントの保険)。`pull_request_target` は main の定義で動く(`pull_request` は PR のマージ用コミットの定義で動くので使わない)。キューのジョブは PR のコードを checkout も実行もしない。API で読み書きするだけ。
+- **起動**: `pull_request_target`(`auto_merge_enabled`・`auto_merge_disabled`・`synchronize`・`closed`・`reopened`・`ready_for_review`)、main への `push`、`iOS` と `Agent tests` の `workflow_run` の完了、キュー自身が起動した実行の最後のジョブ(`wake-queue`)が送る `repository_dispatch`(`merge-queue`)、持ち主の手での `workflow_dispatch`、30分ごとの `schedule`。
+  - キューが起動した実行(PR の定義での `workflow_dispatch`、検証の `repository_dispatch`)は GITHUB_TOKEN で起動されるので、終わっても `workflow_run` を起こさない。#97 で、PR の定義の検証が緑で終わった後、キューが止まったままになった(2026-11-07)。だから実行の最後に自分でキューを起こす。
+  - `schedule` は、足してから3時間、一度も動かなかった(2026-11-07)。当てにしない。`pull_request_target` は main の定義で動く(`pull_request` は PR のマージ用コミットの定義で動くので使わない)。キューのジョブは PR のコードを checkout も実行もしない。API で読み書きするだけ。
 - **入口**: 持ち主が PR で「Enable auto-merge」を押すと、キューに入る。自動マージを押すことがマージの許可。
   - 合図にレビューの承認(Approve)は使わない。PR の作成者は自分の PR を承認できず、Claude が作る PR は持ち主のアカウント(`DigiLog-lab`)の名前で作られるため。
   - ルールセットが求める承認数は0なので、承認が無くてもマージの妨げにはならない。

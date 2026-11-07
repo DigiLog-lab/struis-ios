@@ -780,3 +780,22 @@ jobs:
             (needs.verify-shard.result == 'success' || needs.verify-shard.result == 'skipped') &&
             needs.release-archive.result == 'success' && 'success' ||
             contains(needs.*.result, 'cancelled') && 'cancelled' || 'failure' }}
+
+  # The merge queue's own runs (its verification, repository_dispatch; a PR's definition run as a self-test,
+  # workflow_dispatch by github-actions[bot]) were started with GITHUB_TOKEN, so their end triggers no workflow_run
+  # in merge-queue.yml (2026-11-07: #97's self-test ended green and the queue slept). They wake it themselves.
+  wake-queue:
+    needs: [pending, native, build, ui-plan, verify, verify-shard, release-archive, ui-tests, signed-archive, report]
+    if: >-
+      always() && (github.event_name == 'repository_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.triggering_actor == 'github-actions[bot]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write     # POST /dispatches
+    steps:
+      - name: マージキューを起こす
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # This run is still in progress until this job ends: the queue waits for it (scripts/ci/merge_queue.py).
+        run: gh api "repos/$GITHUB_REPOSITORY/dispatches" -f event_type=merge-queue -f "client_payload[run_id]=$GITHUB_RUN_ID"

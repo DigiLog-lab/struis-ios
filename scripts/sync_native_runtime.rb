@@ -197,6 +197,16 @@ set -eu
 cd "$SRCROOT/NativeRuntime"
 export EXPANDED_CODE_SIGN_IDENTITY="${EXPANDED_CODE_SIGN_IDENTITY:--}"
 export EXPANDED_CODE_SIGN_IDENTITY_NAME="${EXPANDED_CODE_SIGN_IDENTITY_NAME:-Ad Hoc}"
+python_compiler="$(command -v python3.14 || true)"
+if [ -z "$python_compiler" ]; then python_compiler="$(brew --prefix python@3.14)/bin/python3.14"; fi
+# Skipped while what it reads and what it left in the app are unchanged (Issue #93, scripts/package_python_stamp.py).
+stamp_tool="$SRCROOT/scripts/package_python_stamp.py"
+stamp_file="$DERIVED_FILE_DIR/package-python.stamp"
+if /usr/bin/python3 "$stamp_tool" check "$stamp_file" "$0"; then
+  "$python_compiler" "$stamp_tool" compile-modules "$CODESIGNING_FOLDER_PATH"
+  echo "Package Python: unchanged, skipped (PythonModules compiled again)"; exit 0
+fi
+rm -f "$stamp_file"
 source "$PWD/Vendor/Python.xcframework/build/utils.sh"
 test -d "$PWD/PythonPackages/$PLATFORM_NAME" || { echo "Run NativeRuntime/Scripts/prepare-python.py --platform $PLATFORM_NAME first"; exit 1; }
 mkdir -p "$CODESIGNING_FOLDER_PATH/PythonPackages"
@@ -207,9 +217,8 @@ find "$CODESIGNING_FOLDER_PATH/PythonPackages" -type f -name '*.a' -delete
 /usr/bin/python3 "$PWD/Scripts/fix-framework-minimum-os.py" "$CODESIGNING_FOLDER_PATH/Frameworks"
 /usr/bin/python3 "$SRCROOT/scripts/package_compound_dash_preparation.py"
 # Avoid source-parser allocations when importing large packages on a device.
-python_compiler="$(command -v python3.14 || true)"
-if [ -z "$python_compiler" ]; then python_compiler="$(brew --prefix python@3.14)/bin/python3.14"; fi
 "$python_compiler" "$PWD/Scripts/compile-python.py" "$CODESIGNING_FOLDER_PATH"
+/usr/bin/python3 "$stamp_tool" write "$stamp_file" "$0"
 SH
 package.always_out_of_date = '1'
 app.build_configurations.each do |config|

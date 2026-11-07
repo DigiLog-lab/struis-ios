@@ -398,6 +398,31 @@ class SharedWordingTests(unittest.TestCase):
         self.assertEqual(verify_report.CONTEXT, mq.CONTEXT)
 
 
+class WakeUpTests(unittest.TestCase):
+    def test_the_queue_waits_for_the_run_that_woke_it_to_end(self) -> None:
+        states = iter(["in_progress", "in_progress", "completed"])
+
+        class Runs:
+            repository = "o/r"
+
+            def get(self, path: str) -> Any:
+                assert path == "/repos/o/r/actions/runs/42"
+                return {"status": next(states)}
+
+        slept: list[float] = []
+        self.assertTrue(mq.wait_for_run(Runs(), 42, sleep=slept.append))  # type: ignore[arg-type]
+        self.assertEqual(len(slept), 2)
+
+    def test_a_run_that_never_ends_does_not_hold_the_queue(self) -> None:
+        class Running:
+            repository = "o/r"
+
+            def get(self, path: str) -> Any:
+                return {"status": "in_progress"}
+
+        self.assertFalse(mq.wait_for_run(Running(), 42, sleep=lambda _: None, tries=3))  # type: ignore[arg-type]
+
+
 class AppFreeTests(unittest.TestCase):
     def test_scripts_docs_and_workflows_leave_the_app_alone(self) -> None:
         self.assertTrue(app_free.app_free(["docs/a.md", "scripts/ci/x.py", ".github/workflows/ios.yml", "README.md"]))
