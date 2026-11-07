@@ -37,6 +37,8 @@ jobs:
     permissions:
       # Pushes devbox-out/* and deletes devbox-cmd/* only.
       contents: write
+      # Reads the Artifacts of main's builds (`python3 scripts/ci/sim_build.py main`, for "before" screenshots).
+      actions: read
     env:
       BRANCH: ${{ github.event.client_payload.branch }}
       IDLE_MINUTES: ${{ github.event.client_payload.idle_minutes || '15' }}
@@ -72,6 +74,24 @@ jobs:
             NativeRuntime/.build
           key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
           fail-on-cache-miss: true
+      - name: コンパイルキャッシュを復元する
+        # Xcode's compilation cache (content-addressed, so a stale entry is never used): the first build of a
+        # Dev Box took 772 s cold and 155 s with it (2026-11-07). Only Dev Boxes use it: a command can write
+        # anything into it, so the gate builds (ios.yml) never read it. One save a day (the key's date) keeps
+        # the repository's cache store from filling with a copy per Dev Box.
+        id: cas
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/DerivedData/CompilationCache.noindex
+          key: devbox-cas-v1-${{ github.run_id }}
+          restore-keys: devbox-cas-v1-
+      - name: コンパイルキャッシュを使う設定
+        run: |
+          set -euo pipefail
+          printf 'COMPILATION_CACHE_ENABLE_CACHING = YES\n' > "$RUNNER_TEMP/devbox/cas.xcconfig"
+          echo "XCODE_XCCONFIG_FILE=$RUNNER_TEMP/devbox/cas.xcconfig" >> "$GITHUB_ENV"
+          echo "CAS_KEY=devbox-cas-v1-$(date -u +%Y%m%d)" >> "$GITHUB_ENV"
+          echo "restored: ${{ steps.cas.outputs.cache-matched-key || 'none' }}"
       - name: 1回ビルドしてから、Simulatorを起動する
         # Build first, then boot (as ios.yml does): booting during the build took the first build to 21.6 min.
         timeout-minutes: 40
@@ -102,8 +122,15 @@ jobs:
       - name: 命令を待って実行する
         env:
           DEVBOX_WORK_BRANCH: ${{ github.event.client_payload.branch }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           # 20 minutes before the job's 6-hour limit, so the result of the last command still gets out.
           export DEVBOX_DEADLINE_EPOCH=$(( $(date +%s) + 300 * 60 ))
           export DEVBOX_IDLE_SECONDS=$(( IDLE_MINUTES * 60 ))
           bash "$RUNNER_TEMP/devbox/serve.sh"
+      - name: コンパイルキャッシュを保存する(その日の最初の Dev Box だけ)
+        if: always() && !startsWith(steps.cas.outputs.cache-matched-key, env.CAS_KEY)
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/DerivedData/CompilationCache.noindex
+          key: ${{ env.CAS_KEY }}
