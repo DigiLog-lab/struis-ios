@@ -4,7 +4,8 @@
 The phase copies the Python standard library and packages into the app, turns their extension modules into
 signed frameworks, prepares the Dash images and compiles every .py: 94 s on the runner, on every build,
 because Xcode cannot know its inputs and outputs (`alwaysOutOfDate`). This records, after the phase ran,
-what it read and what it left in the app; the next build skips the phase while both are the same.
+what it read and what it left in the app; the next build skips the phase while both are the same, and
+otherwise says in the build log the first thing that changed.
 
     package_python_stamp.py check STAMP SCRIPT   # exit 0: unchanged, skip the phase
     package_python_stamp.py write STAMP SCRIPT   # after the phase ran
@@ -38,10 +39,10 @@ SETTINGS: tuple[str, ...] = (
 )
 
 
-def tree(digest: "hashlib._Hash", root: pathlib.Path, label: str) -> None:
+def tree(lines: list[str], root: pathlib.Path, label: str) -> None:
     """Every entry under root (or root itself, a file), in a fixed order."""
     if not root.exists() and not root.is_symlink():
-        digest.update(f"{label}\0missing\n".encode())
+        lines.append(f"{label} missing")
         return
     paths: list[pathlib.Path] = [root]
     if root.is_dir() and not root.is_symlink():
@@ -53,7 +54,7 @@ def tree(digest: "hashlib._Hash", root: pathlib.Path, label: str) -> None:
         info = path.lstat()
         relative = path.relative_to(root).as_posix()
         target = os.readlink(path) if path.is_symlink() else ""
-        digest.update(f"{label}/{relative}\0{info.st_mode}\0{info.st_size}\0{info.st_mtime_ns}\0{target}\n".encode())
+        lines.append(f"{label}/{relative} mode={info.st_mode:o} size={info.st_size} mtime={info.st_mtime_ns} link={target}")
 
 
 def python_compiler() -> str:
@@ -66,23 +67,21 @@ def python_compiler() -> str:
         return "brew"
     version = subprocess.run([str(candidate), "-c", "import sys; print(sys.version)"],
                              capture_output=True, text=True, check=False).stdout
-    return f"{candidate}\0{version}"
+    return f"{candidate} {version.strip()}"
 
 
-def stamp(script: pathlib.Path) -> str:
+def stamp(script: pathlib.Path) -> list[str]:
     env = os.environ
     source = pathlib.Path(env["SRCROOT"])
     app = pathlib.Path(env["CODESIGNING_FOLDER_PATH"])
-    digest = hashlib.sha256()
-    digest.update(script.read_bytes())
-    for name in SETTINGS:
-        digest.update(f"{name}={env.get(name, '')}\n".encode())
-    digest.update(python_compiler().encode())
+    lines: list[str] = [f"script sha256={hashlib.sha256(script.read_bytes()).hexdigest()}"]
+    lines += [f"{name}={env.get(name, '')}" for name in SETTINGS]
+    lines.append(f"python3.14={python_compiler()}")
     for relative in (*INPUTS, f"NativeRuntime/PythonPackages/{env.get('PLATFORM_NAME', '')}"):
-        tree(digest, source / relative, "src:" + relative)
+        tree(lines, source / relative, "src:" + relative)
     for relative in OUTPUTS:
-        tree(digest, app / relative, "app:" + relative)
-    return digest.hexdigest()
+        tree(lines, app / relative, "app:" + relative)
+    return lines
 
 
 def main(argv: list[str]) -> int:
@@ -93,13 +92,20 @@ def main(argv: list[str]) -> int:
     current = stamp(script)
     if argv[0] == "write":
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(current + "\n")
+        path.write_text("\n".join(current) + "\n")
         return 0
     try:
-        recorded = path.read_text().strip()
+        recorded = path.read_text().splitlines()
     except FileNotFoundError:
+        print("Package Python runs: no record of an earlier run")
         return 1
-    return 0 if recorded == current else 1
+    if recorded == current:
+        return 0
+    for before, now in zip(recorded + ["(nothing)"] * len(current), current + ["(nothing)"] * len(recorded)):
+        if before != now:
+            print(f"Package Python runs: changed\n  was: {before}\n  now: {now}")
+            break
+    return 1
 
 
 if __name__ == "__main__":
