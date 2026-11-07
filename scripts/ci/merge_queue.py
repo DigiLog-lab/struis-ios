@@ -54,7 +54,8 @@ SELF_TESTS: dict[str, tuple[str, ...]] = {
     "ios.yml": (
         ".github/workflows/ios.yml", ".github/workflows/agent.yml", ".github/workflows/agent-native-cache.yml",
         "scripts/agent/verify_report.py", "scripts/ci/ui_test_plan.py", "scripts/ci/ui-test-plan.json",
-        "scripts/ci/cosmetic.py", "scripts/ci/app_free.py",
+        "scripts/ci/cosmetic.py", "scripts/ci/app_free.py", "scripts/ci/sim_build.py", "scripts/ci/ui_shards.py",
+        "scripts/ci/ui_failures.py", "scripts/ci/video_frame.swift",
     ),
     # Also for ios.yml and agent.yml: scripts/ci/test_queue_contract.py checks, on the PR's files, the parts of
     # them only the queue's path uses (repository_dispatch, pending, report), which a workflow_dispatch run skips.
@@ -143,6 +144,12 @@ class Queue:
 
     def contains(self, main_sha: str, sha: str) -> bool:
         return int(self.gh.get(f"{self.repo}/compare/{main_sha}...{sha}")["behind_by"]) == 0
+
+    def cancelled_before(self, sha: str) -> int:
+        """How many verifications of this commit were cancelled (`error`, written by verify_report.py)."""
+        return sum(1 for status in self.gh.paginate(f"{self.repo}/commits/{sha}/statuses")
+                   if status.get("context") == CONTEXT and status.get("state") == "error"
+                   and not str(status.get("description") or "").startswith(PREFIX))
 
     def changed_files(self, number: int) -> list[str]:
         """Every path the PR touches: for a rename, where it came from as well as where it went."""
@@ -245,6 +252,12 @@ class Queue:
                 self.call_off(pr, "自動マージが外されたか Draft に戻されたので、キューの検証を取りやめました。")
                 continue
             status = self.status(pr["head"]["sha"])
+            if (status and status.get("state") == "error" and not str(status.get("description") or "").startswith(PREFIX)
+                    and self.cancelled_before(pr["head"]["sha"]) == 1):
+                # A cancelled run (a runner lost, the job's time limit) says nothing about the code: verified once
+                # more when it is first. A second cancel waits for a push like a red.
+                self.log.append(f"#{pr['number']}: the verification was cancelled, verified once more")
+                status = None
             if status and status.get("state") in ("failure", "error"):
                 self.tell_red(pr, status)
                 self.log.append(f"#{pr['number']}: red, waits for a push")

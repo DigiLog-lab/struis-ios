@@ -78,7 +78,7 @@ def report(event, gh, store):
     # A cancelled run (replaced or stopped by hand) says nothing about the code: an error status, no wake-up.
     status = 'success' if green else 'error' if conclusion == 'cancelled' else 'failure'
     tested = ('全単体テストのみ(UIテストなし)' if run.get('ui_tier') == 'unit'
-              else '見た目だけ(Release archiveのみ)' if run.get('tier') == 'cosmetic'
+              else '画面の描画だけ(Release archive と Simulator のビルド、テストなし)' if run.get('tier') == 'cosmetic'
               else 'アプリに触らない変更(macOSなし)' if run.get('tier') == 'none'
               else '全単体テスト＋変更に関係するUIテスト')
     gh.request('POST', f'/repos/{gh.repository}/statuses/{sha}', {

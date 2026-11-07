@@ -1,6 +1,6 @@
 name: Issue agent
 run-name: >-
-  ${{ github.event_name == 'push' && 'Refresh agent PRs after main moved' ||
+  ${{ github.event_name == 'push' && 'Sweep work branches of closed Issues' ||
       github.event_name == 'issues' && github.event.action == 'closed' && format('Cleanup #{0}', github.event.issue.number) ||
       format('Issue agent #{0}', github.event.issue.number || inputs.issue || github.event.client_payload.issue) }}
 
@@ -22,7 +22,7 @@ on:
         type: string
         required: true
       ui_tier:
-        description: pr / cosmetic(見た目だけ)
+        description: pr / cosmetic(画面の描画だけ)
         type: string
         required: false
   workflow_dispatch:

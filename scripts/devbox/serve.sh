@@ -130,17 +130,21 @@ cleanup_finished() {
 }
 
 # Results left by an earlier Dev Box, KEEP_RESULTS after they finished (their `times`). A result that never
-# finished (its Dev Box ended while it ran) goes by the time in its id.
+# finished (its Dev Box ended while it ran) goes by the time in its id. One fetch of every result and one push
+# that deletes them all: a fetch and a push per branch took minutes at start (2026-11-07).
 cleanup_old_results() {
-  local now ref id sha finished stamp when
+  local now ref id sha finished stamp when i
+  local -a shas=() refs=() old=()
   now=$(date +%s)
-  git ls-remote origin "${OUT_PREFIX}*" | while read -r sha ref; do
-    id=${ref#"$OUT_PREFIX"}
-    [[ "$id" == ready ]] && continue
-    finished=""
-    if git fetch -q --depth 1 origin "$sha" 2>/dev/null; then
-      finished=$(git show "$sha:times" 2>/dev/null | sed -n 's/^finished=\([0-9]*\)$/\1/p')
-    fi
+  while read -r sha ref; do
+    [[ "${ref#"$OUT_PREFIX"}" == ready ]] && continue
+    shas+=("$sha"); refs+=("$ref")
+  done < <(git ls-remote origin "${OUT_PREFIX}*")
+  (( ${#refs[@]} )) || return 0
+  git fetch -q --depth 1 origin "${shas[@]}" 2>/dev/null || true
+  for i in "${!refs[@]}"; do
+    sha=${shas[$i]}; ref=${refs[$i]}; id=${ref#"$OUT_PREFIX"}
+    finished=$(git show "$sha:times" 2>/dev/null | sed -n 's/^finished=\([0-9]*\)$/\1/p')
     if [[ -n "$finished" ]]; then
       when=$finished
     else
@@ -148,8 +152,11 @@ cleanup_old_results() {
       [[ "$stamp" =~ ^[0-9]{8}T[0-9]{6}$ ]] || continue
       when=$(date -j -u -f '%Y%m%dT%H%M%S' "$stamp" +%s 2>/dev/null || date -u -d "${stamp:0:8} ${stamp:9:2}:${stamp:11:2}:${stamp:13:2}" +%s 2>/dev/null) || continue
     fi
-    (( now - when > KEEP_RESULTS )) && delete_ref "$ref"
+    (( now - when > KEEP_RESULTS )) && old+=(":$ref")
   done
+  (( ${#old[@]} )) || return 0
+  echo "devbox: deleting ${#old[@]} old results"
+  git push -q origin "${old[@]}" 2>/dev/null || for ref in "${old[@]}"; do delete_ref "${ref#:}" || true; done
 }
 
 trap 'delete_ref "${OUT_PREFIX}ready"' EXIT
