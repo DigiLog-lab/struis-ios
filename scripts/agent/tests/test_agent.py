@@ -461,6 +461,12 @@ class AbandonedVerifyTests(VerifyReportTests):
             verify_report.report(self.event('success'), gh, store)
         gh.request.assert_not_called()
 
+    def test_a_success_for_a_closed_pr_is_not_written(self):
+        gh, store = self.gh(state='closed'), FakeStore()
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.report(self.event('success'), gh, store)
+        gh.request.assert_not_called()
+
     def test_the_result_of_the_queues_own_verification_is_written(self):
         gh, store = self.gh_with_status('pending', 'マージキュー: 最新の main の上で検証中'), FakeStore()
         with mock.patch.object(verify_report, 'append_summary'):

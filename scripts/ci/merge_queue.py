@@ -51,9 +51,11 @@ SELF_TESTS: dict[str, tuple[str, ...]] = {
         "scripts/agent/verify_report.py", "scripts/ci/ui_test_plan.py", "scripts/ci/ui-test-plan.json",
         "scripts/ci/cosmetic.py", "scripts/ci/app_free.py",
     ),
+    # Also for ios.yml and agent.yml: scripts/ci/test_queue_contract.py checks, on the PR's files, the parts of
+    # them only the queue's path uses (repository_dispatch, pending, report), which a workflow_dispatch run skips.
     "agent-tests.yml": (
         ".github/workflows/merge-queue.yml", ".github/workflows/agent-tests.yml", ".github/actionlint.yaml",
-        "scripts/", "cloudflare/",
+        ".github/workflows/ios.yml", ".github/workflows/agent.yml", "scripts/", "cloudflare/",
     ),
 }
 AGENT_ISSUE: re.Pattern[str] = re.compile(r"<!-- struis-agent:issue=([1-9]\d*) -->")
@@ -344,7 +346,11 @@ class Queue:
         self.log.append(f"#{entry.number}: verification of {entry.sha[:12]} on the latest main started")
         return True
 
-    def run(self) -> list[str]:
+    def run(self, closed: dict[str, Any] | None = None) -> list[str]:
+        """closed: the PR of a `closed` event. A closed PR is not in the list of open ones, so its verification
+        is called off here, before the next PR is verified (reopening it must not merge on an old main)."""
+        if closed and not closed.get("merged"):
+            self.call_off(closed, "PR が閉じられたので、キューの検証を取りやめました。")
         main_sha: str = str(self.gh.get(f"{self.repo}/branches/main")["commit"]["sha"])
         prs: list[dict[str, Any]] = [
             pr for pr in self.gh.paginate(f"{self.repo}/pulls?state=open&base=main")
@@ -361,7 +367,14 @@ class Queue:
 
 def main() -> int:
     gh = GitHub(os.environ["GITHUB_TOKEN"], os.environ["GITHUB_REPOSITORY"])
-    log: list[str] = Queue(gh, lambda: datetime.datetime.now(datetime.timezone.utc)).run()
+    closed: dict[str, Any] | None = None
+    event_path: str | None = os.environ.get("GITHUB_EVENT_PATH")
+    if os.environ.get("GITHUB_EVENT_NAME") == "pull_request_target" and event_path:
+        with open(event_path) as handle:
+            event: dict[str, Any] = json.load(handle)
+        if event.get("action") == "closed":
+            closed = event.get("pull_request")
+    log: list[str] = Queue(gh, lambda: datetime.datetime.now(datetime.timezone.utc)).run(closed)
     print("\n".join(log))
     summary: str | None = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:

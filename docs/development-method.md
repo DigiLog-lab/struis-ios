@@ -89,7 +89,7 @@
   - 同時実行の制御は既定のまま(待ちは1本)。新しい起動が待っている起動を取り消しても、新しい起動が GitHub の状態から全部を読み直すので、何も失わない。
 - **先頭に来たら**:
   1. PR が最新の main を含んでいなければ、GITHUB_TOKEN で最新の main を取り込む(Update branch)。衝突したら赤にして PR に理由を書き、次の PR へ進む。
-  2. 検証のワークフローに触る PR は、先に PR のブランチの定義のままで流す(`workflow_dispatch`)。`ios.yml`・`agent.yml`・`agent-native-cache.yml`・検証のスクリプトに触れば `ios.yml` を、`scripts/` や `cloudflare/`、キューのワークフローに触れば `agent-tests.yml` を流す。緑なら次へ進み、赤なら PR に理由を書いて外す。main の定義だけで流すと、検証を壊す変更が検証されずに main に入り、次からキューが全部赤になって、直す PR もマージできなくなるため(持ち主の判断で、ルールセットの例外は入れずにキュー側で防ぐ。2026-11-07)。
+  2. 検証のワークフローに触る PR は、先に PR のブランチの定義のままで流す(`workflow_dispatch`)。`ios.yml`・`agent.yml`・`agent-native-cache.yml`・検証のスクリプトに触れば `ios.yml` を、`scripts/` や `cloudflare/`、キューのワークフロー、`ios.yml`・`agent.yml` に触れば `agent-tests.yml` を流す。`workflow_dispatch` での実行はキューの経路(`repository_dispatch` の `verify`、`pending`、`report`)を通らないので、その部分が残っていることは `scripts/ci/test_queue_contract.py` が PR のファイルで確かめる。緑なら次へ進み、赤なら PR に理由を書いて外す。main の定義だけで流すと、検証を壊す変更が検証されずに main に入り、次からキューが全部赤になって、直す PR もマージできなくなるため(持ち主の判断で、ルールセットの例外は入れずにキュー側で防ぐ。2026-11-07)。
   3. main の定義の `ios.yml` の検証を `repository_dispatch`(`verify`)で起動する。中身は変更で決まる。
      - アプリに触らない変更(`scripts/ci/app_free.py`: 文書、`scripts/agent`・`scripts/ci`・`scripts/devbox`、`.github`、`cloudflare` だけ): macOS を使わない(段階 `none`)。スクリプトとワークフローは `agent-tests.yml` が確かめている。
      - `見た目だけ` のラベルが付き、差分が描画のファイルだけ(PR の `cosmetic.py` と main の `cosmetic.py` の両方が認める): Release archive だけ。
@@ -98,6 +98,7 @@
   - 緑になってから10分たってもマージされない時は、赤にして PR に理由を書き、次へ進む。
   - 検証が2時間たっても終わらない時は、赤にして PR に理由を書き、次へ進む。
 - **古い緑を残さない**: ルールセットの「最新の main を含むことを求める」(strict)は無効なので、古い main の上の緑はマージできてしまう。キューは起動のたびに、最新の main を含まない先頭のコミットにある緑の `Struis / verify` を pending に書き直す。
+- **キューを離れた PR**: 検証中に自動マージが外された・Draft に戻された・ブロックされた・閉じられた PR は、次の PR へ進む前に、その検証に取りやめの赤を付ける。`verify_report.py` は、キューが付けた赤と、main が進んで pending に戻した印を上書きせず、閉じた PR には緑を書かない。外した PR が古い main の上の結果でマージされないため。
 - **赤**: `ios.yml` の検証が赤なら、キューはその先頭のコミットにつき1回だけ PR に理由を書く。自動マージは有効のまま残す。Claude が直して push したら、そのままキューの最後に並び直す。持ち主が押し直す必要は無い。
 - **マージするのは GitHub**: キューも Claude もマージの API は呼ばない。Claude の環境ではマージの API が止められる(2026-11-06・07 に確認)。
 - **強制の範囲**: `Struis / verify` を書くのは、キューと、キューが起動した `ios.yml` の検証だけの決まり。ルールセットが強制しているのは「`Struis / verify` が緑でないとマージできない」ことだけで、誰が書いたかは見ていない(必須チェックに書き手の指定が無い)。他のジョブに `statuses: write` を持たせない。

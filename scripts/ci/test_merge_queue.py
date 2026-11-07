@@ -258,6 +258,16 @@ class OccupantTests(unittest.TestCase):
         self.assertTrue(gh.statuses["a" * 40]["description"].startswith(mq.PREFIX))
         self.assertEqual([d["client_payload"]["pr"] for d in gh.dispatched()], [1, 2])
 
+    def test_a_pr_closed_mid_verification_is_called_off_before_the_next_goes(self) -> None:
+        gh = FakeGitHub()
+        gh.add(1, "a" * 40, enabled=50)
+        gh.add(2, "b" * 40, enabled=10)
+        run(gh)
+        closed = gh.prs.pop(1)
+        mq.Queue(gh, lambda: NOW, wait=0).run(dict(closed, merged=False))
+        self.assertEqual(gh.statuses["a" * 40]["state"], "failure")
+        self.assertEqual([d["client_payload"]["pr"] for d in gh.dispatched()], [1, 2])
+
     def test_a_conflict_on_an_agent_pr_is_said_on_its_issue_too(self) -> None:
         gh = FakeGitHub()
         gh.add(1, "a" * 40, behind=1, body="x <!-- struis-agent:issue=40 -->")
@@ -294,7 +304,8 @@ class SelfTestTests(unittest.TestCase):
     def test_after_the_self_test_is_green_mains_verification_runs(self) -> None:
         gh = FakeGitHub()
         gh.add(1, "a" * 40, files=[".github/workflows/ios.yml"], status=("pending", mq.SELF_TEST, 20))
-        gh.runs[("ios.yml", "a" * 40)] = [{"status": "completed", "conclusion": "success", "created_at": stamp(20)}]
+        for workflow in ("ios.yml", "agent-tests.yml"):
+            gh.runs[(workflow, "a" * 40)] = [{"status": "completed", "conclusion": "success", "created_at": stamp(20)}]
         run(gh)
         self.assertEqual(gh.workflow_dispatched(), [])
         self.assertEqual([d["client_payload"]["pr"] for d in gh.dispatched()], [1])
@@ -309,6 +320,15 @@ class SelfTestTests(unittest.TestCase):
                                           "html_url": "https://x"}]
         run(gh)
         self.assertEqual(gh.statuses["a" * 40]["state"], "failure")
+
+    def test_an_ios_yml_change_also_runs_the_contract_tests_with_its_own_files(self) -> None:
+        gh = FakeGitHub()
+        gh.add(1, "a" * 40, files=[".github/workflows/ios.yml"],
+               status=("pending", mq.SELF_TEST, 20))
+        gh.runs[("ios.yml", "a" * 40)] = [{"status": "completed", "conclusion": "success", "created_at": stamp(20)}]
+        run(gh)
+        self.assertEqual([workflow for workflow, _ in gh.workflow_dispatched()], ["agent-tests.yml"])
+        self.assertEqual(gh.dispatched(), [])
 
     def test_a_queue_or_script_change_runs_the_prs_linux_tests(self) -> None:
         gh = FakeGitHub()

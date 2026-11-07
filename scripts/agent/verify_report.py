@@ -68,6 +68,10 @@ def report(event, gh, store):
     if abandoned_by_queue(gh, sha):
         append_summary(f'PR #{number} `{sha[:12]}`: {run.get("conclusion")}, not written (the merge queue gave up on this commit)')
         return
+    if run.get('conclusion') == 'success' and gh.get(f'/repos/{gh.repository}/pulls/{number}').get('state') != 'open':
+        # Closed while it was verified: a green now would let it merge on an older main if it were reopened.
+        append_summary(f'PR #{number} `{sha[:12]}`: success, not written (the PR is closed)')
+        return
     conclusion = run.get('conclusion')
     green = conclusion == 'success'
     # A cancelled run (replaced or stopped by hand) says nothing about the code: an error status, no wake-up.
