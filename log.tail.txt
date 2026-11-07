@@ -1,0 +1,56 @@
+no device iPhone 15 Pro Max
+device iPhone 15 Pro Max 6B32BC73-225C-4314-B877-20C7E17AA035
+
+driver ready after 76s
+[1] launch text=-skip-onboarding -> ok
+[2] wait id=timeline-question timeout=40 -> exists
+[3] sleep duration=2.5 -> ok
+[4] screenshot name=01-timeline -> /tmp/drv-main/01-timeline.png
+[5] drag x=40 y=420 x2=70 y2=460 -> ok
+[6] drag x=70 y=420 x2=40 y2=460 -> ok
+[7] drag x=85 y=432 x2=110 y2=432 -> ok
+[8] drag x=85 y=448 x2=110 y2=448 -> ok
+[9] drag x=124 y=424 x2=150 y2=424 -> ok
+[10] drag x=150 y=426 x2=124 y2=460 -> ok
+[11] drag x=124 y=460 x2=154 y2=460 -> ok
+[12] drag x=40 y=490 x2=56 y2=512 -> ok
+[13] drag x=72 y=490 x2=48 y2=534 -> ok
+[14] drag x=85 y=504 x2=110 y2=504 -> ok
+[15] drag x=85 y=520 x2=110 y2=520 -> ok
+[16] drag x=124 y=512 x2=140 y2=512 -> ok
+[17] drag x=172 y=490 x2=152 y2=490 -> ok
+[18] drag x=152 y=490 x2=150 y2=508 -> ok
+[19] drag x=150 y=508 x2=170 y2=512 -> ok
+[20] drag x=170 y=512 x2=168 y2=530 -> ok
+[21] drag x=168 y=530 x2=148 y2=532 -> ok
+[22] sleep duration=1 -> ok
+[23] screenshot name=02-ink -> /tmp/drv-main/02-ink.png
+[24] tapid id=timeline-ink-undo -> ok
+[25] tapid id=timeline-ink-undo -> ok
+[26] tapid id=timeline-ink-undo -> ok
+[27] terminate -> ok
+[28] launch text=-skip-onboarding -> ok
+[29] wait id=timeline-capture timeout=40 -> exists
+[30] tapid id=timeline-capture -> ok
+[31] wait id=chat-camera-shutter timeout=15 -> exists
+[32] tapid id=chat-camera-shutter -> ok
+[33] wait id=timeline-result-correct timeout=40 -> exists
+[34] sleep duration=2.5 -> ok
+[35] screenshot name=04-correct -> /tmp/drv-main/04-correct.png
+[36] quit -> bye
+xcodebuild exit 0
+device iPhone 15 Pro Max 6B32BC73-225C-4314-B877-20C7E17AA035
+
+driver ready after 41s
+[1] launch text=-skip-onboarding -> ok
+[2] wait id=timeline-capture timeout=40 -> exists
+[3] tapid id=timeline-capture -> ok
+[4] wait id=chat-camera-shutter timeout=15 -> exists
+[5] tapid id=chat-camera-shutter -> ok
+[6] wait id=timeline-result-wrong timeout=40 -> exists
+[7] sleep duration=2.5 -> ok
+[8] screenshot name=10-wrong -> /tmp/drv-wrong/10-wrong.png
+[9] quit -> bye
+xcodebuild exit 0
+udid 6B32BC73-225C-4314-B877-20C7E17AA035 app /Users/runner/work/_temp/DerivedData/Build/Products/Debug-iphonesimulator/strius.app bid com.digiloglab.strius
+shot 20-grade
