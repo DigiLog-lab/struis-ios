@@ -92,6 +92,26 @@ class StampTests(unittest.TestCase):
         self.assertIn("_speedups.so", said)
 
 
+class SameScriptTests(unittest.TestCase):
+    def test_the_project_and_its_generator_have_the_same_phase(self) -> None:
+        """scripts/sync_native_runtime.rb rewrites the phase when the project is synchronized."""
+        import re
+        generator = (ROOT / "scripts/sync_native_runtime.rb").read_text()
+        heredoc = generator.split("package.shell_script = <<~SH\n", 1)[1].split("\nSH\n", 1)[0] + "\n"
+        project = (ROOT / "strius.xcodeproj/project.pbxproj").read_text()
+        start = project.index("/* Package Python */ = {")
+        quoted = re.compile(r'shellScript = "((?:[^"\\]|\\.)*)";').search(project, start)
+        assert quoted is not None
+        script = re.sub(r'\\(.)', lambda m: {"n": "\n", "t": "\t"}.get(m[1], m[1]), quoted[1])
+        self.assertEqual(script, heredoc)
+
+    def test_the_signing_defaults_are_set_before_the_check(self) -> None:
+        """Unsigned builds (CODE_SIGNING_ALLOWED=NO) leave the identity empty: check and write must see the same."""
+        generator = (ROOT / "scripts/sync_native_runtime.rb").read_text()
+        self.assertLess(generator.index('export EXPANDED_CODE_SIGN_IDENTITY_NAME="${'),
+                        generator.index('"$stamp_tool" check'))
+
+
 class SameCompilationTests(unittest.TestCase):
     def test_compile_modules_uses_the_settings_of_compile_python(self) -> None:
         theirs = (ROOT / "NativeRuntime/Scripts/compile-python.py").read_text()
