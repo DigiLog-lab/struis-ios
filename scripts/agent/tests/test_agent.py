@@ -14,7 +14,6 @@ import agentlib  # noqa: E402
 import appstoreconnect  # noqa: E402
 import cleanup  # noqa: E402
 import prototype  # noqa: E402
-import refresh  # noqa: E402
 import verify_report  # noqa: E402
 
 SHA = 'a' * 40
@@ -441,67 +440,44 @@ class CancelledVerifyTests(VerifyReportTests):
         gh.comment.assert_not_called()
 
 
-class RefreshTests(unittest.TestCase):
-    MAIN = 'm' * 40
-
-    def gh(self, behind, update_error=None, heads=('a' * 40, 'n' * 40)):
-        gh = mock.Mock(repository='o/r')
-        pr = {'number': 3, 'draft': False, 'body': '<!-- struis-agent:issue=4 -->',
-              'head': {'sha': heads[0], 'repo': {'full_name': 'o/r'}}}
-        draft = dict(pr, number=5, draft=True)
-        gh.paginate.return_value = [pr, draft]
-        seen = iter(heads[1:] * 5)
-        def get(path):
-            if '/compare/' in path:
-                return {'behind_by': behind}
-            return {'head': {'sha': next(seen)}}
-        gh.get.side_effect = get
-        if update_error:
-            gh.request_once.side_effect = RuntimeError(update_error)
+class AbandonedVerifyTests(VerifyReportTests):
+    def gh_with_status(self, state, description):
+        gh = self.gh()
+        default = gh.get.side_effect
+        status = {'statuses': [{'context': 'Struis / verify', 'state': state, 'description': description}]}
+        gh.get.side_effect = lambda path: status if path.endswith('/status') else default(path)
         return gh
 
-    def run_refresh(self, gh, store):
-        with mock.patch.object(refresh, 'append_summary'):
-            refresh.refresh(gh, store, self.MAIN, wait=0)
-
-    def test_a_waiting_pr_takes_main_and_is_verified_again(self):
-        gh, store = self.gh(behind=2), FakeStore()
-        self.run_refresh(gh, store)
-        update = gh.request_once.call_args.args
-        self.assertEqual((update[1], update[2]), ('/repos/o/r/pulls/3/update-branch', {'expected_head_sha': 'a' * 40}))
-        dispatched = gh.request.call_args.args[2]
-        self.assertEqual(dispatched['event_type'], 'verify')
-        self.assertEqual(dispatched['client_payload'], {'pr': '3', 'sha': 'n' * 40, 'issue': '4'})
-        self.assertEqual(gh.request_once.call_count, 1)  # the Draft PR is left alone
-
-    def test_a_persons_pr_is_updated_and_verified_without_an_issue(self):
-        gh, store = self.gh(behind=1), FakeStore()
-        gh.paginate.return_value = [{'number': 7, 'draft': False, 'body': 'by hand',
-                                     'head': {'sha': 'a' * 40, 'repo': {'full_name': 'o/r'}}}]
-        self.run_refresh(gh, store)
-        self.assertEqual(gh.request.call_args.args[2]['client_payload'], {'pr': '7', 'sha': 'n' * 40})
+    def test_a_late_success_does_not_overwrite_the_queues_red(self):
+        gh, store = self.gh_with_status('failure', 'マージキュー: 検証が2時間たっても終わりませんでした。'), FakeStore()
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.report(self.event('success'), gh, store)
+        gh.request.assert_not_called()
         gh.comment.assert_not_called()
 
-    def test_a_pr_that_already_contains_main_is_untouched(self):
-        gh, store = self.gh(behind=0), FakeStore()
-        self.run_refresh(gh, store)
-        gh.request_once.assert_not_called()
+    def test_a_late_success_does_not_overwrite_a_green_set_back_by_main(self):
+        gh, store = self.gh_with_status('pending', verify_report.QUEUE_STALE), FakeStore()
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.report(self.event('success'), gh, store)
         gh.request.assert_not_called()
 
-    def test_a_conflict_wakes_the_agent_with_the_reason(self):
-        gh, store = self.gh(behind=1, update_error="GitHub PUT x: HTTP 422 b'merge conflict between base and head'"), FakeStore()
-        self.run_refresh(gh, store)
-        failure = store.objects['sessions/4/state.json']['verifyFailure']
-        self.assertTrue(failure['conflict'])
-        self.assertEqual(gh.request.call_args.args[2]['event_type'], 'agent-issue')
-        prompt = agentctl.build_prompt('<ctx/>', ISSUE, [], [], {'issueBodyProcessed': True}, failure)
-        self.assertIn('衝突', prompt)
-
-    def test_a_head_that_moved_meanwhile_is_not_treated_as_a_conflict(self):
-        gh, store = self.gh(behind=1, update_error="GitHub PUT x: HTTP 422 b'expected head sha didn't match current head ref.'"), FakeStore()
-        self.run_refresh(gh, store)
-        self.assertEqual(store.objects, {})
+    def test_a_late_success_does_not_overwrite_a_pr_that_left_the_queue(self):
+        gh, store = self.gh_with_status('pending', verify_report.QUEUE_LEFT), FakeStore()
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.report(self.event('success'), gh, store)
         gh.request.assert_not_called()
+
+    def test_a_success_for_a_closed_pr_is_not_written(self):
+        gh, store = self.gh(state='closed'), FakeStore()
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.report(self.event('success'), gh, store)
+        gh.request.assert_not_called()
+
+    def test_the_result_of_the_queues_own_verification_is_written(self):
+        gh, store = self.gh_with_status('pending', 'マージキュー: 最新の main の上で検証中'), FakeStore()
+        with mock.patch.object(verify_report, 'append_summary'):
+            verify_report.report(self.event('success'), gh, store)
+        self.assertEqual(gh.request.call_args_list[0].args[2]['state'], 'success')
 
 
 class CleanupTests(unittest.TestCase):

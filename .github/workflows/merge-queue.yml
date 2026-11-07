@@ -1,0 +1,50 @@
+name: Merge queue
+
+# The merge queue (docs/development-method.md, "7. マージキュー"; scripts/ci/merge_queue.py): the only gate
+# before main. The owner pressing "Enable auto-merge" on a PR puts it in the queue; the queue verifies the
+# PRs one at a time on the latest main, and GitHub's auto-merge merges a green one in the owner's name.
+#
+# pull_request_target runs main's definition of this file (pull_request would run the PR's), and the job
+# never checks out or runs the PR's code: it only reads and writes through the API. Each run reads
+# GitHub's state and takes one step, so a run dropped by the concurrency group (a newer one replaces the one
+# waiting) loses nothing: the newest run sees everything the dropped one would have.
+on:
+  pull_request_target:
+    types: [auto_merge_enabled, auto_merge_disabled, synchronize, closed, reopened, ready_for_review]
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: [iOS, Agent tests]
+    types: [completed]
+  # A safety net for events GitHub did not deliver.
+  schedule:
+    - cron: '17,47 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: merge-queue
+  cancel-in-progress: false
+
+jobs:
+  queue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write        # repository_dispatch (verify), Update branch
+      pull-requests: write   # Update branch
+      statuses: write        # Struis / verify (pending, or red with the reason)
+      issues: write          # the reason a PR left the queue
+      actions: write         # workflow_dispatch of a changed workflow with the PR's definition
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          persist-credentials: false
+          sparse-checkout: scripts/ci
+      - name: キューを1段進める
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/merge_queue.py
