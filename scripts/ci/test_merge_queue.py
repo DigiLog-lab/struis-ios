@@ -42,6 +42,7 @@ class FakeGitHub:
         self.renames: dict[int, list[tuple[str, str]]] = {}
         self.reject_dispatch: set[str] = set()
         self.sent: list[tuple[str, str, dict[str, Any] | None]] = []
+        self.history: dict[str, list[dict[str, Any]]] = {}  # every status of a commit, newest first
 
     def add(self, number: int, sha: str, *, auto_merge: bool = True, enabled: int = 30, pushed: int = 60,
             behind: int = 0, status: tuple[str, str, int] | None = None, files: list[str] | None = None,
@@ -57,6 +58,7 @@ class FakeGitHub:
             state, description, minutes = status
             self.statuses[sha] = {"context": mq.CONTEXT, "state": state, "description": description,
                                   "updated_at": stamp(minutes)}
+            self.history.setdefault(sha, []).insert(0, dict(self.statuses[sha]))
 
     def get(self, path: str) -> Any:
         path = path.removeprefix("/repos/o/r")
@@ -90,6 +92,8 @@ class FakeGitHub:
         if path.endswith("/comments"):
             number = int(path.split("/")[2])
             return [{"body": body} for n, body in self.comments() if n == number]
+        if path.startswith("/commits/") and path.endswith("/statuses"):
+            return copy.deepcopy(self.history.get(path.split("/")[2], []))
         if path.endswith("/timeline"):
             number = int(path.split("/")[2])
             return [{"event": "auto_merge_enabled", "created_at": stamp(self.enabled[number])}]
@@ -101,6 +105,7 @@ class FakeGitHub:
         if method == "POST" and path.startswith("/statuses/"):
             assert body is not None
             self.statuses[path.split("/")[2]] = dict(body, updated_at=stamp(0))
+            self.history.setdefault(path.split("/")[2], []).insert(0, dict(body, updated_at=stamp(0)))
         if method == "POST" and path.startswith("/actions/workflows/") and path.split("/")[3] in self.reject_dispatch:
             raise urllib.error.HTTPError(path, 422, "no workflow_dispatch", {}, io.BytesIO(b""))  # type: ignore[arg-type]
         if method == "PUT" and path.endswith("/update-branch"):
@@ -202,6 +207,25 @@ class QueueTests(unittest.TestCase):
         run(gh)
         self.assertEqual(len(gh.comments()), 1)
         self.assertIn("単体テスト", gh.comments()[0][1])
+
+    def test_a_cancelled_verification_is_run_once_more_then_waits_like_a_red(self) -> None:
+        gh = FakeGitHub()
+        gh.add(1, "a" * 40, status=("error", "ios.yml: cancelled", 5))
+        run(gh)
+        self.assertEqual([d["client_payload"]["pr"] for d in gh.dispatched()], [1])
+        self.assertEqual(gh.comments(), [])
+        gh.send("POST", "/repos/o/r/statuses/" + "a" * 40,
+                {"state": "error", "context": mq.CONTEXT, "description": "ios.yml: cancelled"})
+        gh.sent.clear()
+        run(gh)
+        self.assertEqual(gh.dispatched(), [])
+        self.assertEqual(len(gh.comments()), 1)
+
+    def test_the_queues_own_error_is_not_run_again(self) -> None:
+        gh = FakeGitHub()
+        gh.add(1, "a" * 40, status=("error", mq.PREFIX + "何か", 5))
+        run(gh)
+        self.assertEqual(gh.dispatched(), [])
 
     def test_prs_without_auto_merge_or_in_draft_are_not_queued(self) -> None:
         gh = FakeGitHub()

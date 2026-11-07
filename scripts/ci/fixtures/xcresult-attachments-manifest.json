@@ -1,0 +1,17 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "4AD2086B-7B8F-4608-A742-AA422A0B8D74",
+        "deviceName" : "iPhone 17",
+        "exportedFileName" : "A0E9442E-DC2B-46E6-9974-1E6AD792A4AA.mp4",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "Screen Recording 2026-11-07 at 04.55.45 AM.mp4",
+        "timestamp" : 1794027345.753
+      }
+    ],
+    "testIdentifier" : "ZzPreflightUITests/testBFailsAfterLaunch()",
+    "testIdentifierURL" : "test://com.apple.xcode/strius/striusUITests/ZzPreflightUITests/testBFailsAfterLaunch"
+  }
+]

@@ -1,0 +1,103 @@
+{
+  "testIdentifier" : "ZzPreflightUITests/testBFailsAfterLaunch()",
+  "testIdentifierURL" : "test://com.apple.xcode/strius/striusUITests/ZzPreflightUITests/testBFailsAfterLaunch",
+  "testName" : "testBFailsAfterLaunch()",
+  "testRuns" : [
+    {
+      "activities" : [
+        {
+          "activityType" : "com.apple.dt.xctest.activity-type.internal",
+          "attachments" : [
+            {
+              "lifetime" : "deleteOnSuccess",
+              "name" : "Screen Recording 2026-11-07 at 04.55.45 AM.mp4",
+              "payloadId" : "0~26e_BIFQns9hWBVOQJxPxr6yAm4-PCYiItc1wmKhx6VcjSY2slVhssEhNQffler7lG11_76lyVxLx9X6q10QRQ==",
+              "timestamp" : 1794027345.753,
+              "uuid" : "A0E9442E-DC2B-46E6-9974-1E6AD792A4AA"
+            }
+          ],
+          "childActivities" : [
+            {
+              "isAssociatedWithFailure" : false,
+              "startTime" : 1794027345.753,
+              "title" : "kXCTAttachmentScreenRecording"
+            }
+          ],
+          "isAssociatedWithFailure" : false,
+          "startTime" : 1794027345.677,
+          "title" : "Start Test at 2026-11-07 04:55:45.677"
+        },
+        {
+          "activityType" : "com.apple.dt.xctest.activity-type.internal",
+          "isAssociatedWithFailure" : false,
+          "startTime" : 1794027345.76,
+          "title" : "Set Up"
+        },
+        {
+          "activityType" : "com.apple.dt.xctest.activity-type.internal",
+          "childActivities" : [
+            {
+              "activityType" : "com.apple.dt.xctest.activity-type.internal",
+              "childActivities" : [
+                {
+                  "activityType" : "com.apple.dt.xctest.activity-type.internal",
+                  "isAssociatedWithFailure" : false,
+                  "startTime" : 1794027345.762,
+                  "title" : "Terminate com.digiloglab.strius:45628"
+                },
+                {
+                  "activityType" : "com.apple.dt.xctest.activity-type.internal",
+                  "isAssociatedWithFailure" : false,
+                  "startTime" : 1794027347.969,
+                  "title" : "Setting up automation session"
+                },
+                {
+                  "activityType" : "com.apple.dt.xctest.activity-type.internal",
+                  "isAssociatedWithFailure" : false,
+                  "startTime" : 1794027356.445,
+                  "title" : "Wait for com.digiloglab.strius to idle"
+                }
+              ],
+              "isAssociatedWithFailure" : false,
+              "startTime" : 1794027345.762,
+              "title" : "Launch com.digiloglab.strius"
+            }
+          ],
+          "isAssociatedWithFailure" : false,
+          "startTime" : 1794027345.761,
+          "title" : "Open com.digiloglab.strius"
+        },
+        {
+          "childActivities" : [
+            {
+              "isAssociatedWithFailure" : false,
+              "title" : ""
+            }
+          ],
+          "isAssociatedWithFailure" : true,
+          "startTime" : 1794027362.478,
+          "title" : "failed - devbox preflight: a deliberate failure"
+        },
+        {
+          "activityType" : "com.apple.dt.xctest.activity-type.internal",
+          "isAssociatedWithFailure" : false,
+          "startTime" : 1794027363.303,
+          "title" : "Tear Down"
+        }
+      ],
+      "device" : {
+        "architecture" : "arm64",
+        "deviceId" : "4AD2086B-7B8F-4608-A742-AA422A0B8D74",
+        "deviceName" : "iPhone 17",
+        "modelName" : "iPhone 17",
+        "osBuildNumber" : "24B8117",
+        "osVersion" : "27.2",
+        "platform" : "iOS Simulator"
+      },
+      "testPlanConfiguration" : {
+        "configurationId" : "1",
+        "configurationName" : "Test Scheme Action"
+      }
+    }
+  ]
+}

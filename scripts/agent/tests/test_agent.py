@@ -419,7 +419,7 @@ class VerifyReportTests(unittest.TestCase):
         event = verify_report.from_dispatch({'client_payload': {'pr': '3', 'sha': SHA}}, 'success', 'u', 9, 'cosmetic')
         with mock.patch.object(verify_report, 'append_summary'):
             verify_report.report(event, gh, store)
-        self.assertIn('見た目だけ', gh.request.call_args_list[0].args[2]['description'])
+        self.assertIn('画面の描画だけ', gh.request.call_args_list[0].args[2]['description'])
 
     def test_a_stale_head_only_gets_its_status(self):
         gh, store = self.gh(head='b' * 40), FakeStore()

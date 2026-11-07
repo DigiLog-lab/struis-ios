@@ -29,7 +29,7 @@ GitHub Issue を会話の入口にして、GitHub-hosted macOS runner 上の Cla
 5. 作業を終えたら push 済み HEAD で `local-verify`(全単体テスト＋変更に関係する UI テスト)を流し、緑なら `ready` で PR をレビュー待ちにします。結果は待たずにセッションを終えます。持ち主が自動マージを有効にすると、マージキューが最新の main の上で `ios.yml` の検証を流します。
 6. `report` が検証の結果を commit status にします。緑なら Issue にマージできる旨を投稿し、赤なら失敗の内容を記録してエージェントを起こします。マージは人が行います。
 7. PR がマージされて main が進むと、マージキューが次の PR に最新の main を取り込んで検証します。取り込みが衝突した PR は、キューが赤にして PR に理由を書きます。
-8. Issue の本文に `前提: #<n>` があると、作業ブランチを前提の作業ブランチから切ります。見た目だけの変更の扱いも含め、[verification-and-delivery-policy.md](verification-and-delivery-policy.md) にあります。
+8. Issue の本文に `前提: #<n>` があると、作業ブランチを前提の作業ブランチから切ります。画面の描画だけの変更の扱いも含め、[verification-and-delivery-policy.md](verification-and-delivery-policy.md) にあります。
 
 実行が途中で止まっても自動では再開しません。push 済みの commit は作業ブランチに残り、Issue へのコメントで新しく始めます。失敗した実行が扱っていたコメントは未処理のまま残るので、次の実行で一緒に扱います。Claude の step は300分、job は340分です。
 
