@@ -166,12 +166,11 @@ final class OnboardingScreenshotUITests: XCTestCase {
 
     // MARK: - 計画の「確認の1問だけ」(iPad 縦向き)
 
-    /// 書く面に、線分だけで字を書く(x・=・数字・カンマ・マイナス)。`origin` は 1 文字目の左上(紙の中の割合)、`size` は 1 文字の高さ(割合)。
+    /// 書く面に、線分だけで字を書く(x・=・数字・カンマ・マイナス)。`origin` は 1 文字目の左上(画面の座標、pt)、`size` は 1 文字の高さ(pt)。
+    /// 紙の要素は見えている範囲より大きい(上と左にも続いている)ので、紙の要素ではなく画面の座標で書く。
     @MainActor
-    private func write(_ text: String, on paper: XCUIElement, origin: CGVector, size: CGFloat) {
-        let frame = paper.frame
-        let height = size
-        let width = size * frame.height / frame.width * 0.62
+    private func write(_ text: String, in app: XCUIApplication, origin: CGPoint, size: CGFloat) {
+        let width = size * 0.62
         let glyphs: [Character: [((CGFloat, CGFloat), (CGFloat, CGFloat))]] = [
             "x": [((0, 0.35), (1, 1)), ((1, 0.35), (0, 1))],
             "=": [((0, 0.45), (1, 0.45)), ((0, 0.75), (1, 0.75))],
@@ -182,12 +181,13 @@ final class OnboardingScreenshotUITests: XCTestCase {
             "1": [((0.2, 0.2), (0.6, 0)), ((0.6, 0), (0.6, 1))],
             "2": [((0, 0), (1, 0)), ((1, 0), (1, 0.5)), ((1, 0.5), (0, 1)), ((0, 1), (1, 1))],
         ]
-        var x = origin.dx
+        let screen = app.coordinate(withNormalizedOffset: .zero)
+        var x = origin.x
         for character in text {
             if character == " " { x += width * 0.8; continue }
             for (from, to) in glyphs[character] ?? [] {
-                let start = paper.coordinate(withNormalizedOffset: CGVector(dx: x + from.0 * width, dy: origin.dy + from.1 * height))
-                let end = paper.coordinate(withNormalizedOffset: CGVector(dx: x + to.0 * width, dy: origin.dy + to.1 * height))
+                let start = screen.withOffset(CGVector(dx: x + from.0 * width, dy: origin.y + from.1 * size))
+                let end = screen.withOffset(CGVector(dx: x + to.0 * width, dy: origin.y + to.1 * size))
                 start.press(forDuration: 0.05, thenDragTo: end)
             }
             x += width * (character == "," ? 0.9 : 1.45)
@@ -224,7 +224,7 @@ final class OnboardingScreenshotUITests: XCTestCase {
         XCTAssertTrue(paper.waitForExistence(timeout: 10))
         Thread.sleep(forTimeInterval: 1)
         attach(app, "pCheck")
-        write("x=3,-5", on: paper, origin: CGVector(dx: 0.12, dy: 0.22), size: 0.035)
+        write("x=3,-5", in: app, origin: CGPoint(x: 500, y: 260), size: 36)
         Thread.sleep(forTimeInterval: 0.5)
         attach(app, "pCheckInk")
         app.buttons["onboarding-trial-send"].firstMatch.tap()
@@ -249,7 +249,7 @@ final class OnboardingScreenshotUITests: XCTestCase {
         wrong.buttons["onboarding-plan-start"].firstMatch.tap()
         let wrongPaper = wrong.descendants(matching: .any)["onboarding-ink"].firstMatch
         XCTAssertTrue(wrongPaper.waitForExistence(timeout: 10))
-        write("x=-3,5", on: wrongPaper, origin: CGVector(dx: 0.12, dy: 0.22), size: 0.035)
+        write("x=-3,5", in: wrong, origin: CGPoint(x: 500, y: 260), size: 36)
         wrong.buttons["onboarding-trial-send"].firstMatch.tap()
         XCTAssertTrue(wrong.descendants(matching: .any)["onboarding-check-outcome"].firstMatch.waitForExistence(timeout: 30))
         Thread.sleep(forTimeInterval: 1)
