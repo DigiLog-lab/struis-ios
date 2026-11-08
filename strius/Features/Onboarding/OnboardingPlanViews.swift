@@ -5,6 +5,7 @@ struct OnboardingPlanView: View {
     let model: OnboardingModel
     let learnerData: LearnerData
     let isPad: Bool
+    @State private var isRebuildPresented = false
 
     var body: some View {
         Group {
@@ -79,10 +80,18 @@ struct OnboardingPlanView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     description(draft)
                     Spacer()
-                    startButton.frame(maxWidth: 360)
+                    VStack(spacing: 4) {
+                        startButton
+                        rebuildButton
+                    }
+                    .frame(maxWidth: 360)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                subunitList(draft).frame(width: 380)
+                VStack(alignment: .leading, spacing: 10) {
+                    subunitList(draft)
+                    checkHint
+                }
+                .frame(width: 380)
             }
             .padding(.horizontal, 100)
             .padding(.top, 80)
@@ -94,11 +103,13 @@ struct OnboardingPlanView: View {
                     OnboardingTitle(title: draft.displayHeading, detail: draft.lead.isEmpty ? nil : draft.lead)
                     chips
                     subunitList(draft)
+                    checkHint
                     footer(draft)
                 }
                 .padding(.top, 12)
             } footer: {
                 startButton
+                rebuildButton
             }
         }
     }
@@ -135,21 +146,40 @@ struct OnboardingPlanView: View {
     private func subunitList(_ draft: OnboardingPlanDraft) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(draft.subunits.enumerated()), id: \.offset) { index, subunit in
-                HStack(alignment: .firstTextBaseline, spacing: 14) {
-                    Text("\(index + 1)").font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText).monospacedDigit()
-                        .frame(width: 14, alignment: .leading)
-                    VStack(alignment: .leading, spacing: 4) {
-                        TimelineRichText(text: subunit.title, size: 15, weight: .medium)
-                        if !subunit.note.isEmpty {
-                            Text(subunit.note).font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText)
-                                .fixedSize(horizontal: false, vertical: true)
+                let checked = model.checkOnly.contains(index)
+                Button { model.toggleCheck(index) } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 14) {
+                        Text("\(index + 1)").font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText).monospacedDigit()
+                            .frame(width: 14, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 4) {
+                            TimelineRichText(text: subunit.title, size: 15, weight: .medium, color: checked ? Theme.secondaryText : Theme.primaryText)
+                            if !subunit.note.isEmpty {
+                                // 補足にも式が入る(`$\mathbb{R}^n$` など)ので、数式として組む。
+                                TimelineRichText(text: subunit.note, size: 12, weight: .medium, color: Theme.secondaryText)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        if checked {
+                            Text("確認の1問だけ")
+                                .font(Typography.sans(size: 11, weight: .bold))
+                                .foregroundStyle(Theme.accentColor)
+                                .padding(.horizontal, 8).padding(.vertical, 3)
+                                .overlay(Capsule().strokeBorder(Theme.accentColor, lineWidth: 1))
+                                .fixedSize()
                         }
                     }
-                    Spacer(minLength: 0)
+                    .padding(.vertical, 11)
+                    .padding(.horizontal, 12)
+                    .background(checked ? Theme.accentColor.opacity(0.14) : Color.clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .padding(.horizontal, 6)
+                    .contentShape(Rectangle())
                 }
-                .padding(.vertical, 11)
-                .padding(.horizontal, 18)
+                .buttonStyle(.plain)
+                .disabled(subunit.check == nil)
                 .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(checked ? .isSelected : [])
+                .accessibilityHint(subunit.check == nil ? "" : "押すと、確認の1問だけにします")
+                .accessibilityIdentifier("onboarding-plan-subunit-\(index + 1)")
             }
         }
         .padding(.vertical, 6)
@@ -158,9 +188,33 @@ struct OnboardingPlanView: View {
         .accessibilityIdentifier("onboarding-plan-subunits")
     }
 
+    @ViewBuilder
+    private var checkHint: some View {
+        if model.canCheck {
+            Text("知っている小単元はタップすると、確認の1問だけにできます")
+                .font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.tertiaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, 6)
+                .accessibilityIdentifier("onboarding-plan-check-hint")
+        }
+    }
+
     private var startButton: some View {
         OnboardingPrimaryButton(title: "はじめる", isEnabled: !model.isStarting, identifier: "onboarding-plan-start") {
-            Task { _ = await model.startPlan(ledger: learnerData.ledger) }
+            Task { _ = await model.begin(ledger: learnerData.ledger) }
         }
+    }
+
+    /// 「作り直す」: 難しすぎる(手前から作り直す)か、やりたいことと違う(何をするかを選び直す)か。
+    private var rebuildButton: some View {
+        OnboardingTextButton(title: "作り直す", identifier: "onboarding-plan-rebuild") { isRebuildPresented = true }
+            .confirmationDialog("どこが合っていませんか", isPresented: $isRebuildPresented, titleVisibility: .visible) {
+                Button("難しすぎる") { model.rebuildPlan(tooHard: true) }
+                Button("やりたいことと違う") { model.rebuildPlan(tooHard: false) }
+                Button("やめる", role: .cancel) {}
+            } message: {
+                Text("難しすぎる時は、もっと手前から作り直します。やりたいことと違う時は、何をするかを選び直します。")
+            }
+            .disabled(model.isStarting)
     }
 }

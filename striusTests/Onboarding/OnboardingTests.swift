@@ -176,6 +176,36 @@ final class OnboardingTests: XCTestCase {
         XCTAssertEqual(model.planChips, ["テストまで 2週間くらい"])
     }
 
+    // MARK: - 確認の1問だけ
+
+    func testEverySubunitOfThePlanHasACheckProblemAndTappingMarksIt() throws {
+        let mock = MockTurnRunner.onboardingPlan(["unit": "二次方程式", "trial": []])
+        let text = String(decoding: try JSONSerialization.data(withJSONObject: mock), as: UTF8.self)
+        let plan = try XCTUnwrap(OnboardingTurns.parsePlan(text))
+        XCTAssertTrue(plan.subunits.allSatisfy { $0.check != nil })
+        XCTAssertEqual(plan.subunits[1].check?.math, "x^2 + 2x - 15 = 0")
+        // 前の版の下書き(確かめる1問が無い)も読める。
+        let old = #"{"unit_title":"u","outcome":"","heading":"","lead":"","subunits":[{"title":"s","outcome":"","n":4,"scoring_unit":"","note":""}],"first_problem":{"prompt":"p","math":"","answer_key":"a"}}"#
+        XCTAssertNil(try XCTUnwrap(OnboardingTurns.parsePlan(old)).subunits[0].check)
+    }
+
+    func testCheckedSubunitsArePassedWithoutStudyAndTheNextOneStarts() {
+        var machine = WorkbookMachine()
+        let unitID = machine.createUnit(title: "二次方程式", outcome: "", source: "consult",
+                                        subunits: [.init(title: "1", n: 4), .init(title: "2", n: 4), .init(title: "3", n: 4), .init(title: "4", n: 4)])
+        let ids = machine.orderedSubunits(unitID: unitID).map(\.id)
+        // 先の小単元(pending)は合格の印だけ。今の小単元はそのまま。
+        machine.passByCheck(subunitID: ids[1])
+        XCTAssertEqual(machine.subunits[ids[1]]?.status, "passed")
+        XCTAssertEqual(machine.subunits[ids[0]]?.status, "active")
+        // 今の小単元(active)を合格にすると、合格していない次の小単元(3)が始まる。
+        machine.passByCheck(subunitID: ids[0])
+        XCTAssertEqual(machine.subunits[ids[0]]?.status, "passed")
+        XCTAssertEqual(machine.subunits[ids[2]]?.status, "active")
+        XCTAssertEqual(machine.subunits[ids[3]]?.status, "pending")
+        XCTAssertEqual(machine.subunits[ids[0]]?.metadata["passed_by"]?.stringValue, "onboarding_check")
+    }
+
     // MARK: - タイムラインの 1 枚目
 
     func testStarterCardIsTheNextCardOfTheQueueAndPointsAtSubunitOne() {
