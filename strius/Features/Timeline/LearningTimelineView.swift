@@ -523,8 +523,12 @@ struct LearningTimelineView: View {
         .padding(.top, 16)
         .padding(.bottom, 22)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.card, in: UnevenRoundedRectangle(topLeadingRadius: 26, topTrailingRadius: 26))
-        .background(alignment: .bottom) { Theme.card.frame(height: 40).offset(y: 40).ignoresSafeArea(edges: .bottom) }
+        // 面はホームインジケータの下(画面の下端)まで伸ばす。前の「高さ 40 の面を下へずらす」形は描かれず、帯の下に地の色の隙間が残っていた。
+        .background {
+            UnevenRoundedRectangle(topLeadingRadius: 26, topTrailingRadius: 26)
+                .fill(Theme.card)
+                .ignoresSafeArea(edges: .bottom)
+        }
         .shadow(color: .black.opacity(0.06), radius: 8, y: -2)
         .contentShape(Rectangle())
         .gesture(swipeUp)

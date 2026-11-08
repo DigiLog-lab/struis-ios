@@ -41,6 +41,24 @@ def failed_steps(gh, run_id):
     return failed
 
 
+# What the merge queue (scripts/ci/merge_queue.py) writes when it gives up on a commit or sets an old green back.
+QUEUE_PREFIX = 'マージキュー: '
+QUEUE_STALE = QUEUE_PREFIX + 'main が進んだので、キューで検証し直します'
+QUEUE_LEFT = QUEUE_PREFIX + 'キューを離れたので、並び直したら検証し直します'
+
+
+def abandoned_by_queue(gh, sha):
+    """The queue dropped this commit (red with its reason: e.g. the verification ran past two hours and the
+    next PR is being verified) or set its green back because main moved. A late result must not overwrite
+    that: a success would let auto-merge merge it beside the next PR's verification."""
+    for status in gh.get(f'/repos/{gh.repository}/commits/{sha}/status').get('statuses', []):
+        if status.get('context') == CONTEXT:
+            description = status.get('description') or ''
+            return description.startswith(QUEUE_PREFIX) and (
+                status.get('state') in ('failure', 'error') or description in (QUEUE_STALE, QUEUE_LEFT))
+    return False
+
+
 def report(event, gh, store):
     run = event['workflow_run']
     parsed = parse(run.get('display_title'))
@@ -48,12 +66,21 @@ def report(event, gh, store):
         print('Not a PR verification run')
         return
     number, sha = parsed
+    if abandoned_by_queue(gh, sha):
+        append_summary(f'PR #{number} `{sha[:12]}`: {run.get("conclusion")}, not written (the merge queue gave up on this commit)')
+        return
+    if run.get('conclusion') == 'success' and gh.get(f'/repos/{gh.repository}/pulls/{number}').get('state') != 'open':
+        # Closed while it was verified: a green now would let it merge on an older main if it were reopened.
+        append_summary(f'PR #{number} `{sha[:12]}`: success, not written (the PR is closed)')
+        return
     conclusion = run.get('conclusion')
     green = conclusion == 'success'
     # A cancelled run (replaced or stopped by hand) says nothing about the code: an error status, no wake-up.
     status = 'success' if green else 'error' if conclusion == 'cancelled' else 'failure'
     tested = ('全単体テストのみ(UIテストなし)' if run.get('ui_tier') == 'unit'
-              else '見た目だけ(Release archiveのみ)' if run.get('tier') == 'cosmetic' else '全単体テスト＋変更に関係するUIテスト')
+              else '画面の描画だけ(Release archive と Simulator のビルド、テストなし)' if run.get('tier') == 'cosmetic'
+              else 'アプリに触らない変更(macOSなし)' if run.get('tier') == 'none'
+              else '全単体テスト＋変更に関係するUIテスト')
     gh.request('POST', f'/repos/{gh.repository}/statuses/{sha}', {
         'state': status, 'context': CONTEXT, 'target_url': run['html_url'],
         'description': f'ios.yml: {tested}' if green else f'ios.yml: {conclusion}'})

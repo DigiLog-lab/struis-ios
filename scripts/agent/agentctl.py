@@ -872,7 +872,8 @@ def set_draft(gh, pr, value):
 
 
 def cmd_ready(_args):
-    """Hand the verified HEAD to review: PR out of Draft, and ios.yml verifies that exact commit."""
+    """Hand the locally verified HEAD to review: PR out of Draft. The owner enables auto-merge on it, and the
+    merge queue (scripts/ci/merge_queue.py) verifies it on the latest main; nothing is verified before that."""
     home = agent_home()
     run = read_json(home / 'run.json')
     head = pushed_head(run['branch'])
@@ -893,10 +894,10 @@ def cmd_ready(_args):
     gh.request('PATCH', f'/repos/{gh.repository}/pulls/{pr["number"]}', {'body': body})
     if pr.get('draft'):
         set_draft(gh, pr, False)
-    dispatch(gh, 'verify', {'pr': pr['number'], 'sha': head, 'issue': run['issue']})
     outbox_append({'type': 'pull-request', 'url': pr['html_url']})
-    print(f'PR #{pr["number"]} をレビュー待ちにし、HEAD {head[:12]} の検証(ios.yml)を起動しました。'
-          '結果は待たずにターンを終えてください。赤ならこのIssueでエージェントが起こされます。')
+    print(f'PR #{pr["number"]} をレビュー待ちにしました(HEAD {head[:12]})。持ち主が自動マージを有効にすると、'
+          'マージキューが最新の main の上で検証します。結果は待たずにターンを終えてください。'
+          '赤ならこのIssueでエージェントが起こされます。')
 
 
 def cmd_prototype_status(args):

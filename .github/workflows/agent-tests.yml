@@ -10,6 +10,7 @@ on:
       - 'scripts/ci/**'
       - 'scripts/devbox/**'
       - '.github/workflows/devbox.yml'
+      - '.github/workflows/merge-queue.yml'
       - 'strius.xcodeproj/xcshareddata/xcschemes/**'
       - 'striusUITests/**'
       - '.github/workflows/ios.yml'
@@ -22,6 +23,7 @@ on:
       - 'scripts/ci/**'
       - 'scripts/devbox/**'
       - '.github/workflows/devbox.yml'
+      - '.github/workflows/merge-queue.yml'
       - 'strius.xcodeproj/xcshareddata/xcschemes/**'
       - 'striusUITests/**'
       - '.github/workflows/ios.yml'
@@ -69,3 +71,19 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: python3 scripts/ci/cache_usage.py
 
+  # The merge queue's self-test (workflow_dispatch by github-actions[bot], started with GITHUB_TOKEN) triggers no
+  # workflow_run in merge-queue.yml when it ends, so it wakes the queue itself (as ios.yml's `wake-queue`).
+  wake-queue:
+    needs: [test]
+    if: >-
+      always() && (github.event_name == 'workflow_dispatch' && github.triggering_actor == 'github-actions[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write     # POST /dispatches
+    steps:
+      - name: マージキューを起こす
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # This run is still in progress until this job ends: the queue waits for it (scripts/ci/merge_queue.py).
+        run: gh api "repos/$GITHUB_REPOSITORY/dispatches" -f event_type=merge-queue -f "client_payload[run_id]=$GITHUB_RUN_ID"

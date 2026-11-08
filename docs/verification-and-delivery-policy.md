@@ -19,15 +19,15 @@
 |---|---|---|
 | 作業の開始 | `agent.yml` の `worker` | 作業ブランチに最新の main を取り込む(衝突したら最初に解消させる) |
 | 手元検証 | エージェントの runner(`agentctl local-verify`) | push 済み HEAD で、全単体テスト＋変更に関係する UI テスト。失敗したテストと失敗メッセージを返す |
-| Ready | `agentctl ready` | HEAD が push 済み・最新の main を含む・手元検証が緑、の3つを確かめ、PR をレビュー待ちにし、`repository_dispatch` の `verify` で検証を起動する |
+| Ready | `agentctl ready` | HEAD が push 済み・最新の main を含む・手元検証が緑、の3つを確かめ、PR をレビュー待ちにする。検証は起動しない(持ち主が自動マージを有効にすると、マージキューが起動する) |
 | 検証 | `ios.yml`(`Verify PR #<n> <sha>`) | 最初にその SHA へ `Struis / verify` を「実行中(pending)」で付け、PR に検証中と出す。main の定義で、その SHA の native cache 確認 → 単体テスト → 変更に関係する UI テスト、と並行して Release archive |
 | 報告 | `agent.yml` の `report`(Linux、main のコードだけ) | commit status `Struis / verify` をその SHA に書く。HEAD のままなら、緑は Issue に知らせ、赤は失敗を記録してエージェントを起こす。取り消された実行は `error` にし、誰も起こさない |
 | マージ | 人 | PR の `Struis / verify` が緑であることを見てマージする |
-| main が進んだ後 | `agent.yml` の `refresh`(Linux) | レビュー待ちの他の PR に GitHub 側で main を取り込み、新しい HEAD を検証し直す(取り込み直した HEAD には、検証が緑になるまで緑の status が付かない)。衝突した PR はエージェントを起こして解消させる |
+| マージ | `merge-queue.yml`(Linux、`scripts/ci/merge_queue.py`) | 自動マージが有効な PR を1本ずつ、最新の main を取り込んでから `ios.yml` の `verify` で検証する。緑なら GitHub の自動マージがマージする。main が進むと、最新の main を含まない緑を pending に戻す(docs/development-method.md の「7. マージキュー」) |
 
 - エージェントの worker には `statuses: write` も `actions: write` もありません。commit status を書けるのは `report` だけです。
-- main のルールセット(「main: マージキュー(#81)」)が、PR 経由と `Struis / verify` の緑を必須にし、main の削除と強制 push を禁じます。main が進むと `refresh` が PR を取り込み直し、新しい HEAD には緑が付くまでマージできません。
-- 人(や web 版の Claude)が開いた PR も、`pull_request` で `ios.yml` の `request` が同じ `verify` を起動します(Draft とフォークの PR は除く)。検証は main の定義で流れます。
+- main のルールセット(「main: マージキュー(#81)」)が、PR 経由と `Struis / verify` の緑を必須にし、main の削除と強制 push を禁じます。`Struis / verify` を緑にするのは、マージキューが起動した検証だけです。
+- 人(や web 版の Claude)が開いた PR も同じです。PR への push では検証は起動しません。持ち主が自動マージを有効にすると、マージキューが main の定義で検証します(Draft とフォークの PR は除く)。
 - web 版の Claude が作業ブランチへ直接 push した時は、その HEAD の検証を同じ `verify` で起動します。
 
 ## 前提のある作業と並べ方
@@ -36,10 +36,10 @@
 - 前提が無い作業は待たずに並べて進めます。エージェントは同時に3つまで(macOS runner 5台を、エージェント1台ずつと検証に2台で分けるため)。
 - エージェントは、作業の途中で関係のない問題を見つけても直さず、返信に書きます(別の Issue にします)。
 
-## 見た目だけの変更
+## 画面の描画だけの変更
 
-- Issue の指示で「見た目だけ」と最初に宣言し、エージェントは変えた画面の iPhone と iPad のスクショ(動きが変わるなら録画)を最新の main と比べて貼ります。
-- 人がスクショとコードを確かめ、PR にラベル `見た目だけ` を付けます。その後の検証(`ready`、または main が進んだ後の取り込み直し)では、差分が描画のファイルだけ(`scripts/ci/cosmetic.py` の `ALLOWED`)の時に限り Release archive だけを確かめ、`Struis / verify` に「見た目だけ」と出ます。会話のスクロールと固まり、オンボーディング、課金に関わる画面は、ラベルがあっても通常の検証です。描画以外のファイルを含む時も通常の検証に回します。
+- 差分が画面を描くファイルだけ(`scripts/ci/cosmetic.py` の `ALLOWED`、PR の版と main の版の両方が認める)の時、マージキューの検証は Release archive とシミュレータ向けのビルドだけを確かめ、`Struis / verify` に「画面の描画だけ」と出ます。ラベルは使いません(2026-11-07 から)。
+- 変えた画面の iPhone と iPad のスクショ(動きが変わるなら録画)を最新の main と比べて PR に添え、持ち主はそれとコードを見てから自動マージを押します。会話のスクロールと固まり、オンボーディング、課金に関わる画面と、描画以外のファイルを含む変更は通常の検証です。
 - 単体テストも UI テストも流さないので、この経路で入った変更は TestFlight に出す前に実機で確かめます(公開前の運用。公開後に見直します)。
 
 ## 配信

@@ -1,10 +1,11 @@
-"""Whether a change may take the light path of the merge queue (Issue #81): build the Release archive only.
+"""Whether a change may take the light path of the merge queue (Issue #81): build the Release archive and the
+Simulator build only, no tests.
 
-A PR carries the label `見た目だけ` when its Issue declared the change to be about the look only, and the
-owner merges it after reading its screenshots and code. The label alone is not enough: the change must
-also stay inside the files that only draw the screen. Anything else in the diff (processing, data,
-tests, CI, the project file) or a screen whose look and behaviour are hard to tell apart (the
-conversation's scrolling and freezing, onboarding, billing) sends the PR through the full verification.
+Decided by the diff alone (no label since 2026-11-07): every changed file draws the screen. The owner
+enables auto-merge after seeing the PR's before/after screenshots, which the Simulator build of main and of
+the PR make (docs/development-method.md). Anything else in the diff (processing, data, tests, CI, the
+project file) or a screen whose look and behaviour are hard to tell apart (the conversation's scrolling and
+freezing, onboarding, billing) sends the PR through the full verification.
 
 Reads the changed paths (one per line) on stdin. Exit 0: light path. Exit 1: full verification, with the
 first path that decided it on stderr.
@@ -13,8 +14,6 @@ from fnmatch import fnmatchcase
 import json
 from pathlib import Path
 import sys
-
-LABEL = '見た目だけ'
 
 # The screen-drawing files. Matched on the whole path.
 ALLOWED = (
