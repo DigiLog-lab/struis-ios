@@ -208,7 +208,8 @@ struct OnboardingPlanView: View {
     /// 「作り直す」: 難しすぎる(手前から作り直す)か、やりたいことと違う(何をするかを選び直す)か。
     private var rebuildButton: some View {
         OnboardingTextButton(title: "作り直す", identifier: "onboarding-plan-rebuild") { isRebuildPresented = true }
-            .confirmationDialog("どこが合っていませんか", isPresented: $isRebuildPresented, titleVisibility: .visible) {
+            // iPad の吹き出し(confirmationDialog)は、透けた下の「はじめる」の銅色で選択肢が読みにくくなるので、真ん中に出す。
+            .alert("どこが合っていませんか", isPresented: $isRebuildPresented) {
                 Button("難しすぎる") { model.rebuildPlan(tooHard: true) }
                 Button("やりたいことと違う") { model.rebuildPlan(tooHard: false) }
                 Button("やめる", role: .cancel) {}
