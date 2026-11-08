@@ -704,15 +704,17 @@ final class OnboardingModel {
             "unit_title": .string(draft.unitTitle), "outcome": .string(draft.outcome), "source": .string("onboarding"),
             "subunits": .array(draft.subunits.map { .object(["title": .string($0.title), "outcome": .string($0.outcome), "n": .number(Double($0.n)), "scoring_unit": .string($0.scoringUnit), "note": .string($0.note)]) }),
         ])
+        // 確認の1問で解けた小単元(位置の順)。
+        let passedIndices: [Int] = checkPassed.filter(\.value).map(\.key).sorted()
         do {
             let (unitID, subunitID) = try await ledger.commit { db in
                 var workbook = try WorkbookMachine(loading: db)
                 let unitID = workbook.createUnit(title: draft.unitTitle, outcome: draft.outcome, source: "consult", subunits: specs, overview: overview)
                 let ordered = workbook.orderedSubunits(unitID: unitID)
-                for (index, passed) in checkPassed.sorted(by: { $0.key < $1.key }) where passed && ordered.indices.contains(index) {
+                for index in passedIndices where ordered.indices.contains(index) {
                     workbook.passByCheck(subunitID: ordered[index].id)
                 }
-                return (workbook.events, (unitID, checkPassed[0] == true ? nil : ordered.first?.id))
+                return (workbook.events, (unitID, passedIndices.first == 0 ? nil : ordered.first?.id))
             }
             if let first = draft.firstProblem, let subunitID {
                 try await ledger.commit { db in
