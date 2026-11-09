@@ -27,6 +27,29 @@ nonisolated enum LedgerFixtures {
                 overview: .object(["unit_title": .string("二次関数"), "outcome": .string("二次関数の基本問題が自力で解ける")]),
                 firstStage: example ? 2 : (introduction ? 1 : 3)
             )
+            // 解く範囲の確かめ用: 科目の違う単元を足し、範囲は「おまかせ」から始める。
+            if arguments.contains("-timeline-scope-demo") {
+                TimelineScope.unitID = nil
+                machine.createUnit(
+                    title: "微分法", outcome: "いろいろな関数を微分できる", source: "consult",
+                    subunits: [
+                        WorkbookMachine.SubunitSpec(title: "導関数の計算", outcome: "積・商の微分ができる", n: 5, scoringUnit: "1問ごとに正誤"),
+                        WorkbookMachine.SubunitSpec(title: "合成関数の微分", outcome: "合成関数を微分できる", n: 5, scoringUnit: "1問ごとに正誤"),
+                        WorkbookMachine.SubunitSpec(title: "接線と法線", outcome: "接線の方程式を求められる", n: 5, scoringUnit: "1問ごとに正誤"),
+                    ],
+                    overview: .object(["unit_title": .string("微分法"), "outcome": .string("いろいろな関数を微分できる")]),
+                    firstStage: 3
+                )
+                machine.createUnit(
+                    title: "力学", outcome: "等加速度運動と運動方程式の基本問題が解ける", source: "consult",
+                    subunits: [
+                        WorkbookMachine.SubunitSpec(title: "等加速度直線運動", outcome: "速さと位置を求められる", n: 5, scoringUnit: "1問ごとに正誤"),
+                        WorkbookMachine.SubunitSpec(title: "運動方程式", outcome: "運動方程式を立てて加速度を求められる", n: 5, scoringUnit: "1問ごとに正誤"),
+                    ],
+                    overview: .object(["unit_title": .string("力学"), "outcome": .string("等加速度運動と運動方程式の基本問題が解ける")]),
+                    firstStage: 3
+                )
+            }
             if arguments.contains("-workbook-practice-ready") {
                 try seedReadyPractice(&machine, subunitID: "sub-1")
             }
