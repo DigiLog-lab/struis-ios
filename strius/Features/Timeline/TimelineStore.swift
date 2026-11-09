@@ -56,6 +56,10 @@ final class TimelineStore {
     /// 飛ばした直後の帯(理由の2択)。押さなくても消える。
     private(set) var skipBannerAttemptID: String?
     var isStopSheetPresented = false
+    /// 解く範囲のシート(上の帯のチップ)。
+    var isScopeSheetPresented = false
+    /// 解く範囲: 固定した単元の ID(nil は「おまかせ」)。端末ごとに `TimelineScope` に残す。
+    private(set) var scopeUnitID: String? = TimelineScope.unitID
     private(set) var rapidIDs: [String] = []
     private(set) var rapidStartedAt = Date()
     private(set) var rapidResults: [String: Double] = [:]
@@ -168,6 +172,79 @@ final class TimelineStore {
         let skill = card.skills.first.flatMap { machine.skills[$0]?.name }
         let parts = [unit, skill].compactMap { $0 }.filter { !$0.isEmpty }
         return parts.isEmpty ? (card.typeName.isEmpty ? nil : card.typeName) : parts.joined(separator: "・")
+    }
+
+    // MARK: - 解く範囲
+
+    /// 固定している単元(単元ホームから消えていれば nil)。
+    var pinnedUnit: WorkbookUnitRecord? {
+        guard let scopeUnitID, let unit = workbook.units[scopeUnitID], unit.status != "archived" else { return nil }
+        return unit
+    }
+
+    /// 範囲のシートに並べる単元(単元ホームと同じ順)と、科目の見出し。
+    struct ScopeSection: Identifiable {
+        let subject: String
+        let units: [WorkbookUnitRecord]
+        var id: String { subject }
+    }
+
+    var scopeSections: [ScopeSection] {
+        var order: [String] = []
+        var groups: [String: [WorkbookUnitRecord]] = [:]
+        for unit in workbook.orderedUnits() {
+            let subject = UnitCatalog.subjectFamily(forUnitTitle: unit.title) ?? "その他"
+            if groups[subject] == nil { order.append(subject) }
+            groups[subject, default: []].append(unit)
+        }
+        return order.map { ScopeSection(subject: $0, units: groups[$0] ?? []) }
+    }
+
+    /// 単元の小単元の合格(マスの並び用)。
+    func subunitMarks(_ unitID: String) -> [Bool] {
+        workbook.orderedSubunits(unitID: unitID).map { $0.status == "passed" }
+    }
+
+    /// 固定中に上の帯の下に出す、次に進める小単元と単元の進み。
+    var pinnedFocus: (title: String, marks: [Bool])? {
+        guard let unit = pinnedUnit else { return nil }
+        let subunits = workbook.orderedSubunits(unitID: unit.id)
+        guard !subunits.isEmpty else { return nil }
+        let next = subunits.first { $0.status != "passed" } ?? subunits.last
+        return (next?.title ?? unit.title, subunits.map { $0.status == "passed" })
+    }
+
+    /// 範囲を変える。固定した時は、手元に作り置いた範囲の外のカードを捨て、その単元の5枚を頼む
+    /// (前の範囲で頼んでいた5枚は止めない: 届いた時に範囲の外の分を捨てる)。
+    /// 解いている途中のカードが範囲の外なら、範囲の中の次のカードに替える。
+    func setScope(_ unitID: String?) async {
+        isScopeSheetPresented = false
+        guard unitID != scopeUnitID else { return }
+        scopeUnitID = unitID
+        TimelineScope.unitID = unitID
+        guard let unitID, workbook.units[unitID] != nil else {
+            await requestBatch()
+            return
+        }
+        let outsideCurrent: Bool = current.map { TimelineScope.isOutside($0, unitID: unitID, workbook: workbook, timeline: machine) } ?? false
+        let replacesCurrent: Bool = outsideCurrent && phase == .solving
+        await discardOutsideScope(keeping: replacesCurrent ? nil : currentID)
+        // その単元のグラフがまだ無ければ作る(作るまでは、単元の中身を前提なしで出す)。
+        await ensureGraphWork(units: [unitID])
+        if replacesCurrent {
+            if let id = currentID { await commit { machine in machine.discard(ids: [id]) } }
+            badge = nil
+            show(machine.queue.first?.id)
+        }
+        await requestBatch(force: true)
+    }
+
+    /// 作り置きのうち、固定した範囲の外のカードを捨てる(届いたばかりの5枚も、ここで絞る)。
+    private func discardOutsideScope(keeping keep: String?) async {
+        guard let unit = pinnedUnit else { return }
+        let outside: [String] = machine.queue.filter { $0.id != keep && TimelineScope.isOutside($0, unitID: unit.id, workbook: workbook, timeline: machine) }.map(\.id)
+        guard !outside.isEmpty else { return }
+        await commit { machine in machine.discard(ids: outside) }
     }
 
     func skillName(_ id: String) -> String { machine.skills[id]?.name ?? (id.split(separator: ".").last.map(String.init) ?? id) }
@@ -853,6 +930,8 @@ final class TimelineStore {
                 phase = .solving
             }
         }
+        // 範囲を固定している: 届いた5枚のうち範囲の外の分を捨てる(固定する前に頼んでいた5枚)。
+        await discardOutsideScope(keeping: currentID)
         // 5枚が届いた。
         let waiting: Bool
         switch phase {
@@ -866,6 +945,11 @@ final class TimelineStore {
             // 待っていた5枚の依頼が失敗した: 待ちを抜けて、理由とやり直しのボタンを出す。
             awaitedBatchID = nil
             phase = .batchFailed(batch.error ?? "")
+        }
+        // 届いた5枚が全部範囲の外だった: 待ったまま止まらないよう、範囲の中の5枚を頼み直す。
+        if phase == .waiting, pinnedUnit != nil, machine.queue.isEmpty, machine.rapidCards.isEmpty,
+           awaitedBatchID.flatMap({ machine.batches[$0]?.status }) != "requested" {
+            await requestBatch()
         }
         if phase == .guide, !workbook.units.isEmpty {
             phase = .waiting
