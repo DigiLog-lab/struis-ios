@@ -367,13 +367,16 @@ struct LearningTimelineView: View {
     /// 指を通す(`timelineInkPassThrough`)。
     /// 並びで置き場所(ビューの木の位置)を変えない。Split View で幅を変えて iPad と iPhone の並びが入れ替わっても、
     /// 同じ書く面のまま大きさだけ変わるので、書いた答案が消えない(置き場所を分けると書く面が作り直され、線が消える)。
+    /// GeometryReader で包み、書く面の大きさが画面の並びを押し広げないようにする(iPad から狭めた直後は `inkArea` に
+    /// 前の幅が残っていて、そのまま置くと画面全体がウィンドウより広がり、その広さで測り直して戻らなくなった)。
     private var placedInkLayer: some View {
-        inkLayer
-            .frame(width: layout.isPad ? nil : inkArea.width, height: layout.isPad ? nil : inkArea.height)
-            .padding(.leading, layout.isPad ? 0 : inkArea.minX)
-            .padding(.top, layout.isPad ? 0 : inkArea.minY)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .ignoresSafeArea(edges: layout.isPad ? .all : [])
+        GeometryReader { proxy in
+            let area: CGRect = layout.isPad ? CGRect(origin: .zero, size: proxy.size) : inkArea
+            inkLayer
+                .frame(width: area.width, height: area.height)
+                .position(x: area.midX, y: area.midY)
+        }
+        .ignoresSafeArea(edges: layout.isPad ? .all : [])
     }
 
     /// 書く面(枠は置かない)。iPhone は左下に鉛筆と「1つ戻す」「全部消す」。
