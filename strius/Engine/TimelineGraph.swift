@@ -668,8 +668,16 @@ nonisolated enum TimelineQueryHost {
         let written = (try? FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)) != nil
             && (try? view.jpeg.write(to: target, options: .atomic)) != nil
         let rect: JSONObject = ["x": Int(view.rect.minX), "y": Int(view.rect.minY), "width": Int(view.rect.width), "height": Int(view.rect.height)]
-        let caption = "答案 \(attemptID) の写真(元は \(view.originalWidth)×\(view.originalHeight) px)" + (region == nil ? "の全体" : "の x \(rect["x"]!), y \(rect["y"]!), 幅 \(rect["width"]!), 高さ \(rect["height"]!) の部分")
-            + "を \(view.width)×\(view.height) px で返します。"
+        // 範囲は、依頼に付いた写真の上のピクセルで書く(モデルが場所を答える座標と同じ)。元の写真の座標を書くと、
+        // 元が依頼の写真より大きい時(iPad で広く書いた答案)に、モデルが元の座標で答えて赤ペンがずれた(2026-11-09 の測定)。
+        let shown = TimelineCaptureImage.fitted(width: view.originalWidth, height: view.originalHeight, limit: TimelineCaptureImage.requestMaxDimension)
+        let sx = Double(shown.width) / Double(view.originalWidth), sy = Double(shown.height) / Double(view.originalHeight)
+        let onRequest = (x: Int((view.rect.minX * sx).rounded()), y: Int((view.rect.minY * sy).rounded()),
+                         width: Int((view.rect.width * sx).rounded()), height: Int((view.rect.height * sy).rounded()))
+        let caption = "答案 \(attemptID) の写真" + (region == nil
+            ? "の全体"
+            : "の、依頼に付いた写真(\(shown.width)×\(shown.height) px)の上で x \(onRequest.x), y \(onRequest.y), 幅 \(onRequest.width), 高さ \(onRequest.height) の部分")
+            + "を、\(view.width)×\(view.height) px に拡大して返します。この画像の上の位置ではなく、依頼に付いた写真の上のピクセルで場所を数えてください。"
         var record: JSONObject = ["attempt_id": attemptID, "original_rect": rect, "width": view.width, "height": view.height, "bytes": view.jpeg.count,
                                   "saved_path": written ? saved : NSNull()]
         if let region { record["region"] = ["x": region.minX, "y": region.minY, "width": region.width, "height": region.height] }

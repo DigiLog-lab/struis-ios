@@ -112,6 +112,46 @@ final class TimelineUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["timeline-result-correct"].firstMatch.appears(timeout: 30))
     }
 
+    /// 書く面に書いた誤答: 結果の画面に出た時点で、判定と一緒に赤ペンがもう入っている(後から別に入れない)。
+    /// iPad は結果の画面でも書く面が残るので、書き足しはできないが1本指でスクロールできる(2026-11-09)。
+    @MainActor
+    func testWrongInkAnswerShowsTheRedPenWithTheVerdictAndTheInkStillScrolls() throws {
+        let app = launchTimeline(wrong: true)
+        waitForProblem(app)
+        let ink = app.descendants(matching: .any)["timeline-ink"].firstMatch
+        XCTAssertTrue(ink.appears(timeout: 5))
+        ink.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.45))
+            .press(forDuration: 0.05, thenDragTo: ink.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.5)))
+        XCTAssertTrue(app.buttons["timeline-send"].appears(timeout: 5))
+        app.buttons["timeline-send"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["timeline-result-wrong"].firstMatch.appears(timeout: 30), "誤答の結果が出ない")
+        let redPen = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "赤ペン: ")).firstMatch
+        XCTAssertTrue(redPen.appears(timeout: 2), "結果と一緒に赤ペンが出ていない")
+        XCTAssertFalse(app.descendants(matching: .any)["timeline-marking"].firstMatch.exists, "「赤ペンを入れています」を後から出さない")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "timeline-wrong-ink-result"
+        shot.lifetime = .keepAlways
+        add(shot)
+        // iPad: 結果の画面にも書く面が残る。1本指で動かすと、書いた線と赤ペンが一緒に動き、線は増えない。
+        let resultInk = app.descendants(matching: .any)["timeline-ink"].firstMatch
+        guard resultInk.exists else { return }  // iPhone は結果の画面で書く面を出さない(送った手書きの画像に赤ペンを重ねる)。
+        let before = try XCTUnwrap(inkCenter(resultInk))
+        let markBefore = redPen.frame
+        resultInk.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.7))
+            .press(forDuration: 0.05, thenDragTo: resultInk.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.4)))
+        let after = try XCTUnwrap(inkCenter(resultInk))
+        XCTAssertGreaterThan(after.y - before.y, 50, "結果の画面で書く面をスクロールできない")
+        XCTAssertEqual(redPen.frame.minY, markBefore.minY - (after.y - before.y), accuracy: 8, "赤ペンが書いた線と一緒に動かない")
+        let moved = XCTAttachment(screenshot: app.screenshot())
+        moved.name = "timeline-wrong-ink-result-scrolled"
+        moved.lifetime = .keepAlways
+        add(moved)
+        XCTAssertTrue(app.descendants(matching: .any)["timeline-result-wrong"].firstMatch.exists, "スクロールで結果の画面から離れた")
+        // 書く面が上に乗っていても、結果の画面のボタンは押せる。
+        app.buttons["timeline-next"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["timeline-result-wrong"].firstMatch.waitForNonExistence(timeout: 10), "「次へ」が書く面に遮られた")
+    }
+
     /// 書く面は、上の帯と下の帯の間を画面の端から端まで覆う。問題文の上にも書け、指が触れただけでは「送る」にならない。
     /// 2本指でつまむと、つまんだ所を中心に拡大・縮小でき、「元の大きさ」で戻せる。
     @MainActor

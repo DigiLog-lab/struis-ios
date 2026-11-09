@@ -61,12 +61,11 @@ actor MockTurnRunner: TurnRunning {
         case .lunaLookup: text = Self.json(["findings": [], "missing_information": [], "uncertainties": [], "failure_reasons": []])
         case .threadFork: text = ""
         case .timelineBatch: text = Self.json(Self.timelineBatch(request, round: counter))
-        case .timelineGrading: text = Self.json(Self.timelineGrading(request))
+        case .timelineGrading: text = Self.json(Self.timelineGrading(request, redPen: (plan.turn?.text ?? "").contains("# 赤ペン")))
         // 答えの読み取り(#101): 依頼に正しい答えが無いので読めなかったことにし、いつもの採点(上のモック)に回す。
         case .timelineAnswer: text = Self.json(["readable": false, "learner_answer": ""])
         case .timelineGraph: text = Self.json(Self.timelineGraph(request))
         case .timelineReview: text = Self.json(["skill_results": [], "notes": ""])
-        case .timelineMarks: text = Self.json(Self.timelineMarks(request))
         case .onboardingGrading: text = Self.json(Self.onboardingGrading(request))
         case .onboardingPlan: text = Self.json(Self.onboardingPlan(request))
         }
@@ -113,7 +112,8 @@ actor MockTurnRunner: TurnRunning {
 
     // MARK: - Canned answers
 
-    nonisolated private static func request(from text: String) -> JSONObject {
+    /// 依頼の材料(テストからも読む)。
+    nonisolated static func request(from text: String) -> JSONObject {
         // タイムラインの発話は「今回の仕事」の後ろに「# 今回の材料」と JSON を置く。
         let body = text.range(of: "# 今回の材料").map { String(text[$0.upperBound...]) } ?? text
         guard let data = body.trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8),
@@ -371,20 +371,18 @@ actor MockTurnRunner: TurnRunning {
         return ["reason": "平方完成が定着しているので、範囲つきの最大最小を続きで上げる", "cards": cards, "rapid": rapid, "wanted_prerequisites": [], "graph_ops": []]
     }
 
-    /// 実行記録。赤ペンは答案を取り込んで確かめた記録(`capture_views`)も残す。
+    /// 実行記録。書く面の答案の採点は、答案を取り込んで確かめた記録(`capture_views`)も残す(赤ペンの場所を使うため)。
     nonisolated static func execution(plan: TurnPlan, request: JSONObject) -> [String: LedgerJSON] {
         var execution: [String: LedgerJSON] = ["execution_id": .string(UUID().uuidString), "task_type": .string(plan.kind.rawValue), "status": .string("completed"),
                                                "requested_model": .string(plan.thread.model), "billing_source": .string("byo_chatgpt")]
-        if plan.kind == .timelineMarks, let attemptID = request["attempt_id"] as? String {
+        if plan.kind == .timelineGrading, (plan.turn?.text ?? "").contains("# 赤ペン"), let attemptID = request["attempt_id"] as? String {
             execution["capture_views"] = .array([.object(["attempt_id": .string(attemptID)])])
         }
         return execution
     }
 
     /// 赤ペン: 依頼に付いた画像の左上寄りに 1 か所(アプリが実際の線の外枠に寄せる)。
-    nonisolated static func timelineMarks(_ request: JSONObject) -> JSONObject {
-        ["marks": [["x": 0, "y": 0, "width": 400, "height": 200, "correction": "$-\\frac{1}{2}$($\\cos 2\\pi = 1$)"]]]
-    }
+    nonisolated static func timelineRedPen() -> [[String: Any]] { [["x": 0, "y": 0, "width": 400, "height": 200, "correction": "$-\\frac{1}{2}$($\\cos 2\\pi = 1$)"]] }
 
     /// お試しの採点: 正解(`STRUIS_MOCK_TIMELINE_WRONG=1` で誤答、`STRUIS_MOCK_TRIAL_UNREADABLE=1` で読めない)。
     nonisolated static func onboardingGrading(_ request: JSONObject) -> JSONObject {
@@ -453,7 +451,7 @@ actor MockTurnRunner: TurnRunning {
         ]
     }
 
-    nonisolated static func timelineGrading(_ request: JSONObject) -> JSONObject {
+    nonisolated static func timelineGrading(_ request: JSONObject, redPen: Bool = false) -> JSONObject {
         let wrong = ProcessInfo.processInfo.environment["STRUIS_MOCK_TIMELINE_WRONG"] == "1"
         let key = request["answer_key"] as? String ?? ""
         return [
@@ -461,6 +459,8 @@ actor MockTurnRunner: TurnRunning {
             "learner_answer": request["target_vertex"] != nil ? "2(x-2)^2-5" : (wrong ? "-3" : key),
             "skill_ids": [], "transcript": wrong ? "y = 2(x-2)^2 - 5\n最小値 -3" : key, "notes": wrong ? "a ≥ 2 の場合を書いていません。" : "",
             "comment": wrong ? "a ≥ 2 の場合が抜けています。" : "", "key_suspect": false,
+            // 書く面の答案(採点の指示に赤ペンの節が付く)の誤答だけ、赤ペンを 1 か所返す。
+            "marks": wrong && redPen ? timelineRedPen() : [],
         ]
     }
 

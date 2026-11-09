@@ -155,6 +155,10 @@ final class TimelineCaptureImageTests: XCTestCase {
         XCTAssertTrue(reply.success)
         let image = try XCTUnwrap(reply.items.first { $0["type"] as? String == "inputImage" }?["imageUrl"] as? String)
         XCTAssertTrue(image.hasPrefix("data:image/jpeg;base64,"))
+        // 範囲は依頼に付いた写真(952×1092)の上の座標のまま書く(元の写真の座標を書くと、モデルが元の座標で場所を答える)。
+        let caption = try XCTUnwrap(reply.items.first { $0["type"] as? String == "inputText" }?["text"] as? String)
+        XCTAssertTrue(caption.contains("952×1092 px)の上で x 100, y 100, 幅 200, 高さ 100"), caption)
+        XCTAssertFalse(caption.contains("3024"), "元の写真の大きさ・座標を書かない: \(caption)")
         let record = try XCTUnwrap(reply.record)
         XCTAssertEqual(record["attempt_id"] as? String, attemptID)
         XCTAssertEqual(Double(record["width"] as? Int ?? 0), 200.0 * 3024 / 952, accuracy: 2)

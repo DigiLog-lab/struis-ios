@@ -19,7 +19,7 @@
 
 StruisのAPI base URLは`STRUIS_API_BASE_URL`で上書きできます(手元のサーバー`http://127.0.0.1:4040`等)。AnthropicのURLはDEBUGビルドだけ`STRUIS_ANTHROPIC_BASE_URL`で上書きでき、検証用の模擬サーバー(`scripts/e2e/fake_anthropic.py`)に向けます。DEBUGのSimulatorはApp Attestを使えないため、`STRUIS_DEBUG_ANTHROPIC_KEY_FILE`のAPIキーで送ります。端末向けのビルドにはこの経路が入りません。これらの手元のHTTPサーバーのため、Info.plistは`NSAllowsLocalNetworking`を有効にしています。端末の設定と依存を変更したビルドについて、上の既定値だけで通信先が限定されるとは扱えません。プロンプトから実行されるPython等の通信能力を含め、公開ソースが提供するのは実装を追えることです。
 
-端末の単元・会話・答案の主要経路は台帳と`ClaudeTurnRunner`を使用します。チャット、会話の分岐、下調べの子ターン、単元・一枚・採点、タイムライン(出題・採点・見直し・赤ペン・知識グラフ)、オンボーディング(採点・計画)のすべてがこの経路です。モデルが求めたtoolは端末で実行します(`NativeToolRouter`。shell・Python・rgは`StruisExec`拡張、台帳の問い合わせ、資料の読み取り)。[APIEndpoint](../strius/Networking/APIEndpoint.swift)・[APIClient](../strius/Networking/APIClient.swift)には従来のserverメッセージ、画像・PDF upload、Learning Feed、realtime等の経路も残ります。それらの経路を使う場合は本文、添付ファイル、upload情報、学習イベント等がStruisサーバーへ送られます。実際の呼出元は各Feature・Stateから確認できます。Struisアカウント認証の有無は`StruisAuthRequired`で決まり、認証任意構成ではbootstrapの個人アカウント取得も行いません。
+端末の単元・会話・答案の主要経路は台帳と`ClaudeTurnRunner`を使用します。チャット、会話の分岐、下調べの子ターン、単元・一枚・採点、タイムライン(出題・採点(書く面の答案は赤ペンも)・見直し・知識グラフ)、オンボーディング(採点・計画)のすべてがこの経路です。モデルが求めたtoolは端末で実行します(`NativeToolRouter`。shell・Python・rgは`StruisExec`拡張、台帳の問い合わせ、資料の読み取り)。[APIEndpoint](../strius/Networking/APIEndpoint.swift)・[APIClient](../strius/Networking/APIClient.swift)には従来のserverメッセージ、画像・PDF upload、Learning Feed、realtime等の経路も残ります。それらの経路を使う場合は本文、添付ファイル、upload情報、学習イベント等がStruisサーバーへ送られます。実際の呼出元は各Feature・Stateから確認できます。Struisアカウント認証の有無は`StruisAuthRequired`で決まり、認証任意構成ではbootstrapの個人アカウント取得も行いません。
 
 ## 使用量報告
 

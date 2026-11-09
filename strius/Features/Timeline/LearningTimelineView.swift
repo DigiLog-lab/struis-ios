@@ -51,11 +51,6 @@ struct LearningTimelineView: View {
                         .frame(width: layout == .padLandscape ? TimelineLayout.columnLeading + TimelineLayout.columnWidth : nil)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     if showsInkHint { inkHint }
-                    if layout.isPad, isResult, let attempt = store.lastAttempt, store.isMarking(attempt.id) {
-                        TimelineMarkingStatus(attemptID: attempt.id)
-                            .padding(.top, 8).padding(.trailing, 20)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    }
                     actions
                         .timelineInkPassThrough()
                         .padding(.trailing, layout.isPad ? 28 : 20)
@@ -349,7 +344,6 @@ struct LearningTimelineView: View {
                         TimelineResultView(card: card, attempt: attempt, store: store)
                         // iPhone は結果の画面で書く面を出さないので、送った手書きに赤ペンを重ねてここに出す。
                         if !layout.isPad, let answer = store.inkAnswer(attempt.id) {
-                            if store.isMarking(attempt.id) { TimelineMarkingStatus(attemptID: attempt.id) }
                             let marks = store.redPen(attempt.id)
                             if !marks.isEmpty { TimelineRedPenPaper(answer: answer, marks: marks) }
                         }
@@ -363,6 +357,8 @@ struct LearningTimelineView: View {
                                     .background(Theme.accentColor.opacity(0.16), in: Capsule())
                             }
                             .buttonStyle(.plain)
+                            // iPad は結果の画面でも書く面が上に乗る(スクロールできる)ので、ボタンには指を通す。
+                            .timelineInkPassThrough()
                             .accessibilityIdentifier("timeline-stuck-ask")
                         }
                     }
@@ -455,10 +451,11 @@ struct LearningTimelineView: View {
         ZStack(alignment: .bottomLeading) {
             TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isInkZoomed, controller: ink,
                               passThrough: inkPassThrough.map { $0.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y) },
-                              showsToolPicker: layout.isPad && showsInkTools)
+                              showsToolPicker: layout.isPad && showsInkTools, isReadOnly: isResult)
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .allowsHitTesting(!isGrading && !isResult)
+                // 結果の画面では、書き足しはできないがスクロールと拡大縮小はできる(採点中は触らせない)。
+                .allowsHitTesting(!isGrading)
             // 結果の画面: 書く面の上に赤ペンの層(生徒の線とは別の層)。
             if isResult, let attempt = store.lastAttempt {
                 TimelineRedPenLayer(marks: store.redPen(attempt.id), viewport: ink.viewport)

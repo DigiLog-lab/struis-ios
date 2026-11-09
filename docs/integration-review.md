@@ -79,7 +79,7 @@ App Attest の失敗(`AppAttestClient.Failure` と `com.apple.devicecheck.error`
 
 | 設定 | 値 | この repo の対応箇所 | 確認の仕方 |
 |---|---|---|---|
-| 対象のターン | チャット、分岐(`thread_fork`。モデルを呼ばず履歴を写す)、下調べの子(`struis_delegate`)、`workbook_unit`・`workbook_set`・`workbook_grading`、`timeline_batch`・`timeline_grading`・`timeline_answer`・`timeline_review`・`timeline_marks`・`timeline_graph`、`onboarding_grading`・`onboarding_plan` | `ClaudeTurnRunner.run`・`fork`、`ClaudeTurn`(`child` は `DelegationWatcher.Child`) | 単体: `ClaudeTurnRunnerTests.testForkCopiesTheHistoryUpToTheTurnAndResendsAgentsForItsFolder`、`testPlansSavedWithAnyProviderRunAsClaude` |
+| 対象のターン | チャット、分岐(`thread_fork`。モデルを呼ばず履歴を写す)、下調べの子(`struis_delegate`)、`workbook_unit`・`workbook_set`・`workbook_grading`、`timeline_batch`・`timeline_grading`・`timeline_answer`・`timeline_review`・`timeline_graph`、`onboarding_grading`・`onboarding_plan` | `ClaudeTurnRunner.run`・`fork`、`ClaudeTurn`(`child` は `DelegationWatcher.Child`) | 単体: `ClaudeTurnRunnerTests.testForkCopiesTheHistoryUpToTheTurnAndResendsAgentsForItsFolder`、`testPlansSavedWithAnyProviderRunAsClaude` |
 | ターンの期限 | `max(minimumTurnS = 300, plan.limits.turnTimeoutS)` 秒。下調べの子は `childTurnS = 300` 秒 | `Timeouts.minimumTurnS`・`childTurnS`、`TurnDeadline` | 未対応(値の固定テストなし) |
 | 止まった答え | 答えを書き始めた後 `messageStall = 120` 秒 | `Timeouts.messageStall`、`ClaudeTurn.watchStream` | 模擬: `faults` の `stall` |
 | 何も届かない | `streamIdle = 300` 秒で通信の失敗として扱う | `Timeouts.streamIdle` | 模擬: 同上 |
@@ -89,7 +89,7 @@ App Attest の失敗(`AppAttestClient.Failure` と `com.apple.devicecheck.error`
 | 出力の上限 | `max_tokens = 64_000` | `ClaudeRequestFormat.maxTokens` | 未対応 |
 | thinking | `{"type": "adaptive", "display": "summarized"}`。effort は `output_config.effort`(`none`・`minimal` は `low`) | `ClaudeTurn.body`、`ClaudeRequestFormat.effort` | 単体: `ClaudeRequestFormatTests.testEffortMapsThePlanValuesToClaude` |
 | tools | 端末の tool を `ClaudeToolNames` で `struis__exec_command` 等に直し、名前順。`tool_choice: auto`。`view_image` を足す | `NativeToolRouter.definitions(for:)`・`lookupDefinitions`、`ClaudeTurn.viewImageTool` | 単体: `testToolsAreFlattenedAndSortedByTheirClaudeNames` |
-| 変換方式の版 | 2(既定)。`timeline_batch`・`timeline_grading`・`timeline_review`・`timeline_marks` は 4 | `ClaudeTranslation.current`・`tutor`・`tutorKinds`・`version(kind:)` | 単体: `testTimelineThreadsStartOnVersionFourAndMarkTheTailOnlyAfterATool` |
+| 変換方式の版 | 2(既定)。`timeline_batch`・`timeline_grading`・`timeline_review` は 4 | `ClaudeTranslation.current`・`tutor`・`tutorKinds`・`version(kind:)` | 単体: `testTimelineThreadsStartOnVersionFourAndMarkTheTailOnlyAfterATool` |
 | cache の印 | system に 1h。末尾の TTL は `chat`・`thread_fork` が 1h、他は 5m。版 4 は system の 2 か所に 1h、末尾は道具の後の続きの要求だけ 5m | `ClaudeTranslation.tailCacheTTL`・`tutorSystem`・`marksTail` | 単体: `testTailTTLFollows…` |
 | cache diagnostics | `diagnostics.previous_message_id` を送り、拒まれたら外す | `ClaudeTurn.body`、`ClaudeCacheDiagnosis` | 単体: `testCacheStateSeparates…` |
 | 要求本文の上限 | 20 MiB。画像 1 枚は 5 MiB | `ClaudeUpstream.maxRequestBytes`、`ClaudeRequestFormat.maxImageBytes` | 単体: `testRequestSizeCap…`、`testImageBlocksAcceptOnlySupportedTypesWithinTheLimit` |

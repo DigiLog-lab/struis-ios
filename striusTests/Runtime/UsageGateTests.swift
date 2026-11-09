@@ -254,7 +254,7 @@ final class UsageGateTests: XCTestCase {
         XCTAssertNil(gate.denial(for: .newWork))
         meter.add(0.02)
         XCTAssertTrue(meter.snapshot().isExhausted, "100% に達した")
-        for kind in [TurnPlan.Kind.timelineBatch, .timelineReview, .timelineGraph, .timelineMarks, .workbookSet, .workbookUnit, .onboardingPlan] {
+        for kind in [TurnPlan.Kind.timelineBatch, .timelineReview, .timelineGraph, .workbookSet, .workbookUnit, .onboardingPlan] {
             XCTAssertEqual(gate.denial(for: UsageRequest.of(kind: kind, turnAdmitted: true)), .limitReached, "\(kind.rawValue) は新しい作業: 上限で止める")
         }
         XCTAssertEqual(gate.denial(for: UsageRequest.of(kind: .chat, turnAdmitted: false)), .limitReached, "新しい質問は上限で止める")
