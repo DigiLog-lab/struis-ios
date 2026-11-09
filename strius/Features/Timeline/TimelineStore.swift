@@ -368,11 +368,24 @@ final class TimelineStore {
                 for item in past { machine.insertHistory(prompt: item.prompt, answerKey: item.answerKey, subunitID: item.subunitID, unitTitle: item.unit, solvedAt: item.at) }
             }
         }
+        // 解く範囲を固定していれば、1枚目もその範囲から選ぶ(固定した時に捨てた昨日の続きを、起動で戻さない)。
+        let pinnedID: String? = pinnedUnit?.id
+        let inScope: (String) -> Bool = { [machine = self.machine, workbook = self.workbook] id in
+            guard let pinnedID, let card = machine.cards[id] else { return true }
+            return !TimelineScope.isOutside(card, unitID: pinnedID, workbook: workbook, timeline: machine)
+        }
+        var first = TimelineRules.firstCard(cards: Array(machine.cards.values), attempts: machine.orderedAttempts, history: machine.historyCards, today: today)
+        switch first {
+        case .resume(let id), .rapid(let id), .history(let id):
+            if !inScope(id) { first = .guide }
+        case .guide:
+            break
+        }
         // 前の起動で出したまま答えていないカードがあれば、それから。
-        if let shown = machine.cards.values.filter({ $0.status == "shown" && TimelineRules.day($0.updatedAt) == today && $0.origin != "history" }).max(by: { $0.updatedAt < $1.updatedAt }) {
+        if let shown = machine.cards.values.filter({ $0.status == "shown" && TimelineRules.day($0.updatedAt) == today && $0.origin != "history" && inScope($0.id) }).max(by: { $0.updatedAt < $1.updatedAt }) {
             show(shown.id)
         } else {
-            switch TimelineRules.firstCard(cards: Array(machine.cards.values), attempts: machine.orderedAttempts, history: machine.historyCards, today: today) {
+            switch first {
             case .resume(let id):
                 badge = .resume
                 await commit { machine in
@@ -390,7 +403,7 @@ final class TimelineStore {
                 badge = .history(daysAgo: solved.flatMap { TimelineRules.daysBetween($0, today) } ?? 1)
                 show(id)
             case .guide:
-                if let next = machine.queue.first { show(next.id) } else { phase = workbook.units.isEmpty ? .guide : .waiting }
+                if let next = machine.queue.first(where: { inScope($0.id) }) { show(next.id) } else { phase = workbook.units.isEmpty ? .guide : .waiting }
             }
         }
         // タイムラインを開いた時: グラフを頼むか決める。
