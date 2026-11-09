@@ -288,6 +288,8 @@ struct TimelineInkCanvas: UIViewRepresentable {
     var passThrough: [CGRect] = []
     /// 標準の道具パレットを出すか(iPad で書ける間だけ)。
     var showsToolPicker: Bool = false
+    /// 問題ごとの番号(`LearningTimelineView` の `inkGeneration`)。同じ番号の書く面を作り直した時だけ、書いた線を戻す。
+    var generation: Int = 0
 
     /// 書いた線の色と太さ(iPad は道具パレットで太さを変えられる。最初はこの太さ)。
     static let inkColor: UIColor = UIColor(red: 0.08, green: 0.07, blue: 0.06, alpha: 1)
@@ -312,6 +314,9 @@ struct TimelineInkCanvas: UIViewRepresentable {
         canvas.contentInsetAdjustmentBehavior = .never
         canvas.delegate = context.coordinator
         canvas.accessibilityIdentifier = "timeline-ink"
+        // iPad と iPhone の並びは書く面の置き場所が違うので、Split View で幅を変えると書く面が作り直される。
+        // 同じ問題の間なら、書いた線を戻す。
+        if let kept = controller.keptDrawing(generation: generation) { canvas.drawing = kept }
         controller.canvas = canvas
         controller.viewport.update(canvas)
         return canvas
@@ -331,7 +336,7 @@ struct TimelineInkCanvas: UIViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isZoomed, controller: controller)
+        Coordinator(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isZoomed, controller: controller, generation: generation)
     }
 
     /// 指が触れただけの点(ごく短い線)を除いて、書いた線があるか。
@@ -348,16 +353,19 @@ struct TimelineInkCanvas: UIViewRepresentable {
         let isDrawing: Binding<Bool>
         let isZoomed: Binding<Bool>
         let controller: TimelineInkController
+        let generation: Int
         /// 最後に道具パレットへ伝えた出す・隠す。
         var isToolPickerShown: Bool = false
 
-        init(hasInk: Binding<Bool>, isDrawing: Binding<Bool>, isZoomed: Binding<Bool>, controller: TimelineInkController) {
+        init(hasInk: Binding<Bool>, isDrawing: Binding<Bool>, isZoomed: Binding<Bool>, controller: TimelineInkController, generation: Int) {
             self.hasInk = hasInk
             self.isDrawing = isDrawing
             self.isZoomed = isZoomed
             self.controller = controller
+            self.generation = generation
         }
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
+            controller.keep(canvasView.drawing, generation: generation)
             let value: Bool = TimelineInkCanvas.hasMeaningfulInk(canvasView.drawing)
             if hasInk.wrappedValue != value { hasInk.wrappedValue = value }
             // 右や下の端に近づいたら紙を伸ばす。
@@ -605,6 +613,18 @@ final class TimelineInkController {
     }
 
     func clear() { canvas?.drawing = PKDrawing() }
+
+    /// 書いた線の控え(書く面が作り直されても答案を失わないため)。書く面が変わるたびに入れ直す。
+    /// 作り直す前の面が消えるのと、新しい面ができるのは、どちらが先か決まっていないので、消える時ではなく変わるたびに取る。
+    private var kept: (generation: Int, drawing: PKDrawing)?
+
+    func keep(_ drawing: PKDrawing, generation: Int) { kept = (generation, drawing) }
+
+    /// 同じ問題の控えがあれば返す(次の問題に進んだ後は、前の問題の線を返さない)。
+    func keptDrawing(generation: Int) -> PKDrawing? {
+        guard let kept, kept.generation == generation, !kept.drawing.strokes.isEmpty else { return nil }
+        return kept.drawing
+    }
 
     func resetZoom() {
         guard let canvas = canvas as? TimelinePassThroughCanvas else { return }

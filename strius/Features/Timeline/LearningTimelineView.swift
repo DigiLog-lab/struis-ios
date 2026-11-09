@@ -372,7 +372,7 @@ struct LearningTimelineView: View {
         ZStack(alignment: .bottomLeading) {
             TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isInkZoomed, controller: ink,
                               passThrough: inkPassThrough.map { $0.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y) },
-                              showsToolPicker: layout.isPad && showsInkTools)
+                              showsToolPicker: layout.isPad && showsInkTools, generation: inkGeneration)
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .allowsHitTesting(!isGrading && !isResult)
