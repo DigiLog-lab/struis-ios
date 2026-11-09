@@ -288,6 +288,9 @@ struct TimelineInkCanvas: UIViewRepresentable {
     var passThrough: [CGRect] = []
     /// 標準の道具パレットを出すか(iPad で書ける間だけ)。
     var showsToolPicker: Bool = false
+    /// 見るだけ(結果の画面)。書き足しはできず、1本指でスクロール・2本指で拡大縮小だけできる
+    /// (書いた線が解説の文に重なった時に、ずらして読めるように。2026-11-09)。
+    var isReadOnly: Bool = false
 
     /// 書いた線の色と太さ(iPad は道具パレットで太さを変えられる。最初はこの太さ)。
     static let inkColor: UIColor = UIColor(red: 0.08, green: 0.07, blue: 0.06, alpha: 1)
@@ -319,6 +322,12 @@ struct TimelineInkCanvas: UIViewRepresentable {
 
     func updateUIView(_ canvas: TimelinePassThroughCanvas, context: Context) {
         canvas.passThrough = passThrough
+        if context.coordinator.isReadOnly != isReadOnly {
+            context.coordinator.isReadOnly = isReadOnly
+            // 書く操作を止めると、指は PencilKit の既定どおりスクロールに回る(.pencilOnly では1本指でスクロールする)。
+            canvas.drawingGestureRecognizer.isEnabled = !isReadOnly
+            canvas.drawingPolicy = isReadOnly ? .pencilOnly : .anyInput
+        }
         // 出す・隠すが変わった時だけ触る。毎回呼ぶと、質問の欄で文字を打っている間に書く面が入力を奪い返す。
         if context.coordinator.isToolPickerShown != showsToolPicker {
             context.coordinator.isToolPickerShown = showsToolPicker
@@ -350,6 +359,8 @@ struct TimelineInkCanvas: UIViewRepresentable {
         let controller: TimelineInkController
         /// 最後に道具パレットへ伝えた出す・隠す。
         var isToolPickerShown: Bool = false
+        /// 最後に書く面へ伝えた「見るだけ」。
+        var isReadOnly: Bool = false
 
         init(hasInk: Binding<Bool>, isDrawing: Binding<Bool>, isZoomed: Binding<Bool>, controller: TimelineInkController) {
             self.hasInk = hasInk
@@ -1306,26 +1317,5 @@ struct TimelineRedPenPaper: View {
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("timeline-red-pen")
         }
-    }
-}
-
-/// 赤ペンのターンが走っている間の表示(モデルが今していることの見出しを添える)。
-struct TimelineMarkingStatus: View {
-    let attemptID: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small).tint(Theme.redPen)
-                Text("赤ペンを入れています").font(Typography.sans(size: 13, weight: .bold)).foregroundStyle(Theme.redPen)
-            }
-            TurnLiveLine(keys: [TurnActivityKey.marks(attemptID)], font: Typography.micro)
-                .frame(maxWidth: 240, alignment: .leading)
-        }
-        .padding(.horizontal, 12).padding(.vertical, 10)
-        .background(Theme.card.opacity(0.94), in: RoundedRectangle(cornerRadius: 14))
-        .allowsHitTesting(false)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("timeline-marking")
     }
 }

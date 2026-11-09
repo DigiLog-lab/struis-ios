@@ -510,8 +510,10 @@ nonisolated struct TimelineMachine {
         var checkpoints: [Checkpoint]
         var errors: [Error]
         var cause: String
+        /// 赤ペン(書く面の答案だけ。採点と同じ返事で返す。2026-11-09)。
+        var marks: [RedPenMark]
         enum CodingKeys: String, CodingKey {
-            case readable, grade, verdict, transcript, notes, comment, checkpoints, errors, cause, feedback
+            case readable, grade, verdict, transcript, notes, comment, checkpoints, errors, cause, feedback, marks
             case learnerAnswer = "learner_answer"
             case skillIds = "skill_ids"
             case keySuspect = "key_suspect"
@@ -533,6 +535,7 @@ nonisolated struct TimelineMachine {
             checkpoints = []
             errors = []
             cause = "unknown"
+            marks = []
         }
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -552,6 +555,8 @@ nonisolated struct TimelineMachine {
             checkpoints = try c.decodeIfPresent([Checkpoint].self, forKey: .checkpoints) ?? []
             errors = try c.decodeIfPresent([Error].self, forKey: .errors) ?? []
             cause = try c.decodeIfPresent(String.self, forKey: .cause) ?? "unknown"
+            // 赤ペンの形が崩れていても、判定は捨てない(赤ペンだけ出さない)。
+            marks = (try? c.decodeIfPresent([RedPenMark].self, forKey: .marks)) ?? []
         }
         func encode(to encoder: Encoder) throws {
             var c = encoder.container(keyedBy: CodingKeys.self)
@@ -1170,18 +1175,6 @@ nonisolated struct TimelineMachine {
                   let width = region["width"]?.doubleValue, let height = region["height"]?.doubleValue else { return nil }
             self.init(x: x, y: y, width: width, height: height, correction: json["correction"]?.stringValue ?? "")
         }
-    }
-
-    /// 赤ペンのターンの答え: `marks`(0〜2 個)。
-    nonisolated struct Marks: Decodable, Sendable {
-        var marks: [RedPenMark]
-        enum CodingKeys: String, CodingKey { case marks }
-        init(marks: [RedPenMark]) { self.marks = marks }
-        init(from decoder: Decoder) throws {
-            let c = try decoder.container(keyedBy: CodingKeys.self)
-            marks = try c.decode([RedPenMark].self, forKey: .marks)
-        }
-        static func parse(_ text: String) throws -> Marks { try TimelineReply.decode(Marks.self, from: text) }
     }
 
     /// 1 つの答案に入れる赤ペンの数の上限。

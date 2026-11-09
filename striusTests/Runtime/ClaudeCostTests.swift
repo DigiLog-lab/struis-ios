@@ -27,7 +27,7 @@ final class ClaudeCostTests: XCTestCase {
     func testTimelineThreadsStartOnVersionFourAndMarkTheTailOnlyAfterATool() {
         XCTAssertEqual(ClaudeTranslation.version(kind: "chat"), ClaudeTranslation.current)
         XCTAssertEqual(ClaudeTranslation.version(kind: "workbook_set"), 2)
-        for kind in ["timeline_batch", "timeline_grading", "timeline_review", "timeline_marks"] {
+        for kind in ["timeline_batch", "timeline_grading", "timeline_review"] {
             XCTAssertEqual(ClaudeTranslation.version(kind: kind), ClaudeTranslation.tutor, kind)
         }
         let first: [[String: Any]] = [["role": "user", "content": [["type": "text", "text": "今日の分"]]]]

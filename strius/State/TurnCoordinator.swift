@@ -84,7 +84,6 @@ actor TurnCoordinator {
         TurnPlan.Kind.timelineBatch.rawValue: .seconds(180),
         TurnPlan.Kind.timelineGraph.rawValue: .seconds(180),
         TurnPlan.Kind.timelineReview.rawValue: .seconds(180),
-        TurnPlan.Kind.timelineMarks.rawValue: .seconds(120),
         "graph_descend": .seconds(120),
     ]
     private var timeLimits = TurnCoordinator.defaultTimeLimits
@@ -326,7 +325,7 @@ actor TurnCoordinator {
             // 答えの読み取りは今日の記録を使わない(先頭を共有しない短い依頼)。
             let timeline: TimelineMachine = try await ledger.read { db in try TimelineMachine(loading: db) }
             return (try await TimelineTurns.answer(composer: composer, planID: turnID, attemptID: targetID, timeline: timeline), nil)
-        case .timelineBatch, .timelineGrading, .timelineGraph, .timelineReview, .timelineMarks:
+        case .timelineBatch, .timelineGrading, .timelineGraph, .timelineReview:
             // 採点・出題・見直しは、組む前に今日の記録の足りない分(その日最初の単元とスキルの一覧・変わった分)を書く。
             let timeline: TimelineMachine = kind == .timelineGraph
                 ? try await ledger.read { db in try TimelineMachine(loading: db) }
@@ -340,7 +339,6 @@ actor TurnCoordinator {
             case .timelineBatch: return (try await TimelineTurns.batch(composer: composer, planID: turnID, batchID: targetID, workbook: machine, timeline: timeline, repair: repair), nil)
             case .timelineGrading: return (try await TimelineTurns.grading(composer: composer, planID: turnID, attemptID: targetID, workbook: machine, timeline: timeline, repair: repair), nil)
             case .timelineReview: return (try await TimelineTurns.review(composer: composer, planID: turnID, attemptID: targetID, workbook: machine, timeline: timeline, repair: repair), nil)
-            case .timelineMarks: return (try await TimelineTurns.marks(composer: composer, planID: turnID, attemptID: targetID, workbook: machine, timeline: timeline, repair: repair), nil)
             default: return (try await TimelineTurns.graph(composer: composer, planID: turnID, batchID: targetID, workbook: machine, timeline: timeline), nil)
             }
         default:
@@ -447,7 +445,6 @@ actor TurnCoordinator {
         case .timelineGraph: return "学ぶ順番の地図づくり"
         case .timelineReview: return "前の答案の見直し"
         case .timelineGrading, .timelineAnswer, .workbookGrading: return "答案の採点"
-        case .timelineMarks: return "赤ペン"
         case .timelineBatch: return "別の問題づくり"
         case .workbookSet: return "単元の問題づくり"
         case .workbookUnit: return "単元づくり"
@@ -584,8 +581,7 @@ actor TurnCoordinator {
         BackgroundTurnActivity.begin()
         defer { BackgroundTurnActivity.end() }
         // 待ちの画面へ、このターンで実際に起きた出来事を流す(信頼性計画 P2)。対象(答案・一枚・全体像)ごとに 1 本。
-        // 赤ペンは見直しと同じ答案を対象に並んで走るので、別の key に流す(見出しが混ざらないように)。
-        let activity = await targetID(of: turnID).map { TurnActivityBoard.sink(plan.kind == .timelineMarks ? TurnActivityKey.marks($0) : TurnActivityKey.target($0)) }
+        let activity = await targetID(of: turnID).map { TurnActivityBoard.sink(TurnActivityKey.target($0)) }
         defer { activity?.finish() }
         // 枠を待っている間は、何の後に始まるかを待ちの画面に出す(「AI の応答を待っています」と偽らない)。
         let acquired: Bool = await acquire(kind: plan.kind, turnID: turnID) { text in activity?.waitForSlot(text) }
@@ -682,7 +678,7 @@ actor TurnCoordinator {
         if TimelineTurns.isTimeline(plan.kind) {
             // 受け取りを断った(skills の ID・段の上限・検算・グラフの点検): 1 回だけ作り直させる。
             // 返事が決まった形に合わなかった: 理由を添えて、同じ中身でもう 1 回だけ頼む(先頭はキャッシュの読み込みで済む)。
-            // 頼み直しの行を書いてから終わりを知らせる(赤ペンの「入れています」が頼み直しの間に消えないように)。
+            // 頼み直しの行を書いてから終わりを知らせる(採点中の表示が頼み直しの間に途切れないように)。
             if followUp.retryTimeline, let targetID { await start(kind: plan.kind, targetID: targetID, prefetch: wasPrefetch, repair: followUp.timelineRepair) }
             // 答えの読み取りで ○ にできなかった: いつもの採点に回す(終わりを知らせる前に行を書き、採点中の表示を途切れさせない)。
             if let next = followUp.nextTimelineGrading { await start(kind: .timelineGrading, targetID: next, prefetch: wasPrefetch) }
@@ -835,7 +831,7 @@ actor TurnCoordinator {
     }
 
     /// タイムラインの対象が、まだ組み直す必要があるか。5枚・グラフは依頼が `requested`、採点は答案が採点中。
-    /// 見直し・赤ペンは組み直さない(見直しは次の見直しがまだ見ていない答案をまとめて見る。赤ペンは無くても結果の画面は止まらない)。
+    /// 見直しは組み直さない(次の見直しがまだ見ていない答案をまとめて見る)。
     private func timelineTargetPending(kind: TurnPlan.Kind, targetID: String) async -> Bool {
         switch kind {
         case .timelineBatch, .timelineGraph:
