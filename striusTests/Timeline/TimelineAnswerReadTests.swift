@@ -222,6 +222,7 @@ final class TimelineAnswerReadTests: XCTestCase {
         let (store, runner, attemptID) = try await submitted(answer: "5")
         XCTAssertEqual(store.machine.attempts[attemptID]?.verdict, "wrong")
         XCTAssertEqual(store.machine.attempts[attemptID]?.feedback, "符号が違います。")
-        XCTAssertEqual(Array(runner.kinds.prefix(2)), [.timelineAnswer, .timelineGrading])
+        // 知識グラフなど、ほかのターンも並んで走る。答案のターンだけを順に見る。
+        XCTAssertEqual(runner.kinds.filter { $0 == .timelineAnswer || $0 == .timelineGrading }, [.timelineAnswer, .timelineGrading])
     }
 }
