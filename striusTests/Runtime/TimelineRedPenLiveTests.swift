@@ -40,8 +40,11 @@ final class TimelineRedPenLiveTests: XCTestCase {
         return UIGraphicsImageRenderer(size: image.size).pngData { context in
             image.draw(at: .zero)
             UIColor.red.setStroke()
+            // 赤ペンの範囲は依頼に付いた写真(長い辺 1,092)の上のピクセル。元の画像の上に直して描く(アプリと同じ直し方)。
+            let width = Int(image.size.width * image.scale), height = Int(image.size.height * image.scale)
             for mark in marks {
-                let path = UIBezierPath(rect: mark.region)
+                guard let rect = TimelineCaptureImage.originalRect(region: mark.region, width: width, height: height) else { continue }
+                let path = UIBezierPath(rect: rect)
                 path.lineWidth = 3
                 path.stroke()
             }
