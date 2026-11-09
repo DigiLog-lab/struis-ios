@@ -15,7 +15,8 @@ final class TimelineScopeDemoUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-skip-onboarding", "-timeline-scope-demo"]
         app.launchEnvironment["STRUIS_LEDGER"] = "memory"
-        app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
+        // 実際の Claude で回す(fixtures のままだとモックの返事になる)。
+        app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "1"
         app.launchEnvironment["STRUIS_DEBUG_ANTHROPIC_KEY_FILE"] = key
         app.launch()
 
@@ -92,7 +93,7 @@ final class TimelineScopeDemoUITests: XCTestCase {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             let text = problemText(app)
-            if !text.isEmpty, previous == nil || text != previous { return true }
+            if !text.isEmpty, app.buttons["timeline-skip"].exists, previous == nil || text != previous { return true }
             sleep(2)
         }
         return false
