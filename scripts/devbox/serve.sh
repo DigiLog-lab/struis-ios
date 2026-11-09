@@ -53,9 +53,23 @@ mkdir -p "$STATE"
 export GIT_AUTHOR_NAME=devbox GIT_AUTHOR_EMAIL=devbox@users.noreply.github.com
 export GIT_COMMITTER_NAME=devbox GIT_COMMITTER_EMAIL=devbox@users.noreply.github.com
 
-# publish DIR NAME MESSAGE: one commit holding exactly DIR's files, force-pushed to devboxes/<key>/out/NAME.
+# redact FILE...: replaces the secret in DEVBOX_REDACT_FILE (the Anthropic API key, devbox.yml) with
+# `[redacted]` in place. Results are pushed to branches of a public repository, so nothing leaves this
+# runner without going through it (publish, and the whole log before it is compressed). The key is read by
+# perl from the file, so it never appears on a command line.
+redact() {
+  [[ -n "${DEVBOX_REDACT_FILE:-}" && -s "$DEVBOX_REDACT_FILE" ]] || return 0
+  perl -0777 -pi -e 'BEGIN { open(my $f, "<", $ENV{DEVBOX_REDACT_FILE}) or die; local $/; $k = <$f>; $k =~ s/\s+\z//; }
+                     s/\Q$k\E/[redacted]/g if length $k;' "$@"
+}
+
+# publish DIR NAME MESSAGE: one commit holding exactly DIR's files (the secret redacted), force-pushed to
+# devboxes/<key>/out/NAME.
 publish() {
-  local dir=$1 name=$2 message=$3 tree commit
+  local dir=$1 name=$2 message=$3 tree commit file
+  local -a files=()
+  while IFS= read -r -d '' file; do files+=("$file"); done < <(find "$dir" -type f ! -name '*.gz' -print0)
+  if (( ${#files[@]} )); then redact "${files[@]}" || { echo "::warning::devbox: could not redact $name; not published"; return 1; }; fi
   rm -f "$STATE/index"
   tree=$(export GIT_INDEX_FILE="$STATE/index"
          git read-tree --empty && git --work-tree="$dir" add -A -f . && git write-tree) || return 1
@@ -284,6 +298,7 @@ while :; do
   wait "$pid"; code=$?
   finished=$(date +%s)
   echo "finished=$finished" >> "$out/times"
+  redact "$log" || : > "$log"
   tail -n 400 "$log" > "$out/log.tail.txt"
   gzip -c "$log" > "$out/log.txt.gz"
   status "$out" "$id" done "$code"

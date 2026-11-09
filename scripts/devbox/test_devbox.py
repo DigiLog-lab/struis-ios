@@ -54,6 +54,17 @@ class DevBoxRoundTripTests(unittest.TestCase):
         cls.server = cls.serve(work, "work", "runner-temp")
         cls.mac("ready", "--timeout", "30")
 
+    SECRET: str = "sk-ant-test-0123456789abcdef"
+
+    @classmethod
+    def secret_file(cls) -> pathlib.Path:
+        """The Anthropic key file of devbox.yml (0600, the key without a newline)."""
+        path: pathlib.Path = cls.root / "anthropic-key"
+        if not path.exists():
+            path.write_text(cls.SECRET)
+            path.chmod(0o600)
+        return path
+
     @classmethod
     def serve(cls, work: pathlib.Path, branch: str, temp: str) -> subprocess.Popen[str]:
         env: dict[str, str] = dict(
@@ -65,6 +76,7 @@ class DevBoxRoundTripTests(unittest.TestCase):
             DEVBOX_PROGRESS_SECONDS="2",
             DEVBOX_COMMAND_SECONDS="15",
             DEVBOX_KEEP_RESULTS_SECONDS="5",
+            DEVBOX_REDACT_FILE=str(cls.secret_file()),
         )
         return subprocess.Popen(
             ["bash", str(SERVE)], cwd=work, env=env, text=True,
@@ -262,6 +274,24 @@ class DevBoxRoundTripTests(unittest.TestCase):
             flag.unlink()
         result = self.mac("wait", command_id, "--timeout", "40")
         self.assertIn("published-later", result.stdout)
+
+    def test_the_key_never_leaves_in_a_result(self) -> None:
+        key_file: str = str(self.secret_file())
+        command_id: str = self.mac(
+            "run", "--async", "--",
+            f'cat {key_file}; echo; echo "key=$(cat {key_file})"; cat {key_file} > "$DEVBOX_FILES/key.txt"; sleep 4; echo done',
+        ).stdout.strip()
+        result = self.mac("wait", command_id, "--timeout", "40")
+        self.assertIn("done", result.stdout)
+        self.assertIn("key=[redacted]", result.stdout)
+        self.assertNotIn(self.SECRET, result.stdout)
+        out: pathlib.Path = self.client / "devbox-out" / command_id
+        self.assertEqual((out / "key.txt").read_text(), "[redacted]")
+        self.assertNotIn(self.SECRET, gzip.decompress((out / "log.txt.gz").read_bytes()).decode())
+        # Nothing pushed for this command (the running results too) has the key.
+        listed: str = subprocess.run(["git", "log", "-p", "--all", "--", "."], cwd=self.root / "origin.git",
+                                     capture_output=True, text=True, check=True).stdout
+        self.assertNotIn(self.SECRET, listed)
 
     def test_several_arguments_are_kept_as_arguments(self) -> None:
         result = self.mac("run", "--", "printf", "%s|", "a b", "c")

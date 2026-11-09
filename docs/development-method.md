@@ -63,7 +63,9 @@
 - **6時間の上限**: 1本のジョブは6時間で切れる。その20分前に命令を受けるのをやめる。次の Dev Box はコンパイルキャッシュで立ち上がる。
 - **ランナーの割り当て**: 同時5台を、作業中のセッションの Dev Box(1セッション1台)、マージキューの検証、Ad Hoc のプロトタイプのビルドやネイティブ依存のキャッシュ作りで分け合う。Dev Box が3台を超えるとマージキューの検証が待たされるので、使わない Dev Box は `mac.py stop` で畳む。
 - **ゲートには使わない**: Dev Box で作ったビルドは、マージのゲートには使わない。命令で何でも実行できるので、push したコードと同じものから作られた保証が無いため。Dev Box のジョブには `statuses: write` を持たせない(`Struis / verify` を書けないようにする)。権限は結果のブランチの push と命令のブランチの削除に要る `contents: write` と、main のビルドの Artifact を読む `actions: read` だけ。Dev Box は Artifact を置かない(命令からは Artifact を置く鍵が見えない)。
-- **公開されること**: リポジトリは公開なので、命令と出力は誰でも読める。秘密の値を命令や出力に出さない。Dev Box のジョブには、ビルドとテストに要らない秘密の値を渡さない。
+- **公開されること**: リポジトリは公開なので、命令と出力は誰でも読める。秘密の値を命令や出力に出さない。Dev Box のジョブに渡す秘密の値は、実際の Claude で確かめるための Anthropic の API キー(Issue エージェントと同じ `CLAUDE_AGENT_API_KEY`)だけ(2026-11-09 から)。
+  - 命令には値を渡さず、0600 のファイルの場所だけを `$DEVBOX_ANTHROPIC_KEY_FILE` で渡す。DEBUG の Simulator のアプリには `SIMCTL_CHILD_STRUIS_DEBUG_ANTHROPIC_KEY_FILE`、XCTest には `TEST_RUNNER_STRUIS_DEBUG_ANTHROPIC_KEY_FILE` で渡す。
+  - `serve.sh` は結果を push する前に、結果のファイル全部と全文のログの中のキーの文字列を `[redacted]` に置き換える(`redact`)。キーそのものを表示する命令は打たない(一部だけを切り出した文字列は置き換えられない)。
 
 ## 6. テストの選び方(テスト影響分析)
 - Dev Box でもマージキューでも、流す UI テストは `scripts/ci/ui-test-plan.json` の規則で変更から選ぶ。
