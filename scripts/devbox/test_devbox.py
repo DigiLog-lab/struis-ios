@@ -293,6 +293,32 @@ class DevBoxRoundTripTests(unittest.TestCase):
                                      capture_output=True, text=True, check=True).stdout
         self.assertNotIn(self.SECRET, listed)
 
+    def test_the_key_never_leaves_in_a_compressed_file(self) -> None:
+        key_file: str = str(self.secret_file())
+        command_id: str = self.mac(
+            "run", "--async", "--",
+            f'gzip -c {key_file} > "$DEVBOX_FILES/diagnostic.txt.gz"; '
+            f'(cd "$(dirname {key_file})" && zip -q "$DEVBOX_FILES/bundle.zip" "$(basename {key_file})"); '
+            'echo plain | gzip -c > "$DEVBOX_FILES/plain.txt.gz"',
+        ).stdout.strip()
+        self.mac("wait", command_id, "--timeout", "40")
+        out: pathlib.Path = self.client / "devbox-out" / command_id
+        for name in ("diagnostic.txt.gz", "bundle.zip"):
+            self.assertEqual((out / name).read_text(), "[redacted: this compressed file held the Anthropic API key]\n", name)
+        self.assertEqual(gzip.decompress((out / "plain.txt.gz").read_bytes()), b"plain\n", "鍵の無い圧縮ファイルはそのまま")
+        listed: str = subprocess.run(["git", "log", "-p", "--all", "--binary", "--", "."], cwd=self.root / "origin.git",
+                                     capture_output=True, text=True, check=True).stdout
+        self.assertNotIn(self.SECRET, listed)
+
+    def test_a_file_the_command_keeps_writing_is_not_cut_off_by_a_progress_update(self) -> None:
+        # The same descriptor writes before and after a progress update (DEVBOX_PROGRESS_SECONDS=2).
+        command_id: str = self.mac(
+            "run", "--async", "--",
+            'exec 3> "$DEVBOX_FILES/stream.txt"; echo before >&3; sleep 6; echo after >&3; exec 3>&-',
+        ).stdout.strip()
+        self.mac("wait", command_id, "--timeout", "40")
+        self.assertEqual((self.client / "devbox-out" / command_id / "stream.txt").read_text(), "before\nafter\n")
+
     def test_several_arguments_are_kept_as_arguments(self) -> None:
         result = self.mac("run", "--", "printf", "%s|", "a b", "c")
         self.assertIn("a b|c|", result.stdout)
