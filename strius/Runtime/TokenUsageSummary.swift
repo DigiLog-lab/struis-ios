@@ -104,11 +104,14 @@ nonisolated struct TimelineCostSummary: Equatable, Sendable {
 
     var models: [Model]
 
+    /// タイムラインの費用に数えるターン。採点・出題・見直しに加え、答えの読み取り(#101。先頭を共有しない別の依頼)と、
+    /// 2026-11-09 に採点へまとめる前の赤ペンだけのターン(`timeline_marks`。もう走らないが、記録に残った費用は数える)。
+    static let countedKinds: Set<String> = ClaudeTranslation.tutorKinds.union([TurnPlan.Kind.timelineAnswer.rawValue, "timeline_marks"])
+
     static func summarize(_ turns: [Turn]) -> TimelineCostSummary {
         var byModel: [String: Model] = [:]
         var answered: [String: Set<String>] = [:]
-        // 答えの読み取り(#101)は採点・出題・見直しと先頭を共有しない別の依頼だが、タイムラインの費用には数える。
-        for turn in turns where ClaudeTranslation.tutorKinds.contains(turn.kind) || turn.kind == TurnPlan.Kind.timelineAnswer.rawValue {
+        for turn in turns where countedKinds.contains(turn.kind) {
             // 同じ実行は進行中・完了の順に記録される。実行ごとに最後の記録だけを数える。
             var latest: [String: LedgerJSON] = [:]
             var order: [String] = []
