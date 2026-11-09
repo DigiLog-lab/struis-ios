@@ -252,6 +252,78 @@ nonisolated enum TimelineTurns {
         )
     }
 
+    // MARK: - 答えの読み取り(Issue #101)
+
+    /// 答えの読み取りで ○ にした答案のメモ(今日の記録に載り、見直し・出題が読む)。
+    static let answerOnlyNote = "最後の答えを正しい答えの式と照合して ○ にしました。途中の行は読んでいません。"
+
+    /// 写真の答案を最初に回すターン: 正しい答えの式があるふつうの問題は答えの読み取り、それ以外はいつもの採点。
+    static func firstGradingKind(for card: TimelineCardRecord) -> TurnPlan.Kind {
+        card.kind == TimelineCards.Kind.solve.rawValue && !card.answerExpr.isEmpty ? .timelineAnswer : .timelineGrading
+    }
+
+    /// 答えの読み取りの返事。
+    nonisolated struct AnswerRead: Codable, Sendable {
+        var readable: Bool
+        var learnerAnswer: String
+        enum CodingKeys: String, CodingKey {
+            case readable
+            case learnerAnswer = "learner_answer"
+        }
+        init(readable: Bool, learnerAnswer: String) {
+            self.readable = readable
+            self.learnerAnswer = learnerAnswer
+        }
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            readable = try c.decodeIfPresent(Bool.self, forKey: .readable) ?? false
+            learnerAnswer = try c.decodeIfPresent(String.self, forKey: .learnerAnswer) ?? ""
+        }
+        static func parse(_ text: String) throws -> AnswerRead {
+            try TimelineReply.decode(AnswerRead.self, from: text)
+        }
+    }
+
+    /// 答えの読み取りの材料: 何を答える問題かだけ。正しい答えは渡さない(読み取りが正しい答えに引っ張られないように)。
+    static func answerRequest(attempt: TimelineAttemptRecord, card: TimelineCardRecord) -> LedgerJSON {
+        .object([
+            "attempt_id": .string(attempt.id),
+            "problem": .string(card.payload["problem"]?.stringValue ?? card.prompt), "math": .string(card.math), "question": .string(card.question),
+        ])
+    }
+
+    /// 答えの読み取りのターン。採点・出題・見直しとは先頭を共有しない短い依頼(今日の記録も道具も付けない)で、考える深さは
+    /// いちばん浅くする。待ち時間は、考える分と書き起こし・メモ・コメントを書く分が無くなる。
+    static func answer(composer: TurnComposer, planID: String, attemptID: String, timeline: TimelineMachine) async throws -> TurnPlan {
+        guard let attempt = timeline.attempts[attemptID], let card = timeline.cards[attempt.cardId], let path = attempt.capturePath else {
+            throw LedgerError.notFound("timeline attempt")
+        }
+        let ext = (path as NSString).pathExtension.isEmpty ? "jpg" : (path as NSString).pathExtension
+        let image = TurnPlan.ImageRef(path: "tutor_desk/inbox/timeline/\(attemptID).\(ext)", hostPath: StruisPaths.captures.appendingPathComponent(path).path,
+                                      maxDimension: TimelineCaptureImage.requestMaxDimension)
+        let model = await composer.assets.model(TimelineModels.role)
+        let effort = "low"
+        let thread = TurnPlan.ThreadSpec(
+            codexThreadID: nil, mode: .start, cwd: TurnPlan.guestWorkspace(id: planID), model: model.model, effort: effort,
+            ephemeral: true, baseInstructions: try await composer.assets.ref("prompt:timeline_answer_instructions"), developerInstructions: nil,
+            developerText: "Answer only with one JSON object matching the supplied output schema.",
+            injectDeveloperOnResume: false, config: TurnComposer.structuredConfig(effort: effort), lastTurnID: nil,
+            provider: model.provider
+        )
+        return TurnPlan(
+            id: planID, kind: .timelineAnswer, round: 1, thread: thread,
+            turn: TurnPlan.TurnSpec(text: TurnComposer.dump(answerRequest(attempt: attempt, card: card)), images: [image],
+                                    outputSchema: try await composer.assets.json("schema:timeline_answer"), sandboxPolicy: "dangerFullAccess"),
+            workspace: workspace, delegation: nil, collect: [], limits: .structured
+        )
+    }
+
+    /// 読み取った答えが正しい答えの式と一致したか。読めない・式として比べられない・一致しない時は nil か false。
+    static func answerMatches(_ read: AnswerRead, card: TimelineCardRecord) -> Bool {
+        guard read.readable else { return false }
+        return TimelineCards.gradeWritten(card, learnerExpr: read.learnerAnswer) == true
+    }
+
     // MARK: - 赤ペン
 
     /// 赤ペンを入れる答案か: 書く面に書いた答案で、誤答か答えは合うが途中に誤り(2026-10-29。紙を撮った答案には付けない)。
@@ -485,6 +557,8 @@ nonisolated enum TimelineTurns {
         var nextGraph: String?
         /// 結果を出した後に、生徒が次の問題を解いている間に見直す答案。
         var review: String?
+        /// 答えの読み取りで ○ にできなかった答案(続けていつもの採点に回す)。
+        var grading: String?
     }
 
     static func apply(kind: TurnPlan.Kind, targetID: String, outcome: TurnOutcome, model: String, db: Database) throws -> (events: [LedgerEvent], followUp: FollowUp) {
@@ -536,12 +610,21 @@ nonisolated enum TimelineTurns {
             }
             let result = timeline.applyGrading(attemptID: targetID, grading: grading)
             if result.verdict == "correct" || result.verdict == "wrong" { followUp.review = targetID }
-            if result.countsForUnitHome, let card = timeline.cards[attempt.cardId], let subunitID = card.subunitId {
-                var workbook = try WorkbookMachine(loading: db)
-                workbook.recordTimelineAttempt(subunitID: subunitID, prompt: [card.prompt, card.math].filter { !$0.isEmpty }.joined(separator: " "),
-                                               answerKey: card.answerKey, checkpoints: card.checkpoints, verdict: result.verdict, attemptID: targetID)
-                extra = workbook.events
+            extra = try unitHomeEvents(result: result, attempt: attempt, timeline: timeline, db: db)
+        case .timelineAnswer:
+            // 答えだけを読んで、正しい答えの式と一致すれば ○(途中は読まない)。それ以外は、失敗も含めていつもの採点に回す
+            // (字が読めない・答えが違う・式として比べられないの判断は、いつもの採点に任せる)。見直しは頼まない: 途中を疑うのは、
+            // 同じスキルで × が出て、その採点の後の見直しが手順の誤りを見つけた時だけ(timeline_shared.md「起こり得ること」)。
+            guard let attempt = timeline.attempts[targetID], attempt.verdict == "grading", let card = timeline.cards[attempt.cardId] else { return ([], followUp) }
+            guard outcome.status == .completed, let read = try? AnswerRead.parse(outcome.finalText), answerMatches(read, card: card) else {
+                if outcome.status != .completed { timelineTurnLog.error("timeline answer failed: \(outcome.error ?? "-", privacy: .public)") }
+                followUp.grading = targetID
+                break
             }
+            var grading = TimelineMachine.Grading(grade: "correct", learnerAnswer: read.learnerAnswer, skillIds: nil, notes: answerOnlyNote)
+            grading.learnerExpr = read.learnerAnswer
+            let result = timeline.applyGrading(attemptID: targetID, grading: grading, markAllSkills: true)
+            extra = try unitHomeEvents(result: result, attempt: attempt, timeline: timeline, db: db)
         case .timelineReview:
             guard timeline.attempts[targetID] != nil else { return ([], followUp) }
             guard outcome.status == .completed else {
@@ -614,6 +697,15 @@ nonisolated enum TimelineTurns {
         // このターンの中でモデルが `struis.timeline_descend` で出した依頼: ターンが終わった後に続けて頼む。
         if followUp.nextGraph == nil { followUp.nextGraph = try unstartedDescend(timeline: timeline, excluding: targetID, db: db) }
         return (timeline.events + extra, followUp)
+    }
+
+    /// 単元ホームの合格に数える答案なら、単元ホームの台帳にも書く。
+    private static func unitHomeEvents(result: TimelineMachine.GradingOutcome, attempt: TimelineAttemptRecord, timeline: TimelineMachine, db: Database) throws -> [LedgerEvent] {
+        guard result.countsForUnitHome, let card = timeline.cards[attempt.cardId], let subunitID = card.subunitId else { return [] }
+        var workbook = try WorkbookMachine(loading: db)
+        workbook.recordTimelineAttempt(subunitID: subunitID, prompt: [card.prompt, card.math].filter { !$0.isEmpty }.joined(separator: " "),
+                                       answerKey: card.answerKey, checkpoints: card.checkpoints, verdict: result.verdict, attemptID: attempt.id)
+        return workbook.events
     }
 
     /// 1段下りる依頼のうち、まだターンを始めていないもの(古い順の最初)。
@@ -691,7 +783,7 @@ nonisolated enum TimelineTurns {
         var timeline = try TimelineMachine(loading: db)
         switch kind {
         case .timelineBatch, .timelineGraph: timeline.failBatch(id: targetID, error: error)
-        case .timelineGrading: timeline.failGrading(attemptID: targetID)
+        case .timelineGrading, .timelineAnswer: timeline.failGrading(attemptID: targetID)
         default: break
         }
         return timeline.events
@@ -699,6 +791,7 @@ nonisolated enum TimelineTurns {
 
     static func isTimeline(_ kind: TurnPlan.Kind) -> Bool {
         kind == .timelineBatch || kind == .timelineGrading || kind == .timelineGraph || kind == .timelineReview || kind == .timelineMarks
+            || kind == .timelineAnswer
     }
 }
 

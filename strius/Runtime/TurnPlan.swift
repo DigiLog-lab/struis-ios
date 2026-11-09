@@ -14,6 +14,9 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
         /// 学習タイムライン(Issue #46): 次の5枚、採点、知識グラフを作る・見直す。
         case timelineBatch = "timeline_batch"
         case timelineGrading = "timeline_grading"
+        /// 写真の答案の最後の答えだけを読む短いターン(Issue #101)。正しい答えの式と一致すれば、途中は読まずに ○ にする。
+        /// 一致しなければ `timelineGrading` に回す。
+        case timelineAnswer = "timeline_answer"
         case timelineGraph = "timeline_graph"
         case timelineReview = "timeline_review"
         /// 誤答の結果の画面で、書く面に書いた答案に赤ペンを入れる(2026-10-29)。

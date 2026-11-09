@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """The web Claude's side of the Dev Box: `mac.py run -- <command>` runs <command> on the macOS runner.
 
-Each command is its own branch `devbox-cmd/<id>` and its result its own branch `devbox-out/<id>`
-(scripts/devbox/serve.sh). Both are watched with `git ls-remote`, from the clone of this repository. A
-result stays readable for an hour after it finished (`mac.py wait <id>`); the Dev Box deletes it then.
+Each work branch has its own Dev Box, so several run at once (one per branch). The Dev Box of a branch is
+named by box_key(branch); each command is its own branch `devboxes/<key>/cmd/<id>` and its result its own
+branch `devboxes/<key>/out/<id>` (scripts/devbox/serve.sh). Both are watched with `git ls-remote`, from the
+clone of this repository. A result stays readable for an hour after it finished (`mac.py wait <id>`); the
+Dev Box deletes it then.
+
+Commands go to the Dev Box of the branch checked out in the current directory, or of --branch / DEVBOX_BRANCH.
 
     mac.py start <branch>                                # starts a Dev Box for <branch> (main's devbox.yml)
-    mac.py ready --branch <branch>                       # waits until a Dev Box of <branch> waits for commands
+    mac.py ready                                         # waits until the Dev Box of the branch waits for commands
     mac.py run -- xcodebuild test-without-building ...   # waits, prints the log tail, exits with its code
     mac.py run -- 'xcrun simctl io booted screenshot "$DEVBOX_FILES/home.png"'
     mac.py run --async -- <command>                      # prints the id and returns
@@ -20,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import hashlib
 import json
 import os
 import pathlib
@@ -29,9 +34,36 @@ import sys
 import time
 import uuid
 
-CMD_PREFIX: str = "refs/heads/devbox-cmd/"
-OUT_PREFIX: str = "refs/heads/devbox-out/"
+BOXES_PREFIX: str = "refs/heads/devboxes/"
 REPOSITORY: str = "DigiLog-lab/struis-ios"
+
+
+def box_key(branch: str) -> str:
+    """The name of the branch's Dev Box in its branches (serve.sh box_key): the first 12 hex digits of SHA-1."""
+    return hashlib.sha1(branch.encode("utf-8")).hexdigest()[:12]
+
+
+@dataclasses.dataclass(frozen=True)
+class Box:
+    branch: str
+    cmd_prefix: str
+    out_prefix: str
+
+    @staticmethod
+    def of(branch: str) -> Box:
+        root: str = f"{BOXES_PREFIX}{box_key(branch)}/"
+        return Box(branch=branch, cmd_prefix=root + "cmd/", out_prefix=root + "out/")
+
+
+def current_branch() -> str:
+    """--branch's default: DEVBOX_BRANCH, or the branch checked out here."""
+    named: str = os.environ.get("DEVBOX_BRANCH", "")
+    if named:
+        return named
+    try:
+        return git("symbolic-ref", "--quiet", "--short", "HEAD")
+    except subprocess.CalledProcessError:
+        raise SystemExit("mac: no branch checked out here; pass --branch <work branch> or set DEVBOX_BRANCH")
 
 
 @dataclasses.dataclass(frozen=True)
@@ -70,11 +102,11 @@ def new_id(suffix: str = "") -> str:
     return f"{second}-{int(now % 1 * 1_000_000):06d}-{uuid.uuid4().hex[:6]}{suffix}"
 
 
-def send(command: str, command_id: str) -> None:
+def send(box: Box, command: str, command_id: str) -> None:
     blob: str = git("hash-object", "-w", "--stdin", input_text=command + "\n")
     tree: str = git("mktree", input_text=f"100644 blob {blob}\tcmd.sh\n")
     commit: str = git("commit-tree", tree, "-m", f"devbox command {command_id}")
-    git("push", "-q", "origin", f"{commit}:{CMD_PREFIX}{command_id}")
+    git("push", "-q", "origin", f"{commit}:{box.cmd_prefix}{command_id}")
 
 
 def read_result(sha: str, destination: pathlib.Path | None) -> Result:
@@ -117,20 +149,17 @@ def read_result(sha: str, destination: pathlib.Path | None) -> Result:
     )
 
 
-def wait(name: str, timeout: float, poll: float, want: str, quiet: bool, branch: str | None = None) -> Result:
-    """Waits until devbox-out/<name> shows the state `want` ("done" or "ready").
-
-    For "ready", a branch makes it wait for a Dev Box of that branch: another Dev Box may still be running
-    (one at a time; a new one waits behind it), and commands sent to it would run on its branch."""
+def wait(box: Box, name: str, timeout: float, poll: float, want: str, quiet: bool) -> Result:
+    """Waits until devboxes/<key>/out/<name> shows the state `want` ("done" or "ready")."""
     deadline: float = time.monotonic() + timeout
     seen: str = ""
     printed_line: str = ""
     while time.monotonic() < deadline:
-        sha: str = remote_sha(OUT_PREFIX + name)
+        sha: str = remote_sha(box.out_prefix + name)
         if sha and sha != seen:
             seen = sha
             result: Result = read_result(sha, None)
-            if result.state == want and (branch is None or result.times.get("branch") == branch):
+            if result.state == want and (want != "ready" or result.times.get("branch") == box.branch):
                 if want == "done":
                     # The Dev Box deletes the branch an hour later; this token cannot delete branches.
                     result = read_result(sha, pathlib.Path("devbox-out") / name)
@@ -170,23 +199,25 @@ def main(argv: list[str]) -> int:
     wait_parser.add_argument("--timeout", type=float, default=540.0)
     ready = sub.add_parser("ready")
     ready.add_argument("--timeout", type=float, default=600.0)
-    ready.add_argument("--branch", help="wait for a Dev Box of this branch (the one `start` asked for)")
-    sub.add_parser("stop")
-    sub.add_parser("kill")
+    stop_parser = sub.add_parser("stop")
+    kill_parser = sub.add_parser("kill")
+    for sub_parser in (run, wait_parser, ready, stop_parser, kill_parser):
+        sub_parser.add_argument("--branch", help="the work branch whose Dev Box to use (default: the branch here)")
     args = parser.parse_args(argv)
 
     if args.action == "start":
         start(args.branch, args.idle_minutes)
-        print(f"Dev Box requested for {args.branch}; `mac.py ready --branch {args.branch}` waits for it",
-              file=sys.stderr)
+        print(f"Dev Box requested for {args.branch} (devboxes/{box_key(args.branch)});"
+              f" `mac.py ready --branch {args.branch}` waits for it", file=sys.stderr)
         return 0
+    box: Box = Box.of(args.branch or current_branch())
     if args.action == "ready":
-        result: Result = wait("ready", args.timeout, 3.0, "ready", True, args.branch)
+        result: Result = wait(box, "ready", args.timeout, 3.0, "ready", True)
         print("ready: " + " ".join(f"{key}={value}" for key, value in result.times.items()))
         return 0
     if args.action in ("stop", "kill"):
         control_id: str = new_id(f"-{args.action}")
-        send("", control_id)
+        send(box, "", control_id)
         print(control_id)
         return 0
     sent: float = time.time()
@@ -198,12 +229,12 @@ def main(argv: list[str]) -> int:
             parser.error("no command")
         command: str = words[0] if len(words) == 1 else shlex.join(words)
         command_id = new_id()
-        send(command, command_id)
+        send(box, command, command_id)
         if args.run_async:
             print(command_id)
             return 0
         print(f"[devbox {command_id} sent]", file=sys.stderr, flush=True)
-    result = wait(command_id, args.timeout, 2.0, "done", False)
+    result = wait(box, command_id, args.timeout, 2.0, "done", False)
     print(result.log_tail)
     times: dict[str, str] = result.times
     if args.action == "run" and times.get("started", "").isdigit() and times.get("finished", "").isdigit():

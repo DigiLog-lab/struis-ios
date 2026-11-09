@@ -1,18 +1,21 @@
 #!/bin/bash
 # Dev Box: runs the commands the web Claude sends, on this macOS runner (docs/development-method.md).
 #
-# Each command is its own branch `devbox-cmd/<id>` (files `cmd.sh`); its result is its own branch
-# `devbox-out/<id>` (files `id`, `state`, `exit`, `times`, `log.tail.txt`, `log.txt.gz` and whatever the
+# Each work branch has its own Dev Box and its own branches `devboxes/<key>/...`, <key> being the first 12
+# hex digits of the SHA-1 of the work branch's name (box_key, the same as scripts/devbox/mac.py): several Dev
+# Boxes run at once, one per work branch, and each runs only the commands sent for its branch.
+# Each command is its own branch `devboxes/<key>/cmd/<id>` (files `cmd.sh`); its result is its own branch
+# `devboxes/<key>/out/<id>` (files `id`, `state`, `exit`, `times`, `log.tail.txt`, `log.txt.gz` and whatever the
 # command put in "$DEVBOX_FILES"), force-pushed while it runs. One branch per command, so a command sent
 # while another waits, or a result finished right after another, never overwrites it. Ids start with the
 # time (scripts/devbox/mac.py), so sorting the names runs commands in the order they were sent. Only the
 # server deletes branches (the web Claude's token cannot: a deleting push is refused with 403, 2026-11-07):
 # a command's branch when it takes it, a result's branch DEVBOX_KEEP_RESULTS_SECONDS after it finished, and
-# results left by an earlier Dev Box when it starts.
+# results left by Dev Boxes that have ended when it starts.
 # Branches are watched with `git ls-remote`, which does not count against the REST API limit of
 # GITHUB_TOKEN (1,000 requests an hour per repository).
 #
-# `devbox-out/ready` says that this Dev Box is waiting for commands; it is deleted when the server ends.
+# `devboxes/<key>/out/ready` says that this Dev Box is waiting for commands; it is deleted when the server ends.
 #
 # Before each command the work tree is moved to the latest commit of DEVBOX_WORK_BRANCH, so a build after a
 # push is incremental (DerivedData lives outside the work tree). Run a copy of this script from outside the
@@ -27,8 +30,17 @@
 set -uo pipefail
 
 : "${DEVBOX_WORK_BRANCH:?}"
-CMD_PREFIX=refs/heads/devbox-cmd/
-OUT_PREFIX=refs/heads/devbox-out/
+# box_key BRANCH: the name of BRANCH's Dev Box in its branches (scripts/devbox/mac.py box_key).
+box_key() {
+  if command -v shasum >/dev/null 2>&1; then printf '%s' "$1" | shasum -a 1; else printf '%s' "$1" | sha1sum; fi | cut -c1-12
+}
+BOXES_PREFIX=refs/heads/devboxes/
+KEY=$(box_key "$DEVBOX_WORK_BRANCH")
+[[ "$KEY" =~ ^[0-9a-f]{12}$ ]] || { echo "::error::devbox: no key for $DEVBOX_WORK_BRANCH"; exit 1; }
+CMD_PREFIX=$BOXES_PREFIX$KEY/cmd/
+OUT_PREFIX=$BOXES_PREFIX$KEY/out/
+# Results of the Dev Box before 2026-11-09, when there was one Dev Box at a time: cleaned up like the others.
+LEGACY_OUT_PREFIX=refs/heads/devbox-out/
 IDLE=${DEVBOX_IDLE_SECONDS:-900}
 POLL=${DEVBOX_POLL_SECONDS:-3}
 DEADLINE=${DEVBOX_DEADLINE_EPOCH:-$(( $(date +%s) + 19800 ))}
@@ -41,13 +53,67 @@ mkdir -p "$STATE"
 export GIT_AUTHOR_NAME=devbox GIT_AUTHOR_EMAIL=devbox@users.noreply.github.com
 export GIT_COMMITTER_NAME=devbox GIT_COMMITTER_EMAIL=devbox@users.noreply.github.com
 
-# publish DIR NAME MESSAGE: one commit holding exactly DIR's files, force-pushed to devbox-out/NAME.
+# redact FILE...: replaces the secret in DEVBOX_REDACT_FILE (the Anthropic API key, devbox.yml) with
+# `[redacted]` in place. Used on the whole log after the command ended, before it is compressed. The key is
+# read by perl from the file, so it never appears on a command line.
+redact() {
+  [[ -n "${DEVBOX_REDACT_FILE:-}" && -s "$DEVBOX_REDACT_FILE" ]] || return 0
+  perl -0777 -pi -e 'BEGIN { open(my $f, "<", $ENV{DEVBOX_REDACT_FILE}) or die; local $/; $k = <$f>; $k =~ s/\s+\z//; }
+                     s/\Q$k\E/[redacted]/g if length $k;' "$@"
+}
+
+# redact_tree DIR: the same for every file under DIR (a snapshot about to be published). A compressed file
+# (gzip, zip, bzip2...) whose content holds the key cannot be edited in place, so it is replaced by a note.
+redact_tree() {
+  [[ -n "${DEVBOX_REDACT_FILE:-}" && -s "$DEVBOX_REDACT_FILE" ]] || return 0
+  perl -e '
+    use strict; use warnings; use File::Find;
+    use IO::Uncompress::AnyUncompress qw(anyuncompress);
+    open(my $f, "<", $ENV{DEVBOX_REDACT_FILE}) or die "key file: $!";
+    my $key = do { local $/; <$f> }; $key =~ s/\s+\z//;
+    exit 0 unless length $key;
+    find({ no_chdir => 1, wanted => sub {
+      return unless -f $_ && !-l $_;
+      my $path = $_;
+      open(my $in, "<:raw", $path) or die "$path: $!";
+      my $data = do { local $/; <$in> }; close $in;
+      $data = "" unless defined $data;
+      my $inflated;
+      my $changed = 0;
+      if (anyuncompress(\$data => \$inflated, MultiStream => 1, Transparent => 0) && defined $inflated && index($inflated, $key) >= 0) {
+        $data = "[redacted: this compressed file held the Anthropic API key]\n";
+        $changed = 1;
+      } elsif ($data =~ s/\Q$key\E/[redacted]/g) {
+        $changed = 1;
+      }
+      return unless $changed;
+      open(my $out, ">:raw", $path) or die "$path: $!";
+      print {$out} $data or die "$path: $!";
+      close $out or die "$path: $!";
+    } }, $ARGV[0]);
+  ' "$1"
+}
+
+# publish DIR NAME MESSAGE: one commit holding exactly DIR's files, force-pushed to devboxes/<key>/out/NAME.
+# What is pushed is a copy of DIR with the secret redacted (redact_tree): results are pushed to branches of a
+# public repository, so nothing leaves this runner without going through it. The copy leaves the files a
+# running command still writes untouched (rewriting them in place would cut off what it writes later).
 publish() {
-  local dir=$1 name=$2 message=$3 tree commit
+  local dir=$1 name=$2 message=$3 tree commit snapshot=$STATE/publish-snapshot
+  rm -rf "$snapshot"
+  # The copy is made writable (a command may leave read-only files or folders), and redact_tree stops with an
+  # error on any file it cannot rewrite: a file it could not redact is never published.
+  if ! cp -R "$dir" "$snapshot" || ! chmod -R u+rwX "$snapshot" || ! redact_tree "$snapshot"; then
+    rm -rf "$snapshot"
+    echo "::warning::devbox: could not redact $name; not published"
+    return 1
+  fi
+  dir=$snapshot
   rm -f "$STATE/index"
   tree=$(export GIT_INDEX_FILE="$STATE/index"
          git read-tree --empty && git --work-tree="$dir" add -A -f . && git write-tree) || return 1
   commit=$(git commit-tree "$tree" -m "$message") || return 1
+  rm -rf "$snapshot"
   for attempt in 1 2 3; do
     git push -q --force origin "$commit:$OUT_PREFIX$name" && return 0
     sleep $(( attempt * 2 ))
@@ -129,21 +195,35 @@ cleanup_finished() {
   mv "$rest" "$finished_list"
 }
 
-# Results left by an earlier Dev Box, KEEP_RESULTS after they finished (their `times`). A result that never
-# finished (its Dev Box ended while it ran) goes by the time in its id. One fetch of every result and one push
-# that deletes them all: a fetch and a push per branch took minutes at start (2026-11-07).
+# Results left by earlier Dev Boxes, KEEP_RESULTS after they finished (their `times`): this branch's earlier
+# Dev Boxes, those of other branches that have ended (no `ready`; a running one deletes its own), and the
+# single Dev Box before 2026-11-09. A result that never finished (its Dev Box ended while it ran) goes by the
+# time in its id. One fetch of every result and one push that deletes them all: a fetch and a push per branch
+# took minutes at start (2026-11-07).
 cleanup_old_results() {
-  local now ref id sha finished stamp when i
-  local -a shas=() refs=() old=()
+  local now ref id sha finished stamp when i box listing
+  local -a shas=() refs=() old=() live=()
   now=$(date +%s)
+  listing=$(git ls-remote origin "${BOXES_PREFIX}*" "${LEGACY_OUT_PREFIX}*") || return 0
   while read -r sha ref; do
-    [[ "${ref#"$OUT_PREFIX"}" == ready ]] && continue
+    [[ "$ref" == "$BOXES_PREFIX"*/out/ready && "$ref" != "${OUT_PREFIX}ready" ]] || continue
+    box=${ref#"$BOXES_PREFIX"}; live+=("${box%%/*}")
+  done <<< "$listing"
+  while read -r sha ref; do
+    [[ -n "$ref" ]] || continue
+    id=${ref##*/}
+    [[ "$id" == ready ]] && continue
+    if [[ "$ref" == "$BOXES_PREFIX"* ]]; then
+      box=${ref#"$BOXES_PREFIX"}
+      [[ "${box#*/}" == out/* ]] || continue
+      [[ " ${live[*]-} " == *" ${box%%/*} "* ]] && continue
+    fi
     shas+=("$sha"); refs+=("$ref")
-  done < <(git ls-remote origin "${OUT_PREFIX}*")
+  done <<< "$listing"
   (( ${#refs[@]} )) || return 0
   git fetch -q --depth 1 origin "${shas[@]}" 2>/dev/null || true
   for i in "${!refs[@]}"; do
-    sha=${shas[$i]}; ref=${refs[$i]}; id=${ref#"$OUT_PREFIX"}
+    sha=${shas[$i]}; ref=${refs[$i]}; id=${ref##*/}
     finished=$(git show "$sha:times" 2>/dev/null | sed -n 's/^finished=\([0-9]*\)$/\1/p')
     if [[ -n "$finished" ]]; then
       when=$finished
@@ -165,7 +245,7 @@ cleanup_old_results
 ready=$STATE/ready
 mkdir -p "$ready"
 status "$ready" "ready" ready
-{ echo "run=${GITHUB_RUN_ID:-local}"; echo "branch=$DEVBOX_WORK_BRANCH"; echo "ready=$(date +%s)"
+{ echo "run=${GITHUB_RUN_ID:-local}"; echo "branch=$DEVBOX_WORK_BRANCH"; echo "key=$KEY"; echo "ready=$(date +%s)"
   [[ -f "$STATE/warm.txt" ]] && cat "$STATE/warm.txt"; } > "$ready/times"
 publish "$ready" ready "devbox ready"
 
@@ -258,6 +338,7 @@ while :; do
   wait "$pid"; code=$?
   finished=$(date +%s)
   echo "finished=$finished" >> "$out/times"
+  redact "$log" || : > "$log"
   tail -n 400 "$log" > "$out/log.tail.txt"
   gzip -c "$log" > "$out/log.txt.gz"
   status "$out" "$id" done "$code"

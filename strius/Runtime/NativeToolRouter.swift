@@ -33,7 +33,8 @@ actor NativeToolRouter {
     /// 答案の写真を元の解像度で見る `timeline_view_capture` を足す
     /// (採点・出題・見直しで同じ定義にして、キャッシュの先頭を揃える)。
     nonisolated static func definitions(for kind: TurnPlan.Kind) -> [JSONObject] {
-        guard TimelineTurns.isTimeline(kind) else { return definitions }
+        // 答えの読み取り(Issue #101)は台帳も答案の拡大も使わない(速さのため道具を足さない)。
+        guard TimelineTurns.isTimeline(kind), kind != .timelineAnswer else { return definitions }
         var namespace = definitions[0]
         namespace["tools"] = (namespace["tools"] as? [JSONObject] ?? []) + [TimelineGraph.toolDefinition] + TimelineGraph.writeToolDefinitions + [TimelineCaptureImage.toolDefinition]
         return [namespace]
