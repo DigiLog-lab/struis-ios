@@ -23,6 +23,10 @@ nonisolated enum TurnRuntimeError: Error, LocalizedError, Sendable {
         case .closed: "AI が途中で止まりました。もう一度送ってください。"
         case .malformed: "AI の返事を読み取れませんでした。もう一度送ってください。"
         case .interrupted: "停止しました。"
+        case .turnFailed(let detail) where detail.contains(UsageLimitResponse.consentCode):
+            "利用規約への同意が必要です。アプリを開き直して、同意の画面で確かめてください。"
+        case .turnFailed(let detail) where detail.contains(UsageLimitResponse.code) && detail.contains(UsageLimitResponse.noPlanCode):
+            "お試しの3問を使い切りました。続けるには、設定の「利用枠」でプランを選んでください。"
         case .turnFailed(let detail) where detail.contains(UsageLimitResponse.code):
             "今週の利用枠を使い切りました。設定の「利用枠」で、戻る日時とプランを確かめてください。"
         case .turnFailed:

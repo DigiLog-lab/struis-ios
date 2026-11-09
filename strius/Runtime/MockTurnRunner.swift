@@ -62,6 +62,8 @@ actor MockTurnRunner: TurnRunning {
         case .threadFork: text = ""
         case .timelineBatch: text = Self.json(Self.timelineBatch(request, round: counter))
         case .timelineGrading: text = Self.json(Self.timelineGrading(request))
+        // 答えの読み取り(#101): 依頼に正しい答えが無いので読めなかったことにし、いつもの採点(上のモック)に回す。
+        case .timelineAnswer: text = Self.json(["readable": false, "learner_answer": ""])
         case .timelineGraph: text = Self.json(Self.timelineGraph(request))
         case .timelineReview: text = Self.json(["skill_results": [], "notes": ""])
         case .timelineMarks: text = Self.json(Self.timelineMarks(request))

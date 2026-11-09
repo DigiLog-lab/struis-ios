@@ -23,6 +23,8 @@ struct WorkbookQuestionScreen: View {
                 onProposalStarted: { started in openFirstSubunit(started) }
             )
         }
+        // 質問・単元づくりが利用枠で止まったら、案内を出す(止まった返事の吹き出しにも理由が残る)。
+        .usageLimitGuide([.chat])
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }

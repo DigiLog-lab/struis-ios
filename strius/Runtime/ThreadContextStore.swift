@@ -84,6 +84,12 @@ nonisolated final class ThreadContextStore: @unchecked Sendable {
         persist(snapshot)
     }
 
+    /// 学習記録をまとめて消した(#78): 全部の会話の控えを消す。
+    func removeAll() {
+        lock.withLock { entries = [:] }
+        persist([:])
+    }
+
     func entry(_ threadID: String) -> Entry? {
         lock.withLock { entries[threadID] }
     }

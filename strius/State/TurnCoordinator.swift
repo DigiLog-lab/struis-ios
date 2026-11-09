@@ -79,6 +79,8 @@ actor TurnCoordinator {
     /// (2026-10-24: 返らないターンで採点・グラフ・会話が全部止まった)。会話と単元ホームの判定は今のまま(上限なし)。
     static let defaultTimeLimits: [String: Duration] = [
         TurnPlan.Kind.timelineGrading.rawValue: .seconds(90),
+        // 答えの読み取り(#101)。超えたら失敗として、いつもの採点に回す。
+        TurnPlan.Kind.timelineAnswer.rawValue: .seconds(45),
         TurnPlan.Kind.timelineBatch.rawValue: .seconds(180),
         TurnPlan.Kind.timelineGraph.rawValue: .seconds(180),
         TurnPlan.Kind.timelineReview.rawValue: .seconds(180),
@@ -133,6 +135,28 @@ actor TurnCoordinator {
         try? await runner.forgetThreads(codexIDs)
         ThreadContextStore.shared.remove(codexIDs)
         return fact
+    }
+
+    /// 学習記録をまとめて消す前(#78): 動いているターン・枠を待っているターン・先回りを全部止めて、終わるのを待つ。
+    /// 止めたターンが書く失敗の行も、この後の消去で消える。
+    func stopEverything() async {
+        let turnIDs = Array(running.keys)
+        let tasks = Array(running.values)
+        for turnID in turnIDs {
+            stoppedBeforeStart.insert(turnID)
+            await runner.interrupt(planID: turnID)
+        }
+        wakeWaiters()
+        for (subunit, prefetch) in examplePrefetches {
+            await runner.interrupt(planID: prefetch.state.turnID)
+            discardExamplePrefetch(subunitID: subunit)
+        }
+        for message in Array(unitPrefetches.keys) { await discardUnitPrefetch(messageID: message) }
+        for task in tasks { await task.value }
+        for task in examplePrefetchTasks.values { await task.value }
+        examplePrefetchTasks = [:]
+        examplePrefetches = [:]
+        adoptionWaits = []
     }
 
     var composer: TurnComposer { TurnComposer(assets: assets) }
@@ -320,6 +344,10 @@ actor TurnCoordinator {
             return (try await composer.set(planID: turnID, machine: machine, setID: targetID, avoidExpressions: avoid), nil)
         case .workbookUnit:
             return (try await composer.unit(planID: turnID, machine: machine, proposalID: targetID), nil)
+        case .timelineAnswer:
+            // 答えの読み取りは今日の記録を使わない(先頭を共有しない短い依頼)。
+            let timeline: TimelineMachine = try await ledger.read { db in try TimelineMachine(loading: db) }
+            return (try await TimelineTurns.answer(composer: composer, planID: turnID, attemptID: targetID, timeline: timeline), nil)
         case .timelineBatch, .timelineGrading, .timelineGraph, .timelineReview, .timelineMarks:
             // 採点・出題・見直しは、組む前に今日の記録の足りない分(その日最初の単元とスキルの一覧・変わった分)を書く。
             let timeline: TimelineMachine = kind == .timelineGraph
@@ -440,7 +468,7 @@ actor TurnCoordinator {
         switch kind {
         case .timelineGraph: return "学ぶ順番の地図づくり"
         case .timelineReview: return "前の答案の見直し"
-        case .timelineGrading, .workbookGrading: return "答案の採点"
+        case .timelineGrading, .timelineAnswer, .workbookGrading: return "答案の採点"
         case .timelineMarks: return "赤ペン"
         case .timelineBatch: return "別の問題づくり"
         case .workbookSet: return "単元の問題づくり"
@@ -633,7 +661,8 @@ actor TurnCoordinator {
                         turn.completedAt = LedgerClock.now()
                         events.append(.upsert("turn.\(outcome.status.rawValue)", turn))
                     }
-                    return (events, TurnApplier.FollowUp(retryTimeline: applied.followUp.retry, timelineRepair: applied.followUp.repair, nextTimelineGraph: applied.followUp.nextGraph, nextTimelineReview: applied.followUp.review))
+                    return (events, TurnApplier.FollowUp(retryTimeline: applied.followUp.retry, timelineRepair: applied.followUp.repair, nextTimelineGraph: applied.followUp.nextGraph,
+                                                         nextTimelineReview: applied.followUp.review, nextTimelineGrading: applied.followUp.grading))
                 }
                 var machine = try WorkbookMachine(loading: db)
                 switch plan.kind {
@@ -677,6 +706,8 @@ actor TurnCoordinator {
             // 返事が決まった形に合わなかった: 理由を添えて、同じ中身でもう 1 回だけ頼む(先頭はキャッシュの読み込みで済む)。
             // 頼み直しの行を書いてから終わりを知らせる(赤ペンの「入れています」が頼み直しの間に消えないように)。
             if followUp.retryTimeline, let targetID { await start(kind: plan.kind, targetID: targetID, prefetch: wasPrefetch, repair: followUp.timelineRepair) }
+            // 答えの読み取りで ○ にできなかった: いつもの採点に回す(終わりを知らせる前に行を書き、採点中の表示を途切れさせない)。
+            if let next = followUp.nextTimelineGrading { await start(kind: .timelineGrading, targetID: next, prefetch: wasPrefetch) }
             notify(Notice(turnID: turnID, kind: plan.kind, targetID: targetID, status: outcome.status.rawValue))
             // 次の段・よくある勘違い・1段下りる: 学習者が待っていない先回りとして続けて頼む。
             if let next = followUp.nextTimelineGraph { await start(kind: .timelineGraph, targetID: next, prefetch: true) }
@@ -832,7 +863,7 @@ actor TurnCoordinator {
         case .timelineBatch, .timelineGraph:
             let status: String? = try? await ledger.read { db in try TimelineBatchRecord.fetchOne(db, key: targetID)?.status }
             return status == "requested"
-        case .timelineGrading:
+        case .timelineGrading, .timelineAnswer:
             let verdict: String? = try? await ledger.read { db in try TimelineAttemptRecord.fetchOne(db, key: targetID)?.verdict }
             return verdict == "grading"
         default:

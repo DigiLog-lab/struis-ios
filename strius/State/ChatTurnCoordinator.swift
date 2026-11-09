@@ -100,7 +100,8 @@ extension TurnCoordinator {
             let progress = try ChatRepository.progressState(db)
             let mapping = try CodexThreadRecord.fetchOne(db, key: send.threadID)
             let events = kickoffEvents + [userEvent, assistantEvent, ChatRepository.touchThread(thread, preview: send.hidden ? nil : user.plainText)]
-            return (events, (progress, mapping?.codexThreadId, self.ledger.deviceID))
+            // 学習者の ID は全利用者で同じ固定の値(#78)。端末の ID(`ledger.deviceID`)は Anthropic に送らない。
+            return (events, (progress, mapping?.codexThreadId, TutorMemory.modelLearnerID))
         }
         let state = ChatTurns.State(
             turnID: turnID, threadID: send.threadID, userMessageID: userMessageID, assistantMessageID: assistantMessageID,

@@ -18,6 +18,10 @@ struct LearningTimelineView: View {
     @State private var isDrawing = false
     @State private var isInkZoomed = false
     @State private var inkPassThrough: [CGRect] = []
+    /// 書く面の左上(`TimelineInkSpace.name` の座標)。iPad は画面の上端から置くので、安全域の分だけマイナスになる。
+    @State private var inkOrigin: CGPoint = .zero
+    /// 上の帯と下の帯の間(`TimelineInkSpace.name` の座標)。iPhone の並びの書く面はここに置く。
+    @State private var inkArea: CGRect = .zero
     @State private var isCameraPresented = false
     @State private var dragOffset: CGFloat = 0
     @State private var isResultAskPresented = false
@@ -41,25 +45,32 @@ struct LearningTimelineView: View {
                         .frame(width: layout == .padLandscape ? TimelineLayout.columnLeading + TimelineLayout.columnWidth : nil)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     if showsInkHint { inkHint }
-                    if showsInk { inkLayer }
+                    if layout.isPad, isResult, let attempt = store.lastAttempt, store.isMarking(attempt.id) {
+                        TimelineMarkingStatus(attemptID: attempt.id)
+                            .padding(.top, 8).padding(.trailing, 20)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    }
                     actions
+                        .timelineInkPassThrough()
                         .padding(.trailing, layout.isPad ? 28 : 20)
                         .padding(.bottom, layout == .padLandscape ? 32 : 16)
                         // 書いている間はボタンを薄くして、下に書いた字を透かす。
                         .opacity(isDrawing ? 0.35 : 1)
                 }
-                .coordinateSpace(name: TimelineInkSpace.name)
-                .onPreferenceChange(TimelineInkPassThroughKey.self) { inkPassThrough = $0 }
                 .offset(y: min(0, dragOffset) * 0.35)
-                .overlay(alignment: .bottomLeading) {
-                    if layout == .padLandscape {
-                        nextStrip
-                            .frame(width: TimelineLayout.stripWidth)
-                            .padding(.leading, TimelineLayout.stripLeading)
-                    }
-                }
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(TimelineInkSpace.name)) } action: { inkArea = $0 }
                 if layout != .padLandscape { nextStrip }
             }
+            // iPad 横向きの下の帯(問題の列の下だけ)。外の ZStack に直接置く。前は問題の欄の overlay に置いていて、
+            // 面が画面の下端まで伸びず、帯の下にホームインジケータの高さの隙間が残っていた。
+            if layout == .padLandscape {
+                nextStrip
+                    .frame(width: TimelineLayout.stripWidth)
+                    .padding(.leading, TimelineLayout.stripLeading)
+                    .offset(y: min(0, dragOffset) * 0.35)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            }
+            if showsInk { placedInkLayer }
             if store.skipBannerAttemptID != nil { skipBanner.transition(.move(edge: .top).combined(with: .opacity)) }
             if let error = store.actionError {
                 Text(error)
@@ -71,6 +82,9 @@ struct LearningTimelineView: View {
                     .accessibilityIdentifier("timeline-error")
             }
         }
+        // 指を通す区画は、画面全体(この ZStack)の座標で集め、書く面の位置を引いて書く面の座標に直す。
+        .coordinateSpace(name: TimelineInkSpace.name)
+        .onPreferenceChange(TimelineInkPassThroughKey.self) { inkPassThrough = $0 }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("timeline-screen")
         .animation(.easeInOut(duration: Theme.Duration.standard), value: store.phase)
@@ -103,6 +117,7 @@ struct LearningTimelineView: View {
                     .overlay(Capsule().stroke(Theme.hairline, lineWidth: 1))
             }
             .buttonStyle(.plain)
+            .timelineInkPassThrough()
             .accessibilityIdentifier("timeline-units-button")
             if layout.isPad {
                 // iPad: 「今日」は「単元」の隣に置き、右上は書く道具にする。
@@ -129,6 +144,7 @@ struct LearningTimelineView: View {
             Text("今日 \(store.answeredToday)問").font(Typography.sans(size: 15, weight: .medium)).foregroundStyle(Theme.secondaryText).monospacedDigit()
         }
         .buttonStyle(.plain)
+        .timelineInkPassThrough()
         .accessibilityIdentifier("timeline-today-count")
     }
 
@@ -155,6 +171,7 @@ struct LearningTimelineView: View {
             inkToolButton(symbol: TimelineSymbol.clear, label: "全部消す", identifier: "timeline-ink-clear") { ink.clear() }
         }
         .buttonStyle(.plain)
+        .timelineInkPassThrough()
         .opacity(isDrawing ? 0.35 : 1)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("timeline-ink-tools")
@@ -228,6 +245,18 @@ struct LearningTimelineView: View {
             }
             .accessibilityElement(children: .contain)
         .accessibilityIdentifier("timeline-batch-failed")
+        case .limitReached(let denial):
+            // 利用枠で止まった(#78): 新しいカードは出さず、案内のシートへ。閉じた後もここから開き直せる。
+            VStack(alignment: .leading, spacing: 12) {
+                Text(denial == .noPlan ? "お試しの3問を使い切りました" : "今週の利用枠を使い切りました")
+                    .font(Typography.sans(size: 17, weight: .bold)).foregroundStyle(Theme.primaryText)
+                Text(denial == .noPlan ? "続けるには、プランを選んでください。" : "枠が戻るか、プランを上げると、次の問題を出します。")
+                    .font(Typography.micro).foregroundStyle(Theme.secondaryText)
+                Button(denial == .noPlan ? "プランを選ぶ" : "利用枠を見る") { store.openUsageLimit() }
+                    .buttonStyle(.bordered).accessibilityIdentifier("timeline-usage-limit-open")
+            }
+            .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("timeline-usage-limit")
         case .finished:
             VStack(alignment: .leading, spacing: 16) {
                 Text("今日はここまで").font(Typography.sans(size: 26, weight: .bold))
@@ -345,10 +374,28 @@ struct LearningTimelineView: View {
         }
     }
 
-    /// 書く面(枠は置かない)。上の帯と下の帯の間を、端から端まで覆う。左下に鉛筆と「1つ戻す」「全部消す」。
+    /// 書く面を置く。iPad は画面の上端から下端まで、端から端まで覆う(上の帯の横の余白やホームインジケータの所にも書ける)。
+    /// iPhone の並びは、上の帯と下の帯の間(`inkArea`)。上の帯・右下の縦並び・下の帯のボタンと、問題の中のボタンには
+    /// 指を通す(`timelineInkPassThrough`)。
+    /// 並びで置き場所(ビューの木の位置)を変えない。Split View で幅を変えて iPad と iPhone の並びが入れ替わっても、
+    /// 同じ書く面のまま大きさだけ変わるので、書いた答案が消えない(置き場所を分けると書く面が作り直され、線が消える)。
+    /// GeometryReader で包み、書く面の大きさが画面の並びを押し広げないようにする(iPad から狭めた直後は `inkArea` に
+    /// 前の幅が残っていて、そのまま置くと画面全体がウィンドウより広がり、その広さで測り直して戻らなくなった)。
+    private var placedInkLayer: some View {
+        GeometryReader { proxy in
+            let area: CGRect = layout.isPad ? CGRect(origin: .zero, size: proxy.size) : inkArea
+            inkLayer
+                .frame(width: area.width, height: area.height)
+                .position(x: area.midX, y: area.midY)
+        }
+        .ignoresSafeArea(edges: layout.isPad ? .all : [])
+    }
+
+    /// 書く面(枠は置かない)。iPhone は左下に鉛筆と「1つ戻す」「全部消す」。
     private var inkLayer: some View {
         ZStack(alignment: .bottomLeading) {
-            TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isInkZoomed, controller: ink, passThrough: inkPassThrough,
+            TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isInkZoomed, controller: ink,
+                              passThrough: inkPassThrough.map { $0.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y) },
                               showsToolPicker: layout.isPad && showsInkTools)
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -376,11 +423,7 @@ struct LearningTimelineView: View {
                 .opacity(isDrawing ? 0.35 : 1)
             }
         }
-        .overlay(alignment: .topTrailing) {
-            if isResult, let attempt = store.lastAttempt, store.isMarking(attempt.id) {
-                TimelineMarkingStatus(attemptID: attempt.id).padding(.top, 8).padding(.trailing, 20)
-            }
-        }
+        .onGeometryChange(for: CGPoint.self) { $0.frame(in: .named(TimelineInkSpace.name)).origin } action: { inkOrigin = $0 }
     }
 
     private var guide: some View {
@@ -520,6 +563,8 @@ struct LearningTimelineView: View {
         .shadow(color: .black.opacity(0.06), radius: 8, y: -2)
         .contentShape(Rectangle())
         .gesture(swipeUp)
+        // iPad は書く面が帯の上にも重なるので、帯(ホームインジケータの下の面まで)には指を通す。
+        .timelineInkPassThrough(toScreenBottom: true)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("timeline-next-strip")
         .accessibilityAction(named: "次へ") { Task { await advance() } }

@@ -60,6 +60,7 @@ actor Ledger {
     ///   write the same `(origin_device_id, origin_seq)` (Issue #51).
     init(path: URL, installationID: String? = nil) throws {
         try FileManager.default.createDirectory(at: path.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let isNew = !FileManager.default.fileExists(atPath: path.path)
         var configuration = Configuration()
         configuration.busyMode = .timeout(5)
         configuration.foreignKeysEnabled = false
@@ -69,6 +70,10 @@ actor Ledger {
         self.deletionRuntimeRoots = path.standardizedFileURL == StruisPaths.ledger.standardizedFileURL ? [HyotanBoot.workspaceRoot, HyotanBoot.legacyRoot, HyotanBoot.legacyRoot.deletingLastPathComponent().appendingPathComponent("agentcase")] : []
         self.queue = queue
         self.deviceID = try queue.write { db in
+            // 作った時刻(学習記録の消去の印と比べる。#78)。前からある台帳には無く、どの印よりも前とみなす。
+            if isNew {
+                try db.execute(sql: "INSERT OR IGNORE INTO ledger_meta (key, value) VALUES (?, ?)", arguments: [LearningErasure.createdMetaKey, LedgerClock.now()])
+            }
             let installation = try String.fetchOne(db, sql: "SELECT value FROM ledger_meta WHERE key = 'installation_id'")
             if let installationID, installation != installationID {
                 try db.execute(sql: "INSERT OR REPLACE INTO ledger_meta (key, value) VALUES ('installation_id', ?)", arguments: [installationID])
@@ -99,6 +104,7 @@ actor Ledger {
         }
         if deletionFailure != nil { throw LedgerError.conflict("単元の削除を再開してください") }
         if FileManager.default.fileExists(atPath: UnitDeletion.journalURL(deletionRoot).path) { throw LedgerError.conflict("単元を削除しています") }
+        if let erasure = LearningErasure.journal(at: deletionRoot), !erasure.localDone { throw LedgerError.conflict("学習記録を消しています") }
     }
 
     func deletionScope(unitID: String) throws -> UnitDeletion.Scope {

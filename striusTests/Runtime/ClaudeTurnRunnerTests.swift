@@ -376,7 +376,7 @@ final class RequestRecorder: @unchecked Sendable {
 
 /// 利用枠で止めない(テスト用)。
 nonisolated struct OpenUsageGate: UsageGate {
-    func admit() -> Bool { true }
+    func denial(for request: UsageRequest) -> UsageDenial? { nil }
     func record(_ record: [String: Any], requestBytes: Int) {}
 }
 

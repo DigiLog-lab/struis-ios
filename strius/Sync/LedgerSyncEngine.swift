@@ -57,6 +57,13 @@ actor LedgerSyncEngine {
         return outcome
     }
 
+    /// 学習記録をまとめて消した(#78): ゾーンを消して作り直す。別の端末は、ゾーンが消えたことと消去の印で記録を消す。
+    /// 消した後にこの端末で書いた記録は、作り直したゾーンへ送る。
+    func eraseZone() async throws {
+        try await transport.resetZone()
+        try await ledger.prepareFullUpload()
+    }
+
     // MARK: - Fetch
 
     private func fetch(into outcome: inout Outcome) async throws {
@@ -67,7 +74,8 @@ actor LedgerSyncEngine {
             outcome.deletedByLearner = true
             return
         case .deleted?:
-            // Another device uploaded its ledger again. Replace without asking, keeping a ZIP of this one.
+            // Another device uploaded its ledger again (or erased the learning records). Replace without asking, keeping a ZIP of
+            // this one when it has records.
             outcome.backup = try await ledger.replaceWithCloud()
         case .encryptedDataReset?:
             engineLog.notice("the iCloud keychain was reset; uploading this ledger again")
