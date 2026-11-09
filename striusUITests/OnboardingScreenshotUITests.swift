@@ -417,7 +417,7 @@ final class OnboardingScreenshotUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments = ["-workbook-empty"]
-        app.launchEnvironment = ["STRUIS_DEVICE_RUNTIME": "0", "STRUIS_AGE_RANGE": "adult", "STRUIS_ONBOARDING_START": "planWait",
+        app.launchEnvironment = ["STRUIS_DEVICE_RUNTIME": "1", "STRUIS_AGE_RANGE": "adult", "STRUIS_ONBOARDING_START": "planWait",
                                  "STRUIS_DEBUG_ANTHROPIC_KEY_FILE": key]
         app.launch()
         let begin = app.buttons["onboarding-plan-start"].firstMatch
@@ -428,7 +428,7 @@ final class OnboardingScreenshotUITests: XCTestCase {
         app.buttons["onboarding-plan-rebuild"].firstMatch.tap()
         XCTAssertTrue(app.buttons["難しすぎる"].firstMatch.waitForExistence(timeout: 5))
         app.buttons["難しすぎる"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["onboarding-plan-start"].firstMatch.waitForNonExistence(timeout: 5))
+        _ = app.buttons["onboarding-plan-start"].firstMatch.waitForNonExistence(timeout: 5)
         XCTAssertTrue(app.buttons["onboarding-plan-start"].firstMatch.waitForExistence(timeout: 300), "作り直した計画ができない")
         Thread.sleep(forTimeInterval: 1)
         attach(app, "rPlanEasier")
@@ -451,7 +451,7 @@ final class OnboardingScreenshotUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication()
         app.launchArguments = ["-workbook-empty"]
-        app.launchEnvironment = ["STRUIS_DEVICE_RUNTIME": "0", "STRUIS_AGE_RANGE": "adult", "STRUIS_ONBOARDING_START": "plan",
+        app.launchEnvironment = ["STRUIS_DEVICE_RUNTIME": "1", "STRUIS_AGE_RANGE": "adult", "STRUIS_ONBOARDING_START": "plan",
                                  "STRUIS_DEBUG_ANTHROPIC_KEY_FILE": key]
         app.launch()
         let begin = app.buttons["onboarding-plan-start"].firstMatch
