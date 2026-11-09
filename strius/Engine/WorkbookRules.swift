@@ -729,6 +729,11 @@ nonisolated struct WorkbookMachine {
         put("subunit.passed", row)
     }
 
+    /// 「確認の1問」で合格にした小単元か(`passByCheck` の印)。
+    static func passedByCheck(_ subunit: WorkbookSubunitRecord) -> Bool {
+        subunit.status == "passed" && subunit.metadata["passed_by"]?.stringValue == "onboarding_check"
+    }
+
     nonisolated struct Verdict: Sendable {
         var problemID: String
         var verdict: String

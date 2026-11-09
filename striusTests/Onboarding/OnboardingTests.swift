@@ -204,6 +204,35 @@ final class OnboardingTests: XCTestCase {
         XCTAssertEqual(model.problem?.math, "x^2+3x+1=0")
     }
 
+    func testRebuildingForADifferentGoalDoesNotLeaveTheDeletedPlanToGoBackTo() {
+        let json = #"{"unit_title":"u","outcome":"","heading":"","lead":"","subunits":[{"title":"s","outcome":"","n":4,"scoring_unit":"","note":""}]}"#
+        UserDefaults.standard.set(Data(json.utf8), forKey: OnboardingModel.draftKey)
+        defer { UserDefaults.standard.removeObject(forKey: OnboardingModel.draftKey) }
+        let model = OnboardingModel(profile: profile(trial: 1), records: records(), hasPlan: { true }, isClaudeAvailable: { true }, start: .intent)
+        model.go(.unit)
+        model.go(.plan)
+        model.rebuildPlan(tooHard: false)
+        XCTAssertEqual(model.step, .intent)
+        XCTAssertNil(model.draft)
+        model.back()
+        XCTAssertNotEqual(model.step, .plan, "消した計画の画面に戻らない")
+        XCTAssertNotEqual(model.step, .unit)
+    }
+
+    func testTheTimelineDoesNotStudySubunitsPassedByCheck() {
+        var workbook = WorkbookMachine()
+        let unitID = workbook.createUnit(title: "二次方程式", outcome: "", source: "consult",
+                                         subunits: [.init(title: "1", n: 4), .init(title: "2", n: 4), .init(title: "3", n: 4)])
+        let ids = workbook.orderedSubunits(unitID: unitID).map(\.id)
+        workbook.passByCheck(subunitID: ids[1])
+        var timeline = TimelineMachine()
+        _ = TimelineTurns.insertGraphRequest(.build, timeline: &timeline, workbook: workbook, profile: nil)
+        let goals = Set(timeline.skills.values.compactMap(\.unitId))
+        XCTAssertTrue(goals.contains(ids[0]))
+        XCTAssertFalse(goals.contains(ids[1]), "確認の1問で合格にした小単元は目標に入れない")
+        XCTAssertTrue(goals.contains(ids[2]))
+    }
+
     func testCheckedSubunitsArePassedWithoutStudyAndTheNextOneStarts() {
         var machine = WorkbookMachine()
         let unitID = machine.createUnit(title: "二次方程式", outcome: "", source: "consult",

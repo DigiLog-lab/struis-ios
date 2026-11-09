@@ -684,10 +684,13 @@ final class OnboardingModel {
         resetChecks()
         if tooHard {
             revisionFrom = previous
-            go(.planWait)
+            go(.planWait, remember: false)
         } else {
             revisionFrom = nil
-            go(profile.isUniversity ? .topic : .intent)
+            // 消した計画には戻れないので、戻る先は選び直す画面より前にする(計画の画面を履歴に残さない)。
+            let target: OnboardingStep = profile.isUniversity ? .topic : .intent
+            if let index = history.firstIndex(of: target) { history = Array(history.prefix(index)) }
+            go(target, remember: false)
         }
     }
 
