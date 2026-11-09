@@ -527,14 +527,22 @@ enum TimelineInkSpace {
 
 extension View {
     /// 書く面の上にあっても、このビューには指を通す(押せるボタン)。
-    func timelineInkPassThrough() -> some View {
+    /// `toScreenBottom` は、ビューの下から画面の下端まで(下の帯の面が伸びるホームインジケータの所)にも指を通す。
+    func timelineInkPassThrough(toScreenBottom: Bool = false) -> some View {
         background {
             GeometryReader { proxy in
-                Color.clear.preference(key: TimelineInkPassThroughKey.self, value: [proxy.frame(in: .named(TimelineInkSpace.name))])
+                let frame: CGRect = proxy.frame(in: .named(TimelineInkSpace.name))
+                let area: CGRect = toScreenBottom
+                    ? CGRect(x: frame.minX, y: frame.minY, width: frame.width, height: frame.height + timelineInkScreenBottomAllowance)
+                    : frame
+                Color.clear.preference(key: TimelineInkPassThroughKey.self, value: [area])
             }
         }
     }
 }
+
+/// 画面の下端までを確実に含む長さ(安全域の高さより十分長ければよい)。
+private let timelineInkScreenBottomAllowance: CGFloat = 200
 
 /// 書いた線の「1つ戻す」「全部消す」「元の大きさ」、iPad の道具パレット、送る画像づくり。
 @MainActor
