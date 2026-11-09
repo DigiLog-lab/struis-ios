@@ -79,7 +79,8 @@ final class TimelineAnswerReadTests: XCTestCase {
         let followUp = try await apply(ledger, id, outcome(reply("\\frac{-10}{2}")))
         XCTAssertNil(followUp.grading)
         XCTAssertNil(followUp.review, "途中を疑うのは、同じスキルで × が出た後の見直しだけ")
-        let row = try XCTUnwrap(try await attempt(ledger, id))
+        let stored = try await attempt(ledger, id)
+        let row = try XCTUnwrap(stored)
         XCTAssertEqual(row.verdict, "correct")
         XCTAssertEqual(row.grade, "correct")
         XCTAssertEqual(row.notes, TimelineTurns.answerOnlyNote)
@@ -151,8 +152,9 @@ final class TimelineAnswerReadTests: XCTestCase {
         XCTAssertEqual(plan.kind, .timelineAnswer)
         XCTAssertEqual(plan.thread.effort, "low")
         XCTAssertNil(plan.thread.developerInstructions)
-        XCTAssertFalse(plan.turn.text.contains("-5"), "正しい答えを依頼に入れない")
-        XCTAssertEqual(plan.turn.images.count, 1)
+        let turn = try XCTUnwrap(plan.turn)
+        XCTAssertFalse(turn.text.contains("-5"), "正しい答えを依頼に入れない")
+        XCTAssertEqual(turn.images.count, 1)
     }
 
     // MARK: 画面の流れ
