@@ -299,6 +299,7 @@ final class OnboardingScreenshotUITests: XCTestCase {
         try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "iPhone の画面")
         let environment = ["STRUIS_DEVICE_TURNS": "mock", "STRUIS_DEVICE_RUNTIME": "0", "STRUIS_AGE_RANGE": "adult",
                            "STRUIS_ONBOARDING_START": "plan", "STRUIS_MOCK_TURN_DELAY_MS": "2500",
+                           "STRUIS_TEST_CAMERA_IMAGE": UITestSupport.paperImagePath,
                            "STRUIS_TEST_CAPTURE_FINISH_SECONDS": UITestSupport.captureFinishSecondsWithoutRace]
 
         // 計画 → 小単元 2・3 を「確認の1問だけ」に → 作り直す → はじめる → 確認(正解)→ 次の確認。
