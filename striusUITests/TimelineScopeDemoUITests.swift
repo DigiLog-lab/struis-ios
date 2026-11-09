@@ -18,6 +18,9 @@ final class TimelineScopeDemoUITests: XCTestCase {
         // 実際の Claude で回す(fixtures のままだとモックの返事になる)。
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "1"
         app.launchEnvironment["STRUIS_DEBUG_ANTHROPIC_KEY_FILE"] = key
+        // 同じ Simulator で何度も回すと端末の利用枠を使い切るので、利用枠は 0% から(端末の記録は触らない)。
+        app.launchEnvironment["STRUIS_PLAN"] = "generous"
+        app.launchEnvironment["STRUIS_USAGE_PERCENT"] = "0"
         app.launch()
 
         // おまかせ: 単元をまたいで出る。
