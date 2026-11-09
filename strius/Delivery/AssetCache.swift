@@ -110,6 +110,7 @@ nonisolated struct BundledAssets: Sendable {
         "prompt:timeline_misconceptions_instructions": "timeline_misconceptions_instructions.md",
         "prompt:timeline_review_instructions": "timeline_review_instructions.md",
         "prompt:timeline_marks_instructions": "timeline_marks_instructions.md",
+        "prompt:timeline_answer_instructions": "timeline_answer_instructions.md",
         "schema:timeline_batch": "timeline_batch.json",
         "schema:timeline_grading": "timeline_grading.json",
         // オンボーディング(#40): お試しの1問の採点と、最初の計画。
@@ -122,6 +123,7 @@ nonisolated struct BundledAssets: Sendable {
         "schema:timeline_misconceptions": "timeline_misconceptions.json",
         "schema:timeline_review": "timeline_review.json",
         "schema:timeline_marks": "timeline_marks.json",
+        "schema:timeline_answer": "timeline_answer.json",
         "skill:timeline_query": "skills/timeline-query/SKILL.md",
     ]
 

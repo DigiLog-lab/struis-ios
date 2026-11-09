@@ -580,7 +580,9 @@ nonisolated struct TimelineMachine {
     /// 採点の結果を綴じる。正誤は correct・partial(答えは合うが途中に誤り)・wrong の 3 つで、partial は切り替え・正答率・
     /// 定着では × として数える。スキルの ○× は、採点したモデルが挙げた ID で付ける: 1 つならその点に、2 つ以上なら付けずに
     /// 置いて見直しで決める。答えが間違っていた疑い(key_suspect)で、学習者が正解なら、壊れていたのは問題の方。
-    mutating func applyGrading(attemptID: String, grading: Grading) -> GradingOutcome {
+    /// `markAllSkills`: 答えの読み取りで ○ にした答案(Issue #101)。答えが合ったので、カードのスキル全部に ○ を付ける
+    /// (見直しを頼まないので、置いたままにしない)。
+    mutating func applyGrading(attemptID: String, grading: Grading, markAllSkills: Bool = false) -> GradingOutcome {
         guard var row = attempts[attemptID], let card = cards[row.cardId] else { return GradingOutcome(verdict: "failed") }
         row.gradedAt = now()
         guard grading.readable else {
@@ -632,8 +634,13 @@ nonisolated struct TimelineMachine {
         var seen: Set<String> = []
         ids = ids.filter { !$0.isEmpty && seen.insert($0).inserted }
         row.skillIds = ids
-        row.skillsPending = ids.count >= 2
-        if ids.count == 1, !broken || verdict == "correct" { row.skillMarks = [ids[0]: verdict] }
+        if markAllSkills, verdict == "correct", !ids.isEmpty {
+            row.skillsPending = false
+            row.skillMarks = Dictionary(uniqueKeysWithValues: ids.map { ($0, verdict) })
+        } else {
+            row.skillsPending = ids.count >= 2
+            if ids.count == 1, !broken || verdict == "correct" { row.skillMarks = [ids[0]: verdict] }
+        }
         put("timeline.attempt_graded", row)
         let withinTime = row.seconds <= Double(card.estimatedSeconds)
         if let marks = row.skillMarks {

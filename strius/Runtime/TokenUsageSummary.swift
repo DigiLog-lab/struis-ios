@@ -130,7 +130,9 @@ nonisolated struct TimelineCostSummary: Equatable, Sendable {
                 }
                 if let name = execution["actual_model"]?.stringValue ?? execution["requested_model"]?.stringValue { turnModel = name }
             }
-            if turn.kind == TurnPlan.Kind.timelineGrading.rawValue, turn.status == "completed", let target = turn.targetID, let name = turnModel {
+            // 答えの読み取りだけで ○ になった答案も 1 問に数える(採点に回った答案は同じ答案なので 1 回だけ)。
+            if turn.kind == TurnPlan.Kind.timelineGrading.rawValue || turn.kind == TurnPlan.Kind.timelineAnswer.rawValue,
+               turn.status == "completed", let target = turn.targetID, let name = turnModel {
                 answered[name, default: []].insert(target)
                 if byModel[name] == nil { byModel[name] = Model(model: name) }
             }
