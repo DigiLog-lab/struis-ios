@@ -20,6 +20,8 @@ struct LearningTimelineView: View {
     @State private var inkPassThrough: [CGRect] = []
     /// 書く面の左上(`TimelineInkSpace.name` の座標)。iPad は画面の上端から置くので、安全域の分だけマイナスになる。
     @State private var inkOrigin: CGPoint = .zero
+    /// 上の帯と下の帯の間(`TimelineInkSpace.name` の座標)。iPhone の並びの書く面はここに置く。
+    @State private var inkArea: CGRect = .zero
     @State private var isCameraPresented = false
     @State private var dragOffset: CGFloat = 0
     @State private var isResultAskPresented = false
@@ -43,8 +45,6 @@ struct LearningTimelineView: View {
                         .frame(width: layout == .padLandscape ? TimelineLayout.columnLeading + TimelineLayout.columnWidth : nil)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     if showsInkHint { inkHint }
-                    // iPhone の書く面は、上の帯と下の帯の間。iPad は画面全体に置く(下の `padInkLayer`)。
-                    if showsInk, !layout.isPad { inkLayer }
                     if layout.isPad, isResult, let attempt = store.lastAttempt, store.isMarking(attempt.id) {
                         TimelineMarkingStatus(attemptID: attempt.id)
                             .padding(.top, 8).padding(.trailing, 20)
@@ -58,6 +58,7 @@ struct LearningTimelineView: View {
                         .opacity(isDrawing ? 0.35 : 1)
                 }
                 .offset(y: min(0, dragOffset) * 0.35)
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(TimelineInkSpace.name)) } action: { inkArea = $0 }
                 if layout != .padLandscape { nextStrip }
             }
             // iPad 横向きの下の帯(問題の列の下だけ)。外の ZStack に直接置く。前は問題の欄の overlay に置いていて、
@@ -69,7 +70,7 @@ struct LearningTimelineView: View {
                     .offset(y: min(0, dragOffset) * 0.35)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             }
-            if showsInk, layout.isPad { padInkLayer }
+            if showsInk { placedInkLayer }
             if store.skipBannerAttemptID != nil { skipBanner.transition(.move(edge: .top).combined(with: .opacity)) }
             if let error = store.actionError {
                 Text(error)
@@ -361,18 +362,26 @@ struct LearningTimelineView: View {
         }
     }
 
-    /// iPad の書く面: 画面の上端から下端まで、端から端まで覆う(上の帯の横の余白やホームインジケータの所にも書ける)。
-    /// 上の帯・右下の縦並び・下の帯のボタンと、問題の中のボタンには指を通す(`timelineInkPassThrough`)。
-    private var padInkLayer: some View {
-        inkLayer.ignoresSafeArea()
+    /// 書く面を置く。iPad は画面の上端から下端まで、端から端まで覆う(上の帯の横の余白やホームインジケータの所にも書ける)。
+    /// iPhone の並びは、上の帯と下の帯の間(`inkArea`)。上の帯・右下の縦並び・下の帯のボタンと、問題の中のボタンには
+    /// 指を通す(`timelineInkPassThrough`)。
+    /// 並びで置き場所(ビューの木の位置)を変えない。Split View で幅を変えて iPad と iPhone の並びが入れ替わっても、
+    /// 同じ書く面のまま大きさだけ変わるので、書いた答案が消えない(置き場所を分けると書く面が作り直され、線が消える)。
+    private var placedInkLayer: some View {
+        inkLayer
+            .frame(width: layout.isPad ? nil : inkArea.width, height: layout.isPad ? nil : inkArea.height)
+            .padding(.leading, layout.isPad ? 0 : inkArea.minX)
+            .padding(.top, layout.isPad ? 0 : inkArea.minY)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .ignoresSafeArea(edges: layout.isPad ? .all : [])
     }
 
-    /// 書く面(枠は置かない)。iPhone は上の帯と下の帯の間を、端から端まで覆う。左下に鉛筆と「1つ戻す」「全部消す」。
+    /// 書く面(枠は置かない)。iPhone は左下に鉛筆と「1つ戻す」「全部消す」。
     private var inkLayer: some View {
         ZStack(alignment: .bottomLeading) {
             TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isInkZoomed, controller: ink,
                               passThrough: inkPassThrough.map { $0.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y) },
-                              showsToolPicker: layout.isPad && showsInkTools, generation: inkGeneration)
+                              showsToolPicker: layout.isPad && showsInkTools)
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .allowsHitTesting(!isGrading && !isResult)
