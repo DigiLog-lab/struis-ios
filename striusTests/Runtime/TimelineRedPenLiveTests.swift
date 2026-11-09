@@ -100,7 +100,7 @@ final class TimelineRedPenLiveTests: XCTestCase {
                     TimelineTurns.syncLog(workbook: workbook, timeline: &timeline)
                     return (timeline.events, (workbook, timeline))
                 }
-                let plan = try await TimelineTurns.grading(composer: composer, planID: "live-red-pen-\(iteration)-\(name)", attemptID: attemptID,
+                let plan = try await TimelineTurns.grading(composer: composer, planID: "live-red-pen-\(iteration)-\(TimelineTurns.isInkCapture(name) ? "ink" : "photo")", attemptID: attemptID,
                                                            workbook: workbook, timeline: timeline)
                 let outcome = try await runner.run(plan) { _ in }
                 let viewed = TimelineTurns.viewedCapture(outcome.executions, attemptID: attemptID)
