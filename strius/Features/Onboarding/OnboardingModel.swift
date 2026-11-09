@@ -31,12 +31,16 @@ nonisolated enum OnboardingStep: String, CaseIterable, Codable, Sendable {
     case goal
     case planWait
     case plan
+    /// 計画で「確認の1問だけ」にした小単元を、1問ずつ確かめる(解く・採点を待つ・結果)。
+    case check
+    case checkGrading
+    case checkResult
     case notify
 
     /// 左上の戻るを出すか(デザインのとおり)。
     var showsBack: Bool {
         switch self {
-        case .birthdate, .terms, .consent, .trial, .unit, .untilTest, .pages, .weak, .topic, .material, .goal: true
+        case .birthdate, .terms, .consent, .trial, .unit, .untilTest, .pages, .weak, .topic, .material, .goal, .check: true
         default: false
         }
     }
@@ -54,7 +58,8 @@ nonisolated enum OnboardingResume {
         switch saved {
         case .notify:
             return .notify
-        case .plan where hasDraft:
+        case .plan where hasDraft, .check where hasDraft, .checkResult where hasDraft:
+            // 確認の1問の途中で閉じた時は、計画の画面から選び直す。
             return .plan
         case .paywall:
             return hasPlan ? afterPurchase(profile) : .paywall
@@ -127,6 +132,15 @@ final class OnboardingModel {
     private(set) var planStartedAt: Date?
     private(set) var isStarting = false
     private var planTask: Task<Void, Never>?
+    /// 「確認の1問だけ」にした小単元(計画の中の位置)。
+    private(set) var checkOnly: Set<Int> = []
+    /// 確かめる順(位置)と、今の何番目か。
+    private(set) var checkQueue: [Int] = []
+    private(set) var checkCursor = 0
+    /// 確かめた結果(位置 → 正解か)。「やっぱり最初から学ぶ」は false。
+    private(set) var checkPassed: [Int: Bool] = [:]
+    /// 「難しすぎる」で作り直す時の、前の計画の小単元の名前。
+    private var revisionFrom: [String]?
 
     // 通知
     var reminderHour = 20
@@ -171,7 +185,7 @@ final class OnboardingModel {
         if remember, step != next { history.append(step) }
         step = next
         // 同意の取り直しは、終わったオンボーディングの続きの画面を書き換えない。
-        if !isReconsent, ![.unsupported, .grading, .birthdate].contains(next) {
+        if !isReconsent, ![.unsupported, .grading, .checkGrading, .birthdate].contains(next) {
             profile.resumeStep = next.rawValue
             profile.save()
         }
@@ -308,7 +322,9 @@ final class OnboardingModel {
 
     /// 撮った答案(紙の写真)か、書いた答案(iPad の手書き)を採点に送る。
     func submitAnswer(_ data: Data, fromInk: Bool, assets: AssetCache, turns: TurnCoordinator, runner: any TurnRunning) {
-        guard let problem, records.trialRemaining > 0 else { return }
+        guard let problem else { return }
+        let checking = step == .check
+        guard checking || records.trialRemaining > 0 else { return }
         trialError = nil
         let path: String
         do {
@@ -320,13 +336,13 @@ final class OnboardingModel {
         answerImagePath = path
         answerFromInk = fromInk
         gradingStartedAt = Date()
-        go(.grading)
+        go(checking ? .checkGrading : .grading)
         Task {
             do {
                 let plan = try await OnboardingTurns.gradingPlan(assets: assets, planID: LedgerID.make(), problem: problem, imagePath: path)
                 let text = try await OnboardingTurns.run(plan, turns: turns, runner: runner, limit: OnboardingTurns.gradingTimeLimit)
                 guard let verdict = OnboardingTurns.parseVerdict(text) else { throw OnboardingTurns.Failure.malformed }
-                finishGrading(verdict, problem: problem)
+                if checking { finishCheck(verdict) } else { finishGrading(verdict, problem: problem) }
             } catch {
                 onboardingLog.error("trial grading failed: \(String(describing: error), privacy: .public)")
                 failGrading((error as? LocalizedError)?.errorDescription ?? "採点できませんでした。もう一度送ってください。")
@@ -349,9 +365,9 @@ final class OnboardingModel {
     }
 
     private func failGrading(_ message: String) {
-        guard step == .grading else { return }
+        guard step == .grading || step == .checkGrading else { return }
         trialError = message
-        step = .trial
+        step = step == .checkGrading ? .check : .trial
     }
 
     /// 「もう1問やる」。
@@ -507,6 +523,16 @@ final class OnboardingModel {
     var planFooter: String {
         var parts: [String] = []
         if !materials.isEmpty { parts.append("撮ったページ(\(materials.count)枚)をもとに小単元を分けました。") }
+        if !checkOnly.isEmpty {
+            // 「確認の1問だけ」にした小単元と、要点と例題から始まる最初の小単元。
+            let numbers = checkOnly.sorted().map { "\($0 + 1)" }.joined(separator: "・")
+            parts.append("\(numbers) は確認の1問だけ解きます。正解なら、その小単元は合格です。")
+            let count = draft?.subunits.count ?? 0
+            if let first = (0..<count).first(where: { !checkOnly.contains($0) }) {
+                parts.append("\(first + 1) は要点と例題から始まります。")
+            }
+            return parts.joined()
+        }
         switch profile.route {
         case .weak: parts.append("1 ができていれば、すぐ 2 に進みます。")
         case .unsure: parts.append("解けない問題が続いた時は、前の学年の内容に戻って確かめます。")
@@ -535,6 +561,9 @@ final class OnboardingModel {
             .object(["problem": .string(record.label), "correct": .bool(record.correct), "learner_answer": .string(record.learnerAnswer), "comment": .string(record.comment)])
         })
         request["material_count"] = .number(Double(materials.count))
+        if let revisionFrom, !revisionFrom.isEmpty {
+            request["revision"] = .object(["reason": .string("too_hard"), "previous": .array(revisionFrom.map(LedgerJSON.string))])
+        }
         return .object(request)
     }
 
@@ -552,6 +581,8 @@ final class OnboardingModel {
                 let text = try await OnboardingTurns.run(plan, turns: turns, runner: runner, limit: OnboardingTurns.planTimeLimit)
                 guard let draft = OnboardingTurns.parsePlan(text) else { throw OnboardingTurns.Failure.malformed }
                 self.draft = draft
+                self.resetChecks()
+                self.revisionFrom = nil
                 if let data = try? JSONEncoder().encode(draft) { UserDefaults.standard.set(data, forKey: Self.draftKey) }
                 if step == .planWait { go(.plan, remember: false) }
             } catch {
@@ -561,7 +592,128 @@ final class OnboardingModel {
         }
     }
 
+    // MARK: - 確認の1問
+
+    /// 計画の行を押した: その小単元を「確認の1問だけ」にする/戻す(確かめる1問が無い小単元は切り替えない)。
+    func toggleCheck(_ index: Int) {
+        guard let draft, draft.subunits.indices.contains(index), draft.subunits[index].check != nil else { return }
+        if checkOnly.contains(index) { checkOnly.remove(index) } else { checkOnly.insert(index) }
+    }
+
+    /// 計画に「確認の1問だけ」にできる小単元があるか(一覧の下の案内を出すか)。
+    var canCheck: Bool { draft?.subunits.contains { $0.check != nil } ?? false }
+
+    var isChecking: Bool { [.check, .checkGrading, .checkResult].contains(step) }
+
+    /// 「確認 1 / 2」。
+    var checkBadge: String { "確認 \(checkCursor + 1) / \(checkQueue.count)" }
+
+    /// 今確かめている小単元の名前。
+    var checkTitle: String {
+        guard let draft, checkQueue.indices.contains(checkCursor) else { return "" }
+        // 小単元の名前に式が入る(`$(x+p)^2=q$ の形と解の公式`)ので、文の中に置けるよう読める文字にする。
+        return MathPlainText.preview(draft.subunits[checkQueue[checkCursor]].title)
+    }
+
+    /// 確かめる1問のあと、残りの数。
+    var checksRemaining: Int { max(0, checkQueue.count - checkCursor - 1) }
+
+    /// 計画の「はじめる」: 「確認の1問だけ」があれば先に確かめる。無ければ、そのまま単元にする。
+    func begin(ledger: Ledger) async -> Bool {
+        if !checkOnly.isEmpty {
+            checkQueue = checkOnly.sorted()
+            checkCursor = 0
+            checkPassed = [:]
+            loadCheck()
+            go(.check)
+            return false
+        }
+        // 確かめている途中で計画に戻り、選び直して全部外した時: 前に確かめた結果で合格にしない。
+        checkPassed = [:]
+        checkQueue = []
+        checkCursor = 0
+        return await startPlan(ledger: ledger)
+    }
+
+    private func loadCheck() {
+        guard let draft, checkQueue.indices.contains(checkCursor) else { return }
+        let subunit = draft.subunits[checkQueue[checkCursor]]
+        guard let check = subunit.check else { return }
+        problem = TrialProblem(id: "check-\(checkQueue[checkCursor])", grade: profile.grade ?? "", unit: subunit.title,
+                               prompt: check.prompt, math: check.math, answer: check.answerKey, rubric: [subunit.outcome],
+                               customLabel: "\(MathPlainText.preview(draft.unitTitle))・\(MathPlainText.preview(subunit.title))")
+        verdict = nil
+        trialError = nil
+        answerImagePath = nil
+        answerFromInk = false
+    }
+
+    private func finishCheck(_ verdict: TrialVerdict) {
+        guard step == .checkGrading else { return }
+        guard verdict.readable else {
+            failGrading("答案を読み取れませんでした。答案全体が入るように、明るい所で撮り直してください。")
+            return
+        }
+        self.verdict = verdict
+        if checkQueue.indices.contains(checkCursor) { checkPassed[checkQueue[checkCursor]] = verdict.isCorrect }
+        go(.checkResult, remember: false)
+    }
+
+    /// 結果の画面で、今の小単元をどう扱うか(「「因数分解で解く」は合格にしました」)。
+    var checkOutcome: (passed: Bool, title: String, detail: String)? {
+        guard checkQueue.indices.contains(checkCursor), let passed = checkPassed[checkQueue[checkCursor]] else { return nil }
+        return passed
+            ? (true, "「\(checkTitle)」は合格にしました", "この小単元は学ばずに進みます。")
+            : (false, "「\(checkTitle)」は最初から学びます", "確認の1問で解けなかったので、この小単元は要点と例題から進めます。")
+    }
+
+    /// 「やっぱり最初から学ぶ」: 解かずに、この小単元を通常どおりにする。
+    func skipCheck(ledger: Ledger) async {
+        guard step == .check, checkQueue.indices.contains(checkCursor) else { return }
+        checkPassed[checkQueue[checkCursor]] = false
+        await advanceCheck(ledger: ledger)
+    }
+
+    /// 次の確認へ。最後なら、結果を入れて単元にする。
+    func advanceCheck(ledger: Ledger) async {
+        if checkCursor + 1 < checkQueue.count {
+            checkCursor += 1
+            loadCheck()
+            go(.check, remember: false)
+        } else {
+            _ = await startPlan(ledger: ledger)
+        }
+    }
+
+    // MARK: - 作り直す
+
+    /// 計画の「作り直す」。難しすぎる: 前の計画より手前から作り直す。やりたいことと違う: 何をするかを選び直す。
+    func rebuildPlan(tooHard: Bool) {
+        let previous = draft?.subunits.map(\.title) ?? []
+        draft = nil
+        UserDefaults.standard.removeObject(forKey: Self.draftKey)
+        resetChecks()
+        if tooHard {
+            revisionFrom = previous
+            go(.planWait, remember: false)
+        } else {
+            revisionFrom = nil
+            // 消した計画には戻れないので、戻る先は選び直す画面より前にする(計画の画面を履歴に残さない)。
+            let target: OnboardingStep = profile.isUniversity ? .topic : .intent
+            if let index = history.firstIndex(of: target) { history = Array(history.prefix(index)) }
+            go(target, remember: false)
+        }
+    }
+
+    private func resetChecks() {
+        checkOnly = []
+        checkQueue = []
+        checkCursor = 0
+        checkPassed = [:]
+    }
+
     /// 「はじめる」: 計画を単元にして、タイムラインの 1 枚目(小単元 1 から 30 秒で解ける問題)を入れる。
+    /// 確認の1問で解けた小単元は、学ばずに合格にする(小単元 1 が合格なら、1 枚目は入れずにタイムラインに任せる)。
     func startPlan(ledger: Ledger) async -> Bool {
         guard let draft, !isStarting else { return false }
         isStarting = true
@@ -571,11 +723,17 @@ final class OnboardingModel {
             "unit_title": .string(draft.unitTitle), "outcome": .string(draft.outcome), "source": .string("onboarding"),
             "subunits": .array(draft.subunits.map { .object(["title": .string($0.title), "outcome": .string($0.outcome), "n": .number(Double($0.n)), "scoring_unit": .string($0.scoringUnit), "note": .string($0.note)]) }),
         ])
+        // 確認の1問で解けた小単元(位置の順)。
+        let passedIndices: [Int] = checkPassed.filter(\.value).map(\.key).sorted()
         do {
             let (unitID, subunitID) = try await ledger.commit { db in
                 var workbook = try WorkbookMachine(loading: db)
                 let unitID = workbook.createUnit(title: draft.unitTitle, outcome: draft.outcome, source: "consult", subunits: specs, overview: overview)
-                return (workbook.events, (unitID, workbook.orderedSubunits(unitID: unitID).first?.id))
+                let ordered = workbook.orderedSubunits(unitID: unitID)
+                for index in passedIndices where ordered.indices.contains(index) {
+                    workbook.passByCheck(subunitID: ordered[index].id)
+                }
+                return (workbook.events, (unitID, passedIndices.first == 0 ? nil : ordered.first?.id))
             }
             if let first = draft.firstProblem, let subunitID {
                 try await ledger.commit { db in
@@ -665,6 +823,27 @@ final class OnboardingModel {
         if [.plan, .notify].contains(start), draft == nil {
             let json = MockTurnRunner.onboardingPlan(["unit": profile.unit ?? "二次方程式", "trial": profile.trial.map { ["correct": $0.correct] }])
             if let data = try? JSONSerialization.data(withJSONObject: json) { draft = try? JSONDecoder().decode(OnboardingPlanDraft.self, from: data) }
+        }
+        if [.check, .checkResult].contains(start), draft == nil {
+            let json = MockTurnRunner.onboardingPlan(["unit": profile.unit ?? "二次方程式", "trial": profile.trial.map { ["correct": $0.correct] }])
+            if let data = try? JSONSerialization.data(withJSONObject: json) { draft = try? JSONDecoder().decode(OnboardingPlanDraft.self, from: data) }
+        }
+        // 「確認の1問だけ」にした小単元(1 から数えた番号をカンマで区切る。例: 2,3)。
+        if let list = environment["STRUIS_ONBOARDING_CHECK"] {
+            checkOnly = Set(list.split(separator: ",").compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }.map { $0 - 1 })
+        }
+        if [.check, .checkResult].contains(start), !checkOnly.isEmpty {
+            checkQueue = checkOnly.sorted()
+            checkCursor = 0
+            loadCheck()
+            if start == .checkResult, let problem {
+                let json = MockTurnRunner.onboardingGrading(["answer": problem.answer, "problem_id": problem.id])
+                let graded = TrialVerdict(readable: true, grade: json["grade"] as? String ?? "correct", learnerAnswer: json["learner_answer"] as? String ?? "",
+                                          comment: json["comment"] as? String ?? "", solution: json["solution"] as? String ?? "")
+                verdict = graded
+                checkPassed[checkQueue[0]] = graded.isCorrect
+                answerImagePath = Self.sampleAnswerImage().flatMap { try? Self.store($0, folder: "onboarding/trial") }
+            }
         }
         if start == .grading { gradingStartedAt = Date().addingTimeInterval(-4) }
         if isClaudeAvailable() { step = start }

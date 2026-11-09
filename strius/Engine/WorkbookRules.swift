@@ -713,6 +713,27 @@ nonisolated struct WorkbookMachine {
         return outcome
     }
 
+    /// 計画づくりの「確認の1問」で解けた小単元を、学ばずに合格にする。学んでいる途中(active)なら次の小単元へ進め、
+    /// まだ先(pending)なら合格の印だけ付ける(今の小単元はそのまま)。
+    mutating func passByCheck(subunitID: String) {
+        guard let subunit = subunits[subunitID], subunit.status != "passed" else { return }
+        var row = subunit
+        row.metadata = .object(["passed_by": .string("onboarding_check")])
+        if subunit.status == "active" {
+            _ = passSubunit(row)
+            return
+        }
+        row.status = "passed"
+        row.passedAt = now()
+        row.updatedAt = now()
+        put("subunit.passed", row)
+    }
+
+    /// 「確認の1問」で合格にした小単元か(`passByCheck` の印)。
+    static func passedByCheck(_ subunit: WorkbookSubunitRecord) -> Bool {
+        subunit.status == "passed" && subunit.metadata["passed_by"]?.stringValue == "onboarding_check"
+    }
+
     nonisolated struct Verdict: Sendable {
         var problemID: String
         var verdict: String

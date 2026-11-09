@@ -12,9 +12,11 @@ nonisolated struct TrialProblem: Codable, Hashable, Sendable, Identifiable {
     var math: String
     var answer: String
     var rubric: [String]
+    /// 計画の「確認の1問」の見出し(「線形代数・内積とノルム」)。お試しの見本には無い。
+    var customLabel: String? = nil
 
     /// 「中3 数学・二次方程式」。
-    var label: String { "\(grade) 数学・\(unit)" }
+    var label: String { customLabel ?? "\(grade) 数学・\(unit)" }
 
     private struct File: Decodable { var problems: [TrialProblem] }
 
@@ -73,9 +75,11 @@ nonisolated struct OnboardingPlanDraft: Codable, Hashable, Sendable {
         var n: Int
         var scoringUnit: String
         var note: String
+        /// 「確認の1問だけ」にした時に出す、この小単元が分かっているかを確かめる1問(前の版の下書きには無い)。
+        var check: FirstProblem?
 
         enum CodingKeys: String, CodingKey {
-            case title, outcome, n, note
+            case title, outcome, n, note, check
             case scoringUnit = "scoring_unit"
         }
     }
@@ -198,6 +202,9 @@ nonisolated enum OnboardingTurns {
         }
         guard !draft.unitTitle.isEmpty, !draft.subunits.isEmpty else { return nil }
         if let first = draft.firstProblem, first.prompt.trimmingCharacters(in: .whitespaces).isEmpty, first.math.isEmpty { draft.firstProblem = nil }
+        for index in draft.subunits.indices {
+            if let check = draft.subunits[index].check, check.prompt.trimmingCharacters(in: .whitespaces).isEmpty, check.math.isEmpty { draft.subunits[index].check = nil }
+        }
         return draft
     }
 
