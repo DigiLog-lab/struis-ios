@@ -8,6 +8,11 @@ name: Dev Box
 # file and of serve.sh: a work branch cannot change what the Dev Box may do. (workflow_dispatch and run
 # cancellation are refused to the web Claude's token: "Resource not accessible by integration", 2026-11-07.)
 #
+# One Dev Box per work branch, several at once: each has its own branches devboxes/<key>/... (serve.sh) and its
+# own concurrency group, so a session's Dev Box neither waits behind nor runs the commands of another
+# session's (until 2026-11-09 there was one Dev Box at a time for the whole repository). Each one holds a
+# macOS runner, which it shares with the merge queue (5 at once).
+#
 # A Dev Box build is never a gate: commands can run anything. The job has no statuses: write, so it can never
 # write `Struis / verify`, and no secrets.
 on:
@@ -18,7 +23,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: devbox
+  # One Dev Box per work branch: a second start for the same branch waits behind the first.
+  group: devbox-${{ github.event.client_payload.branch }}
   cancel-in-progress: false
 
 jobs:
@@ -35,7 +41,7 @@ jobs:
     runs-on: xcode-27
     timeout-minutes: 360
     permissions:
-      # Pushes devbox-out/* and deletes devbox-cmd/* only.
+      # Pushes devboxes/<key>/out/* and deletes devboxes/<key>/cmd/* and old results only.
       contents: write
       # Reads the Artifacts of main's builds (`python3 scripts/ci/sim_build.py main`, for "before" screenshots).
       actions: read
