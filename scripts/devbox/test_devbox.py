@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import gzip
+import importlib.util
 import os
 import pathlib
 import subprocess
@@ -16,6 +17,12 @@ import unittest
 HERE: pathlib.Path = pathlib.Path(__file__).resolve().parent
 SERVE: pathlib.Path = HERE / "serve.sh"
 MAC: pathlib.Path = HERE / "mac.py"
+_spec = importlib.util.spec_from_file_location("devbox_mac", MAC)
+assert _spec is not None and _spec.loader is not None
+mac_module = importlib.util.module_from_spec(_spec)
+sys.modules["devbox_mac"] = mac_module  # dataclasses look the module up while the class is made
+_spec.loader.exec_module(mac_module)
+WORK_OUT: str = mac_module.Box.of("work").out_prefix
 
 
 def sh(*args: str, cwd: pathlib.Path) -> None:
@@ -44,21 +51,37 @@ class DevBoxRoundTripTests(unittest.TestCase):
         sh("git", "push", "-q", "origin", "HEAD:refs/heads/work", cwd=work)
         cls.client = cls.root / "client"
         sh("git", "clone", "-q", "--branch", "work", str(origin), str(cls.client), cwd=cls.root)
+        cls.server = cls.serve(work, "work", "runner-temp")
+        cls.mac("ready", "--timeout", "30")
+
+    SECRET: str = "sk-ant-test-0123456789abcdef"
+
+    @classmethod
+    def secret_file(cls) -> pathlib.Path:
+        """The Anthropic key file of devbox.yml (0600, the key without a newline)."""
+        path: pathlib.Path = cls.root / "anthropic-key"
+        if not path.exists():
+            path.write_text(cls.SECRET)
+            path.chmod(0o600)
+        return path
+
+    @classmethod
+    def serve(cls, work: pathlib.Path, branch: str, temp: str) -> subprocess.Popen[str]:
         env: dict[str, str] = dict(
             os.environ,
-            RUNNER_TEMP=str(cls.root / "runner-temp"),
-            DEVBOX_WORK_BRANCH="work",
+            RUNNER_TEMP=str(cls.root / temp),
+            DEVBOX_WORK_BRANCH=branch,
             DEVBOX_IDLE_SECONDS="120",
             DEVBOX_POLL_SECONDS="1",
             DEVBOX_PROGRESS_SECONDS="2",
             DEVBOX_COMMAND_SECONDS="15",
             DEVBOX_KEEP_RESULTS_SECONDS="5",
+            DEVBOX_REDACT_FILE=str(cls.secret_file()),
         )
-        cls.server = subprocess.Popen(
+        return subprocess.Popen(
             ["bash", str(SERVE)], cwd=work, env=env, text=True,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         )
-        cls.mac("ready", "--timeout", "30")
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -139,7 +162,8 @@ class DevBoxRoundTripTests(unittest.TestCase):
         # A result sent two hours ago that finished just now survives an earlier box's cleanup.
         script: str = (
             f"source <(sed -n '/^cleanup_old_results()/,/^}}/p;/^delete_ref()/,/^}}/p' {SERVE}); "
-            "OUT_PREFIX=refs/heads/devbox-out/; KEEP_RESULTS=3600; cleanup_old_results"
+            f"BOXES_PREFIX=refs/heads/devboxes/; OUT_PREFIX={WORK_OUT}; LEGACY_OUT_PREFIX=refs/heads/devbox-out/; "
+            "KEEP_RESULTS=3600; cleanup_old_results"
         )
         old_id: str = "20000101T000000-000000-aaaaaa"
         blob: str = subprocess.run(["git", "hash-object", "-w", "--stdin"], cwd=self.client, check=True,
@@ -150,12 +174,85 @@ class DevBoxRoundTripTests(unittest.TestCase):
                                      capture_output=True, text=True,
                                      env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
                                           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}).stdout.strip()
-        ref: str = f"refs/heads/devbox-out/{old_id}"
+        ref: str = f"{WORK_OUT}{old_id}"
         sh("git", "push", "-q", "origin", f"{commit}:{ref}", cwd=self.client)
         subprocess.run(["bash", "-c", script], cwd=self.client, check=True, capture_output=True)
         listed: str = subprocess.run(["git", "ls-remote", "origin", ref], cwd=self.client,
                                      capture_output=True, text=True, check=True).stdout
         self.assertTrue(listed, "a result that finished just now was deleted")
+
+    def push_result(self, ref: str, finished: int) -> None:
+        blob: str = subprocess.run(["git", "hash-object", "-w", "--stdin"], cwd=self.client, check=True,
+                                   input=f"finished={finished}\n", capture_output=True, text=True).stdout.strip()
+        tree: str = subprocess.run(["git", "mktree"], cwd=self.client, check=True,
+                                   input=f"100644 blob {blob}\ttimes\n", capture_output=True, text=True).stdout.strip()
+        commit: str = subprocess.run(["git", "commit-tree", tree, "-m", "result"], cwd=self.client, check=True,
+                                     capture_output=True, text=True,
+                                     env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                                          "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}).stdout.strip()
+        sh("git", "push", "-q", "origin", f"{commit}:{ref}", cwd=self.client)
+
+    def remote_has(self, ref: str) -> bool:
+        return bool(subprocess.run(["git", "ls-remote", "origin", ref], cwd=self.client,
+                                   capture_output=True, text=True, check=True).stdout)
+
+    def test_cleanup_keeps_a_running_box_and_removes_ended_boxes_and_the_old_single_box(self) -> None:
+        script: str = (
+            f"source <(sed -n '/^cleanup_old_results()/,/^}}/p;/^delete_ref()/,/^}}/p' {SERVE}); "
+            f"BOXES_PREFIX=refs/heads/devboxes/; OUT_PREFIX={WORK_OUT}; LEGACY_OUT_PREFIX=refs/heads/devbox-out/; "
+            "KEEP_RESULTS=3600; cleanup_old_results"
+        )
+        long_ago: int = int(time.time()) - 7200
+        old_id: str = "20000101T000000-000000-bbbbbb"
+        running: dict[str, bool] = {
+            "refs/heads/devboxes/aaaaaaaaaaaa/out/ready": True,                 # another branch's running Dev Box
+            f"refs/heads/devboxes/aaaaaaaaaaaa/out/{old_id}": True,             # its own to delete
+            f"refs/heads/devboxes/cccccccccccc/out/{old_id}": False,            # a Dev Box that has ended
+            "refs/heads/devbox-out/ready": True,                                # the single Dev Box, still running
+            f"refs/heads/devbox-out/{old_id}": False,                           # its old result
+        }
+        for ref in running:
+            self.push_result(ref, long_ago)
+        try:
+            subprocess.run(["bash", "-c", script], cwd=self.client, check=True, capture_output=True)
+            for ref, kept in running.items():
+                self.assertEqual(self.remote_has(ref), kept, ref)
+        finally:
+            for ref in running:
+                if self.remote_has(ref):
+                    sh("git", "push", "-q", "origin", f":{ref}", cwd=self.client)
+
+    def test_two_branches_have_their_own_dev_boxes(self) -> None:
+        other: pathlib.Path = self.root / "server-other"
+        sh("git", "clone", "-q", "--branch", "work", str(self.root / "origin.git"), str(other), cwd=self.root)
+        for key, value in (("user.name", "test"), ("user.email", "test@example.com")):
+            sh("git", "config", key, value, cwd=other)
+        (other / "hello.txt").write_text("other\n")
+        sh("git", "commit", "-q", "-am", "other", cwd=other)
+        sh("git", "push", "-q", "origin", "HEAD:refs/heads/claude/other", cwd=other)
+        server = self.serve(other, "claude/other", "runner-temp-other")
+        try:
+            self.mac("ready", "--branch", "claude/other", "--timeout", "30")
+            self.assertIn("other", self.mac("run", "--branch", "claude/other", "--", "cat hello.txt").stdout)
+            self.assertNotIn("other", self.mac("run", "--", "cat hello.txt").stdout)
+            self.mac("stop", "--branch", "claude/other")
+            server.wait(timeout=30)
+            # The Dev Box of `work` is still there.
+            self.assertIn("still", self.mac("run", "--", "echo still").stdout)
+        finally:
+            if server.poll() is None:
+                server.kill()
+                server.wait(timeout=10)
+            if server.stdout is not None:
+                server.stdout.close()
+
+    def test_the_key_is_the_same_in_mac_py_and_serve_sh(self) -> None:
+        for branch in ("work", "claude/timeline-fast-verdict", "agent/issue-55"):
+            key: str = subprocess.run(
+                ["bash", "-c", f"source <(sed -n '/^box_key()/,/^}}/p' {SERVE}); box_key \"$1\"", "_", branch],
+                capture_output=True, text=True, check=True,
+            ).stdout.strip()
+            self.assertEqual(key, mac_module.box_key(branch))
 
     def test_a_result_that_could_not_be_published_is_published_later(self) -> None:
         origin: pathlib.Path = self.root / "origin.git"
@@ -164,7 +261,7 @@ class DevBoxRoundTripTests(unittest.TestCase):
         hook.write_text(
             "#!/bin/sh\n"
             f"[ -e {flag} ] || exit 0\n"
-            "while read old new ref; do case \"$ref\" in refs/heads/devbox-out/*-[0-9a-f]*) "
+            "while read old new ref; do case \"$ref\" in refs/heads/devboxes/*/out/*-[0-9a-f]*) "
             "git cat-file -p \"$new:state\" 2>/dev/null | grep -qx done && exit 1;; esac; done\n"
             "exit 0\n"
         )
@@ -177,6 +274,50 @@ class DevBoxRoundTripTests(unittest.TestCase):
             flag.unlink()
         result = self.mac("wait", command_id, "--timeout", "40")
         self.assertIn("published-later", result.stdout)
+
+    def test_the_key_never_leaves_in_a_result(self) -> None:
+        key_file: str = str(self.secret_file())
+        command_id: str = self.mac(
+            "run", "--async", "--",
+            f'cat {key_file}; echo; echo "key=$(cat {key_file})"; cat {key_file} > "$DEVBOX_FILES/key.txt"; sleep 4; echo done',
+        ).stdout.strip()
+        result = self.mac("wait", command_id, "--timeout", "40")
+        self.assertIn("done", result.stdout)
+        self.assertIn("key=[redacted]", result.stdout)
+        self.assertNotIn(self.SECRET, result.stdout)
+        out: pathlib.Path = self.client / "devbox-out" / command_id
+        self.assertEqual((out / "key.txt").read_text(), "[redacted]")
+        self.assertNotIn(self.SECRET, gzip.decompress((out / "log.txt.gz").read_bytes()).decode())
+        # Nothing pushed for this command (the running results too) has the key.
+        listed: str = subprocess.run(["git", "log", "-p", "--all", "--", "."], cwd=self.root / "origin.git",
+                                     capture_output=True, text=True, check=True).stdout
+        self.assertNotIn(self.SECRET, listed)
+
+    def test_the_key_never_leaves_in_a_compressed_file(self) -> None:
+        key_file: str = str(self.secret_file())
+        command_id: str = self.mac(
+            "run", "--async", "--",
+            f'gzip -c {key_file} > "$DEVBOX_FILES/diagnostic.txt.gz"; '
+            f'(cd "$(dirname {key_file})" && zip -q "$DEVBOX_FILES/bundle.zip" "$(basename {key_file})"); '
+            'echo plain | gzip -c > "$DEVBOX_FILES/plain.txt.gz"',
+        ).stdout.strip()
+        self.mac("wait", command_id, "--timeout", "40")
+        out: pathlib.Path = self.client / "devbox-out" / command_id
+        for name in ("diagnostic.txt.gz", "bundle.zip"):
+            self.assertEqual((out / name).read_text(), "[redacted: this compressed file held the Anthropic API key]\n", name)
+        self.assertEqual(gzip.decompress((out / "plain.txt.gz").read_bytes()), b"plain\n", "鍵の無い圧縮ファイルはそのまま")
+        listed: str = subprocess.run(["git", "log", "-p", "--all", "--binary", "--", "."], cwd=self.root / "origin.git",
+                                     capture_output=True, text=True, check=True).stdout
+        self.assertNotIn(self.SECRET, listed)
+
+    def test_a_file_the_command_keeps_writing_is_not_cut_off_by_a_progress_update(self) -> None:
+        # The same descriptor writes before and after a progress update (DEVBOX_PROGRESS_SECONDS=2).
+        command_id: str = self.mac(
+            "run", "--async", "--",
+            'exec 3> "$DEVBOX_FILES/stream.txt"; echo before >&3; sleep 6; echo after >&3; exec 3>&-',
+        ).stdout.strip()
+        self.mac("wait", command_id, "--timeout", "40")
+        self.assertEqual((self.client / "devbox-out" / command_id / "stream.txt").read_text(), "before\nafter\n")
 
     def test_several_arguments_are_kept_as_arguments(self) -> None:
         result = self.mac("run", "--", "printf", "%s|", "a b", "c")
@@ -199,7 +340,7 @@ class DevBoxRoundTripTests(unittest.TestCase):
     def test_results_are_deleted_by_the_dev_box_after_a_while(self) -> None:
         command_id: str = self.mac("run", "--async", "--", "true").stdout.strip()
         self.mac("wait", command_id, "--timeout", "40")
-        ref: str = f"refs/heads/devbox-out/{command_id}"
+        ref: str = f"{WORK_OUT}{command_id}"
         for _ in range(90):
             listed = subprocess.run(["git", "ls-remote", "origin", ref], cwd=self.client,
                                     capture_output=True, text=True, check=True).stdout
