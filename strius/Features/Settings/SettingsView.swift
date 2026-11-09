@@ -183,10 +183,13 @@ private struct ThemeRow: View {
     }
 }
 
-/// 学習記録: 記録を 1 つのファイルにして別の端末に移す。
+/// 学習記録: 記録を 1 つのファイルにして別の端末に移す。すべての学習記録を消す(#78)。
 private struct LearningRecordSettingsDetail: View {
     @Environment(SettingsStore.self) private var settings
+    @Environment(LearnerData.self) private var learnerData
     @State private var isImporterPresented: Bool = false
+    @State private var isEraseConfirmPresented: Bool = false
+    @State private var eraseMessage: String?
 
     var body: some View {
         @Bindable var bindable: SettingsStore = settings
@@ -213,6 +216,30 @@ private struct LearningRecordSettingsDetail: View {
                 .accessibilityIdentifier("settings-ledger-import")
                 LedgerExportResultRows()
             }
+            SettingsSection(
+                header: "学習記録を消す",
+                footer: "この端末と iCloud から消え、同じ Apple ID の別の端末からも消えます。プラン、今週の使用量、お試しの数、年齢の確認と同意の記録は消えません。"
+            ) {
+                SettingsButtonRow(
+                    title: learnerData.isErasing ? "消しています" : "すべての学習記録を消す",
+                    detail: "答案・写真・添付・会話・学習メモ・オンボーディングの回答・バックアップ",
+                    tone: .destructive,
+                    disabled: learnerData.isErasing || settings.ledgerBusy
+                ) {
+                    isEraseConfirmPresented = true
+                }
+                .accessibilityIdentifier("settings-erase-all")
+                if let eraseMessage {
+                    SettingsDivider()
+                    Text(eraseMessage)
+                        .font(Typography.caption)
+                        .foregroundStyle(Theme.secondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .accessibilityIdentifier("settings-erase-message")
+                }
+            }
             if Auth0Config.authenticationRequired {
                 SettingsSection(footer: "モデル名・所要時間・トークン数だけです。会話やファイルは送りません。") {
                     Toggle(isOn: $bindable.usageReportingEnabled) {
@@ -228,10 +255,33 @@ private struct LearningRecordSettingsDetail: View {
             }
         }
         .task { await settings.loadLedgerSummary() }
+        .alert("すべての学習記録を消しますか？", isPresented: $isEraseConfirmPresented) {
+            Button("キャンセル", role: .cancel) {}
+            Button("すべて消す", role: .destructive) { erase() }
+        } message: {
+            Text("解いた答案、写真、添付、会話、学習メモ、オンボーディングの回答、バックアップを、この端末と iCloud から消します。同じ Apple ID の別の端末からも消えます。元に戻せません。")
+        }
         .fileImporter(isPresented: $isImporterPresented, allowedContentTypes: [.zip]) { (result: Result<URL, any Error>) in
             if case .success(let url) = result {
                 Task { await settings.importLedger(from: url) }
             }
+        }
+    }
+}
+
+extension LearningRecordSettingsDetail {
+    private func erase() {
+        eraseMessage = nil
+        Task {
+            do {
+                switch try await learnerData.eraseAllLearningRecords() {
+                case .erased: eraseMessage = "学習記録を消しました。"
+                case .cloudPending: eraseMessage = "この端末の学習記録を消しました。iCloud の記録は、次に iCloud に繋がった時に消します。"
+                }
+            } catch {
+                eraseMessage = "途中で止まりました。次にアプリを開いた時に、続きから消します。"
+            }
+            await settings.loadLedgerSummary()
         }
     }
 }

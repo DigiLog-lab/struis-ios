@@ -175,6 +175,75 @@ nonisolated enum TutorMemory {
 
     static let fm = FileManager.default
 
+    // MARK: learner ID (#78)
+
+    /// Anthropic に渡す学習者の ID。全利用者で同じ固定の文字列。この値の役目は、AI が返す記憶の更新とターンの ID が合っているかを
+    /// 端末の中で確かめることだけなので、端末ごとの値(`ledger.deviceID`、同期に使う)は送らない。
+    static let modelLearnerID = "learner"
+
+    /// 学習者の ID を持つ鍵(YAML の行・JSON の値)。
+    private static let learnerIDYAML = try! NSRegularExpression(pattern: "^([ \\t]*(?:- )?(?:learner_id|prototype_user_id):)[ \\t]*(\\S.*)$", options: [.anchorsMatchLines])
+    private static let learnerIDJSON = try! NSRegularExpression(pattern: "(\"(?:learner_id|prototype_user_id)\"\\s*:\\s*)\"[^\"]*\"")
+
+    /// `text` の学習者の ID の値を `id` に置き換える。変わらなければ nil。
+    static func replacingLearnerIDs(in text: String, with id: String = modelLearnerID) -> String? {
+        guard text.contains("learner_id") || text.contains("prototype_user_id") else { return nil }
+        var changed = false
+        var result = text
+        let yamlMatches = learnerIDYAML.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed()
+        for match in yamlMatches {
+            guard let valueRange = Range(match.range(at: 2), in: result) else { continue }
+            let value = result[valueRange].trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "\"'`"))
+            guard value != id else { continue }
+            result.replaceSubrange(valueRange, with: id)
+            changed = true
+        }
+        let jsonMatches = learnerIDJSON.matches(in: result, range: NSRange(result.startIndex..., in: result)).reversed()
+        for match in jsonMatches {
+            guard let whole = Range(match.range, in: result), let key = Range(match.range(at: 1), in: result) else { continue }
+            let replacement = String(result[key]) + "\"\(id)\""
+            guard result[whole] != replacement[...] else { continue }
+            result.replaceSubrange(whole, with: replacement)
+            changed = true
+        }
+        return changed ? result : nil
+    }
+
+    /// 学習メモ(`url` のファイル、またはフォルダの中の YAML・JSON・Markdown)に残った端末ごとの ID を、固定の ID に書き換える
+    /// (#78 より前に作ったメモ・iCloud で届いた古い版のメモ)。変わったファイルだけを書く。何度呼んでも同じ結果。返り値は書き換えたファイルの数。
+    @discardableResult
+    static func replaceLearnerIDs(at url: URL, with id: String = modelLearnerID) throws -> Int {
+        var isDirectory: ObjCBool = false
+        guard fm.fileExists(atPath: url.path, isDirectory: &isDirectory) else { return 0 }
+        let files: [URL]
+        if isDirectory.boolValue {
+            let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            files = (enumerator?.allObjects as? [URL] ?? []).filter { file in
+                let values = try? file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+                return values?.isRegularFile == true && values?.isSymbolicLink != true && ["yaml", "yml", "json", "md"].contains(file.pathExtension.lowercased())
+            }
+        } else {
+            files = [url]
+        }
+        var written = 0
+        for file in files {
+            guard let data = try? Data(contentsOf: file), let text = String(data: data, encoding: .utf8),
+                  let replaced = replacingLearnerIDs(in: text, with: id) else { continue }
+            try Data(replaced.utf8).write(to: file, options: .atomic)
+            written += 1
+        }
+        return written
+    }
+
+    /// 起動して最初のターンの前に、学習メモと作業フォルダ全体を一度だけ書き換える(それより後に届いたメモは、同期の取り込みで書き換える)。
+    static func replaceLearnerIDsOnce(roots: [URL]) throws {
+        try learnerIDsReplaced.runOnce {
+            for root in roots { try replaceLearnerIDs(at: root) }
+        }
+    }
+
+    private static let learnerIDsReplaced = OnceFlag()
+
     // MARK: extraction & queueing
 
     /// `extract_embedded_memory_update(text) -> (visible, payload, error)`.
@@ -900,5 +969,19 @@ nonisolated enum TutorMemory {
             ("schema_version", .integer(memorySchemaVersion)), ("backend_owned", .bool(true)), ("staged_at", .string(staged)),
             ("study_contexts", .array([])),
         ])))
+    }
+}
+
+/// 一度だけ行う処理の印(失敗したら次の呼び出しでもう一度)。
+nonisolated final class OnceFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = false
+
+    func runOnce(_ body: () throws -> Void) rethrows {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !done else { return }
+        try body()
+        done = true
     }
 }

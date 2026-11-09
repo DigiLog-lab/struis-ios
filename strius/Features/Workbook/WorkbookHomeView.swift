@@ -146,6 +146,8 @@ struct WorkbookHomeView: View {
                     destinationView(destination)
                 }
         }
+        // 単元の AI(全体像・問題づくり)が利用枠で止まったら、案内を出す。裏の先回りでも止まるので、開いている間に 1 回だけ。
+        .usageLimitGuide([.workbookUnit, .workbookSet], once: true)
         .alert("単元を削除しますか？", isPresented: Binding(get: { deletionTarget != nil }, set: { if !$0 { deletionTarget = nil } })) {
             Button("キャンセル", role: .cancel) { deletionTarget = nil }
                 .keyboardShortcut(.cancelAction)

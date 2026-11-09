@@ -32,6 +32,9 @@ final class TimelineStore {
         case toy
         /// 「今日はここまで」。
         case finished
+        /// 利用枠で止まった(#62・#78): 作り置きのカードを出さず、利用枠の案内(`UsageLimitSheet`)へ移る。
+        /// 解いている途中のカードは採点まで終えてから、次のカードに替わる時にここへ来る。
+        case limitReached(UsageDenial)
     }
 
     /// 1枚目に添える印(「↺ 昨日」「時計 30秒」「↺ 2日前 ○」)。
@@ -78,10 +81,19 @@ final class TimelineStore {
     private var knownUnitIDs: Set<String>?
     private var bannerTask: Task<Void, Never>?
     private var started = false
+    /// 利用枠の案内のシート(止まった時と、止まった画面のボタンから出す。`AppRootView` が出す)。
+    var limitPrompt: UsageLimitPrompt?
+    /// 新しい作業(新しいカード・5枚の依頼)を利用枠が止める理由(nil なら出せる)。テストで差し替える。
+    var newWorkDenial: @MainActor () -> UsageDenial? = { DeviceUsageGate().usageDenial() }
+    private var usageObserver: NSObjectProtocol?
 
     init(ledger: Ledger, turns: TurnCoordinator) {
         self.ledger = ledger
         self.turns = turns
+        // 購入・上げた・期間が替わった: 止まっていたら、手元のカードから続ける。
+        usageObserver = NotificationCenter.default.addObserver(forName: .usageMeterChanged, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.recheckUsage() }
+        }
         Task { [weak self] in
             guard let self else { return }
             let id = await ledger.observe { [weak self] events in
@@ -294,6 +306,14 @@ final class TimelineStore {
     // MARK: - 解く
 
     func show(_ id: String?) {
+        // 利用枠を使い切ったら、新しいカードは出さない(前の起動で出したまま解いている途中のカードは出す)。
+        // 手元が空で単元も無い時は、使い始めの案内のまま。
+        let resuming: Bool = id.flatMap { machine.cards[$0] }?.status == "shown"
+        let guide: Bool = id == nil && workbook.units.isEmpty && machine.cards.isEmpty
+        if id == nil || id != currentID, !resuming, !guide, let denial = newWorkDenial() {
+            stopForUsage(denial)
+            return
+        }
         guard let id, let card = machine.cards[id] else {
             currentID = nil
             phase = workbook.units.isEmpty && machine.cards.isEmpty ? .guide : .waiting
@@ -315,6 +335,33 @@ final class TimelineStore {
     }
 
     private var elapsed: Double { max(0, ActiveClock.shared.now - cardStartedAt) }
+
+    private func stopForUsage(_ denial: UsageDenial) {
+        timelineLog.notice("usage limit: no new card (\(denial.rawValue, privacy: .public))")
+        if phase != .limitReached(denial) { limitPrompt = UsageLimitPrompt(denial: denial) }
+        currentID = nil
+        lastAttemptID = nil
+        decided = nil
+        badge = nil
+        phase = .limitReached(denial)
+    }
+
+    /// 止まった画面のボタン: 案内のシートをもう一度出す。
+    func openUsageLimit() {
+        guard case .limitReached(let denial) = phase else { return }
+        limitPrompt = UsageLimitPrompt(denial: denial)
+    }
+
+    /// 利用枠で止まっている時に、もう一度確かめる(前面に戻った時・案内を閉じた時・使用額かプランが変わった時)。続けられるなら手元のカードから。
+    func recheckUsage() {
+        guard case .limitReached(let previous) = phase else { return }
+        if let denial = newWorkDenial() {
+            if denial != previous { phase = .limitReached(denial) }
+            return
+        }
+        phase = .waiting
+        show(machine.queue.first?.id ?? machine.rapidCards.first?.id)
+    }
 
     /// 撮った・指で書いた答案を送る(採点は裏で走る)。
     func submit(image data: Data, ink: TimelineInkAnswer? = nil) async {
@@ -490,6 +537,10 @@ final class TimelineStore {
     func chooseRapid() async {
         guard case .dip(let id, _) = phase else { return }
         await commit { machine in machine.chooseDip(id: id, chosen: "rapid") }
+        if let denial = newWorkDenial() {
+            stopForUsage(denial)
+            return
+        }
         rapidIDs = Array(machine.rapidCards.prefix(TimelineRules.rapidCount).map(\.id))
         if rapidIDs.isEmpty { await chooseContinue(); return }
         rapidResults = [:]
@@ -547,7 +598,10 @@ final class TimelineStore {
         } catch {
             actionError = "答案を保存できませんでした。"
         }
-        if index + 1 < rapidIDs.count {
+        if index + 1 < rapidIDs.count, let denial = newWorkDenial() {
+            // 送った答案は採点まで終える。次の問題は出さない。
+            stopForUsage(denial)
+        } else if index + 1 < rapidIDs.count {
             let nextID = rapidIDs[index + 1]
             currentID = nextID
             cardStartedAt = ActiveClock.shared.now
@@ -605,6 +659,14 @@ final class TimelineStore {
     /// 学習者の処理に枠を譲るので、何も出せないまま待たせることになる(2026-10-31 の実機で「問題を用意しています」のまま進まなかった)。
     func requestBatch(force: Bool = false) async {
         guard !workbook.units.isEmpty || machine.hasGraph else { return }
+        // 利用枠を使い切ったら新しいカードを頼まない(頼んでも送られずに失敗するだけ)。待っていたなら、待ちを抜けて案内へ。
+        if let denial = newWorkDenial() {
+            switch phase {
+            case .waiting, .batchFailed: if currentID == nil { stopForUsage(denial) }
+            default: break
+            }
+            return
+        }
         let learnerWaiting: Bool = currentID == nil
         let pending: Bool = await hasOwnPendingBatch(purpose: "cards")
         if pending, learnerWaiting {
@@ -707,6 +769,8 @@ final class TimelineStore {
     /// 1段下りる依頼は、採点結果を反映する時に `TimelineTurns.apply` が出す。
     /// - Parameter units: 単元の分を頼むのを、この単元だけにする(nil なら全部の単元)。
     private func ensureGraphWork(units: Set<String>? = nil) async {
+        // 利用枠を使い切ったら頼まない(枠が戻った後の、開いた時・単元ができた時・採点の後に頼む)。
+        guard newWorkDenial() == nil else { return }
         guard let request = TimelineGraphSchedule.next(timeline: machine, workbook: workbook, units: units) else { return }
         let profile = OnboardingProfile.load()
         let workbook = self.workbook

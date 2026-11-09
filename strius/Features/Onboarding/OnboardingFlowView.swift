@@ -14,7 +14,8 @@ struct OnboardingFlowView: View {
     let subscriptions: SubscriptionStore
     let onFinish: () -> Void
 
-    init(learnerData: LearnerData, subscriptions: SubscriptionStore, start: OnboardingStep? = nil, onFinish: @escaping () -> Void) {
+    /// - Parameter reconsent: 規約の版が上がった時の同意の取り直し(#78)。規約と送る内容の 2 画面だけを出し、同意したら `onFinish`。
+    init(learnerData: LearnerData, subscriptions: SubscriptionStore, start: OnboardingStep? = nil, reconsent: Bool = false, onFinish: @escaping () -> Void) {
         self.learnerData = learnerData
         self.subscriptions = subscriptions
         self.onFinish = onFinish
@@ -23,8 +24,10 @@ struct OnboardingFlowView: View {
             profile: start == nil ? nil : OnboardingProfile(),
             hasPlan: { [subscriptions] in subscriptions.plan != nil },
             isClaudeAvailable: { [learnerData] in Self.claudeAvailable(learnerData: learnerData) },
-            start: start
+            start: start,
+            reconsent: reconsent
         )
+        model.onReconsented = onFinish
         #if DEBUG
         if let start { model.prepareForPreview(start) }
         #endif
@@ -157,7 +160,11 @@ struct OnboardingFlowView: View {
     private var terms: some View {
         OnboardingScaffold(onBack: back, isPad: isPad) {
             VStack(alignment: .leading, spacing: 18) {
-                OnboardingTitle(title: "はじめる前に", detail: "利用規約の大事なところです。")
+                if model.isReconsent {
+                    OnboardingTitle(title: "利用規約を新しくしました", detail: "続けて使うには、新しい利用規約とプライバシーポリシーへの同意が必要です。大事なところは次のとおりです。")
+                } else {
+                    OnboardingTitle(title: "はじめる前に", detail: "利用規約の大事なところです。")
+                }
                 OnboardingListCard {
                     OnboardingPointRow(title: "採点と説明は AI が行います", detail: "間違えることがあります。おかしいと思ったら「質問」で確かめてください。")
                     OnboardingPointRow(title: "お試しは3問まで、続きは有料です", detail: "プランごとに1週間に使える量が決まっています。")
@@ -199,13 +206,15 @@ struct OnboardingFlowView: View {
     private var consent: some View {
         OnboardingScaffold(onBack: back, isPad: isPad) {
             VStack(alignment: .leading, spacing: 18) {
-                OnboardingTitle(title: isPad ? "答案の扱いについて" : "写真の扱いについて")
+                OnboardingTitle(title: "AI に送る内容について")
                 OnboardingListCard {
+                    // 送る内容と送り先の国(#78)。iPad は画面に書いた答案も送る。
                     if isPad {
-                        OnboardingPointRow(symbol: "pencil.line", title: "書いた答案と写真を AI に送ります",
-                                           detail: "画面に書いた答案や、撮った答案・教材の写真は、採点と説明のために Anthropic の Claude に送ります。")
+                        OnboardingPointRow(symbol: "pencil.line", title: "答案と学習の記録を AI に送ります",
+                                           detail: "画面に書いた答案、撮った答案や教材の写真、質問、学習記録、学年を、採点と説明のために米国の Anthropic に送ります。")
                     } else {
-                        OnboardingPointRow(symbol: "camera", title: "写真を AI に送ります", detail: "答案や教材の写真は、採点と説明のために Anthropic の Claude に送ります。")
+                        OnboardingPointRow(symbol: "camera", title: "答案と学習の記録を AI に送ります",
+                                           detail: "答案、撮った答案や教材の写真、質問、学習記録、学年を、採点と説明のために米国の Anthropic に送ります。")
                     }
                     OnboardingPointRow(symbol: "cloud", title: "記録はこの端末と iCloud に残ります",
                                        detail: "解いた答案と学習の記録は、この端末と、同じ Apple ID の iCloud に保存します。Struis の運営者は読めません。")

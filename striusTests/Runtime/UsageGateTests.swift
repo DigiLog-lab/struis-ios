@@ -1,7 +1,8 @@
 import XCTest
 @testable import strius
 
-/// 利用枠(#62): 期間の区切り(課金した時刻から 7 日ごと、課金したことが無ければ月曜 0:00)・保存先の大きい方・プランごとの上限とソフトリミット・料金が分からない要求の見積もり・
+/// 利用枠(#62・#78): 期間の区切り(課金した時刻から 7 日ごと、課金したことが無ければ月曜 0:00)・保存先の大きい方・プランごとの上限と
+/// ソフトリミット(途中の答案の採点だけが余裕分を使う)・プランもお試しも無い時の停止・料金が分からない要求の見積もり・
 /// 上限に達した時の止め方(送らずにターンを失敗にする)。
 @MainActor
 final class UsageGateTests: XCTestCase {
@@ -23,6 +24,13 @@ final class UsageGateTests: XCTestCase {
         meter.setPlan(plan)
         return meter
     }
+
+    /// お試しの残りと規約の同意を差し替えた判定(端末の Keychain を読まない)。
+    private func gate(_ meter: UsageMeter, trialRemaining: Int = 3, consented: Bool = true) -> DeviceUsageGate {
+        DeviceUsageGate(meter: meter, trialRemaining: { trialRemaining }, consented: { consented })
+    }
+
+    private let grading = UsageRequest(kind: .timelineGrading, finishing: true)
 
     func testWeekStartsOnMondayAtMidnightAndResetsTheNextMonday() {
         // 2026-10-31 は土曜。週の始まりは 10-26(月)0:00、戻るのは 11-02(月)0:00。
@@ -98,7 +106,7 @@ final class UsageGateTests: XCTestCase {
         let reinstalled = meter(plan: nil, local: local, cloud: cloud, now: now)
         XCTAssertEqual(reinstalled.chargeID, 7, "課金は Keychain と iCloud に残る")
         XCTAssertEqual(reinstalled.snapshot().spentUSD, 0.40, accuracy: 1e-9, "その期間の使用額を引き継ぐ(お試しの枠が戻らない)")
-        XCTAssertFalse(DeviceUsageGate(meter: reinstalled).admit(), "お試しの枠($0.25 + カード 1 枚分)を超えたまま")
+        XCTAssertEqual(gate(reinstalled).denial(for: grading), .limitReached, "お試しの枠($0.25 + カード 1 枚分)を超えたまま")
     }
 
     func testTheNewerChargeOfKeychainAndICloudIsUsed() {
@@ -216,10 +224,10 @@ final class UsageGateTests: XCTestCase {
         let seeded = MirroredValues(local: SeededValueStore(prefix: "usage.week.", usd: 0.40), cloud: MemoryValueStore())
         let meter = UsageMeter(values: seeded, defaults: UserDefaults(suiteName: "usage-tests-\(UUID().uuidString)")!, now: { now })
         XCTAssertEqual(meter.snapshot().spentUSD, 0.40, accuracy: 1e-9)
-        XCTAssertFalse(DeviceUsageGate(meter: meter).admit())
+        XCTAssertEqual(gate(meter).denial(for: .newWork), .limitReached)
         meter.setPlan(.light, chargeID: 5, chargedAt: now, renewsAt: now.addingTimeInterval(30 * 86_400))
         XCTAssertEqual(meter.snapshot().spentUSD, 0)
-        XCTAssertTrue(DeviceUsageGate(meter: meter).admit())
+        XCTAssertNil(gate(meter).denial(for: .newWork))
     }
 
     func testSnapshotShowsPercentRemainingProblemsAndResetDate() {
@@ -239,25 +247,75 @@ final class UsageGateTests: XCTestCase {
         XCTAssertEqual(meter.snapshot().remainingProblems, 30)
     }
 
-    func testGateAllowsOneCardOverTheLimitThenRefuses() {
+    func testNewWorkStopsAtTheLimitAndOnlyTheGradingOfTheAnswerInProgressUsesTheGrace() {
         let meter = meter(plan: .light)
-        let gate = DeviceUsageGate(meter: meter)
+        let gate = gate(meter)
         meter.add(0.79)
-        XCTAssertTrue(gate.admit())
+        XCTAssertNil(gate.denial(for: .newWork))
         meter.add(0.02)
         XCTAssertTrue(meter.snapshot().isExhausted, "100% に達した")
-        XCTAssertTrue(gate.admit(), "ソフトリミット: 解いている途中のカードは採点まで通す")
+        for kind in [TurnPlan.Kind.timelineBatch, .timelineReview, .timelineGraph, .timelineMarks, .workbookSet, .workbookUnit, .onboardingPlan] {
+            XCTAssertEqual(gate.denial(for: UsageRequest.of(kind: kind, turnAdmitted: true)), .limitReached, "\(kind.rawValue) は新しい作業: 上限で止める")
+        }
+        XCTAssertEqual(gate.denial(for: UsageRequest.of(kind: .chat, turnAdmitted: false)), .limitReached, "新しい質問は上限で止める")
+        XCTAssertNil(gate.denial(for: UsageRequest.of(kind: .chat, turnAdmitted: true)), "通った質問は、その返事までは返す")
+        for kind in UsageRequest.gradingKinds {
+            XCTAssertNil(gate.denial(for: UsageRequest.of(kind: kind, turnAdmitted: false)), "ソフトリミット: 解いている途中の答案(\(kind.rawValue))は採点まで通す")
+        }
         meter.add(UsageRules.graceUSD)
-        XCTAssertFalse(gate.admit(), "カード 1 枚分を超えたら通さない")
+        XCTAssertEqual(gate.denial(for: grading), .limitReached, "カード 1 枚分を超えたら通さない")
+    }
+
+    /// #62 の穴: 裏の出題は上限の手前までしか使えないので、上限の後の余裕分は途中の答案の採点に残る。
+    func testBackgroundCardsCannotSpendTheGraceBeforeTheAnswerInProgressIsGraded() {
+        let meter = meter(plan: .light)
+        let gate = gate(meter)
+        meter.add(0.799)
+        let batch = UsageRequest.of(kind: .timelineBatch, turnAdmitted: false)
+        XCTAssertNil(gate.denial(for: batch), "上限の手前なら出題を頼める")
+        meter.add(0.05) // その出題で上限を越えた
+        XCTAssertEqual(gate.denial(for: UsageRequest.of(kind: .timelineBatch, turnAdmitted: true)), .limitReached, "出題の続きの要求も上限で止める")
+        XCTAssertNil(gate.denial(for: grading), "途中の答案の採点は通る")
     }
 
     func testWithoutAPlanOnlyTheTrialAllowanceIsAvailable() {
         let meter = meter(plan: nil)
         XCTAssertEqual(meter.snapshot().limitUSD, UsageRules.trialLimitUSD)
         meter.add(UsageRules.trialLimitUSD + UsageRules.graceUSD)
-        XCTAssertFalse(DeviceUsageGate(meter: meter).admit())
+        XCTAssertEqual(gate(meter).denial(for: grading), .limitReached)
         meter.setPlan(.standard)
-        XCTAssertTrue(DeviceUsageGate(meter: meter).admit(), "購入すると、すぐに続けられる")
+        XCTAssertNil(gate(meter).denial(for: .newWork), "購入すると、すぐに続けられる")
+    }
+
+    /// #78 の 6: プランが無く、お試しを使い切った(契約が切れた後を含む)なら、使用額が 0 でも送らない。送ったお試しの採点だけは通す。
+    func testWithoutAPlanAndNoTrialLeftNothingIsSentExceptTheTrialGradingInProgress() {
+        let meter = meter(plan: nil)
+        XCTAssertNil(gate(meter, trialRemaining: 1).denial(for: .newWork), "お試しが残っていれば、お試しの枠の中で使える")
+        let used = gate(meter, trialRemaining: 0)
+        XCTAssertEqual(meter.snapshot().spentUSD, 0)
+        for kind in [TurnPlan.Kind.chat, .timelineBatch, .timelineGrading, .workbookGrading, .workbookUnit, .onboardingPlan] {
+            XCTAssertEqual(used.denial(for: UsageRequest.of(kind: kind, turnAdmitted: false)), .noPlan, "\(kind.rawValue) を送らない")
+            XCTAssertEqual(used.denial(for: UsageRequest.of(kind: kind, turnAdmitted: true)), kind == .onboardingGrading ? nil : .noPlan)
+        }
+        XCTAssertNil(used.denial(for: UsageRequest.of(kind: .onboardingGrading, turnAdmitted: false)), "3 問目の採点の途中は通す")
+        meter.setPlan(.light)
+        XCTAssertNil(used.denial(for: .newWork), "購入すると、すぐに続けられる")
+        meter.setPlan(nil)
+        XCTAssertEqual(used.denial(for: .newWork), .noPlan, "契約が切れたら止める")
+    }
+
+    func testNothingIsSentUntilTheCurrentTermsAreAccepted() {
+        let meter = meter(plan: .generous)
+        XCTAssertEqual(gate(meter, consented: false).denial(for: grading), .consentRequired)
+        XCTAssertNil(gate(meter, consented: false).usageDenial(), "画面の枠の判定は同意を見ない(同意は取り直しの画面が受け持つ)")
+    }
+
+    func testDenialIsReadBackFromTheFailedTurn() {
+        XCTAssertEqual(UsageLimitResponse.denial(in: TurnRuntimeError.turnFailed(UsageDenial.limitReached.message).detail), .limitReached)
+        XCTAssertEqual(UsageLimitResponse.denial(in: TurnRuntimeError.turnFailed(UsageDenial.noPlan.message).detail), .noPlan)
+        XCTAssertEqual(UsageLimitResponse.denial(in: TurnRuntimeError.turnFailed(UsageDenial.consentRequired.message).detail), .consentRequired)
+        XCTAssertNil(UsageLimitResponse.denial(in: "turn failed: Claude stream error: overloaded_error"))
+        XCTAssertEqual(TurnRuntimeError.turnFailed(UsageDenial.noPlan.message).errorDescription, "お試しの3問を使い切りました。続けるには、設定の「利用枠」でプランを選んでください。")
     }
 
     func testChargeUsesTheEstimatedCostAndNeverCountsUnknownAsZero() {
@@ -289,8 +347,12 @@ final class UsageGateTests: XCTestCase {
             return (500, "")
         }
         defer { StubAnthropic.handler = nil }
+        let gate: ClosedGate = ClosedGate()
         let upstream: ClaudeUpstream = ClaudeUpstream(baseURL: URL(string: "https://stub.invalid")!, apiKey: { "sk-test" },
-                                                      session: URLSession(configuration: configuration), gate: ClosedGate())
+                                                      session: URLSession(configuration: configuration), gate: gate)
+        let hit: XCTestExpectation = expectation(forNotification: .usageLimitReached, object: nil) { notification in
+            (notification.object as? UsageLimitHit)?.kind == .workbookSet
+        }
         let assets: AssetCache = AssetCache()
         let runner: ClaudeTurnRunner = ClaudeTurnRunner(assets: assets, conversations: try ClaudeConversationStore.temporary(), upstream: upstream,
                                                         contextStore: ThreadContextStore(url: nil), prepareCommands: {})
@@ -310,11 +372,19 @@ final class UsageGateTests: XCTestCase {
         XCTAssertEqual(outcome.errorDetail, TurnRuntimeError.turnFailed(UsageLimitResponse.message).detail)
         XCTAssertTrue(outcome.errorDetail?.contains(UsageLimitResponse.code) == true)
         XCTAssertEqual(outcome.executions.last?["status"]?.stringValue, "failed")
+        XCTAssertEqual(gate.requests, [UsageRequest(kind: .workbookSet, finishing: false)], "単元の問題づくりは新しい作業として確かめる")
+        await fulfillment(of: [hit], timeout: 2)
     }
 }
 
-/// 送らせない判定(ランナーのテスト)。
-nonisolated private struct ClosedGate: UsageGate {
-    func admit() -> Bool { false }
+/// 送らせない判定(ランナーのテスト)。確かめた要求を残す。
+nonisolated private final class ClosedGate: UsageGate, @unchecked Sendable {
+    private let lock = NSLock()
+    private var seen: [UsageRequest] = []
+    var requests: [UsageRequest] { lock.withLock { seen } }
+    func denial(for request: UsageRequest) -> UsageDenial? {
+        lock.withLock { seen.append(request) }
+        return .limitReached
+    }
     func record(_ attempt: [String: Any], requestBytes: Int) {}
 }
