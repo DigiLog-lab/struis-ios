@@ -53,13 +53,67 @@ mkdir -p "$STATE"
 export GIT_AUTHOR_NAME=devbox GIT_AUTHOR_EMAIL=devbox@users.noreply.github.com
 export GIT_COMMITTER_NAME=devbox GIT_COMMITTER_EMAIL=devbox@users.noreply.github.com
 
+# redact FILE...: replaces the secret in DEVBOX_REDACT_FILE (the Anthropic API key, devbox.yml) with
+# `[redacted]` in place. Used on the whole log after the command ended, before it is compressed. The key is
+# read by perl from the file, so it never appears on a command line.
+redact() {
+  [[ -n "${DEVBOX_REDACT_FILE:-}" && -s "$DEVBOX_REDACT_FILE" ]] || return 0
+  perl -0777 -pi -e 'BEGIN { open(my $f, "<", $ENV{DEVBOX_REDACT_FILE}) or die; local $/; $k = <$f>; $k =~ s/\s+\z//; }
+                     s/\Q$k\E/[redacted]/g if length $k;' "$@"
+}
+
+# redact_tree DIR: the same for every file under DIR (a snapshot about to be published). A compressed file
+# (gzip, zip, bzip2...) whose content holds the key cannot be edited in place, so it is replaced by a note.
+redact_tree() {
+  [[ -n "${DEVBOX_REDACT_FILE:-}" && -s "$DEVBOX_REDACT_FILE" ]] || return 0
+  perl -e '
+    use strict; use warnings; use File::Find;
+    use IO::Uncompress::AnyUncompress qw(anyuncompress);
+    open(my $f, "<", $ENV{DEVBOX_REDACT_FILE}) or die "key file: $!";
+    my $key = do { local $/; <$f> }; $key =~ s/\s+\z//;
+    exit 0 unless length $key;
+    find({ no_chdir => 1, wanted => sub {
+      return unless -f $_ && !-l $_;
+      my $path = $_;
+      open(my $in, "<:raw", $path) or die "$path: $!";
+      my $data = do { local $/; <$in> }; close $in;
+      $data = "" unless defined $data;
+      my $inflated;
+      my $changed = 0;
+      if (anyuncompress(\$data => \$inflated, MultiStream => 1, Transparent => 0) && defined $inflated && index($inflated, $key) >= 0) {
+        $data = "[redacted: this compressed file held the Anthropic API key]\n";
+        $changed = 1;
+      } elsif ($data =~ s/\Q$key\E/[redacted]/g) {
+        $changed = 1;
+      }
+      return unless $changed;
+      open(my $out, ">:raw", $path) or die "$path: $!";
+      print {$out} $data or die "$path: $!";
+      close $out or die "$path: $!";
+    } }, $ARGV[0]);
+  ' "$1"
+}
+
 # publish DIR NAME MESSAGE: one commit holding exactly DIR's files, force-pushed to devboxes/<key>/out/NAME.
+# What is pushed is a copy of DIR with the secret redacted (redact_tree): results are pushed to branches of a
+# public repository, so nothing leaves this runner without going through it. The copy leaves the files a
+# running command still writes untouched (rewriting them in place would cut off what it writes later).
 publish() {
-  local dir=$1 name=$2 message=$3 tree commit
+  local dir=$1 name=$2 message=$3 tree commit snapshot=$STATE/publish-snapshot
+  rm -rf "$snapshot"
+  # The copy is made writable (a command may leave read-only files or folders), and redact_tree stops with an
+  # error on any file it cannot rewrite: a file it could not redact is never published.
+  if ! cp -R "$dir" "$snapshot" || ! chmod -R u+rwX "$snapshot" || ! redact_tree "$snapshot"; then
+    rm -rf "$snapshot"
+    echo "::warning::devbox: could not redact $name; not published"
+    return 1
+  fi
+  dir=$snapshot
   rm -f "$STATE/index"
   tree=$(export GIT_INDEX_FILE="$STATE/index"
          git read-tree --empty && git --work-tree="$dir" add -A -f . && git write-tree) || return 1
   commit=$(git commit-tree "$tree" -m "$message") || return 1
+  rm -rf "$snapshot"
   for attempt in 1 2 3; do
     git push -q --force origin "$commit:$OUT_PREFIX$name" && return 0
     sleep $(( attempt * 2 ))
@@ -284,6 +338,7 @@ while :; do
   wait "$pid"; code=$?
   finished=$(date +%s)
   echo "finished=$finished" >> "$out/times"
+  redact "$log" || : > "$log"
   tail -n 400 "$log" > "$out/log.tail.txt"
   gzip -c "$log" > "$out/log.txt.gz"
   status "$out" "$id" done "$code"
