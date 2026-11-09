@@ -805,7 +805,7 @@ final class OnboardingModel {
             let json = MockTurnRunner.onboardingPlan(["unit": profile.unit ?? "二次方程式", "trial": profile.trial.map { ["correct": $0.correct] }])
             if let data = try? JSONSerialization.data(withJSONObject: json) { draft = try? JSONDecoder().decode(OnboardingPlanDraft.self, from: data) }
         }
-        if [.plan, .check, .checkResult].contains(start), draft == nil {
+        if [.check, .checkResult].contains(start), draft == nil {
             let json = MockTurnRunner.onboardingPlan(["unit": profile.unit ?? "二次方程式", "trial": profile.trial.map { ["correct": $0.correct] }])
             if let data = try? JSONSerialization.data(withJSONObject: json) { draft = try? JSONDecoder().decode(OnboardingPlanDraft.self, from: data) }
         }
