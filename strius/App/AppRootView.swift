@@ -219,6 +219,11 @@ struct AppRootView: View {
                     // 単元ホームは中身を変えずに、全画面で重ねる(画面の移り方・撮る・質問をそのまま持つ)。
                     .fullScreenCover(isPresented: $isUnitsPresented) {
                         WorkbookHomeView(onOpenSettings: { isSettingsPresented = true }, onCloseTimeline: { isUnitsPresented = false })
+                            // 単元の画面の「タイムラインで解く」: その単元に固定して、タイムラインに戻る。
+                            .environment(\.solveUnitInTimeline) { unitID in
+                                isUnitsPresented = false
+                                Task { await timeline.setScope(unitID) }
+                            }
                             .sheet(isPresented: $isSettingsPresented) {
                                 RootSettingsSheet()
                                     .presentationDetents([.large])

@@ -32,6 +32,19 @@ nonisolated enum UnitCatalog {
         ("理科", "理科"), ("英語", "英語"), ("英文法", "英語"),
     ]
 
+    /// 単元ホームの単元名から、科目の見出し(数学・理科・英語など)を引く。一覧に無ければ nil。
+    static func subjectFamily(forUnitTitle title: String) -> String? {
+        let key = normalize(title)
+        guard !key.isEmpty else { return nil }
+        let unit = units.first { unit in
+            ([unit.name] + unit.aliases).map(normalize).contains { name in !name.isEmpty && (key == name || key.contains(name)) }
+        }
+        guard let subject = unit?.subject else { return nil }
+        if subject.hasPrefix("数学") { return "数学" }
+        if subject.hasSuffix("基礎") { return String(subject.dropLast(2)) }
+        return subject
+    }
+
     /// 科目の家族(「数学」は数学Ⅰ〜C と中学の数学を含む)。
     static func subjectMatches(unitSubject: String, chip: String) -> Bool {
         if unitSubject == chip { return true }

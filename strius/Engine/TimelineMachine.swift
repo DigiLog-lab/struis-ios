@@ -275,7 +275,8 @@ nonisolated struct TimelineMachine {
             put("timeline.card_added", TimelineCardRecord(
                 id: newID(), batchId: id, position: position, kind: "solve", level: 1, skills: [rapid.skill].filter { allowed.isEmpty || allowed.contains($0) },
                 typeName: "速攻", prompt: rapid.prompt, math: rapid.math ?? "", question: "", answerKey: rapid.answerKey, answerExpr: rapid.answerExpr ?? "",
-                checkpoints: [], commonMistakes: [], estimatedSeconds: 10, chain: nil, easierOf: nil, subunitId: nil, unitId: nil,
+                checkpoints: [], commonMistakes: [], estimatedSeconds: 10, chain: nil, easierOf: nil, subunitId: nil,
+                unitId: row.request["scope_unit_id"]?.stringValue,
                 payload: .emptyObject, origin: "rapid", status: "unused", createdAt: now(), updatedAt: now()
             ))
             position += 1
@@ -324,7 +325,8 @@ nonisolated struct TimelineMachine {
         for (key, value) in [("compare", draft.compare), ("reason", draft.reason), ("howto", draft.howto), ("diagnostic", draft.diagnostic)] {
             if let value, value != .null { payload[key] = value }
         }
-        let unitID: String? = nil
+        // 解く範囲を固定して頼んだ5枚は、その単元のカードとして持つ(グラフがまだ無くても範囲の中だと分かるように)。
+        let unitID: String? = batchID.flatMap { batches[$0]?.request["scope_unit_id"]?.stringValue }
         var card = TimelineCardRecord(
             id: newID(), batchId: batchID, position: position, kind: TimelineCards.Kind.solve.rawValue, level: min(4, max(1, draft.level)),
             skills: draft.skills, typeName: draft.typeName, prompt: draft.prompt, math: draft.math, question: draft.question,

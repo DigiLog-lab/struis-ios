@@ -15,6 +15,38 @@ private let timelineTurnLog = Logger(subsystem: "com.digiloglab.strius", categor
 /// 4. 今回の仕事(1〜2 行)と、今回の材料 = 会話の最初の発話
 /// 1 と 2 の最後に 1 時間のキャッシュの印を置く(`ClaudeRequestTranslator` の版 4)。作業フォルダの場所(処理ごとに違う)は
 /// 先頭に入れない: 前の版は Skill を作業フォルダに置いていて、その場所が Skill の一覧として system に入り、毎回外れていた。
+/// タイムラインの解く範囲(単元の固定)。nil は「おまかせ」(単元をまたいで出す)。端末ごとに持つ。
+/// 固定すると、今の単元はその単元になり、5枚の依頼はその単元(と前提)のスキルだけに絞る。
+nonisolated enum TimelineScope {
+    static let defaultsKey = "timeline.scope.unit"
+
+    static var unitID: String? {
+        get { UserDefaults.standard.string(forKey: defaultsKey).flatMap { $0.isEmpty ? nil : $0 } }
+        set { UserDefaults.standard.set(newValue, forKey: defaultsKey) }
+    }
+
+    /// 固定している単元(単元ホームに残っている時だけ)。
+    static func pinnedUnit(workbook: WorkbookMachine) -> WorkbookUnitRecord? {
+        unitID.flatMap { workbook.units[$0] }.flatMap { $0.status == "archived" ? nil : $0 }
+    }
+
+    /// カードの単元(小単元・スキルから引く)。引けなければ nil。
+    static func unitID(of card: TimelineCardRecord, workbook: WorkbookMachine, timeline: TimelineMachine) -> String? {
+        card.unitId ?? card.subunitId.flatMap { workbook.subunits[$0]?.unitId }
+            ?? card.skills.lazy.compactMap { timeline.skills[$0].flatMap { TimelineGraphSchedule.unitID(of: $0, workbook: workbook) } }.first
+    }
+
+    /// 固定した単元の外のカードか。単元が引けないカードも外とみなす(固定して頼んだ5枚は単元を持つので残る)。
+    /// 見直しが入れたお知らせ・問い(origin "review")は、答案についての話なので範囲で捨てない。
+    static func isOutside(_ card: TimelineCardRecord, unitID: String, workbook: WorkbookMachine, timeline: TimelineMachine) -> Bool {
+        if card.origin == "review" { return false }
+        // スキルが他の単元のものだけなら、単元の印が付いていても外(固定して頼んでも、モデルが外の問題を返した時)。
+        let skillUnits = Set(card.skills.compactMap { timeline.skills[$0].flatMap { TimelineGraphSchedule.unitID(of: $0, workbook: workbook) } })
+        if !skillUnits.isEmpty, !skillUnits.contains(unitID) { return true }
+        return self.unitID(of: card, workbook: workbook, timeline: timeline) != unitID
+    }
+}
+
 nonisolated enum TimelineTurns {
     static let batchFailure = "次の問題を作れませんでした。"
     static let gradingFailure = "採点できませんでした。もう一度撮ってください。"
@@ -39,8 +71,9 @@ nonisolated enum TimelineTurns {
 
     // MARK: - 先頭(採点・出題・見直しで共通)
 
-    /// 今の単元(直近のカードの単元、なければ単元ホームの最初の単元)。
+    /// 今の単元(固定していればその単元。でなければ直近のカードの単元、なければ単元ホームの最初の単元)。
     static func currentUnit(workbook: WorkbookMachine, timeline: TimelineMachine) -> WorkbookUnitRecord? {
+        if let pinned = TimelineScope.pinnedUnit(workbook: workbook) { return pinned }
         let recentUnit = timeline.orderedAttempts.reversed().lazy.compactMap { timeline.cards[$0.cardId] }.compactMap { card -> String? in
             card.unitId ?? card.subunitId.flatMap { workbook.subunits[$0]?.unitId }
         }.first
@@ -156,7 +189,12 @@ nonisolated enum TimelineTurns {
         let attempts = timeline.orderedAttempts
         let usedSkills = Set(attempts.suffix(10).compactMap { timeline.cards[$0.cardId] }.flatMap(\.skills))
         let unit = currentUnit(workbook: workbook, timeline: timeline)
-        let skillRows = timeline.activeSkills.filter { usedSkills.contains($0.id) || (unit != nil && TimelineGraphSchedule.unitID(of: $0, workbook: workbook) == unit?.id) }.prefix(30).map { skill -> LedgerJSON in
+        let pinned = TimelineScope.pinnedUnit(workbook: workbook)
+        // 固定中は、その単元(と前提。前提の点は求めた点の単元を継ぐ)のスキルだけを出せるようにする。
+        let allowedSkills = pinned.map { pin in
+            timeline.activeSkills.filter { skill in TimelineGraphSchedule.unitID(of: skill, workbook: workbook) == pin.id }
+        } ?? timeline.activeSkills
+        let skillRows = allowedSkills.filter { usedSkills.contains($0.id) || (unit != nil && TimelineGraphSchedule.unitID(of: $0, workbook: workbook) == unit?.id) }.prefix(30).map { skill -> LedgerJSON in
             .object([
                 "id": .string(skill.id), "status": .string(TimelineGraph.statusLabels[skill.status] ?? skill.status),
                 "attempts": .number(Double(skill.attempts)), "correct_days": .number(Double(skill.correctDays)),
@@ -177,14 +215,17 @@ nonisolated enum TimelineTurns {
             "accuracy_last_10": batch.accuracy.map { .number(($0 * 100).rounded() / 100) } ?? .null,
             "level_cap": batch.levelCap.map { .number(Double($0)) } ?? .null,
             "skills": .array(Array(skillRows)),
-            "allowed_skill_ids": .array(timeline.activeSkills.map { .string($0.id) }),
+            "allowed_skill_ids": .array(allowedSkills.map { .string($0.id) }),
             "flow": .object(flow),
             "review_due": .array(TimelineRules.reviewDue(timeline.activeSkills, today: timeline.today).map { .string($0.id) }),
             "suppressed_today": .array(suppressed.sorted().map(LedgerJSON.string)),
             "split_requests": .array(splits),
-            "subunits": .array(workbook.orderedSubunits(status: "active").map { .object(["id": .string($0.id), "title": .string($0.title), "unit": .string(workbook.units[$0.unitId]?.title ?? "")]) }),
+            "subunits": .array(workbook.orderedSubunits(unitID: pinned?.id, status: "active").map { .object(["id": .string($0.id), "title": .string($0.title), "unit": .string(workbook.units[$0.unitId]?.title ?? "")]) }),
         ]
         if attempts.isEmpty, let placement, placement != .null { request["placement_start"] = placement }
+        if let pinned {
+            request["scope"] = .object(["unit_id": .string(pinned.id), "unit_title": .string(pinned.title)])
+        }
         if !batch.rejected.isEmpty { request["rejected_last_time"] = .array(batch.rejected.map(LedgerJSON.string)) }
         return .object(request)
     }

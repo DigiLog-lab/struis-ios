@@ -35,6 +35,12 @@ struct LearningTimelineView: View {
                 topBar
                     .padding(.horizontal, layout.isPad ? 24 : 20)
                     .padding(.top, 8)
+                if let focus = store.pinnedFocus {
+                    TimelineScopeFocus(title: focus.title, marks: focus.marks)
+                        .padding(.horizontal, layout.isPad ? 24 : 20)
+                        .padding(.top, 10)
+                        .timelineInkPassThrough()
+                }
                 ZStack(alignment: .bottomTrailing) {
                     content
                         .padding(.leading, layout.isPad ? TimelineLayout.columnLeading : 24)
@@ -92,6 +98,11 @@ struct LearningTimelineView: View {
                 Task { await store.submit(image: data) }
             }
         }
+        .sheet(isPresented: Binding(get: { store.isScopeSheetPresented }, set: { store.isScopeSheetPresented = $0 })) {
+            TimelineScopeSheet(store: store)
+                .presentationDetents([.medium, .large])
+                .presentationBackground(Theme.card)
+        }
         .sheet(isPresented: Binding(get: { store.isStopSheetPresented }, set: { store.isStopSheetPresented = $0 })) {
             TimelineStopSheet(store: store)
                 .presentationDetents([.medium])
@@ -114,6 +125,7 @@ struct LearningTimelineView: View {
             .buttonStyle(.plain)
             .timelineInkPassThrough()
             .accessibilityIdentifier("timeline-units-button")
+            scopeChip
             if layout.isPad {
                 // iPad: 「今日」は「単元」の隣に置き、右上は書く道具にする。
                 todayCount.padding(.leading, 16)
@@ -132,6 +144,53 @@ struct LearningTimelineView: View {
         .gesture(DragGesture(minimumDistance: 30).onEnded { value in
             if value.translation.height > 80 { store.isStopSheetPresented = true }
         })
+    }
+
+    /// 解く範囲のチップ: 「おまかせ ⌄」、固定中は銅の「微分積分 ✕」(✕ でおまかせに戻す)。
+    @ViewBuilder
+    private var scopeChip: some View {
+        if let unit = store.pinnedUnit {
+            HStack(spacing: 0) {
+                Button { store.isScopeSheetPresented = true } label: {
+                    Text(unit.title)
+                        .font(Typography.sans(size: 15, weight: .bold))
+                        .lineLimit(1)
+                        .foregroundStyle(Theme.primaryText)
+                        .padding(.leading, 14).padding(.trailing, 4)
+                        .frame(height: 40)
+                }
+                .accessibilityLabel("解く範囲: \(unit.title)")
+                .accessibilityIdentifier("timeline-scope-chip")
+                Button { Task { await store.setScope(nil) } } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Theme.secondaryText)
+                        .frame(width: 36, height: 40)
+                }
+                .accessibilityLabel("固定を外す")
+                .accessibilityIdentifier("timeline-scope-clear")
+            }
+            .buttonStyle(.plain)
+            .background(Theme.accentColor.opacity(0.16), in: Capsule())
+            .overlay(Capsule().stroke(Theme.accentColor.opacity(0.35), lineWidth: 1))
+            .timelineInkPassThrough()
+        } else {
+            Button { store.isScopeSheetPresented = true } label: {
+                HStack(spacing: 4) {
+                    Text("おまかせ")
+                    Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
+                }
+                .font(Typography.sans(size: 15, weight: .medium))
+                .foregroundStyle(Theme.secondaryText)
+                .padding(.horizontal, 14)
+                .frame(height: 40)
+                .overlay(Capsule().stroke(Theme.hairline, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .timelineInkPassThrough()
+            .accessibilityLabel("解く範囲: おまかせ")
+            .accessibilityIdentifier("timeline-scope-chip")
+        }
     }
 
     private var todayCount: some View {

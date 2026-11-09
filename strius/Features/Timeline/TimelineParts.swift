@@ -1319,3 +1319,113 @@ struct TimelineRedPenPaper: View {
         }
     }
 }
+
+// MARK: - 解く範囲
+
+/// 固定中に上の帯の下に出す1行: 次に進める小単元と、単元の小単元の合格のマス。
+struct TimelineScopeFocus: View {
+    let title: String
+    let marks: [Bool]
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title).font(Typography.caption).foregroundStyle(Theme.secondaryText).lineLimit(1)
+            TimelineScopeMarks(marks: marks, size: 8)
+            Text("\(marks.filter { $0 }.count) / \(marks.count)")
+                .font(Typography.caption.monospacedDigit())
+                .foregroundStyle(Theme.secondaryText)
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("timeline-scope-focus")
+    }
+}
+
+/// 小単元の合格のマス(合格=合格の色、まだ=沈む面)。
+struct TimelineScopeMarks: View {
+    let marks: [Bool]
+    var size: CGFloat = 10
+
+    var body: some View {
+        HStack(spacing: 3) {
+            ForEach(Array(marks.enumerated()), id: \.offset) { _, passed in
+                RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)
+                    .fill(passed ? Theme.growthColor : Theme.primaryText.opacity(0.09))
+                    .frame(width: size, height: size)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// 解く範囲のシート: 先頭に「おまかせ」、その下に科目ごとの単元(単元ホームと同じ順)。選ぶとその単元に固定する。
+struct TimelineScopeSheet: View {
+    let store: TimelineStore
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Text("解く範囲").font(Typography.heading2).foregroundStyle(Theme.primaryText)
+                Button { Task { await store.setScope(nil) } } label: {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("おまかせ").font(Typography.sans(size: 16, weight: .bold)).foregroundStyle(Theme.primaryText)
+                            Text("単元をまたいで出します").font(Typography.caption).foregroundStyle(Theme.secondaryText)
+                        }
+                        Spacer()
+                        if store.pinnedUnit == nil {
+                            Image(systemName: "checkmark").font(.system(size: 16, weight: .bold)).foregroundStyle(Theme.accentColor)
+                        }
+                    }
+                    .padding(.horizontal, 16).padding(.vertical, 14)
+                    .background(store.pinnedUnit == nil ? Theme.accentColor.opacity(0.10) : Theme.cardLow,
+                                in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+                        .stroke(store.pinnedUnit == nil ? Theme.accentColor : Theme.hairline, lineWidth: store.pinnedUnit == nil ? 1.5 : 1))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("timeline-scope-auto")
+                ForEach(store.scopeSections) { section in
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(section.subject).font(Typography.caption).foregroundStyle(Theme.secondaryText)
+                        VStack(spacing: 0) {
+                            ForEach(Array(section.units.enumerated()), id: \.element.id) { index, unit in
+                                if index > 0 { Rectangle().fill(Theme.hairline).frame(height: 1).padding(.leading, 16) }
+                                row(unit)
+                            }
+                        }
+                        .background(Theme.cardLow, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous).stroke(Theme.hairline, lineWidth: 1))
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 24)
+            .padding(.bottom, 32)
+        }
+        .accessibilityIdentifier("timeline-scope-sheet")
+    }
+
+    private func row(_ unit: WorkbookUnitRecord) -> some View {
+        let marks = store.subunitMarks(unit.id)
+        let selected = store.pinnedUnit?.id == unit.id
+        return Button { Task { await store.setScope(unit.id) } } label: {
+            HStack(spacing: 12) {
+                Text(unit.title).font(Typography.sans(size: 15, weight: selected ? .bold : .medium)).foregroundStyle(Theme.primaryText).lineLimit(1)
+                Spacer(minLength: 8)
+                TimelineScopeMarks(marks: marks)
+                Text("\(marks.filter { $0 }.count) / \(marks.count)")
+                    .font(Typography.caption.monospacedDigit())
+                    .foregroundStyle(Theme.secondaryText)
+                    .frame(minWidth: 34, alignment: .trailing)
+                if selected {
+                    Image(systemName: "checkmark").font(.system(size: 14, weight: .bold)).foregroundStyle(Theme.accentColor)
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("timeline-scope-unit-\(unit.id)")
+    }
+}
