@@ -31,7 +31,8 @@ extension TurnCoordinator {
     func prefetchExampleIfNeeded(subunitID: String) async {
         guard examplePrefetchTasks[subunitID] == nil else { return }
         let profile = OnboardingProfile.load()?.promptSummary
-        let learnerID = ledger.deviceID
+        // 学習者の ID は全利用者で同じ固定の値(#78)。端末の ID(`ledger.deviceID`)は Anthropic に送らない。
+        let learnerID = TutorMemory.modelLearnerID
         let info: (threadID: String, round: Int, key: String, text: String, view: LedgerJSON?, codexThreadID: String, lastTurnID: String, progress: ProgressState)?
         do {
             info = try await ledger.read { db in

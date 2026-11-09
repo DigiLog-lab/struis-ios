@@ -137,6 +137,28 @@ actor TurnCoordinator {
         return fact
     }
 
+    /// 学習記録をまとめて消す前(#78): 動いているターン・枠を待っているターン・先回りを全部止めて、終わるのを待つ。
+    /// 止めたターンが書く失敗の行も、この後の消去で消える。
+    func stopEverything() async {
+        let turnIDs = Array(running.keys)
+        let tasks = Array(running.values)
+        for turnID in turnIDs {
+            stoppedBeforeStart.insert(turnID)
+            await runner.interrupt(planID: turnID)
+        }
+        wakeWaiters()
+        for (subunit, prefetch) in examplePrefetches {
+            await runner.interrupt(planID: prefetch.state.turnID)
+            discardExamplePrefetch(subunitID: subunit)
+        }
+        for message in Array(unitPrefetches.keys) { await discardUnitPrefetch(messageID: message) }
+        for task in tasks { await task.value }
+        for task in examplePrefetchTasks.values { await task.value }
+        examplePrefetchTasks = [:]
+        examplePrefetches = [:]
+        adoptionWaits = []
+    }
+
     var composer: TurnComposer { TurnComposer(assets: assets) }
 
     func observe(_ handler: @escaping @Sendable (Notice) -> Void) -> UUID {

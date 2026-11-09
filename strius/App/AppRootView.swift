@@ -20,6 +20,8 @@ struct AppRootView: View {
 
     /// オンボーディングは Release でも出す(§7.2)。完了は端末に保存し、2 回目の起動からは出さない。
     @State private var isShowingOnboarding = Self.initiallyShowsOnboarding
+    /// 規約の版が上がった(または版の記録が無い)。オンボーディングを終えた利用者に、規約と送る内容の同意を取り直す(#78)。
+    @State private var needsReconsent = Self.needsReconsent
     @State private var isSettingsPresented = false
     /// 単元ホームをタイムラインの上に重ねている。
     @State private var isUnitsPresented = Self.startsOnUnits
@@ -52,8 +54,20 @@ struct AppRootView: View {
         #endif
     }
 
+    #if DEBUG
+    /// UI テスト用(`-reconsent-legacy`): オンボーディングを終え、版の記録の無い同意(#78 より前の形)だけが残っている状態から始める。
+    /// オンボーディングを出すかを決める前に、1 回だけ行う。
+    private static let debugLegacyConsent: Void = {
+        guard ProcessInfo.processInfo.arguments.contains("-reconsent-legacy") else { return }
+        UserDefaults.standard.set(true, forKey: OnboardingProfile.completedKey)
+        OnboardingRecords.shared.values.set(nil, OnboardingRecords.termsKey)
+        OnboardingRecords.shared.values.set(ISO8601DateFormatter().string(from: Date()), OnboardingRecords.legacyTermsKey)
+    }()
+    #endif
+
     private static var initiallyShowsOnboarding: Bool {
         #if DEBUG
+        _ = debugLegacyConsent
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("-reset-onboarding") {
             UserDefaults.standard.removeObject(forKey: OnboardingProfile.completedKey)
@@ -65,6 +79,16 @@ struct AppRootView: View {
         if onboardingStart != nil { return true }
         #endif
         return showsOnboardingOnSignIn
+    }
+
+    /// オンボーディングを終えていて、今の版の規約に同意していない。同意するまで AI の機能を使える画面に進めない
+    /// (`DeviceUsageGate` も、同意していない間は送らない)。
+    private static var needsReconsent: Bool {
+        #if DEBUG
+        _ = debugLegacyConsent
+        if OnboardingRecords.debugAssumesConsent { return false }
+        #endif
+        return OnboardingProfile.isCompleted() && !OnboardingRecords.shared.hasAcceptedCurrentTerms
     }
 
     /// DEBUG: 途中の画面から始める(`STRUIS_ONBOARDING_START=<画面名>`。画面の確認用)。
@@ -108,12 +132,17 @@ struct AppRootView: View {
                 // 最後の行き先はタイムライン(計画の小単元 1 から、30 秒で解ける問題が 1 枚目に入っている)。
                 OnboardingFlowView(learnerData: learnerData, subscriptions: subscriptions, start: Self.onboardingStart) {
                     OnboardingProfile.markCompleted()
+                    needsReconsent = false
                     UserDefaults.standard.removeObject(forKey: OnboardingProfile.unitCreationThreadKey)
                     isShowingOnboarding = false
                     isUnitsPresented = false
                     Task { await workbook.refreshHome() }
                 }
                 .onAppear { chat.start() }
+            } else if auth.canUseApp, needsReconsent {
+                OnboardingFlowView(learnerData: learnerData, subscriptions: subscriptions, reconsent: true) {
+                    needsReconsent = false
+                }
             } else {
                 authenticatedContent
             }
@@ -134,6 +163,8 @@ struct AppRootView: View {
             await learnerData.prepare(client: apiClient)
             // Fixtures may have just seeded the ledger; re-read the thread list.
             await bootstrap.refreshThreads()
+            // 途中で止まった学習記録の消去の続きと、別の端末で消された印(#78)。同期とターンの組み直しより先に。
+            await learnerData.resumeErasure()
             await learnerData.turns.resumeUnfinished()
             await learnerData.iCloud.start()
         }
@@ -213,11 +244,17 @@ struct AppRootView: View {
                             await bootstrap.refresh()
                         }
                     }
-                    // 次のカードに替わった時(解いている途中のカードは採点まで終わっている)に、使い切っていたら下から出す。
-                    .onChange(of: timeline.currentID) { _, current in
-                        guard current != nil, limitSnapshot == nil else { return }
-                        let snapshot = UsageMeter.shared.snapshot()
-                        if snapshot.isExhausted { limitSnapshot = snapshot }
+                    // 次のカードに替わる時(解いている途中のカードは採点まで終わっている)に使い切っていたら、タイムラインは新しいカードを
+                    // 出さずに止まり、案内を下から出す(#62・#78)。閉じたら、枠が戻っていないか確かめ直す。
+                    // 設定の「利用枠」・DEBUG の案内を出している間(同じことが分かる)は重ねない。
+                    .sheet(item: Binding(get: { isUsagePreviewPresented || limitSnapshot != nil ? nil : timeline.limitPrompt }, set: { timeline.limitPrompt = $0 }),
+                           onDismiss: { timeline.recheckUsage() }) { prompt in
+                        UsageLimitSheet(snapshot: prompt.snapshot, denial: prompt.denial, store: subscriptions) { timeline.limitPrompt = nil }
+                            .presentationDetents([.height(380)])
+                            .presentationDragIndicator(.visible)
+                    }
+                    .onChange(of: scenePhase) { _, phase in
+                        if phase == .active { timeline.recheckUsage() }
                     }
                     .sheet(isPresented: $isUsagePreviewPresented) {
                         NavigationStack { UsageSettingsView() }

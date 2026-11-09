@@ -47,6 +47,20 @@ struct striusApp: App {
             client.clearResourceCache()
             KaTeXLayoutCache.clear()
         }
+        // 学習記録をまとめて消した(#78): 画面に残った記録を捨てて、空の台帳から読み直す。サインインはそのまま。
+        learnerData.onLearningRecordsErased = {
+            chat.reset()
+            workbook.reset()
+            timeline.reset()
+            client.clearResourceCache()
+            KaTeXLayoutCache.clear()
+            await learningFeedRuntime.clearLearningFeedDataForSignOut()
+            if Auth0Config.authenticationRequired, let userID = bootstrap.user?.id.uuidString { learningFeedRuntime.start(userID: userID) }
+            chat.start()
+            await bootstrap.refreshThreads()
+            await workbook.refreshHome()
+            await timeline.start()
+        }
         _apiClient = State(initialValue: client)
         _auth = State(initialValue: auth)
         _bootstrap = State(initialValue: bootstrap)
