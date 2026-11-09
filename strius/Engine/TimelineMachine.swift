@@ -275,7 +275,8 @@ nonisolated struct TimelineMachine {
             put("timeline.card_added", TimelineCardRecord(
                 id: newID(), batchId: id, position: position, kind: "solve", level: 1, skills: [rapid.skill].filter { allowed.isEmpty || allowed.contains($0) },
                 typeName: "速攻", prompt: rapid.prompt, math: rapid.math ?? "", question: "", answerKey: rapid.answerKey, answerExpr: rapid.answerExpr ?? "",
-                checkpoints: [], commonMistakes: [], estimatedSeconds: 10, chain: nil, easierOf: nil, subunitId: nil, unitId: nil,
+                checkpoints: [], commonMistakes: [], estimatedSeconds: 10, chain: nil, easierOf: nil, subunitId: nil,
+                unitId: row.request["scope_unit_id"]?.stringValue,
                 payload: .emptyObject, origin: "rapid", status: "unused", createdAt: now(), updatedAt: now()
             ))
             position += 1

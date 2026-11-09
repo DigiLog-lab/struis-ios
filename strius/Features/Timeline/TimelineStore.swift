@@ -226,23 +226,32 @@ final class TimelineStore {
             await requestBatch()
             return
         }
+        // 前の範囲で頼んでいる途中の5枚は止めて閉じる(届くのを待つと、範囲の中の5枚を頼むのが1回分遅れる)。
+        if await hasOwnPendingBatch(purpose: "cards") {
+            let stale: [String] = ownPendingBatchIDs(purpose: "cards")
+            awaitedBatchID = nil
+            for id in stale { await turns.interrupt(targetID: id) }
+            await commit { machine in
+                for id in stale where machine.batches[id]?.status == "requested" { machine.failBatch(id: id, error: "interrupted") }
+            }
+        }
         let outsideCurrent: Bool = current.map { TimelineScope.isOutside($0, unitID: unitID, workbook: workbook, timeline: machine) } ?? false
         let replacesCurrent: Bool = outsideCurrent && phase == .solving
         await discardOutsideScope(keeping: replacesCurrent ? nil : currentID)
-        // その単元のグラフがまだ無ければ作る(作るまでは、単元の中身を前提なしで出す)。
-        await ensureGraphWork(units: [unitID])
         if replacesCurrent {
             if let id = currentID { await commit { machine in machine.discard(ids: [id]) } }
             badge = nil
-            show(machine.queue.first?.id)
+            show(machine.queue.first?.id ?? machine.rapidCards.first?.id)
         }
+        // 5枚を先に頼む(グラフの依頼より前に枠に並べる)。その単元のグラフがまだ無ければ、続けて作る。
         await requestBatch(force: true)
+        await ensureGraphWork(units: [unitID])
     }
 
     /// 作り置きのうち、固定した範囲の外のカードを捨てる(届いたばかりの5枚も、ここで絞る)。
     private func discardOutsideScope(keeping keep: String?) async {
         guard let unit = pinnedUnit else { return }
-        let outside: [String] = machine.queue.filter { $0.id != keep && TimelineScope.isOutside($0, unitID: unit.id, workbook: workbook, timeline: machine) }.map(\.id)
+        let outside: [String] = (machine.queue + machine.rapidCards).filter { $0.id != keep && TimelineScope.isOutside($0, unitID: unit.id, workbook: workbook, timeline: machine) }.map(\.id)
         guard !outside.isEmpty else { return }
         await commit { machine in machine.discard(ids: outside) }
     }

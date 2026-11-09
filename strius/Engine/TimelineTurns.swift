@@ -40,6 +40,9 @@ nonisolated enum TimelineScope {
     /// 見直しが入れたお知らせ・問い(origin "review")は、答案についての話なので範囲で捨てない。
     static func isOutside(_ card: TimelineCardRecord, unitID: String, workbook: WorkbookMachine, timeline: TimelineMachine) -> Bool {
         if card.origin == "review" { return false }
+        // スキルが他の単元のものだけなら、単元の印が付いていても外(固定して頼んでも、モデルが外の問題を返した時)。
+        let skillUnits = Set(card.skills.compactMap { timeline.skills[$0].flatMap { TimelineGraphSchedule.unitID(of: $0, workbook: workbook) } })
+        if !skillUnits.isEmpty, !skillUnits.contains(unitID) { return true }
         return self.unitID(of: card, workbook: workbook, timeline: timeline) != unitID
     }
 }
@@ -189,7 +192,7 @@ nonisolated enum TimelineTurns {
         let pinned = TimelineScope.pinnedUnit(workbook: workbook)
         // 固定中は、その単元(と前提。前提の点は求めた点の単元を継ぐ)のスキルだけを出せるようにする。
         let allowedSkills = pinned.map { pin in
-            timeline.activeSkills.filter { skill in TimelineGraphSchedule.unitID(of: skill, workbook: workbook).map { $0 == pin.id } ?? true }
+            timeline.activeSkills.filter { skill in TimelineGraphSchedule.unitID(of: skill, workbook: workbook) == pin.id }
         } ?? timeline.activeSkills
         let skillRows = allowedSkills.filter { usedSkills.contains($0.id) || (unit != nil && TimelineGraphSchedule.unitID(of: $0, workbook: workbook) == unit?.id) }.prefix(30).map { skill -> LedgerJSON in
             .object([
