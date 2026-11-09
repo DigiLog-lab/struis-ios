@@ -189,6 +189,21 @@ final class OnboardingTests: XCTestCase {
         XCTAssertNil(try XCTUnwrap(OnboardingTurns.parsePlan(old)).subunits[0].check)
     }
 
+    func testACheckOfASubunitWithMathInItsNameShowsReadableText() async throws {
+        // 本物の Claude は小単元の名前に式を入れる(2026-11-09 に Dev Box で確かめた)。説明文と見出しに `$` を出さない。
+        let json = #"{"unit_title":"二次方程式","outcome":"","heading":"","lead":"","subunits":[{"title":"$(x+p)^2=q$ の形と解の公式","outcome":"","n":4,"scoring_unit":"","note":"","check":{"prompt":"次の二次方程式を解きなさい。","math":"x^2+3x+1=0","answer_key":"x=\\frac{-3\\pm\\sqrt{5}}{2}"}}]}"#
+        UserDefaults.standard.set(Data(json.utf8), forKey: OnboardingModel.draftKey)
+        defer { UserDefaults.standard.removeObject(forKey: OnboardingModel.draftKey) }
+        let model = OnboardingModel(profile: profile(trial: 1), records: records(), hasPlan: { true }, isClaudeAvailable: { true }, start: .plan)
+        model.toggleCheck(0)
+        let started = await model.begin(ledger: try Ledger.inMemory())
+        XCTAssertFalse(started)
+        XCTAssertEqual(model.step, .check)
+        XCTAssertFalse(model.checkTitle.contains("$"), model.checkTitle)
+        XCTAssertFalse(model.problem?.label.contains("$") ?? true, model.problem?.label ?? "")
+        XCTAssertEqual(model.problem?.math, "x^2+3x+1=0")
+    }
+
     func testCheckedSubunitsArePassedWithoutStudyAndTheNextOneStarts() {
         var machine = WorkbookMachine()
         let unitID = machine.createUnit(title: "二次方程式", outcome: "", source: "consult",

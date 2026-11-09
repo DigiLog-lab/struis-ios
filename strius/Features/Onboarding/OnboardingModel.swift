@@ -600,7 +600,8 @@ final class OnboardingModel {
     /// 今確かめている小単元の名前。
     var checkTitle: String {
         guard let draft, checkQueue.indices.contains(checkCursor) else { return "" }
-        return draft.subunits[checkQueue[checkCursor]].title
+        // 小単元の名前に式が入る(`$(x+p)^2=q$ の形と解の公式`)ので、文の中に置けるよう読める文字にする。
+        return MathPlainText.preview(draft.subunits[checkQueue[checkCursor]].title)
     }
 
     /// 確かめる1問のあと、残りの数。
@@ -625,7 +626,7 @@ final class OnboardingModel {
         guard let check = subunit.check else { return }
         problem = TrialProblem(id: "check-\(checkQueue[checkCursor])", grade: profile.grade ?? "", unit: subunit.title,
                                prompt: check.prompt, math: check.math, answer: check.answerKey, rubric: [subunit.outcome],
-                               customLabel: "\(draft.unitTitle)・\(subunit.title)")
+                               customLabel: "\(MathPlainText.preview(draft.unitTitle))・\(MathPlainText.preview(subunit.title))")
         verdict = nil
         trialError = nil
         answerImagePath = nil
