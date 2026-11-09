@@ -107,7 +107,8 @@ nonisolated struct TimelineCostSummary: Equatable, Sendable {
     static func summarize(_ turns: [Turn]) -> TimelineCostSummary {
         var byModel: [String: Model] = [:]
         var answered: [String: Set<String>] = [:]
-        for turn in turns where ClaudeTranslation.tutorKinds.contains(turn.kind) {
+        // 答えの読み取り(#101)は採点・出題・見直しと先頭を共有しない別の依頼だが、タイムラインの費用には数える。
+        for turn in turns where ClaudeTranslation.tutorKinds.contains(turn.kind) || turn.kind == TurnPlan.Kind.timelineAnswer.rawValue {
             // 同じ実行は進行中・完了の順に記録される。実行ごとに最後の記録だけを数える。
             var latest: [String: LedgerJSON] = [:]
             var order: [String] = []
@@ -130,7 +131,9 @@ nonisolated struct TimelineCostSummary: Equatable, Sendable {
                 }
                 if let name = execution["actual_model"]?.stringValue ?? execution["requested_model"]?.stringValue { turnModel = name }
             }
-            if turn.kind == TurnPlan.Kind.timelineGrading.rawValue, turn.status == "completed", let target = turn.targetID, let name = turnModel {
+            // 答えの読み取りだけで ○ になった答案も 1 問に数える(採点に回った答案は同じ答案なので 1 回だけ)。
+            if turn.kind == TurnPlan.Kind.timelineGrading.rawValue || turn.kind == TurnPlan.Kind.timelineAnswer.rawValue,
+               turn.status == "completed", let target = turn.targetID, let name = turnModel {
                 answered[name, default: []].insert(target)
                 if byModel[name] == nil { byModel[name] = Model(model: name) }
             }

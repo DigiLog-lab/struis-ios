@@ -361,7 +361,8 @@ final class TimelineStore {
             inkAnswers = ink.map { [attemptID: $0] } ?? [:]
             phase = .grading(attemptID)
             await reload()
-            await turns.startTimeline(kind: .timelineGrading, targetID: attemptID)
+            // 正しい答えの式があるふつうの問題は、まず答えだけを読む(一致すれば途中を読まずに ○。#101)。
+            await turns.startTimeline(kind: TimelineTurns.firstGradingKind(for: card), targetID: attemptID)
         } catch {
             timelineLog.error("timeline capture failed: \(String(describing: error), privacy: .public)")
             actionError = "答案を保存できませんでした。もう一度送ってください。"
@@ -568,7 +569,7 @@ final class TimelineStore {
                 let id = machine.recordCapture(cardID: card.id, capturePath: relative, seconds: seconds, assisted: false)
                 return (machine.events, id)
             }
-            await turns.startTimeline(kind: .timelineGrading, targetID: attemptID)
+            await turns.startTimeline(kind: TimelineTurns.firstGradingKind(for: card), targetID: attemptID)
         } catch {
             actionError = "答案を保存できませんでした。"
         }

@@ -142,7 +142,9 @@ final class OnboardingFlowUITests: XCTestCase {
         // 通知の前置き(ボタンは「次へ」の 1 つだけ)→ iOS の確認。
         XCTAssertTrue(text(app, containing: "勉強する時間に知らせますか").appears(timeout: 10))
         tap(app, "onboarding-notify-next")
-        _ = confirmSystemSheet(buttons: ["許可", "Allow"], timeout: 10)
+        // iOS の確認はアプリの「次へ」から遅れて出る(マージキューのランナーで約 8 秒後。2026-11-09 の PR #108 の検証では
+        // 10 秒の間に押せず、確認が出たままタイムラインに進めなかった)。
+        _ = confirmSystemSheet(buttons: ["許可", "Allow"], timeout: 30)
 
         // 最後の行き先はタイムライン: 1 枚目は計画の小単元 1 から、30 秒で解ける問題。
         XCTAssertTrue(element(app, "timeline-screen").appears(timeout: 20), "オンボーディングの後にタイムラインが出ない")

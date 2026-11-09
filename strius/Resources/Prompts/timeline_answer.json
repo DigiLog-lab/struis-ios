@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "readable": {"type": "boolean"},
+    "learner_answer": {"type": "string"}
+  },
+  "required": ["readable", "learner_answer"],
+  "additionalProperties": false
+}
