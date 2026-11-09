@@ -4,6 +4,7 @@ import SwiftUI
 struct WorkbookUnitView: View {
     @Environment(WorkbookStore.self) private var store
     @Environment(WorkbookCoordinator.self) private var coordinator
+    @Environment(\.solveUnitInTimeline) private var solveInTimeline
     let unitID: String
 
     var body: some View {
@@ -25,6 +26,20 @@ struct WorkbookUnitView: View {
                         Spacer()
                     }
                     .padding(.horizontal, 20)
+                    if let solveInTimeline {
+                        Button { solveInTimeline(unitID) } label: {
+                            Label("タイムラインで解く", systemImage: "rectangle.stack")
+                                .font(Typography.sans(size: 16, weight: .bold))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                                .foregroundStyle(Theme.onAccent)
+                                .background(Theme.accentColor, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 4)
+                        .accessibilityIdentifier("workbook-unit-solve-in-timeline")
+                    }
                     ForEach(unit.subunits) { row in
                         let subunit = store.subunits[row.id] ?? row
                         Button {
@@ -54,4 +69,9 @@ struct WorkbookUnitView: View {
         .task(id: unitID) { _ = await store.loadUnit(id: unitID) }
         .struisRefreshable { _ = await store.loadUnit(id: unitID) }
     }
+}
+
+extension EnvironmentValues {
+    /// 単元の画面の「タイムラインで解く」(タイムラインの上に単元ホームを重ねている時だけ。単元の ID を渡す)。
+    @Entry var solveUnitInTimeline: (@MainActor (String) -> Void)? = nil
 }
