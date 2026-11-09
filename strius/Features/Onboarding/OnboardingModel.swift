@@ -617,6 +617,10 @@ final class OnboardingModel {
             go(.check)
             return false
         }
+        // 確かめている途中で計画に戻り、選び直して全部外した時: 前に確かめた結果で合格にしない。
+        checkPassed = [:]
+        checkQueue = []
+        checkCursor = 0
         return await startPlan(ledger: ledger)
     }
 
