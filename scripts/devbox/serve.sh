@@ -101,7 +101,9 @@ redact_tree() {
 publish() {
   local dir=$1 name=$2 message=$3 tree commit snapshot=$STATE/publish-snapshot
   rm -rf "$snapshot"
-  if ! cp -R "$dir" "$snapshot" || ! redact_tree "$snapshot"; then
+  # The copy is made writable (a command may leave read-only files or folders), and redact_tree stops with an
+  # error on any file it cannot rewrite: a file it could not redact is never published.
+  if ! cp -R "$dir" "$snapshot" || ! chmod -R u+rwX "$snapshot" || ! redact_tree "$snapshot"; then
     rm -rf "$snapshot"
     echo "::warning::devbox: could not redact $name; not published"
     return 1
