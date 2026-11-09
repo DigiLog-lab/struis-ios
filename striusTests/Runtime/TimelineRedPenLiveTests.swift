@@ -1,3 +1,4 @@
+import GRDB
 import UIKit
 import XCTest
 @testable import strius
