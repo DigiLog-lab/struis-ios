@@ -418,7 +418,7 @@ final class OnboardingScreenshotUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-workbook-empty"]
         app.launchEnvironment = ["STRUIS_DEVICE_RUNTIME": "1", "STRUIS_AGE_RANGE": "adult", "STRUIS_ONBOARDING_START": "planWait",
-                                 "STRUIS_DEBUG_ANTHROPIC_KEY_FILE": key]
+                                 "STRUIS_DEBUG_ANTHROPIC_KEY_FILE": key, "STRUIS_PLAN": "generous", "STRUIS_USAGE_PERCENT": "0"]
         app.launch()
         let begin = app.buttons["onboarding-plan-start"].firstMatch
         XCTAssertTrue(begin.waitForExistence(timeout: 300), "計画ができない")
@@ -464,7 +464,7 @@ final class OnboardingScreenshotUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-workbook-empty"]
         app.launchEnvironment = ["STRUIS_DEVICE_RUNTIME": "1", "STRUIS_AGE_RANGE": "adult", "STRUIS_ONBOARDING_START": "plan",
-                                 "STRUIS_DEBUG_ANTHROPIC_KEY_FILE": key]
+                                 "STRUIS_DEBUG_ANTHROPIC_KEY_FILE": key, "STRUIS_PLAN": "generous", "STRUIS_USAGE_PERCENT": "0"]
         app.launch()
         let begin = app.buttons["onboarding-plan-start"].firstMatch
         XCTAssertTrue(begin.waitForExistence(timeout: 30))
