@@ -79,7 +79,7 @@ App Attest の失敗(`AppAttestClient.Failure` と `com.apple.devicecheck.error`
 
 | 設定 | 値 | この repo の対応箇所 | 確認の仕方 |
 |---|---|---|---|
-| 対象のターン | チャット、分岐(`thread_fork`。モデルを呼ばず履歴を写す)、下調べの子(`struis_delegate`)、`workbook_unit`・`workbook_set`・`workbook_grading`、`timeline_batch`・`timeline_grading`・`timeline_review`・`timeline_marks`・`timeline_graph`、`onboarding_grading`・`onboarding_plan` | `ClaudeTurnRunner.run`・`fork`、`ClaudeTurn`(`child` は `DelegationWatcher.Child`) | 単体: `ClaudeTurnRunnerTests.testForkCopiesTheHistoryUpToTheTurnAndResendsAgentsForItsFolder`、`testPlansSavedWithAnyProviderRunAsClaude` |
+| 対象のターン | チャット、分岐(`thread_fork`。モデルを呼ばず履歴を写す)、下調べの子(`struis_delegate`)、`workbook_unit`・`workbook_set`・`workbook_grading`、`timeline_batch`・`timeline_grading`・`timeline_answer`・`timeline_review`・`timeline_marks`・`timeline_graph`、`onboarding_grading`・`onboarding_plan` | `ClaudeTurnRunner.run`・`fork`、`ClaudeTurn`(`child` は `DelegationWatcher.Child`) | 単体: `ClaudeTurnRunnerTests.testForkCopiesTheHistoryUpToTheTurnAndResendsAgentsForItsFolder`、`testPlansSavedWithAnyProviderRunAsClaude` |
 | ターンの期限 | `max(minimumTurnS = 300, plan.limits.turnTimeoutS)` 秒。下調べの子は `childTurnS = 300` 秒 | `Timeouts.minimumTurnS`・`childTurnS`、`TurnDeadline` | 未対応(値の固定テストなし) |
 | 止まった答え | 答えを書き始めた後 `messageStall = 120` 秒 | `Timeouts.messageStall`、`ClaudeTurn.watchStream` | 模擬: `faults` の `stall` |
 | 何も届かない | `streamIdle = 300` 秒で通信の失敗として扱う | `Timeouts.streamIdle` | 模擬: 同上 |
