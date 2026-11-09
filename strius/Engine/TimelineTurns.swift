@@ -36,10 +36,11 @@ nonisolated enum TimelineScope {
             ?? card.skills.lazy.compactMap { timeline.skills[$0].flatMap { TimelineGraphSchedule.unitID(of: $0, workbook: workbook) } }.first
     }
 
-    /// 固定した単元の外のカードか(単元が引けないカードは外とみなさない)。
+    /// 固定した単元の外のカードか。単元が引けないカードも外とみなす(固定して頼んだ5枚は単元を持つので残る)。
+    /// 見直しが入れたお知らせ・問い(origin "review")は、答案についての話なので範囲で捨てない。
     static func isOutside(_ card: TimelineCardRecord, unitID: String, workbook: WorkbookMachine, timeline: TimelineMachine) -> Bool {
-        guard let own = self.unitID(of: card, workbook: workbook, timeline: timeline) else { return false }
-        return own != unitID
+        if card.origin == "review" { return false }
+        return self.unitID(of: card, workbook: workbook, timeline: timeline) != unitID
     }
 }
 

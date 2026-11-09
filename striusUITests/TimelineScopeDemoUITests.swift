@@ -50,7 +50,9 @@ final class TimelineScopeDemoUITests: XCTestCase {
             mark("pinned-calculus-next")
         }
 
-        // 単元の画面から「タイムラインで解く」(力学)。
+        // 単元の画面から「タイムラインで解く」(力学)。飛ばした直後の帯が消えるのを待つ。
+        sleep(6)
+        let beforeMechanics = problemText(app)
         app.buttons["timeline-units-button"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["workbook-home"].firstMatch.appears(timeout: 10), "単元ホームが出ない")
         app.staticTexts["力学"].firstMatch.tap()
@@ -59,12 +61,10 @@ final class TimelineScopeDemoUITests: XCTestCase {
         sleep(1)
         shot(app, "05-unit-entry")
         mark("unit-entry")
-        let beforeMechanics = "" // タイムラインに戻ると前の問題が一瞬見えるので、ラベルではなく単元で待つ
         solve.tap()
         XCTAssertTrue(app.buttons["timeline-scope-clear"].appears(timeout: 15), "タイムラインに固定で戻らない")
-        _ = beforeMechanics
         XCTAssertTrue(waitForChip(app, title: "力学", timeout: 10), "チップが力学にならない")
-        _ = waitForProblem(app, timeout: 420, changingFrom: nil)
+        XCTAssertTrue(waitForProblem(app, timeout: 420, changingFrom: beforeMechanics), "力学の問題が出ない")
         sleep(2)
         shot(app, "06-pinned-mechanics")
         mark("pinned-mechanics")

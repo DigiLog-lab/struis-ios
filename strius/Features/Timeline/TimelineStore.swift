@@ -781,7 +781,8 @@ final class TimelineStore {
         guard force ? !pending : TimelineRules.shouldRequestBatch(unusedCount: machine.queue.filter { $0.id != currentID }.count, pending: pending) else { return }
         let accuracy = machine.accuracy
         let cap = TimelineRules.levelCap(accuracy: accuracy, currentLevel: machine.currentLevel)
-        let request: LedgerJSON = .emptyObject
+        // 解く範囲を固定していれば、その単元を依頼の行に残す(届いたカードにその単元を付ける)。
+        let request: LedgerJSON = pinnedUnit.map { .object(["scope_unit_id": .string($0.id)]) } ?? .emptyObject
         // 行を書いてからターンに渡すまでの間は、まだ誰も働いていない。その間に別の呼び出しが持ち主のいない依頼と見て閉じないように印を付ける。
         batchRequestsInFlight += 1
         batchRequestEpoch += 1
