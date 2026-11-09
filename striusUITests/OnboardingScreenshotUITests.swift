@@ -433,6 +433,18 @@ final class OnboardingScreenshotUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 1)
         attach(app, "rPlanEasier")
         note(planTitles(app), "rPlanEasierTitles")
+        // 確かめる1問の問題文を全部見る(解かずに「やっぱり最初から学ぶ」で次へ)。
+        let rows = (1...10).filter { app.buttons["onboarding-plan-subunit-\($0)"].firstMatch.exists }
+        for index in rows { app.buttons["onboarding-plan-subunit-\(index)"].firstMatch.tap() }
+        app.buttons["onboarding-plan-start"].firstMatch.tap()
+        for index in rows {
+            let skip = app.buttons["onboarding-check-skip"].firstMatch
+            XCTAssertTrue(skip.waitForExistence(timeout: 15), "確かめる1問が出ない(小単元 \(index))")
+            Thread.sleep(forTimeInterval: 1)
+            attach(app, "rCheckPrompt\(index)")
+            skip.tap()
+            Thread.sleep(forTimeInterval: 1)
+        }
         app.terminate()
     }
 
