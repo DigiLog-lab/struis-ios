@@ -331,7 +331,8 @@
     "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration": "数式の描き方は画像を目で見て確かめる",
     "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation": "ボタン帯の重なりは画像を目で見て確かめる",
     "OnboardingScreenshotUITests/testIPhoneScreens": "画面の写真をデザインの画像と目で見比べる(#40)。自動の判定は OnboardingFlowUITests が持つ",
-    "OnboardingScreenshotUITests/testIPadLandscapeScreens": "iPad の横向きの写真をデザインの画像と目で見比べる(#40)。自動の判定は OnboardingFlowUITests が持つ"
+    "OnboardingScreenshotUITests/testIPadLandscapeScreens": "iPad の横向きの写真をデザインの画像と目で見比べる(#40)。自動の判定は OnboardingFlowUITests が持つ",
+    "TimelineScopeDemoUITests/testScopeTour": "実Claude(Anthropic の API キー)で解く範囲を一通り動かして撮る、持ち主に見せる確かめ用"
   },
   "excluded": {
     "striusUITests/testExample": "起動するだけのテンプレート。起動の失敗は選ばれたどのUIテストでも分かる",
