@@ -2,6 +2,7 @@ import SwiftUI
 
 /// お試しの1問(#40 の 5・6・14)。iPhone は紙に解いて撮る。iPad は右側全体が紙で、画面に直接書ける(撮るも残す)。
 /// 採点を待つ間と結果では、送った答案を右に残し(書き足しはできない)、結果は左の列に出す。
+/// 計画で「確認の1問だけ」にした小単元を確かめる1問(`OnboardingModel.isChecking`)も、同じ画面で解く。
 struct OnboardingTrialView: View {
     let model: OnboardingModel
     let learnerData: LearnerData
@@ -31,15 +32,63 @@ struct OnboardingTrialView: View {
         model.submitAnswer(data, fromInk: fromInk, assets: learnerData.assets, turns: learnerData.turns, runner: learnerData.runner)
     }
 
-    private var badge: String { "お試し \(model.trialNumber) / \(OnboardingRecords.trialLimit)" }
+    private var badge: String { model.isChecking ? model.checkBadge : "お試し \(model.trialNumber) / \(OnboardingRecords.trialLimit)" }
+
+    private var solveTitle: String { model.isChecking ? "知っているか確かめます" : (isPad ? "解いたら送ってください" : "解いたら撮ってください") }
+
+    /// 確かめる1問の説明(どの小単元を飛ばしてよいかを確かめているのか)。
+    private var checkDetail: String {
+        "「\(model.checkTitle)」を飛ばしてよいかを、1問で確かめます。" + (isPad ? "右側のどこにでも Apple Pencil や指で書けます。紙に解いて撮っても構いません。" : "紙に解いて撮ってください。")
+    }
+
+    @ViewBuilder
+    private var solveFootnote: some View {
+        Text(model.isChecking ? "正解なら、この小単元は合格にして先へ進みます。" : "お試しは3問まで解けます。続きはプランを選んでからです。")
+            .font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText)
+    }
+
+    @ViewBuilder
+    private var solveTextButton: some View {
+        if model.isChecking {
+            OnboardingTextButton(title: "やっぱり最初から学ぶ", identifier: "onboarding-check-skip") {
+                Task { await model.skipCheck(ledger: learnerData.ledger) }
+            }
+        } else {
+            OnboardingTextButton(title: "別の問題にする", identifier: "onboarding-trial-swap") { model.swapProblem() }
+        }
+    }
+
+    /// 確かめた結果、その小単元をどう扱うか(結果の下に出す)。
+    @ViewBuilder
+    private var checkOutcome: some View {
+        if let outcome = model.checkOutcome {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: outcome.passed ? "checkmark.circle" : "text.book.closed")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(Theme.accentColor)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(outcome.title).font(Typography.sans(size: 16, weight: .bold)).foregroundStyle(Theme.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(outcome.detail).font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Theme.accentColor.opacity(0.10), in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("onboarding-check-outcome")
+        }
+    }
 
     // MARK: - iPhone
 
     @ViewBuilder
     private var phoneBody: some View {
         switch model.step {
-        case .grading: phoneGrading
-        case .result: phoneResult
+        case .grading, .checkGrading: phoneGrading
+        case .result, .checkResult: phoneResult
         default: phoneSolve
         }
     }
@@ -47,15 +96,14 @@ struct OnboardingTrialView: View {
     private var phoneSolve: some View {
         OnboardingScaffold(onBack: model.canGoBack ? { model.back() } : nil, badge: badge) {
             VStack(alignment: .leading, spacing: 18) {
-                OnboardingTitle(title: "解いたら撮ってください")
+                OnboardingTitle(title: solveTitle, detail: model.isChecking ? checkDetail : nil)
                 if let problem = model.problem { TrialProblemCard(problem: problem) }
-                Text("お試しは3問まで解けます。続きはプランを選んでからです。")
-                    .font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText)
+                solveFootnote
                 if let error = model.trialError { TrialErrorText(text: error) }
             }
         } footer: {
             OnboardingPrimaryButton(title: "撮る", symbol: "camera", identifier: "onboarding-trial-capture") { isCameraPresented = true }
-            OnboardingTextButton(title: "別の問題にする", identifier: "onboarding-trial-swap") { model.swapProblem() }
+            solveTextButton
         }
     }
 
@@ -86,6 +134,7 @@ struct OnboardingTrialView: View {
                         if !verdict.learnerAnswer.isEmpty { LearnerAnswerLine(answer: verdict.learnerAnswer, centered: true) }
                     }
                     VerdictComment(verdict: verdict)
+                    checkOutcome
                 }
             }
             .frame(maxWidth: .infinity)
@@ -97,6 +146,18 @@ struct OnboardingTrialView: View {
 
     @ViewBuilder
     private var resultButtons: some View {
+        if model.isChecking {
+            OnboardingPrimaryButton(title: model.checksRemaining > 0 ? "次の確認へ（あと\(model.checksRemaining)問）" : "計画をはじめる",
+                                    isEnabled: !model.isStarting, identifier: "onboarding-check-next") {
+                Task { await model.advanceCheck(ledger: learnerData.ledger) }
+            }
+        } else {
+            trialResultButtons
+        }
+    }
+
+    @ViewBuilder
+    private var trialResultButtons: some View {
         OnboardingPrimaryButton(title: "自分の範囲で続ける", identifier: "onboarding-continue") { model.continueToRange() }
         if model.trialRemaining > 0 {
             OnboardingSecondaryButton(title: "もう1問やる（お試しはあと\(model.trialRemaining)問）", identifier: "onboarding-another") { model.anotherProblem() }
@@ -116,7 +177,7 @@ struct OnboardingTrialView: View {
 
     // MARK: - iPad
 
-    private var isSolving: Bool { model.step == .trial }
+    private var isSolving: Bool { model.step == .trial || model.step == .check }
 
     private var padBody: some View {
         HStack(spacing: 0) {
@@ -134,7 +195,7 @@ struct OnboardingTrialView: View {
     private var padColumn: some View {
         VStack(alignment: .leading, spacing: 0) {
             switch model.step {
-            case .trial:
+            case .trial, .check:
                 HStack {
                     if model.canGoBack { OnboardingBackButton { model.back() }.padding(.leading, -12) }
                     Spacer()
@@ -146,17 +207,16 @@ struct OnboardingTrialView: View {
                 .frame(height: 44)
                 .padding(.top, 20)
                 VStack(alignment: .leading, spacing: 18) {
-                    OnboardingTitle(title: "解いたら送ってください", detail: "右側のどこにでも Apple Pencil や指で書けます。紙に解いて撮っても構いません。")
+                    OnboardingTitle(title: solveTitle, detail: model.isChecking ? checkDetail : "右側のどこにでも Apple Pencil や指で書けます。紙に解いて撮っても構いません。")
                     if let problem = model.problem { TrialProblemCard(problem: problem) }
-                    Text("お試しは3問まで解けます。続きはプランを選んでからです。")
-                        .font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText)
+                    solveFootnote
                     if let error = model.trialError { TrialErrorText(text: error) }
-                    OnboardingTextButton(title: "別の問題にする", identifier: "onboarding-trial-swap") { model.swapProblem() }
-                        .frame(maxWidth: 160, alignment: .leading)
+                    solveTextButton
+                        .frame(maxWidth: model.isChecking ? 200 : 160, alignment: .leading)
                 }
                 .padding(.top, 28)
                 Spacer()
-            case .grading:
+            case .grading, .checkGrading:
                 if let problem = model.problem { TrialProblemCard(problem: problem, compact: true).padding(.top, 72) }
                 GradingStatus(startedAt: model.gradingStartedAt, vertical: false).padding(.top, 20)
                 Spacer()
@@ -173,6 +233,7 @@ struct OnboardingTrialView: View {
                     }
                     .padding(.top, 18)
                     VerdictComment(verdict: verdict).padding(.top, 18)
+                    checkOutcome.padding(.top, 18)
                 }
                 Spacer()
                 VStack(spacing: 10) { resultButtons }.padding(.bottom, 32)

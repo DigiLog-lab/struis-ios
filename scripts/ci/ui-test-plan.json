@@ -332,6 +332,10 @@
     "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation": "ボタン帯の重なりは画像を目で見て確かめる",
     "OnboardingScreenshotUITests/testIPhoneScreens": "画面の写真をデザインの画像と目で見比べる(#40)。自動の判定は OnboardingFlowUITests が持つ",
     "OnboardingScreenshotUITests/testIPadLandscapeScreens": "iPad の横向きの写真をデザインの画像と目で見比べる(#40)。自動の判定は OnboardingFlowUITests が持つ",
+    "OnboardingScreenshotUITests/testIPadPortraitPlanCheck": "計画の「確認の1問だけ」と作り直すの画面の写真を目で見る(#103)。自動の判定は OnboardingTests が持つ",
+    "OnboardingScreenshotUITests/testIPhonePlanCheck": "計画の「確認の1問だけ」と作り直すの iPhone の写真を目で見る(#103)。自動の判定は OnboardingTests が持つ",
+    "OnboardingScreenshotUITests/testRealPlanPhase1": "実Claude(Anthropic の API キー)が要る",
+    "OnboardingScreenshotUITests/testRealPlanPhase2": "実Claude(Anthropic の API キー)が要る。testRealPlanPhase1 が作った計画を使う",
     "TimelineScopeDemoUITests/testScopeTour": "実Claude(Anthropic の API キー)で解く範囲を一通り動かして撮る、持ち主に見せる確かめ用"
   },
   "excluded": {
@@ -406,6 +410,10 @@
     "OnboardingFlowUITests/testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain": 55,
     "OnboardingScreenshotUITests/testIPhoneScreens": 0,
     "OnboardingScreenshotUITests/testIPadLandscapeScreens": 0,
+    "OnboardingScreenshotUITests/testIPadPortraitPlanCheck": 0,
+    "OnboardingScreenshotUITests/testIPhonePlanCheck": 0,
+    "OnboardingScreenshotUITests/testRealPlanPhase1": 0,
+    "OnboardingScreenshotUITests/testRealPlanPhase2": 0,
     "UsageResetUITests/testBuyingAPlanAfterTheTrialRunsOutResetsTheGaugeToZero": 30,
     "UsageResetUITests/testUpgradingAfterThePlanRunsOutResetsTheGaugeToZero": 30
   }

@@ -393,6 +393,15 @@ actor MockTurnRunner: TurnRunning {
         let unreadable = environment["STRUIS_MOCK_TRIAL_UNREADABLE"] == "1"
         let answer = request["answer"] as? String ?? ""
         let quadratic = (request["problem_id"] as? String) == "j3-quadratic-equation"
+        if (request["problem_id"] as? String)?.hasPrefix("check-") == true {
+            // 計画の「確認の1問」(誤答は、因数分解の符号を取り違えた答え)。
+            return [
+                "readable": !unreadable, "grade": wrong ? "wrong" : "correct",
+                "learner_answer": wrong ? "x = -3, 5" : answer,
+                "comment": wrong ? "因数分解の符号が逆です。$(x + 3)(x - 5)$ を展開すると $x^2 - 2x - 15$ になり、元の式と合いません。" : "因数分解で正しく解けています。",
+                "solution": wrong ? "積が $-15$、和が $2$ になる 2 数は $5$ と $-3$。なので $(x + 5)(x - 3) = 0$、$x = 3, -5$ です。" : "",
+            ]
+        }
         return [
             "readable": !unreadable, "grade": wrong ? "wrong" : "correct",
             "learner_answer": wrong ? (quadratic ? "x = -2, -3" : "?") : answer,
@@ -405,25 +414,35 @@ actor MockTurnRunner: TurnRunning {
 
     /// 最初の計画: 単元の名前に合わせた決まった小単元(二次方程式なら 6 つ、ほかは 3 つ)。
     nonisolated static func onboardingPlan(_ request: JSONObject) -> JSONObject {
+        func check(_ prompt: String, _ math: String, _ answer: String) -> JSONObject { ["prompt": prompt, "math": math, "answer_key": answer] }
         let unit = (request["unit"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? (request["topic"] as? String) ?? "二次方程式"
         let trial = (request["trial"] as? [JSONObject]) ?? []
         let correct = trial.last?["correct"] as? Bool ?? false
         let subunits: [JSONObject]
         if unit.contains("二次方程式") {
             subunits = [
-                ["title": "二次方程式とその解", "outcome": "解の意味が分かる", "n": 4, "scoring_unit": "1問ごとに正誤", "note": ""],
+                ["title": "二次方程式とその解", "outcome": "解の意味が分かる", "n": 4, "scoring_unit": "1問ごとに正誤", "note": "",
+                 "check": check("$-1, 0, 1, 2$ のうち、次の二次方程式の解をすべて選びなさい。", "x^2 - x - 2 = 0", "x = -1, 2")],
                 ["title": "因数分解で解く", "outcome": "因数分解で解ける", "n": correct ? 3 : 6, "scoring_unit": "1問ごとに正誤",
-                 "note": trial.isEmpty ? "" : (correct ? "お試しの1問でできていたので短めです" : "お試しの1問でつまずいていたので、ていねいに進めます")],
-                ["title": "平方根の考えで解く", "outcome": "平方根を使って解ける", "n": 5, "scoring_unit": "1問ごとに正誤", "note": ""],
-                ["title": "解の公式", "outcome": "解の公式で解ける", "n": 6, "scoring_unit": "1問ごとに正誤", "note": ""],
-                ["title": "いろいろな二次方程式", "outcome": "形に合う解き方を選べる", "n": 5, "scoring_unit": "1問ごとに正誤", "note": ""],
-                ["title": "二次方程式の利用", "outcome": "文章題を式にして解ける", "n": 5, "scoring_unit": "1問ごとに正誤", "note": ""],
+                 "note": trial.isEmpty ? "" : (correct ? "お試しの1問でできていたので短めです" : "お試しの1問でつまずいていたので、ていねいに進めます"),
+                 "check": check("次の二次方程式を、因数分解を使って解きなさい。", "x^2 + 2x - 15 = 0", "x = 3, -5")],
+                ["title": "平方根の考えで解く", "outcome": "平方根を使って解ける", "n": 5, "scoring_unit": "1問ごとに正誤", "note": "",
+                 "check": check("次の二次方程式を解きなさい。", "(x - 3)^2 = 7", "x = 3 \\pm \\sqrt{7}")],
+                ["title": "解の公式", "outcome": "解の公式で解ける", "n": 6, "scoring_unit": "1問ごとに正誤", "note": "",
+                 "check": check("次の二次方程式を、解の公式を使って解きなさい。", "2x^2 - 3x - 1 = 0", "x = \\frac{3 \\pm \\sqrt{17}}{4}")],
+                ["title": "いろいろな二次方程式", "outcome": "形に合う解き方を選べる", "n": 5, "scoring_unit": "1問ごとに正誤", "note": "",
+                 "check": check("次の二次方程式を解きなさい。", "3x^2 = 12x", "x = 0, 4")],
+                ["title": "二次方程式の利用", "outcome": "文章題を式にして解ける", "n": 5, "scoring_unit": "1問ごとに正誤", "note": "",
+                 "check": check("連続する 2 つの正の整数があり、それぞれを 2 乗した数の和は 85 です。2 つの整数を求めなさい。", "", "6 と 7")],
             ]
         } else {
             subunits = [
-                ["title": "\(unit)の基本", "outcome": "基本の問題が解ける", "n": 4, "scoring_unit": "1問ごとに正誤", "note": trial.isEmpty ? "" : "お試しの1問の結果から、ここから始めます"],
-                ["title": "\(unit)の練習", "outcome": "練習問題が解ける", "n": 5, "scoring_unit": "1問ごとに正誤", "note": ""],
-                ["title": "\(unit)の応用", "outcome": "応用問題が解ける", "n": 5, "scoring_unit": "1問ごとに正誤", "note": ""],
+                ["title": "\(unit)の基本", "outcome": "基本の問題が解ける", "n": 4, "scoring_unit": "1問ごとに正誤", "note": trial.isEmpty ? "" : "お試しの1問の結果から、ここから始めます",
+                 "check": check("次の式を計算しなさい。", "2(x + 3) - x", "x + 6")],
+                ["title": "\(unit)の練習", "outcome": "練習問題が解ける", "n": 5, "scoring_unit": "1問ごとに正誤", "note": "",
+                 "check": check("次の方程式を解きなさい。", "3x - 7 = 2", "x = 3")],
+                ["title": "\(unit)の応用", "outcome": "応用問題が解ける", "n": 5, "scoring_unit": "1問ごとに正誤", "note": "",
+                 "check": check("次の連立方程式を解きなさい。", "x + y = 5,\\ x - y = 1", "x = 3, y = 2")],
             ]
         }
         return [

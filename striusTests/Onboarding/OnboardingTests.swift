@@ -239,6 +239,80 @@ final class OnboardingTests: XCTestCase {
         XCTAssertEqual(model.planChips, ["テストまで 2週間くらい"])
     }
 
+    // MARK: - 確認の1問だけ
+
+    func testEverySubunitOfThePlanHasACheckProblemAndTappingMarksIt() throws {
+        let mock = MockTurnRunner.onboardingPlan(["unit": "二次方程式", "trial": []])
+        let text = String(decoding: try JSONSerialization.data(withJSONObject: mock), as: UTF8.self)
+        let plan = try XCTUnwrap(OnboardingTurns.parsePlan(text))
+        XCTAssertTrue(plan.subunits.allSatisfy { $0.check != nil })
+        XCTAssertEqual(plan.subunits[1].check?.math, "x^2 + 2x - 15 = 0")
+        // 前の版の下書き(確かめる1問が無い)も読める。
+        let old = #"{"unit_title":"u","outcome":"","heading":"","lead":"","subunits":[{"title":"s","outcome":"","n":4,"scoring_unit":"","note":""}],"first_problem":{"prompt":"p","math":"","answer_key":"a"}}"#
+        XCTAssertNil(try XCTUnwrap(OnboardingTurns.parsePlan(old)).subunits[0].check)
+    }
+
+    func testACheckOfASubunitWithMathInItsNameShowsReadableText() async throws {
+        // 本物の Claude は小単元の名前に式を入れる(2026-11-09 に Dev Box で確かめた)。説明文と見出しに `$` を出さない。
+        let json = #"{"unit_title":"二次方程式","outcome":"","heading":"","lead":"","subunits":[{"title":"$(x+p)^2=q$ の形と解の公式","outcome":"","n":4,"scoring_unit":"","note":"","check":{"prompt":"次の二次方程式を解きなさい。","math":"x^2+3x+1=0","answer_key":"x=\\frac{-3\\pm\\sqrt{5}}{2}"}}]}"#
+        UserDefaults.standard.set(Data(json.utf8), forKey: OnboardingModel.draftKey)
+        defer { UserDefaults.standard.removeObject(forKey: OnboardingModel.draftKey) }
+        let model = OnboardingModel(profile: profile(trial: 1), records: records(), hasPlan: { true }, isClaudeAvailable: { true }, start: .plan)
+        model.toggleCheck(0)
+        let started = await model.begin(ledger: try Ledger.inMemory())
+        XCTAssertFalse(started)
+        XCTAssertEqual(model.step, .check)
+        XCTAssertFalse(model.checkTitle.contains("$"), model.checkTitle)
+        XCTAssertFalse(model.problem?.label.contains("$") ?? true, model.problem?.label ?? "")
+        XCTAssertEqual(model.problem?.math, "x^2+3x+1=0")
+    }
+
+    func testRebuildingForADifferentGoalDoesNotLeaveTheDeletedPlanToGoBackTo() {
+        let json = #"{"unit_title":"u","outcome":"","heading":"","lead":"","subunits":[{"title":"s","outcome":"","n":4,"scoring_unit":"","note":""}]}"#
+        UserDefaults.standard.set(Data(json.utf8), forKey: OnboardingModel.draftKey)
+        defer { UserDefaults.standard.removeObject(forKey: OnboardingModel.draftKey) }
+        let model = OnboardingModel(profile: profile(trial: 1), records: records(), hasPlan: { true }, isClaudeAvailable: { true }, start: .intent)
+        model.go(.unit)
+        model.go(.plan)
+        model.rebuildPlan(tooHard: false)
+        XCTAssertEqual(model.step, .intent)
+        XCTAssertNil(model.draft)
+        model.back()
+        XCTAssertNotEqual(model.step, .plan, "消した計画の画面に戻らない")
+        XCTAssertNotEqual(model.step, .unit)
+    }
+
+    func testTheTimelineDoesNotStudySubunitsPassedByCheck() {
+        var workbook = WorkbookMachine()
+        let unitID = workbook.createUnit(title: "二次方程式", outcome: "", source: "consult",
+                                         subunits: [.init(title: "1", n: 4), .init(title: "2", n: 4), .init(title: "3", n: 4)])
+        let ids = workbook.orderedSubunits(unitID: unitID).map(\.id)
+        workbook.passByCheck(subunitID: ids[1])
+        var timeline = TimelineMachine()
+        _ = TimelineTurns.insertGraphRequest(.build, timeline: &timeline, workbook: workbook, profile: nil)
+        let goals = Set(timeline.skills.values.compactMap(\.unitId))
+        XCTAssertTrue(goals.contains(ids[0]))
+        XCTAssertFalse(goals.contains(ids[1]), "確認の1問で合格にした小単元は目標に入れない")
+        XCTAssertTrue(goals.contains(ids[2]))
+    }
+
+    func testCheckedSubunitsArePassedWithoutStudyAndTheNextOneStarts() {
+        var machine = WorkbookMachine()
+        let unitID = machine.createUnit(title: "二次方程式", outcome: "", source: "consult",
+                                        subunits: [.init(title: "1", n: 4), .init(title: "2", n: 4), .init(title: "3", n: 4), .init(title: "4", n: 4)])
+        let ids = machine.orderedSubunits(unitID: unitID).map(\.id)
+        // 先の小単元(pending)は合格の印だけ。今の小単元はそのまま。
+        machine.passByCheck(subunitID: ids[1])
+        XCTAssertEqual(machine.subunits[ids[1]]?.status, "passed")
+        XCTAssertEqual(machine.subunits[ids[0]]?.status, "active")
+        // 今の小単元(active)を合格にすると、合格していない次の小単元(3)が始まる。
+        machine.passByCheck(subunitID: ids[0])
+        XCTAssertEqual(machine.subunits[ids[0]]?.status, "passed")
+        XCTAssertEqual(machine.subunits[ids[2]]?.status, "active")
+        XCTAssertEqual(machine.subunits[ids[3]]?.status, "pending")
+        XCTAssertEqual(machine.subunits[ids[0]]?.metadata["passed_by"]?.stringValue, "onboarding_check")
+    }
+
     // MARK: - タイムラインの 1 枚目
 
     func testStarterCardIsTheNextCardOfTheQueueAndPointsAtSubunitOne() {

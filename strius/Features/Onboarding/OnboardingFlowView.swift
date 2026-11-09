@@ -53,7 +53,7 @@ struct OnboardingFlowView: View {
             case .birthdate: birthdate
             case .terms: terms
             case .consent: consent
-            case .trial, .grading, .result:
+            case .trial, .grading, .result, .check, .checkGrading, .checkResult:
                 OnboardingTrialView(model: model, learnerData: learnerData, isPad: isPad)
             case .trialDone: OnboardingTrialDoneView(model: model, isPad: isPad)
             case .paywall:

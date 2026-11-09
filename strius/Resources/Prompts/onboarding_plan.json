@@ -14,9 +14,19 @@
           "outcome": {"type": "string"},
           "n": {"type": "integer"},
           "scoring_unit": {"type": "string"},
-          "note": {"type": "string"}
+          "note": {"type": "string"},
+          "check": {
+            "type": "object",
+            "properties": {
+              "prompt": {"type": "string"},
+              "math": {"type": "string"},
+              "answer_key": {"type": "string"}
+            },
+            "required": ["prompt", "math", "answer_key"],
+            "additionalProperties": false
+          }
         },
-        "required": ["title", "outcome", "n", "scoring_unit", "note"],
+        "required": ["title", "outcome", "n", "scoring_unit", "note", "check"],
         "additionalProperties": false
       }
     },

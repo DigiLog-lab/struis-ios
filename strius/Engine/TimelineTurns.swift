@@ -520,7 +520,8 @@ nonisolated enum TimelineTurns {
         case .build, .extend:
             let units: [String]
             if case .extend(let unitID) = request { units = [unitID] } else { units = workbook.orderedUnits().map(\.id) }
-            timeline.addGoalNodes(units.flatMap { workbook.orderedSubunits(unitID: $0) })
+            // オンボーディングの「確認の1問」で合格にした小単元は、学ばずに進むと約束したので目標に入れない。
+            timeline.addGoalNodes(units.flatMap { workbook.orderedSubunits(unitID: $0) }.filter { !WorkbookMachine.passedByCheck($0) })
             let unitSet = Set(units)
             let nodes = timeline.pendingSkills.filter { TimelineGraphSchedule.unitID(of: $0, workbook: workbook).map(unitSet.contains) == true }.prefix(graphStepSize)
             guard !nodes.isEmpty else { return nil }

@@ -163,4 +163,340 @@ final class OnboardingScreenshotUITests: XCTestCase {
         Thread.sleep(forTimeInterval: 2)
         attach(finish, "iTimeline")
     }
+
+    // MARK: - 計画の「確認の1問だけ」(iPad 縦向き)
+
+    /// 書く面に、線分だけで字を書く(x・=・数字・カンマ・マイナス)。`origin` は 1 文字目の左上(画面の座標、pt)、`size` は 1 文字の高さ(pt)。
+    /// 紙の要素は見えている範囲より大きい(上と左にも続いている)ので、紙の要素ではなく画面の座標で書く。
+    @MainActor
+    private func write(_ text: String, in app: XCUIApplication, origin: CGPoint, size: CGFloat) {
+        let width = size * 0.62
+        let glyphs: [Character: [((CGFloat, CGFloat), (CGFloat, CGFloat))]] = [
+            "x": [((0, 0.35), (1, 1)), ((1, 0.35), (0, 1))],
+            "=": [((0, 0.45), (1, 0.45)), ((0, 0.75), (1, 0.75))],
+            "-": [((0.1, 0.6), (0.9, 0.6))],
+            ",": [((0.55, 0.85), (0.3, 1.15))],
+            "3": [((0, 0), (1, 0)), ((1, 0), (1, 1)), ((0.2, 0.5), (1, 0.5)), ((0, 1), (1, 1))],
+            "5": [((1, 0), (0, 0)), ((0, 0), (0, 0.5)), ((0, 0.5), (1, 0.5)), ((1, 0.5), (1, 1)), ((1, 1), (0, 1))],
+            "1": [((0.2, 0.2), (0.6, 0)), ((0.6, 0), (0.6, 1))],
+            "2": [((0, 0), (1, 0)), ((1, 0), (1, 0.5)), ((1, 0.5), (0, 1)), ((0, 1), (1, 1))],
+            "0": [((0, 0), (1, 0)), ((1, 0), (1, 1)), ((1, 1), (0, 1)), ((0, 1), (0, 0))],
+            "4": [((0.8, 1), (0.8, 0)), ((0.8, 0), (0, 0.65)), ((0, 0.65), (1, 0.65))],
+            "6": [((1, 0), (0, 0)), ((0, 0), (0, 1)), ((0, 1), (1, 1)), ((1, 1), (1, 0.5)), ((1, 0.5), (0, 0.5))],
+            "7": [((0, 0), (1, 0)), ((1, 0), (0.3, 1))],
+            "8": [((0, 0), (1, 0)), ((1, 0), (1, 1)), ((1, 1), (0, 1)), ((0, 1), (0, 0)), ((0, 0.5), (1, 0.5))],
+            "9": [((1, 0.5), (0, 0.5)), ((0, 0.5), (0, 0)), ((0, 0), (1, 0)), ((1, 0), (1, 1)), ((1, 1), (0, 1))],
+            "y": [((0, 0.35), (0.5, 0.7)), ((1, 0.35), (0.2, 1.2))],
+            "/": [((1, 0), (0, 1))],
+            "(": [((0.7, 0), (0.3, 0.5)), ((0.3, 0.5), (0.7, 1))],
+            ")": [((0.3, 0), (0.7, 0.5)), ((0.7, 0.5), (0.3, 1))],
+        ]
+        let screen = app.coordinate(withNormalizedOffset: .zero)
+        var x = origin.x
+        for character in text {
+            if character == " " { x += width * 0.8; continue }
+            for (from, to) in glyphs[character] ?? [] {
+                let start = screen.withOffset(CGVector(dx: x + from.0 * width, dy: origin.y + from.1 * size))
+                let end = screen.withOffset(CGVector(dx: x + to.0 * width, dy: origin.y + to.1 * size))
+                start.press(forDuration: 0.05, thenDragTo: end)
+            }
+            x += width * (character == "," ? 0.9 : 1.45)
+        }
+    }
+
+    @MainActor
+    func testIPadPortraitPlanCheck() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .pad, "iPad の画面")
+        XCUIDevice.shared.orientation = .portrait
+        let environment = ["STRUIS_DEVICE_TURNS": "mock", "STRUIS_DEVICE_RUNTIME": "0", "STRUIS_AGE_RANGE": "adult",
+                           "STRUIS_ONBOARDING_START": "plan", "STRUIS_MOCK_TURN_DELAY_MS": "2500"]
+
+        // 計画 → 小単元 2・3 を「確認の1問だけ」に → 作り直す → はじめる → 確認(正解)→ 次の確認。
+        let app = XCUIApplication()
+        app.launchArguments = ["-workbook-empty"]
+        app.launchEnvironment = environment
+        app.launch()
+        let begin = app.buttons["onboarding-plan-start"].firstMatch
+        XCTAssertTrue(begin.waitForExistence(timeout: 20))
+        Thread.sleep(forTimeInterval: 1)
+        attach(app, "pPlan")
+        app.buttons["onboarding-plan-subunit-2"].firstMatch.tap()
+        app.buttons["onboarding-plan-subunit-3"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 0.8)
+        attach(app, "pPlanChecked")
+        app.buttons["onboarding-plan-rebuild"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 1.2)
+        attach(app, "pRebuild")
+        if app.buttons["やめる"].exists { app.buttons["やめる"].tap() } else { app.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.1)).tap() }
+        Thread.sleep(forTimeInterval: 0.8)
+        begin.tap()
+        let paper = app.descendants(matching: .any)["onboarding-ink"].firstMatch
+        XCTAssertTrue(paper.waitForExistence(timeout: 10))
+        Thread.sleep(forTimeInterval: 1)
+        attach(app, "pCheck")
+        write("x=3,-5", in: app, origin: CGPoint(x: 500, y: 260), size: 36)
+        Thread.sleep(forTimeInterval: 0.5)
+        attach(app, "pCheckInk")
+        app.buttons["onboarding-trial-send"].firstMatch.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["onboarding-grading"].firstMatch.waitForExistence(timeout: 5))
+        Thread.sleep(forTimeInterval: 1)
+        attach(app, "pCheckGrading")
+        XCTAssertTrue(app.descendants(matching: .any)["onboarding-check-outcome"].firstMatch.waitForExistence(timeout: 30))
+        Thread.sleep(forTimeInterval: 1)
+        attach(app, "pCheckCorrect")
+        app.buttons["onboarding-check-next"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 1.5)
+        attach(app, "pCheck2")
+        app.terminate()
+
+        // 誤答: 小単元 2 だけを確かめて間違える → 計画をはじめる → 通知。
+        let wrong = XCUIApplication()
+        wrong.launchArguments = ["-workbook-empty"]
+        wrong.launchEnvironment = environment.merging(["STRUIS_MOCK_TIMELINE_WRONG": "1"]) { $1 }
+        wrong.launch()
+        XCTAssertTrue(wrong.buttons["onboarding-plan-start"].firstMatch.waitForExistence(timeout: 20))
+        wrong.buttons["onboarding-plan-subunit-2"].firstMatch.tap()
+        wrong.buttons["onboarding-plan-start"].firstMatch.tap()
+        let wrongPaper = wrong.descendants(matching: .any)["onboarding-ink"].firstMatch
+        XCTAssertTrue(wrongPaper.waitForExistence(timeout: 10))
+        write("x=-3,5", in: wrong, origin: CGPoint(x: 500, y: 260), size: 36)
+        wrong.buttons["onboarding-trial-send"].firstMatch.tap()
+        XCTAssertTrue(wrong.descendants(matching: .any)["onboarding-check-outcome"].firstMatch.waitForExistence(timeout: 30))
+        Thread.sleep(forTimeInterval: 1)
+        attach(wrong, "pCheckWrong")
+        wrong.buttons["onboarding-check-next"].firstMatch.tap()
+        XCTAssertTrue(wrong.buttons["onboarding-notify-next"].firstMatch.waitForExistence(timeout: 10))
+        Thread.sleep(forTimeInterval: 1)
+        attach(wrong, "pNotify")
+        wrong.buttons["onboarding-notify-next"].firstMatch.tap()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for title in ["許可", "Allow"] where springboard.buttons[title].waitForExistence(timeout: 3) { springboard.buttons[title].tap(); break }
+        XCTAssertTrue(wrong.descendants(matching: .any)["timeline-screen"].firstMatch.waitForExistence(timeout: 20))
+        Thread.sleep(forTimeInterval: 2)
+        attach(wrong, "pTimeline")
+        wrong.terminate()
+
+        // 作り直す: 難しすぎる → 計画を作り直す待ち / やりたいことと違う → 何をするかを選び直す。
+        for (choice, name) in [("難しすぎる", "pRebuildTooHard"), ("やりたいことと違う", "pRebuildIntent")] {
+            let rebuild = XCUIApplication()
+            rebuild.launchArguments = ["-workbook-empty"]
+            rebuild.launchEnvironment = environment
+            rebuild.launch()
+            XCTAssertTrue(rebuild.buttons["onboarding-plan-rebuild"].firstMatch.waitForExistence(timeout: 20))
+            rebuild.buttons["onboarding-plan-rebuild"].firstMatch.tap()
+            XCTAssertTrue(rebuild.buttons[choice].firstMatch.waitForExistence(timeout: 5))
+            rebuild.buttons[choice].firstMatch.tap()
+            Thread.sleep(forTimeInterval: 1.5)
+            attach(rebuild, name)
+            rebuild.terminate()
+        }
+    }
+
+    // MARK: - 計画の「確認の1問だけ」(iPhone)
+
+    /// iPhone は確かめる1問を紙に解いて撮る(シミュレーターのカメラは見本の答案を返す)。
+    @MainActor
+    private func capture(_ app: XCUIApplication) {
+        app.buttons["onboarding-trial-capture"].firstMatch.tap()
+        let shutter = app.buttons["chat-camera-shutter"].firstMatch
+        XCTAssertTrue(shutter.waitForExistence(timeout: 15), "カメラが開かない")
+        _ = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: shutter)], timeout: 15)
+        shutter.tap()
+    }
+
+    @MainActor
+    func testIPhonePlanCheck() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "iPhone の画面")
+        let environment = ["STRUIS_DEVICE_TURNS": "mock", "STRUIS_DEVICE_RUNTIME": "0", "STRUIS_AGE_RANGE": "adult",
+                           "STRUIS_ONBOARDING_START": "plan", "STRUIS_MOCK_TURN_DELAY_MS": "2500",
+                           "STRUIS_TEST_CAMERA_IMAGE": UITestSupport.paperImagePath,
+                           "STRUIS_TEST_CAPTURE_FINISH_SECONDS": UITestSupport.captureFinishSecondsWithoutRace]
+
+        // 計画 → 小単元 2・3 を「確認の1問だけ」に → 作り直す → はじめる → 確認(正解)→ 次の確認。
+        let app = XCUIApplication()
+        app.launchArguments = ["-workbook-empty"]
+        app.launchEnvironment = environment
+        app.launch()
+        let begin = app.buttons["onboarding-plan-start"].firstMatch
+        XCTAssertTrue(begin.waitForExistence(timeout: 20))
+        Thread.sleep(forTimeInterval: 1)
+        attach(app, "hPlan")
+        app.buttons["onboarding-plan-subunit-2"].firstMatch.tap()
+        app.buttons["onboarding-plan-subunit-3"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 0.8)
+        attach(app, "hPlanChecked")
+        app.buttons["onboarding-plan-rebuild"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 1.2)
+        attach(app, "hRebuild")
+        app.buttons["やめる"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 0.8)
+        begin.tap()
+        XCTAssertTrue(app.buttons["onboarding-trial-capture"].firstMatch.waitForExistence(timeout: 10))
+        Thread.sleep(forTimeInterval: 1)
+        attach(app, "hCheck")
+        capture(app)
+        XCTAssertTrue(app.descendants(matching: .any)["onboarding-grading"].firstMatch.waitForExistence(timeout: 10))
+        Thread.sleep(forTimeInterval: 1)
+        attach(app, "hCheckGrading")
+        XCTAssertTrue(app.descendants(matching: .any)["onboarding-check-outcome"].firstMatch.waitForExistence(timeout: 30))
+        Thread.sleep(forTimeInterval: 1)
+        attach(app, "hCheckCorrect")
+        app.buttons["onboarding-check-next"].firstMatch.tap()
+        Thread.sleep(forTimeInterval: 1.5)
+        attach(app, "hCheck2")
+        app.terminate()
+
+        // 誤答: 小単元 2 だけを確かめて間違える → 計画をはじめる → 通知 → タイムライン。
+        let wrong = XCUIApplication()
+        wrong.launchArguments = ["-workbook-empty"]
+        wrong.launchEnvironment = environment.merging(["STRUIS_MOCK_TIMELINE_WRONG": "1"]) { $1 }
+        wrong.launch()
+        XCTAssertTrue(wrong.buttons["onboarding-plan-start"].firstMatch.waitForExistence(timeout: 20))
+        wrong.buttons["onboarding-plan-subunit-2"].firstMatch.tap()
+        wrong.buttons["onboarding-plan-start"].firstMatch.tap()
+        XCTAssertTrue(wrong.buttons["onboarding-trial-capture"].firstMatch.waitForExistence(timeout: 10))
+        capture(wrong)
+        XCTAssertTrue(wrong.descendants(matching: .any)["onboarding-check-outcome"].firstMatch.waitForExistence(timeout: 30))
+        Thread.sleep(forTimeInterval: 1)
+        attach(wrong, "hCheckWrong")
+        wrong.buttons["onboarding-check-next"].firstMatch.tap()
+        XCTAssertTrue(wrong.buttons["onboarding-notify-next"].firstMatch.waitForExistence(timeout: 10))
+        Thread.sleep(forTimeInterval: 1)
+        attach(wrong, "hNotify")
+        wrong.buttons["onboarding-notify-next"].firstMatch.tap()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for title in ["許可", "Allow"] where springboard.buttons[title].waitForExistence(timeout: 3) { springboard.buttons[title].tap(); break }
+        XCTAssertTrue(wrong.descendants(matching: .any)["timeline-screen"].firstMatch.waitForExistence(timeout: 20))
+        Thread.sleep(forTimeInterval: 2)
+        attach(wrong, "hTimeline")
+        wrong.terminate()
+
+        // 作り直す: 難しすぎる / やりたいことと違う。
+        for (choice, name) in [("難しすぎる", "hRebuildTooHard"), ("やりたいことと違う", "hRebuildIntent")] {
+            let rebuild = XCUIApplication()
+            rebuild.launchArguments = ["-workbook-empty"]
+            rebuild.launchEnvironment = environment
+            rebuild.launch()
+            XCTAssertTrue(rebuild.buttons["onboarding-plan-rebuild"].firstMatch.waitForExistence(timeout: 20))
+            rebuild.buttons["onboarding-plan-rebuild"].firstMatch.tap()
+            XCTAssertTrue(rebuild.buttons[choice].firstMatch.waitForExistence(timeout: 5))
+            rebuild.buttons[choice].firstMatch.tap()
+            Thread.sleep(forTimeInterval: 1.5)
+            attach(rebuild, name)
+            rebuild.terminate()
+        }
+    }
+
+    // MARK: - 本物の Claude で確かめる(Dev Box だけ。キーが無ければ飛ばす)
+
+    /// テストの実行環境に渡したキーのファイル(`TEST_RUNNER_STRUIS_REAL_KEY_FILE`)。
+    private var realKeyFile: String? { ProcessInfo.processInfo.environment["STRUIS_REAL_KEY_FILE"].flatMap { $0.isEmpty ? nil : $0 } }
+
+    @MainActor
+    private func planTitles(_ app: XCUIApplication) -> String {
+        (1...10).compactMap { index -> String? in
+            let row = app.buttons["onboarding-plan-subunit-\(index)"].firstMatch
+            return row.exists ? "\(index): \(row.label) enabled=\(row.isEnabled)" : nil
+        }.joined(separator: "\n")
+    }
+
+    @MainActor
+    private func note(_ text: String, _ name: String) {
+        let attachment = XCTAttachment(string: text)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    /// 1 回目: 本物の計画を作り、「難しすぎる」で作り直す。作り直した計画は端末に残り、2 回目がそれを使う。
+    @MainActor
+    func testRealPlanPhase1() throws {
+        try XCTSkipIf(realKeyFile == nil, "本物の Claude のキーが無い(Dev Box で確かめる時だけ動かす)")
+        let key = realKeyFile ?? ""
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .pad, "iPad で確かめる")
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments = ["-workbook-empty"]
+        app.launchEnvironment = ["STRUIS_DEVICE_RUNTIME": "1", "STRUIS_AGE_RANGE": "adult", "STRUIS_ONBOARDING_START": "planWait",
+                                 "STRUIS_DEBUG_ANTHROPIC_KEY_FILE": key, "STRUIS_PLAN": "generous", "STRUIS_USAGE_PERCENT": "0"]
+        app.launch()
+        let begin = app.buttons["onboarding-plan-start"].firstMatch
+        XCTAssertTrue(begin.waitForExistence(timeout: 300), "計画ができない")
+        Thread.sleep(forTimeInterval: 1)
+        attach(app, "rPlan")
+        note(planTitles(app), "rPlanTitles")
+        app.buttons["onboarding-plan-rebuild"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["難しすぎる"].firstMatch.waitForExistence(timeout: 5))
+        app.buttons["難しすぎる"].firstMatch.tap()
+        _ = app.buttons["onboarding-plan-start"].firstMatch.waitForNonExistence(timeout: 5)
+        XCTAssertTrue(app.buttons["onboarding-plan-start"].firstMatch.waitForExistence(timeout: 300), "作り直した計画ができない")
+        Thread.sleep(forTimeInterval: 1)
+        attach(app, "rPlanEasier")
+        note(planTitles(app), "rPlanEasierTitles")
+        // 確かめる1問の問題文を全部見る(解かずに「やっぱり最初から学ぶ」で次へ)。
+        let rows = (1...10).filter { app.buttons["onboarding-plan-subunit-\($0)"].firstMatch.exists }
+        for index in rows { app.buttons["onboarding-plan-subunit-\(index)"].firstMatch.tap() }
+        app.buttons["onboarding-plan-start"].firstMatch.tap()
+        for index in rows {
+            let skip = app.buttons["onboarding-check-skip"].firstMatch
+            XCTAssertTrue(skip.waitForExistence(timeout: 15), "確かめる1問が出ない(小単元 \(index))")
+            Thread.sleep(forTimeInterval: 1)
+            attach(app, "rCheckPrompt\(index)")
+            skip.tap()
+            Thread.sleep(forTimeInterval: 1)
+        }
+        app.terminate()
+    }
+
+    /// 2 回目: 1 回目の計画で、`STRUIS_REAL_ANSWERS`(「2=x=3,-5|3=x=1」: 小単元の番号=書く答え)のとおりに確かめる。
+    @MainActor
+    func testRealPlanPhase2() throws {
+        try XCTSkipIf(realKeyFile == nil, "本物の Claude のキーが無い(Dev Box で確かめる時だけ動かす)")
+        let key = realKeyFile ?? ""
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .pad, "iPad で確かめる")
+        let answers: [(Int, String)] = (ProcessInfo.processInfo.environment["STRUIS_REAL_ANSWERS"] ?? "").split(separator: "|").compactMap { pair in
+            let parts = pair.split(separator: "=", maxSplits: 1)
+            guard parts.count == 2, let number = Int(parts[0]) else { return nil }
+            return (number, String(parts[1]))
+        }
+        XCTAssertFalse(answers.isEmpty, "STRUIS_REAL_ANSWERS が無い")
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments = ["-workbook-empty"]
+        app.launchEnvironment = ["STRUIS_DEVICE_RUNTIME": "1", "STRUIS_AGE_RANGE": "adult", "STRUIS_ONBOARDING_START": "plan",
+                                 "STRUIS_DEBUG_ANTHROPIC_KEY_FILE": key, "STRUIS_PLAN": "generous", "STRUIS_USAGE_PERCENT": "0"]
+        app.launch()
+        let begin = app.buttons["onboarding-plan-start"].firstMatch
+        XCTAssertTrue(begin.waitForExistence(timeout: 30))
+        note(planTitles(app), "rPhase2Titles")
+        for (number, _) in answers { app.buttons["onboarding-plan-subunit-\(number)"].firstMatch.tap() }
+        Thread.sleep(forTimeInterval: 0.8)
+        attach(app, "rPlanChecked")
+        begin.tap()
+        var outcomes: [String] = []
+        for (index, (number, answer)) in answers.enumerated() {
+            XCTAssertTrue(app.descendants(matching: .any)["onboarding-ink"].firstMatch.waitForExistence(timeout: 15))
+            Thread.sleep(forTimeInterval: 1)
+            write(answer, in: app, origin: CGPoint(x: 490, y: 260), size: 34)
+            Thread.sleep(forTimeInterval: 0.5)
+            attach(app, "rCheck\(number)")
+            app.buttons["onboarding-trial-send"].firstMatch.tap()
+            let outcome = app.descendants(matching: .any)["onboarding-check-outcome"].firstMatch
+            XCTAssertTrue(outcome.waitForExistence(timeout: 150), "採点が返らない(小単元 \(number))")
+            Thread.sleep(forTimeInterval: 1)
+            attach(app, "rResult\(number)")
+            outcomes.append("\(number) [\(answer)]: \(outcome.label)")
+            app.buttons["onboarding-check-next"].firstMatch.tap()
+            if index + 1 < answers.count { Thread.sleep(forTimeInterval: 1.5) }
+        }
+        note(outcomes.joined(separator: "\n"), "rOutcomes")
+        XCTAssertTrue(app.buttons["onboarding-notify-next"].firstMatch.waitForExistence(timeout: 20))
+        app.buttons["onboarding-notify-next"].firstMatch.tap()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for title in ["許可", "Allow"] where springboard.buttons[title].waitForExistence(timeout: 3) { springboard.buttons[title].tap(); break }
+        XCTAssertTrue(app.descendants(matching: .any)["timeline-screen"].firstMatch.waitForExistence(timeout: 60))
+        Thread.sleep(forTimeInterval: 5)
+        attach(app, "rTimeline")
+        app.terminate()
+    }
 }
