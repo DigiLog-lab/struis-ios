@@ -246,6 +246,10 @@ final class TimelineStore {
         }
         if isOutside(decided?.cardID) { decided?.cardID = nil }
         if isOutside(returnToID) { returnToID = nil }
+        // 速攻の途中: 解いている問題までは残し、この後に出す範囲の外の問題を抜く(全部抜けたら、今の問題で速攻を終える)。
+        if case .rapid(let index) = phase, index < rapidIDs.count {
+            rapidIDs = Array(rapidIDs.prefix(index + 1)) + rapidIDs.dropFirst(index + 1).filter { !isOutside($0) }
+        }
         if replacesCurrent {
             if let id = currentID { await commit { machine in machine.discard(ids: [id]) } }
             badge = nil
