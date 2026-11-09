@@ -107,7 +107,8 @@ nonisolated struct TimelineCostSummary: Equatable, Sendable {
     static func summarize(_ turns: [Turn]) -> TimelineCostSummary {
         var byModel: [String: Model] = [:]
         var answered: [String: Set<String>] = [:]
-        for turn in turns where ClaudeTranslation.tutorKinds.contains(turn.kind) {
+        // 答えの読み取り(#101)は採点・出題・見直しと先頭を共有しない別の依頼だが、タイムラインの費用には数える。
+        for turn in turns where ClaudeTranslation.tutorKinds.contains(turn.kind) || turn.kind == TurnPlan.Kind.timelineAnswer.rawValue {
             // 同じ実行は進行中・完了の順に記録される。実行ごとに最後の記録だけを数える。
             var latest: [String: LedgerJSON] = [:]
             var order: [String] = []
