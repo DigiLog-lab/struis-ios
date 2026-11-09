@@ -210,7 +210,7 @@
       ]
     },
     "timeline": {
-      "property": "学習タイムライン: 起動したらタイムラインが出る、単元ホームを重ねて戻る、撮る・指で書く・飛ばす・2択カード・やめどき、誤答の画面の2つの答えと判定への申し出",
+      "property": "学習タイムライン: 起動したらタイムラインが出る、単元ホームを重ねて戻る、撮る・指で書く・飛ばす・2択カード・やめどき、誤答の画面の2つの答えと判定への申し出、書く面の誤答で判定と一緒に出る赤ペンと結果の画面のスクロール",
       "tests": [
         "TimelineUITests/testLaunchShowsTimelineAndUnitsHomeCoversIt",
         "TimelineUITests/testCaptureGradesAndMovesToTheNextProblem",
@@ -218,7 +218,8 @@
         "TimelineUITests/testInkCoversTheWholeWidthAndTheProblemTextAndZoomsAroundThePinch",
         "TimelineUITests/testSkippingShowsReasonsAndTwoSkipsOfferTheDipCard",
         "TimelineUITests/testStopSheetOffersOneMoreOrStop",
-        "TimelineUITests/testWrongAnswerShowsBothAnswersAndOffersADisputeFromAsk"
+        "TimelineUITests/testWrongAnswerShowsBothAnswersAndOffersADisputeFromAsk",
+        "TimelineUITests/testWrongInkAnswerShowsTheRedPenWithTheVerdictAndTheInkStillScrolls"
       ],
       "paths": [
         "strius/Features/Timeline/**",
@@ -396,6 +397,7 @@
     "TimelineUITests/testSkippingShowsReasonsAndTwoSkipsOfferTheDipCard": 40,
     "TimelineUITests/testStopSheetOffersOneMoreOrStop": 40,
     "TimelineUITests/testWrongAnswerShowsBothAnswersAndOffersADisputeFromAsk": 40,
+    "TimelineUITests/testWrongInkAnswerShowsTheRedPenWithTheVerdictAndTheInkStillScrolls": 40,
     "OnboardingFlowUITests/testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain": 55,
     "OnboardingScreenshotUITests/testIPhoneScreens": 0,
     "OnboardingScreenshotUITests/testIPadLandscapeScreens": 0,
