@@ -258,6 +258,27 @@ final class OnboardingScreenshotUITests: XCTestCase {
         XCTAssertTrue(wrong.buttons["onboarding-notify-next"].firstMatch.waitForExistence(timeout: 10))
         Thread.sleep(forTimeInterval: 1)
         attach(wrong, "pNotify")
+        wrong.buttons["onboarding-notify-next"].firstMatch.tap()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for title in ["許可", "Allow"] where springboard.buttons[title].waitForExistence(timeout: 3) { springboard.buttons[title].tap(); break }
+        XCTAssertTrue(wrong.descendants(matching: .any)["timeline-screen"].firstMatch.waitForExistence(timeout: 20))
+        Thread.sleep(forTimeInterval: 2)
+        attach(wrong, "pTimeline")
         wrong.terminate()
+
+        // 作り直す: 難しすぎる → 計画を作り直す待ち / やりたいことと違う → 何をするかを選び直す。
+        for (choice, name) in [("難しすぎる", "pRebuildTooHard"), ("やりたいことと違う", "pRebuildIntent")] {
+            let rebuild = XCUIApplication()
+            rebuild.launchArguments = ["-workbook-empty"]
+            rebuild.launchEnvironment = environment
+            rebuild.launch()
+            XCTAssertTrue(rebuild.buttons["onboarding-plan-rebuild"].firstMatch.waitForExistence(timeout: 20))
+            rebuild.buttons["onboarding-plan-rebuild"].firstMatch.tap()
+            XCTAssertTrue(rebuild.buttons[choice].firstMatch.waitForExistence(timeout: 5))
+            rebuild.buttons[choice].firstMatch.tap()
+            Thread.sleep(forTimeInterval: 1.5)
+            attach(rebuild, name)
+            rebuild.terminate()
+        }
     }
 }
