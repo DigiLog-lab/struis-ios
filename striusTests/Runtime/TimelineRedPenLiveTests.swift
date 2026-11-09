@@ -94,6 +94,8 @@ final class TimelineRedPenLiveTests: XCTestCase {
                     let id = timeline.recordCapture(cardID: card.id, capturePath: name, seconds: 120, assisted: false)
                     return ([.upsert("test", unit)] + timeline.events, id)
                 }
+                // 答案を拡大する道具(`timeline_view_capture`)は、アプリと同じく台帳から答案の画像を引く。
+                TimelineQueryHost.install(ledger)
                 let (workbook, timeline): (WorkbookMachine, TimelineMachine) = try await ledger.commit { db in
                     let workbook = try WorkbookMachine(loading: db)
                     var timeline = try TimelineMachine(loading: db)
