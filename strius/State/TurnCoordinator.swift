@@ -78,7 +78,8 @@ actor TurnCoordinator {
     /// 構造化ターンの上限(前面にいた時間だけを数える)。超えたら `run` の終わりを待たずに失敗として返す
     /// (2026-10-24: 返らないターンで採点・グラフ・会話が全部止まった)。会話と単元ホームの判定は今のまま(上限なし)。
     static let defaultTimeLimits: [String: Duration] = [
-        TurnPlan.Kind.timelineGrading.rawValue: .seconds(90),
+        // 書く面の答案は、採点と同じターンで答案を拡大して赤ペンの場所も確かめる(前の赤ペンだけのターンは 120 秒)。
+        TurnPlan.Kind.timelineGrading.rawValue: .seconds(120),
         // 答えの読み取り(#101)。超えたら失敗として、いつもの採点に回す。
         TurnPlan.Kind.timelineAnswer.rawValue: .seconds(45),
         TurnPlan.Kind.timelineBatch.rawValue: .seconds(180),
