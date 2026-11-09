@@ -125,6 +125,7 @@ final class TimelineRedPenLiveTests: XCTestCase {
                     "final_text": outcome.finalText, "error": outcome.error ?? NSNull(),
                 ]
                 rows.append(row)
+                if outcome.status != .completed { print("red-pen-live error: \(outcome.error ?? "-") executions=\(outcome.executions) images=\(plan.turn?.images.map(\.hostPath) ?? [])") }
                 print("red-pen-live #\(iteration) ink=\(ink): \(outcome.status.rawValue) \(outcome.elapsedMs) ms grade=\(attempt?.grade ?? "-") viewed=\(viewed) marks=\(returned.count)/\(stored.count) $\(execution["estimated_cost_usd"]?.doubleValue ?? -1)")
             }
         }
