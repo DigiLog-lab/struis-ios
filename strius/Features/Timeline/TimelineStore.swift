@@ -238,6 +238,14 @@ final class TimelineStore {
         let outsideCurrent: Bool = current.map { TimelineScope.isOutside($0, unitID: unitID, workbook: workbook, timeline: machine) } ?? false
         let replacesCurrent: Bool = outsideCurrent && phase == .solving
         await discardOutsideScope(keeping: replacesCurrent ? nil : currentID)
+        // 結果の画面で決めておいた次の1枚(やさしくした問題を含む)・戻る先が範囲の外なら、決め直す
+        // (「次へ」で範囲の中の作り置きから出す)。今の結果はそのまま残す。
+        let isOutside: (String?) -> Bool = { [machine = self.machine, workbook = self.workbook] id in
+            guard let card = id.flatMap({ machine.cards[$0] }) else { return false }
+            return TimelineScope.isOutside(card, unitID: unitID, workbook: workbook, timeline: machine)
+        }
+        if isOutside(decided?.cardID) { decided?.cardID = nil }
+        if isOutside(returnToID) { returnToID = nil }
         if replacesCurrent {
             if let id = currentID { await commit { machine in machine.discard(ids: [id]) } }
             badge = nil
