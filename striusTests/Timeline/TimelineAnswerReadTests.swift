@@ -143,7 +143,11 @@ final class TimelineAnswerReadTests: XCTestCase {
         let ledger = try Ledger.inMemory()
         let timeline: TimelineMachine = try await ledger.commit { db in
             var timeline = try TimelineMachine(loading: db)
-            timeline.put("test", Self.keyedCard("c1"))
+            // 答えは ID などに紛れない形にする(ID には "-5" のような並びが入りうる)。
+            var card = Self.keyedCard("c1")
+            card.answerKey = "\\frac{7}{13}"
+            card.answerExpr = "7/13"
+            timeline.put("test", card)
             _ = timeline.recordCapture(cardID: "c1", capturePath: "t.jpg", seconds: 12, assisted: false)
             return (timeline.events, timeline)
         }
@@ -153,7 +157,7 @@ final class TimelineAnswerReadTests: XCTestCase {
         XCTAssertEqual(plan.thread.effort, "low")
         XCTAssertNil(plan.thread.developerInstructions)
         let turn = try XCTUnwrap(plan.turn)
-        XCTAssertFalse(turn.text.contains("-5"), "正しい答えを依頼に入れない")
+        XCTAssertFalse(turn.text.contains("frac{7}{13}") || turn.text.contains("7/13") || turn.text.contains("answer_key"), "正しい答えを依頼に入れない")
         XCTAssertEqual(turn.images.count, 1)
     }
 
