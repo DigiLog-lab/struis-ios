@@ -235,6 +235,14 @@ final class TimelineStore {
                 for id in stale where machine.batches[id]?.status == "requested" { machine.failBatch(id: id, error: "interrupted") }
             }
         }
+        #if DEBUG
+        for card in machine.queue + machine.rapidCards + [current].compactMap({ $0 }) {
+            let skillUnits = card.skills.map { "\($0)=\(machine.skills[$0]?.unitId ?? "nil")" }.joined(separator: ",")
+            let resolved = TimelineScope.unitID(of: card, workbook: workbook, timeline: machine) ?? "nil"
+            timelineLog.notice("scope-debug pin=\(unitID, privacy: .public) card=\(card.id, privacy: .public) origin=\(card.origin, privacy: .public) unit=\(card.unitId ?? "nil", privacy: .public) sub=\(card.subunitId ?? "nil", privacy: .public) skills=[\(skillUnits, privacy: .public)] resolved=\(resolved, privacy: .public) outside=\(TimelineScope.isOutside(card, unitID: unitID, workbook: self.workbook, timeline: self.machine), privacy: .public) prompt=\(String(card.prompt.prefix(30)), privacy: .public)")
+        }
+        timelineLog.notice("scope-debug units=\(self.workbook.orderedUnits().map { "\($0.id):\($0.title)" }.joined(separator: " "), privacy: .public) subunits=\(self.workbook.subunits.values.map { "\($0.id)>\($0.unitId)" }.joined(separator: " "), privacy: .public)")
+        #endif
         let outsideCurrent: Bool = current.map { TimelineScope.isOutside($0, unitID: unitID, workbook: workbook, timeline: machine) } ?? false
         let replacesCurrent: Bool = outsideCurrent && phase == .solving
         await discardOutsideScope(keeping: replacesCurrent ? nil : currentID)

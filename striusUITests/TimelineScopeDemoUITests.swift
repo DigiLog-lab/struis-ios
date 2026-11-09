@@ -55,7 +55,9 @@ final class TimelineScopeDemoUITests: XCTestCase {
         let beforeMechanics = problemText(app)
         app.buttons["timeline-units-button"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["workbook-home"].firstMatch.appears(timeout: 10), "単元ホームが出ない")
-        app.staticTexts["力学"].firstMatch.tap()
+        let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'workbook-unit-card-' AND label CONTAINS '力学'")).firstMatch
+        if !card.isHittable { app.swipeUp() }
+        card.tap()
         let solve = app.buttons["workbook-unit-solve-in-timeline"]
         XCTAssertTrue(solve.appears(timeout: 15), "「タイムラインで解く」が無い")
         sleep(1)
