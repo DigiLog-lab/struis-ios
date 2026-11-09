@@ -147,6 +147,9 @@ final class TimelineUITests: XCTestCase {
         moved.lifetime = .keepAlways
         add(moved)
         XCTAssertTrue(app.descendants(matching: .any)["timeline-result-wrong"].firstMatch.exists, "スクロールで結果の画面から離れた")
+        // 書く面が上に乗っていても、結果の画面のボタンは押せる。
+        app.buttons["timeline-next"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["timeline-result-wrong"].firstMatch.waitForNonExistence(timeout: 10), "「次へ」が書く面に遮られた")
     }
 
     /// 書く面は、上の帯と下の帯の間を画面の端から端まで覆う。問題文の上にも書け、指が触れただけでは「送る」にならない。
