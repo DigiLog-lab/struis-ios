@@ -303,7 +303,7 @@ struct TimelineInkCanvas: UIViewRepresentable {
 
     func makeUIView(context: Context) -> TimelinePassThroughCanvas {
         let canvas: TimelinePassThroughCanvas = TimelinePassThroughCanvas()
-        canvas.drawingPolicy = .anyInput
+        canvas.applyInput(readOnly: false)
         canvas.backgroundColor = .clear
         canvas.isOpaque = false
         canvas.tool = PKInkingTool(.monoline, color: Self.inkColor, width: Self.inkWidth)
@@ -324,9 +324,7 @@ struct TimelineInkCanvas: UIViewRepresentable {
         canvas.passThrough = passThrough
         if context.coordinator.isReadOnly != isReadOnly {
             context.coordinator.isReadOnly = isReadOnly
-            // 書く操作を止めると、指は PencilKit の既定どおりスクロールに回る(.pencilOnly では1本指でスクロールする)。
-            canvas.drawingGestureRecognizer.isEnabled = !isReadOnly
-            canvas.drawingPolicy = isReadOnly ? .pencilOnly : .anyInput
+            canvas.applyInput(readOnly: isReadOnly)
         }
         // 出す・隠すが変わった時だけ触る。毎回呼ぶと、質問の欄で文字を打っている間に書く面が入力を奪い返す。
         if context.coordinator.isToolPickerShown != showsToolPicker {
@@ -410,6 +408,38 @@ struct TimelineInkCanvas: UIViewRepresentable {
 /// 書く面が狭くなった時(iPad で右に質問の欄を開いた時など)は、書いた線の全体が見える倍率まで縮め、広がったら戻す。
 final class TimelinePassThroughCanvas: PKCanvasView {
     var passThrough: [CGRect] = []
+    /// 見るだけ(結果の画面)か。
+    private var isReadOnly: Bool = false
+    /// Apple Pencil が触れたかを見るだけの認識(何も認識しない)。
+    private lazy var pencilWatcher: TimelinePencilWatcher = TimelinePencilWatcher { [weak self] in self?.pencilDidTouch() }
+
+    /// 入力の受け方を決める。
+    /// 書く間: Apple Pencil を使う人(この起動で Pencil が触れた、または設定の「Apple Pencil でのみ描画」がオン)はペン専用。
+    /// 手のひらや指は線にならず、紙のスクロールは2本指にする(1本指だと、置いた手のひらで紙が動く)。
+    /// Pencil を使わない人は今まで通り指で書く。前は常に指でも書けたので、手のひらを画面に置いて書くと手のひらが先に
+    /// 線として受け付けられ、その間 Pencil の線が無視された(2026-11-10、実機)。
+    /// 見るだけ: 書く操作を止め、指は1本でスクロールする。
+    func applyInput(readOnly: Bool) {
+        isReadOnly = readOnly
+        if pencilWatcher.view == nil { addGestureRecognizer(pencilWatcher) }
+        drawingGestureRecognizer.isEnabled = !readOnly
+        let pencilOnly: Bool = readOnly || TimelineInkInput.usesPencil
+        drawingPolicy = pencilOnly ? .pencilOnly : .anyInput
+        // ペン専用の時だけ触る(指で書く間のスクロールの指の本数は PencilKit に任せる)。
+        if pencilOnly { panGestureRecognizer.minimumNumberOfTouches = readOnly ? 1 : 2 }
+    }
+
+    /// Pencil が初めて触れた: 以後はペン専用にする。先に手のひらが線を書き始めていたら、その線は取り消す
+    /// (書く操作を一度止めて戻すと、途中の線は捨てられる)。PencilKit の処理の外で、次の周回で切り替える。
+    private func pencilDidTouch() {
+        guard !TimelineInkInput.usesPencil else { return }
+        TimelineInkInput.pencilSeen = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.isReadOnly else { return }
+            self.drawingGestureRecognizer.isEnabled = false
+            self.applyInput(readOnly: false)
+        }
+    }
     /// 標準の道具パレットを出している間は、書く面を入力の中心(first responder)にする。
     var wantsToolPicker: Bool = false {
         didSet { if wantsToolPicker { becomeFirstResponderWhenPossible() } }
@@ -524,6 +554,37 @@ final class TimelinePassThroughCanvas: PKCanvasView {
         if passThrough.contains(where: { $0.contains(local) }) { return nil }
         return super.hitTest(point, with: event)
     }
+}
+
+/// 書く面の入力: Apple Pencil を使う人か。
+@MainActor
+enum TimelineInkInput {
+    /// この起動で書く面に Pencil が触れた(問題ごとに書く面を作り直しても、ペン専用のまま)。
+    static var pencilSeen: Bool = false
+    /// ペン専用にするか。設定の「Apple Pencil でのみ描画」がオンなら、最初の Pencil を待たずにペン専用。
+    static var usesPencil: Bool { pencilSeen || UIPencilInteraction.prefersPencilOnlyDrawing }
+}
+
+/// Apple Pencil が触れたことを知らせるだけの認識。触れを受け取らない(`shouldReceive` で見て false を返す)ので、
+/// 書く・スクロール・拡大縮小の邪魔をしない。
+final class TimelinePencilWatcher: UIGestureRecognizer, UIGestureRecognizerDelegate {
+    private let onPencil: @MainActor () -> Void
+
+    init(onPencil: @escaping @MainActor () -> Void) {
+        self.onPencil = onPencil
+        super.init(target: nil, action: nil)
+        delegate = self
+        cancelsTouchesInView = false
+        delaysTouchesBegan = false
+        delaysTouchesEnded = false
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        if touch.type == .pencil { onPencil() }
+        return false
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
 }
 
 /// 指を通す区画(書く面の座標空間 `TimelineInkSpace.name` での枠)を集める。
