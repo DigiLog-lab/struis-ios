@@ -348,7 +348,7 @@ actor MockTurnRunner: TurnRunning {
                 ["label": "2 < a", "position": "right", "min_at": "left_end"],
             ]]]
         let reason: JSONObject = ["question": "なぜ x = 0 で最大？", "options": ["軸から遠い端だから", "範囲の左端だから", "y 切片だから"], "answer_index": 0]
-        let cards: [JSONObject] = [
+        var cards: [JSONObject] = [
             card("solve", level: 2, skillIDs: ["quad.vertex_form", "quad.axis_vs_range"], prompt: "次の関数の最大値と最小値を求めなさい。", math: "y = 2x^2 - 8x + 3 \\quad (0 \\le x \\le \(k + 1))",
                  question: "最大値と最小値は？", answer: "最小値 -5(x = 2)", answerExpr: "-5", checks: [["left": "2*x^2-8*x+3", "right": "2*(x-2)^2-5"]],
                  chain: ["position": 1, "total": 3, "changed": NSNull(), "previous": NSNull()], easier: easier, seconds: 120, reason: reason),
@@ -364,6 +364,13 @@ actor MockTurnRunner: TurnRunning {
             card("order", level: 2, skillIDs: ["quad.vertex_form"], prompt: "y = 2x^2 - 8x + 3 の最小値", math: "", question: "", answer: "", answerExpr: "", checks: [],
                  chain: NSNull(), easier: NSNull(), seconds: 30),
         ]
+        if ProcessInfo.processInfo.environment["STRUIS_MOCK_TIMELINE_LONG"] == "1" {
+            // 問題文が長い 1 問(iPad の横向きで、問題の列が画面の高さを使い切る長さ)。
+            cards[0] = card("solve", level: 1, skillIDs: ["quad.vertex_form"],
+                            prompt: "2つの点電荷の間にはたらく力の大きさは、クーロンの法則 $F = k\\frac{q_1 q_2}{r^2}$ で表されます。ここで $k = 9.0 \\times 10^9\\,\\mathrm{N \\cdot m^2/C^2}$ とします。真空中で、$q_1 = 2.0 \\times 10^{-6}\\,\\mathrm{C}$ と $q_2 = 3.0 \\times 10^{-6}\\,\\mathrm{C}$ の点電荷が $r = 0.30\\,\\mathrm{m}$ 離れています。",
+                            math: "F = k\\frac{q_1 q_2}{r^2}", question: "2つの電荷の間にはたらく力の大きさ $F$ を、単位 N で求めなさい。",
+                            answer: "0.60 N", answerExpr: "0.6", checks: [], chain: NSNull(), easier: NSNull(), seconds: 120)
+        }
         let rapid: [JSONObject] = (0..<3).map { i in
             let h = i + 1, v = (i + 2) * (i % 2 == 0 ? 1 : -1)
             return ["skill": ids.contains("quad.vertex_form") ? "quad.vertex_form" : "", "prompt": "頂点は？", "math": "y = 2(x - \(h))^2 + \(v)", "answer_key": "(\(h), \(v))", "answer_expr": "(\(h), \(v))"]
