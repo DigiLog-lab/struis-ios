@@ -8,6 +8,15 @@ final class GuardianConsentUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
     }
 
+    /// 16 歳未満の回答(学年・年齢の区分)を UserDefaults に残さない。続けて流れる別のテストが、前の回答の年齢で同意の画面を出さないようにする。
+    @MainActor
+    override func tearDownWithError() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-reset-onboarding"]
+        app.launch()
+        app.terminate()
+    }
+
     @MainActor
     private func launch(_ arguments: [String], environment: [String: String]) -> XCUIApplication {
         let app = XCUIApplication()
