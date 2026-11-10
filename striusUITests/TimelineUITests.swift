@@ -129,14 +129,18 @@ final class TimelineUITests: XCTestCase {
         XCTAssertTrue(focus.appears(timeout: 10), "固定中の1行が出ない")
         let ink = app.descendants(matching: .any)["timeline-ink"].firstMatch
         XCTAssertTrue(ink.appears(timeout: 5))
-        XCTAssertFalse(app.buttons["timeline-send"].exists)
+        // iPad の「送る」は最初から置いてあり、書くまでは押せない。
+        let send = app.buttons["timeline-send"]
+        XCTAssertTrue(send.appears(timeout: 5))
+        XCTAssertFalse(send.isEnabled, "書く前から「送る」が押せる")
         // 行の高さの、画面の右寄り(文字の無い所)から書き始める。
         let origin = ink.coordinate(withNormalizedOffset: .zero)
         let y = focus.frame.midY - ink.frame.minY
         let from = origin.withOffset(CGVector(dx: ink.frame.width * 0.6, dy: y))
         let to = origin.withOffset(CGVector(dx: ink.frame.width * 0.8, dy: y + 40))
         from.press(forDuration: 0.05, thenDragTo: to)
-        XCTAssertTrue(app.buttons["timeline-send"].appears(timeout: 5), "固定中の1行の高さから書き始めたのに書けない")
+        let enabled = expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: send)
+        XCTAssertEqual(XCTWaiter.wait(for: [enabled], timeout: 5), .completed, "固定中の1行の高さから書き始めたのに書けない")
     }
 
     private let scopeDefaultsKey = "timeline.scope.unit"
