@@ -337,6 +337,7 @@
     "OnboardingScreenshotUITests/testIPhonePlanCheck": "計画の「確認の1問だけ」と作り直すの iPhone の写真を目で見る(#103)。自動の判定は OnboardingTests が持つ",
     "OnboardingScreenshotUITests/testRealPlanPhase1": "実Claude(Anthropic の API キー)が要る",
     "OnboardingScreenshotUITests/testRealPlanPhase2": "実Claude(Anthropic の API キー)が要る。testRealPlanPhase1 が作った計画を使う",
+    "TimelineUITests/testIPadCanStartWritingOnThePinnedScopeLine": "iPad の並びだけの確かめ(CI の Simulator は iPhone で飛ばされる)。Dev Box で iPad の Simulator を指定して流す",
     "TimelineScopeDemoUITests/testScopeTour": "実Claude(Anthropic の API キー)で解く範囲を一通り動かして撮る、持ち主に見せる確かめ用"
   },
   "excluded": {

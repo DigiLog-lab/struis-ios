@@ -36,10 +36,11 @@ struct LearningTimelineView: View {
                     .padding(.horizontal, layout.isPad ? 24 : 20)
                     .padding(.top, 8)
                 if let focus = store.pinnedFocus {
+                    // 押せない1行なので、書く面の指は通さない(iPad は書く面がこの行の上にも乗る)。前は指を通していて、
+                    // この行は Spacer で画面の幅いっぱいに広がるため、固定中は画面の端から端までの帯で書き始められなかった。
                     TimelineScopeFocus(title: focus.title, marks: focus.marks)
                         .padding(.horizontal, layout.isPad ? 24 : 20)
                         .padding(.top, 10)
-                        .timelineInkPassThrough()
                 }
                 ZStack(alignment: .bottomTrailing) {
                     content

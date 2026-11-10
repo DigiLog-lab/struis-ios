@@ -112,6 +112,35 @@ final class TimelineUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["timeline-result-correct"].firstMatch.appears(timeout: 30))
     }
 
+    /// iPad で単元を固定している時: 上の帯の下の1行(次の小単元と合格のマス)の高さからでも書き始められる。
+    /// 前はこの行に指を通していて、行が画面の幅いっぱいなので、端から端までの帯で書けなかった(2026-11-10、実機)。
+    /// CI の Simulator は iPhone なので、Dev Box で iPad の Simulator を指定して流す。
+    @MainActor
+    func testIPadCanStartWritingOnThePinnedScopeLine() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .pad, "iPad の並び(書く面が画面全体を覆う)")
+        XCUIDevice.shared.orientation = .portrait
+        let app = XCUIApplication()
+        app.launchArguments = ["-skip-onboarding", "-\(scopeDefaultsKey)", "unit-1"]
+        app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
+        app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
+        app.launch()
+        waitForProblem(app)
+        let focus = app.descendants(matching: .any)["timeline-scope-focus"].firstMatch
+        XCTAssertTrue(focus.appears(timeout: 10), "固定中の1行が出ない")
+        let ink = app.descendants(matching: .any)["timeline-ink"].firstMatch
+        XCTAssertTrue(ink.appears(timeout: 5))
+        XCTAssertFalse(app.buttons["timeline-send"].exists)
+        // 行の高さの、画面の右寄り(文字の無い所)から書き始める。
+        let origin = ink.coordinate(withNormalizedOffset: .zero)
+        let y = focus.frame.midY - ink.frame.minY
+        let from = origin.withOffset(CGVector(dx: ink.frame.width * 0.6, dy: y))
+        let to = origin.withOffset(CGVector(dx: ink.frame.width * 0.8, dy: y + 40))
+        from.press(forDuration: 0.05, thenDragTo: to)
+        XCTAssertTrue(app.buttons["timeline-send"].appears(timeout: 5), "固定中の1行の高さから書き始めたのに書けない")
+    }
+
+    private let scopeDefaultsKey = "timeline.scope.unit"
+
     /// 書く面に書いた誤答: 結果の画面に出た時点で、判定と一緒に赤ペンがもう入っている(後から別に入れない)。
     /// iPad は結果の画面でも書く面が残るので、書き足しはできないが1本指でスクロールできる(2026-11-09)。
     @MainActor
