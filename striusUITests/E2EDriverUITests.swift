@@ -66,7 +66,7 @@ final class E2EDriverUITests: XCTestCase {
             try? FileManager.default.removeItem(at: cmdURL)
             var result = "ok"
             // Querying a terminated app fails the whole run; report instead.
-            if !["launch", "activate", "quit", "sleep", "home", "screenshot", "alert", "stap"].contains(command.op), app.state == .notRunning {
+            if !["launch", "activate", "quit", "sleep", "home", "screenshot", "alert", "stap", "orient"].contains(command.op), app.state == .notRunning {
                 write("\(command.seq) app not running", to: resultURL)
                 continue
             }
@@ -124,6 +124,10 @@ final class E2EDriverUITests: XCTestCase {
                 let url = dir.appendingPathComponent("tree.txt")
                 write(app.debugDescription, to: url)
                 result = url.path
+            case "orient":
+                // スクショ撮影用: text が landscape なら横向き(ホームボタン側が右)、それ以外は縦向きにする。
+                XCUIDevice.shared.orientation = command.text == "landscape" ? .landscapeLeft : .portrait
+                Thread.sleep(forTimeInterval: 1.5)
             case "sleep":
                 Thread.sleep(forTimeInterval: command.duration ?? 1)
             case "quit":
