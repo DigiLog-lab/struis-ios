@@ -9,11 +9,13 @@ final class TimelineUITests: XCTestCase {
 
     /// タイムラインから始める起動(単元ホームを重ねない)。
     @MainActor
-    private func launchTimeline(wrong: Bool = false) -> XCUIApplication {
-        XCUIDevice.shared.orientation = .portrait
+    private func launchTimeline(wrong: Bool = false, longComment: Bool = false,
+                                orientation: UIDeviceOrientation = .portrait) -> XCUIApplication {
+        XCUIDevice.shared.orientation = orientation
         let app = XCUIApplication()
         app.launchArguments = ["-skip-onboarding"]
         if wrong { app.launchEnvironment["STRUIS_MOCK_TIMELINE_WRONG"] = "1" }
+        if longComment { app.launchEnvironment["STRUIS_MOCK_TIMELINE_LONG_COMMENT"] = "1" }
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
         app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = UITestSupport.paperImagePath
@@ -150,6 +152,43 @@ final class TimelineUITests: XCTestCase {
         // 書く面が上に乗っていても、結果の画面のボタンは押せる。
         app.buttons["timeline-next"].tap()
         XCTAssertTrue(app.descendants(matching: .any)["timeline-result-wrong"].firstMatch.waitForNonExistence(timeout: 10), "「次へ」が書く面に遮られた")
+    }
+
+    /// 結果の列が上の帯と下の帯の間に入りきらない時は、列の上を指で動かすと列がスクロールし、解説の続きが読める。
+    /// iPad は結果の画面でも書く面が上に乗るので、前は指を書く面が受け、列が動かなかった(2026-11-11)。
+    @MainActor
+    func testLongResultScrollsUnderTheFingerEvenWithTheInkOnTop() throws {
+        let isPad = UIDevice.current.userInterfaceIdiom == .pad
+        let app = launchTimeline(wrong: true, longComment: true, orientation: isPad ? .landscapeLeft : .portrait)
+        waitForProblem(app)
+        let ink = app.descendants(matching: .any)["timeline-ink"].firstMatch
+        XCTAssertTrue(ink.appears(timeout: 5))
+        // 書く面の右寄り(横向きの iPad では紙の側)に書いて送る。
+        ink.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.45))
+            .press(forDuration: 0.05, thenDragTo: ink.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
+        if app.buttons["timeline-send"].appears(timeout: 5) {
+            app.buttons["timeline-send"].tap()
+        } else {
+            app.buttons["timeline-capture"].tap()
+        }
+        let verdict = app.descendants(matching: .any)["timeline-result-wrong"].firstMatch
+        XCTAssertTrue(verdict.appears(timeout: 30), "誤答の結果が出ない")
+        let comment = app.descendants(matching: .any)["timeline-comment"].firstMatch
+        XCTAssertTrue(comment.appears(timeout: 5), "講評が出ない")
+        let before = verdict.frame
+        let shot = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        shot.name = "timeline-long-result"
+        shot.lifetime = .keepAlways
+        add(shot)
+        // 結果の列の上(判定の行の少し下)を上に送る。
+        let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: before.minX + 40, dy: before.maxY + 260))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -220)))
+        let after = verdict.frame
+        let moved = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        moved.name = "timeline-long-result-scrolled"
+        moved.lifetime = .keepAlways
+        add(moved)
+        XCTAssertLessThan(after.minY, before.minY - 80, "結果の列がスクロールしない(書く面が指を受けている)")
     }
 
     /// 書く面は、上の帯と下の帯の間を画面の端から端まで覆う。問題文の上にも書け、指が触れただけでは「送る」にならない。

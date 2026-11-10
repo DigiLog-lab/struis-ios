@@ -453,12 +453,17 @@ actor MockTurnRunner: TurnRunning {
 
     nonisolated static func timelineGrading(_ request: JSONObject, redPen: Bool = false) -> JSONObject {
         let wrong = ProcessInfo.processInfo.environment["STRUIS_MOCK_TIMELINE_WRONG"] == "1"
+        // 結果の列が画面に入りきらない長さの講評(`STRUIS_MOCK_TIMELINE_LONG_COMMENT=1`。結果の列のスクロールを確かめる)。
+        let longComment = ProcessInfo.processInfo.environment["STRUIS_MOCK_TIMELINE_LONG_COMMENT"] == "1"
         let key = request["answer_key"] as? String ?? ""
+        let comment: String = !wrong ? "" : longComment
+            ? Array(repeating: "a ≥ 2 の場合が抜けています。軸 x = a が範囲の右にある時は、x = 2 で最小になります。", count: 12).joined(separator: "\n")
+            : "a ≥ 2 の場合が抜けています。"
         return [
             "readable": true, "grade": wrong ? "wrong" : "correct",
             "learner_answer": request["target_vertex"] != nil ? "2(x-2)^2-5" : (wrong ? "-3" : key),
             "skill_ids": [], "transcript": wrong ? "y = 2(x-2)^2 - 5\n最小値 -3" : key, "notes": wrong ? "a ≥ 2 の場合を書いていません。" : "",
-            "comment": wrong ? "a ≥ 2 の場合が抜けています。" : "", "key_suspect": false,
+            "comment": comment, "key_suspect": false,
             // 書く面の答案(採点の指示に赤ペンの節が付く)の誤答だけ、赤ペンを 1 か所返す。
             "marks": wrong && redPen ? timelineRedPen() : [],
         ]
