@@ -18,6 +18,15 @@ struct LearningTimelineView: View {
     @State private var isDrawing = false
     @State private var isInkZoomed = false
     @State private var inkPassThrough: [CGRect] = []
+    /// 指だけを通す区画(スクロールしている問題の列。Apple Pencil は書ける)。
+    @State private var inkFingerPassThrough: [CGRect] = []
+    /// 問題の列が上の帯と下の帯の間に入りきらず、スクロールになっている。
+    @State private var isProblemScrolling = false
+    /// 問題の列のスクロール位置。列の上の指は書く面が受けるので、その動きをここで列に渡す。
+    @State private var problemScroll = ScrollPosition(edge: .top)
+    @State private var problemOffset: CGFloat = 0
+    @State private var problemMaxOffset: CGFloat = 0
+    @State private var problemPanStart: CGFloat = 0
     /// 書く面の左上(`TimelineInkSpace.name` の座標)。iPad は画面の上端から置くので、安全域の分だけマイナスになる。
     @State private var inkOrigin: CGPoint = .zero
     /// 上の帯と下の帯の間(`TimelineInkSpace.name` の座標)。iPhone の並びの書く面はここに置く。
@@ -89,6 +98,7 @@ struct LearningTimelineView: View {
         // 指を通す区画は、画面全体(この ZStack)の座標で集め、書く面の位置を引いて書く面の座標に直す。
         .coordinateSpace(name: TimelineInkSpace.name)
         .onPreferenceChange(TimelineInkPassThroughKey.self) { inkPassThrough = $0 }
+        .onPreferenceChange(TimelineInkFingerPassThroughKey.self) { inkFingerPassThrough = $0 }
         // 16 歳未満の保護者の同意: 版が上がった時の出し直しと、送れていない記録の送り直し(#76)。
         .modifier(GuardianConsentGate(isPad: layout.isPad, needsConsent: $needsGuardianConsent))
         .accessibilityElement(children: .contain)
@@ -100,11 +110,15 @@ struct LearningTimelineView: View {
             guard !needsGuardianConsent else { return }
             await store.start()
         }
+        .onAppear { ink.onColumnPan = scrollProblem }
         .onChange(of: scenePhase) { _, phase in
             guard !needsGuardianConsent else { return }
             Task { await store.scenePhaseChanged(phase) }
         }
-        .onChange(of: store.currentID) { _, _ in clearInk() }
+        .onChange(of: store.currentID) { _, _ in
+            clearInk()
+            problemScroll.scrollTo(edge: .top)
+        }
         .background {
             ChatCameraPresentation(isPresented: $isCameraPresented) { data in
                 Task { await store.submit(image: data) }
@@ -380,15 +394,33 @@ struct LearningTimelineView: View {
             }
         case .solving, .grading:
             if let card = store.current {
-                VStack(alignment: .leading, spacing: 14) {
-                    TimelineProblemView(card: card, store: store)
+                // 問題の列は、上の帯と下の帯の間にだけ置く(2026-11-10)。前は列が画面より高いと縦の並び全体がはみ出し、
+                // 上の帯がステータスバーの下へ、下の帯が画面の下へ押し出された。文字サイズの設定(Dynamic Type)を大きくした人の
+                // 文字は縮めず、入らない時は列の中をスクロールにする。スクロールしている間は、列の上の指は書く面に渡さずスクロールに
+                // 使う(Apple Pencil はそのまま書ける。`TimelinePassThroughCanvas.fingerPassThrough`)。
+                // 選んで答えるカードは中に状態を持つので、今までどおりに置く。
+                Group {
                     if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true {
-                        if card.kind != "solve" { TimelineWritingPrompt(card: card) }
-                        Spacer(minLength: 0)
-                        footnote(card)
+                        GeometryReader { proxy in
+                            ScrollView {
+                                solvingCard(card).frame(minHeight: proxy.size.height, alignment: .top)
+                            }
+                            .scrollBounceBehavior(.basedOnSize)
+                            .scrollIndicators(isProblemScrolling ? .visible : .hidden)
+                            .scrollPosition($problemScroll)
+                            .onScrollGeometryChange(for: Bool.self) { $0.contentSize.height > $0.containerSize.height + 1 } action: { _, value in
+                                isProblemScrolling = value
+                            }
+                            .onScrollGeometryChange(for: CGSize.self) { geometry in
+                                CGSize(width: geometry.contentOffset.y, height: max(0, geometry.contentSize.height - geometry.containerSize.height))
+                            } action: { _, value in
+                                problemOffset = value.width
+                                problemMaxOffset = value.height
+                            }
+                        }
+                        .timelineInkFingerPassThrough(isEnabled: isProblemScrolling)
                     } else {
-                        TimelineInteractiveCard(card: card, store: store).id(card.id).padding(.trailing, layout == .padLandscape ? 0 : 64)
-                        Spacer(minLength: 0)
+                        solvingCard(card)
                     }
                 }
                 .overlay {
@@ -396,6 +428,35 @@ struct LearningTimelineView: View {
                         Color.clear.contentShape(Rectangle())
                     }
                 }
+            }
+        }
+    }
+
+    /// 書く面が受けた列の上の指の動きで、問題の列をスクロールする。指を離した時は、離した速さの分だけ滑らせる。
+    private func scrollProblem(_ pan: TimelineColumnPan) {
+        func clamp(_ y: CGFloat) -> CGFloat { min(max(0, y), problemMaxOffset) }
+        switch pan {
+        case .began:
+            problemPanStart = problemOffset
+        case .changed(let translation):
+            problemScroll.scrollTo(y: clamp(problemPanStart - translation))
+        case .ended(let translation, let velocity):
+            let target: CGFloat = clamp(problemPanStart - translation - velocity * 0.25)
+            withAnimation(.easeOut(duration: 0.35)) { problemScroll.scrollTo(y: target) }
+        }
+    }
+
+    /// 解いている間の問題の列。
+    private func solvingCard(_ card: TimelineCardRecord) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            TimelineProblemView(card: card, store: store)
+            if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true {
+                if card.kind != "solve" { TimelineWritingPrompt(card: card) }
+                Spacer(minLength: 0)
+                footnote(card)
+            } else {
+                TimelineInteractiveCard(card: card, store: store).id(card.id).padding(.trailing, layout == .padLandscape ? 0 : 64)
+                Spacer(minLength: 0)
             }
         }
     }
@@ -463,6 +524,7 @@ struct LearningTimelineView: View {
         ZStack(alignment: .bottomLeading) {
             TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isInkZoomed, controller: ink,
                               passThrough: inkPassThrough.map { $0.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y) },
+                              fingerPassThrough: inkFingerPassThrough.map { $0.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y) },
                               showsToolPicker: layout.isPad && showsInkTools, isReadOnly: isResult)
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

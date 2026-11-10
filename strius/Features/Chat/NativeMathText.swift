@@ -16,10 +16,13 @@ struct NativeMathText: View {
     let highlightCount: Int
 
     @Environment(\.displayScale) private var displayScale
+    /// 文字サイズの設定。読んでおくと、設定を変えた時に描き直される。
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var width: CGFloat = 0
 
     var body: some View {
-        let style = NativeMathStyle(color: foregroundColor, fontSize: fontSize, fontWeight: fontWeight, scale: displayScale)
+        let style = NativeMathStyle(color: foregroundColor, fontSize: fontSize, fontWeight: fontWeight, scale: displayScale,
+                                    category: UIContentSizeCategory(dynamicTypeSize))
         VStack(alignment: .leading, spacing: 0) {
             ForEach(Array(layout(style).enumerated()), id: \.offset) { _, block in
                 switch block {
@@ -114,10 +117,18 @@ struct NativeMathStyle: Hashable {
     let fontSize: CGFloat
     let fontWeight: Int
     let scale: CGFloat
+    /// 文字サイズの設定(画面の `dynamicTypeSize`)。いつ描いても同じ大きさになるよう、書体はこれで決める。
+    var category: UIContentSizeCategory = .large
 
     /// 本文の書体(`Typography.sans` と同じ、Dynamic Type の倍率込み)。
-    var textFont: UIFont { Typography.sansUIFont(size: fontSize, weight: fontWeight >= 500 ? .medium : .regular) }
-    var boldFont: UIFont { Typography.sansUIFont(size: fontSize, weight: .bold) }
+    var textFont: UIFont { scaled(Typography.sansUIFont(size: fontSize, weight: fontWeight >= 500 ? .medium : .regular)) }
+    var boldFont: UIFont { scaled(Typography.sansUIFont(size: fontSize, weight: .bold)) }
+
+    /// `Typography.sansUIFont` と同じ書体を、`category` の文字サイズの倍率で(アプリの設定の倍率ではなく)。
+    private func scaled(_ font: UIFont) -> UIFont {
+        let base: UIFont = UIFont(descriptor: font.fontDescriptor, size: fontSize)
+        return UIFontMetrics(forTextStyle: .body).scaledFont(for: base, compatibleWith: UITraitCollection(preferredContentSizeCategory: category))
+    }
     /// 数式の大きさ。KaTeX は本文の 1.08 倍で描いていた。Dynamic Type の倍率は本文と同じにする。
     var mathSize: CGFloat { fontSize * 1.08 * textFont.pointSize / fontSize }
     var highlightColor: UIColor { UIColor(Theme.accentColor).withAlphaComponent(0.24) }
@@ -127,10 +138,12 @@ struct NativeMathStyle: Hashable {
         hasher.combine(fontSize)
         hasher.combine(fontWeight)
         hasher.combine(scale)
+        hasher.combine(category.rawValue)
     }
 
     static func == (lhs: NativeMathStyle, rhs: NativeMathStyle) -> Bool {
         lhs.color.hexString == rhs.color.hexString && lhs.fontSize == rhs.fontSize && lhs.fontWeight == rhs.fontWeight && lhs.scale == rhs.scale
+            && lhs.category == rhs.category
     }
 }
 
@@ -266,7 +279,9 @@ private struct MathParagraph: UIViewRepresentable {
         let label = UILabel()
         label.numberOfLines = 0
         label.lineBreakMode = .byWordWrapping
-        label.adjustsFontForContentSizeCategory = true
+        // 文字の大きさは `NativeMathStyle.category` で決めて渡す(設定を変えると SwiftUI が描き直す)。UILabel に自分で
+        // 合わせ直させると、描き直しとは別の時に大きさが変わる。
+        label.adjustsFontForContentSizeCategory = false
         label.backgroundColor = .clear
         label.isAccessibilityElement = true
         label.accessibilityIdentifier = "math-text"

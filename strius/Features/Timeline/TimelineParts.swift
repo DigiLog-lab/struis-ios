@@ -286,6 +286,8 @@ struct TimelineInkCanvas: UIViewRepresentable {
     let controller: TimelineInkController
     /// 指を通す区画(このビューの座標)。
     var passThrough: [CGRect] = []
+    /// 指では書かず、問題の列のスクロールに回す区画(このビューの座標)。Apple Pencil はここでも書ける。
+    var fingerPassThrough: [CGRect] = []
     /// 標準の道具パレットを出すか(iPad で書ける間だけ)。
     var showsToolPicker: Bool = false
     /// 見るだけ(結果の画面)。書き足しはできず、1本指でスクロール・2本指で拡大縮小だけできる
@@ -317,15 +319,17 @@ struct TimelineInkCanvas: UIViewRepresentable {
         canvas.accessibilityIdentifier = "timeline-ink"
         controller.canvas = canvas
         controller.viewport.update(canvas)
+        canvas.installColumnPan { [weak controller] pan in controller?.onColumnPan?(pan) }
         return canvas
     }
 
     func updateUIView(_ canvas: TimelinePassThroughCanvas, context: Context) {
         canvas.passThrough = passThrough
+        canvas.fingerPassThrough = fingerPassThrough
         if context.coordinator.isReadOnly != isReadOnly {
             context.coordinator.isReadOnly = isReadOnly
             // 書く操作を止めると、指は PencilKit の既定どおりスクロールに回る(.pencilOnly では1本指でスクロールする)。
-            canvas.drawingGestureRecognizer.isEnabled = !isReadOnly
+            canvas.isDrawingAllowed = !isReadOnly
         }
         let policy: PKCanvasViewDrawingPolicy = Self.drawingPolicy(readOnly: isReadOnly, toolPicker: showsToolPicker)
         if canvas.drawingPolicy != policy { canvas.drawingPolicy = policy }
@@ -388,11 +392,13 @@ struct TimelineInkCanvas: UIViewRepresentable {
             (canvasView as? TimelinePassThroughCanvas)?.growPaperIfNeeded()
         }
         func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) {
+            (canvasView as? TimelinePassThroughCanvas)?.isUsingTool = true
             if !isDrawing.wrappedValue { isDrawing.wrappedValue = true }
             // 質問の欄で文字を打った後などに道具パレットが隠れていたら、書き始めた時に戻す。
             (canvasView as? TimelinePassThroughCanvas)?.restoreToolPickerFocus()
         }
         func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) {
+            (canvasView as? TimelinePassThroughCanvas)?.isUsingTool = false
             if isDrawing.wrappedValue { isDrawing.wrappedValue = false }
         }
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -423,6 +429,21 @@ struct TimelineInkCanvas: UIViewRepresentable {
 /// 書く面が狭くなった時(iPad で右に質問の欄を開いた時など)は、書いた線の全体が見える倍率まで縮め、広がったら戻す。
 final class TimelinePassThroughCanvas: PKCanvasView {
     var passThrough: [CGRect] = []
+    /// 指では書かず、問題の列のスクロールに回す区画(このビューの枠の座標)。Apple Pencil はここでも書ける。
+    /// 区画を書く面に通す(`hitTest` で nil を返す)形だと、触れ始めた時点では指か Pencil かが分からず、Pencil まで
+    /// スクロールに回っていた(2026-11-10、`hitTest` の `event.allTouches` が空だった)。指か Pencil かは
+    /// `gestureRecognizer(_:shouldReceive:)` の `UITouch.type` で分かるので、指だけを受ける操作で受けて列に渡す。
+    var fingerPassThrough: [CGRect] = []
+    /// 書き足してよいか(結果の画面は見るだけ)。
+    var isDrawingAllowed: Bool = true {
+        didSet { drawingGestureRecognizer.isEnabled = isDrawingAllowed }
+    }
+    /// 線を書いている途中(Apple Pencil や指)。この間に列の上に触れた指や手のひらは受けない
+    /// (受けると書く操作を止めることになり、書いている途中の線が消える)。
+    var isUsingTool: Bool = false
+    private var columnPan: UIPanGestureRecognizer?
+    private var columnPanDelegate: ColumnPanDelegate?
+    private var onColumnPan: ((TimelineColumnPan) -> Void)?
     /// 標準の道具パレットを出している間は、書く面を入力の中心(first responder)にする。
     var wantsToolPicker: Bool = false {
         didSet { if wantsToolPicker { becomeFirstResponderWhenPossible() } }
@@ -537,10 +558,84 @@ final class TimelinePassThroughCanvas: PKCanvasView {
         if passThrough.contains(where: { $0.contains(local) }) { return nil }
         return super.hitTest(point, with: event)
     }
+
+    /// 問題の列の上で指を動かした時に、列をスクロールさせる操作を付ける。
+    func installColumnPan(_ handler: @escaping (TimelineColumnPan) -> Void) {
+        onColumnPan = handler
+        let delegate: ColumnPanDelegate = ColumnPanDelegate(canvas: self)
+        let pan: UIPanGestureRecognizer = UIPanGestureRecognizer(target: self, action: #selector(columnPanned(_:)))
+        pan.maximumNumberOfTouches = 1
+        pan.delegate = delegate
+        addGestureRecognizer(pan)
+        columnPan = pan
+        columnPanDelegate = delegate
+    }
+
+    /// 触れ始めた指が、問題の列(スクロールしている時だけ区画がある)の上か。
+    fileprivate func isInColumn(_ touch: UITouch) -> Bool {
+        let point: CGPoint = touch.location(in: self)
+        let local: CGPoint = CGPoint(x: point.x - contentOffset.x, y: point.y - contentOffset.y)
+        return fingerPassThrough.contains { $0.contains(local) }
+    }
+
+    /// 列の上の指は書かず、紙も動かさない(「指で描画」が切れている時は、指は紙を動かす)。触れ始めに書く操作と紙を
+    /// 動かす操作を止め、指を離したら戻す(Pencil や列の外の指が来た時も戻す)。
+    fileprivate func setFingerInColumn(_ value: Bool) {
+        let enabled: Bool = isDrawingAllowed && !value
+        if drawingGestureRecognizer.isEnabled != enabled { drawingGestureRecognizer.isEnabled = enabled }
+        if panGestureRecognizer.isEnabled == value { panGestureRecognizer.isEnabled = !value }
+    }
+
+    @objc private func columnPanned(_ pan: UIPanGestureRecognizer) {
+        let translation: CGFloat = pan.translation(in: self).y
+        let velocity: CGFloat = pan.velocity(in: self).y
+        switch pan.state {
+        case .began: onColumnPan?(.began)
+        case .changed: onColumnPan?(.changed(translation: translation))
+        case .ended: onColumnPan?(.ended(translation: translation, velocity: velocity)); setFingerInColumn(false)
+        case .cancelled, .failed: onColumnPan?(.ended(translation: translation, velocity: 0)); setFingerInColumn(false)
+        default: break
+        }
+    }
+}
+
+/// 問題の列を指で動かした量(書く面の上の指。`LearningTimelineView` が列のスクロールに直す)。
+enum TimelineColumnPan {
+    case began
+    case changed(translation: CGFloat)
+    case ended(translation: CGFloat, velocity: CGFloat)
+}
+
+/// 列の上の指だけを受ける(Apple Pencil と列の外の指は受けない)。書く面そのものを delegate にすると、
+/// `UIScrollView` が自分の操作に使っている delegate の答えまで変わるので、別のものにする。
+private final class ColumnPanDelegate: NSObject, UIGestureRecognizerDelegate {
+    weak var canvas: TimelinePassThroughCanvas?
+
+    init(canvas: TimelinePassThroughCanvas) { self.canvas = canvas }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        guard let canvas else { return false }
+        // 線を書いている途中に列に触れた指や手のひらは、書く操作を止めずに見送る。
+        if canvas.isUsingTool { return false }
+        let inColumn: Bool = touch.type == .direct && canvas.isInColumn(touch)
+        canvas.setFingerInColumn(inColumn)
+        return inColumn
+    }
+
+    /// 2本指でつまむ(紙の拡大・縮小)と一緒に動いてよい。
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        true
+    }
 }
 
 /// 指を通す区画(書く面の座標空間 `TimelineInkSpace.name` での枠)を集める。
 struct TimelineInkPassThroughKey: PreferenceKey {
+    static let defaultValue: [CGRect] = []
+    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) { value.append(contentsOf: nextValue()) }
+}
+
+/// 指だけを通す区画(Apple Pencil は書ける)。
+struct TimelineInkFingerPassThroughKey: PreferenceKey {
     static let defaultValue: [CGRect] = []
     static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) { value.append(contentsOf: nextValue()) }
 }
@@ -550,6 +645,16 @@ enum TimelineInkSpace {
 }
 
 extension View {
+    /// 書く面の上にあっても、このビューには指だけを通す(Apple Pencil は書ける)。`isEnabled` が偽の間は通さない。
+    func timelineInkFingerPassThrough(isEnabled: Bool) -> some View {
+        background {
+            GeometryReader { proxy in
+                let frame: CGRect = proxy.frame(in: .named(TimelineInkSpace.name))
+                Color.clear.preference(key: TimelineInkFingerPassThroughKey.self, value: isEnabled ? [frame] : [])
+            }
+        }
+    }
+
     /// 書く面の上にあっても、このビューには指を通す(押せるボタン)。
     /// `toScreenBottom` は、ビューの下から画面の下端まで(下の帯の面が伸びるホームインジケータの所)にも指を通す。
     func timelineInkPassThrough(toScreenBottom: Bool = false) -> some View {
@@ -572,6 +677,8 @@ private let timelineInkScreenBottomAllowance: CGFloat = 200
 @MainActor
 final class TimelineInkController {
     weak var canvas: PKCanvasView?
+    /// 問題の列の上で指を動かした(`LearningTimelineView` が列をスクロールする)。
+    var onColumnPan: ((TimelineColumnPan) -> Void)?
     /// 道具パレットにつないでいる書く面(問題ごとに作り直すので、つなぎ替える)。
     private weak var observedCanvas: TimelinePassThroughCanvas?
 
