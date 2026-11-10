@@ -113,17 +113,6 @@
 		B334A418B2674C07514C137C /* Licenses in Resources */ = {isa = PBXBuildFile; fileRef = 1605DCA98A0A9CC460934DDF /* Licenses */; };
 		BB7C5FD2EEE8E2215E10A8F6 /* shell-native.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = CE2DE0C3EEDB761A308E6FBA /* shell-native.xcframework */; };
 		BDA40009050301B7C0246D93 /* LearningTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E8C890FA310BDE40DFF28DE /* LearningTimelineView.swift */; };
-		C10000000000000000000001 /* ImmersionScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000001 /* ImmersionScenario.swift */; };
-		C10000000000000000000002 /* ImmersionScenarios.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000002 /* ImmersionScenarios.swift */; };
-		C10000000000000000000003 /* SimulationCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000003 /* SimulationCanvas.swift */; };
-		C10000000000000000000004 /* ImmersionLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000004 /* ImmersionLabView.swift */; };
-		C10000000000000000000005 /* EigenCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000005 /* EigenCanvas.swift */; };
-		C10000000000000000000006 /* TextTransformCanvas.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000006 /* TextTransformCanvas.swift */; };
-		C10000000000000000000007 /* ScenePackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000007 /* ScenePackage.swift */; };
-		C10000000000000000000008 /* ScenePlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000008 /* ScenePlayerView.swift */; };
-		C10000000000000000000009 /* SceneFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000009 /* SceneFlowView.swift */; };
-		C1000000000000000000000A /* BundledSceneSamples.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000000000000000000000A /* BundledSceneSamples.swift */; };
-		C1000000000000000000000B /* SceneChatPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000000000000000000000B /* SceneChatPanel.swift */; };
 		C3A0000000000000000000A1 /* AttachmentIntake.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3B0000000000000000000A1 /* AttachmentIntake.swift */; };
 		C3A0000000000000000000A2 /* DocumentReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3B0000000000000000000A2 /* DocumentReader.swift */; };
 		C3A0000000000000000000A3 /* DocumentTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3B0000000000000000000A3 /* DocumentTool.swift */; };
@@ -414,17 +403,6 @@
 		B20000000000000000000016 /* ProblemCatalogProblemDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemCatalogProblemDetailView.swift; sourceTree = "<group>"; };
 		B90F4C073D17D0649F6435C9 /* PythonModules */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; path = PythonModules; sourceTree = "<group>"; };
 		BB05E17118FB7AF5CDA81A6F /* TimelineRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineRules.swift; sourceTree = "<group>"; };
-		C20000000000000000000001 /* ImmersionScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersionScenario.swift; sourceTree = "<group>"; };
-		C20000000000000000000002 /* ImmersionScenarios.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersionScenarios.swift; sourceTree = "<group>"; };
-		C20000000000000000000003 /* SimulationCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulationCanvas.swift; sourceTree = "<group>"; };
-		C20000000000000000000004 /* ImmersionLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImmersionLabView.swift; sourceTree = "<group>"; };
-		C20000000000000000000005 /* EigenCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EigenCanvas.swift; sourceTree = "<group>"; };
-		C20000000000000000000006 /* TextTransformCanvas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextTransformCanvas.swift; sourceTree = "<group>"; };
-		C20000000000000000000007 /* ScenePackage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScenePackage.swift; sourceTree = "<group>"; };
-		C20000000000000000000008 /* ScenePlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScenePlayerView.swift; sourceTree = "<group>"; };
-		C20000000000000000000009 /* SceneFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneFlowView.swift; sourceTree = "<group>"; };
-		C2000000000000000000000A /* BundledSceneSamples.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledSceneSamples.swift; sourceTree = "<group>"; };
-		C2000000000000000000000B /* SceneChatPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneChatPanel.swift; sourceTree = "<group>"; };
 		C3B0000000000000000000A1 /* AttachmentIntake.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentIntake.swift; sourceTree = "<group>"; };
 		C3B0000000000000000000A2 /* DocumentReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentReader.swift; sourceTree = "<group>"; };
 		C3B0000000000000000000A3 /* DocumentTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentTool.swift; sourceTree = "<group>"; };
@@ -778,7 +756,6 @@
 			children = (
 				7B9F41B2C3D6F8CBB6B47286 /* Timeline */,
 				A30000000000000000000006 /* Chat */,
-				C30000000000000000000001 /* ImmersionLab */,
 				A3000000000000000000000C /* Onboarding */,
 				D30000000000000000000001 /* Workspace */,
 				B30000000000000000000001 /* ProblemCatalog */,
@@ -917,32 +894,6 @@
 			name = Config;
 			sourceTree = "<group>";
 		};
-		C30000000000000000000001 /* ImmersionLab */ = {
-			isa = PBXGroup;
-			children = (
-				C30000000000000000000002 /* Bundled */,
-				C20000000000000000000005 /* EigenCanvas.swift */,
-				C20000000000000000000004 /* ImmersionLabView.swift */,
-				C20000000000000000000001 /* ImmersionScenario.swift */,
-				C20000000000000000000002 /* ImmersionScenarios.swift */,
-				C2000000000000000000000B /* SceneChatPanel.swift */,
-				C20000000000000000000009 /* SceneFlowView.swift */,
-				C20000000000000000000007 /* ScenePackage.swift */,
-				C20000000000000000000008 /* ScenePlayerView.swift */,
-				C20000000000000000000003 /* SimulationCanvas.swift */,
-				C20000000000000000000006 /* TextTransformCanvas.swift */,
-			);
-			path = ImmersionLab;
-			sourceTree = "<group>";
-		};
-		C30000000000000000000002 /* Bundled */ = {
-			isa = PBXGroup;
-			children = (
-				C2000000000000000000000A /* BundledSceneSamples.swift */,
-			);
-			path = Bundled;
-			sourceTree = "<group>";
-		};
 		D30000000000000000000001 /* Workspace */ = {
 			isa = PBXGroup;
 			children = (
@@ -1017,19 +968,10 @@
 			path = Claude;
 			sourceTree = "<group>";
 		};
-		E848040EB9247E8DC7FD2B3C /* ImmersionLab */ = {
-			isa = PBXGroup;
-			children = (
-				E86FF96BC7A0DFD025B3499F /* Bundled */,
-			);
-			path = ImmersionLab;
-			sourceTree = "<group>";
-		};
 		E848B9192713F0E1CF027CA4 /* Features */ = {
 			isa = PBXGroup;
 			children = (
 				E859C035F88C0B0E473EAA0B /* Chat */,
-				E848040EB9247E8DC7FD2B3C /* ImmersionLab */,
 				E8C322367397423E9E66D178 /* Onboarding */,
 				E887C91C5090968F9F75004D /* ProblemCatalog */,
 				E8FF65C4FFEB5AA5BE679E2D /* Settings */,
@@ -1114,13 +1056,6 @@
 				8AF46D7EECDE4B5EB431D081 /* math */,
 			);
 			name = TestResources;
-			sourceTree = "<group>";
-		};
-		E86FF96BC7A0DFD025B3499F /* Bundled */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Bundled;
 			sourceTree = "<group>";
 		};
 		E875DE0F76466C145AF6B1A6 /* DTO */ = {
@@ -1527,17 +1462,6 @@
 				B10000000000000000000014 /* ProblemCatalogSheetsHomeView.swift in Sources */,
 				B10000000000000000000015 /* ProblemCatalogSheetDetailView.swift in Sources */,
 				B10000000000000000000016 /* ProblemCatalogProblemDetailView.swift in Sources */,
-				C10000000000000000000001 /* ImmersionScenario.swift in Sources */,
-				C10000000000000000000002 /* ImmersionScenarios.swift in Sources */,
-				C10000000000000000000003 /* SimulationCanvas.swift in Sources */,
-				C10000000000000000000004 /* ImmersionLabView.swift in Sources */,
-				C10000000000000000000005 /* EigenCanvas.swift in Sources */,
-				C10000000000000000000006 /* TextTransformCanvas.swift in Sources */,
-				C10000000000000000000007 /* ScenePackage.swift in Sources */,
-				C10000000000000000000008 /* ScenePlayerView.swift in Sources */,
-				C10000000000000000000009 /* SceneFlowView.swift in Sources */,
-				C1000000000000000000000A /* BundledSceneSamples.swift in Sources */,
-				C1000000000000000000000B /* SceneChatPanel.swift in Sources */,
 				A10000000000000000000001 /* AppRootView.swift in Sources */,
 				A10000000000000000000002 /* Auth0Config.swift in Sources */,
 				A10000000000000000000003 /* AuthStore.swift in Sources */,

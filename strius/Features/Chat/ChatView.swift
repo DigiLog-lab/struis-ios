@@ -49,9 +49,6 @@ struct ChatView: View {
     @State private var isSettingsPresented = false
     @State private var activeLearningSessionID: UUID?
     @State private var learningContextEnabled = true
-    @State private var sceneCandidates: [ScenePackage] = []
-    @State private var activeScenePackage: ScenePackage?
-    @State private var isSceneCandidatePickerPresented = false
     @State private var emptyPaneMinHeight: CGFloat = 0
     @State private var composerPrefillGlow = false
     /// 入力欄の段の高さ(浮かせた部品をその上に置くため)。
@@ -210,16 +207,6 @@ struct ChatView: View {
             }
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if !embedded {
-                    // 没頭UI(シーン)は保留。コードは残し、明示の起動引数でだけ入口を出す。
-                    if Self.showsImmersionEntry, let candidate = sceneCandidates.first {
-                        Button {
-                            activeScenePackage = candidate
-                        } label: {
-                            Label("学習", systemImage: "sparkles")
-                        }
-                        .accessibilityIdentifier("immersion-scene-entry")
-                    }
-
                     Button {
                         isSettingsPresented = true
                     } label: {
@@ -257,31 +244,6 @@ struct ChatView: View {
             SettingsSheet()
                 .presentationDetents([.large])
         }
-        .fullScreenCover(item: $activeScenePackage) { package in
-            SceneFlowView(
-                package: package,
-                onChangeCandidate: {
-                    activeScenePackage = nil
-                    Task { @MainActor in
-                        isSceneCandidatePickerPresented = true
-                    }
-                },
-                onExit: { activeScenePackage = nil }
-            )
-        }
-        .confirmationDialog(
-            "別のものにする",
-            isPresented: $isSceneCandidatePickerPresented,
-            titleVisibility: .visible
-        ) {
-            ForEach(sceneCandidates) { candidate in
-                Button(candidate.meta.hook?.headline ?? candidate.meta.sourceLabel ?? candidate.id) {
-                    activeScenePackage = candidate
-                }
-            }
-            Button("キャンセル", role: .cancel) {}
-        }
-        .task { if Self.showsImmersionEntry { await loadSceneCandidates() } }
         .onAppear { chat.start() }
         .task { await prepareInitialThread() }
         .onDisappear { chat.stop() }
@@ -305,14 +267,6 @@ struct ChatView: View {
     /// 「先に進む」の段を出すか。入力欄にフォーカスがある間(キーボードが出ている間)と履歴を開いている間は出さない。
     private var showsFloatingAccessory: Bool {
         floatingAccessory != nil && !composerFocused && !isHistoryPresented
-    }
-
-    private static var showsImmersionEntry: Bool {
-        #if DEBUG
-        ProcessInfo.processInfo.arguments.contains("-immersion-entry")
-        #else
-        false
-        #endif
     }
 
     private func prepareInitialThread() async {
@@ -510,10 +464,6 @@ struct ChatView: View {
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Theme.textSecondary(scheme))
                     .padding(.horizontal, 32)
-                // 没頭シーン(保留中の試作)の候補は、明示の起動引数の時だけ出す。
-                if Self.showsImmersionEntry, let candidate = sceneCandidates.first {
-                    sceneCandidateCard(candidate)
-                }
                 LearningFeedV2EntryCard { sessionID in
                     activeLearningSessionID = sessionID
                     learningContextEnabled = sessionID != nil
@@ -527,70 +477,6 @@ struct ChatView: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
             emptyPaneMinHeight = height
         }
-    }
-
-    /// 没頭シーン候補 (hook カード)。タップで始まり、勝手には始まらない。
-    private func sceneCandidateCard(_ package: ScenePackage) -> some View {
-        Button {
-            activeScenePackage = package
-        } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                if let sourceLabel = package.meta.sourceLabel {
-                    Text(sourceLabel)
-                        .font(Typography.micro)
-                        .foregroundStyle(Theme.textTertiary(scheme))
-                }
-                Text(package.meta.hook?.headline ?? package.id)
-                    .font(Typography.bodyEmphasized)
-                    .foregroundStyle(Theme.textPrimary(scheme))
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(2)
-                if let sub = package.meta.hook?.sub {
-                    Text(sub)
-                        .font(Typography.caption)
-                        .foregroundStyle(Theme.textSecondary(scheme))
-                        .lineLimit(2)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 16)
-            .background(
-                Theme.card,
-                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-            )
-        }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 24)
-        .accessibilityIdentifier("immersion-scene-candidate")
-    }
-
-    /// シーン候補の取得。配信が生きている時だけ導線を出す
-    /// (immersion lab 無効環境で 404 になる送信経路へ誘導しない)。
-    /// シミュレータ fixtures ではバンドル同梱サンプルで代替する。
-    private func loadSceneCandidates() async {
-        #if DEBUG && targetEnvironment(simulator)
-        // 固定データ(UI テストの既定)は同梱のシーンだけを使い、本番のサーバーに問い合わせない。
-        // 問い合わせの応答を待つ間は入口が出ないため、通信の遅い環境で UI テストの結果が変わっていた。
-        if SimulatorFixtures.isEnabled {
-            sceneCandidates = BundledScenes.samples
-            return
-        }
-        #endif
-        let endpoint = APIEndpoint(method: .get, path: "/v1/immersion-lab/scenes")
-        if let (data, _) = try? await apiClient.fetchData(endpoint),
-           let response = try? JSONDecoder().decode(SceneListResponse.self, from: data),
-           !response.scenes.isEmpty {
-            sceneCandidates = response.scenes.map(\.package)
-            return
-        }
-        #if DEBUG && targetEnvironment(simulator)
-        if ProcessInfo.processInfo.environment["STRUIS_IOS_USE_FIXTURES"] != "0" {
-            sceneCandidates = BundledScenes.samples
-            return
-        }
-        #endif
-        sceneCandidates = []
     }
 
     private func failurePane(_ message: String) -> some View {

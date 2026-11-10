@@ -118,17 +118,6 @@
         "strius/Engine/AttachmentStaging.swift"
       ]
     },
-    "immersion": {
-      "property": "没頭シーン: 質問して同じ画面に戻る、候補変更、触らないと進まない",
-      "tests": [
-        "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
-        "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
-        "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes"
-      ],
-      "paths": [
-        "strius/Features/ImmersionLab/**"
-      ]
-    },
     "subunit-header": {
       "property": "小単元ヘッダー: スワイプとタップで開閉し、再起動後も保つ",
       "tests": [
@@ -306,8 +295,7 @@
       "chat-wiring"
     ],
     "strius/Networking/**": [
-      "chat-wiring",
-      "immersion"
+      "chat-wiring"
     ],
     "strius/Delivery/**": [
       "chat-wiring"
@@ -339,7 +327,6 @@
     "LearningProgressUITests/testInspectActualReplyProgress": "実バックエンドの返事が要る",
     "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply": "実バックエンドの認証が要る",
     "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealClaude": "実Claude(Anthropic の API キー)が要る",
-    "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording": "録画用。質問・復帰と介入から終了までの2本をつなげた内容で、自動の判定は2本が持つ",
     "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration": "数式の描き方は画像を目で見て確かめる",
     "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation": "ボタン帯の重なりは画像を目で見て確かめる",
     "OnboardingScreenshotUITests/testIPhoneScreens": "画面の写真をデザインの画像と目で見比べる(#40)。自動の判定は OnboardingFlowUITests が持つ",
@@ -380,10 +367,6 @@
     "DeviceRuntimeUITests/testRuntimeHelperBoots": 25,
     "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealClaude": 0,
     "E2EDriverUITests/testDrive": 0,
-    "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas": 22,
-    "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker": 18,
-    "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes": 36,
-    "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording": 84,
     "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult": 72,
     "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration": 49,
     "LearningProgressUITests/testInspectActualReplyProgress": 0,
