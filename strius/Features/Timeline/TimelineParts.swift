@@ -303,7 +303,7 @@ struct TimelineInkCanvas: UIViewRepresentable {
 
     func makeUIView(context: Context) -> TimelinePassThroughCanvas {
         let canvas: TimelinePassThroughCanvas = TimelinePassThroughCanvas()
-        canvas.drawingPolicy = .anyInput
+        canvas.drawingPolicy = Self.drawingPolicy(readOnly: false, toolPicker: showsToolPicker)
         canvas.backgroundColor = .clear
         canvas.isOpaque = false
         canvas.tool = PKInkingTool(.monoline, color: Self.inkColor, width: Self.inkWidth)
@@ -326,13 +326,26 @@ struct TimelineInkCanvas: UIViewRepresentable {
             context.coordinator.isReadOnly = isReadOnly
             // 書く操作を止めると、指は PencilKit の既定どおりスクロールに回る(.pencilOnly では1本指でスクロールする)。
             canvas.drawingGestureRecognizer.isEnabled = !isReadOnly
-            canvas.drawingPolicy = isReadOnly ? .pencilOnly : .anyInput
         }
+        let policy: PKCanvasViewDrawingPolicy = Self.drawingPolicy(readOnly: isReadOnly, toolPicker: showsToolPicker)
+        if canvas.drawingPolicy != policy { canvas.drawingPolicy = policy }
         // 出す・隠すが変わった時だけ触る。毎回呼ぶと、質問の欄で文字を打っている間に書く面が入力を奪い返す。
         if context.coordinator.isToolPickerShown != showsToolPicker {
             context.coordinator.isToolPickerShown = showsToolPicker
             controller.setToolPickerVisible(showsToolPicker, for: canvas)
         }
+    }
+
+    /// 入力の受け方。
+    /// - 見るだけ(結果の画面): 書かせず、指は1本でスクロールする。
+    /// - 道具パレットを出す間(iPad で書く時): iPad の標準どおり、道具パレットの「指で描画」に従う(`.default`)。
+    ///   Pencil で書く人は手のひらが線にならず、Pencil の無い iPad は指で書ける(Simulator の iPad で確かめた)。
+    ///   前は常に指でも書ける(`.anyInput`)うえに「指で描画」の切り替えを隠していたので、手のひらを画面に置いて書くと
+    ///   手のひらが先に線として受け付けられ、その間 Pencil の線が無視された(2026-11-10、実機)。
+    /// - 道具パレットが無い時(iPhone): 指で書く(`.default` だと iPhone の Simulator で指の線が書けなかった)。
+    static func drawingPolicy(readOnly: Bool, toolPicker: Bool) -> PKCanvasViewDrawingPolicy {
+        if readOnly { return .pencilOnly }
+        return toolPicker ? .default : .anyInput
     }
 
     static func dismantleUIView(_ canvas: TimelinePassThroughCanvas, coordinator: Coordinator) {
@@ -570,8 +583,8 @@ final class TimelineInkController {
         pen.allowsColorSelection = false
         let eraser: PKToolPickerEraserItem = PKToolPickerEraserItem(type: .vector)
         let picker: PKToolPicker = PKToolPicker(toolItems: [pen, eraser])
-        // 指でも書く(枠を置かず余白に書く作り)ので、「指で描画」の切り替えは出さない。
-        picker.showsDrawingPolicyControls = false
+        // 「指で描画」の切り替えを出す(iPad の標準の操作。書く面は `.default` でこれに従う)。
+        picker.showsDrawingPolicyControls = true
         picker.stateAutosaveName = "timeline-ink-tools"
         return picker
     }()
