@@ -22,6 +22,8 @@ final class SubscriptionStoreTests: XCTestCase {
     /// 入れ直しても残る保存先(Keychain と iCloud)。
     private var local: MemoryValueStore!
     private var cloud: MemoryValueStore!
+    /// 購入に付ける項目(本番は `OnboardingRecords.purchaseOptions`)。
+    private var purchaseOptions: Set<Product.PurchaseOption> = []
 
     override func setUp() async throws {
         let url = URL(fileURLWithPath: #filePath)
@@ -50,9 +52,10 @@ final class SubscriptionStoreTests: XCTestCase {
         let clock = clock!
         let meter = UsageMeter(values: MirroredValues(local: local, cloud: cloud), defaults: defaults, now: { clock.date })
         let session = session!
-        let store = SubscriptionStore(meter: meter) { product in
+        let options = purchaseOptions
+        let store = SubscriptionStore(meter: meter, purchaseOptions: { options }) { product, options in
             if session.failTransactionsEnabled { throw StoreKitError.unknown }
-            let transaction = try await session.buyProduct(identifier: product.id)
+            let transaction = try await session.buyProduct(identifier: product.id, options: options)
             // `product.purchase()` は契約の状態に出てから返る。`buyProduct` は少し遅れて出るので、出るまで待つ
             // (上げた時は新しい取引、下げた時は次の更新のプラン)。15 秒たっても出なければそのまま返す(続く確かめで落ちる)。
             let deadline = Date().addingTimeInterval(15)
@@ -144,6 +147,28 @@ final class SubscriptionStoreTests: XCTestCase {
         XCTAssertEqual(snapshot.resetsAt.timeIntervalSince(try XCTUnwrap(meter.chargedAt)), UsageRules.periodSeconds, accuracy: 1,
                        "購入した時刻から 7 日後に戻る")
         XCTAssertTrue(admits(meter))
+    }
+
+    /// 16 歳未満は、保護者の同意番号を `appAccountToken` にして買う(#76)。iCloud が使えなくても Apple の購入記録に残る。
+    func testUnder16PurchaseCarriesTheGuardianConsentNumberAsTheAppAccountToken() async throws {
+        let records = OnboardingRecords(values: MirroredValues(local: MemoryValueStore(), cloud: MemoryValueStore()))
+        records.saveAge(AgeResult(band: .under16, declaration: "selfDeclared", checkedAt: Date()))
+        let consent = records.recordGuardianConsent()
+        purchaseOptions = records.purchaseOptions
+        XCTAssertEqual(purchaseOptions, [.appAccountToken(consent.id)])
+
+        let (store, _) = install()
+        let purchased = await store.purchase(.light)
+        XCTAssertTrue(purchased)
+        let latestResult = await Transaction.latest(for: UsagePlan.light.productID)
+        let latest = try XCTUnwrap(latestResult)
+        XCTAssertEqual(try latest.payloadValue.appAccountToken, consent.id, "購入記録に同意番号が付く")
+    }
+
+    func testPurchaseOfAnAdultCarriesNoAppAccountToken() {
+        let records = OnboardingRecords(values: MirroredValues(local: MemoryValueStore(), cloud: MemoryValueStore()))
+        records.saveAge(AgeResult(band: .adult, declaration: "selfDeclared", checkedAt: Date()))
+        XCTAssertTrue(records.purchaseOptions.isEmpty, "16 歳未満でなければ何も付けない")
     }
 
     func testUpgradeFromStandardToGenerousSwitchesNowAndStartsANewPeriodFromZero() async throws {

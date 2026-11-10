@@ -35,7 +35,6 @@
 
 | テスト | 秒 | 内容 |
 |---|---|---|
-| `ImmersionSceneChatUITests/testJourneyWalkthroughForRecording` | 通る時約84 | 録画用の通し。中身は同じクラスの2本と重なる |
 | `striusUITestsLaunchTests/testLaunch` | 計44(4回) | 起動して画面写真を撮るだけで判定は無い。構成ごとに4回走る |
 | `Issue10ScreenshotUITests` の2本 | 計88 | 目的は画面写真。判定の中身は単体テストと重なる |
 | `WorkbookE2EFixesUITests/testSetCaptureOpensResultAndPassShowsImmediately` | 66 | 起動を2回している(約10秒) |

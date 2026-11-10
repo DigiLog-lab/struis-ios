@@ -53,6 +53,7 @@ struct OnboardingFlowView: View {
             case .birthdate: birthdate
             case .terms: terms
             case .consent: consent
+            case .guardian: GuardianConsentView(isPad: isPad, onBack: back) { model.acceptGuardianConsent() }
             case .trial, .grading, .result, .check, .checkGrading, .checkResult:
                 OnboardingTrialView(model: model, learnerData: learnerData, isPad: isPad)
             case .trialDone: OnboardingTrialDoneView(model: model, isPad: isPad)
@@ -170,7 +171,11 @@ struct OnboardingFlowView: View {
                     OnboardingPointRow(title: "お試しは3問まで、続きは有料です", detail: "プランごとに1週間に使える量が決まっています。")
                     OnboardingPointRow(title: "解約と返金は App Store で行います", detail: "解約は設定の「利用枠」から、いつでもできます。", showsDivider: false)
                 }
-                if model.isMinor {
+                if model.isUnder16 {
+                    // 次の保護者の同意の画面(#76)へ渡す。
+                    OnboardingNote(symbol: "person.2", text: "16歳未満の方は、保護者の方の同意が必要です。次の画面は保護者の方に渡してください。")
+                        .accessibilityIdentifier("onboarding-terms-under16")
+                } else if model.isMinor {
                     OnboardingNote(symbol: "person.2", text: "18歳未満の方は、保護者の方と一緒に読んで、同意をもらってから使ってください。")
                         .accessibilityIdentifier("onboarding-terms-minor")
                 }

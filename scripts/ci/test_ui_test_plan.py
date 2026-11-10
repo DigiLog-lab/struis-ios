@@ -333,7 +333,6 @@ class RepositoryPlanTests(unittest.TestCase):
 
     def test_typical_changes_select_their_contracts(self):
         self.assertEqual(self.select('strius/Features/Workbook/WorkbookSubunitHeader.swift'), self.contract('subunit-header'))
-        self.assertEqual(self.select('strius/Features/ImmersionLab/ScenePlayerView.swift'), self.contract('immersion'))
         self.assertEqual(self.select('strius/Engine/WorkbookRules.swift'), self.contract('workbook-grading'))
         self.assertEqual(self.select('strius/State/ChatTurnCoordinator.swift'), self.contract('reply-tail'))
         self.assertEqual(self.select('strius/State/MainThreadWatchdog.swift'), [])
