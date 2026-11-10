@@ -201,6 +201,17 @@
         "strius/Features/Timeline/TimelineStore.swift"
       ]
     },
+    "guardian-consent": {
+      "property": "保護者の同意(#76): 16歳未満は規約の次に保護者の同意が出て、押すだけでは進まず、スワイプで同意するとお試しへ進む。文面の版が上がるとタイムラインに同意の画面を重ねて出し直す",
+      "tests": [
+        "GuardianConsentUITests/testUnder16NeedsTheGuardianSwipeBeforeTheTrial",
+        "GuardianConsentUITests/testNewTextVersionShowsTheGuardianScreenAgainOverTheTimeline"
+      ],
+      "paths": [
+        "strius/Features/Onboarding/**",
+        "strius/Features/Timeline/LearningTimelineView.swift"
+      ]
+    },
     "usage-reset": {
       "property": "利用枠: 使い切った状態から購入・プランを上げると、設定の「利用枠」のゲージが 0% に戻る(StoreKit の設定ファイル)",
       "tests": [
