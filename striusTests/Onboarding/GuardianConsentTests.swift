@@ -183,7 +183,9 @@ final class GuardianConsentTests: XCTestCase {
 
         let records = makeRecords()
         let store = FakeStore()
-        let consent = records.recordGuardianConsent()
+        records.recordGuardianConsent()
+        // 控えは秒の単位で残す(ISO 8601)。送るのは控えに残した時刻。
+        let consent = try XCTUnwrap(records.guardianConsent)
         let sent = await GuardianConsentUploader(records: records, store: store).sendPending()
         XCTAssertTrue(sent)
         let saved = await store.records

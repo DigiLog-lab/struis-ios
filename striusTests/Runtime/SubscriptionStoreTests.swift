@@ -160,7 +160,8 @@ final class SubscriptionStoreTests: XCTestCase {
         let (store, _) = install()
         let purchased = await store.purchase(.light)
         XCTAssertTrue(purchased)
-        let latest = try XCTUnwrap(await Transaction.latest(for: UsagePlan.light.productID))
+        let latestResult = await Transaction.latest(for: UsagePlan.light.productID)
+        let latest = try XCTUnwrap(latestResult)
         XCTAssertEqual(try latest.payloadValue.appAccountToken, consent.id, "購入記録に同意番号が付く")
     }
 
