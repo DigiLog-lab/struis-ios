@@ -27,6 +27,8 @@ struct LearningTimelineView: View {
     @State private var problemOffset: CGFloat = 0
     @State private var problemMaxOffset: CGFloat = 0
     @State private var problemPanStart: CGFloat = 0
+    /// 結果の列が上の帯と下の帯の間に入りきらず、スクロールになっている。
+    @State private var isResultScrolling = false
     /// 書く面の左上(`TimelineInkSpace.name` の座標)。iPad は画面の上端から置くので、安全域の分だけマイナスになる。
     @State private var inkOrigin: CGPoint = .zero
     /// 上の帯と下の帯の間(`TimelineInkSpace.name` の座標)。iPhone の並びの書く面はここに置く。
@@ -390,7 +392,14 @@ struct LearningTimelineView: View {
                     }
                     .padding(.trailing, layout == .padLandscape ? 0 : 60).padding(.bottom, 24)
                 }
-                .scrollIndicators(.hidden)
+                .scrollIndicators(isResultScrolling ? .visible : .hidden)
+                .onScrollGeometryChange(for: Bool.self) { $0.contentSize.height > $0.containerSize.height + 1 } action: { _, value in
+                    isResultScrolling = value
+                }
+                // iPad は結果の画面でも書く面(見るだけ)が上に乗り、指を全部受けて紙のスクロールに使う。そのままだと結果の列が
+                // 入りきらない時に解説の続きが読めない(2026-11-11)。入りきらない時だけ、列の上の指は書く面に渡さず列のスクロールに使う。
+                // 結果の画面では書き足せないので、Apple Pencil も列に通してよい。書いた線が文に重なった時は、列を動かしてずらせる。
+                .timelineInkPassThrough(isEnabled: isResultScrolling)
             }
         case .solving, .grading:
             if let card = store.current {
