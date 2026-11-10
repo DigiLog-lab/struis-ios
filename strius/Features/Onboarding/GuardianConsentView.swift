@@ -148,9 +148,11 @@ struct SwipeToConfirm: View {
 /// - 運営者側へ送れていない同意の記録を、開いた時と iCloud のアカウントが変わった後に送り直す。
 struct GuardianConsentGate: ViewModifier {
     var isPad = false
-    @State private var needsConsent = GuardianConsentGate.consentRequired
+    /// 同意の画面を出しているか。同意するまでタイムラインを始めないよう、タイムラインと共有する。
+    @Binding var needsConsent: Bool
 
-    private static var consentRequired: Bool {
+    /// 16 歳未満で、今の版の保護者の同意の控えが無い(開いた時に同意の画面を出す)。
+    static var consentRequired: Bool {
         let records = OnboardingRecords.shared
         return records.needsGuardianConsent(band: records.age?.band)
     }

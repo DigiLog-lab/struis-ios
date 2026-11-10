@@ -27,6 +27,8 @@ struct LearningTimelineView: View {
     @State private var isResultAskPresented = false
     @State private var isDisputePresented = false
     @State private var disputeDraft = ""
+    /// 16 歳未満で、今の版の保護者の同意が無い(#76)。同意するまでタイムラインを始めない(始めても AI に頼めず、失敗の画面になる)。
+    @State private var needsGuardianConsent = GuardianConsentGate.consentRequired
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -87,13 +89,20 @@ struct LearningTimelineView: View {
         .coordinateSpace(name: TimelineInkSpace.name)
         .onPreferenceChange(TimelineInkPassThroughKey.self) { inkPassThrough = $0 }
         // 16 歳未満の保護者の同意: 版が上がった時の出し直しと、送れていない記録の送り直し(#76)。
-        .modifier(GuardianConsentGate(isPad: layout.isPad))
+        .modifier(GuardianConsentGate(isPad: layout.isPad, needsConsent: $needsGuardianConsent))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("timeline-screen")
         .animation(.easeInOut(duration: Theme.Duration.standard), value: store.phase)
         .animation(.easeInOut(duration: Theme.Duration.standard), value: store.currentID)
-        .task { await store.start() }
-        .onChange(of: scenePhase) { _, phase in Task { await store.scenePhaseChanged(phase) } }
+        // 保護者の同意を待っている間は始めない。同意すると id が変わり、ここで始める。
+        .task(id: needsGuardianConsent) {
+            guard !needsGuardianConsent else { return }
+            await store.start()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard !needsGuardianConsent else { return }
+            Task { await store.scenePhaseChanged(phase) }
+        }
         .onChange(of: store.currentID) { _, _ in clearInk() }
         .background {
             ChatCameraPresentation(isPresented: $isCameraPresented) { data in

@@ -172,6 +172,11 @@ final class OnboardingModel {
             profile.ageCheckedAt = ISO8601DateFormatter().string(from: age.checkedAt)
         }
         if let terms = records.termsAcceptedAt, profile.termsAcceptedAt == nil { profile.termsAcceptedAt = ISO8601DateFormatter().string(from: terms) }
+        // 16 歳未満は保護者の同意が送る内容への同意を兼ねる。入れ直し・別の端末で回答が消えても、今の版の控えが残っていれば同意し直させない(#76)。
+        if profile.photoConsentAt == nil, (records.age?.band ?? profile.ageBand) == .under16, let consent = records.guardianConsent,
+           consent.textVersion == GuardianConsentText.version {
+            profile.photoConsentAt = ISO8601DateFormatter().string(from: consent.acceptedAt)
+        }
         self.profile = profile
         selectedGrade = profile.grade
         selectedUnit = profile.unit

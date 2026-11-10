@@ -137,12 +137,13 @@ final class GuardianConsentTests: XCTestCase {
         first.recordGuardianConsent()
         let reinstalled = makeRecords(local: local, cloud: cloud)
         XCTAssertFalse(reinstalled.needsGuardianConsent(band: .under16))
-        var profile = profile()
-        profile.photoConsentAt = "2026-11-10T00:00:00Z"
-        let reopened = OnboardingModel(profile: profile, records: reinstalled,
+        // 回答(UserDefaults)は消えている: 送る内容への同意の印も無い。
+        let reopened = OnboardingModel(profile: profile(), records: reinstalled,
                                        consentUploader: GuardianConsentUploader(records: reinstalled, store: FakeStore()),
                                        hasPlan: { false }, isClaudeAvailable: { true })
-        XCTAssertEqual(reopened.step, .trial)
+        XCTAssertEqual(reopened.step, .trial, "控えが残っていれば、保護者に同意し直させない")
+        XCTAssertNotNil(reopened.profile.photoConsentAt, "送る内容への同意の印を控えから戻す")
+        XCTAssertEqual(reinstalled.guardianConsent?.number, first.guardianConsent?.number, "同意番号を作り直さない")
 
         // 別の端末(Keychain は空、iCloud だけ)でも出さない。
         let otherDevice = makeRecords(local: MemoryValueStore(), cloud: cloud)
