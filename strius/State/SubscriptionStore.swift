@@ -29,14 +29,18 @@ final class SubscriptionStore {
     /// (Xcode の StoreKit の設定ファイルで動かした時は、設定ファイルのテスト用の ID になる)。
     private(set) var activeGroupID = SubscriptionStore.groupID
     var errorMessage: String?
-    /// 商品を買う 1 か所。本番は `product.purchase()`。単体テストは `SKTestSession.buyProduct` に差し替える。
-    typealias Purchase = @MainActor (Product) async throws -> Product.PurchaseResult
+    /// 商品を買う 1 か所。本番は `product.purchase(options:)`。単体テストは `SKTestSession.buyProduct` に差し替える。
+    typealias Purchase = @MainActor (Product, Set<Product.PurchaseOption>) async throws -> Product.PurchaseResult
     private let meter: UsageMeter
     private let purchaseProduct: Purchase
+    /// 購入に付ける項目(16 歳未満は保護者の同意番号を `appAccountToken` にする。#76)。
+    private let purchaseOptions: () -> Set<Product.PurchaseOption>
     private var updates: Task<Void, Never>?
 
-    init(meter: UsageMeter = .shared, purchase: @escaping Purchase = { try await $0.purchase() }) {
+    init(meter: UsageMeter = .shared, purchaseOptions: @escaping () -> Set<Product.PurchaseOption> = { OnboardingRecords.shared.purchaseOptions },
+         purchase: @escaping Purchase = { try await $0.purchase(options: $1) }) {
         self.meter = meter
+        self.purchaseOptions = purchaseOptions
         purchaseProduct = purchase
         plan = meter.plan
     }
@@ -78,7 +82,7 @@ final class SubscriptionStore {
         purchasing = plan
         defer { purchasing = nil }
         do {
-            switch try await purchaseProduct(product) {
+            switch try await purchaseProduct(product, purchaseOptions()) {
             case .success(let result):
                 guard case .verified(let transaction) = result else {
                     errorMessage = "購入を確かめられませんでした。もう一度試してください。"

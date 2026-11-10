@@ -68,6 +68,10 @@ nonisolated struct OnboardingRecords: Sendable {
     /// 同意した規約の版と日時(`TermsAcceptance` の JSON)。
     static let termsKey = "onboarding.terms.v2"
     static let trialUsedKey = "onboarding.trialUsed.v1"
+    /// 保護者の同意の控え(`GuardianConsent` の JSON。#76)。
+    static let guardianConsentKey = "onboarding.guardianConsent.v1"
+    /// 運営者側に記録を送れた同意番号(控えの番号と違えば未送信)。
+    static let guardianConsentSentKey = "onboarding.guardianConsentSent.v1"
     /// お試しは 3 問まで無料。
     static let trialLimit = 3
 
@@ -77,9 +81,16 @@ nonisolated struct OnboardingRecords: Sendable {
         #if DEBUG
         // 画面の確認用: `STRUIS_AGE_RANGE`・`STRUIS_TRIAL_USED` を渡したら、端末の記録を触らずにメモリの中で始める。
         let environment = ProcessInfo.processInfo.environment
-        if environment["STRUIS_TRIAL_USED"] != nil || environment["STRUIS_AGE_RANGE"] != nil || environment["STRUIS_ONBOARDING_START"] != nil {
+        if environment["STRUIS_TRIAL_USED"] != nil || environment["STRUIS_AGE_RANGE"] != nil || environment["STRUIS_ONBOARDING_START"] != nil
+            || environment["STRUIS_GUARDIAN_CONSENT_VERSION"] != nil {
             let records = OnboardingRecords(values: MirroredValues(local: MemoryValueStore(), cloud: MemoryValueStore()))
             if let used = environment["STRUIS_TRIAL_USED"].flatMap(Double.init) { records.values.setNumber(min(3, max(0, used)), trialUsedKey) }
+            // `STRUIS_GUARDIAN_CONSENT_VERSION=<版>`: 16 歳未満で、その版の保護者の同意の控えがある状態から始める(版が上がった時の確認用)。
+            if let version = environment["STRUIS_GUARDIAN_CONSENT_VERSION"] {
+                records.saveAge(AgeResult(band: .under16, declaration: "selfDeclared", checkedAt: Date()))
+                records.acceptTerms()
+                records.markGuardianConsentSent(records.recordGuardianConsent(textVersion: version))
+            }
             return records
         }
         if ProcessInfo.processInfo.arguments.contains("-reset-onboarding") {
@@ -137,19 +148,56 @@ nonisolated struct OnboardingRecords: Sendable {
         #if DEBUG
         if Self.debugAssumesConsent { return true }
         #endif
-        return hasAcceptedCurrentTerms
+        return hasAcceptedCurrentTerms && !needsGuardianConsent(band: age?.band)
     }
 
     #if DEBUG
     /// DEBUG の起動の差し替えで、同意を済ませた扱いにする: オンボーディングを飛ばす起動と、記録をメモリに置く画面の確認
-    /// (`STRUIS_TRIAL_USED`・`STRUIS_AGE_RANGE`・`STRUIS_ONBOARDING_START`)。
+    /// (`STRUIS_TRIAL_USED`・`STRUIS_AGE_RANGE`・`STRUIS_ONBOARDING_START`・`STRUIS_GUARDIAN_CONSENT_VERSION`)。
     static var debugAssumesConsent: Bool {
         let arguments = ProcessInfo.processInfo.arguments
         if ["-skip-onboarding", "-learning-feed-e2e", "-workbook"].contains(where: arguments.contains) { return true }
         let environment = ProcessInfo.processInfo.environment
-        return ["STRUIS_TRIAL_USED", "STRUIS_AGE_RANGE", "STRUIS_ONBOARDING_START"].contains { environment[$0] != nil }
+        return ["STRUIS_TRIAL_USED", "STRUIS_AGE_RANGE", "STRUIS_ONBOARDING_START", "STRUIS_GUARDIAN_CONSENT_VERSION"].contains { environment[$0] != nil }
     }
     #endif
+
+    // MARK: - 保護者の同意(#76)
+
+    /// 同意の控え。Keychain と iCloud の両方を読み、今の版の方を採る(別の端末で同意し直した版を、この端末の古い版で隠さない)。
+    var guardianConsent: GuardianConsent? {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let stored: [GuardianConsent] = [values.local.string(Self.guardianConsentKey), values.cloud.string(Self.guardianConsentKey)].compactMap { text in
+            text.flatMap { $0.data(using: .utf8) }.flatMap { try? decoder.decode(GuardianConsent.self, from: $0) }
+        }
+        return stored.first { $0.textVersion == GuardianConsentText.version } ?? stored.max { $0.acceptedAt < $1.acceptedAt }
+    }
+
+    /// 16 歳未満で、今の版の同意の控えが無い(版が上がった時も出し直す)。
+    func needsGuardianConsent(band: AgeBand?) -> Bool {
+        band == .under16 && guardianConsent?.textVersion != GuardianConsentText.version
+    }
+
+    /// 同意した時: 新しい同意番号で控えを残す(運営者側へはまだ送っていない)。
+    @discardableResult
+    func recordGuardianConsent(at date: Date = Date(), textVersion: String = GuardianConsentText.version) -> GuardianConsent {
+        let consent = GuardianConsent(id: UUID(), acceptedAt: date, textVersion: textVersion)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        if let data = try? encoder.encode(consent) { values.set(String(decoding: data, as: UTF8.self), Self.guardianConsentKey) }
+        return consent
+    }
+
+    /// まだ運営者側へ送れていない控え。
+    var pendingGuardianConsent: GuardianConsent? {
+        guard let consent = guardianConsent, values.string(Self.guardianConsentSentKey) != consent.number else { return nil }
+        return consent
+    }
+
+    func markGuardianConsentSent(_ consent: GuardianConsent) {
+        values.set(consent.number, Self.guardianConsentSentKey)
+    }
 
     // MARK: - お試し
 
@@ -168,6 +216,8 @@ nonisolated struct OnboardingRecords: Sendable {
         values.set(nil, Self.termsKey)
         values.set(nil, Self.legacyTermsKey)
         values.set(nil, Self.trialUsedKey)
+        values.set(nil, Self.guardianConsentKey)
+        values.set(nil, Self.guardianConsentSentKey)
     }
     #endif
 }

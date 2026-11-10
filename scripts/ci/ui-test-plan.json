@@ -118,17 +118,6 @@
         "strius/Engine/AttachmentStaging.swift"
       ]
     },
-    "immersion": {
-      "property": "没頭シーン: 質問して同じ画面に戻る、候補変更、触らないと進まない",
-      "tests": [
-        "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas",
-        "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker",
-        "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes"
-      ],
-      "paths": [
-        "strius/Features/ImmersionLab/**"
-      ]
-    },
     "subunit-header": {
       "property": "小単元ヘッダー: スワイプとタップで開閉し、再起動後も保つ",
       "tests": [
@@ -201,6 +190,17 @@
         "strius/Features/Timeline/TimelineStore.swift"
       ]
     },
+    "guardian-consent": {
+      "property": "保護者の同意(#76): 16歳未満は規約の次に保護者の同意が出て、押すだけでは進まず、スワイプで同意するとお試しへ進む。文面の版が上がるとタイムラインに同意の画面を重ねて出し直す",
+      "tests": [
+        "GuardianConsentUITests/testUnder16NeedsTheGuardianSwipeBeforeTheTrial",
+        "GuardianConsentUITests/testNewTextVersionShowsTheGuardianScreenAgainOverTheTimeline"
+      ],
+      "paths": [
+        "strius/Features/Onboarding/**",
+        "strius/Features/Timeline/LearningTimelineView.swift"
+      ]
+    },
     "usage-reset": {
       "property": "利用枠: 使い切った状態から購入・プランを上げると、設定の「利用枠」のゲージが 0% に戻る(StoreKit の設定ファイル)",
       "tests": [
@@ -268,6 +268,7 @@
     ],
     "strius/Features/ProblemCatalog/**": [],
     "strius/Features/Workspace/**": [],
+    "strius/Features/ImmersionLab/**": [],
     "strius/Engine/**": [
       "reply-tail",
       "workbook-grading"
@@ -295,8 +296,7 @@
       "chat-wiring"
     ],
     "strius/Networking/**": [
-      "chat-wiring",
-      "immersion"
+      "chat-wiring"
     ],
     "strius/Delivery/**": [
       "chat-wiring"
@@ -328,7 +328,6 @@
     "LearningProgressUITests/testInspectActualReplyProgress": "実バックエンドの返事が要る",
     "MinimumLoopE2ETests/testSendMessageAndReceiveAssistantReply": "実バックエンドの認証が要る",
     "ReplyTailUITests/testQuestionSheetSendsWhileRecordingWithRealClaude": "実Claude(Anthropic の API キー)が要る",
-    "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording": "録画用。質問・復帰と介入から終了までの2本をつなげた内容で、自動の判定は2本が持つ",
     "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration": "数式の描き方は画像を目で見て確かめる",
     "WorkbookSubunitLayoutUITests/testAdvanceBandDoesNotCoverConversation": "ボタン帯の重なりは画像を目で見て確かめる",
     "OnboardingScreenshotUITests/testIPhoneScreens": "画面の写真をデザインの画像と目で見比べる(#40)。自動の判定は OnboardingFlowUITests が持つ",
@@ -370,10 +369,6 @@
     "DeviceRuntimeUITests/testRuntimeHelperBoots": 25,
     "DeviceWorkbookUITests/testSetGenerationCaptureAndGradingWithRealClaude": 0,
     "E2EDriverUITests/testDrive": 0,
-    "ImmersionSceneChatUITests/testAskFromSceneThenReturnToSameCanvas": 22,
-    "ImmersionSceneChatUITests/testChangeCandidateOpensCandidatePicker": 18,
-    "ImmersionSceneChatUITests/testExploreRequiresManipulationThenFullCycleCompletes": 36,
-    "ImmersionSceneChatUITests/testJourneyWalkthroughForRecording": 84,
     "Issue10ScreenshotUITests/testProblemCaptureAndAllCorrectResult": 72,
     "Issue10ScreenshotUITests/testReplyRendersMathRightAfterGeneration": 49,
     "LearningProgressUITests/testInspectActualReplyProgress": 0,

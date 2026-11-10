@@ -20,43 +20,18 @@ struct CreateThreadResponse: Decodable {
     let source: String?
 }
 
-/// 没頭シーンからの文脈 chat 参照 (`immersion_scene_context`)。
-/// クライアントは「どこにいるか」だけを名指しし、シーンの事実は backend が
-/// 保存済みパッケージから解決する。
-struct ImmersionSceneContext: Encodable {
-    enum Prediction: Encodable {
-        case number(Double)
-        case text(String)
-
-        func encode(to encoder: Encoder) throws {
-            var container = encoder.singleValueContainer()
-            switch self {
-            case .number(let value): try container.encode(value)
-            case .text(let value): try container.encode(value)
-            }
-        }
-    }
-
-    let sceneID: String
-    let stage: String
-    let prediction: Prediction?
-}
-
 struct CreateMessageRequest: Encodable {
     let text: String
     let learningFeedSessionID: UUID?
-    let immersionSceneContext: ImmersionSceneContext?
     let workbookView: WorkbookViewRef?
 
     init(
         text: String,
         learningFeedSessionID: UUID? = nil,
-        immersionSceneContext: ImmersionSceneContext? = nil,
         workbookView: WorkbookViewRef? = nil
     ) {
         self.text = text
         self.learningFeedSessionID = learningFeedSessionID
-        self.immersionSceneContext = immersionSceneContext
         self.workbookView = workbookView
     }
 }

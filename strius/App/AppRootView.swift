@@ -113,9 +113,7 @@ struct AppRootView: View {
 
     var body: some View {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-immersion-lab") {
-            ImmersionLabView()
-        } else if ProcessInfo.processInfo.arguments.contains("-problem-catalog-lab") {
+        if ProcessInfo.processInfo.arguments.contains("-problem-catalog-lab") {
             ProblemCatalogLabView()
         } else {
             standardRootContent
