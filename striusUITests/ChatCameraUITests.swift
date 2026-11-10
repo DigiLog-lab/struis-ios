@@ -98,6 +98,33 @@ final class ChatCameraUITests: XCTestCase {
             print("\(name): app=\(frames.app) preview=\(frames.preview) shutter=\(frames.shutter)")
             screenScreenshot(name)
         }
+        /// 向きを変え、チャットの回転が終わるまで待ってから次の操作に進む。
+        /// 遅いランナーでは、向きを変えた直後の「落ち着いた」合図が回転のアニメーションより先に返る。
+        /// 回転の途中に操作すると、長押しでカメラが開かなかった(main 11/9、run 42650421689)、
+        /// 入力欄のタップの後は合図が二度と来ず時間切れになった(PR #118 の検証 42754068014: 合図までの待ちは
+        /// Dev Box の 0.76 秒に対し 0.22 秒で、タップが回転の途中に入った)。
+        /// 「添付」の位置が 2 回続けて同じで押せる状態になるまで(8 秒まで)待つ。
+        func rotate(to orientation: UIDeviceOrientation) throws {
+            XCUIDevice.shared.orientation = orientation
+            let landscape = orientation.isLandscape
+            let deadline = Date().addingTimeInterval(8)
+            var last = CGRect.null
+            while Date() < deadline {
+                let root = try app.snapshot()
+                var plusFrame = CGRect.null
+                var remaining = root.children
+                while let node = remaining.popLast() {
+                    if node.elementType == .button, node.label == "添付" { plusFrame = node.frame; break }
+                    remaining.append(contentsOf: node.children)
+                }
+                let oriented = (root.frame.width > root.frame.height) == landscape
+                if oriented, !plusFrame.isNull, plusFrame == last, plus.isHittable { return }
+                last = plusFrame
+                Thread.sleep(forTimeInterval: 0.25)
+            }
+            UITestSupport.saveProbe(app, name: "camera-rotation-settle-\(orientation.rawValue)")
+            XCTFail("向きを変えた後、8 秒たっても回転が終わらない")
+        }
         openCamera()
         try verifyPreview("rotation-01-portrait")
         XCUIDevice.shared.orientation = .landscapeLeft
@@ -109,13 +136,13 @@ final class ChatCameraUITests: XCTestCase {
         cancel.tap()
         XCTAssertTrue(shutter.waitForNonExistence(timeout: 5))
 
-        XCUIDevice.shared.orientation = .landscapeLeft
+        try rotate(to: .landscapeLeft)
         openCamera()
         try verifyPreview("rotation-05-open-in-landscape")
         cancel.tap()
         XCTAssertTrue(shutter.waitForNonExistence(timeout: 5))
 
-        XCUIDevice.shared.orientation = .portrait
+        try rotate(to: .portrait)
         let field = app.textViews.matching(identifier: "chat-page").firstMatch
         field.tap()
         XCTAssertTrue(app.keyboards.firstMatch.appears(timeout: 5))
