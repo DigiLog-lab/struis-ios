@@ -86,6 +86,8 @@ struct LearningTimelineView: View {
         // 指を通す区画は、画面全体(この ZStack)の座標で集め、書く面の位置を引いて書く面の座標に直す。
         .coordinateSpace(name: TimelineInkSpace.name)
         .onPreferenceChange(TimelineInkPassThroughKey.self) { inkPassThrough = $0 }
+        // 16 歳未満の保護者の同意: 版が上がった時の出し直しと、送れていない記録の送り直し(#76)。
+        .modifier(GuardianConsentGate(isPad: layout.isPad))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("timeline-screen")
         .animation(.easeInOut(duration: Theme.Duration.standard), value: store.phase)
