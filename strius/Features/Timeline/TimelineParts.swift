@@ -392,11 +392,13 @@ struct TimelineInkCanvas: UIViewRepresentable {
             (canvasView as? TimelinePassThroughCanvas)?.growPaperIfNeeded()
         }
         func canvasViewDidBeginUsingTool(_ canvasView: PKCanvasView) {
+            (canvasView as? TimelinePassThroughCanvas)?.isUsingTool = true
             if !isDrawing.wrappedValue { isDrawing.wrappedValue = true }
             // 質問の欄で文字を打った後などに道具パレットが隠れていたら、書き始めた時に戻す。
             (canvasView as? TimelinePassThroughCanvas)?.restoreToolPickerFocus()
         }
         func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) {
+            (canvasView as? TimelinePassThroughCanvas)?.isUsingTool = false
             if isDrawing.wrappedValue { isDrawing.wrappedValue = false }
         }
         func scrollViewDidScroll(_ scrollView: UIScrollView) {
@@ -436,6 +438,9 @@ final class TimelinePassThroughCanvas: PKCanvasView {
     var isDrawingAllowed: Bool = true {
         didSet { drawingGestureRecognizer.isEnabled = isDrawingAllowed }
     }
+    /// 線を書いている途中(Apple Pencil や指)。この間に列の上に触れた指や手のひらは受けない
+    /// (受けると書く操作を止めることになり、書いている途中の線が消える)。
+    var isUsingTool: Bool = false
     private var columnPan: UIPanGestureRecognizer?
     private var columnPanDelegate: ColumnPanDelegate?
     private var onColumnPan: ((TimelineColumnPan) -> Void)?
@@ -610,6 +615,8 @@ private final class ColumnPanDelegate: NSObject, UIGestureRecognizerDelegate {
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         guard let canvas else { return false }
+        // 線を書いている途中に列に触れた指や手のひらは、書く操作を止めずに見送る。
+        if canvas.isUsingTool { return false }
         let inColumn: Bool = touch.type == .direct && canvas.isInColumn(touch)
         canvas.setFingerInColumn(inColumn)
         return inColumn
