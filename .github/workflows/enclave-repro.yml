@@ -20,6 +20,8 @@ jobs:
         run: |
           set -euo pipefail
           docker version --format 'docker {{.Server.Version}}'; docker buildx version; uname -m
+          docker buildx create --name repro --driver docker-container --use >/dev/null
+          docker buildx inspect --bootstrap | grep -i -E 'buildkit|driver' | head -4
           digest() { tar -xOf "$1" index.json | python3 -c 'import sys,json; print(json.load(sys.stdin)["manifests"][0]["digest"])'; }
           for n in 1 2; do
             docker buildx build --no-cache --provenance=false --sbom=false \
