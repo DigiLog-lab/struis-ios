@@ -190,6 +190,17 @@
         "strius/Features/Timeline/TimelineStore.swift"
       ]
     },
+    "unit-creation": {
+      "property": "ホームの「単元を作る」(#132): 会話ではなくオンボーディングと同じ画面で単元と「いつまでに」を選び、計画の期限の日付を直せ、「はじめる」で作った単元が開く",
+      "tests": [
+        "UnitCreationUITests/testChoosingAUnitAndDeadlineCreatesTheUnitAndOpensIt"
+      ],
+      "paths": [
+        "strius/Features/Onboarding/**",
+        "strius/Features/Workbook/WorkbookQuestionScreen.swift",
+        "strius/Features/Workbook/WorkbookHomeView.swift"
+      ]
+    },
     "guardian-consent": {
       "property": "保護者の同意(#76): 16歳未満は規約の次に保護者の同意が出て、押すだけでは進まず、スワイプで同意するとお試しへ進む。文面の版が上がるとタイムラインに同意の画面を重ねて出し直す",
       "tests": [
@@ -414,6 +425,7 @@
     "OnboardingScreenshotUITests/testRealPlanPhase1": 0,
     "OnboardingScreenshotUITests/testRealPlanPhase2": 0,
     "UsageResetUITests/testBuyingAPlanAfterTheTrialRunsOutResetsTheGaugeToZero": 30,
-    "UsageResetUITests/testUpgradingAfterThePlanRunsOutResetsTheGaugeToZero": 30
+    "UsageResetUITests/testUpgradingAfterThePlanRunsOutResetsTheGaugeToZero": 30,
+    "UnitCreationUITests/testChoosingAUnitAndDeadlineCreatesTheUnitAndOpensIt": 60
   }
 }
