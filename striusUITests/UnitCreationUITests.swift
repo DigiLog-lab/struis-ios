@@ -4,21 +4,20 @@ import XCTest
 /// 画面の写真は持ち主に見せるためのもの(`STRUIS_PROBE_DIR` があればそこにも残す)。
 final class UnitCreationUITests: XCTestCase {
     @MainActor
-    private func app(grade: String) -> XCUIApplication {
+    private func app() -> XCUIApplication {
         let app = UITestSupport.deviceApp()
         app.launchEnvironment["STRUIS_LEDGER"] = "memory"
         app.launchEnvironment["STRUIS_IOS_USE_FIXTURES"] = "0"
-        // フィクスチャを切るとシミュレータの認証の迂回も切れるので、迂回だけを明示する。
+        // フィクスチャを切るとシミュレータの認証の迂回も切れるので、迂回だけを明示する。学年は飛ばしたオンボーディングの中3。
         app.launchEnvironment["STRUIS_DEV_AUTH_BYPASS"] = "1"
         app.launchEnvironment["STRUIS_PLAN"] = "light"
         app.launchEnvironment["STRUIS_USAGE_PERCENT"] = "0"
-        app.launchEnvironment["STRUIS_ONBOARDING_GRADE"] = grade
         return app
     }
 
     @MainActor
     func testChoosingAUnitAndDeadlineCreatesTheUnitAndOpensIt() throws {
-        let app = app(grade: "高1")
+        let app = app()
         app.launch()
         let create = app.buttons["workbook-create-unit"].firstMatch
         XCTAssertTrue(create.appears(timeout: 30), "単元を作るボタンが無い")
@@ -29,10 +28,10 @@ final class UnitCreationUITests: XCTestCase {
         UITestSupport.saveProbe(app, name: "unit-creation-1-intent")
         range.tap()
 
-        let unit = app.buttons["unit-creation-unit-二次関数"].firstMatch
+        let unit = app.buttons["unit-creation-unit-二次方程式"].firstMatch
         if !unit.appears(timeout: 10) { UITestSupport.saveProbe(app, name: "unit-creation-2-missing") }
         XCTAssertTrue(unit.exists, "単元の一覧が出ない")
-        XCTAssertTrue(app.buttons["unit-creation-grade-中3"].exists && app.buttons["unit-creation-grade-高2"].exists, "前後の学年を選べない")
+        XCTAssertTrue(app.buttons["unit-creation-grade-中2"].exists && app.buttons["unit-creation-grade-高1"].exists, "前後の学年を選べない")
         unit.tap()
         app.buttons["unit-creation-until-休みが終わるまで"].firstMatch.tap()
         UITestSupport.saveProbe(app, name: "unit-creation-2-unit")
@@ -52,7 +51,7 @@ final class UnitCreationUITests: XCTestCase {
 
         XCTAssertTrue(start.appears(timeout: 5))
         start.tap()
-        XCTAssertTrue(app.navigationBars["二次関数"].appears(timeout: 20), "作った単元が開かない")
+        XCTAssertTrue(app.navigationBars["二次方程式"].appears(timeout: 20), "作った単元が開かない")
         XCTAssertFalse(app.descendants(matching: .any)["unit-creation"].exists, "単元を作る画面が閉じない")
         UITestSupport.saveProbe(app, name: "unit-creation-5-unit")
     }

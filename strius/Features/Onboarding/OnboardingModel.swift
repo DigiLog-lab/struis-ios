@@ -203,10 +203,6 @@ final class OnboardingModel {
             profile.universityTopic = nil
             profile.universityGoal = nil
             profile.resumeStep = nil
-            #if DEBUG
-            // 画面の確認用: オンボーディングを飛ばした起動(`-skip-onboarding`)でも学年を決める。
-            if profile.grade == nil, let grade = ProcessInfo.processInfo.environment["STRUIS_ONBOARDING_GRADE"] { profile.grade = grade }
-            #endif
         }
         self.profile = profile
         selectedGrade = profile.grade
