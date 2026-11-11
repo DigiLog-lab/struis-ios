@@ -799,7 +799,9 @@ struct LearningTimelineView: View {
     }
 
     private func problemText(_ card: TimelineCardRecord) -> String {
-        [card.payload["problem"]?.stringValue ?? card.prompt, card.math, card.question].filter { !$0.isEmpty }.joined(separator: "\n")
+        // `problem` が空の文字で入っているカード(仕分けなど)は、問いかけの文を使う(空のまま渡すと、下書きに問題が入らない)。
+        let problem: String = card.payload["problem"]?.stringValue ?? ""
+        return [problem.isEmpty ? card.prompt : problem, card.math, card.question].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     private func ask(_ card: TimelineCardRecord) {
