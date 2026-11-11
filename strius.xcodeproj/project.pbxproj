@@ -242,6 +242,7 @@
 		FD261933644D618087CF5359 /* text-native.xcframework in Embed Native Frameworks */ = {isa = PBXBuildFile; fileRef = 6501D2306BFF134780428A95 /* text-native.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		E8123E56B09C47B37565A7B2 /* GuardianConsent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E87E3CB209BEDA7A2C1FACE0 /* GuardianConsent.swift */; };
 		E8D49970D6AD7EC70F6A894C /* GuardianConsentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8663698679A6278F7E9AE37 /* GuardianConsentView.swift */; };
+		E82ADAAF1FD78CE0C8B46E18 /* StudyDeadline.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8DA42A9CDF2709FEA059559 /* StudyDeadline.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -524,6 +525,7 @@
 		FA3411766DF329BEF05F1053 /* StruisExec.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StruisExec.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E87E3CB209BEDA7A2C1FACE0 /* GuardianConsent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuardianConsent.swift; sourceTree = "<group>"; };
 		E8663698679A6278F7E9AE37 /* GuardianConsentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuardianConsentView.swift; sourceTree = "<group>"; };
+		E8DA42A9CDF2709FEA059559 /* StudyDeadline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyDeadline.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -1142,6 +1144,7 @@
 				E8DC9C4E264B5A82DC7601DB /* OnboardingProfile.swift */,
 				E87E3CB209BEDA7A2C1FACE0 /* GuardianConsent.swift */,
 				E8663698679A6278F7E9AE37 /* GuardianConsentView.swift */,
+				E8DA42A9CDF2709FEA059559 /* StudyDeadline.swift */,
 			);
 			path = Onboarding;
 			sourceTree = "<group>";
@@ -1592,6 +1595,7 @@
 				E800337CCEEE2A5D5CFAF7B7 /* TokenUsageSummary.swift in Sources */,
 				E8123E56B09C47B37565A7B2 /* GuardianConsent.swift in Sources */,
 				E8D49970D6AD7EC70F6A894C /* GuardianConsentView.swift in Sources */,
+				E82ADAAF1FD78CE0C8B46E18 /* StudyDeadline.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

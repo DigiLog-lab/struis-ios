@@ -173,7 +173,8 @@ nonisolated enum OnboardingTurns {
     }
 
     /// 最初の計画。`imagePaths` は `StruisPaths.captures` の中の撮ったページ・資料(8 枚まで)。
-    static func planPlan(assets: AssetCache, planID: String, request: LedgerJSON, imagePaths: [String]) async throws -> TurnPlan {
+    /// `setup`: 利用枠に数えない「初回の準備」の種類(オンボーディングは計画づくり、ホームの「単元を作る」は単元づくり)。
+    static func planPlan(assets: AssetCache, planID: String, request: LedgerJSON, imagePaths: [String], setup: UsageSetup = .plan) async throws -> TurnPlan {
         let images = imagePaths.prefix(8).enumerated().map { index, path in
             let ext = (path as NSString).pathExtension.isEmpty ? "jpg" : (path as NSString).pathExtension
             return TurnPlan.ImageRef(path: "tutor_desk/inbox/materials/page-\(index + 1).\(ext)", hostPath: StruisPaths.captures.appendingPathComponent(path).path,
@@ -186,7 +187,7 @@ nonisolated enum OnboardingTurns {
                                     outputSchema: try await assets.json("schema:onboarding_plan"), sandboxPolicy: "dangerFullAccess"),
             workspace: TimelineTurns.workspace, delegation: nil, collect: [], limits: .structured
         )
-        plan.setup = .plan
+        plan.setup = setup
         return plan
     }
 

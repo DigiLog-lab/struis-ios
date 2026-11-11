@@ -1,9 +1,79 @@
 import SwiftUI
 
 /// 「質問」。右上から開く子画面。今見ている一枚が文脈として乗るが、質問の範囲は縛らない。
-/// `purpose == .createUnit` は単元づくり: 学習者が打つ前にモデルが問いを出し、全体像の提案まで導く(§13.12)。
-/// 全体像カードの「はじめる」の後は、この画面を閉じて小単元 1 の要点を開く。
+/// `purpose == .createUnit` は単元づくり(#132): 会話ではなく、オンボーディングと同じ画面で選んで計画を作る。
+/// 計画の「はじめる」の後は、この画面を閉じて作った単元を開く。
 struct WorkbookQuestionScreen: View {
+    let context: WorkbookQuestionContext
+    /// シートで出さない時(iPad のタイムラインの右に開く欄)の閉じ方。無ければシートを閉じる。
+    var onClose: (() -> Void)? = nil
+
+    var body: some View {
+        if context.purpose == .createUnit {
+            UnitCreationScreen(onClose: onClose)
+        } else {
+            WorkbookChatQuestionScreen(context: context, onClose: onClose)
+        }
+    }
+}
+
+/// ホームの「単元を作る」(#132)。中高生は「ここから何をしますか」から、大学生は「何を勉強しますか」から、
+/// オンボーディングと同じ画面で選ぶ。計画づくりは単元づくりとして数える(`UsageSetup.unit`)。
+struct UnitCreationScreen: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(WorkbookStore.self) private var store
+    @Environment(WorkbookCoordinator.self) private var coordinator
+    @Environment(LearnerData.self) private var learnerData
+    @Environment(SubscriptionStore.self) private var subscriptions
+    var onClose: (() -> Void)? = nil
+
+    var body: some View {
+        OnboardingFlowView(
+            learnerData: learnerData, subscriptions: subscriptions,
+            unitCreation: { unitID in opened(unitID) },
+            existingUnits: (store.home?.units ?? []).map(\.title),
+            onFinish: { close() }
+        )
+        .overlay(alignment: .topTrailing) {
+            Button { close() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.secondaryText)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 12)
+            .padding(.trailing, 8)
+            .accessibilityLabel("閉じる")
+            .accessibilityIdentifier("unit-creation-close")
+        }
+        // 計画づくり・確認の1問の採点が利用枠で止まったら、案内を出す。
+        .usageLimitGuide([.onboardingPlan, .onboardingGrading])
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("unit-creation")
+    }
+
+    private func close() {
+        if let onClose { onClose() } else { dismiss() }
+    }
+
+    /// 作った単元を開く(単元ホームの上に単元の画面を積む)。
+    private func opened(_ unitID: String) {
+        Task {
+            await store.loadHome()
+            _ = await store.loadUnit(id: unitID)
+            close()
+            coordinator.question = nil
+            coordinator.path = [.unit(unitID)]
+        }
+    }
+}
+
+/// 質問の会話。
+struct WorkbookChatQuestionScreen: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(WorkbookStore.self) private var store
     @Environment(WorkbookCoordinator.self) private var coordinator

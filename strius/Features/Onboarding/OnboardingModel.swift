@@ -111,6 +111,18 @@ final class OnboardingModel {
     let isReconsent: Bool
     var onReconsented: (() -> Void)?
 
+    /// オンボーディングか、ホームの「単元を作る」(#132)か。単元を作る時は、オンボーディングの回答・続きの画面・計画の下書きを書き換えない。
+    nonisolated enum Purpose: Sendable {
+        case onboarding
+        case unitCreation
+    }
+
+    let purpose: Purpose
+    /// 単元を作った(「はじめる」の後)。単元を作る時だけ呼ぶ。作った単元の ID を渡す。
+    var onUnitCreated: ((String) -> Void)?
+    /// すでにある単元の名前(単元を作る時に、同じ単元を作らないようモデルに渡す)。
+    var existingUnits: [String] = []
+
     // 学年
     var selectedGrade: String?
     var isCheckingAge = false
@@ -127,6 +139,10 @@ final class OnboardingModel {
 
     // ルート
     var selectedUnit: String?
+    /// 単元を作る時に選んだ学年(今の学年と違う学年の単元も選べる)。nil は今の学年。
+    var unitGrade: String?
+    /// 「いつまでに」から決めた期限(計画の画面で押すと直せる)。
+    var deadline: Date?
     var universityTopic = ""
     var universityGoal = ""
     private(set) var materials: [OnboardingMaterial] = []
@@ -158,8 +174,10 @@ final class OnboardingModel {
     }
 
     init(profile: OnboardingProfile? = nil, records: OnboardingRecords = .shared, consentUploader: GuardianConsentUploader = .shared,
-         hasPlan: @escaping () -> Bool, isClaudeAvailable: @escaping () -> Bool, start: OnboardingStep? = nil, reconsent: Bool = false) {
+         hasPlan: @escaping () -> Bool, isClaudeAvailable: @escaping () -> Bool, start: OnboardingStep? = nil, reconsent: Bool = false,
+         purpose: Purpose = .onboarding) {
         var profile = profile ?? OnboardingProfile.load() ?? OnboardingProfile()
+        self.purpose = purpose
         self.records = records
         self.consentUploader = consentUploader
         self.isReconsent = reconsent
@@ -177,14 +195,23 @@ final class OnboardingModel {
            consent.textVersion == GuardianConsentText.version {
             profile.photoConsentAt = ISO8601DateFormatter().string(from: consent.acceptedAt)
         }
+        if purpose == .unitCreation {
+            // 前の単元の選び方は引き継がない(学年・お試しの結果は使う)。
+            profile.route = nil
+            profile.unit = nil
+            profile.untilTest = nil
+            profile.universityTopic = nil
+            profile.universityGoal = nil
+            profile.resumeStep = nil
+        }
         self.profile = profile
         selectedGrade = profile.grade
         selectedUnit = profile.unit
         universityTopic = profile.universityTopic ?? ""
         universityGoal = profile.universityGoal ?? ""
-        let saved = UserDefaults.standard.data(forKey: Self.draftKey).flatMap { try? JSONDecoder().decode(OnboardingPlanDraft.self, from: $0) }
+        let saved = purpose == .unitCreation ? nil : UserDefaults.standard.data(forKey: Self.draftKey).flatMap { try? JSONDecoder().decode(OnboardingPlanDraft.self, from: $0) }
         draft = saved
-        let resumed = reconsent ? .terms : start ?? OnboardingResume.step(
+        let resumed = reconsent ? .terms : start ?? (purpose == .unitCreation ? (profile.isUniversity ? OnboardingStep.topic : OnboardingStep.intent) : nil) ?? OnboardingResume.step(
             profile: profile, age: records.age, termsAccepted: records.termsAcceptedAt != nil, trialUsed: records.trialUsed,
             hasPlan: hasPlan(), hasDraft: saved != nil, needsGuardianConsent: records.needsGuardianConsent(band: records.age?.band ?? profile.ageBand)
         )
@@ -198,13 +225,19 @@ final class OnboardingModel {
         if remember, step != next { history.append(step) }
         step = next
         // 同意の取り直しは、終わったオンボーディングの続きの画面を書き換えない。
-        if !isReconsent, ![.unsupported, .grading, .checkGrading, .birthdate].contains(next) {
+        if !isReconsent, purpose == .onboarding, ![.unsupported, .grading, .checkGrading, .birthdate].contains(next) {
             profile.resumeStep = next.rawValue
-            profile.save()
+            saveProfile()
         }
     }
 
     var canGoBack: Bool { step.showsBack && !history.isEmpty }
+
+    /// 回答を端末に残す。単元を作る時は、オンボーディングの回答を書き換えない。
+    private func saveProfile() {
+        guard purpose == .onboarding else { return }
+        profile.save()
+    }
 
     func back() {
         guard let previous = history.popLast() else { return }
@@ -239,7 +272,7 @@ final class OnboardingModel {
             if grade == OnboardingProfile.universityGrade { profile.route = .university }
             else if profile.route == .university { profile.route = nil }
         }
-        profile.save()
+        saveProfile()
     }
 
     /// Declared Age Range の結果。共有されなかった・取れなかった時は生年月日を聞く。
@@ -265,7 +298,7 @@ final class OnboardingModel {
         profile.ageBand = result.band
         profile.ageDeclaration = result.declaration
         profile.ageCheckedAt = ISO8601DateFormatter().string(from: result.checkedAt)
-        profile.save()
+        saveProfile()
     }
 
     func afterAge() {
@@ -280,7 +313,7 @@ final class OnboardingModel {
         let now = Date()
         records.acceptTerms(at: now)
         profile.termsAcceptedAt = ISO8601DateFormatter().string(from: now)
-        profile.save()
+        saveProfile()
         // 同意し直した規約と合わせて、送る内容も読み直してもらう(前に同意した時の文面と違うことがある)。
         // 16 歳未満は、送る内容への同意を保護者の同意で取る。
         go(isUnder16 ? .guardian : .consent)
@@ -298,7 +331,7 @@ final class OnboardingModel {
 
     func acceptPhotoConsent() {
         profile.photoConsentAt = ISO8601DateFormatter().string(from: Date())
-        profile.save()
+        saveProfile()
         if isReconsent {
             onReconsented?()
             return
@@ -319,7 +352,7 @@ final class OnboardingModel {
     func acceptGuardianConsent() {
         records.recordGuardianConsent()
         profile.photoConsentAt = ISO8601DateFormatter().string(from: Date())
-        profile.save()
+        saveProfile()
         let uploader = consentUploader
         Task { await uploader.sendPending() }
         if isReconsent {
@@ -404,7 +437,7 @@ final class OnboardingModel {
         self.verdict = verdict
         records.recordTrialSolved()
         profile.trial.append(TrialRecord(problemID: problem.id, label: problem.label, correct: verdict.isCorrect, learnerAnswer: verdict.learnerAnswer, comment: verdict.comment))
-        profile.save()
+        saveProfile()
         go(.result, remember: false)
     }
 
@@ -441,7 +474,7 @@ final class OnboardingModel {
 
     func choose(route: OnboardingProfile.Route) {
         profile.route = route
-        profile.save()
+        saveProfile()
         switch route {
         case .range: go(.unit)
         case .weak: go(.weak)
@@ -453,32 +486,55 @@ final class OnboardingModel {
     func commitUnit() {
         guard let selectedUnit else { return }
         profile.unit = selectedUnit
-        profile.save()
+        saveProfile()
         go(.untilTest)
     }
 
     func chooseUntilTest(_ value: String) {
-        profile.untilTest = value
-        profile.save()
+        selectUntilTest(value)
         go(.pages)
+    }
+
+    /// 「いつまでに」を選ぶ(期限の日付も決める)。
+    func selectUntilTest(_ value: String) {
+        profile.untilTest = value
+        deadline = StudyDeadline.date(for: value, from: Date())
+        saveProfile()
+    }
+
+    /// 単元を作る時の「どの単元ですか」(単元と「いつまでに」を 1 画面で選ぶ)。
+    func commitUnitWithDeadline() {
+        guard let selectedUnit else { return }
+        profile.unit = selectedUnit
+        saveProfile()
+        startPlanning()
+    }
+
+    /// 単元の一覧を出す学年(単元を作る時は切り替えられる)。
+    var unitListGrade: String { unitGrade ?? profile.grade ?? "中3" }
+
+    func chooseUnitGrade(_ grade: String) {
+        guard grade != unitListGrade else { return }
+        unitGrade = grade == profile.grade ? nil : grade
+        selectedUnit = nil
     }
 
     func commitWeakUnit() {
         guard let selectedUnit else { return }
         profile.unit = selectedUnit
-        profile.save()
+        saveProfile()
         startPlanning()
     }
 
     func commitTopic() {
         profile.universityTopic = universityTopic.trimmingCharacters(in: .whitespacesAndNewlines)
-        profile.save()
+        saveProfile()
         go(.material)
     }
 
     func commitGoal() {
         profile.universityGoal = universityGoal.trimmingCharacters(in: .whitespacesAndNewlines)
-        profile.save()
+        saveProfile()
         startPlanning()
     }
 
@@ -544,7 +600,7 @@ final class OnboardingModel {
     func startPlanning() {
         // 選び直した時は、前の計画の下書きを使わない。
         draft = nil
-        UserDefaults.standard.removeObject(forKey: Self.draftKey)
+        if purpose == .onboarding { UserDefaults.standard.removeObject(forKey: Self.draftKey) }
         if hasPlan() {
             go(.planWait)
         } else {
@@ -556,7 +612,7 @@ final class OnboardingModel {
     var planChips: [String] {
         var chips: [String] = []
         if profile.route == .range {
-            if let until = profile.untilTest { chips.append(until.hasPrefix("まだ") ? "テストはまだ先" : "テストまで \(until)") }
+            if deadline == nil, let until = profile.untilTest { chips.append(until.hasPrefix("まだ") ? "テストはまだ先" : "テストまで \(until)") }
             if !materials.isEmpty { chips.append("問題のページ \(materials.count)枚") }
         }
         if profile.route == .university, !materials.isEmpty { chips.append("資料 \(materials.count)件") }
@@ -594,9 +650,11 @@ final class OnboardingModel {
 
     func planRequest() -> LedgerJSON {
         var request: [String: LedgerJSON] = ["task": .string("onboarding_plan"), "route": .string((profile.route ?? .unsure).rawValue)]
-        if let grade = profile.grade, grade != OnboardingProfile.universityGrade { request["grade"] = .string(grade) }
+        if let grade = unitGrade ?? profile.grade, grade != OnboardingProfile.universityGrade { request["grade"] = .string(grade) }
         if let unit = profile.unit, profile.route == .range || profile.route == .weak { request["unit"] = .string(unit) }
         if profile.route == .range, let until = profile.untilTest { request["until_test"] = .string(until) }
+        if profile.route == .range, let deadline { request["deadline"] = .string(StudyDeadline.isoDay(deadline)) }
+        if purpose == .unitCreation, !existingUnits.isEmpty { request["existing_units"] = .array(existingUnits.map(LedgerJSON.string)) }
         if profile.route == .university {
             request["topic"] = .string(profile.universityTopic ?? "")
             request["goal"] = .string(profile.universityGoal ?? "")
@@ -621,13 +679,14 @@ final class OnboardingModel {
         planTask = Task {
             defer { planTask = nil }
             do {
-                let plan = try await OnboardingTurns.planPlan(assets: assets, planID: LedgerID.make(), request: request, imagePaths: images)
+                let plan = try await OnboardingTurns.planPlan(assets: assets, planID: LedgerID.make(), request: request, imagePaths: images,
+                                                              setup: purpose == .unitCreation ? .unit : .plan)
                 let text = try await OnboardingTurns.run(plan, turns: turns, runner: runner, limit: OnboardingTurns.planTimeLimit)
                 guard let draft = OnboardingTurns.parsePlan(text) else { throw OnboardingTurns.Failure.malformed }
                 self.draft = draft
                 self.resetChecks()
                 self.revisionFrom = nil
-                if let data = try? JSONEncoder().encode(draft) { UserDefaults.standard.set(data, forKey: Self.draftKey) }
+                if purpose == .onboarding, let data = try? JSONEncoder().encode(draft) { UserDefaults.standard.set(data, forKey: Self.draftKey) }
                 if step == .planWait { go(.plan, remember: false) }
             } catch {
                 onboardingLog.error("plan failed: \(String(describing: error), privacy: .public)")
@@ -735,7 +794,7 @@ final class OnboardingModel {
     func rebuildPlan(tooHard: Bool) {
         let previous = draft?.subunits.map(\.title) ?? []
         draft = nil
-        UserDefaults.standard.removeObject(forKey: Self.draftKey)
+        if purpose == .onboarding { UserDefaults.standard.removeObject(forKey: Self.draftKey) }
         resetChecks()
         if tooHard {
             revisionFrom = previous
@@ -763,12 +822,15 @@ final class OnboardingModel {
         isStarting = true
         defer { isStarting = false }
         let specs = draft.subunits.map { WorkbookMachine.SubunitSpec(title: $0.title, outcome: $0.outcome, n: $0.n, scoringUnit: $0.scoringUnit) }
-        let overview: LedgerJSON = .object([
-            "unit_title": .string(draft.unitTitle), "outcome": .string(draft.outcome), "source": .string("onboarding"),
+        var overviewFields: [String: LedgerJSON] = [
+            "unit_title": .string(draft.unitTitle), "outcome": .string(draft.outcome), "source": .string(purpose == .unitCreation ? "unit_creation" : "onboarding"),
             "subunits": .array(draft.subunits.map { .object(["title": .string($0.title), "outcome": .string($0.outcome), "n": .number(Double($0.n)), "scoring_unit": .string($0.scoringUnit), "note": .string($0.note)]) }),
-        ])
+        ]
+        if let deadline { overviewFields["deadline"] = .string(StudyDeadline.isoDay(deadline)) }
+        let overview: LedgerJSON = .object(overviewFields)
         // 確認の1問で解けた小単元(位置の順)。
         let passedIndices: [Int] = checkPassed.filter(\.value).map(\.key).sorted()
+        let createdUnitID: String
         do {
             let (unitID, subunitID) = try await ledger.commit { db in
                 var workbook = try WorkbookMachine(loading: db)
@@ -786,10 +848,16 @@ final class OnboardingModel {
                     return (timeline.events, ())
                 }
             }
+            createdUnitID = unitID
         } catch {
             onboardingLog.error("start plan failed: \(String(describing: error), privacy: .public)")
             planError = "計画を保存できませんでした。もう一度押してください。"
             return false
+        }
+        if purpose == .unitCreation {
+            // 単元を作る時は通知の設定を挟まない(オンボーディングで決めてある)。作った単元を開く。
+            onUnitCreated?(createdUnitID)
+            return true
         }
         UserDefaults.standard.removeObject(forKey: Self.draftKey)
         go(.notify, remember: false)
@@ -821,7 +889,7 @@ final class OnboardingModel {
     /// 終わった時: 計画の下書きと、途中の画面の印を消す。
     func finish() {
         profile.resumeStep = nil
-        profile.save()
+        saveProfile()
         UserDefaults.standard.removeObject(forKey: Self.draftKey)
     }
 
