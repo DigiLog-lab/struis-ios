@@ -56,4 +56,34 @@ final class UnitCreationUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 10), .completed, "単元を作る画面が閉じない")
         UITestSupport.saveProbe(app, name: "unit-creation-5-unit")
     }
+
+    /// 本物の Claude で、単元を作る時の計画づくり(期限の日付・すでにある単元を渡す)が計画を返すか。
+    /// Dev Box で `TEST_RUNNER_STRUIS_REAL_CLAUDE_KEY_FILE` を渡した時だけ走る(費用がかかるので手動)。
+    @MainActor
+    func testRealClaudeMakesAPlanForTheChosenUnitAndDeadline() throws {
+        let key = ProcessInfo.processInfo.environment["STRUIS_REAL_CLAUDE_KEY_FILE"] ?? ""
+        try XCTSkipIf(key.isEmpty, "TEST_RUNNER_STRUIS_REAL_CLAUDE_KEY_FILE が無い (実 Claude 検証は手動)")
+        let app = app()
+        app.launchEnvironment["STRUIS_DEVICE_TURNS"] = nil
+        app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "1"
+        app.launchEnvironment["STRUIS_DEBUG_ANTHROPIC_KEY_FILE"] = key
+        app.launch()
+        let create = app.buttons["workbook-create-unit"].firstMatch
+        XCTAssertTrue(create.appears(timeout: 30))
+        create.tap()
+        app.buttons["onboarding-intent-range"].firstMatch.tap()
+        let unit = app.buttons["unit-creation-unit-平方根"].firstMatch
+        XCTAssertTrue(unit.appears(timeout: 10))
+        unit.tap()
+        app.buttons["unit-creation-until-休みが終わるまで"].firstMatch.tap()
+        app.buttons["unit-creation-plan"].firstMatch.tap()
+        let start = app.buttons["onboarding-plan-start"].firstMatch
+        if !start.appears(timeout: 300) { UITestSupport.saveProbe(app, name: "unit-creation-real-missing") }
+        XCTAssertTrue(start.exists, "本物の Claude の計画が出ない")
+        XCTAssertTrue(app.buttons["onboarding-plan-deadline"].exists, "期限の日付が無い")
+        UITestSupport.saveProbe(app, name: "unit-creation-real-plan")
+        start.tap()
+        XCTAssertTrue(app.navigationBars.element(boundBy: 0).appears(timeout: 20))
+        UITestSupport.saveProbe(app, name: "unit-creation-real-unit")
+    }
 }
