@@ -53,11 +53,12 @@ class Env:
             self.mock = None
             self.host = "api.anthropic.com"
             self.upstream = (self.host, 443)
-            assert key_file
-            self.api_key = open(key_file).read().strip()
+            # キーなしの時は、形だけ本物に似せたダミーを使う。API は 401 を返すが、TLS の層の受け付けは確かめられる
+            self.api_key = open(key_file).read().strip() if key_file else "sk-ant-api03-" + "D" * 93
             self.upstream_ca = None
-            self.model_a = ""
-            self.model_b = ""
+            self.model_a = "" if key_file else "claude-haiku-5-5"
+            self.model_b = "" if key_file else "claude-sonnet-5-5"
+        self.keyless: bool = target != "mock" and not key_file
 
     def policy(self, prefix: bytes, suffix: bytes = b"", keep_alive: bool = False) -> Policy:
         return Policy(host=self.host, api_key=self.api_key, body_prefix=prefix, body_suffix=suffix,
@@ -204,11 +205,19 @@ def check_handoff(env: Env, rule: str, with_suffix_mode: bool, label: str) -> Ru
     else:
         issuer = run.phone.verify_server_chain()
     status, headers, body = run.request(middle, use_suffix)
-    info: dict[str, Any] = summarize(body)
-    ok: bool = status == 200 and bool(info.get("text")) and info.get("delta_usage") is not None
-    record(f"{label} handoff", ok,
-           f"HTTP {status}, model={info.get('model')}, text={info.get('text', '')[:20]!r}, "
-           f"usage={info.get('delta_usage')}, server cert issuer={issuer}")
+    if env.keyless:
+        ok = status == 401 and b"authentication_error" in body and "request-id" in headers
+        record(f"{label} reaches the API through the public entrance", ok,
+               f"HTTP {status} {json.loads(body).get('error', {}).get('type')} with a request-id (dummy key), "
+               f"server={headers.get('server')}, server cert issuer={issuer}")
+        info = {"text": "authentication_error"}
+    else:
+        info = summarize(body)
+        ok = status == 200 and bool(info.get("text")) and info.get("delta_usage") is not None
+    if not env.keyless:
+        record(f"{label} handoff", ok,
+               f"HTTP {status}, model={info.get('model')}, text={info.get('text', '')[:20]!r}, "
+               f"usage={info.get('delta_usage')}, server cert issuer={issuer}")
     if not ok:
         print("   body:", body[:300])
         return None
@@ -253,6 +262,55 @@ def check_no_keyupdate(env: Env) -> None:
         record("C06 control without KeyUpdate", False, f"unexpected HTTP {status}")
     except Exception as e:              # noqa: BLE001
         record("C06 control without KeyUpdate", True, f"server refused the body: {type(e).__name__} {e}"[:120])
+
+
+def check_stale_tail(env: Env) -> None:
+    """対照: 3 世代目(relay の末尾)を古い世代の鍵で書かせると、サーバーは受け付けない。"""
+    from ssp.channel import send_frame
+    from ssp.phone import key_iv
+    from tlslite.constants import KeyUpdateMessageType
+    msgs: str = user_content("hi")
+    prefix, middle, suffix, _ = split_body(env, env.model_a or "x", 8, msgs, "last")
+    run: Run = Run(env, env.policy(prefix, suffix))
+    run.phone.handshake()
+    old_key, old_iv = key_iv(bytes(run.phone.conn.session.cl_app_secret))
+    run.phone._hand_current_generation("head", middle_len=len(middle))
+    run.phone.conn.write(middle)
+    for _ in run.phone.conn.send_keyupdate_request(KeyUpdateMessageType.update_not_requested):
+        pass
+    send_frame(run.phone.outer, b"H", json.dumps({"role": "suffix", "key": old_key.hex(), "iv": old_iv.hex()}).encode(),
+               run.phone.tunnel.lock)
+    try:
+        status, _, _ = run.phone.read_response()
+        record("C03c control: relay tail under a stale key", False, f"unexpected HTTP {status}")
+    except Exception as e:              # noqa: BLE001
+        record("C03c control: relay tail under a stale key", True, f"server refused: {type(e).__name__} {e}"[:120])
+
+
+def check_keepalive_keyless(env: Env, count: int) -> None:
+    """キーなし: 同じ TLS 接続で受け渡しを繰り返し、毎回 API の応答(401)が返ることを見る。"""
+    msgs: str = user_content("hi")
+    prefix, middle, suffix, use_suffix = split_body(env, env.model_a, 8, msgs, "last")
+    run: Run = Run(env, env.policy(prefix, suffix, keep_alive=True))
+    run.phone.handshake()
+    done: int = 0
+    detail: str = ""
+    try:
+        for i in range(count):
+            if i:
+                run.phone.send_keyupdate()
+            status, headers, body = run.request(middle, use_suffix)
+            if status != 401 or b"authentication_error" not in body:
+                detail = f"request {i + 1}: HTTP {status}"
+                break
+            done += 1
+            if headers.get("connection", "").lower() == "close":
+                detail = f"the server closed the connection after response {i + 1}"
+                break
+    except Exception as e:              # noqa: BLE001
+        detail = f"after {done}: {type(e).__name__} {e}"[:140]
+    record("C10k connection reuse at the TLS layer", done == count,
+           f"{done}/{count} API responses on one TLS connection, {done * 4 - 1} KeyUpdates accepted {detail}")
 
 
 def check_sni(env: Env) -> None:
@@ -493,6 +551,8 @@ def main() -> int:
     env: Env = Env(a.target, a.key_file)
     only: set[str] = set(filter(None, a.only.split(",")))
 
+    failed: list[str]
+
     def step(name: str, fn: Callable[[], Any]) -> Any:
         if only and name not in only and name not in ("models", "dup"):
             return None
@@ -503,11 +563,22 @@ def main() -> int:
             traceback.print_exc(limit=4)
             return None
 
+    if env.keyless:
+        step("handoff", lambda: check_handoff(env, "first", False, "C02 two generations (relay head, phone body)"))
+        step("handoff3", lambda: check_handoff(env, "last", True, "C03 three generations (relay head, phone body, relay tail)"))
+        step("nokeyupdate", lambda: check_no_keyupdate(env))
+        step("staletail", lambda: check_stale_tail(env))
+        step("sni", lambda: check_sni(env))
+        step("reuse", lambda: check_keepalive_keyless(env, a.reuse))
+        failed = [c for c, ok, _ in RESULTS if not ok]
+        print(f"SUMMARY {len(RESULTS) - len(failed)} passed, {len(failed)} failed" + (f": {failed}" if failed else ""))
+        return 1 if failed else 0
     step("models", lambda: check_models_and_format(env))
     rule: str = step("dup", lambda: check_duplicate_keys(env)) or "first"
     step("handoff", lambda: check_handoff(env, rule, False, "C02 two generations (relay head, phone body)"))
     step("handoff3", lambda: check_handoff(env, rule, True, "C03 three generations (relay head, phone body, relay tail)"))
     step("nokeyupdate", lambda: check_no_keyupdate(env))
+    step("staletail", lambda: check_stale_tail(env))
     step("sni", lambda: check_sni(env))
     step("pinning", lambda: check_pinning(env, rule))
     step("proof", lambda: check_proof(env, rule))
