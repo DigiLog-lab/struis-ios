@@ -541,6 +541,60 @@ def check_perf(env: Env, rule: str, n: int, delay: float) -> None:
     record(f"C12 overhead measured (one-way delay {int(delay * 1000)}ms, n={n})", all_ok, " || ".join(lines))
 
 
+def check_perf_reuse(env: Env, rule: str, n: int, delay: float) -> None:
+    """接続を使い回した時の、1 リクエストあたりの初回トークンまでの時間(直結との比較)。"""
+    msgs: str = user_content("Reply with the single word OK. " + "x" * 900)
+    full: bytes = (f'{{"model":{json.dumps(env.model_a)},"max_tokens":24,"stream":true,'
+                   f'"messages":{msgs}}}').encode()
+    head: bytes = (f"POST /v1/messages HTTP/1.1\r\nHost: {env.host}\r\nanthropic-version: 2023-06-01\r\n"
+                   f"content-type: application/json\r\ncontent-length: {len(full)}\r\n"
+                   f"x-api-key: {env.api_key}\r\n\r\n").encode()
+    meter: Meter = Meter(env.upstream, delay)
+    conn: TLSConnection = tls_client(("127.0.0.1", meter.port), env.host)
+    reader: HttpReader = HttpReader(lambda: bytes(conn.read(max=65536, min=1)))
+    direct_t: list[float] = []
+    direct_b: list[int] = []
+    ok: bool = True
+    for i in range(n + 1):
+        before: int = meter.up + meter.down
+        t: float = time.time()
+        reader.t_first_text = None
+        conn.write(head + full)
+        status, _, _ = reader.response()
+        ok = ok and status == 200
+        if i:
+            direct_t.append((reader.t_first_text or reader.t_end) - t)
+            direct_b.append(meter.up + meter.down - before)
+    prefix, middle, suffix, use_suffix = split_body(env, env.model_a, 24, msgs, rule)
+    run: Run = Run(env, env.policy(prefix, suffix, keep_alive=True), delay=delay)
+    run.phone.handshake()
+    split_t: list[float] = []
+    split_b: list[int] = []
+    proof_b: list[int] = []
+    for i in range(n + 1):
+        before = run.meter.up + run.meter.down
+        t = time.time()
+        if i:
+            run.phone.send_keyupdate()
+        status, _, _ = run.request(middle, use_suffix)
+        first: float = (run.phone.t_first_text or run.phone.t_end) - t
+        time.sleep(0.05)
+        used: int = run.meter.up + run.meter.down - before
+        verdict, stats = run.phone.prove(run.phone.build_statement(include_message_start=False))
+        ok = ok and status == 200 and bool(verdict.get("accepted"))
+        if i:
+            split_t.append(first)
+            split_b.append(used)
+            proof_b.append(stats["proof_bytes"])
+    dm: float = statistics.median(direct_t)
+    sm: float = statistics.median(split_t)
+    record(f"C13 reused connection (one-way delay {int(delay * 1000)}ms, n={n})", ok,
+           f"first-token time per request: split {sm:.3f}s (min {min(split_t):.3f}, max {max(split_t):.3f}) vs direct "
+           f"{dm:.3f}s (min {min(direct_t):.3f}, max {max(direct_t):.3f}), diff {sm - dm:+.3f}s ({(sm / dm - 1) * 100:+.1f}%); "
+           f"bytes per request without the proof: split {statistics.median(split_b):.0f} vs direct "
+           f"{statistics.median(direct_b):.0f}; proof {statistics.median(proof_b):.0f}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--target", default="mock")
@@ -588,6 +642,7 @@ def main() -> int:
     step("reuse", lambda: check_keepalive(env, rule, a.reuse))
     for d in [float(x) for x in a.delays.split(",") if x]:
         step("perf", lambda d=d: check_perf(env, rule, a.perf_n, d))
+        step("perfreuse", lambda d=d: check_perf_reuse(env, rule, max(a.perf_n, 3) * 2, d))
     failed: list[str] = [c for c, ok, _ in RESULTS if not ok]
     print(f"SUMMARY {len(RESULTS) - len(failed)} passed, {len(failed)} failed" + (f": {failed}" if failed else ""))
     if env.mock is not None and env.mock.errors:
