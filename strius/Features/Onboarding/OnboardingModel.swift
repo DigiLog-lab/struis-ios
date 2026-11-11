@@ -755,7 +755,7 @@ final class OnboardingModel {
         var chips: [String] = []
         if profile.route == .range {
             if deadline == nil, let until = profile.untilTest { chips.append(until.hasPrefix("まだ") ? "テストはまだ先" : "テストまで \(until)") }
-            if !materials.isEmpty { chips.append("問題のページ \(materials.count)枚") }
+            if !materials.isEmpty { chips.append(reading == nil ? "問題のページ \(materials.count)枚" : "撮った写真 \(materials.count)枚") }
         }
         if profile.route == .university, !materials.isEmpty { chips.append("資料 \(materials.count)件") }
         return chips
