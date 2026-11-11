@@ -599,7 +599,8 @@ final class OnboardingModel {
     func skipMaterials() {
         clearMaterials()
         reading = nil
-        deadline = nil
+        // 読み取った試験日は捨て、本人が選んだ「いつまでに」があればそれから決め直す(表示と送る日付をそろえる)。
+        deadline = profile.untilTest.flatMap { StudyDeadline.date(for: $0, from: Date()) }
         go(.universityChoices)
     }
 

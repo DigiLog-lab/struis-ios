@@ -456,6 +456,21 @@ final class OnboardingTests: XCTestCase {
         XCTAssertEqual(university.step, .capture, "大学生は撮る画面に戻る")
         XCTAssertNil(university.deadline)
         XCTAssertNil(university.reading)
+
+        // 「資料なしで作る」で「いつまでに」を選び、戻ってもう一度「資料なしで作る」にしても、選んだ期限を送る。
+        university.skipMaterials()
+        university.selectUntilTest("1週間以内")
+        university.back()
+        XCTAssertEqual(university.step, .capture)
+        university.skipMaterials()
+        XCTAssertEqual(university.profile.untilTest, "1週間以内")
+        XCTAssertNotNil(university.deadline)
+        // 読み取った試験日だけがある時は、それを持ち込まない。
+        university.back()
+        university.profile.untilTest = nil
+        university.deadline = StudyDeadline.day(from: "2027-01-26")
+        university.skipMaterials()
+        XCTAssertNil(university.deadline)
     }
 
     func testReadingARangeSheetMakesARangePlanWithItsPagesAndTestDate() throws {
