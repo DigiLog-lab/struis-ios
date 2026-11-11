@@ -26,6 +26,20 @@ final class UnitMaterialAttachTests: XCTestCase {
         XCTAssertEqual(rows.map(\.ref), ["p.62〜65", nil, "第4回"])
     }
 
+    func testThePageSurvivesPassingTheSubunitByTheCheck() async throws {
+        let ledger = try Ledger.inMemory()
+        let unitID = try await seed(ledger, route: "range", refs: ["p.62〜65", "p.66〜69", ""])
+        try await ledger.commit { db in
+            var workbook = try WorkbookMachine(loading: db)
+            for row in workbook.orderedSubunits(unitID: unitID).prefix(2) { workbook.passByCheck(subunitID: row.id) }
+            return (workbook.events, ())
+        }
+        let after = try await machine(ledger)
+        let rows = after.orderedSubunits(unitID: unitID)
+        XCTAssertEqual(rows.prefix(2).map { after.subunitSummary($0).ref }, ["p.62〜65", "p.66〜69"])
+        XCTAssertTrue(rows.prefix(2).allSatisfy(WorkbookMachine.passedByCheck))
+    }
+
     func testAttachingPagesSetsThemOnTheSubunitsWithoutAddingAny() async throws {
         let ledger = try Ledger.inMemory()
         let unitID = try await seed(ledger, route: "range", refs: ["p.62〜65", "", ""])

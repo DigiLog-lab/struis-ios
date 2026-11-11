@@ -747,7 +747,7 @@ nonisolated struct WorkbookMachine {
     mutating func passByCheck(subunitID: String) {
         guard let subunit = subunits[subunitID], subunit.status != "passed" else { return }
         var row = subunit
-        row.metadata = .object(["passed_by": .string("onboarding_check")])
+        row.metadata = Self.merge(row.metadata, ["passed_by": .string("onboarding_check")])
         if subunit.status == "active" {
             _ = passSubunit(row)
             return

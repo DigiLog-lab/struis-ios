@@ -23,8 +23,11 @@ final class UnitMaterialAttacher {
         let universityLearner = OnboardingProfile.load()?.isUniversity ?? false
         Task {
             defer { runningUnitIDs.remove(unitID) }
+            var paths: [String] = []
+            // 写真は割り当てに使うだけで単元に残さない(残すと単元を消しても消えない)。終わったら、失敗しても消す。
+            defer { Self.removePhotos(paths) }
             do {
-                let paths = try photos.prefix(8).map { try OnboardingModel.store($0, folder: "workbook/materials") }
+                for photo in photos.prefix(8) { paths.append(try OnboardingModel.store(photo, folder: "workbook/materials")) }
                 let ledger = learnerData.ledger
                 guard let request = try await ledger.read({ db in
                     Self.request(machine: try WorkbookMachine(loading: db), unitID: unitID, universityLearner: universityLearner)
@@ -49,6 +52,10 @@ final class UnitMaterialAttacher {
                 errors[unitID] = (error as? LocalizedError)?.errorDescription ?? "読み取れませんでした。もう一度撮ってください。"
             }
         }
+    }
+
+    nonisolated static func removePhotos(_ paths: [String]) {
+        for path in paths { try? FileManager.default.removeItem(at: StruisPaths.captures.appendingPathComponent(path)) }
     }
 
     nonisolated struct Request: Sendable {
