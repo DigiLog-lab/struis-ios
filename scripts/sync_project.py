@@ -187,7 +187,9 @@ def main() -> int:
     # 1b. Prune references to Swift files that no longer exist on disk (renames).
     for match in re.finditer(r"\t\t([0-9A-F]{24,25}) /\* ([^*]+\.swift) \*/ = \{isa = PBXFileReference;[^\n]*\n", project.text):
         file_id, name = match.group(1), match.group(2)
-        if not list(app_root.rglob(name)) and not list((PROJECT_DIR / "NativeRuntime").rglob(name)):
+        # StruisClip/ is the App Clip's own folder (scripts/sync_app_clip.rb keeps its references).
+        if not list(app_root.rglob(name)) and not list((PROJECT_DIR / "NativeRuntime").rglob(name)) \
+                and not list((PROJECT_DIR / "StruisClip").rglob(name)):
             project.text = re.sub(rf"\t\t{file_id} /\* {re.escape(name)} \*/ = \{{isa = PBXFileReference;[^\n]*\n", "", project.text)
             project.text = re.sub(rf"\t\t\t\t{file_id} /\* {re.escape(name)} \*/,\n", "", project.text)
             project.text = re.sub(rf"\t\t([0-9A-F]{{24,25}}) /\* {re.escape(name)} in Sources \*/ = \{{isa = PBXBuildFile; fileRef = {file_id}[^\n]*\n", "", project.text)
@@ -208,6 +210,7 @@ def main() -> int:
         print("project.pbxproj already up to date")
     import subprocess
     subprocess.run(["ruby", str(HERE / "sync_native_runtime.rb")], check=True)
+    subprocess.run(["ruby", str(HERE / "sync_app_clip.rb")], check=True)
     subprocess.run([sys.executable, str(HERE / "sync_test_resources.py")], check=True)
     return 0
 

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		01C63A5AEFA4AE1111D3C131 /* PythonCommand.m in Sources */ = {isa = PBXBuildFile; fileRef = A147F65FD153DE7E33C86E7C /* PythonCommand.m */; };
+		0646541DAF9D584B66CFE15B /* TimeAttackClaude.swift in Sources */ = {isa = PBXBuildFile; fileRef = E86C22E8E9AD8E6C3B59FD3C /* TimeAttackClaude.swift */; };
 		10464D9E20A587D3F9E8AA35 /* files-native.xcframework in Embed Native Frameworks */ = {isa = PBXBuildFile; fileRef = 39F603ED2BB0D6E350A71DA6 /* files-native.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		17C8266FA86E6432F1F0C8C5 /* TimelineMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63FEBAE568FDA5E20EBE7967 /* TimelineMachine.swift */; };
 		1A3357E3728A3E20338F27ED /* OnboardingModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EA1A8F777CF7B9E24493BCF /* OnboardingModel.swift */; };
@@ -15,18 +16,28 @@
 		213F481E905465B5962C6FB5 /* math in Resources */ = {isa = PBXBuildFile; fileRef = 8AF46D7EECDE4B5EB431D081 /* math */; };
 		25D9388D6B8072AD70EB5F78 /* OnboardingRecords.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F92DDD645A904120FA57750 /* OnboardingRecords.swift */; };
 		27938BC2DDDC4A75B40FF2C5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B4D776509AEF42EEB3A59D7A /* PrivacyInfo.xcprivacy */; };
+		283E2FE8A754741E49C556B2 /* StruisClipApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5CC0FCE610280A6C0A62383 /* StruisClipApp.swift */; };
 		28A97A05E707E328626BB54C /* TimelineParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 833CCE513E78354E7FE8CB3E /* TimelineParts.swift */; };
 		2B7ECE02890F0AF50AA91B1A /* TimelineCardContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34208B315DFCB1CD386D3343 /* TimelineCardContent.swift */; };
+		2BB313FD5CC0C5F26650C5F8 /* TimeAttackParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F858E89B11D83819034AD4 /* TimeAttackParts.swift */; };
+		2E00133097E41A2598438D9C /* TimeAttackSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C5DD61BE5277E7358E1D8E /* TimeAttackSession.swift */; };
+		37E45F4CE4C3BACB5A230A9F /* StruisClip.app in Embed App Clips */ = {isa = PBXBuildFile; fileRef = 4C256558A5D4FC4588A3A050 /* StruisClip.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3A89FB606BB76E53890A1F9D /* TimelineRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E0302BEB4AE02B1638D2E0A /* TimelineRows.swift */; };
 		3FDDE02DFE42E1CA620ABD93 /* OnboardingTurns.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABDC12EAE4AEF1D43231D48 /* OnboardingTurns.swift */; };
+		40B3ADC8DBF68B677B5BAA90 /* ClipTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AC1D485504F53EA04F27DD9 /* ClipTransport.swift */; };
 		41BB32EB3F4BD877C8C0B83F /* GraphicsModule.m in Sources */ = {isa = PBXBuildFile; fileRef = C9FC09F48008ED79CFDE57B8 /* GraphicsModule.m */; };
+		43BB800A3BFD2438A49444E4 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000F /* Typography.swift */; };
 		4503B504B6C5CDDACB758DF7 /* text-native.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6501D2306BFF134780428A95 /* text-native.xcframework */; };
 		4A78D880B2BEEAD8BE285185 /* commandDictionary.plist in Resources */ = {isa = PBXBuildFile; fileRef = DB2B45F1B944E983DCD2261D /* commandDictionary.plist */; };
 		4DA5014B680942B4F234A636 /* NativeMemory.m in Sources */ = {isa = PBXBuildFile; fileRef = 242F872B17DBD44D273A81CD /* NativeMemory.m */; };
 		4F8C8B5CC33397F21B4870D5 /* WorkerSupport.m in Sources */ = {isa = PBXBuildFile; fileRef = EB37DFAA98F75CEEDF9B91BA /* WorkerSupport.m */; };
 		502C25E601AED6381FBAE410 /* awk-native.xcframework in Embed Native Frameworks */ = {isa = PBXBuildFile; fileRef = 0F4A7AC74B1BCF3A36A1C32F /* awk-native.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		54A8A5118D6F95C08CCCA0CC /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = 129DD732D6FAACE3ABA13105 /* SwiftMath */; };
 		54CB1AC84DB7F05328E777C9 /* TimelineCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 804E6CA24FAD8D46755DF731 /* TimelineCards.swift */; };
+		559369A7517A0E0FD772D9EB /* TimeAttack.swift in Sources */ = {isa = PBXBuildFile; fileRef = E895B82C00753CAA1293F7A8 /* TimeAttack.swift */; };
 		56AD640DEC11873C7BE32250 /* VirtualPythonProviderAdapter.m in Sources */ = {isa = PBXBuildFile; fileRef = 8D497C7C0F92716D8145D543 /* VirtualPythonProviderAdapter.m */; };
+		5B0EB8F1294E7C1A33DE398E /* TimelineExpression.swift in Sources */ = {isa = PBXBuildFile; fileRef = 807F62CB64FE8239B5C8353B /* TimelineExpression.swift */; };
+		5BBC99D130DDBCF6E9CEEFC9 /* ZenKakuGothicNew-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000025 /* ZenKakuGothicNew-Medium.ttf */; };
 		5C3C95073E8EF7A4962801BB /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A9B904B6EDF7A3A37B4EFFCA /* Foundation.framework */; };
 		6180E922A049285506DA72DA /* VirtualPythonCommandBridge.c in Sources */ = {isa = PBXBuildFile; fileRef = 61D94DD18103D2F659706E73 /* VirtualPythonCommandBridge.c */; };
 		62CAFF10370C45972ACD7242 /* shell-native.xcframework in Embed Native Frameworks */ = {isa = PBXBuildFile; fileRef = CE2DE0C3EEDB761A308E6FBA /* shell-native.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -38,8 +49,11 @@
 		748483B7FEF37237347F2267 /* RuntimeWorker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 600AAD1ADAD0EF23A2C863BC /* RuntimeWorker.swift */; };
 		762AAAA38C353E9D675D827A /* handwritten_eigenvalue.jpeg in Resources */ = {isa = PBXBuildFile; fileRef = 4E78FB100E0C357B23E4CA01 /* handwritten_eigenvalue.jpeg */; };
 		77301C7898B12DA4933CCD4E /* ios_system-native.xcframework in Embed Native Frameworks */ = {isa = PBXBuildFile; fileRef = C708FB4913FA457422391CCA /* ios_system-native.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		77EDE6679A8CB19A27F9DB9C /* TimeAttackViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8DC11EE73DDA0FAC7904D20 /* TimeAttackViews.swift */; };
 		7A3F0A112F9A010000000001 /* Auth0 in Frameworks */ = {isa = PBXBuildFile; productRef = 7A3F0A102F9A010000000001 /* Auth0 */; };
+		7D0B95F29C035E1DC2DFFAC4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AF8F507B41CC87E695C5474D /* Assets.xcassets */; };
 		7F2137BB93FD6387FE8AC370 /* TimelineTurns.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9BAEF74E6FF625CB4C478F3 /* TimelineTurns.swift */; };
+		8851DBF33339515AE986A847 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3F5667202D3BE0E32B65BBD0 /* Foundation.framework */; };
 		8F589A0181345DE327C0CB89 /* RuntimeProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45A75C48B8CAA19EDCFFF70F /* RuntimeProtocol.swift */; };
 		9300634436D74C4BBE35699D /* TimelineExpression.swift in Sources */ = {isa = PBXBuildFile; fileRef = 807F62CB64FE8239B5C8353B /* TimelineExpression.swift */; };
 		9ADC57BCA8681DFD06DAFB4D /* SubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D3C05E10B1D418B8FDF5E0A /* SubscriptionStore.swift */; };
@@ -120,6 +134,8 @@
 		C3E2C4ECB3CD89A0FE228096 /* OnboardingComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A92509D417CAD3B707B836D0 /* OnboardingComponents.swift */; };
 		C57B8AB183C78EEF8B637A05 /* RuntimeProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45A75C48B8CAA19EDCFFF70F /* RuntimeProtocol.swift */; };
 		C90A9BEA6E1AEDB683302487 /* OnboardingCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFEFCD816EAED0FA770EAA8F /* OnboardingCatalog.swift */; };
+		CB7E1677779C53AA0FFABB60 /* ZenKakuGothicNew-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000026 /* ZenKakuGothicNew-Bold.ttf */; };
+		CD2559E1D849D8DBE4705FEA /* ZenKakuGothicNew-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000024 /* ZenKakuGothicNew-Regular.ttf */; };
 		CED4CA99837D0A01C9C5A083 /* VirtualPythonCommandBridgeAppleProbe.c in Sources */ = {isa = PBXBuildFile; fileRef = 58E451C924D6F060CB452D85 /* VirtualPythonCommandBridgeAppleProbe.c */; };
 		D10000000000000000000001 /* WorkspaceBrowserDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* WorkspaceBrowserDTO.swift */; };
 		D10000000000000000000002 /* WorkspaceBrowserEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000002 /* WorkspaceBrowserEndpoints.swift */; };
@@ -128,6 +144,7 @@
 		D695067BAB723117A2F3BE37 /* NativeMemory.m in Sources */ = {isa = PBXBuildFile; fileRef = 242F872B17DBD44D273A81CD /* NativeMemory.m */; };
 		D894492EC6D44216AE79399D /* LearningErasure.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51E3ADEFFEC463598C12543 /* LearningErasure.swift */; };
 		DAD9ACDF25994615EE5782DE /* dash-native.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 210E5BD7415F4D2228F257DA /* dash-native.xcframework */; };
+		DD84C0D9201C05B1B5E4687E /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000E /* Theme.swift */; };
 		DDB62467031163CBE1C899D8 /* Licenses in Resources */ = {isa = PBXBuildFile; fileRef = 1605DCA98A0A9CC460934DDF /* Licenses */; };
 		DF7417F7B2FBE312887DEABA /* TimelineDipViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3F0CE00FDFB0E6441B2DC5E /* TimelineDipViews.swift */; };
 		E10000000000000000000001 /* ChatCamera.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000002 /* ChatCamera.swift */; };
@@ -229,6 +246,7 @@
 		E8F0895598AC156B5026A5A8 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = E8F39C7AF57EA0CBACE63F1D /* GRDB */; };
 		E8FA7ED68DEDF2BB69CB2B6F /* LedgerEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8AE201EA0D519FE16B607CA /* LedgerEvents.swift */; };
 		E8FC9D413D588D253C10BAF0 /* NativeRuntimeHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83B6F4E6822450D9CAFE155 /* NativeRuntimeHost.swift */; };
+		EDC5CCBA66196C389C79EBFF /* AppAttestClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C0D3E206D0D0B0702ADFCE /* AppAttestClient.swift */; };
 		EF55AF6D8620EE4ECF28C485 /* TimelineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E65AE9A79C0EBE31438EA058 /* TimelineStore.swift */; };
 		F03517B172B6667FD19A5E0F /* Python.xcframework in Embed Native Frameworks */ = {isa = PBXBuildFile; fileRef = 59F3E85D7A45B73661243CC0 /* Python.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		F10000000000000000000001 /* LearningProgressSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* LearningProgressSheet.swift */; };
@@ -273,6 +291,13 @@
 			remoteGlobalIDString = 992C09AC2F927BB8009FF690;
 			remoteInfo = strius;
 		};
+		9943B947D55267DA44F2F1FF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 992C09A52F927BB8009FF690 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6E96CACC5CEC1F0513DCCBD9;
+			remoteInfo = StruisClip;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -304,6 +329,17 @@
 			name = "Embed Runtime Extension";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CFDD8B04DC324066581D3952 /* Embed App Clips */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/AppClips";
+			dstSubfolderSpec = 16;
+			files = (
+				37E45F4CE4C3BACB5A230A9F /* StruisClip.app in Embed App Clips */,
+			);
+			name = "Embed App Clips";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -317,8 +353,10 @@
 		34208B315DFCB1CD386D3343 /* TimelineCardContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineCardContent.swift; sourceTree = "<group>"; };
 		39F603ED2BB0D6E350A71DA6 /* files-native.xcframework */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = wrapper.xcframework; name = "files-native.xcframework"; path = "Vendor/files-native.xcframework"; sourceTree = "<group>"; };
 		3CCDF6B0A0C3EA7362D61C81 /* TimelineGraph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineGraph.swift; sourceTree = "<group>"; };
+		3F5667202D3BE0E32B65BBD0 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		45A75C48B8CAA19EDCFFF70F /* RuntimeProtocol.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RuntimeProtocol.swift; path = Shared/RuntimeProtocol.swift; sourceTree = "<group>"; };
 		46CC480B8CC6DB1B7B9909AA /* RuntimeCommand.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; name = RuntimeCommand.m; path = Worker/RuntimeCommand.m; sourceTree = "<group>"; };
+		4C256558A5D4FC4588A3A050 /* StruisClip.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StruisClip.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E78FB100E0C357B23E4CA01 /* handwritten_eigenvalue.jpeg */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = image.jpeg; name = handwritten_eigenvalue.jpeg; path = striusUITests/Fixtures/handwritten_eigenvalue.jpeg; sourceTree = SOURCE_ROOT; };
 		4EA1A8F777CF7B9E24493BCF /* OnboardingModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingModel.swift; sourceTree = "<group>"; };
 		4FA428F9A4D7933D9213149B /* StudyReminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyReminder.swift; sourceTree = "<group>"; };
@@ -329,6 +367,7 @@
 		61D94DD18103D2F659706E73 /* VirtualPythonCommandBridge.c */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.c; name = VirtualPythonCommandBridge.c; path = Worker/VirtualPythonCommandBridge.c; sourceTree = "<group>"; };
 		63FEBAE568FDA5E20EBE7967 /* TimelineMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineMachine.swift; sourceTree = "<group>"; };
 		6501D2306BFF134780428A95 /* text-native.xcframework */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = wrapper.xcframework; name = "text-native.xcframework"; path = "Vendor/text-native.xcframework"; sourceTree = "<group>"; };
+		6AC1D485504F53EA04F27DD9 /* ClipTransport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClipTransport.swift; sourceTree = "<group>"; };
 		6E0302BEB4AE02B1638D2E0A /* TimelineRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineRows.swift; sourceTree = "<group>"; };
 		7E8C890FA310BDE40DFF28DE /* LearningTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningTimelineView.swift; sourceTree = "<group>"; };
 		804E6CA24FAD8D46755DF731 /* TimelineCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineCards.swift; sourceTree = "<group>"; };
@@ -340,6 +379,7 @@
 		8C57A3F8C8034E1E707EC6BB /* OnboardingTrialViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTrialViews.swift; sourceTree = "<group>"; };
 		8D497C7C0F92716D8145D543 /* VirtualPythonProviderAdapter.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; name = VirtualPythonProviderAdapter.m; path = Worker/VirtualPythonProviderAdapter.m; sourceTree = "<group>"; };
 		8FFF45B5DBAD571F7C0B8A5D /* CompoundDashPreparation.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; name = CompoundDashPreparation.m; path = Worker/CompoundDashPreparation.m; sourceTree = "<group>"; };
+		913E4A9105D51874936FCF2F /* StruisClip.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; path = StruisClip.entitlements; sourceTree = "<group>"; };
 		96ED82BACEF618A3D3793EE1 /* learning-feed */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = "learning-feed"; path = "striusTests/Fixtures/learning-feed"; sourceTree = SOURCE_ROOT; };
 		992C09AD2F927BB8009FF690 /* strius.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = strius.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		992C09BC2F927BB9009FF690 /* striusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = striusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -397,6 +437,7 @@
 		A92509D417CAD3B707B836D0 /* OnboardingComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingComponents.swift; sourceTree = "<group>"; };
 		A9B904B6EDF7A3A37B4EFFCA /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		A9BAEF74E6FF625CB4C478F3 /* TimelineTurns.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineTurns.swift; sourceTree = "<group>"; };
+		AF8F507B41CC87E695C5474D /* Assets.xcassets */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B20000000000000000000001 /* ProblemCatalogPrototypeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemCatalogPrototypeView.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* ProblemCatalogDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemCatalogDTO.swift; sourceTree = "<group>"; };
 		B20000000000000000000003 /* ProblemCatalogEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemCatalogEndpoints.swift; sourceTree = "<group>"; };
@@ -407,6 +448,7 @@
 		B20000000000000000000014 /* ProblemCatalogSheetsHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemCatalogSheetsHomeView.swift; sourceTree = "<group>"; };
 		B20000000000000000000015 /* ProblemCatalogSheetDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemCatalogSheetDetailView.swift; sourceTree = "<group>"; };
 		B20000000000000000000016 /* ProblemCatalogProblemDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProblemCatalogProblemDetailView.swift; sourceTree = "<group>"; };
+		B37AD073FCFD8B8FEC5BFDEE /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B4D776509AEF42EEB3A59D7A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = Worker/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B90F4C073D17D0649F6435C9 /* PythonModules */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; path = PythonModules; sourceTree = "<group>"; };
 		BB05E17118FB7AF5CDA81A6F /* TimelineRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineRules.swift; sourceTree = "<group>"; };
@@ -427,6 +469,7 @@
 		D20000000000000000000003 /* WorkspaceBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceBrowserView.swift; sourceTree = "<group>"; };
 		DB2B45F1B944E983DCD2261D /* commandDictionary.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; name = commandDictionary.plist; path = Resources/commandDictionary.plist; sourceTree = "<group>"; };
 		E10000000000000000000002 /* ChatCamera.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatCamera.swift; sourceTree = "<group>"; };
+		E5CC0FCE610280A6C0A62383 /* StruisClipApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StruisClipApp.swift; sourceTree = "<group>"; };
 		E65AE9A79C0EBE31438EA058 /* TimelineStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineStore.swift; sourceTree = "<group>"; };
 		E720000000000000000000001 /* WorkbookStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkbookStore.swift; sourceTree = "<group>"; };
 		E720000000000000000000003 /* WorkbookComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkbookComponents.swift; sourceTree = "<group>"; };
@@ -601,6 +644,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		9AD2D7CD4A73BD6EC762A556 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8851DBF33339515AE986A847 /* Foundation.framework in Frameworks */,
+				54A8A5118D6F95C08CCCA0CC /* SwiftMath in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -642,6 +694,7 @@
 			isa = PBXGroup;
 			children = (
 				A9B904B6EDF7A3A37B4EFFCA /* Foundation.framework */,
+				3F5667202D3BE0E32B65BBD0 /* Foundation.framework */,
 			);
 			name = iOS;
 			sourceTree = "<group>";
@@ -670,6 +723,7 @@
 				3715C2DE671DF3357FF2B47F /* NativeRuntime */,
 				E86D1A2AD9628654515BBDEA /* TestResources */,
 				B8F428206391F453EE32ED01 /* Config */,
+				B4FD351D1FC2E16BCF5DAEF8 /* StruisClip */,
 			);
 			sourceTree = "<group>";
 		};
@@ -680,6 +734,7 @@
 				992C09BC2F927BB9009FF690 /* striusTests.xctest */,
 				992C09C62F927BB9009FF690 /* striusUITests.xctest */,
 				FA3411766DF329BEF05F1053 /* StruisExec.appex */,
+				4C256558A5D4FC4588A3A050 /* StruisClip.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -898,6 +953,19 @@
 				B20000000000000000000016 /* ProblemCatalogProblemDetailView.swift */,
 			);
 			path = ProblemCatalog;
+			sourceTree = "<group>";
+		};
+		B4FD351D1FC2E16BCF5DAEF8 /* StruisClip */ = {
+			isa = PBXGroup;
+			children = (
+				AF8F507B41CC87E695C5474D /* Assets.xcassets */,
+				B37AD073FCFD8B8FEC5BFDEE /* Info.plist */,
+				913E4A9105D51874936FCF2F /* StruisClip.entitlements */,
+				6AC1D485504F53EA04F27DD9 /* ClipTransport.swift */,
+				E5CC0FCE610280A6C0A62383 /* StruisClipApp.swift */,
+			);
+			name = StruisClip;
+			path = StruisClip;
 			sourceTree = "<group>";
 		};
 		B8F428206391F453EE32ED01 /* Config */ = {
@@ -1214,6 +1282,26 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		6E96CACC5CEC1F0513DCCBD9 /* StruisClip */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 00734775096971A2893158A3 /* Build configuration list for PBXNativeTarget "StruisClip" */;
+			buildPhases = (
+				8897493145B96F427AB63DCC /* Sources */,
+				9AD2D7CD4A73BD6EC762A556 /* Frameworks */,
+				506E6763421C1A8766907887 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = StruisClip;
+			packageProductDependencies = (
+				129DD732D6FAACE3ABA13105 /* SwiftMath */,
+			);
+			productName = StruisClip;
+			productReference = 4C256558A5D4FC4588A3A050 /* StruisClip.app */;
+			productType = "com.apple.product-type.application.on-demand-install-capable";
+		};
 		992C09AC2F927BB8009FF690 /* strius */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 992C09D02F927BB9009FF690 /* Build configuration list for PBXNativeTarget "strius" */;
@@ -1224,11 +1312,13 @@
 				35FEBB115724553CF3F568C2 /* Embed Native Frameworks */,
 				9F72E8FF90A1881331D4588E /* Embed Runtime Extension */,
 				01802DC2358220C1183C5350 /* Package Python */,
+				CFDD8B04DC324066581D3952 /* Embed App Clips */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				0C8ED59A50676410B74DB9AA /* PBXTargetDependency */,
+				CF7D491D78E43445C662404F /* PBXTargetDependency */,
 			);
 			name = strius;
 			packageProductDependencies = (
@@ -1348,11 +1438,23 @@
 				992C09BB2F927BB9009FF690 /* striusTests */,
 				992C09C52F927BB9009FF690 /* striusUITests */,
 				B5735FEDAC15774D51889677 /* StruisExec */,
+				6E96CACC5CEC1F0513DCCBD9 /* StruisClip */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		506E6763421C1A8766907887 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7D0B95F29C035E1DC2DFFAC4 /* Assets.xcassets in Resources */,
+				CD2559E1D849D8DBE4705FEA /* ZenKakuGothicNew-Regular.ttf in Resources */,
+				5BBC99D130DDBCF6E9CEEFC9 /* ZenKakuGothicNew-Medium.ttf in Resources */,
+				CB7E1677779C53AA0FFABB60 /* ZenKakuGothicNew-Bold.ttf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		992C09AB2F927BB8009FF690 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1445,6 +1547,24 @@
 				56AD640DEC11873C7BE32250 /* VirtualPythonProviderAdapter.m in Sources */,
 				9E199A67F2C3D34ACA4648E7 /* CompoundDashPreparation.m in Sources */,
 				D68E7DE1E9263BE068C43524 /* TrustedPipeline.c in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8897493145B96F427AB63DCC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				559369A7517A0E0FD772D9EB /* TimeAttack.swift in Sources */,
+				0646541DAF9D584B66CFE15B /* TimeAttackClaude.swift in Sources */,
+				2BB313FD5CC0C5F26650C5F8 /* TimeAttackParts.swift in Sources */,
+				2E00133097E41A2598438D9C /* TimeAttackSession.swift in Sources */,
+				77EDE6679A8CB19A27F9DB9C /* TimeAttackViews.swift in Sources */,
+				DD84C0D9201C05B1B5E4687E /* Theme.swift in Sources */,
+				43BB800A3BFD2438A49444E4 /* Typography.swift in Sources */,
+				5B0EB8F1294E7C1A33DE398E /* TimelineExpression.swift in Sources */,
+				EDC5CCBA66196C389C79EBFF /* AppAttestClient.swift in Sources */,
+				40B3ADC8DBF68B677B5BAA90 /* ClipTransport.swift in Sources */,
+				283E2FE8A754741E49C556B2 /* StruisClipApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1671,6 +1791,12 @@
 			isa = PBXTargetDependency;
 			target = 992C09AC2F927BB8009FF690 /* strius */;
 			targetProxy = 992C09C72F927BB9009FF690 /* PBXContainerItemProxy */;
+		};
+		CF7D491D78E43445C662404F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = StruisClip;
+			target = 6E96CACC5CEC1F0513DCCBD9 /* StruisClip */;
+			targetProxy = 9943B947D55267DA44F2F1FF /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -2080,6 +2206,42 @@
 			};
 			name = Release;
 		};
+		D3C55E435E36AB306813DFAE /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A7F11B76CB73BBD0CA6B9BD7 /* Build.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = StruisClip/StruisClip.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 70;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = 4D4W8FMKMW;
+				ENABLE_PREVIEWS = NO;
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = StruisClip/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(STRUIS_BUNDLE_ID_BASE).Clip";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 		E2DD3051842765A776CA3BD4 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -2139,9 +2301,53 @@
 			};
 			name = Release;
 		};
+		EEE9A959974152E74A7E28E0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A7F11B76CB73BBD0CA6B9BD7 /* Build.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_ENTITLEMENTS = StruisClip/StruisClip.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 70;
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_TEAM = 4D4W8FMKMW;
+				ENABLE_PREVIEWS = NO;
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = x86_64;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = StruisClip/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0.1;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(STRUIS_BUNDLE_ID_BASE).Clip";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		00734775096971A2893158A3 /* Build configuration list for PBXNativeTarget "StruisClip" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D3C55E435E36AB306813DFAE /* Release */,
+				EEE9A959974152E74A7E28E0 /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		992C09A82F927BB8009FF690 /* Build configuration list for PBXProject "strius" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -2225,6 +2431,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		129DD732D6FAACE3ABA13105 /* SwiftMath */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E8A3D1C2B4F5061728394A5E /* XCRemoteSwiftPackageReference "SwiftMath" */;
+			productName = SwiftMath;
+		};
 		7A3F0A102F9A010000000001 /* Auth0 */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 7A3F0A0F2F9A010000000001 /* XCRemoteSwiftPackageReference "Auth0.swift" */;
