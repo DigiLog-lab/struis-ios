@@ -264,6 +264,12 @@ struct ChatView: View {
         .onChange(of: chat.pendingComposerDraft) { _, _ in
             consumePendingComposerDraft()
         }
+        // iPad の右の欄は開いたまま、別の問題の「質問」「解説」を押すと下書きだけが替わる(欄は作り直されない)。
+        // 新しい問題の下書きに入れ替える(前の問題の下書きのまま送らせない)。
+        .onChange(of: initialDraft) { _, draft in
+            guard let draft, !draft.isEmpty else { return }
+            chat.pendingComposerDraft = draft
+        }
         .onChange(of: composerFocused) { _, focused in
             if focused { onLearnerActivity?(.focusedComposer) }
         }
