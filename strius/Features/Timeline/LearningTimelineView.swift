@@ -34,6 +34,8 @@ struct LearningTimelineView: View {
     /// 上の帯と下の帯の間(`TimelineInkSpace.name` の座標)。iPhone の並びの書く面はここに置く。
     @State private var inkArea: CGRect = .zero
     @State private var isCameraPresented = false
+    /// タイムアタック(#133)。
+    @State private var timeAttack: TimeAttackSession?
     @State private var dragOffset: CGFloat = 0
     @State private var isResultAskPresented = false
     @State private var isDisputePresented = false
@@ -126,6 +128,9 @@ struct LearningTimelineView: View {
                 Task { await store.submit(image: data) }
             }
         }
+        .fullScreenCover(item: $timeAttack) { session in
+            TimeAttackFlowView(session: session) { timeAttack = nil }
+        }
         .sheet(isPresented: Binding(get: { store.isScopeSheetPresented }, set: { store.isScopeSheetPresented = $0 })) {
             TimelineScopeSheet(store: store)
                 .presentationDetents([.medium, .large])
@@ -157,10 +162,12 @@ struct LearningTimelineView: View {
             if layout.isPad {
                 // iPad: 「今日」は「単元」の隣に置き、右上は書く道具にする。
                 todayCount.padding(.leading, 16)
+                timeAttackButton.padding(.leading, 8)
                 Spacer()
                 if showsInkTools { inkTools }
             } else {
                 Spacer()
+                timeAttackButton
                 todayCount
             }
         }
@@ -172,6 +179,28 @@ struct LearningTimelineView: View {
         .gesture(DragGesture(minimumDistance: 30).onEnded { value in
             if value.translation.height > 80 { store.isStopSheetPresented = true }
         })
+    }
+
+    /// タイムアタック(#133): 今の分野のいちばん基礎の5問を、紙に解いて最後に1枚撮るまでの時間で競う。
+    @ViewBuilder
+    private var timeAttackButton: some View {
+        if let unit = TimelineTurns.currentUnit(workbook: store.workbook, timeline: store.machine) {
+            Button {
+                let context = TimelineTurns.sharedContext(workbook: store.workbook, timeline: store.machine)
+                timeAttack = TimeAttackSession(mode: .own(unitTitle: unit.title, context: context), transport: AppTimeAttackTransport())
+            } label: {
+                Image(systemName: "stopwatch")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Theme.primaryText)
+                    .frame(width: 40, height: 40)
+                    .background(Theme.card, in: Circle())
+                    .overlay(Circle().stroke(Theme.hairline, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .timelineInkPassThrough()
+            .accessibilityLabel("タイムアタック")
+            .accessibilityIdentifier("timeline-time-attack")
+        }
     }
 
     /// 解く範囲のチップ: 「おまかせ ⌄」、固定中は銅の「微分積分 ✕」(✕ でおまかせに戻す)。
