@@ -49,9 +49,12 @@ struct UnitCreationScreen: View {
 
     /// 作った単元を開く(単元ホームの上に単元の画面を積む)。
     private func opened(_ unitID: String) {
+        let origin = coordinator.question
         Task {
             await store.loadHome()
             _ = await store.loadUnit(id: unitID)
+            // 読んでいる間に学習者がこの画面を閉じた(か別の質問を開いた)なら、画面を移さない。単元はホームに出ている。
+            guard origin != nil, coordinator.question == origin else { return }
             close()
             coordinator.question = nil
             coordinator.path = [.unit(unitID)]

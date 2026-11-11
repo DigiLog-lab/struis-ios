@@ -29,6 +29,8 @@ nonisolated struct OnboardingProfile: Codable, Hashable, Sendable {
     var unit: String?
     /// 次のテストまで(A)。
     var untilTest: String?
+    /// 「いつまでに」から決めた期限の日付(「2027-01-07」。計画の画面で直した日付も)。途中で閉じても計画の画面に戻せるよう残す。
+    var deadline: String?
     /// 撮った問題のページ・授業の資料の数(A・U)。
     var materialCount: Int?
     /// 解いたお試しの問題(順に)。

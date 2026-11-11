@@ -141,8 +141,13 @@ final class OnboardingModel {
     var selectedUnit: String?
     /// 単元を作る時に選んだ学年(今の学年と違う学年の単元も選べる)。nil は今の学年。
     var unitGrade: String?
-    /// 「いつまでに」から決めた期限(計画の画面で押すと直せる)。
-    var deadline: Date?
+    /// 「いつまでに」から決めた期限(計画の画面で押すと直せる)。回答と一緒に残す(途中で閉じて計画の画面に戻った時も出す)。
+    var deadline: Date? {
+        didSet {
+            profile.deadline = deadline.map { StudyDeadline.isoDay($0) }
+            saveProfile()
+        }
+    }
     var universityTopic = ""
     var universityGoal = ""
     private(set) var materials: [OnboardingMaterial] = []
@@ -196,8 +201,10 @@ final class OnboardingModel {
             profile.photoConsentAt = ISO8601DateFormatter().string(from: consent.acceptedAt)
         }
         if purpose == .unitCreation {
-            // 前の単元の選び方は引き継がない(学年・お試しの結果は使う)。
-            profile.route = nil
+            // 前の単元の選び方は引き継がない(学年・お試しの結果は使う)。大学生は「大学生・それ以外」のまま
+            // (計画づくりに勉強すること・やりたいことを渡す)。
+            profile.route = profile.isUniversity ? .university : nil
+            profile.deadline = nil
             profile.unit = nil
             profile.untilTest = nil
             profile.universityTopic = nil
@@ -209,6 +216,7 @@ final class OnboardingModel {
         selectedUnit = profile.unit
         universityTopic = profile.universityTopic ?? ""
         universityGoal = profile.universityGoal ?? ""
+        deadline = profile.deadline.flatMap(StudyDeadline.day(from:))
         let saved = purpose == .unitCreation ? nil : UserDefaults.standard.data(forKey: Self.draftKey).flatMap { try? JSONDecoder().decode(OnboardingPlanDraft.self, from: $0) }
         draft = saved
         let resumed = reconsent ? .terms : start ?? (purpose == .unitCreation ? (profile.isUniversity ? OnboardingStep.topic : OnboardingStep.intent) : nil) ?? OnboardingResume.step(
@@ -474,6 +482,10 @@ final class OnboardingModel {
 
     func choose(route: OnboardingProfile.Route) {
         profile.route = route
+        // 前に選んだ学年・期限を、別の選び方に持ち込まない。
+        unitGrade = nil
+        deadline = nil
+        profile.untilTest = nil
         saveProfile()
         switch route {
         case .range: go(.unit)
@@ -650,7 +662,9 @@ final class OnboardingModel {
 
     func planRequest() -> LedgerJSON {
         var request: [String: LedgerJSON] = ["task": .string("onboarding_plan"), "route": .string((profile.route ?? .unsure).rawValue)]
-        if let grade = unitGrade ?? profile.grade, grade != OnboardingProfile.universityGrade { request["grade"] = .string(grade) }
+        // 前後の学年の単元を選べるのは「やる範囲が決まっている」だけ。
+        let grade = profile.route == .range ? unitGrade ?? profile.grade : profile.grade
+        if let grade, grade != OnboardingProfile.universityGrade { request["grade"] = .string(grade) }
         if let unit = profile.unit, profile.route == .range || profile.route == .weak { request["unit"] = .string(unit) }
         if profile.route == .range, let until = profile.untilTest { request["until_test"] = .string(until) }
         if profile.route == .range, let deadline { request["deadline"] = .string(StudyDeadline.isoDay(deadline)) }
