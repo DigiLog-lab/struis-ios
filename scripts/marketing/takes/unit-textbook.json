@@ -1,0 +1,65 @@
+{
+ "tape": "unit-textbook",
+ "launch": "-skip-onboarding -workbook-empty",
+ "wait_first": "timeline-guide-create-unit",
+ "actions": [
+  {
+   "do": "hold",
+   "seconds": 2
+  },
+  {
+   "do": "tap",
+   "id": "timeline-guide-create-unit"
+  },
+  {
+   "do": "hold",
+   "seconds": 1.5
+  },
+  {
+   "do": "chatcam",
+   "image": "scripts/marketing/answers/unit/textbook.jpg"
+  },
+  {
+   "do": "hold",
+   "seconds": 1.5
+  },
+  {
+   "do": "say",
+   "text": "いまここをやってる。来週小テスト"
+  },
+  {
+   "do": "hold",
+   "seconds": 1.5
+  },
+  {
+   "do": "say",
+   "text": "来週の金曜"
+  },
+  {
+   "do": "hold",
+   "seconds": 1.5
+  },
+  {
+   "do": "say",
+   "text": "範囲があると、どこで最小になるかわからない"
+  },
+  {
+   "do": "wait",
+   "id": "workbook-proposal-start",
+   "timeout": 300
+  },
+  {
+   "do": "hold",
+   "seconds": 3
+  },
+  {
+   "do": "tap",
+   "id": "workbook-proposal-start"
+  },
+  {
+   "do": "hold",
+   "seconds": 5
+  }
+ ],
+ "note": "「はじめる」の後のタイムラインの1問目は、再生だと録音とタイミングがずれて出ない(次のカードの束と前提づくりが録音より先に届き、2回目の要求の録音が無い)。映像には「はじめる」までを使う。"
+}

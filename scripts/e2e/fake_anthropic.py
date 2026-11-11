@@ -17,6 +17,9 @@ Codex 版と Claude 直結版の比較(`RunnerComparisonLiveTests`)のために�
 - `scenario`: 要求の記録の置き場所(`<log-dir>/scenarios/<scenario>/NNNN.json`)。到着と返し終わりの時刻も残す。
 - `mode`: `script`(決まった応答)、`record`(本物の API へ転送して応答を時刻付きで `<tape-dir>/<tape>/NNNN.json` に録る)、
   `replay`(録った応答を同じ間隔で順に返す)。録画と再生は要求の中身ではなく順番で対応させる(比べる 2 つの本文は同じとは限らない)。
+- `match`: 録画と再生の対応のさせ方。`order`(既定。届いた順)か `kind`(要求の種類ごとの順)。`kind` は、出力の形(JSON Schema)が
+  同じ要求を同じ種類とみなし、`<tape-dir>/<tape>/<種類>/NNNN.json` に分けて録る。タイムラインは次のカードの束・見直し・知識グラフを
+  裏で同時に送るので、届いた順は回ごとに入れ替わる。種類ごとの順なら、同じ操作をすれば同じ返事が同じ要求に戻る(宣伝の撮影用)。
 - `faults`: 要求ごとに 1 つ消費する故障の列(`http`・`drop`・`stall`・`sse_error`・`first_byte_delay`・`trickle`)。
   `trickle` は最初の本文の前に、本文の差分を `interval` 秒(既定 1)ごとに 1 つ、最大 `seconds` 秒(既定 900)流し続ける
   (止める操作の確認用。接続は切らないのでアプリは送り直さない)。送った差分の数と最後の時刻を記録の `trickle` に残す。
@@ -64,6 +67,8 @@ class Control:
     mode = "script"
     tape: str | None = None
     tape_index = 0
+    match = "order"
+    kind_index: dict[str, int] = {}
     faults: collections.deque = collections.deque()
     request_index = 0
     tape_dir = Path("/tmp/fake-anthropic-tapes")
@@ -78,6 +83,8 @@ class Control:
             cls.mode = payload.get("mode", "script")
             cls.tape = payload.get("tape")
             cls.tape_index = 0
+            cls.match = payload.get("match", "order")
+            cls.kind_index = {}
             cls.faults = collections.deque(payload.get("faults") or [])
             cls.request_index = 0
             cls.usage = payload.get("usage")
@@ -89,10 +96,49 @@ class Control:
             return cls.request_index, (cls.faults.popleft() if cls.faults else None)
 
     @classmethod
-    def next_tape_path(cls) -> Path:
+    def next_tape_path(cls, kind: str = "free") -> Path:
         with lock:
+            root = cls.tape_dir / (cls.tape or "default")
+            if cls.match == "kind":
+                cls.kind_index[kind] = cls.kind_index.get(kind, 0) + 1
+                return root / kind / f"{cls.kind_index[kind]:04d}.json"
             cls.tape_index += 1
-            return cls.tape_dir / (cls.tape or "default") / f"{cls.tape_index:04d}.json"
+            return root / f"{cls.tape_index:04d}.json"
+
+
+SCHEMA_MARKER = "It must validate against this JSON Schema:\n"
+
+
+def request_kind(body: dict) -> str:
+    """要求の種類の名前(`match: kind` の録画と再生の対応に使う)。出力の形(JSON Schema)で見分ける。
+
+    形は `output_config.format.schema` か、指示文に書いた JSON Schema(アプリの `ClaudeTranslation.schemaInstruction`)。
+    名前は必須の項目の先頭 3 つと、形のハッシュの先頭 8 桁。
+    形が無い要求(会話の返事・進み具合の保存など)は、使える道具の名前と最初の指示文(先頭 1500 字)で見分け、
+    `free-<ハッシュ 8 桁>` にする。全部を `free` 1つにまとめると、届く順が入れ替わった時に、進み具合の保存に会話の返事を
+    返してしまう(2026-11-11、単元づくりの再生で起きた)。
+    """
+    schema = ((body.get("output_config") or {}).get("format") or {}).get("schema")
+    if schema is None:
+        system = body.get("system")
+        texts = [system] if isinstance(system, str) else [b.get("text", "") for b in system or [] if isinstance(b, dict)]
+        for text in texts:
+            if SCHEMA_MARKER in text:
+                raw = text.split(SCHEMA_MARKER, 1)[1].strip()
+                try:
+                    schema = json.loads(raw)
+                except json.JSONDecodeError:
+                    schema = raw
+                break
+    if schema is None:
+        system = body.get("system")
+        first = system if isinstance(system, str) else next((b.get("text", "") for b in system or [] if isinstance(b, dict)), "")
+        tools = sorted(t.get("name", "") for t in body.get("tools") or [])
+        return "free-" + hashlib.sha1((json.dumps(tools) + first[:1500]).encode()).hexdigest()[:8]
+    canonical = json.dumps(schema, ensure_ascii=False, sort_keys=True)
+    required = schema.get("required", []) if isinstance(schema, dict) else []
+    head = "-".join(re.sub(r"[^a-z0-9_]", "", str(name).lower()) for name in required[:3]) or "schema"
+    return f"{head}-{hashlib.sha1(canonical.encode()).hexdigest()[:8]}"
 
 
 class ConnectionDropped(Exception):
@@ -522,11 +568,14 @@ class Handler(BaseHTTPRequestHandler):
             return
         if fault and fault.get("kind") == "first_byte_delay":
             time.sleep(float(fault.get("seconds", 1)))
-        if mode == "record":
-            self.forward(raw, record)
-            return
-        if mode == "replay":
-            self.replay(record)
+        if mode in ("record", "replay"):
+            kind = request_kind(body)
+            record["kind"] = kind
+            path = Control.next_tape_path(kind)
+            if mode == "record":
+                self.forward(raw, record, path)
+            else:
+                self.replay(record, path)
             return
         blocks, stop = plan_response(body)
         record["response"] = {"blocks": blocks, "stop_reason": stop}
@@ -560,12 +609,11 @@ class Handler(BaseHTTPRequestHandler):
 
     # MARK: 録画と再生
 
-    def forward(self, raw: bytes, record: dict):
+    def forward(self, raw: bytes, record: dict, path: Path):
         """本物の API へ転送し、届いた順と間隔のまま返して録る。キーは記録に残さない。"""
         key = Path(Control.upstream_key_file).read_text().strip() if Control.upstream_key_file else ""
         request = urllib.request.Request(Control.upstream + "/v1/messages", data=raw, method="POST", headers={
             "content-type": "application/json", "anthropic-version": "2023-06-01", "accept": "text/event-stream", "x-api-key": key})
-        path = Control.next_tape_path()
         record["tape"] = str(path)
         started = time.time()
         tape: dict = {"events": []}
@@ -635,8 +683,10 @@ class Handler(BaseHTTPRequestHandler):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(tape, ensure_ascii=False))
 
-    def replay(self, record: dict):
-        path = Control.next_tape_path()
+    def replay(self, record: dict, path: Path):
+        if not path.exists() and path.parent.name.startswith("free-"):
+            # 種類を分ける前の録音(`free` 1つ)は、届いた順のまま使う。
+            path = Control.next_tape_path("free")
         if not path.exists():
             record["status"] = 409
             self.reply(409, {"type": "error", "error": {"type": "invalid_request_error", "message": f"tape ended: {path.name}"}})
