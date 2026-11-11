@@ -43,9 +43,8 @@ struct WorkbookProposalCard: View {
                         Text(overview.unitTitle)
                             .font(Typography.title)
                         if !overview.outcome.isEmpty {
-                            Text(overview.outcome)
-                                .font(Typography.caption)
-                                .foregroundStyle(Theme.secondaryText)
+                            // 単元の説明文にも式が入ることがある。数式を組む部品で描く。
+                            TimelineRichText(text: overview.outcome, size: 12, color: Theme.secondaryText)
                         }
                         VStack(spacing: 0) {
                             ForEach(Array(overview.subunits.enumerated()), id: \.offset) { index, subunit in
