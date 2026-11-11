@@ -657,14 +657,15 @@ extension View {
 
     /// 書く面の上にあっても、このビューには指を通す(押せるボタン)。
     /// `toScreenBottom` は、ビューの下から画面の下端まで(下の帯の面が伸びるホームインジケータの所)にも指を通す。
-    func timelineInkPassThrough(toScreenBottom: Bool = false) -> some View {
+    /// `isEnabled` が偽の間は通さない。
+    func timelineInkPassThrough(toScreenBottom: Bool = false, isEnabled: Bool = true) -> some View {
         background {
             GeometryReader { proxy in
                 let frame: CGRect = proxy.frame(in: .named(TimelineInkSpace.name))
                 let area: CGRect = toScreenBottom
                     ? CGRect(x: frame.minX, y: frame.minY, width: frame.width, height: frame.height + timelineInkScreenBottomAllowance)
                     : frame
-                Color.clear.preference(key: TimelineInkPassThroughKey.self, value: [area])
+                Color.clear.preference(key: TimelineInkPassThroughKey.self, value: isEnabled ? [area] : [])
             }
         }
     }
