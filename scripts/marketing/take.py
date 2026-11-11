@@ -59,7 +59,8 @@ def main(plan_path: str) -> None:
     files = Path(os.environ.get("DEVBOX_FILES", step.WORK / "files"))
     files.mkdir(parents=True, exist_ok=True)
     session = str(step.ROOT / "scripts/marketing/session.sh")
-    subprocess.run([session, "start", "replay", plan["tape"]], check=True)
+    # "mode": "record" なら、本物の Claude に転送して録音しながら録画する(再生で順番がずれやすい一度きりの流れ用)。
+    subprocess.run([session, "start", plan.get("mode", "replay"), plan["tape"]], check=True)
     video = step.WORK / "take.mp4"
     events: list[dict] = []
     recorder = None
