@@ -10,8 +10,8 @@ struct LearningTimelineView: View {
     let store: TimelineStore
     let onOpenUnits: () -> Void
     var layout: TimelineLayout = .compact
-    /// 単元の画面が上に重なっている間。書く面は隠れているので、標準の道具パレットを出さない。
-    var isCovered: Bool = false
+    /// 単元ホームを上に重ねている(iPad の道具パレットはウィンドウの一番上に出るので、重ねている間は出さない)。
+    var isCovered = false
     @Environment(WorkbookCoordinator.self) private var coordinator
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize

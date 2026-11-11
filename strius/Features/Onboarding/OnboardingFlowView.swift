@@ -15,19 +15,25 @@ struct OnboardingFlowView: View {
     let onFinish: () -> Void
 
     /// - Parameter reconsent: 規約の版が上がった時の同意の取り直し(#78)。規約と送る内容の 2 画面だけを出し、同意したら `onFinish`。
-    init(learnerData: LearnerData, subscriptions: SubscriptionStore, start: OnboardingStep? = nil, reconsent: Bool = false, onFinish: @escaping () -> Void) {
+    /// - Parameter unitCreation: ホームの「単元を作る」(#132)。オンボーディングと同じ画面で選び、計画の「はじめる」で作った単元の ID を渡す。
+    ///   `existingUnits` はすでにある単元の名前(同じ単元を作らないようモデルに渡す)。
+    init(learnerData: LearnerData, subscriptions: SubscriptionStore, start: OnboardingStep? = nil, reconsent: Bool = false,
+         unitCreation: ((String) -> Void)? = nil, existingUnits: [String] = [], onFinish: @escaping () -> Void) {
         self.learnerData = learnerData
         self.subscriptions = subscriptions
         self.onFinish = onFinish
         // DEBUG の途中の画面からの確認は、前に保存した回答を使わずに始める。
         let model = OnboardingModel(
-            profile: start == nil ? nil : OnboardingProfile(),
+            profile: start == nil || unitCreation != nil ? nil : OnboardingProfile(),
             hasPlan: { [subscriptions] in subscriptions.plan != nil },
             isClaudeAvailable: { [learnerData] in Self.claudeAvailable(learnerData: learnerData) },
             start: start,
-            reconsent: reconsent
+            reconsent: reconsent,
+            purpose: unitCreation == nil ? .onboarding : .unitCreation
         )
         model.onReconsented = onFinish
+        model.onUnitCreated = unitCreation
+        model.existingUnits = existingUnits
         #if DEBUG
         if let start { model.prepareForPreview(start) }
         #endif
@@ -60,7 +66,7 @@ struct OnboardingFlowView: View {
             case .paywall:
                 OnboardingPaywallView(store: subscriptions, isPad: isPad, onPurchased: { model.afterPurchase() })
             case .intent: intent
-            case .unit: unit
+            case .unit: model.purpose == .unitCreation ? AnyView(unitWithDeadline) : AnyView(unit)
             case .untilTest: untilTest
             case .pages: pages
             case .weak: weakUnit
@@ -330,6 +336,46 @@ struct OnboardingFlowView: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+
+    // MARK: - 単元を作る: 単元と「いつまでに」を 1 画面で(#132)
+
+    /// 単元の一覧を切り替えられる学年(今の学年と、その前後)。学年が分からない時は全部。
+    private var unitGrades: [String] {
+        let grades = OnboardingCatalog.grades
+        guard let index = grades.firstIndex(of: model.profile.grade ?? "") else { return grades }
+        return Array(grades[max(0, index - 1)...min(grades.count - 1, index + 1)])
+    }
+
+    private var unitWithDeadline: some View {
+        let units = OnboardingCatalog.units(grade: model.unitListGrade)
+        let columns = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
+        return OnboardingScaffold(onBack: back, isPad: isPad) {
+            VStack(alignment: .leading, spacing: 16) {
+                OnboardingTitle(title: "どの単元ですか")
+                OnboardingFlow {
+                    ForEach(unitGrades, id: \.self) { grade in
+                        OnboardingChip(title: grade, isSelected: model.unitListGrade == grade) { model.chooseUnitGrade(grade) }
+                            .accessibilityIdentifier("unit-creation-grade-\(grade)")
+                    }
+                }
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(units, id: \.self) { unit in
+                        OnboardingPill(title: unit, isSelected: model.selectedUnit == unit, height: 44) { model.selectedUnit = unit }
+                            .accessibilityIdentifier("unit-creation-unit-\(unit)")
+                    }
+                }
+                Text("いつまでに").font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText).padding(.top, 8)
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(OnboardingCatalog.untilTest, id: \.self) { option in
+                        OnboardingPill(title: option, isSelected: model.profile.untilTest == option, height: 44) { model.selectUntilTest(option) }
+                            .accessibilityIdentifier("unit-creation-until-\(option)")
+                    }
+                }
+            }
+        } footer: {
+            OnboardingPrimaryButton(title: "計画を作る", isEnabled: model.selectedUnit != nil, identifier: "unit-creation-plan") { model.commitUnitWithDeadline() }
+        }
     }
 
     // MARK: - A2 次のテストまで
