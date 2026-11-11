@@ -83,6 +83,7 @@ final class TimelineStore {
     private var reloadTask: Task<Void, Never>?
     /// 前に読んだ単元(新しい単元ができたかを見る)。
     private var knownUnitIDs: Set<String>?
+    private var knownSubunitIDs: Set<String>?
     private var bannerTask: Task<Void, Never>?
     private var started = false
     /// 利用枠の案内のシート(止まった時と、止まった画面のボタンから出す。`AppRootView` が出す)。
@@ -130,6 +131,7 @@ final class TimelineStore {
         badge = nil
         started = false
         knownUnitIDs = nil
+        knownSubunitIDs = nil
         assistedIDs = []
         awaitedBatchID = nil
         inkAnswers = [:]
@@ -918,9 +920,17 @@ final class TimelineStore {
         let unitIDs = Set(workbook.units.keys)
         let added = knownUnitIDs.map { unitIDs.subtracting($0) } ?? []
         knownUnitIDs = unitIDs
-        if started, !added.isEmpty {
+        // 今ある単元に、この端末で小単元が足された(撮り足した授業の回。#132): その単元の分も頼む。
+        let subunitIDs = Set(workbook.subunits.keys)
+        let addedSubunits = knownSubunitIDs.map { subunitIDs.subtracting($0) } ?? []
+        knownSubunitIDs = subunitIDs
+        if started, !added.isEmpty || !addedSubunits.isEmpty {
             let deviceID = ledger.deviceID
-            let own = Set((try? await ledger.read { db in try added.filter { try Ledger.isLocal(.workbookUnits, $0, deviceID: deviceID, db) } }) ?? [])
+            let workbook = self.workbook
+            let own = Set((try? await ledger.read { db in
+                try added.filter { try Ledger.isLocal(.workbookUnits, $0, deviceID: deviceID, db) }
+                    + addedSubunits.filter { try Ledger.isLocal(.workbookSubunits, $0, deviceID: deviceID, db) }.compactMap { workbook.subunits[$0]?.unitId }
+            }) ?? [])
             if !own.isEmpty { await ensureGraphWork(units: own) }
         }
         // 採点の結果が届いた。

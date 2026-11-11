@@ -199,7 +199,13 @@ struct OnboardingPlanView: View {
                         Text("\(index + 1)").font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText).monospacedDigit()
                             .frame(width: 14, alignment: .leading)
                         VStack(alignment: .leading, spacing: 4) {
-                            TimelineRichText(text: subunit.title, size: 15, weight: .medium, color: checked ? Theme.secondaryText : Theme.primaryText)
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                TimelineRichText(text: subunit.title, size: 15, weight: .medium, color: checked ? Theme.secondaryText : Theme.primaryText)
+                                if let ref = subunit.ref {
+                                    Text(ref).font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText).monospacedDigit()
+                                        .fixedSize()
+                                }
+                            }
                             if !subunit.note.isEmpty {
                                 // 補足にも式が入る(`$\mathbb{R}^n$` など)ので、数式として組む。
                                 TimelineRichText(text: subunit.note, size: 12, weight: .medium, color: Theme.secondaryText)

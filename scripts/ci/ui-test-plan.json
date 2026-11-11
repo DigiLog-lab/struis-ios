@@ -191,7 +191,7 @@
       ]
     },
     "unit-creation": {
-      "property": "ホームの「単元を作る」(#132): 会話ではなくオンボーディングと同じ画面で単元と「いつまでに」を選び、計画の期限の日付を直せ、「はじめる」で作った単元が開く。範囲表・シラバスを撮って読み取り、大学生は授業がどこまで進んだかを選ぶ。資料が無い大学生はタップだけで作れる",
+      "property": "ホームの「単元を作る」(#132): 会話ではなくオンボーディングと同じ画面で単元と「いつまでに」を選び、計画の期限の日付を直せ、「はじめる」で作った単元が開く。範囲表・シラバスを撮って読み取り、大学生は授業がどこまで進んだかを選ぶ。資料が無い大学生はタップだけで作れる。計画の後に単元の画面から教科書を撮り足すと、小単元にページが付く",
       "tests": [
         "UnitCreationUITests/testChoosingAUnitAndDeadlineCreatesTheUnitAndOpensIt",
         "UnitCreationUITests/testShootingARangeSheetReadsTheRangeAndMakesThePlan",
@@ -201,7 +201,9 @@
       "paths": [
         "strius/Features/Onboarding/**",
         "strius/Features/Workbook/WorkbookQuestionScreen.swift",
-        "strius/Features/Workbook/WorkbookHomeView.swift"
+        "strius/Features/Workbook/WorkbookHomeView.swift",
+        "strius/Features/Workbook/WorkbookUnitView.swift",
+        "strius/Features/Workbook/UnitMaterialAttacher.swift"
       ]
     },
     "guardian-consent": {

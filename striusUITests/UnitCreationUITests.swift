@@ -55,6 +55,17 @@ final class UnitCreationUITests: XCTestCase {
         let closed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.descendants(matching: .any)["unit-creation"].firstMatch)
         XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 10), .completed, "単元を作る画面が閉じない")
         UITestSupport.saveProbe(app, name: "unit-creation-5-unit")
+
+        // 計画の後に教科書を撮り足すと、小単元にページが付く(確認の画面は挟まない)。
+        let add = app.buttons["workbook-unit-add-material"].firstMatch
+        XCTAssertTrue(add.appears(timeout: 5), "「教科書を撮る」が無い")
+        XCTAssertTrue(add.label.contains("教科書を撮る"), add.label)
+        shootOnePage(app, camera: "workbook-unit-add-material")
+        let ref = app.staticTexts["workbook-subunit-ref"].firstMatch
+        XCTAssertTrue(ref.appears(timeout: 30), "小単元にページが付かない")
+        XCTAssertTrue(ref.label.hasPrefix("p."), ref.label)
+        XCTAssertTrue(app.buttons["workbook-unit-add-material"].firstMatch.label.contains("撮り足す"))
+        UITestSupport.saveProbe(app, name: "unit-creation-6-pages")
     }
 
     /// 本物の Claude で、単元を作る時の計画づくり(期限の日付・すでにある単元を渡す)が計画を返すか。
@@ -89,14 +100,14 @@ final class UnitCreationUITests: XCTestCase {
 
     /// カメラで1枚撮って「完了」を押す(写真はシミュレータの差し替えの紙)。
     @MainActor
-    private func shootOnePage(_ app: XCUIApplication) {
+    private func shootOnePage(_ app: XCUIApplication, camera: String = "onboarding-material-camera") {
         addUIInterruptionMonitor(withDescription: "カメラの許可") { alert in
             let allow = alert.buttons.matching(NSPredicate(format: "label IN %@", ["許可", "OK", "Allow"])).firstMatch
             guard allow.exists else { return false }
             allow.tap()
             return true
         }
-        app.buttons["onboarding-material-camera"].firstMatch.tap()
+        app.buttons[camera].firstMatch.tap()
         let shutter = app.buttons["chat-camera-shutter"]
         if !shutter.appears(timeout: 10) { app.tap() }
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: shutter)], timeout: 15), .completed)

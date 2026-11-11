@@ -893,7 +893,7 @@ private struct MaterialPickers: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background {
-                ChatCameraPresentation(isPresented: $isCameraPresented, batch: ChatCameraBatch(existingCount: model.materials.count, limit: 8) { photos in
+                ChatCameraPresentation(isPresented: $isCameraPresented, batch: ChatCameraBatch(existingCount: model.materials.count, limit: 8, doneTitle: "終える") { photos in
                     model.addMaterialPhotos(photos)
                 })
             }

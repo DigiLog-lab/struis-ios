@@ -122,6 +122,8 @@ nonisolated struct BundledAssets: Sendable {
         // 単元を作る(#132): 撮った範囲表・教科書・シラバス・スライドの読み取り。
         "prompt:material_read_instructions": "material_read_instructions.md",
         "schema:material_read": "material_read.json",
+        "prompt:material_attach_instructions": "material_attach_instructions.md",
+        "schema:material_attach": "material_attach.json",
         "schema:timeline_graph": "timeline_graph.json",
         "schema:timeline_decompose": "timeline_decompose.json",
         "schema:timeline_misconceptions": "timeline_misconceptions.json",

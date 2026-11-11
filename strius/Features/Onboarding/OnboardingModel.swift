@@ -994,10 +994,12 @@ final class OnboardingModel {
         guard let draft, !isStarting else { return false }
         isStarting = true
         defer { isStarting = false }
-        let specs = draft.subunits.map { WorkbookMachine.SubunitSpec(title: $0.title, outcome: $0.outcome, n: $0.n, scoringUnit: $0.scoringUnit) }
+        let specs = draft.subunits.map { WorkbookMachine.SubunitSpec(title: $0.title, outcome: $0.outcome, n: $0.n, scoringUnit: $0.scoringUnit, ref: $0.ref ?? "") }
         var overviewFields: [String: LedgerJSON] = [
             "unit_title": .string(draft.unitTitle), "outcome": .string(draft.outcome), "source": .string(purpose == .unitCreation ? "unit_creation" : "onboarding"),
-            "subunits": .array(draft.subunits.map { .object(["title": .string($0.title), "outcome": .string($0.outcome), "n": .number(Double($0.n)), "scoring_unit": .string($0.scoringUnit), "note": .string($0.note)]) }),
+            "subunits": .array(draft.subunits.map { .object(["title": .string($0.title), "outcome": .string($0.outcome), "n": .number(Double($0.n)), "scoring_unit": .string($0.scoringUnit), "note": .string($0.note), "ref": .string($0.ref ?? "")]) }),
+            // 撮り足す時に、大学の授業の単元として割り当てる(授業の回で小単元を足せる)。
+            "route": .string(profile.route?.rawValue ?? ""),
         ]
         if let deadline { overviewFields["deadline"] = .string(StudyDeadline.isoDay(deadline)) }
         let overview: LedgerJSON = .object(overviewFields)
