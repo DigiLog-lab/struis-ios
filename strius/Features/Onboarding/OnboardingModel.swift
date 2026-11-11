@@ -599,6 +599,7 @@ final class OnboardingModel {
     func skipMaterials() {
         clearMaterials()
         reading = nil
+        deadline = nil
         go(.universityChoices)
     }
 
@@ -959,9 +960,11 @@ final class OnboardingModel {
             go(.planWait, remember: false)
         } else {
             revisionFrom = nil
-            // やりたいことと違う: 前に読み取った範囲・撮った写真で作り直さない。
+            // やりたいことと違う: 前に読み取った範囲・撮った写真・その試験日で作り直さない。
             reading = nil
             lectureUpTo = nil
+            deadline = nil
+            profile.untilTest = nil
             if purpose == .unitCreation { clearMaterials() }
             // 消した計画には戻れないので、戻る先は選び直す画面より前にする(計画の画面を履歴に残さない)。
             let target: OnboardingStep = profile.isUniversity ? (purpose == .unitCreation ? .capture : .topic) : .intent

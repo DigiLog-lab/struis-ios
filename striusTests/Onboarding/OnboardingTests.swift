@@ -447,6 +447,15 @@ final class OnboardingTests: XCTestCase {
         model.back()
         XCTAssertEqual(model.step, .unit, "撮り直した後の戻るで、捨てた読み取りの画面に戻らない")
         XCTAssertEqual(model.unitListGrade, "高2")
+
+        // 大学生がシラバスの計画を「やりたいことと違う」で捨てた時は、その試験日を次の計画に持ち込まない。
+        let university = OnboardingModel(profile: profile(grade: OnboardingProfile.universityGrade), records: records(), hasPlan: { true },
+                                         isClaudeAvailable: { true }, purpose: .unitCreation)
+        university.deadline = StudyDeadline.day(from: "2027-01-26")
+        university.rebuildPlan(tooHard: false)
+        XCTAssertEqual(university.step, .capture, "大学生は撮る画面に戻る")
+        XCTAssertNil(university.deadline)
+        XCTAssertNil(university.reading)
     }
 
     func testReadingARangeSheetMakesARangePlanWithItsPagesAndTestDate() throws {
