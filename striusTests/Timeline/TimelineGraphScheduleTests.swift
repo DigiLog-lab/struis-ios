@@ -87,6 +87,38 @@ final class TimelineGraphScheduleTests: XCTestCase {
         XCTAssertNil(TimelineGraphSchedule.next(timeline: timeline, workbook: workbook))
     }
 
+    /// 撮り足した授業の回(#132): 単元の分を頼んだ後に小単元が足されたら、その単元の分をもう一度頼む。頼んだ後は(失敗しても)頼み直さない。
+    func testSubunitAppendedAfterTheGraphIsExtendedOnce() async throws {
+        let (ledger, unitID, subunitIDs) = try await unitLedger()
+        try await ledger.commit { db in
+            var timeline = try TimelineMachine(loading: db)
+            let id = timeline.insertBatchRequest(purpose: "graph_build", request: .object(["units": .array([.string(unitID)])]), accuracy: nil, levelCap: nil)
+            var row = timeline.batches[id]!
+            row.status = "ready"
+            timeline.put("test", row)
+            for subunitID in subunitIDs { timeline.put("test", self.skill("goal.\(subunitID)", unitID: subunitID)) }
+            return (timeline.events, ())
+        }
+        var (loaded, workbook) = try await ledger.read { db in (try TimelineMachine(loading: db), try WorkbookMachine(loading: db)) }
+        XCTAssertNil(TimelineGraphSchedule.next(timeline: loaded, workbook: workbook))
+        XCTAssertTrue(TimelineGraphSchedule.isBlocked(.extend(unitID: unitID), timeline: loaded, workbook: workbook))
+
+        try await Task.sleep(for: .milliseconds(5))
+        try await ledger.commit { db in
+            var workbook = try WorkbookMachine(loading: db)
+            workbook.appendSubunit(unitID: unitID, spec: .init(title: "ジョルダン標準形", n: 5, ref: "第9回"))
+            return (workbook.events, ())
+        }
+        (loaded, workbook) = try await ledger.read { db in (try TimelineMachine(loading: db), try WorkbookMachine(loading: db)) }
+        var timeline = loaded
+        XCTAssertEqual(TimelineGraphSchedule.next(timeline: timeline, workbook: workbook), .extend(unitID: unitID))
+        XCTAssertFalse(TimelineGraphSchedule.isBlocked(.extend(unitID: unitID), timeline: timeline, workbook: workbook))
+        let extend = try XCTUnwrap(TimelineTurns.insertGraphRequest(.extend(unitID: unitID), timeline: &timeline, workbook: workbook, profile: nil))
+        XCTAssertTrue(timeline.skills.values.contains { $0.name == "ジョルダン標準形" }, "足した回が目標の点になる")
+        timeline.failBatch(id: extend, error: "x")
+        XCTAssertNil(TimelineGraphSchedule.next(timeline: timeline, workbook: workbook), "失敗しても頼み直さない")
+    }
+
     @MainActor
     func testRelaunchAfterAFailedBuildDoesNotAskAgain() async throws {
         let (ledger, unitID, _) = try await unitLedger()

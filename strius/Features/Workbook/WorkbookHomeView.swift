@@ -535,9 +535,19 @@ struct WorkbookSubunitRow: View {
                             .font(Typography.micro)
                             .foregroundStyle(Theme.secondaryText)
                     }
-                    Text(subunit.title)
-                        .font(Typography.title)
-                        .foregroundStyle(pending ? Theme.secondaryText : Theme.primaryText)
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(subunit.title)
+                            .font(Typography.title)
+                            .foregroundStyle(pending ? Theme.secondaryText : Theme.primaryText)
+                        // 教科書のページや授業の回(#132)。
+                        if let ref = subunit.ref {
+                            Text(ref)
+                                .font(Typography.caption.monospacedDigit())
+                                .foregroundStyle(Theme.secondaryText)
+                                .fixedSize()
+                                .accessibilityIdentifier("workbook-subunit-ref")
+                        }
+                    }
                     if !pending {
                         HStack(spacing: 6) {
                             Text(passed ? "合格" : subunit.stageLabel)

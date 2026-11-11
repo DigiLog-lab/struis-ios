@@ -67,7 +67,13 @@ actor MockTurnRunner: TurnRunning {
         case .timelineGraph: text = Self.json(Self.timelineGraph(request))
         case .timelineReview: text = Self.json(["skill_results": [], "notes": ""])
         case .onboardingGrading: text = Self.json(Self.onboardingGrading(request))
-        case .onboardingPlan: text = Self.json(Self.onboardingPlan(request))
+        case .onboardingPlan:
+            // 単元を作る時の範囲の読み取り(#132)も同じ種類のターン。
+            switch request["task"] as? String {
+            case "read_material": text = Self.json(Self.materialReading(request))
+            case "attach_material": text = Self.json(Self.materialAttachment(request))
+            default: text = Self.json(Self.onboardingPlan(request))
+            }
         }
         let threadID = plan.thread.codexThreadID ?? "thr_mock_\(UUID().uuidString.prefix(16).lowercased())"
         return TurnOutcome(
@@ -384,6 +390,35 @@ actor MockTurnRunner: TurnRunning {
     /// 赤ペン: 依頼に付いた画像の左上寄りに 1 か所(アプリが実際の線の外枠に寄せる)。
     nonisolated static func timelineRedPen() -> [[String: Any]] { [["x": 0, "y": 0, "width": 400, "height": 200, "correction": "$-\\frac{1}{2}$($\\cos 2\\pi = 1$)"]] }
 
+    /// 範囲の読み取り(#132): 大学生ならシラバス(線形代数Ⅱ・第1〜15回)、それ以外は範囲表(数学Ⅰ・二次関数・p.62〜p.96)。
+    nonisolated static func materialReading(_ request: JSONObject) -> JSONObject {
+        if (request["grade"] as? String) == OnboardingProfile.universityGrade {
+            let titles = ["線形写像の定義と例", "表現行列(1)", "表現行列(2)", "核と像、次元定理", "固有値と固有ベクトル", "対角化(1)", "対角化(2)",
+                          "中間のまとめ", "ジョルダン標準形(1)", "ジョルダン標準形(2)", "内積空間", "グラム・シュミットの直交化", "直交行列", "二次形式", "まとめ"]
+            return ["readable": true, "kind": "syllabus", "subject": "線形代数Ⅱ", "unit": "", "course": "線形代数Ⅱ", "pages": "", "workbook_pages": "",
+                    "test_date": "2027-01-26", "lectures": titles.enumerated().map { ["number": $0.offset + 1, "title": $0.element] },
+                    "latest_lecture": 0, "words": ["線形写像", "表現行列", "固有値", "対角化"]]
+        }
+        return ["readable": true, "kind": "range_sheet", "subject": "数学Ⅰ", "unit": "二次関数", "course": "", "pages": "p.62〜p.96",
+                "workbook_pages": "ニューアクションα p.40〜p.52", "test_date": "2026-12-03", "lectures": [], "latest_lecture": 0,
+                "words": ["二次関数のグラフ", "最大・最小", "二次不等式"]]
+    }
+
+    /// 撮り足し(#132): ページや回の付いていない小単元に、順にページ(p.62〜65、p.66〜69…)か回(第8回…)を付ける。
+    /// 大学の授業の単元なら、次の回の小単元「ジョルダン標準形」を1つ足す。
+    nonisolated static func materialAttachment(_ request: JSONObject) -> JSONObject {
+        let course = request["is_course"] as? Bool ?? false
+        let subunits = (request["subunits"] as? [JSONObject]) ?? []
+        let open = subunits.filter { (($0["ref"] as? String) ?? "").isEmpty }
+        let assignments: [JSONObject] = open.enumerated().map { index, subunit in
+            let start = 62 + index * 4
+            return ["subunit_id": subunit["id"] as? String ?? "", "ref": course ? "第\(index + 8)回" : "p.\(start)〜\(start + 3)"]
+        }
+        let added: [JSONObject] = course ? [["title": "ジョルダン標準形", "outcome": "対角化できない行列のジョルダン標準形を求められる", "n": 5,
+                                             "scoring_unit": "1問ごとに正誤", "ref": "第9回"]] : []
+        return ["readable": true, "assignments": assignments, "new_subunits": added]
+    }
+
     /// お試しの採点: 正解(`STRUIS_MOCK_TIMELINE_WRONG=1` で誤答、`STRUIS_MOCK_TRIAL_UNREADABLE=1` で読めない)。
     nonisolated static func onboardingGrading(_ request: JSONObject) -> JSONObject {
         let environment = ProcessInfo.processInfo.environment
@@ -443,10 +478,25 @@ actor MockTurnRunner: TurnRunning {
                  "check": check("次の連立方程式を解きなさい。", "x + y = 5,\\ x - y = 1", "x = 3, y = 2")],
             ]
         }
+        // 撮った範囲から作る時(#132): 授業の回か、教科書のページを小単元に付ける。
+        let material = request["material"] as? JSONObject
+        let lectures = (material?["lectures"] as? [JSONObject]) ?? []
+        let pages = (material?["pages"] as? String) ?? ""
+        let subunitsWithRefs: [JSONObject] = subunits.enumerated().map { index, subunit in
+            var subunit = subunit
+            if !lectures.isEmpty {
+                subunit["ref"] = index < lectures.count ? "第\(lectures[index]["number"] as? Int ?? index + 1)回" : ""
+            } else if !pages.isEmpty {
+                subunit["ref"] = "p.\(62 + index * 10)〜\(71 + index * 10)"
+            } else {
+                subunit["ref"] = ""
+            }
+            return subunit
+        }
         return [
             "unit_title": unit, "outcome": "\(unit)の基本問題が自力で解ける",
             "heading": "\(unit)を\(subunits.count)つに分けて進めます", "lead": "",
-            "subunits": subunits,
+            "subunits": subunitsWithRefs,
             "first_problem": ["prompt": "$x = 3$ は、この方程式の解ですか。", "math": "x^2 - 9 = 0", "answer_key": "はい"],
         ]
     }
