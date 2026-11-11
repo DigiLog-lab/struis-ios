@@ -6,28 +6,28 @@ import UIKit
 
 // MARK: - 数式
 
-/// 式を1行で描く(SwiftMath)。読めない式は文字のまま出す。
-struct TimeAttackMath: UIViewRepresentable {
+/// 式を1行で描く(SwiftMath で画像にする。本体の `NativeMathRenderer` と同じ組み方)。読めない式は文字のまま出す。
+struct TimeAttackMath: View {
     let latex: String
     var size: CGFloat = 34
+    @Environment(\.colorScheme) private var scheme
 
-    func makeUIView(context: Context) -> MTMathUILabel {
-        let label = MTMathUILabel()
-        label.labelMode = .display
-        label.textAlignment = .left
-        label.setContentHuggingPriority(.required, for: .vertical)
-        return label
+    var body: some View {
+        if let image = Self.render(latex, size: size, color: UIColor(Theme.textPrimary(scheme))) {
+            Image(uiImage: image)
+                .accessibilityLabel(Self.plain(latex))
+        } else {
+            Text(Self.plain(latex)).font(Typography.sans(size: size * 0.8, weight: .medium))
+        }
     }
 
-    func updateUIView(_ label: MTMathUILabel, context: Context) {
-        label.latex = latex
-        label.fontSize = size
-        label.textColor = UIColor(Theme.primaryText)
-    }
-
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: MTMathUILabel, context: Context) -> CGSize? {
-        let natural = uiView.intrinsicContentSize
-        return CGSize(width: min(natural.width, proposal.width ?? natural.width), height: natural.height)
+    static func render(_ latex: String, size: CGFloat, color: UIColor) -> UIImage? {
+        let renderer = MTMathImage(latex: latex, fontSize: size, textColor: color, labelMode: .display, textAlignment: .left)
+        renderer.font = MTFontManager.manager.latinModernFont(withSize: size)
+        renderer.contentInsets = MTEdgeInsets(top: 2, left: 2, bottom: 2 + size * 0.15, right: 2)
+        let (error, image) = renderer.asImage()
+        guard error == nil, let image, image.size.width >= 1, image.size.height >= 1 else { return nil }
+        return image
     }
 
     /// 1行の文字に直した式(結果の表・共有の文)。

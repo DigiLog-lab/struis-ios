@@ -82,6 +82,8 @@ private struct ClipChallengeView: View {
                 TimeAttackWaitView(text: "考えています")
             case .result:
                 TimeAttackResultView(session: session, secondaryTitle: "似た問題を解く", onSecondary: { showsAppStore = true })
+                    // 下に出る App Store の案内に、補助のボタンと説明が隠れないようにする。
+                    .safeAreaPadding(.bottom, showsAppStore ? 110 : 0)
             case .failed(let message):
                 TimeAttackFailedView(message: message, retryTitle: session.hasPhoto ? "もう一度読む" : nil,
                                      onRetry: { Task { await session.retryGrading() } },
