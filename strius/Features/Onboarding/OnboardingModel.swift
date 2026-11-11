@@ -216,7 +216,7 @@ final class OnboardingModel {
         selectedUnit = profile.unit
         universityTopic = profile.universityTopic ?? ""
         universityGoal = profile.universityGoal ?? ""
-        deadline = profile.deadline.flatMap(StudyDeadline.day(from:))
+        deadline = profile.deadline.flatMap { StudyDeadline.day(from: $0) }
         let saved = purpose == .unitCreation ? nil : UserDefaults.standard.data(forKey: Self.draftKey).flatMap { try? JSONDecoder().decode(OnboardingPlanDraft.self, from: $0) }
         draft = saved
         let resumed = reconsent ? .terms : start ?? (purpose == .unitCreation ? (profile.isUniversity ? OnboardingStep.topic : OnboardingStep.intent) : nil) ?? OnboardingResume.step(
