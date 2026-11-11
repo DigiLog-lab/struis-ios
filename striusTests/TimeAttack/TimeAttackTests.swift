@@ -40,6 +40,18 @@ final class TimeAttackTests: XCTestCase {
         }
     }
 
+    func testLinksWithImpossibleRecordsAreRejected() throws {
+        // 鍵は公開リポジトリにあるので、誰でも復号できるリンクを作れる。範囲外の秒数でアプリを落とさない。
+        for laps in [[1e20, 1, 1, 1, 1], [Double.nan, 1, 1, 1, 1], [-1, 1, 1, 1, 1], [1, 1, 1]] {
+            let challenge = TimeAttack.Challenge(field: "三角関数", problems: problems,
+                                                 entries: [.init(name: "x", laps: laps, correct: Array(repeating: true, count: laps.count))])
+            let url = try TimeAttackLink.url(for: challenge, bundleID: "com.digiloglab.strius.Clip")
+            XCTAssertThrowsError(try TimeAttackLink.challenge(from: url)) { XCTAssertEqual($0 as? TimeAttackLink.Failure, .unreadable) }
+        }
+        XCTAssertEqual(TimeAttack.clock(1e20), TimeAttack.clock(TimeAttack.maxLapSeconds * 10))
+        XCTAssertEqual(TimeAttack.clock(.nan), "0:00.0")
+    }
+
     func testAnswersGoToNumberedProblemsThenTopToBottom() {
         // 3 番だけ番号つきで先に書き、残りは番号なしで上から。5 問目は書いていない。
         let answers: [(number: Int?, readable: Bool, text: String)] = [

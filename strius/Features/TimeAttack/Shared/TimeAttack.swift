@@ -8,6 +8,8 @@ nonisolated enum TimeAttack {
     static let problemCount = 5
     static let penaltySeconds: Double = 10
     static let nicknameLimit = 10
+    /// 1問にかけられる秒数の上限(リンクで受け取る記録の確かめと、時間の書き方の上限)。
+    static let maxLapSeconds: Double = 3_600
     /// App Clip で無料で解ける1日のセット数(受け取った人の採点は運営の負担)。
     static let clipDailySets = 3
     /// 読み取りと出題に使うモデル。
@@ -65,7 +67,8 @@ nonisolated enum TimeAttack {
 
     /// `0:51.4` の形。
     static func clock(_ seconds: Double) -> String {
-        let tenths = Int((max(0, seconds) * 10).rounded())
+        let bounded = seconds.isFinite ? min(max(0, seconds), maxLapSeconds * Double(problemCount * 2)) : 0
+        let tenths = Int((bounded * 10).rounded())
         let minutes = tenths / 600
         let rest = tenths % 600
         return String(format: "%d:%02d.%d", minutes, rest / 10, rest % 10)
@@ -73,7 +76,7 @@ nonisolated enum TimeAttack {
 
     /// `11.2秒` の形。
     static func seconds(_ value: Double) -> String {
-        String(format: "%.1f秒", max(0, value))
+        String(format: "%.1f秒", value.isFinite ? min(max(0, value), maxLapSeconds) : 0)
     }
 
     /// ニックネームを10文字までに切り詰め、前後の空白を落とす。
@@ -133,11 +136,26 @@ nonisolated enum TimeAttackLink {
             let packed = try AES.GCM.open(box, using: key)
             let json = try (packed as NSData).decompressed(using: .zlib) as Data
             let challenge = try JSONDecoder().decode(TimeAttack.Challenge.self, from: json)
-            guard challenge.problems.count == TimeAttack.problemCount else { throw Failure.unreadable }
+            guard isSane(challenge) else { throw Failure.unreadable }
             return challenge
         } catch {
             throw Failure.unreadable
         }
+    }
+
+    /// 鍵はアプリに埋め込んであり誰でも中身を作れるので、復号できても値は信じない: 数や長さが決まりの範囲かを確かめる
+    /// (範囲外の秒数は、時間の書き方で整数に直す時にアプリを落とす)。
+    static func isSane(_ challenge: TimeAttack.Challenge) -> Bool {
+        let count = TimeAttack.problemCount
+        guard challenge.problems.count == count, challenge.entries.count <= 5, challenge.field.count <= 40 else { return false }
+        for problem in challenge.problems {
+            guard problem.prompt.count <= 400, problem.math.count <= 400, problem.answerKey.count <= 200, problem.answerExpr.count <= 200 else { return false }
+        }
+        for entry in challenge.entries {
+            guard entry.name.count <= TimeAttack.nicknameLimit, entry.laps.count == count, entry.correct.count == count,
+                  entry.laps.allSatisfy({ $0.isFinite && (0...TimeAttack.maxLapSeconds).contains($0) }) else { return false }
+        }
+        return true
     }
 
     /// 開かれたリンクから中身を読む(タイムアタックのリンクでなければ `notALink`)。
