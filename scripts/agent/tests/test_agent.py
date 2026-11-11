@@ -555,7 +555,10 @@ class PrototypeTests(unittest.TestCase):
                 name = prototype.patch_workspace(meta, 1, root)
             self.assertEqual(name, '2B Struis')
             self.assertIn('host: "com.example.preview.s01"', (root / prototype.WORKER_SOURCE).read_text())
-            self.assertIn('badge_icon.swift', str(run.call_args[0][0][1]))
+            commands = [str(call[0][0][1]) for call in run.call_args_list]
+            self.assertTrue(any('badge_icon.swift' in command for command in commands))
+            # The prototype builds without the App Clip (#133): a slot has no App Clip ID.
+            self.assertTrue(any('strip_app_clip.rb' in command for command in commands))
 
 
 

@@ -369,6 +369,8 @@ def patch_workspace(meta, build_number, root):
         raise BuildError('patch', '配信キーを xcconfig で表現できません。')
     local.write_text(f'STRUIS_DELIVERY_APP_KEY = {delivery}\n')
     local.chmod(0o600)
+    # The App Clip (#133) needs its own App Clip App ID, which a prototype slot does not have: build without it.
+    run(['ruby', TOOLS / 'strip_app_clip.rb', root])
     return info['CFBundleDisplayName']
 
 

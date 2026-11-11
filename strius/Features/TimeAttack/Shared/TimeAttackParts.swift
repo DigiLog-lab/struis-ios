@@ -30,19 +30,40 @@ struct TimeAttackMath: View {
         return image
     }
 
-    /// 1行の文字に直した式(結果の表・共有の文)。
-    static func plain(_ latex: String) -> String {
+    /// 1行の文字に直した式(結果の表・共有の文)。`\\frac{\\sqrt{2}}{2}` → `√2/2`、`\\sin\\frac{\\pi}{6}` → `sin π/6`。
+    nonisolated static func plain(_ latex: String) -> String {
         var text = latex
-        let replacements: [(String, String)] = [
-            ("\\left", ""), ("\\right", ""), ("\\cdot", "·"), ("\\times", "×"), ("\\pi", "π"), ("\\theta", "θ"),
-            ("\\circ", "°"), ("^{\\circ}", "°"), ("\\sin", "sin"), ("\\cos", "cos"), ("\\tan", "tan"), ("\\log", "log"),
-            ("\\sqrt", "√"), ("\\,", " "), ("\\ ", " "),
-        ]
-        for (from, to) in replacements { text = text.replacingOccurrences(of: from, with: to) }
-        text = text.replacingOccurrences(of: #"\\d?frac\{([^{}]*)\}\{([^{}]*)\}"#, with: "$1/$2", options: .regularExpression)
-        text = text.replacingOccurrences(of: "^°", with: "°")
+        for (from, to) in [("\\left", ""), ("\\right", ""), ("\\cdot", "·"), ("\\times", "×"), ("\\pi", "π"), ("\\theta", "θ"),
+                           ("^{\\circ}", "°"), ("^\\circ", "°"), ("\\circ", "°"), ("\\,", " "), ("\\ ", " "), ("\\dfrac", "\\frac")] {
+            text = text.replacingOccurrences(of: from, with: to)
+        }
+        // 内側から: 平方根と分数を、中に括弧が無くなるまで直す。
+        func grouped(_ part: String) -> String {
+            part.count <= 1 || part.allSatisfy({ $0.isNumber || $0.isLetter || "πθ√.".contains($0) }) ? part : "(" + part + ")"
+        }
+        let sqrt = try! NSRegularExpression(pattern: #"\\sqrt\{([^{}]*)\}"#)
+        let frac = try! NSRegularExpression(pattern: #"\\frac\{([^{}]*)\}\{([^{}]*)\}"#)
+        var changed = true
+        while changed {
+            changed = false
+            if let match = sqrt.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+               let inner = Range(match.range(at: 1), in: text) {
+                let replacement = "√" + grouped(String(text[inner]))
+                text = (text as NSString).replacingCharacters(in: match.range, with: replacement)
+                changed = true
+            } else if let match = frac.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+                      let top = Range(match.range(at: 1), in: text), let bottom = Range(match.range(at: 2), in: text) {
+                let replacement = grouped(String(text[top])) + "/" + grouped(String(text[bottom]))
+                text = (text as NSString).replacingCharacters(in: match.range, with: replacement)
+                changed = true
+            }
+        }
+        for name in ["sin", "cos", "tan", "log", "ln", "exp"] {
+            text = text.replacingOccurrences(of: "\\" + name, with: name + " ")
+        }
         text = text.replacingOccurrences(of: #"\^\{([^{}]*)\}"#, with: "^$1", options: .regularExpression)
-        return text.replacingOccurrences(of: "{", with: "").replacingOccurrences(of: "}", with: "")
+        text = text.replacingOccurrences(of: "{", with: "").replacingOccurrences(of: "}", with: "").replacingOccurrences(of: "\\", with: "")
+        return text.replacingOccurrences(of: #" +"#, with: " ", options: .regularExpression).trimmingCharacters(in: .whitespaces)
     }
 }
 

@@ -82,6 +82,15 @@ final class TimeAttackTests: XCTestCase {
         XCTAssertNil(local.best(field: "二次関数"))
     }
 
+    func testPlainMathForTheResultRows() {
+        XCTAssertEqual(TimeAttackMath.plain("\\frac{\\sqrt{2}}{2}"), "√2/2")
+        XCTAssertEqual(TimeAttackMath.plain("\\sin\\frac{\\pi}{6}"), "sin π/6")
+        XCTAssertEqual(TimeAttackMath.plain("\\cos 45^\\circ"), "cos 45°")
+        XCTAssertEqual(TimeAttackMath.plain("-\\frac{1}{2}"), "-1/2")
+        XCTAssertEqual(TimeAttackMath.plain("x^{2}+1"), "x^2+1")
+        XCTAssertEqual(TimeAttackMath.plain("\\frac{x+1}{2}"), "(x+1)/2")
+    }
+
     func testNicknameIsTrimmedToTenCharacters() {
         XCTAssertEqual(TimeAttack.trimmedName("  とてもながいなまえのひとです  "), "とてもながいなまえの")
     }

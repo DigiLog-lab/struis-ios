@@ -30,7 +30,13 @@ from appstoreconnect import AppStoreConnect  # noqa: E402
 PROFILE_BUNDLES = {  # Xcode product name -> bundle ID
     'strius': 'com.digiloglab.strius',
     'StruisExec': 'com.digiloglab.strius.exec',
+    # The App Clip (#133). Its App ID is an App Clip ID tied to the app, which only the Developer portal can register
+    # (the API cannot set the parent app). It has no App Group.
+    'StruisClip': 'com.digiloglab.strius.Clip',
 }
+APP_CLIP_PRODUCT = 'StruisClip'
+APP_CLIP_PARENT_KEY = 'com.apple.developer.parent-application-identifiers'
+APP_CLIP_ASSOCIATED_KEY = 'com.apple.developer.associated-appclip-app-identifiers'
 APP_GROUP = 'group.com.digiloglab.struis.runtime'
 ICLOUD_CONTAINER = 'iCloud.com.digiloglab.strius'
 CONTAINERS_KEY = 'com.apple.developer.icloud-container-identifiers'
@@ -47,10 +53,14 @@ def profile_problem(document, product, certificate_der):
         return 'devices'
     if certificate_der not in document.get('DeveloperCertificates', []):
         return 'certificate'
+    if product == APP_CLIP_PRODUCT:
+        return None if f'{team}.{PROFILE_BUNDLES["strius"]}' in entitlements.get(APP_CLIP_PARENT_KEY, []) else 'app-clip'
     if APP_GROUP not in entitlements.get('com.apple.security.application-groups', []):
         return 'app-group'
     if product == 'strius' and ICLOUD_CONTAINER not in entitlements.get(CONTAINERS_KEY, []):
         return 'icloud'
+    if product == 'strius' and f'{team}.{PROFILE_BUNDLES[APP_CLIP_PRODUCT]}' not in entitlements.get(APP_CLIP_ASSOCIATED_KEY, []):
+        return 'app-clip'
     return None
 
 
@@ -66,6 +76,9 @@ def ensure_store_profiles(asc, certificate_der, serial, decode, now=None):
     for product, identifier in PROFILE_BUNDLES.items():
         bundle = asc.find_bundle_id(identifier)
         if not bundle:
+            if product == APP_CLIP_PRODUCT:
+                raise RuntimeError(f'App Clip ID {identifier} is missing. Register it on the Developer portal as an App Clip '
+                                   f'of {PROFILE_BUNDLES["strius"]} and run again.')
             raise RuntimeError(f'App ID {identifier} is missing')
         chosen = None
         candidates = sorted(asc.profiles_for(bundle), key=lambda item: item['attributes'].get('expirationDate') or '', reverse=True)
@@ -92,6 +105,10 @@ def ensure_store_profiles(asc, certificate_der, serial, decode, now=None):
             if problem == 'app-group':
                 raise RuntimeError(f'App ID {identifier} has no App Group {APP_GROUP}. '
                                    'Assign it on the Developer portal and run again.')
+            if problem == 'app-clip':
+                raise RuntimeError(f'The profile for {identifier} does not tie the app and its App Clip together. '
+                                   f'Register {PROFILE_BUNDLES[APP_CLIP_PRODUCT]} on the Developer portal as an App Clip '
+                                   f'of {PROFILE_BUNDLES["strius"]} and run again.')
             if problem:
                 raise RuntimeError(f'The new App Store profile for {product} does not match ({problem})')
             chosen = (data, document)

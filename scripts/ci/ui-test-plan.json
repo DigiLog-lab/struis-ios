@@ -308,7 +308,8 @@
     ],
     "strius/Features/Timeline/**": [
       "timeline"
-    ]
+    ],
+    "strius/Features/TimeAttack/**": []
   },
   "guarded": [
     "strius/**",

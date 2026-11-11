@@ -15,11 +15,18 @@ CERT = b'certificate-der'
 TEAM = 'TEAM123456'
 
 
-def document(product, *, container=True, group=True, cert=CERT, devices=None, uuid='u'):
-    entitlements = {'application-identifier': f'{TEAM}.{archive.PROFILE_BUNDLES[product]}',
-                    'com.apple.security.application-groups': [archive.APP_GROUP] if group else []}
+def document(product, *, container=True, group=True, cert=CERT, devices=None, uuid='u', clip=True):
+    entitlements = {'application-identifier': f'{TEAM}.{archive.PROFILE_BUNDLES[product]}'}
+    if product == archive.APP_CLIP_PRODUCT:
+        # An App Clip profile carries its parent app and no App Group.
+        if clip:
+            entitlements[archive.APP_CLIP_PARENT_KEY] = [f"{TEAM}.{archive.PROFILE_BUNDLES['strius']}"]
+    else:
+        entitlements['com.apple.security.application-groups'] = [archive.APP_GROUP] if group else []
     if container:
         entitlements[archive.CONTAINERS_KEY] = [archive.ICLOUD_CONTAINER]
+    if product == 'strius' and clip:
+        entitlements[archive.APP_CLIP_ASSOCIATED_KEY] = [f'{TEAM}.{archive.PROFILE_BUNDLES[archive.APP_CLIP_PRODUCT]}']
     profile = {'TeamIdentifier': [TEAM], 'Entitlements': entitlements, 'DeveloperCertificates': [cert], 'UUID': uuid}
     if devices:
         profile['ProvisionedDevices'] = devices
@@ -114,7 +121,24 @@ class StoreProfileTests(unittest.TestCase):
         self.assertNotIn('BUILD_PROVISION_PROFILE', source)
 
     def test_the_retired_runtime_extension_needs_no_profile(self):
-        self.assertEqual(set(archive.PROFILE_BUNDLES), {'strius', 'StruisExec'})
+        self.assertEqual(set(archive.PROFILE_BUNDLES), {'strius', 'StruisExec', 'StruisClip'})
+
+    def test_a_profile_without_the_app_clip_link_asks_for_the_portal(self):
+        # The App Clip ID ties the app and the App Clip together; only the Developer portal can register it (#133).
+        profiles, documents = self.all_reusable()
+        app = archive.PROFILE_BUNDLES['strius']
+        profiles[app] = []
+        connect = FakeConnect(profiles, documents, created={app: document('strius', clip=False)})
+        with self.assertRaisesRegex(RuntimeError, 'App Clip .* Developer portal'):
+            ensure(connect)
+
+    def test_a_missing_app_clip_id_asks_for_the_portal(self):
+        profiles, documents = self.all_reusable()
+        connect = FakeConnect(profiles, documents)
+        clip = archive.PROFILE_BUNDLES['StruisClip']
+        connect.find_bundle_id = lambda identifier: None if identifier == clip else {'id': identifier}
+        with self.assertRaisesRegex(RuntimeError, 'App Clip ID .* Developer portal'):
+            ensure(connect)
 
 
 if __name__ == '__main__':
