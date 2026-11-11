@@ -325,4 +325,71 @@ final class OnboardingTests: XCTestCase {
         XCTAssertEqual(card?.subunitId, "s1")
         XCTAssertEqual(card?.payload["starter"]?.boolValue, true)
     }
+
+    // MARK: - 単元を作る(#132)
+
+    func testDeadlineFromTheChoiceAndTheNextHolidayEnd() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        func day(_ y: Int, _ m: Int, _ d: Int) -> Date { calendar.date(from: DateComponents(year: y, month: m, day: d))! }
+        let today = day(2026, 11, 11)
+        XCTAssertEqual(StudyDeadline.date(for: "1週間以内", from: today, calendar: calendar), day(2026, 11, 18))
+        XCTAssertEqual(StudyDeadline.date(for: "2週間くらい", from: today, calendar: calendar), day(2026, 11, 25))
+        XCTAssertEqual(StudyDeadline.date(for: "1か月くらい", from: today, calendar: calendar), day(2026, 12, 11))
+        XCTAssertNil(StudyDeadline.date(for: "まだ先・決まっていない", from: today, calendar: calendar))
+        // 休みの終わり: 今日より後で一番近いもの(冬 1/7・春 4/5・夏 8/31)。
+        XCTAssertEqual(StudyDeadline.date(for: OnboardingCatalog.untilHoliday, from: today, calendar: calendar), day(2027, 1, 7))
+        XCTAssertEqual(StudyDeadline.holidayEnd(after: day(2027, 7, 20), calendar: calendar), day(2027, 8, 31))
+        XCTAssertEqual(StudyDeadline.holidayEnd(after: day(2027, 3, 20), calendar: calendar), day(2027, 4, 5))
+        XCTAssertEqual(StudyDeadline.holidayEnd(after: day(2027, 8, 31), calendar: calendar), day(2028, 1, 7), "終わりの当日は次の休み")
+        XCTAssertEqual(StudyDeadline.label(day(2027, 8, 31), calendar: calendar), "8月31日まで")
+        XCTAssertEqual(StudyDeadline.isoDay(day(2027, 1, 7), calendar: calendar), "2027-01-07")
+        XCTAssertTrue(OnboardingCatalog.untilTest.contains(OnboardingCatalog.untilHoliday))
+    }
+
+    func testUnitCreationStartsFromTheChoicesAndLeavesTheOnboardingAnswersAlone() {
+        let defaults = UserDefaults.standard
+        let saved = defaults.data(forKey: OnboardingProfile.profileKey)
+        defer { if let saved { defaults.set(saved, forKey: OnboardingProfile.profileKey) } else { defaults.removeObject(forKey: OnboardingProfile.profileKey) } }
+        var onboarding = profile(grade: "高1", trial: 1)
+        onboarding.route = .weak
+        onboarding.unit = "数と式"
+        onboarding.save()
+
+        let model = OnboardingModel(records: records(), hasPlan: { true }, isClaudeAvailable: { true }, purpose: .unitCreation)
+        XCTAssertEqual(model.step, .intent, "中高生は「ここから何をしますか」から")
+        XCTAssertNil(model.selectedUnit, "前の単元の選び方は引き継がない")
+        XCTAssertEqual(model.profile.trial.count, 1, "お試しの結果は使う")
+        model.existingUnits = ["二次関数"]
+        model.choose(route: .range)
+        XCTAssertEqual(model.step, .unit)
+        model.chooseUnitGrade("中3")
+        XCTAssertEqual(model.unitListGrade, "中3")
+        model.chooseUnitGrade("高1")
+        XCTAssertNil(model.unitGrade, "今の学年に戻したら nil")
+        model.selectedUnit = "二次不等式"
+        model.selectUntilTest(OnboardingCatalog.untilHoliday)
+        XCTAssertNotNil(model.deadline)
+        model.commitUnitWithDeadline()
+        XCTAssertEqual(model.step, .planWait)
+
+        let request = model.planRequest()
+        XCTAssertEqual(request["unit"]?.stringValue, "二次不等式")
+        XCTAssertEqual(request["grade"]?.stringValue, "高1")
+        XCTAssertEqual(request["until_test"]?.stringValue, OnboardingCatalog.untilHoliday)
+        XCTAssertEqual(request["deadline"]?.stringValue, StudyDeadline.isoDay(model.deadline!))
+        XCTAssertEqual(request["existing_units"]?.arrayValue?.compactMap(\.stringValue), ["二次関数"])
+        XCTAssertEqual(model.planChips, [], "期限は日付のボタンで出す")
+
+        let after = OnboardingProfile.load()
+        XCTAssertEqual(after?.route, .weak, "オンボーディングの回答を書き換えない")
+        XCTAssertEqual(after?.unit, "数と式")
+        XCTAssertNil(after?.resumeStep, "続きの画面を書き換えない")
+    }
+
+    func testUniversityUnitCreationStartsFromWhatToStudy() {
+        let model = OnboardingModel(profile: profile(grade: OnboardingProfile.universityGrade), records: records(), hasPlan: { true },
+                                    isClaudeAvailable: { true }, purpose: .unitCreation)
+        XCTAssertEqual(model.step, .topic)
+    }
 }
