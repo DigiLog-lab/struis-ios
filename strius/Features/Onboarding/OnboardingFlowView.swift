@@ -340,10 +340,10 @@ struct OnboardingFlowView: View {
 
     // MARK: - 単元を作る: 単元と「いつまでに」を 1 画面で(#132)
 
-    /// 単元の一覧を切り替えられる学年(今の学年と、その前後)。
+    /// 単元の一覧を切り替えられる学年(今の学年と、その前後)。学年が分からない時は全部。
     private var unitGrades: [String] {
         let grades = OnboardingCatalog.grades
-        guard let index = grades.firstIndex(of: model.profile.grade ?? "") else { return [model.unitListGrade] }
+        guard let index = grades.firstIndex(of: model.profile.grade ?? "") else { return grades }
         return Array(grades[max(0, index - 1)...min(grades.count - 1, index + 1)])
     }
 
@@ -353,7 +353,7 @@ struct OnboardingFlowView: View {
         return OnboardingScaffold(onBack: back, isPad: isPad) {
             VStack(alignment: .leading, spacing: 16) {
                 OnboardingTitle(title: "どの単元ですか")
-                HStack(spacing: 8) {
+                OnboardingFlow {
                     ForEach(unitGrades, id: \.self) { grade in
                         OnboardingChip(title: grade, isSelected: model.unitListGrade == grade) { model.chooseUnitGrade(grade) }
                             .accessibilityIdentifier("unit-creation-grade-\(grade)")
