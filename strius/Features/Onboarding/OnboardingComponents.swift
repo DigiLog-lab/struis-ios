@@ -255,8 +255,11 @@ struct OnboardingScaffold<Content: View, Footer: View>: View {
     @ViewBuilder let content: Content
     @ViewBuilder let footer: Footer
 
-    /// 戻る・ロゴ・お試しの数のどれも無い画面は、上の帯を詰めて見出しを上に置く。
-    private var hasHeader: Bool { onBack != nil || showsBrand || badge != nil }
+    /// ホームの「単元を作る」(#132)のシートでは、上の帯の右に閉じるボタンを出す。
+    @Environment(\.onboardingClose) private var onClose
+
+    /// 戻る・ロゴ・お試しの数・閉じるのどれも無い画面は、上の帯を詰めて見出しを上に置く。
+    private var hasHeader: Bool { onBack != nil || showsBrand || badge != nil || onClose != nil }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -275,6 +278,19 @@ struct OnboardingScaffold<Content: View, Footer: View>: View {
                         .padding(.vertical, 6)
                         .background(Theme.accentColor.opacity(0.18), in: Capsule())
                         .accessibilityIdentifier("onboarding-trial-badge")
+                }
+                if let onClose {
+                    Button(action: onClose) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Theme.secondaryText)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, -12)
+                    .accessibilityLabel("閉じる")
+                    .accessibilityIdentifier("unit-creation-close")
                 }
             }
             .frame(height: hasHeader ? 44 : 0)
@@ -332,4 +348,9 @@ struct OnboardingFlow<Content: View>: View {
     var body: some View {
         StruisFlowLayout(spacing: 8, lineSpacing: 8) { content }
     }
+}
+
+extension EnvironmentValues {
+    /// ホームの「単元を作る」のシートを閉じる(オンボーディングでは nil)。
+    @Entry var onboardingClose: (() -> Void)? = nil
 }

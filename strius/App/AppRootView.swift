@@ -191,7 +191,7 @@ struct AppRootView: View {
 
     private var timelineWithQuestionPanel: some View {
         HStack(spacing: 0) {
-            LearningTimelineView(store: timeline, onOpenUnits: { isUnitsPresented = true }, layout: timelineLayout)
+            LearningTimelineView(store: timeline, onOpenUnits: { isUnitsPresented = true }, layout: timelineLayout, isCovered: isUnitsPresented)
                 // 欄の入力でキーボードが出ても、タイムライン(書いた答案)の大きさは変えない。
                 .ignoresSafeArea(.keyboard)
             if let context = sideQuestion {

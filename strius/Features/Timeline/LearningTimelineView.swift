@@ -10,6 +10,8 @@ struct LearningTimelineView: View {
     let store: TimelineStore
     let onOpenUnits: () -> Void
     var layout: TimelineLayout = .compact
+    /// 単元ホームを上に重ねている(iPad の道具パレットはウィンドウの一番上に出るので、重ねている間は出さない)。
+    var isCovered = false
     @Environment(WorkbookCoordinator.self) private var coordinator
     @Environment(\.scenePhase) private var scenePhase
     @State private var hasInk = false
@@ -534,7 +536,7 @@ struct LearningTimelineView: View {
             TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isInkZoomed, controller: ink,
                               passThrough: inkPassThrough.map { $0.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y) },
                               fingerPassThrough: inkFingerPassThrough.map { $0.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y) },
-                              showsToolPicker: layout.isPad && showsInkTools, isReadOnly: isResult)
+                              showsToolPicker: layout.isPad && showsInkTools && !isCovered, isReadOnly: isResult)
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 // 結果の画面では、書き足しはできないがスクロールと拡大縮小はできる(採点中は触らせない)。
