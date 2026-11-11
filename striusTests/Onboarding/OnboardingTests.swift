@@ -457,6 +457,16 @@ final class OnboardingTests: XCTestCase {
         XCTAssertNil(university.deadline)
         XCTAssertNil(university.reading)
 
+        // シラバスの授業名も、捨てた計画と一緒に捨てる(選び直す画面に見えないまま残さない)。
+        let syllabus = OnboardingTurns.parseReading(String(decoding: try! JSONSerialization.data(
+            withJSONObject: MockTurnRunner.materialReading(["grade": OnboardingProfile.universityGrade])), as: UTF8.self))
+        university.reading = syllabus
+        university.confirmReading()
+        XCTAssertEqual(university.universityTopic, "線形代数Ⅱ")
+        university.rebuildPlan(tooHard: false)
+        XCTAssertEqual(university.universityTopic, "")
+        XCTAssertNil(university.profile.universityTopic)
+
         // 「資料なしで作る」で「いつまでに」を選び、戻ってもう一度「資料なしで作る」にしても、選んだ期限を送る。
         university.skipMaterials()
         university.selectUntilTest("1週間以内")
@@ -480,6 +490,23 @@ final class OnboardingTests: XCTestCase {
         XCTAssertFalse(reading.isCourse)
         XCTAssertEqual(reading.pages, "p.62〜p.96")
         XCTAssertEqual(reading.workbookPages, "ニューアクションα p.40〜p.52")
+
+        // 試験日の無い資料(教科書の目次など)を撮った時は、本人が選んだ「いつまでに」を残す。
+        let model = OnboardingModel(profile: profile(grade: "高1"), records: records(), hasPlan: { true }, isClaudeAvailable: { true }, purpose: .unitCreation)
+        model.choose(route: .range)
+        model.selectUntilTest("1週間以内")
+        let chosen = try XCTUnwrap(model.deadline)
+        var withoutDate = reading
+        withoutDate.testDate = ""
+        model.reading = withoutDate
+        model.confirmReading()
+        XCTAssertEqual(model.deadline, chosen)
+        XCTAssertEqual(model.planRequest()["until_test"]?.stringValue, "1週間以内")
+        // 試験日が読み取れた時は、それを期限にする。
+        model.reading = reading
+        model.confirmReading()
+        XCTAssertEqual(model.deadline, StudyDeadline.day(from: "2026-12-03"))
+        XCTAssertNil(model.profile.untilTest)
     }
 
     func testAnotherGradesUnitIsOnlyForTheRangeRoute() {

@@ -160,7 +160,7 @@ final class OnboardingModel {
     var universityPurpose: String?
 
     // 範囲の読み取り(#132)
-    private(set) var reading: MaterialReading?
+    var reading: MaterialReading?
     var readingError: String?
     private(set) var readingStartedAt: Date?
     private var readingTask: Task<Void, Never>?
@@ -658,10 +658,13 @@ final class OnboardingModel {
             let unit = reading.unit.isEmpty ? reading.subject : reading.unit
             selectedUnit = unit
             profile.unit = unit
-            profile.untilTest = nil
             // 選んでいた学年(前後の学年の範囲表を撮った時)は、読み取りと同じく計画づくりにも渡す。
         }
-        deadline = StudyDeadline.day(from: reading.testDate)
+        // 試験日が読み取れた時だけ、それを期限にする。読み取れなかった時は本人が選んだ「いつまでに」を残す。
+        if let testDay = StudyDeadline.day(from: reading.testDate) {
+            deadline = testDay
+            profile.untilTest = nil
+        }
         startPlanning()
     }
 
@@ -961,7 +964,11 @@ final class OnboardingModel {
             go(.planWait, remember: false)
         } else {
             revisionFrom = nil
-            // やりたいことと違う: 前に読み取った範囲・撮った写真・その試験日で作り直さない。
+            // やりたいことと違う: 前に読み取った範囲・撮った写真・その試験日・その授業名で作り直さない。
+            if reading != nil, profile.isUniversity || profile.route == .university {
+                universityTopic = ""
+                profile.universityTopic = nil
+            }
             reading = nil
             lectureUpTo = nil
             deadline = nil

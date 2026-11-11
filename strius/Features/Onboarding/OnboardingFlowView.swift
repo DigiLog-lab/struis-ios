@@ -589,6 +589,11 @@ struct OnboardingFlowView: View {
                 model.commitUniversityChoices()
             }
         }
+        // 前に書いた題目(一覧に無いもの)は「ほかを書く」の欄に出して、見えないまま送らない。
+        .onAppear {
+            let topic = model.universityTopic.trimmingCharacters(in: .whitespaces)
+            isOtherTopic = !topic.isEmpty && !OnboardingCatalog.universityTopics.contains(topic)
+        }
     }
 
     // MARK: - A2 次のテストまで
