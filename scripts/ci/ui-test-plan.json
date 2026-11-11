@@ -352,7 +352,9 @@
     "OnboardingScreenshotUITests/testRealPlanPhase1": "実Claude(Anthropic の API キー)が要る",
     "OnboardingScreenshotUITests/testRealPlanPhase2": "実Claude(Anthropic の API キー)が要る。testRealPlanPhase1 が作った計画を使う",
     "TimelineScopeDemoUITests/testScopeTour": "実Claude(Anthropic の API キー)で解く範囲を一通り動かして撮る、持ち主に見せる確かめ用",
-    "UnitCreationUITests/testRealClaudeMakesAPlanForTheChosenUnitAndDeadline": "本物の Claude の API キーが要り、費用がかかる(Dev Box で手動)"
+    "UnitCreationUITests/testRealClaudeMakesAPlanForTheChosenUnitAndDeadline": "本物の Claude の API キーが要り、費用がかかる(Dev Box で手動)",
+    "UnitCreationUITests/testRealClaudeReadsARangeSheetAndPlansByPage": "本物の Claude の API キーと撮る写真が要り、費用がかかる(Dev Box で手動)",
+    "UnitCreationUITests/testRealClaudeReadsASyllabusAndPlansByLecture": "本物の Claude の API キーと撮る写真が要り、費用がかかる(Dev Box で手動)"
   },
   "excluded": {
     "striusUITests/testExample": "起動するだけのテンプレート。起動の失敗は選ばれたどのUIテストでも分かる",
