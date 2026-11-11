@@ -1,0 +1,13 @@
+{
+ "tape": "demo1",
+ "answers": [
+  "scripts/marketing/answers/demo1/01.jpg",
+  "scripts/marketing/answers/demo1/02.jpg",
+  "scripts/marketing/answers/demo1/03.jpg",
+  "scripts/marketing/answers/demo1/04.jpg",
+  "scripts/marketing/answers/demo1/05.jpg"
+ ],
+ "hold_problem": 2.5,
+ "hold_result": 3.0,
+ "hold_end": 3.0
+}

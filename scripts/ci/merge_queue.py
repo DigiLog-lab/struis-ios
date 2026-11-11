@@ -51,11 +51,11 @@ QUEUE_ACTOR: str = "github-actions[bot]"
 
 # Changes to these are verified with the PR's own definition of the workflow before main's.
 SELF_TESTS: dict[str, tuple[str, ...]] = {
+    # The UI test files (ui_test_plan.py, ui-test-plan.json, ui_failures.py, video_frame.swift) are not here:
+    # the gate runs no UI test, so they change only the Dev Box and the manual `full` run (2026-11-11).
     "ios.yml": (
         ".github/workflows/ios.yml", ".github/workflows/agent.yml", ".github/workflows/agent-native-cache.yml",
-        "scripts/agent/verify_report.py", "scripts/ci/ui_test_plan.py", "scripts/ci/ui-test-plan.json",
-        "scripts/ci/cosmetic.py", "scripts/ci/app_free.py", "scripts/ci/sim_build.py", "scripts/ci/ui_shards.py",
-        "scripts/ci/ui_failures.py", "scripts/ci/video_frame.swift",
+        "scripts/agent/verify_report.py", "scripts/ci/cosmetic.py", "scripts/ci/app_free.py", "scripts/ci/sim_build.py",
     ),
     # Also for ios.yml and agent.yml: scripts/ci/test_queue_contract.py checks, on the PR's files, the parts of
     # them only the queue's path uses (repository_dispatch, pending, report), which a workflow_dispatch run skips.

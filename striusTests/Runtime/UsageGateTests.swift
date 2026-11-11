@@ -32,6 +32,112 @@ final class UsageGateTests: XCTestCase {
 
     private let grading = UsageRequest(kind: .timelineGrading, finishing: true)
 
+    // MARK: - 初回の準備は枠に数えない
+
+    private func billed(_ usd: Double) -> [String: Any] { ["estimated_cost_usd": usd, "cost_status": "estimated"] }
+
+    /// ライトを買った直後の計画づくりと知識グラフの構築(上位モデル)は、枠を減らさない。出題と採点は減らす。
+    func testTheFirstPlanAndGraphBuildAreNotCountedButTheProblemsAre() {
+        let meter: UsageMeter = meter(plan: .light)
+        let gate: DeviceUsageGate = gate(meter)
+        gate.record(billed(0.23), requestBytes: 10, setup: .plan, turnID: "plan-1")
+        gate.record(billed(0.24), requestBytes: 10, setup: .graph, turnID: "graph-build")
+        gate.record(billed(0.28), requestBytes: 10, setup: .graph, turnID: "graph-extend")
+        XCTAssertEqual(meter.snapshot().spentUSD, 0, accuracy: 1e-9)
+        XCTAssertNil(gate.denial(for: .newWork))
+        gate.record(billed(0.11), requestBytes: 10, setup: nil, turnID: "batch-1")
+        gate.record(billed(0.01), requestBytes: 10, setup: nil, turnID: "answer-1")
+        XCTAssertEqual(meter.snapshot().spentUSD, 0.12, accuracy: 1e-9)
+        XCTAssertNil(gate.denial(for: .newWork))
+    }
+
+    /// 同じターンの送り直し・続きの要求は、数えないターンの数を増やさない。
+    func testASecondRequestOfTheSameSetupTurnDoesNotUseAnotherFreeTurn() {
+        let meter: UsageMeter = meter(plan: .light)
+        let gate: DeviceUsageGate = gate(meter)
+        gate.record(billed(0.2), requestBytes: 10, setup: .unit, turnID: "unit-1")
+        gate.record(billed(0.2), requestBytes: 10, setup: .unit, turnID: "unit-1")
+        XCTAssertEqual(meter.freeSetupCount(.unit), 1)
+        XCTAssertEqual(meter.snapshot().spentUSD, 0, accuracy: 1e-9)
+    }
+
+    /// 単元づくりは 3 回まで数えず、4 回目からは枠に数える。課金されなかった要求は回数を使わない。
+    func testTheFourthUnitIsCounted() {
+        let meter: UsageMeter = meter(plan: .standard)
+        let gate: DeviceUsageGate = gate(meter)
+        gate.record(["estimated_cost_usd": NSNull(), "cost_status": "not_billed"], requestBytes: 10, setup: .unit, turnID: "unit-0")
+        XCTAssertEqual(meter.freeSetupCount(.unit), 0)
+        for index in 1...UsageRules.freeSetupTurns(.unit) {
+            gate.record(billed(0.2), requestBytes: 10, setup: .unit, turnID: "unit-\(index)")
+        }
+        XCTAssertEqual(meter.snapshot().spentUSD, 0, accuracy: 1e-9)
+        gate.record(billed(0.2), requestBytes: 10, setup: .unit, turnID: "unit-4")
+        XCTAssertEqual(meter.snapshot().spentUSD, 0.2, accuracy: 1e-9)
+        // 種類ごとに数える: 単元づくりを使い切っても、知識グラフの分は残っている。
+        gate.record(billed(0.3), requestBytes: 10, setup: .graph, turnID: "graph-1")
+        XCTAssertEqual(meter.snapshot().spentUSD, 0.2, accuracy: 1e-9)
+    }
+
+    /// 数えなかったターンの記録は、入れ直しても(Keychain)、別の端末でも(iCloud)残る。
+    func testFreeSetupTurnsSurviveAReinstallAndAreSharedAcrossDevices() {
+        let local = MemoryValueStore()
+        let cloud = MemoryValueStore()
+        let first: UsageMeter = meter(plan: .light, local: local, cloud: cloud)
+        for index in 1...UsageRules.freeSetupTurns(.plan) {
+            XCTAssertTrue(first.takesFree(.plan, turnID: "plan-\(index)"))
+        }
+        let other: UsageMeter = meter(plan: .light, local: MemoryValueStore(), cloud: cloud)
+        XCTAssertFalse(other.takesFree(.plan, turnID: "plan-new"))
+        let reinstalled: UsageMeter = meter(plan: .light, local: local, cloud: MemoryValueStore())
+        XCTAssertFalse(reinstalled.takesFree(.plan, turnID: "plan-new"))
+        XCTAssertTrue(reinstalled.takesFree(.plan, turnID: "plan-1"))
+    }
+
+    /// iPhone と iPad が同期の前にそれぞれ 1 回ずつ使っても、同期の後は両方の分が数えられる(端末ごとの鍵に書くので、
+    /// 後から届いた方が相手の分を消さない)。
+    func testFreeSetupTurnsFromTwoDevicesBeforeSyncAreBothCounted() {
+        let phoneCloud = MemoryValueStore()
+        let padCloud = MemoryValueStore()
+        let phone: UsageMeter = meter(plan: .light, local: MemoryValueStore(), cloud: phoneCloud)
+        let pad: UsageMeter = meter(plan: .light, local: MemoryValueStore(), cloud: padCloud)
+        XCTAssertTrue(phone.takesFree(.plan, turnID: "phone-1"))
+        XCTAssertTrue(pad.takesFree(.plan, turnID: "pad-1"))
+        // 同期: 両方の端末が書いた鍵が、iCloud に集まる。
+        let synced = MemoryValueStore()
+        for cloud in [phoneCloud, padCloud] {
+            for key in cloud.keys(withPrefix: "usage.free-setup.") { synced.set(cloud.string(key), key) }
+        }
+        let third: UsageMeter = meter(plan: .light, local: MemoryValueStore(), cloud: synced)
+        XCTAssertEqual(third.freeSetupCount(.plan), 2)
+        XCTAssertTrue(third.takesFree(.plan, turnID: "third-1"))
+        XCTAssertFalse(third.takesFree(.plan, turnID: "third-2"))
+        XCTAssertTrue(third.takesFree(.plan, turnID: "phone-1"))
+    }
+
+    /// 学習中に起きる知識グラフの見直し・1 段下りる依頼は「初回の準備」に入れない。最初の構築の続きの段は入れる。
+    func testOnlyTheFirstGraphWorkIsSetup() {
+        XCTAssertEqual(TimelineTurns.setupPurposes, ["graph_build", "graph_extend", "graph_step", "graph_misconceptions"])
+        XCTAssertFalse(TimelineTurns.setupPurposes.contains("graph_review"))
+        XCTAssertFalse(TimelineTurns.setupPurposes.contains("graph_descend"))
+        // 単元 4 つ分の最初の構築(構築 1 + 続きの段 + つまずきの洗い出し 1)が、数えないターンの数に収まる。
+        XCTAssertGreaterThanOrEqual(UsageRules.freeSetupTurns(.graph), 4 * (TimelineTurns.graphStepLimit + 1))
+    }
+
+    /// 実測(2026-11-11、高2・三角関数): 構築 1・続きの段 3・つまずきの洗い出し 1 で 1.05 ドル。これを数えると、ライト(週 0.80 ドル)は
+    /// 4 問で止まった。数えなければ、同じ 4 問で使うのは出題と採点の 0.21 ドル。
+    func testTheMeasuredFirstSessionLeavesMostOfTheLightAllowance() {
+        let meter: UsageMeter = meter(plan: .light)
+        let gate: DeviceUsageGate = gate(meter)
+        for (index, usd) in [0.2294, 0.2447, 0.2048, 0.1811, 0.1873].enumerated() {
+            gate.record(billed(usd), requestBytes: 10, setup: .graph, turnID: "graph-\(index)")
+        }
+        for (index, usd) in [0.1115, 0.0104, 0.0019, 0.0023, 0.0157, 0.011, 0.0573, 0.0021].enumerated() {
+            gate.record(billed(usd), requestBytes: 10, setup: nil, turnID: "work-\(index)")
+        }
+        XCTAssertEqual(meter.snapshot().spentUSD, 0.2122, accuracy: 1e-6)
+        XCTAssertNil(gate.denial(for: .newWork))
+    }
+
     func testWeekStartsOnMondayAtMidnightAndResetsTheNextMonday() {
         // 2026-10-31 は土曜。週の始まりは 10-26(月)0:00、戻るのは 11-02(月)0:00。
         let saturday = date("2026-10-31T09:13:00+09:00")

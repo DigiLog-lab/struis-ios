@@ -179,13 +179,15 @@ nonisolated enum OnboardingTurns {
             return TurnPlan.ImageRef(path: "tutor_desk/inbox/materials/page-\(index + 1).\(ext)", hostPath: StruisPaths.captures.appendingPathComponent(path).path,
                                      maxDimension: 2048)
         }
-        return TurnPlan(
+        var plan: TurnPlan = TurnPlan(
             id: planID, kind: .onboardingPlan, round: 1,
             thread: try await thread(assets: assets, planID: planID, instructions: "prompt:onboarding_plan_instructions", role: TimelineModels.graphRole),
             turn: TurnPlan.TurnSpec(text: turnText(materials: request), images: Array(images),
                                     outputSchema: try await assets.json("schema:onboarding_plan"), sandboxPolicy: "dangerFullAccess"),
             workspace: TimelineTurns.workspace, delegation: nil, collect: [], limits: .structured
         )
+        plan.setup = .plan
+        return plan
     }
 
     static func parseVerdict(_ text: String) -> TrialVerdict? {

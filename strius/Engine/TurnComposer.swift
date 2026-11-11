@@ -131,12 +131,14 @@ nonisolated struct TurnComposer {
             "task": .string("plan_unit"), "request": .string(proposalRequest),
             "existing_unit_titles": .array(machine.orderedUnits().map { .string($0.title) }),
         ])
-        return TurnPlan(
+        var plan: TurnPlan = TurnPlan(
             id: planID, kind: .workbookUnit, round: 1,
             thread: try await structuredThread(planID: planID, instructions: "prompt:unit_instructions", model: await assets.model("astra")),
             turn: TurnPlan.TurnSpec(text: Self.dump(request), images: [], outputSchema: try await assets.json("schema:workbook_unit"), sandboxPolicy: "dangerFullAccess"),
             workspace: TurnPlan.WorkspaceSpec(files: [], dirs: []), delegation: nil, collect: [], limits: .structured
         )
+        plan.setup = .unit
+        return plan
     }
 }
 

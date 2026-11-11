@@ -1,0 +1,58 @@
+{
+ "tape": "unit-consult2",
+ "launch": "-skip-onboarding -workbook-empty",
+ "wait_first": "timeline-guide-create-unit",
+ "actions": [
+  {
+   "do": "hold",
+   "seconds": 1.5
+  },
+  {
+   "do": "tap",
+   "id": "timeline-guide-create-unit"
+  },
+  {
+   "do": "hold",
+   "seconds": 1.5
+  },
+  {
+   "do": "say",
+   "text": "数学の二次関数。最大と最小のところ"
+  },
+  {
+   "do": "hold",
+   "seconds": 1.5
+  },
+  {
+   "do": "say",
+   "text": "来週の金曜"
+  },
+  {
+   "do": "hold",
+   "seconds": 1.5
+  },
+  {
+   "do": "say",
+   "text": "範囲があると、どこで最小になるかわからない"
+  },
+  {
+   "do": "wait",
+   "id": "workbook-proposal-start",
+   "timeout": 300
+  },
+  {
+   "do": "hold",
+   "seconds": 3
+  },
+  {
+   "do": "tap",
+   "id": "workbook-proposal-start"
+  },
+  {
+   "do": "hold",
+   "seconds": 5
+  }
+ ],
+ "note": "録音と録画を同時にする(mode: record)。録画は本物の Claude の待ち時間のまま。",
+ "mode": "record"
+}
