@@ -73,9 +73,29 @@ struct OnboardingPlanView: View {
 
     // MARK: - 計画
 
+    /// 横並びにする最小の幅: 左右の余白 100 × 2 + 小単元の一覧 380 + すき間 40 + 左の列(見出し・説明文)に要る 320。
+    /// iPad mini の縦(744pt)や 11 インチの縦(834pt)では左の列が 124〜214pt しか残らず、見出しが 1 行 3〜4 文字に折れる。
+    static let sideBySideMinWidth: CGFloat = 940
+
     @ViewBuilder
     private func plan(_ draft: OnboardingPlanDraft) -> some View {
         if isPad {
+            GeometryReader { proxy in
+                Group {
+                    if proxy.size.width >= Self.sideBySideMinWidth {
+                        planSideBySide(draft)
+                    } else {
+                        planStacked(draft)
+                    }
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height)
+            }
+        } else {
+            planStacked(draft)
+        }
+    }
+
+    private func planSideBySide(_ draft: OnboardingPlanDraft) -> some View {
             HStack(alignment: .top, spacing: 40) {
                 VStack(alignment: .leading, spacing: 16) {
                     description(draft)
@@ -97,8 +117,10 @@ struct OnboardingPlanView: View {
             .padding(.top, 80)
             .padding(.bottom, 32)
             .background(Theme.ground.ignoresSafeArea())
-        } else {
-            OnboardingScaffold {
+    }
+
+    private func planStacked(_ draft: OnboardingPlanDraft) -> some View {
+            OnboardingScaffold(isPad: isPad) {
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
                         OnboardingTitle(title: draft.displayHeading)
@@ -117,7 +139,6 @@ struct OnboardingPlanView: View {
                 startButton
                 rebuildButton
             }
-        }
     }
 
     private func description(_ draft: OnboardingPlanDraft) -> some View {
