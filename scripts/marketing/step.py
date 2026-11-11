@@ -130,7 +130,8 @@ def chat_camera(image: str) -> None:
 
 
 def say(text: str) -> None:
-    if ui("tapid", id="chat-composer-input", timeout=10) != "ok":
+    # 入力欄の識別子は会話の画面の識別子(chat-page)に上書きされているので、空の時の案内の文でたたく。
+    if all(ui("tapid", id=key, timeout=5) != "ok" for key in ("chat-composer-input", "聞きたいことを書く")):
         raise SystemExit("入力欄が無い")
     time.sleep(0.6)
     typed = ui("type", text=text)
