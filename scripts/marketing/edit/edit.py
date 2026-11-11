@@ -104,6 +104,27 @@ SCENES = {
     "e6": lambda: still_scene(M.s6, 3.8),
 }
 
+def assemble(lengths: dict) -> None:
+    """場面をつなぎ、音を重ねて1本にする($MARKETING_OUT/struis_promo.mp4)。"""
+    starts, t = {}, 0.0
+    for name in SCENES:
+        starts[name] = t
+        t += lengths[name]
+    e3, e4, e6 = starts["e3"], starts["e4"], starts["e6"]
+    events = [("pluck", 0.3), ("pluck", 1.0), ("pluck", 1.9), ("pluck", starts["e2"] + 0.2),
+              ("shutter", e3 + 2.7), ("chime", e3 + 3.6), ("whoosh", e4 + 1.47), ("whoosh", e4 + 4.0),
+              ("pluck", e6 + 0.2), ("pluck", e6 + 0.7), ("pluck", e6 + 1.35)]
+    events += [("cut", starts["e5"] + 0.4 + 1.8 * (k / 14) ** 0.8) for k in range(14)]
+    with open(f"{M.OUT}/scenes.txt", "w") as f:
+        f.writelines(f"file '{M.OUT}/{name}.mp4'\n" for name in SCENES)
+    silent, audio, final = f"{M.OUT}/silent.mp4", f"{M.OUT}/audio.wav", f"{M.OUT}/struis_promo.mp4"
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", f"{M.OUT}/scenes.txt", "-c", "copy", silent], check=True)
+    M.soundtrack(events, t, audio)
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", silent, "-i", audio, "-map", "0:v", "-map", "1:a",
+                    "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest", final], check=True)
+    print(final, round(t, 2))
+
+
 if __name__ == "__main__":
     ensure_take()
     what = os.environ.get("ONLY")
@@ -112,9 +133,13 @@ if __name__ == "__main__":
         draw, n = SCENES[name]()
         draw(float(t), int(float(t) * FPS)).convert("RGB").save(f"{M.OUT}/est_{name}_{t}.jpg", quality=88)
     else:
+        lengths = {}
         for name, mk in SCENES.items():
             if what and name not in what.split(","):
                 continue
             draw, n = mk()
             encode(name, draw, n)
+            lengths[name] = n / FPS
             print(name, n / FPS)
+        if not what:
+            assemble(lengths)

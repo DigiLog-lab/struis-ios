@@ -113,7 +113,10 @@ def request_kind(body: dict) -> str:
     """要求の種類の名前(`match: kind` の録画と再生の対応に使う)。出力の形(JSON Schema)で見分ける。
 
     形は `output_config.format.schema` か、指示文に書いた JSON Schema(アプリの `ClaudeTranslation.schemaInstruction`)。
-    形が無い要求(会話)は `free`。名前は必須の項目の先頭 3 つと、形のハッシュの先頭 8 桁。
+    名前は必須の項目の先頭 3 つと、形のハッシュの先頭 8 桁。
+    形が無い要求(会話の返事・進み具合の保存など)は、使える道具の名前と最初の指示文(先頭 1500 字)で見分け、
+    `free-<ハッシュ 8 桁>` にする。全部を `free` 1つにまとめると、届く順が入れ替わった時に、進み具合の保存に会話の返事を
+    返してしまう(2026-11-11、単元づくりの再生で起きた)。
     """
     schema = ((body.get("output_config") or {}).get("format") or {}).get("schema")
     if schema is None:
@@ -128,7 +131,10 @@ def request_kind(body: dict) -> str:
                     schema = raw
                 break
     if schema is None:
-        return "free"
+        system = body.get("system")
+        first = system if isinstance(system, str) else next((b.get("text", "") for b in system or [] if isinstance(b, dict)), "")
+        tools = sorted(t.get("name", "") for t in body.get("tools") or [])
+        return "free-" + hashlib.sha1((json.dumps(tools) + first[:1500]).encode()).hexdigest()[:8]
     canonical = json.dumps(schema, ensure_ascii=False, sort_keys=True)
     required = schema.get("required", []) if isinstance(schema, dict) else []
     head = "-".join(re.sub(r"[^a-z0-9_]", "", str(name).lower()) for name in required[:3]) or "schema"
@@ -678,6 +684,9 @@ class Handler(BaseHTTPRequestHandler):
         path.write_text(json.dumps(tape, ensure_ascii=False))
 
     def replay(self, record: dict, path: Path):
+        if not path.exists() and path.parent.name.startswith("free-"):
+            # 種類を分ける前の録音(`free` 1つ)は、届いた順のまま使う。
+            path = Control.next_tape_path("free")
         if not path.exists():
             record["status"] = 409
             self.reply(409, {"type": "error", "error": {"type": "invalid_request_error", "message": f"tape ended: {path.name}"}})

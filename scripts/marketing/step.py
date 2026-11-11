@@ -7,6 +7,10 @@
     step.py next                    「次へ」を押して、次の問題が出るまで待つ
     step.py skip                    「飛ばす」を押して、次の問題が出るまで待つ
     step.py shot <名前>             画面を撮る
+    step.py open <起動引数...>      起動引数を付けてアプリを起動する(問題を待たない。単元づくりの収録用)
+    step.py chatcam <画像>          会話の入力欄の「添付」→「撮る」で、画像をカメラに差し込んで撮る
+    step.py say <文>                会話の入力欄に打って送る
+    step.py ui <op> [key=value...]  操作役にそのまま1つ命令を送る(tapid・wait・tree など)
 
 答案の画像はアプリが撮るたびに読み直す(`ChatCamera.swift` の `testPhoto`)ので、撮る直前に差し替えれば問題ごとに違う答案になる。
 `take.py` もこのファイルの関数を使う。
@@ -113,6 +117,31 @@ def advance(button: str, previous: str) -> dict[str, str]:
     return wait_problem(previous)
 
 
+def chat_camera(image: str) -> None:
+    """会話の入力欄の「添付」→「撮る」→ シャッター。撮った写真は入力欄に添付される。"""
+    shutil.copyfile(image, WORK / "camera.jpg")
+    for target in ("添付", "撮る"):
+        if ui("tapid", id=target, timeout=10) != "ok":
+            raise SystemExit(f"「{target}」が無い")
+        time.sleep(0.6)
+    ui("alert", text="許可", timeout=2)
+    if ui("tapid", id="chat-camera-shutter", timeout=15) != "ok":
+        raise SystemExit("シャッターが出ない")
+
+
+def say(text: str) -> None:
+    # 入力欄の識別子は会話の画面の識別子(chat-page)に上書きされているので、空の時の案内の文でたたく。
+    if all(ui("tapid", id=key, timeout=5) != "ok" for key in ("chat-composer-input", "聞きたいことを書く")):
+        raise SystemExit("入力欄が無い")
+    time.sleep(0.6)
+    typed = ui("type", text=text)
+    if typed != "ok":
+        raise SystemExit(f"打てない: {typed}")
+    time.sleep(0.4)
+    if ui("tapid", id="送信", timeout=10) != "ok":
+        raise SystemExit("送信が押せない")
+
+
 def main(argv: list[str]) -> None:
     op = argv[0] if argv else ""
     if op == "launch":
@@ -132,6 +161,16 @@ def main(argv: list[str]) -> None:
         print(shot(time.strftime("p-%H%M%S")))
     elif op == "shot":
         print(shot(argv[1]))
+    elif op == "open":
+        print(ui("launch", text=" ".join(argv[1:])))
+    elif op == "chatcam":
+        chat_camera(str(ROOT / argv[1]) if not argv[1].startswith("/") else argv[1])
+        print("ok")
+    elif op == "say":
+        say(" ".join(argv[1:]))
+        print("ok")
+    elif op == "ui":
+        print(ui(argv[1], **dict(a.split("=", 1) for a in argv[2:])))
     else:
         raise SystemExit(__doc__)
 

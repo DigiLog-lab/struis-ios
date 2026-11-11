@@ -18,13 +18,23 @@ App Store のプレビュー動画は「アプリそのものの画面収録」�
    mac.py run -- 'python3 scripts/marketing/take.py scripts/marketing/takes/demo1.json'   # take.mp4 と take.json が届く
    ```
 3. **編集**(Dev Box は使わない): `MARKETING_OUT=/tmp/out python3 scripts/marketing/edit/edit.py take.mp4`。
-   切り口の違う4案は `python3 scripts/marketing/edit/variants.py A take.mp4`(A〜D)。同じ録画から作るので、撮り直しは要らない。
+   切り口の違う4案は `python3 scripts/marketing/edit/variants.py A take.mp4 textbook.mp4 consult.mp4`(A〜D)。同じ録画から作るので、撮り直しは要らない。
+
+## 単元づくり
+
+単元が無い状態(`-workbook-empty`)で起動すると、タイムラインに「まず、勉強する単元を作りましょう」の案内が出る。そこから
+- 教科書: `takes/unit-textbook.json`。会話のカメラで教科書のページ(`answers/unit/textbook.jpg`、`textbook.py` で作った
+  オリジナル。実在の教科書は出版社の著作物なので映さない)を撮り、アプリの3つの問いに答える → 全体像のカード →「はじめる」
+- 相談: `takes/unit-consult.json`。写真なしで3つの問いに答える。再生だと順番がずれやすいので、録音しながら録画する(`mode: record`)
+
+「はじめる」の後のタイムラインの1問目は、再生だと録音とタイミングがずれて出ない。映像には「はじめる」までを使う。
 
 ## 仕組み
 
 - **返事の固定**: `scripts/e2e/fake_anthropic.py` の `record` / `replay` を `match: kind` で使う。タイムラインは次のカードの束・
   見直し・知識グラフの要求を裏で同時に送るので、届いた順で対応させると入れ替わる。出力の形(JSON Schema)が同じ要求を同じ種類とし、
-  種類ごとの順で対応させる。同じ手順で解けば、同じ問題・同じ採点が返る(2026-11-11 に demo1 の5問で確かめた)。
+  種類ごとの順で対応させる。出力の形が無い要求(会話の返事・進み具合の保存)は、道具の名前と最初の指示文で分ける。
+  同じ手順で解けば、同じ問題・同じ採点が返る(2026-11-11 に demo1 の5問で確かめた)。
 - **API キー**: アプリには偽のキーを渡し、本物のキー(`$DEVBOX_ANTHROPIC_KEY_FILE`)は模擬サーバーの転送先にだけ使う。
 - **答案の写真**: シミュレータにカメラが無いので `STRUIS_TEST_CAMERA_IMAGE` を使う。アプリは撮るたびにファイルを読み直す
   (`ChatCamera.swift` の `testPhoto`)ので、撮る直前に差し替える。画像は `answer.py`(Klee One、SIL Open Font License)で作る。
@@ -45,4 +55,5 @@ App Store のプレビュー動画は「アプリそのものの画面収録」�
 | `tapes/<名前>/` | 録音(種類ごとの返事。秘密の値は入らない) |
 | `answers/<名前>/` | 答案の写真 |
 | `answer.py` | 手書き風の答案の写真を作る(Claude の環境) |
+| `textbook.py` | 教科書風のページの写真を作る(Claude の環境) |
 | `edit/` | 編集(Claude の環境)。`edit.py` は基本の1本、`variants.py` は4案 |
