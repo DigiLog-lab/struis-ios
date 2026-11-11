@@ -15,11 +15,6 @@ enum Typography {
         }
     }
 
-    enum SerifFontName: String {
-        case regular = "CormorantGaramond-Light"
-        case italic = "CormorantGaramond-LightItalic"
-    }
-
     /// 和欧混植。欧文と数字は SF、和文は Zen Kaku Gothic New。
     /// Zen Kaku の数字は字幅が狭く線が細いので、数字が並ぶ場所(点数・時刻・進み)で素人っぽく見える。
     /// SF を主書体にして Zen Kaku を cascade の先頭に置くと、かな・漢字だけが Zen Kaku に落ちる。
@@ -44,22 +39,11 @@ enum Typography {
         return UIFontMetrics(forTextStyle: textStyle.uiTextStyle).scaledFont(for: mixed)
     }
 
-    static func serif(
-        size: CGFloat,
-        weight: SerifFontName = .regular,
-        relativeTo textStyle: Font.TextStyle = .body
-    ) -> Font {
-        .custom(weight.rawValue, size: size, relativeTo: textStyle)
-    }
-
-    static func serifItalic(size: CGFloat, relativeTo textStyle: Font.TextStyle = .body) -> Font {
-        serif(size: size, weight: .italic, relativeTo: textStyle)
-    }
-
-    static let navBrand = serifItalic(size: 18, relativeTo: .headline)
-    static let brand = serifItalic(size: 24, relativeTo: .title2)
-    static let eyebrow = serifItalic(size: 11, relativeTo: .caption)
-    static let counter = serifItalic(size: 30, relativeTo: .largeTitle)
+    // 斜体のセリフ体(Cormorant Garamond)は 2026-10-30 に全廃した。見出しの小さな欧文・数字もゴシックで組む。
+    static let navBrand = sans(size: 17, weight: .bold, relativeTo: .headline)
+    static let brand = sans(size: 22, weight: .bold, relativeTo: .title2)
+    static let eyebrow = sans(size: 11, weight: .medium, relativeTo: .caption)
+    static let counter = sans(size: 28, weight: .bold, relativeTo: .largeTitle)
 
     /// ロゴマークの横の「Struis」(2026-10-30 に斜体のセリフ体をやめた。オンボーディングとサインインの画面)。
     static let brandName = sans(size: 17, weight: .bold, relativeTo: .headline)
@@ -71,7 +55,7 @@ enum Typography {
     static let bodyCompact = sans(size: 14, weight: .medium)
     static let caption = sans(size: 12, weight: .medium, relativeTo: .caption)
     static let micro = sans(size: 11, weight: .medium, relativeTo: .caption2)
-    static let ordinal = serifItalic(size: 17, relativeTo: .body)
+    static let ordinal = sans(size: 14, weight: .medium, relativeTo: .body)
 }
 
 private extension Font.TextStyle {

@@ -297,10 +297,16 @@ private struct MathParagraph: UIViewRepresentable {
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView label: UILabel, context: Context) -> CGSize? {
         var width = label.window?.screen.bounds.width ?? 390
-        if let proposed = proposal.width, proposed.isFinite, proposed > 0 { width = proposed }
+        var proposedWidth: Bool = false
+        if let proposed = proposal.width, proposed.isFinite, proposed > 0 {
+            width = proposed
+            proposedWidth = true
+        }
         label.preferredMaxLayoutWidth = width
-        let height = label.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
-        return CGSize(width: width, height: ceil(height))
+        let fitted: CGSize = label.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        // 幅の指定が無い時(`.fixedSize()`)は中身の幅にする。画面の幅を返すと、横に並べた相手(「書いた答え」の見出し)ごと
+        // 画面からはみ出す。
+        return CGSize(width: proposedWidth ? width : min(width, ceil(fitted.width)), height: ceil(fitted.height))
     }
 
     private func attributed() -> NSAttributedString {

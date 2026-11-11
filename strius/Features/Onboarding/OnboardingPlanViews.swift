@@ -33,7 +33,7 @@ struct OnboardingPlanView: View {
             VStack(alignment: .leading, spacing: 18) {
                 OnboardingTitle(title: "\(subject)の計画を作っています")
                 VStack(alignment: .leading, spacing: 14) {
-                    if !model.profile.trial.isEmpty { doneRow("お試しの1問の結果を読みました") }
+                    if !model.profile.trial.isEmpty { doneRow("お試しの\(model.profile.trial.count)問の結果を読みました") }
                     if !model.materials.isEmpty {
                         doneRow(model.profile.route == .university ? "資料を読みました(\(model.materials.count)件)" : "撮ったページを読みました(\(model.materials.count)枚)")
                     }

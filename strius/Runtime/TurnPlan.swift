@@ -182,9 +182,11 @@ nonisolated struct TurnPlan: Codable, Hashable, Sendable {
     /// turn runs in its conversation thread's directory (`thread-<thread id>`), the same for every turn
     /// of the conversation. Nil: the plan's own directory (structured turns, one turn per thread).
     var workspaceKey: String?
+    /// 利用枠に数えない「初回の準備」のターン(計画づくり・単元づくり・知識グラフの最初の構築)。nil は普通に数える。
+    var setup: UsageSetup? = nil
 
     enum CodingKeys: String, CodingKey {
-        case id, kind, round, thread, turn, workspace, delegation, collect, limits
+        case id, kind, round, thread, turn, workspace, delegation, collect, limits, setup
         case workspaceKey = "workspace_key"
     }
 

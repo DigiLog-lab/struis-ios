@@ -570,6 +570,9 @@ nonisolated enum TimelineTurns {
         return timeline.insertBatchRequest(purpose: "graph_misconceptions", request: body, accuracy: nil, levelCap: nil)
     }
 
+    /// 利用枠に数えない知識グラフの依頼(`UsageSetup.graph`)。
+    static let setupPurposes: Set<String> = ["graph_build", "graph_extend", "graph_misconceptions"]
+
     static func graph(composer: TurnComposer, planID: String, batchID: String, workbook: WorkbookMachine, timeline: TimelineMachine) async throws -> TurnPlan {
         guard let batch = timeline.batches[batchID] else { throw LedgerError.notFound("timeline graph request") }
         var request = batch.request.objectValue ?? [:]
@@ -579,12 +582,15 @@ nonisolated enum TimelineTurns {
         case "misconceptions": ("prompt:timeline_misconceptions_instructions", "schema:timeline_misconceptions")
         default: ("prompt:timeline_graph_instructions", "schema:timeline_graph")
         }
-        return TurnPlan(
+        var plan: TurnPlan = TurnPlan(
             id: planID, kind: .timelineGraph, round: 1,
             thread: try await thread(composer: composer, planID: planID, instructions: instructions, role: TimelineModels.graphRole, workbook: workbook, timeline: timeline),
             turn: TurnPlan.TurnSpec(text: TurnComposer.dump(.object(request)), images: [], outputSchema: try await composer.assets.json(schema), sandboxPolicy: "dangerFullAccess"),
             workspace: workspace, delegation: nil, collect: [], limits: .structured
         )
+        // 初めての構築・単元の分の追加・つまずきの洗い出しは「初回の準備」(学習中の見直し・1 段下りる依頼は普通に数える)。
+        if setupPurposes.contains(batch.purpose) { plan.setup = .graph }
+        return plan
     }
 
     // MARK: - 反映
