@@ -69,7 +69,11 @@ actor MockTurnRunner: TurnRunning {
         case .onboardingGrading: text = Self.json(Self.onboardingGrading(request))
         case .onboardingPlan:
             // 単元を作る時の範囲の読み取り(#132)も同じ種類のターン。
-            text = Self.json((request["task"] as? String) == "read_material" ? Self.materialReading(request) : Self.onboardingPlan(request))
+            switch request["task"] as? String {
+            case "read_material": text = Self.json(Self.materialReading(request))
+            case "attach_material": text = Self.json(Self.materialAttachment(request))
+            default: text = Self.json(Self.onboardingPlan(request))
+            }
         }
         let threadID = plan.thread.codexThreadID ?? "thr_mock_\(UUID().uuidString.prefix(16).lowercased())"
         return TurnOutcome(
@@ -400,6 +404,21 @@ actor MockTurnRunner: TurnRunning {
                 "words": ["二次関数のグラフ", "最大・最小", "二次不等式"]]
     }
 
+    /// 撮り足し(#132): ページや回の付いていない小単元に、順にページ(p.62〜65、p.66〜69…)か回(第8回…)を付ける。
+    /// 大学の授業の単元なら、次の回の小単元「ジョルダン標準形」を1つ足す。
+    nonisolated static func materialAttachment(_ request: JSONObject) -> JSONObject {
+        let course = request["is_course"] as? Bool ?? false
+        let subunits = (request["subunits"] as? [JSONObject]) ?? []
+        let open = subunits.filter { (($0["ref"] as? String) ?? "").isEmpty }
+        let assignments: [JSONObject] = open.enumerated().map { index, subunit in
+            let start = 62 + index * 4
+            return ["subunit_id": subunit["id"] as? String ?? "", "ref": course ? "第\(index + 8)回" : "p.\(start)〜\(start + 3)"]
+        }
+        let added: [JSONObject] = course ? [["title": "ジョルダン標準形", "outcome": "対角化できない行列のジョルダン標準形を求められる", "n": 5,
+                                             "scoring_unit": "1問ごとに正誤", "ref": "第9回"]] : []
+        return ["readable": true, "assignments": assignments, "new_subunits": added]
+    }
+
     /// お試しの採点: 正解(`STRUIS_MOCK_TIMELINE_WRONG=1` で誤答、`STRUIS_MOCK_TRIAL_UNREADABLE=1` で読めない)。
     nonisolated static func onboardingGrading(_ request: JSONObject) -> JSONObject {
         let environment = ProcessInfo.processInfo.environment
@@ -459,10 +478,25 @@ actor MockTurnRunner: TurnRunning {
                  "check": check("次の連立方程式を解きなさい。", "x + y = 5,\\ x - y = 1", "x = 3, y = 2")],
             ]
         }
+        // 撮った範囲から作る時(#132): 授業の回か、教科書のページを小単元に付ける。
+        let material = request["material"] as? JSONObject
+        let lectures = (material?["lectures"] as? [JSONObject]) ?? []
+        let pages = (material?["pages"] as? String) ?? ""
+        let subunitsWithRefs: [JSONObject] = subunits.enumerated().map { index, subunit in
+            var subunit = subunit
+            if !lectures.isEmpty {
+                subunit["ref"] = index < lectures.count ? "第\(lectures[index]["number"] as? Int ?? index + 1)回" : ""
+            } else if !pages.isEmpty {
+                subunit["ref"] = "p.\(62 + index * 10)〜\(71 + index * 10)"
+            } else {
+                subunit["ref"] = ""
+            }
+            return subunit
+        }
         return [
             "unit_title": unit, "outcome": "\(unit)の基本問題が自力で解ける",
             "heading": "\(unit)を\(subunits.count)つに分けて進めます", "lead": "",
-            "subunits": subunits,
+            "subunits": subunitsWithRefs,
             "first_problem": ["prompt": "$x = 3$ は、この方程式の解ですか。", "math": "x^2 - 9 = 0", "answer_key": "はい"],
         ]
     }

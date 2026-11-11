@@ -243,6 +243,7 @@
 		E8123E56B09C47B37565A7B2 /* GuardianConsent.swift in Sources */ = {isa = PBXBuildFile; fileRef = E87E3CB209BEDA7A2C1FACE0 /* GuardianConsent.swift */; };
 		E8D49970D6AD7EC70F6A894C /* GuardianConsentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8663698679A6278F7E9AE37 /* GuardianConsentView.swift */; };
 		E82ADAAF1FD78CE0C8B46E18 /* StudyDeadline.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8DA42A9CDF2709FEA059559 /* StudyDeadline.swift */; };
+		E8AE698F39552B73A0AEF04C /* UnitMaterialAttacher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8A0C5341F9E4E7CFA074C48 /* UnitMaterialAttacher.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -526,6 +527,7 @@
 		E87E3CB209BEDA7A2C1FACE0 /* GuardianConsent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuardianConsent.swift; sourceTree = "<group>"; };
 		E8663698679A6278F7E9AE37 /* GuardianConsentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuardianConsentView.swift; sourceTree = "<group>"; };
 		E8DA42A9CDF2709FEA059559 /* StudyDeadline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudyDeadline.swift; sourceTree = "<group>"; };
+		E8A0C5341F9E4E7CFA074C48 /* UnitMaterialAttacher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitMaterialAttacher.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -1166,6 +1168,7 @@
 		E8FA58A4040108760FBF9246 /* Workbook */ = {
 			isa = PBXGroup;
 			children = (
+				E8A0C5341F9E4E7CFA074C48 /* UnitMaterialAttacher.swift */,
 			);
 			path = Workbook;
 			sourceTree = "<group>";
@@ -1596,6 +1599,7 @@
 				E8123E56B09C47B37565A7B2 /* GuardianConsent.swift in Sources */,
 				E8D49970D6AD7EC70F6A894C /* GuardianConsentView.swift in Sources */,
 				E82ADAAF1FD78CE0C8B46E18 /* StudyDeadline.swift in Sources */,
+				E8AE698F39552B73A0AEF04C /* UnitMaterialAttacher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
