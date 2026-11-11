@@ -10,6 +10,8 @@ struct LearningTimelineView: View {
     let store: TimelineStore
     let onOpenUnits: () -> Void
     var layout: TimelineLayout = .compact
+    /// 単元ホームを上に重ねている(iPad の道具パレットはウィンドウの一番上に出るので、重ねている間は出さない)。
+    var isCovered = false
     @Environment(WorkbookCoordinator.self) private var coordinator
     @Environment(\.scenePhase) private var scenePhase
     @State private var hasInk = false
@@ -563,8 +565,8 @@ struct LearningTimelineView: View {
             TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isInkZoomed, controller: ink,
                               passThrough: inkPassThrough.map { $0.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y) },
                               fingerPassThrough: inkFingerPassThrough.map { $0.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y) },
-                              // タイムアタックを開いている間は、iPad の道具パレットを隠す(全画面の上に残って操作を塞ぐため)。
-                              showsToolPicker: layout.isPad && showsInkTools && !TimeAttackPresence.shared.isPresented,
+                              // 単元ホームやタイムアタックを上に重ねている間は、iPad の道具パレットを隠す(ウィンドウの一番上に出て操作を塞ぐため)。
+                              showsToolPicker: layout.isPad && showsInkTools && !isCovered && !TimeAttackPresence.shared.isPresented,
                               isReadOnly: isResult)
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
