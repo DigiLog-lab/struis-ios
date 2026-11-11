@@ -1,6 +1,6 @@
 # Struis 開発手法 仕様(struis-ios)
 
-- 版: 7(2026-11-07)。ビルドの使い回し、UI テストの2台への分割、落ちた UI テストの録画とスクショ、ラベルを使わない描画だけの判定、Dev Box のコンパイルキャッシュと前後比較の「前」を足した。版6は、マージキューを実装したとおりに書き直した版。
+- 版: 8(2026-11-11)。マージキューの門から UI テストを外した(10/20〜11/11 に UI テストがアプリの不具合を見つけたことは無く、11/7〜11/11 の門の赤のうち4回は PR が触っていない画面の UI テストだった。持ち主の判断で、また必要になったら考える)。版7は、ビルドの使い回し、落ちた UI テストの録画とスクショ、ラベルを使わない描画だけの判定、Dev Box のコンパイルキャッシュと前後比較の「前」を足した版。
 - 対象: `DigiLog-lab/struis-ios` の実装・検証・マージ・報告の回し方
 - 状態: Dev Box(#94)とマージキュー(#95)は実装済みで、「Allow auto-merge」も有効。自動マージからマージまでの流れは #96 で確かめた(2026-11-07)。
 - 名前は業界で通じる言葉を使う。独自の GitHub のラベルは使わない。
@@ -68,14 +68,14 @@
   - `serve.sh` は結果を push する前に、結果の写しを作り、写しのファイル全部の中のキーの文字列を `[redacted]` に置き換える(`redact_tree`)。圧縮されたファイル(gzip・zip・bzip2 など)の中身にキーがあれば、そのファイルを注記に差し替える。写しを直すので、命令が書き続けているファイルには触らない。全文のログは命令が終わった後に置き換えてから圧縮する。キーそのものを表示する命令は打たない(一部だけを切り出した文字列や、base64 などに変えた文字列は置き換えられない)。
 
 ## 6. テストの選び方(テスト影響分析)
-- Dev Box でもマージキューでも、流す UI テストは `scripts/ci/ui-test-plan.json` の規則で変更から選ぶ。
-- マージキューは、選び方(`ui-test-plan.json`、`ui_test_plan.py`)と UI だけの判定(`cosmetic.py` の `ALLOWED`)を、**main の版**で使う。PR の版を使うと、PR が自分の `ALLOWED` を広げて自分のテストを外せるため。
+- マージキューの門では UI テストを流さない(版8から)。門は、ビルド・単体テスト全部・Release archive。
+- Dev Box で UI テストを流す時は、`scripts/ci/ui-test-plan.json` の規則で変更から選ぶ(`python3 scripts/ci/ui_test_plan.py --list --changed-files ...`)。
+- マージキューは、UI だけの判定(`cosmetic.py` の `ALLOWED`)を、**main の版**でも使う。PR の版だけを使うと、PR が自分の `ALLOWED` を広げて自分のテストを外せるため。
 - 「全件に回す」(`everything`)規則は、本当に全画面に効くものだけにする(`strius/App/**`、`strius/striusApp.swift`、`Info.plist` など)。
 - 外すもの:
   - `scripts/ci/ui-test-plan.json`・`scripts/ci/ui_test_plan.py`: 選び方の変更は、選び方の単体テストで確かめる。
   - `strius/Auth/**`: ファイルごとに関係する画面のテストへ割り当てる。
-- 検証のワークフローの変更は、「7. マージキュー」のとおり、PR の定義で1回流す。
-- 試算: 課金の処理を変えた PR(#84)で、48本(約44分)→6本(約3分)。
+- 検証のワークフローの変更は、「7. マージキュー」のとおり、PR の定義で1回流す。UI テストの選び方のファイル(`ui-test-plan.json`、`ui_test_plan.py`、`ui_failures.py`、`video_frame.swift`)は門に関わらないので、PR の定義では流さない。
 
 ## 7. マージキュー(自前、main に入る前の唯一のゲート)
 実装: `.github/workflows/merge-queue.yml`(Linux)と `scripts/ci/merge_queue.py`(テストは `scripts/ci/test_merge_queue.py`)。
@@ -99,11 +99,10 @@
   3. main の定義の `ios.yml` の検証を `repository_dispatch`(`verify`)で起動する。中身は変更で決まる。
      - アプリに触らない変更(`scripts/ci/app_free.py`: 文書、`scripts/agent`・`scripts/ci`・`scripts/devbox`、`.github`、`cloudflare` だけ): macOS を使わない(段階 `none`)。スクリプトとワークフローは `agent-tests.yml` が確かめている。
      - 差分が画面を描くファイルだけ(PR の `cosmetic.py` と main の `cosmetic.py` の両方が認める。ラベルは使わない): Release archive とシミュレータ向けのビルドだけ(段階 `cosmetic`、テストなし)。持ち主は前後比較のスクショを見てから自動マージを押す。会話・オンボーディング・課金の画面は、この経路に乗らない。
-     - それ以外: `build-for-testing` → 単体テスト → 関係する UI テストを流し、並行して Release archive を1回流す。UI テストは、main の選び方のスクリプトで、main の規則と PR の規則の両方から選び、合わせたものを流す。
-     - 選んだ UI テストが長い時(単体テストと合わせて12分を超える見込み)は、main の `scripts/ci/ui_shards.py` が過去の所要時間で2つに分け、後半を別のランナー(`verify-shard`)で同時に流す。分けた前後でテストが1本でも増減したら止める。
-- **ビルドの使い回し**: シミュレータ向けのビルド(`Build/Products`)は、tree の SHA と Xcode の版の名前(`sim-build-<tree>-xcode<版>`)で Artifact に置く(14日)。同じ tree の検証をやり直す時や `verify-shard`、Dev Box の「前」のスクショは、ビルドせずにそれを使う(`scripts/ci/sim_build.py`)。使うのは main の定義の `ios.yml` の `repository_dispatch` の実行が置いたものだけ。PR の定義の実行(`workflow_dispatch`)は何でも置けるので数えない。PR が最新の main を含んでからマージされるので、main のマージコミットの tree は検証した PR の tree と同じになり、検証のビルドがそのまま main のビルドになる。
+     - それ以外: `build-for-testing` → 単体テスト全部を流し、並行して Release archive を1回流す。UI テストは流さない(版8から。版7までは関係する UI テストを流し、長い時は2台目のランナー `verify-shard` に分けていた)。検証が使う macOS ランナーは2台。
+- **ビルドの使い回し**: シミュレータ向けのビルド(`Build/Products`)は、tree の SHA と Xcode の版の名前(`sim-build-<tree>-xcode<版>`)で Artifact に置く(14日)。同じ tree の検証をやり直す時や Dev Box の「前」のスクショは、ビルドせずにそれを使う(`scripts/ci/sim_build.py`)。使うのは main の定義の `ios.yml` の `repository_dispatch` の実行が置いたものだけ。PR の定義の実行(`workflow_dispatch`)は何でも置けるので数えない。PR が最新の main を含んでからマージされるので、main のマージコミットの tree は検証した PR の tree と同じになり、検証のビルドがそのまま main のビルドになる。
 - **取り消された検証**: 検証の実行が取り消された時(ランナーが失われた、ジョブの時間切れ)は、コードについて何も言っていないので、そのコミットにつき1回だけ自動で検証し直す。2回目の取り消しは赤と同じく push を待つ。
-- **落ちた UI テスト**: Xcode は UI テストごとに画面を録画し、落ちたテストの録画だけを結果に残す。`scripts/ci/ui_failures.py` がそれを取り出し、落ちた時刻の0.3秒前のコマを PNG にして(`scripts/ci/video_frame.swift`)、Artifact `ui-failures-…` に置き、実行の要約に一覧を書く。録画はテストの区間だけなので、切り出しは要らない。
+- **落ちた UI テスト**: Xcode は UI テストごとに画面を録画し、落ちたテストの録画だけを結果に残す。`scripts/ci/ui_failures.py` がそれを取り出し、落ちた時刻の0.3秒前のコマを PNG にする(`scripts/ci/video_frame.swift`)。版8から門では UI テストを流さないので、Dev Box で UI テストを流して落ちた時に使う。
 - **緑**: `ios.yml` の `report` が `Struis / verify` を緑にする。GitHub の自動マージが、ボタンを押した持ち主の名前でマージする。マージは持ち主の名前の push になるので、main への push で動くワークフローは普段どおり起動する。main が進むと、キューは次の PR へ進む。
   - 緑になってから10分たってもマージされない時は、赤にして PR に理由を書き、次へ進む。
   - 検証が2時間たっても終わらない時は、赤にして PR に理由を書き、次へ進む。
@@ -117,7 +116,7 @@
 - **push の禁止**: キューの先頭で検証中の PR のブランチには push しない。
 
 ## 8. スクショと動画
-- **撮る場所**: 開発中は Dev Box で撮る(`$DEVBOX_FILES` に置けば手元に届く)。マージキューで UI テストが落ちた時は、検証がその録画と落ちた瞬間のスクショを Artifact に置く(保存14日、「7. マージキュー」)。
+- **撮る場所**: 開発中は Dev Box で撮る(`$DEVBOX_FILES` に置けば手元に届く)。Dev Box で UI テストが落ちた時は、`scripts/ci/ui_failures.py` で録画と落ちた瞬間のスクショを取り出す。
 - **持ち主に見せる**: Claude が先に確かめてから、会話にファイルとして送る(SendUserFile)。
   - 変えた画面ごとに、最新の main と PR の前後比較の画像を送る(iPhone と iPad)。動きが変わる時は動画も送る。
   - 「前」のスクショは、検証が Artifact に置いた main のシミュレータ向けのビルドを、Dev Box のシミュレータに入れて撮る。`python3 scripts/ci/sim_build.py main "$RUNNER_TEMP/main-build"` が main の直近50コミットを新しい順にさかのぼり、tree の SHA でビルドを探して取ってくる(Linux だけで検証した変更はビルドを作らないため)。`xcrun simctl install "$SIMULATOR_UDID" "$RUNNER_TEMP/main-build/Build/Products/Debug-iphonesimulator/strius.app"` で入れて撮り、PR のビルドを入れ直して「後」を撮る。
@@ -174,7 +173,7 @@
 - 単体テスト全部: 直列で5分27秒(マージキューの前身の検証の記録)、並列(`-parallel-testing-enabled YES`)で490秒。3コアのランナーでは直列のままにする。
 - DerivedData は1.6GB、ビルド成果物(`Build/Products`)は442MB。Artifact に置くのに30秒、別のランナーで取るのに9秒。別のランナーで `test-without-building` が通った(シミュレータの起動込みで347秒)。
 - iPad のシミュレータ: iPad (A16)、iPad Air 11・13インチ(M4)、iPad mini(A17 Pro・A20 Pro)、iPad Pro 11・13インチ(M5)がある。iPhone のシミュレータを動かしたまま iPad を起動すると624秒かかった。前後比較で iPad を撮る時は、iPhone のシミュレータを止めてから起動する。
-- マージキューの検証(小さい PR): ビルド約5〜6分＋単体テスト約5.5分＋関係する UI テスト数分で、12〜15分の見込み(未測定)。1時間に4本前後。
+- マージキューの検証: 版7(UI テストあり)の実測は、普通の PR の `verify` ジョブで24〜36分(2026-11-08〜11、16回)。版8(UI テストなし)の所要時間は、版8の後の PR で測って書き足す。
 
 ## 15. 未検証の前提(実装の前に、この順番で試す)
 確かめたもの(2026-11-07):
@@ -194,7 +193,6 @@
 1. 検証のワークフローに触る PR を、キューが `workflow_dispatch` で PR のブランチの定義のまま流し、その結果を読めるか(`workflow_dispatch` は GITHUB_TOKEN からでも別の実行を起こせる例外の1つ、という GitHub の文書どおりか)。版7の PR で確かめる。
 2. `require_extra_approval_for_unattributed_changes`(ルールセットで有効)が、キューの Update branch が作るコミットで承認を求めないか。版7の PR の後ろに並べた PR で確かめる。
 3. 前後比較の「前」: main のビルドの Artifact を Dev Box で取って入れ、撮れるか(別のランナーで Artifact のビルドを入れて起動するのは確かめた)。版7が main に入り、main のビルドが Artifact に置かれた後に確かめる。
-4. UI テストの2台への分割: 長い選択が来た時に初めて動く。
 
 ## 16. 残る弱点
 - Dev Box は、Claude が考えている間もランナーを1台握る。握るのは Claude が作業している間だけで、待っている間はアイドルタイムアウトで返す。

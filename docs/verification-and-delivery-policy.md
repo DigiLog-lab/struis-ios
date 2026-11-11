@@ -20,7 +20,7 @@
 | 作業の開始 | `agent.yml` の `worker` | 作業ブランチに最新の main を取り込む(衝突したら最初に解消させる) |
 | 手元検証 | エージェントの runner(`agentctl local-verify`) | push 済み HEAD で、全単体テスト＋変更に関係する UI テスト。失敗したテストと失敗メッセージを返す |
 | Ready | `agentctl ready` | HEAD が push 済み・最新の main を含む・手元検証が緑、の3つを確かめ、PR をレビュー待ちにする。検証は起動しない(持ち主が自動マージを有効にすると、マージキューが起動する) |
-| 検証 | `ios.yml`(`Verify PR #<n> <sha>`) | 最初にその SHA へ `Struis / verify` を「実行中(pending)」で付け、PR に検証中と出す。main の定義で、その SHA の native cache 確認 → 単体テスト → 変更に関係する UI テスト、と並行して Release archive |
+| 検証 | `ios.yml`(`Verify PR #<n> <sha>`) | 最初にその SHA へ `Struis / verify` を「実行中(pending)」で付け、PR に検証中と出す。main の定義で、その SHA の native cache 確認 → 単体テスト全部(UI テストは門で流さない。2026-11-11 から)、と並行して Release archive |
 | 報告 | `agent.yml` の `report`(Linux、main のコードだけ) | commit status `Struis / verify` をその SHA に書く。HEAD のままなら、緑は Issue に知らせ、赤は失敗を記録してエージェントを起こす。取り消された実行は `error` にし、誰も起こさない |
 | マージ | 人 | PR の `Struis / verify` が緑であることを見てマージする |
 | マージ | `merge-queue.yml`(Linux、`scripts/ci/merge_queue.py`) | 自動マージが有効な PR を1本ずつ、最新の main を取り込んでから `ios.yml` の `verify` で検証する。緑なら GitHub の自動マージがマージする。main が進むと、最新の main を含まない緑を pending に戻す(docs/development-method.md の「7. マージキュー」) |
