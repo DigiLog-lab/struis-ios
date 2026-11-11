@@ -1,5 +1,6 @@
 """宣伝の映像の場面(文字だけの場面と、ロゴの場面)と描画の道具。edit.py から使う。"""
-import math, subprocess, sys, os
+import math, subprocess, sys, os, wave
+import numpy as np
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 OUT = Path(os.environ.get("MARKETING_OUT", "/tmp/marketing-edit"))
@@ -321,3 +322,41 @@ if __name__ == "__main__":
         fn(t, dur).convert("RGB").save(f"{OUT}/still_{i}_{t}.jpg", quality=90)
     else:
         render(int(sys.argv[2]))
+
+
+def soundtrack(events, D, path):
+    """効果音と和音の下地を作って WAV に書く。events: [(種類, 秒)]。種類は pluck・chime・shutter・whoosh・cut。"""
+    SR = 48000; n = int(SR * D); t = np.arange(n) / SR
+    out = np.zeros(n); rng = np.random.default_rng(1)
+    def pad(freqs, a, b, vol):
+        m = (t >= a) & (t < b); tt = t[m] - a; L = b - a
+        env = np.minimum(1, tt / 1.2) * np.minimum(1, (L - tt) / 1.2); s = np.zeros(m.sum())
+        for k, f in enumerate(freqs):
+            s += np.sin(2 * np.pi * f * tt + k) * (1 + 0.15 * np.sin(2 * np.pi * 0.3 * tt + k)) + 0.25 * np.sin(2 * np.pi * 2 * f * tt)
+        out[m] += vol * env * s / len(freqs)
+    pad([87.31, 174.61, 220, 261.63, 329.63, 392], 0, D - 3.4, 0.16)
+    pad([116.54, 233.08, 293.66, 349.23, 440, 523.25], D - 4.0, D, 0.16)
+    def pluck(at, f, vol=0.12):
+        m = (t >= at) & (t < at + 1.2); tt = t[m] - at
+        out[m] += vol * np.exp(-tt * 5) * (np.sin(2 * np.pi * f * tt) + 0.3 * np.sin(2 * np.pi * 2 * f * tt))
+    scale = [523.25, 587.33, 659.25, 698.46, 783.99, 880, 1046.5]
+    k = 0
+    for kind, at in sorted(events, key=lambda e: e[1]):
+        if at >= D: continue
+        if kind == "pluck":
+            pluck(at, scale[k % len(scale)]); k += 1
+        elif kind == "chime":
+            pluck(at, 783.99, 0.11); pluck(at + 0.12, 1046.5, 0.11)
+        elif kind == "shutter":
+            for off, amp, dec in [(0, 0.35, 60), (0.06, 0.25, 70)]:
+                m = (t >= at + off) & (t < at + off + 0.12); tt = t[m] - at - off
+                out[m] += amp * rng.standard_normal(m.sum()) * np.exp(-tt * dec)
+        elif kind == "whoosh":
+            L = 0.45; m = (t >= at - 0.15) & (t < at - 0.15 + L); tt = t[m] - at + 0.15
+            nz = np.convolve(rng.standard_normal(m.sum()), np.ones(30) / 30, "same"); out[m] += 0.8 * nz * np.sin(np.pi * tt / L) ** 2
+        elif kind == "cut":
+            m = (t >= at) & (t < at + 0.05); tt = t[m] - at
+            out[m] += 0.12 * rng.standard_normal(m.sum()) * np.exp(-tt * 120)
+    out = out / np.max(np.abs(out)) * 0.7; fo = int(SR * 0.6); out[-fo:] *= np.linspace(1, 0, fo)
+    pcm = (out * 32767).astype(np.int16)
+    w = wave.open(path, "wb"); w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes(np.stack([pcm, pcm], 1).tobytes()); w.close()
