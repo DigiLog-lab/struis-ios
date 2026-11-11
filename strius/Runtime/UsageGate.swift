@@ -323,7 +323,7 @@ nonisolated final class UsageMeter: @unchecked Sendable {
     /// 期間はこの時刻から 7 日ごと。時刻と ID を 1 つの値にして、片方だけ新しい組み合わせで鍵を作らないようにする。
     /// 使用額と同じ Keychain と iCloud に置く(入れ直しても、プランが切れた後のその期間の使用額を引き継ぐため)。
     static let chargeKey = "usage.charge.v1"
-    /// 枠に数えなかった「初回の準備」のターンの ID(種類ごと、カンマ区切り)。
+    /// 枠に数えなかった「初回の準備」のターンの ID(種類ごと・端末ごとの鍵に、カンマ区切り)。
     static let freeSetupPrefix = "usage.free-setup.v1."
     /// 次の更新の予定日時(自動更新が続いている時の `Transaction.expirationDate`)。更新されるとその時刻から新しい期間になるので、
     /// 戻る日時はこれより後にしない。解約の予約中は更新されず期間も替わらないので、持たない。
@@ -514,30 +514,35 @@ nonisolated final class UsageMeter: @unchecked Sendable {
         Self.notifyChanged()
     }
 
+    /// 数えなかった「初回の準備」のターンの ID(ロックの中で呼ぶ)。使用額と同じく、端末ごとの鍵(種類の鍵 + `.device.` +
+    /// 端末の ID)に自分の分だけを書き、読む時は iCloud に集まった全端末の分を合わせる。1 つの鍵に全部の ID を書くと、
+    /// iPhone と iPad が同期の前にそれぞれ書いた時に、後から届いた方が相手の分を消してしまう。
+    private func freeSetupIDs(_ setup: UsageSetup) -> (ownKey: String, own: [String], all: Set<String>) {
+        func ids(_ text: String?) -> [String] { (text ?? "").split(separator: ",").map(String.init) }
+        let prefix: String = Self.freeSetupPrefix + setup.rawValue + Self.deviceMarker
+        let ownKey: String = prefix + deviceID()
+        var own: [String] = []
+        for id in ids(values.local.string(ownKey)) + ids(values.cloud.string(ownKey)) where !own.contains(id) { own.append(id) }
+        var all: Set<String> = Set(own)
+        for key in values.cloud.keys(withPrefix: prefix) { all.formUnion(ids(values.cloud.string(key))) }
+        return (ownKey, own, all)
+    }
+
     /// 「初回の準備」のターンを、利用枠に数えずに通すか。数えないと決めたターンの ID を残し、同じターンの 2 回目以降の
-    /// 要求(送り直し・続き)は数を増やさずに通す。種類ごとの数(`UsageRules.freeSetupTurns`)を超えたら数える。
+    /// 要求(送り直し・続き)は数を増やさずに通す。種類ごとの数(`UsageRules.freeSetupTurns`、全端末の合計)を超えたら数える。
     func takesFree(_ setup: UsageSetup, turnID: String) -> Bool {
         lock.withLock {
-            let key: String = Self.freeSetupPrefix + setup.rawValue
-            let stored: [String] = [values.local.string(key), values.cloud.string(key)].compactMap { $0 }
-                .flatMap { $0.split(separator: ",").map(String.init) }
-            var ids: [String] = []
-            for id in stored where !ids.contains(id) { ids.append(id) }
-            if ids.contains(turnID) { return true }
-            guard ids.count < UsageRules.freeSetupTurns(setup) else { return false }
-            ids.append(turnID)
-            values.set(ids.joined(separator: ","), key)
+            let stored = freeSetupIDs(setup)
+            if stored.all.contains(turnID) { return true }
+            guard stored.all.count < UsageRules.freeSetupTurns(setup) else { return false }
+            values.set((stored.own + [turnID]).joined(separator: ","), stored.ownKey)
             return true
         }
     }
 
-    /// 数えなかった「初回の準備」のターンの数。
+    /// 数えなかった「初回の準備」のターンの数(全端末の合計)。
     func freeSetupCount(_ setup: UsageSetup) -> Int {
-        lock.withLock {
-            let key: String = Self.freeSetupPrefix + setup.rawValue
-            return Set([values.local.string(key), values.cloud.string(key)].compactMap { $0 }
-                .flatMap { $0.split(separator: ",").map(String.init) }).count
-        }
+        lock.withLock { freeSetupIDs(setup).all.count }
     }
 
     private static func notifyChanged() {

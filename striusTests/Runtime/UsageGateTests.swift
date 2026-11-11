@@ -93,6 +93,27 @@ final class UsageGateTests: XCTestCase {
         XCTAssertTrue(reinstalled.takesFree(.plan, turnID: "plan-1"))
     }
 
+    /// iPhone と iPad が同期の前にそれぞれ 1 回ずつ使っても、同期の後は両方の分が数えられる(端末ごとの鍵に書くので、
+    /// 後から届いた方が相手の分を消さない)。
+    func testFreeSetupTurnsFromTwoDevicesBeforeSyncAreBothCounted() {
+        let phoneCloud = MemoryValueStore()
+        let padCloud = MemoryValueStore()
+        let phone: UsageMeter = meter(plan: .light, local: MemoryValueStore(), cloud: phoneCloud)
+        let pad: UsageMeter = meter(plan: .light, local: MemoryValueStore(), cloud: padCloud)
+        XCTAssertTrue(phone.takesFree(.plan, turnID: "phone-1"))
+        XCTAssertTrue(pad.takesFree(.plan, turnID: "pad-1"))
+        // 同期: 両方の端末が書いた鍵が、iCloud に集まる。
+        let synced = MemoryValueStore()
+        for cloud in [phoneCloud, padCloud] {
+            for key in cloud.keys(withPrefix: "usage.free-setup.") { synced.set(cloud.string(key), key) }
+        }
+        let third: UsageMeter = meter(plan: .light, local: MemoryValueStore(), cloud: synced)
+        XCTAssertEqual(third.freeSetupCount(.plan), 2)
+        XCTAssertTrue(third.takesFree(.plan, turnID: "third-1"))
+        XCTAssertFalse(third.takesFree(.plan, turnID: "third-2"))
+        XCTAssertTrue(third.takesFree(.plan, turnID: "phone-1"))
+    }
+
     /// 学習中に起きる知識グラフの見直し・1 段下りる依頼は「初回の準備」に入れない。最初の構築の続きの段は入れる。
     func testOnlyTheFirstGraphWorkIsSetup() {
         XCTAssertEqual(TimelineTurns.setupPurposes, ["graph_build", "graph_extend", "graph_step", "graph_misconceptions"])
