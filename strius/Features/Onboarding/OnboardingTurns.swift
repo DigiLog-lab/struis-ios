@@ -225,6 +225,7 @@ nonisolated enum OnboardingTurns {
     }
 
     /// 範囲の読み取り(#132)。`imagePaths` は `StruisPaths.captures` の中の撮った写真(8 枚まで)。採点と同じ役(Sonnet 5.5)の 1 回の構造化ターン。
+    /// 利用枠では計画づくりと同じ新しい作業として数える(`UsageRequest.of`)。
     static func readingPlan(assets: AssetCache, planID: String, request: LedgerJSON, imagePaths: [String]) async throws -> TurnPlan {
         let images = imagePaths.prefix(8).enumerated().map { index, path in
             let ext = (path as NSString).pathExtension.isEmpty ? "jpg" : (path as NSString).pathExtension
@@ -232,7 +233,8 @@ nonisolated enum OnboardingTurns {
                                      maxDimension: 2048)
         }
         return TurnPlan(
-            id: planID, kind: .onboardingGrading, round: 1,
+            // 種類は計画づくりと同じ「新しい作業」(採点の続きとして利用枠の猶予を使わない)。モデルは採点と同じ役。
+            id: planID, kind: .onboardingPlan, round: 1,
             thread: try await thread(assets: assets, planID: planID, instructions: "prompt:material_read_instructions", role: TimelineModels.role),
             turn: TurnPlan.TurnSpec(text: turnText(materials: request), images: Array(images),
                                     outputSchema: try await assets.json("schema:material_read"), sandboxPolicy: "dangerFullAccess"),

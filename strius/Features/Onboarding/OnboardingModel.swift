@@ -590,8 +590,9 @@ final class OnboardingModel {
         clearMaterials()
         reading = nil
         readingError = nil
+        // 捨てた読み取りの画面(結果・待ち)には戻れないようにする。
         if let index = history.lastIndex(of: .capture) { history = Array(history.prefix(index)) }
-        go(.capture)
+        go(.capture, remember: false)
     }
 
     /// 大学生の「資料なしで作る」。
@@ -656,7 +657,7 @@ final class OnboardingModel {
             selectedUnit = unit
             profile.unit = unit
             profile.untilTest = nil
-            unitGrade = nil
+            // 選んでいた学年(前後の学年の範囲表を撮った時)は、読み取りと同じく計画づくりにも渡す。
         }
         deadline = StudyDeadline.day(from: reading.testDate)
         startPlanning()
@@ -958,8 +959,12 @@ final class OnboardingModel {
             go(.planWait, remember: false)
         } else {
             revisionFrom = nil
+            // やりたいことと違う: 前に読み取った範囲・撮った写真で作り直さない。
+            reading = nil
+            lectureUpTo = nil
+            if purpose == .unitCreation { clearMaterials() }
             // 消した計画には戻れないので、戻る先は選び直す画面より前にする(計画の画面を履歴に残さない)。
-            let target: OnboardingStep = profile.isUniversity ? .topic : .intent
+            let target: OnboardingStep = profile.isUniversity ? (purpose == .unitCreation ? .capture : .topic) : .intent
             if let index = history.firstIndex(of: target) { history = Array(history.prefix(index)) }
             go(target, remember: false)
         }

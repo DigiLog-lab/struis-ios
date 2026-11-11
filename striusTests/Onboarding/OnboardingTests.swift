@@ -430,6 +430,25 @@ final class OnboardingTests: XCTestCase {
                                        purpose: .unitCreation).readingRequest()["grade"]?.stringValue, "中3")
     }
 
+    func testReadingIsNewWorkForTheUsageGate() async throws {
+        // 採点の続きとして猶予を使わない(読み取りは新しい作業)。
+        let plan = try await OnboardingTurns.readingPlan(assets: AssetCache(), planID: "p", request: .object(["task": .string("read_material")]), imagePaths: [])
+        XCTAssertFalse(UsageRequest.of(kind: plan.kind, turnAdmitted: false).finishing)
+    }
+
+    func testRetakingAndRebuildingDropTheReading() {
+        let model = OnboardingModel(profile: profile(grade: "高1"), records: records(), hasPlan: { true }, isClaudeAvailable: { true }, purpose: .unitCreation)
+        model.choose(route: .range)
+        model.chooseUnitGrade("高2")
+        model.startCapture()
+        model.go(.reading)
+        model.retake()
+        XCTAssertEqual(model.step, .capture)
+        model.back()
+        XCTAssertEqual(model.step, .unit, "撮り直した後の戻るで、捨てた読み取りの画面に戻らない")
+        XCTAssertEqual(model.unitListGrade, "高2")
+    }
+
     func testReadingARangeSheetMakesARangePlanWithItsPagesAndTestDate() throws {
         let mock = MockTurnRunner.materialReading(["grade": "高1"])
         let text = String(decoding: try JSONSerialization.data(withJSONObject: mock), as: UTF8.self)

@@ -66,10 +66,10 @@ actor MockTurnRunner: TurnRunning {
         case .timelineAnswer: text = Self.json(["readable": false, "learner_answer": ""])
         case .timelineGraph: text = Self.json(Self.timelineGraph(request))
         case .timelineReview: text = Self.json(["skill_results": [], "notes": ""])
-        case .onboardingGrading:
+        case .onboardingGrading: text = Self.json(Self.onboardingGrading(request))
+        case .onboardingPlan:
             // 単元を作る時の範囲の読み取り(#132)も同じ種類のターン。
-            text = Self.json((request["task"] as? String) == "read_material" ? Self.materialReading(request) : Self.onboardingGrading(request))
-        case .onboardingPlan: text = Self.json(Self.onboardingPlan(request))
+            text = Self.json((request["task"] as? String) == "read_material" ? Self.materialReading(request) : Self.onboardingPlan(request))
         }
         let threadID = plan.thread.codexThreadID ?? "thr_mock_\(UUID().uuidString.prefix(16).lowercased())"
         return TurnOutcome(
