@@ -1,3 +1,4 @@
+import Observation
 import SwiftUI
 
 /// 本体のタイムアタックの画面: 問題を作る(届いたリンクなら始める前の画面)→ 解く → 採点 → 結果。
@@ -40,6 +41,8 @@ struct TimeAttackFlowView: View {
         }
         .foregroundStyle(Theme.primaryText)
         .task { await session.prepare() }
+        .onAppear { TimeAttackPresence.shared.isPresented = true }
+        .onDisappear { TimeAttackPresence.shared.isPresented = false }
     }
 
     private func retry() {
@@ -58,6 +61,15 @@ struct TimeAttackFlowView: View {
         session = TimeAttackSession(mode: .own(unitTitle: unit.0, context: unit.1), transport: session.transport)
         Task { await session.prepare() }
     }
+}
+
+/// タイムアタックを開いているか。タイムラインはこの間、iPad の道具パレット(PKToolPicker)を隠す
+/// (道具パレットは全画面の画面の上にも残り、解く画面の「次へ」を塞いだ)。
+@MainActor
+@Observable
+final class TimeAttackPresence {
+    static let shared = TimeAttackPresence()
+    var isPresented = false
 }
 
 /// 本体が入っている端末でタイムアタックのリンクが開かれた時に、届いた5問を解く画面を出す。

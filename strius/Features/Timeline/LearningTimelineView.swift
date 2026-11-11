@@ -563,7 +563,9 @@ struct LearningTimelineView: View {
             TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isInkZoomed, controller: ink,
                               passThrough: inkPassThrough.map { $0.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y) },
                               fingerPassThrough: inkFingerPassThrough.map { $0.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y) },
-                              showsToolPicker: layout.isPad && showsInkTools, isReadOnly: isResult)
+                              // タイムアタックを開いている間は、iPad の道具パレットを隠す(全画面の上に残って操作を塞ぐため)。
+                              showsToolPicker: layout.isPad && showsInkTools && !TimeAttackPresence.shared.isPresented,
+                              isReadOnly: isResult)
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 // 結果の画面では、書き足しはできないがスクロールと拡大縮小はできる(採点中は触らせない)。
