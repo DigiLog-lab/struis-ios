@@ -15,6 +15,8 @@ struct TimeAttackRunView: View {
     @State private var laps: [Double] = []
     @State private var stoppedAt: Date?
     @State private var isCameraPresented = false
+    /// 計り始めたか。カメラを閉じると `onAppear` がもう一度呼ばれるので、時刻は最初の1回だけ決める。
+    @State private var hasStarted = false
 
     private var isLast: Bool { index == problems.count - 1 }
 
@@ -104,6 +106,8 @@ struct TimeAttackRunView: View {
         .background(Theme.ground.ignoresSafeArea())
         .animation(.easeInOut(duration: Theme.Duration.quick), value: index)
         .onAppear {
+            guard !hasStarted else { return }
+            hasStarted = true
             startedAt = Date()
             lapStartedAt = startedAt
         }
@@ -120,11 +124,14 @@ struct TimeAttackRunView: View {
         .fullScreenCover(isPresented: $isCameraPresented) {
             TimeAttackCamera(
                 onShutter: {
+                    // 1回の撮影で最後の問題の時間を2回足さない(カメラ側でも2度押しは止めている)。
+                    guard stoppedAt == nil else { return }
                     let now = Date()
                     laps.append(now.timeIntervalSince(lapStartedAt))
                     stoppedAt = now
                 },
                 onPhoto: { data in
+                    guard isCameraPresented else { return }
                     isCameraPresented = false
                     onFinish(laps, data)
                 },

@@ -97,6 +97,9 @@ final class TimeAttackCameraController: UIViewController, AVCapturePhotoCaptureD
     private var preview: AVCaptureVideoPreviewLayer?
     private let queue = DispatchQueue(label: "com.digiloglab.strius.timeattack.camera")
     private var pickerShown = false
+    /// 撮っている最中(シャッターの2度押しで時間や採点が重ならないように、1回の撮影だけ受け付ける)。
+    private var isCapturing = false
+    private weak var shutterButton: UIButton?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -160,6 +163,7 @@ final class TimeAttackCameraController: UIViewController, AVCapturePhotoCaptureD
         shutter.accessibilityLabel = "撮る"
         shutter.accessibilityIdentifier = "timeattack-shutter"
         shutter.addTarget(self, action: #selector(capture), for: .touchUpInside)
+        shutterButton = shutter
         shutter.translatesAutoresizingMaskIntoConstraints = false
 
         let close = UIButton(type: .system)
@@ -183,6 +187,9 @@ final class TimeAttackCameraController: UIViewController, AVCapturePhotoCaptureD
     }
 
     @objc private func capture() {
+        guard !isCapturing else { return }
+        isCapturing = true
+        shutterButton?.isEnabled = false
         onShutter()
         output.capturePhoto(with: AVCapturePhotoSettings(), delegate: self)
     }
@@ -192,7 +199,15 @@ final class TimeAttackCameraController: UIViewController, AVCapturePhotoCaptureD
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         let data = photo.fileDataRepresentation()
         DispatchQueue.main.async {
-            if let data { self.onPhoto(data) } else { self.onCancel() }
+            guard self.isCapturing else { return }
+            self.isCapturing = false
+            if let data {
+                self.onPhoto(data)
+            } else {
+                // 撮れなかった: もう一度押せるように戻す(タイマーは解く画面の onCancel で戻す)。
+                self.shutterButton?.isEnabled = true
+                self.onCancel()
+            }
         }
     }
 
