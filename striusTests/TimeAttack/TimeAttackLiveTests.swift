@@ -52,7 +52,15 @@ final class TimeAttackLiveTests: XCTestCase {
         let upstream = ClaudeUpstream(baseURL: ClaudeUpstream.anthropicBaseURL, apiKey: { key }, gate: UnlimitedUsageGate())
         let transport = Recorder(base: AppTimeAttackTransport(upstream: upstream), log: .init())
         let unit = environment["STRUIS_TIME_ATTACK_UNIT"] ?? "三角関数"
-        let made = try await TimeAttackClaude.generate(unitTitle: unit, context: "", transport: transport)
+        let made: (field: String, problems: [TimeAttack.Problem])
+        do {
+            made = try await TimeAttackClaude.generate(unitTitle: unit, context: "", transport: transport)
+        } catch {
+            // 作れなかった時も、返事を残して原因を見られるようにする。
+            try JSONSerialization.data(withJSONObject: ["error": "\(error)", "requests": transport.log.rows], options: [.prettyPrinted, .sortedKeys])
+                .write(to: out.appendingPathComponent("time-attack-live.json"))
+            throw error
+        }
         XCTAssertEqual(made.problems.count, TimeAttack.problemCount)
 
         var lines = made.problems.map { TimeAttackMath.plain($0.answerKey) }

@@ -31,10 +31,10 @@ nonisolated enum TimeAttackClaude {
     static let generateInstructions = """
     # Struis タイムアタックの出題
 
-    指定の分野で、いちばん基礎の問題を5問作ってください。生徒は紙に答えだけを上から順に書き、解く速さを友達と競います。
+    指定の分野で、いちばん基礎の問題を6問作ってください(アプリが答えを検算し、そのうち5問を使います)。生徒は紙に答えだけを上から順に書き、解く速さを友達と競います。
 
     - 1問は、その分野を習った人なら5〜15秒で答えが出る大きさにする。証明・説明・答えが2つ以上ある問題・場合分けが要る問題は出さない。
-    - 答えは数か短い式1つ。5問とも違う問題にし、易しい順に並べる。
+    - 答えは数か短い式1つ。6問とも違う問題にし、易しい順に並べる。
     - `prompt`: 問題文。です・ます調ではなく問題集の書き方(「〜を求めなさい。」)。式・記号は入れず、式はすべて `math` に入れる。
     - `math`: 式(区切りの無い LaTeX)。式が無い問題は空。
     - `answer_key`: 正しい答え(区切りの無い LaTeX)。
@@ -96,9 +96,9 @@ nonisolated enum TimeAttackClaude {
         let prompt = (item.prompt ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let key = (item.answerKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let expr = (item.answerExpr ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !prompt.isEmpty, !key.isEmpty, !expr.isEmpty, (try? TimelineExpression.parse(expr)) != nil else { return nil }
+        guard !prompt.isEmpty, !key.isEmpty, !expr.isEmpty, (try? TimelineExpression.parse(prepared(expr))) != nil else { return nil }
         // 正答の LaTeX が式として読める時は、答えの式と一致することを確かめる(読めない時は答えの式を信じる)。
-        if TimelineExpression.equivalent(expr, key) == false { return nil }
+        if TimelineExpression.equivalent(prepared(expr), prepared(key)) == false { return nil }
         return TimeAttack.Problem(prompt: prompt, math: (item.math ?? "").trimmingCharacters(in: .whitespacesAndNewlines), answerKey: key, answerExpr: expr)
     }
 
@@ -183,8 +183,21 @@ nonisolated enum TimeAttackClaude {
     /// 書いた答えが正答と同じか。式として比べられる時は値で、比べられない時は文字で比べる。
     static func matches(_ written: String, problem: TimeAttack.Problem) -> Bool {
         let rhs = written.components(separatedBy: "=").last?.trimmingCharacters(in: .whitespaces) ?? written
-        if let same = TimelineExpression.equivalent(problem.answerExpr, rhs) { return same }
+        if let same = TimelineExpression.equivalent(prepared(problem.answerExpr), prepared(rhs)) { return same }
         return normalized(rhs) == normalized(problem.answerKey)
+    }
+
+    /// `TimelineExpression` に渡す前の下ごしらえ: `\sqrt{2}` を `sqrt(2)` にして(`\frac` の中に入れ子の `{}` があると
+    /// 読めないため)、角度の記号(`^\circ`・`°`)を落とす。
+    static func prepared(_ text: String) -> String {
+        var result = text.replacingOccurrences(of: "^{\\circ}", with: "").replacingOccurrences(of: "^\\circ", with: "")
+            .replacingOccurrences(of: "\\circ", with: "").replacingOccurrences(of: "°", with: "")
+        let sqrt = try! NSRegularExpression(pattern: #"\\sqrt\{([^{}]*)\}"#)
+        while let match = sqrt.firstMatch(in: result, range: NSRange(result.startIndex..., in: result)) {
+            let replacement = sqrt.replacementString(for: match, in: result, offset: 0, template: "sqrt($1)")
+            result = (result as NSString).replacingCharacters(in: match.range, with: replacement)
+        }
+        return result
     }
 
     private static func normalized(_ text: String) -> String {
