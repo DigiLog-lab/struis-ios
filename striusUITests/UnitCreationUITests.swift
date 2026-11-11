@@ -30,7 +30,8 @@ final class UnitCreationUITests: XCTestCase {
         range.tap()
 
         let unit = app.buttons["unit-creation-unit-二次関数"].firstMatch
-        XCTAssertTrue(unit.appears(timeout: 10))
+        if !unit.appears(timeout: 10) { UITestSupport.saveProbe(app, name: "unit-creation-2-missing") }
+        XCTAssertTrue(unit.exists, "単元の一覧が出ない")
         XCTAssertTrue(app.buttons["unit-creation-grade-中3"].exists && app.buttons["unit-creation-grade-高2"].exists, "前後の学年を選べない")
         unit.tap()
         app.buttons["unit-creation-until-休みが終わるまで"].firstMatch.tap()
