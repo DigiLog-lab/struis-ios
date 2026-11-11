@@ -113,8 +113,9 @@ nonisolated enum UsageRules {
         switch setup {
         case .plan: 3
         case .unit: 3
-        // 初めての構築 1 回と、単元(オンボーディングの 1 つ + 単元づくりの 3 つ)ごとの追加・つまずきの洗い出し。
-        case .graph: 10
+        // 単元 4 つ分(オンボーディングの 1 つ + 単元づくりの 3 つ)。1 つの単元の最初の構築は、構築(追加)1 回 +
+        // 続きの段 5 回まで(`TimelineTurns.graphStepLimit`)+ つまずきの洗い出し 1 回で、多くて 7 回。
+        case .graph: 28
         }
     }
 

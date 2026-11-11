@@ -93,9 +93,28 @@ final class UsageGateTests: XCTestCase {
         XCTAssertTrue(reinstalled.takesFree(.plan, turnID: "plan-1"))
     }
 
-    /// 学習中に起きる知識グラフの見直し・1 段下りる依頼は「初回の準備」に入れない。
+    /// 学習中に起きる知識グラフの見直し・1 段下りる依頼は「初回の準備」に入れない。最初の構築の続きの段は入れる。
     func testOnlyTheFirstGraphWorkIsSetup() {
-        XCTAssertEqual(TimelineTurns.setupPurposes, ["graph_build", "graph_extend", "graph_misconceptions"])
+        XCTAssertEqual(TimelineTurns.setupPurposes, ["graph_build", "graph_extend", "graph_step", "graph_misconceptions"])
+        XCTAssertFalse(TimelineTurns.setupPurposes.contains("graph_review"))
+        XCTAssertFalse(TimelineTurns.setupPurposes.contains("graph_descend"))
+        // 単元 4 つ分の最初の構築(構築 1 + 続きの段 + つまずきの洗い出し 1)が、数えないターンの数に収まる。
+        XCTAssertGreaterThanOrEqual(UsageRules.freeSetupTurns(.graph), 4 * (TimelineTurns.graphStepLimit + 1))
+    }
+
+    /// 実測(2026-11-11、高2・三角関数): 構築 1・続きの段 3・つまずきの洗い出し 1 で 1.05 ドル。これを数えると、ライト(週 0.80 ドル)は
+    /// 4 問で止まった。数えなければ、同じ 4 問で使うのは出題と採点の 0.21 ドル。
+    func testTheMeasuredFirstSessionLeavesMostOfTheLightAllowance() {
+        let meter: UsageMeter = meter(plan: .light)
+        let gate: DeviceUsageGate = gate(meter)
+        for (index, usd) in [0.2294, 0.2447, 0.2048, 0.1811, 0.1873].enumerated() {
+            gate.record(billed(usd), requestBytes: 10, setup: .graph, turnID: "graph-\(index)")
+        }
+        for (index, usd) in [0.1115, 0.0104, 0.0019, 0.0023, 0.0157, 0.011, 0.0573, 0.0021].enumerated() {
+            gate.record(billed(usd), requestBytes: 10, setup: nil, turnID: "work-\(index)")
+        }
+        XCTAssertEqual(meter.snapshot().spentUSD, 0.2122, accuracy: 1e-6)
+        XCTAssertNil(gate.denial(for: .newWork))
     }
 
     func testWeekStartsOnMondayAtMidnightAndResetsTheNextMonday() {

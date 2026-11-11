@@ -570,8 +570,10 @@ nonisolated enum TimelineTurns {
         return timeline.insertBatchRequest(purpose: "graph_misconceptions", request: body, accuracy: nil, levelCap: nil)
     }
 
-    /// 利用枠に数えない知識グラフの依頼(`UsageSetup.graph`)。
-    static let setupPurposes: Set<String> = ["graph_build", "graph_extend", "graph_misconceptions"]
+    /// 利用枠に数えない知識グラフの依頼(`UsageSetup.graph`)。1 つの単元の最初の構築は、構築(または単元の分の追加)1 回・
+    /// 続きの段(`graphStepLimit` まで)・つまずきの洗い出し 1 回で、上位モデルのターンが 5〜7 回になる(実測で約 1 ドル。
+    /// ライトの 1 週間の枠より大きい)。学習中に起きる見直し(`graph_review`)と 1 段下りる依頼(`graph_descend`)は数える。
+    static let setupPurposes: Set<String> = ["graph_build", "graph_extend", "graph_step", "graph_misconceptions"]
 
     static func graph(composer: TurnComposer, planID: String, batchID: String, workbook: WorkbookMachine, timeline: TimelineMachine) async throws -> TurnPlan {
         guard let batch = timeline.batches[batchID] else { throw LedgerError.notFound("timeline graph request") }
