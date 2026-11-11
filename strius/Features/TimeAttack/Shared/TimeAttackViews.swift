@@ -107,6 +107,16 @@ struct TimeAttackRunView: View {
             startedAt = Date()
             lapStartedAt = startedAt
         }
+        #if DEBUG
+        // Simulator の検証: `STRUIS_TIMEATTACK_AUTOPLAY` の秒数ごとに「次へ」を押し、最後は撮る(写真は `STRUIS_TIMEATTACK_PHOTO`)。
+        .task {
+            guard let step = ProcessInfo.processInfo.environment["STRUIS_TIMEATTACK_AUTOPLAY"].flatMap(Double.init) else { return }
+            for _ in problems.indices {
+                try? await Task.sleep(for: .seconds(step))
+                advance()
+            }
+        }
+        #endif
         .fullScreenCover(isPresented: $isCameraPresented) {
             TimeAttackCamera(
                 onShutter: {
@@ -202,6 +212,13 @@ struct TimeAttackIntroView: View {
         .foregroundStyle(Theme.primaryText)
         .padding(.horizontal, 20)
         .padding(.bottom, 12)
+        #if DEBUG
+        .task {
+            guard let step = ProcessInfo.processInfo.environment["STRUIS_TIMEATTACK_AUTOPLAY"].flatMap(Double.init) else { return }
+            try? await Task.sleep(for: .seconds(step * 2))
+            if (setsLeft ?? 1) > 0 { onStart() }
+        }
+        #endif
     }
 
     private func rule(_ symbol: String, _ text: String) -> some View {

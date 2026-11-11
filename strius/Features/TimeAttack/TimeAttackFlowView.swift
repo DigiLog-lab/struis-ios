@@ -63,6 +63,10 @@ struct TimeAttackFlowView: View {
 /// 本体が入っている端末でタイムアタックのリンクが開かれた時に、届いた5問を解く画面を出す。
 struct TimeAttackLinkHandler: ViewModifier {
     @State private var opened: OpenedChallenge?
+    #if DEBUG
+    /// Simulator の検証: 起動の環境変数 `STRUIS_TIMEATTACK_UNIT` で、その分野のタイムアタックをすぐ開く。
+    @State private var demo: TimeAttackSession?
+    #endif
 
     private struct OpenedChallenge: Identifiable {
         let id = UUID()
@@ -80,6 +84,19 @@ struct TimeAttackLinkHandler: ViewModifier {
                     opened = nil
                 }
             }
+            #if DEBUG
+            .fullScreenCover(item: $demo) { session in
+                TimeAttackFlowView(session: session) { demo = nil }
+            }
+            .task {
+                let environment = ProcessInfo.processInfo.environment
+                try? await Task.sleep(for: .seconds(1))
+                if let link = environment["STRUIS_TIMEATTACK_LINK"].flatMap(URL.init(string:)) { open(link) }
+                if let unit = environment["STRUIS_TIMEATTACK_UNIT"], !unit.isEmpty {
+                    demo = TimeAttackSession(mode: .own(unitTitle: unit, context: ""), transport: AppTimeAttackTransport())
+                }
+            }
+            #endif
     }
 
     private func open(_ url: URL) {
