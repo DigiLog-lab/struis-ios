@@ -100,7 +100,13 @@ struct OnboardingPlanView: View {
         } else {
             OnboardingScaffold {
                 VStack(alignment: .leading, spacing: 16) {
-                    OnboardingTitle(title: draft.displayHeading, detail: draft.lead.isEmpty ? nil : draft.lead)
+                    VStack(alignment: .leading, spacing: 8) {
+                        OnboardingTitle(title: draft.displayHeading)
+                        // 説明文には式が入る(`$x+1=5$`)。iPad の横並びと同じく、数式を組む部品で描く。
+                        if !draft.lead.isEmpty {
+                            TimelineRichText(text: draft.lead, size: 15, color: Theme.secondaryText)
+                        }
+                    }
                     chips
                     subunitList(draft)
                     checkHint
