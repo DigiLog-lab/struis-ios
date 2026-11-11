@@ -602,7 +602,8 @@ final class OnboardingModel {
     }
 
     func readingRequest() -> LedgerJSON {
-        let grade = profile.grade ?? OnboardingProfile.universityGrade
+        // 学年が分からない時(オンボーディングを飛ばした時)も、大学生でなければ中高の学年として頼む。
+        let grade = profile.isUniversity ? OnboardingProfile.universityGrade : unitListGrade
         var units: [String] = []
         if !profile.isUniversity, let index = OnboardingCatalog.grades.firstIndex(of: grade) {
             let grades = OnboardingCatalog.grades[max(0, index - 1)...min(OnboardingCatalog.grades.count - 1, index + 1)]

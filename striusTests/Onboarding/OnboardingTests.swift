@@ -425,6 +425,9 @@ final class OnboardingTests: XCTestCase {
         XCTAssertEqual(request["units"]?.arrayValue?.count, 0, "大学生には中高の単元を渡さない")
         XCTAssertEqual(OnboardingModel(profile: profile(grade: "高1"), records: records(), hasPlan: { true }, isClaudeAvailable: { true },
                                        purpose: .unitCreation).readingRequest()["units"]?.arrayValue?.compactMap(\.stringValue).contains("二次関数"), true)
+        // 学年が分からない時も、中高の学年として頼む(大学生として読ませない)。
+        XCTAssertEqual(OnboardingModel(profile: profile(grade: nil), records: records(), hasPlan: { true }, isClaudeAvailable: { true },
+                                       purpose: .unitCreation).readingRequest()["grade"]?.stringValue, "中3")
     }
 
     func testReadingARangeSheetMakesARangePlanWithItsPagesAndTestDate() throws {
