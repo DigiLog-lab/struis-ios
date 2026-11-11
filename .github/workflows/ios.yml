@@ -11,12 +11,11 @@ on:
   repository_dispatch:
     types: [verify]
   # Manual runs: on main, every UI test, then `signed-archive` and the optional TestFlight upload; on any
-  # other branch, the same checks as a PR verification (no UI test with ui_tier=unit, every UI test with
-  # ui_tier=full).
+  # other branch, the same checks as a PR verification (no UI test), or every UI test with ui_tier=full.
   workflow_dispatch:
     inputs:
       ui_tier:
-        description: UIテストの範囲(pr = 変更に関係する分、unit = 流さない、full = 全件)
+        description: UIテストの範囲(pr と unit = 流さない(門と同じ)、full = 全件)
         type: choice
         options: [pr, unit, full]
         default: pr
@@ -137,9 +136,8 @@ jobs:
           path: ${{ runner.temp }}/*.xcresult
           if-no-files-found: ignore
 
-  # Decides the tier and the UI tests (scripts/ci/ui_test_plan.py, scripts/ci/ui-test-plan.json).
-  # A PR verification and a manual run on another branch run the `pr` tier in the single `verify` job:
-  # every unit test plus the UI tests of the contracts the change touches (possibly none).
+  # Decides the tier. A PR verification and a manual run on another branch run the `pr` tier in the single
+  # `verify` job: the build and every unit test, no UI test (the UI tests stay for the Dev Box and `full`).
   # A manual run on main and a manual `full` run every UI test across runners (`build` + `ui-tests`).
   ui-plan:
     runs-on: ubuntu-latest
@@ -150,23 +148,19 @@ jobs:
     outputs:
       tier: ${{ steps.plan.outputs.tier }}
       matrix: ${{ steps.plan.outputs.matrix }}
-      ui: ${{ steps.plan.outputs.ui }}
-      # The second half of the selected UI tests when they would take long (`verify-shard`); empty otherwise.
-      ui2: ${{ steps.plan.outputs.ui2 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
           ref: ${{ github.event.client_payload.sha || github.sha }}
           fetch-depth: 0
-      - name: 実行するUIテストを決める
+      - name: 検証の範囲を決める
         id: plan
         env:
           EVENT: ${{ github.event_name }}
           REF: ${{ github.ref }}
           REQUESTED_TIER: ${{ inputs.ui_tier || github.event.client_payload.ui_tier }}
           PR: ${{ github.event.client_payload.pr }}
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           # main's rules decide too (docs/development-method.md, "6. テストの選び方"): a PR cannot widen its
@@ -183,8 +177,6 @@ jobs:
              git diff --name-only --no-renames "origin/main...HEAD" | python3 "$main_ci/scripts/ci/app_free.py"; then
             echo "tier=none" >> "$GITHUB_OUTPUT"
             echo "matrix=[]" >> "$GITHUB_OUTPUT"
-            echo "ui=" >> "$GITHUB_OUTPUT"
-            echo "ui2=" >> "$GITHUB_OUTPUT"
             echo "### アプリに触らない変更 (PR #$PR): macOS の検証はしません" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
@@ -198,8 +190,6 @@ jobs:
                { [[ ! -f "$main_ci/scripts/ci/cosmetic.py" ]] || python3 "$main_ci/scripts/ci/cosmetic.py" < "$RUNNER_TEMP/cosmetic.txt"; }; then
               echo "tier=cosmetic" >> "$GITHUB_OUTPUT"
               echo "matrix=[]" >> "$GITHUB_OUTPUT"
-              echo "ui=" >> "$GITHUB_OUTPUT"
-              echo "ui2=" >> "$GITHUB_OUTPUT"
               echo "### 画面の描画だけの変更 (PR #$PR): Release archive と Simulator のビルドだけを確かめます" >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
@@ -209,94 +199,20 @@ jobs:
             echo "tier=full" >> "$GITHUB_OUTPUT"
             matrix=$(python3 scripts/ci/ui_test_plan.py --matrix)
             echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-            echo "ui=" >> "$GITHUB_OUTPUT"
-            echo "ui2=" >> "$GITHUB_OUTPUT"
             echo "### UIテスト: 全件 ($(python3 -c 'import json,sys; print(sum(i["count"] for i in json.loads(sys.argv[1])))' "$matrix")件)" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
+          # The gate runs no UI test (2026-11-11): from 2026-10-20 no UI test found a bug in the app, and from
+          # 2026-11-07 four reds of the queue were UI tests of screens the PR had not touched. The UI tests stay
+          # for the Dev Box (scripts/ci/ui_test_plan.py --list) and for a manual `full` run.
           echo "tier=pr" >> "$GITHUB_OUTPUT"
           echo "matrix=[]" >> "$GITHUB_OUTPUT"
-          # Unit tests only, on request. An empty list skips the UI test step of `verify`.
-          if [[ "$REQUESTED_TIER" == "unit" ]]; then
-            echo "ui=" >> "$GITHUB_OUTPUT"
-            echo "ui2=" >> "$GITHUB_OUTPUT"
-            echo "### UIテスト: 流さない (単体テストのみ)" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          args=()
-          if git rev-parse --verify --quiet origin/main >/dev/null; then
-            git diff --name-only --no-renames "origin/main...HEAD" > "$RUNNER_TEMP/changed.txt"
-            git diff -U0 --no-renames "origin/main...HEAD" -- strius.xcodeproj/project.pbxproj > "$RUNNER_TEMP/project.diff"
-            args=(--changed-files "$RUNNER_TEMP/changed.txt" --project-diff "$RUNNER_TEMP/project.diff")
-          else
-            # No base to compare with: every contract (never fewer tests than the change needs).
-            args=(--no-diff)
-          fi
-          # Two selections, and the union runs:
-          # - the PR's: main's planner (copied into the PR's tree) with the PR's plan, on the PR's tests;
-          # - main's: main's planner on main's own tree and plan, for this change's paths that exist on main
-          #   (a file or a test the PR adds is not on main: the PR's plan covers it), kept to the tests that
-          #   still exist in the PR. So a PR that adds a test and drops another from its plan still runs it.
-          planner=scripts/ci/ui_test_plan.py
-          if [[ -f "$main_ci/scripts/ci/ui_test_plan.py" ]]; then
-            cp "$main_ci/scripts/ci/ui_test_plan.py" scripts/ci/ui_test_plan_main.py
-            planner=scripts/ci/ui_test_plan_main.py
-          fi
-          python3 "$planner" --list "${args[@]}" --plan scripts/ci/ui-test-plan.json > "$RUNNER_TEMP/selection-pr.json"
-          echo '{"reasons": {}, "uiTests": []}' > "$RUNNER_TEMP/selection-main.json"
-          if [[ -f "$main_ci/scripts/ci/ui_test_plan.py" && -f "$RUNNER_TEMP/changed.txt" ]]; then
-            while read -r path; do
-              if [[ -e "$main_tree/$path" ]]; then echo "$path"; fi
-            done < "$RUNNER_TEMP/changed.txt" > "$RUNNER_TEMP/changed-main.txt"
-            if ! python3 "$main_ci/scripts/ci/ui_test_plan.py" --list --changed-files "$RUNNER_TEMP/changed-main.txt" \
-                   --project-diff "$RUNNER_TEMP/project.diff" > "$RUNNER_TEMP/selection-main.json"; then
-              echo '{"reasons": {}, "uiTests": []}' > "$RUNNER_TEMP/selection-main.json"
-              echo "> main の選び方は main のツリーで失敗したので、PR の規則だけで選びました" >> "$GITHUB_STEP_SUMMARY"
-            fi
-          fi
-          python3 -c 'import json, sys; sys.path.insert(0, "scripts/ci"); import importlib; print(json.dumps(importlib.import_module(sys.argv[1]).discover()))' \
-            "$(basename "$planner" .py)" > "$RUNNER_TEMP/existing.json"
-          python3 - "$RUNNER_TEMP/selection-pr.json" "$RUNNER_TEMP/selection-main.json" "$RUNNER_TEMP/existing.json" > "$RUNNER_TEMP/selection.json" <<'PY'
-          import json, sys
-          pr, main, existing = (json.load(open(path)) for path in sys.argv[1:4])
-          reasons = {**main.get('reasons', {}), **pr.get('reasons', {})}
-          tests = sorted(set(pr['uiTests']) | (set(main['uiTests']) & set(existing)))
-          print(json.dumps({'changedFiles': pr.get('changedFiles'), 'reasons': reasons, 'uiTests': tests}, ensure_ascii=False))
-          PY
-          # A long selection goes to two runners (`verify` and `verify-shard`, scripts/ci/ui_shards.py), with
-          # main's copy of the splitter; every selected test must land in one of the two.
-          shards=scripts/ci/ui_shards.py
-          if [[ -f "$main_ci/scripts/ci/ui_shards.py" ]]; then shards="$main_ci/scripts/ci/ui_shards.py"; fi
-          python3 "$shards" "$RUNNER_TEMP/selection.json" scripts/ci/ui-test-plan.json > "$RUNNER_TEMP/shards.json"
-          python3 - "$RUNNER_TEMP/selection.json" "$RUNNER_TEMP/shards.json" <<'PY'
-          import json, sys
-          selected = set(json.load(open(sys.argv[1]))['uiTests'])
-          shards = json.load(open(sys.argv[2]))
-          landed = {word.split('striusUITests/', 1)[1] for word in (shards['ui'] + ' ' + shards['ui2']).split()}
-          if landed != selected:
-              sys.exit(f'the split lost or added UI tests: {sorted(selected ^ landed)}')
-          PY
-          python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print("ui=" + d["ui"]); print("ui2=" + d["ui2"])' "$RUNNER_TEMP/shards.json" >> "$GITHUB_OUTPUT"
-          python3 - "$RUNNER_TEMP/selection.json" "$RUNNER_TEMP/shards.json" <<'PY' >> "$GITHUB_STEP_SUMMARY"
-          import json, sys
-          selection = json.load(open(sys.argv[1]))
-          print(f"### UIテスト: {len(selection['uiTests'])}件 (単体テストは全部)\n")
-          shards = json.load(open(sys.argv[2]))
-          if shards['ui2']:
-              print(f"2台に分けて流します(見込み {shards['minutes'][0]} 分と {shards['minutes'][1]} 分)\n")
-          for reason, paths in sorted(selection['reasons'].items()):
-              print(f"- {reason}: " + ", ".join(f"`{path}`" for path in paths[:5]) + (" ほか" if len(paths) > 5 else ""))
-          for test in selection['uiTests']:
-              print(f"  - {test}")
-          PY
+          echo "### UIテスト: 門では流さない (単体テストは全部)" >> "$GITHUB_STEP_SUMMARY"
 
-  # The PR verification: one build (or the build of the same tree from an earlier run), then the unit tests,
-  # then the selected UI tests, on one booted Simulator. The unit tests run first in their own xcodebuild
-  # invocation, so a failing unit test stops the job within minutes instead of being reported after every UI
-  # test (2026-10-31: a unit test that failed in the first 5 minutes was reported after 17). The Release
-  # archive runs at the same time on another runner (`release-archive`), and a long UI test selection is
-  # split with `verify-shard`. A change that only draws the screen (tier `cosmetic`) makes the Simulator
-  # build here (for the before/after screenshots) and runs no test.
+  # The PR verification: one build (or the build of the same tree from an earlier run), then every unit test,
+  # on one booted Simulator. The Release archive runs at the same time on another runner (`release-archive`).
+  # A change that only draws the screen (tier `cosmetic`) makes the Simulator build here (for the before/after
+  # screenshots) and runs no test.
   verify:
     needs: [native, ui-plan]
     if: needs.ui-plan.outputs.tier == 'pr' || needs.ui-plan.outputs.tier == 'cosmetic'
@@ -305,8 +221,6 @@ jobs:
     permissions:
       contents: read
       actions: read        # the Artifact of the same tree's build (scripts/ci/sim_build.py)
-    env:
-      UI_TESTS: ${{ needs.ui-plan.outputs.tier == 'pr' && needs.ui-plan.outputs.ui || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -334,8 +248,8 @@ jobs:
       - name: ビルドを用意する(同じ tree のビルドがあれば使い、無ければビルドする)
         # Tests run signed (no CODE_SIGNING_ALLOWED=NO): an unsigned run failed
         # ClaudeAppAttestTests/testReinstalledDeviceRegistersANewKeyWhenTheStoredKeyIsUnusable (2026-10-22).
-        # The build of a tree is made once (scripts/ci/sim_build.py): a run that a runner failure stopped,
-        # `verify-shard`, and the Dev Box's "before" screenshots take it from the Artifact.
+        # The build of a tree is made once (scripts/ci/sim_build.py): a run that a runner failure stopped and
+        # the Dev Box's "before" screenshots take it from the Artifact.
         timeout-minutes: 40
         env:
           GH_TOKEN: ${{ github.token }}
@@ -370,7 +284,7 @@ jobs:
         run: |
           xcrun simctl boot "$SIMULATOR_UDID" 2>/dev/null || true
           xcrun simctl bootstatus "$SIMULATOR_UDID" -b
-      - name: 単体テストを流す(落ちたらここで止め、UIテストは流さない)
+      - name: 単体テストを流す
         if: needs.ui-plan.outputs.tier == 'pr'
         run: |
           set -euo pipefail
@@ -381,33 +295,6 @@ jobs:
             -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
             -maximum-test-execution-time-allowance 600 \
             -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES
-      - name: 選んだUIテストを流す
-        if: env.UI_TESTS != ''
-        run: |
-          set -euo pipefail
-          read -r -a ui <<< "$UI_TESTS"
-          echo "UI tests: ${#ui[@]}"
-          xcodebuild test-without-building -project strius.xcodeproj -scheme strius \
-            -destination "id=$SIMULATOR_UDID" -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            -resultBundlePath "$RUNNER_TEMP/StruisGateUI.xcresult" \
-            -collect-test-diagnostics never "${ui[@]}" \
-            -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
-            -maximum-test-execution-time-allowance 600 \
-            -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES \
-            TEST_RUNNER_STRUIS_PROBE_DIR="$RUNNER_TEMP/ui-probe"
-      - name: 失敗したUIテストの録画とスクショを取り出す
-        # XCTest keeps a failed UI test's screen recording in the result bundle; scripts/ci/ui_failures.py
-        # exports it and the frame at the failure.
-        if: failure() && env.UI_TESTS != ''
-        run: python3 scripts/ci/ui_failures.py "$RUNNER_TEMP/ui-failures" "$RUNNER_TEMP/StruisGateUI.xcresult" >> "$GITHUB_STEP_SUMMARY"
-      - name: 失敗したUIテストの録画とスクショを置く
-        if: failure() && env.UI_TESTS != ''
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ui-failures-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/ui-failures
-          retention-days: 14
-          if-no-files-found: ignore
       - name: メモリの様子を記録
         if: always()
         run: |
@@ -418,126 +305,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ios-test-results-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/*.xcresult
-            ${{ runner.temp }}/ui-probe
-          if-no-files-found: ignore
-
-  # The second half of a long UI test selection (scripts/ci/ui_shards.py), at the same time as `verify` on
-  # another runner. It takes `verify`'s build from the Artifact when it is there already, else builds itself.
-  verify-shard:
-    needs: [native, ui-plan]
-    if: needs.ui-plan.outputs.tier == 'pr' && needs.ui-plan.outputs.ui2 != ''
-    runs-on: xcode-27
-    timeout-minutes: 90
-    permissions:
-      contents: read
-      actions: read
-    env:
-      UI_TESTS: ${{ needs.ui-plan.outputs.ui2 }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.client_payload.sha || github.sha }}
-      - name: Spotlight の索引を止める
-        # The runner VM has 3 CPUs and 7 GB; Xcode, the Simulator and the app already fill the memory, and a
-        # stackshot of a 2-minute stall showed Spotlight (mds_stores) indexing while pages were read back in.
-        run: |
-          sudo mdutil -a -i off >/dev/null 2>&1 || true
-          echo "memory: $(( $(sysctl -n hw.memsize) / 1073741824 )) GB, cpus: $(sysctl -n hw.ncpu)"
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: '3.14'
-      - name: Native Runtime cacheを復元
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            NativeRuntime/Vendor
-            NativeRuntime/PythonPackages
-            NativeRuntime/PackageCache
-            NativeRuntime/.build
-          key: native-runtime-v1-${{ hashFiles('NativeRuntime/**', '!NativeRuntime/Shared/**', '!NativeRuntime/Worker/*.swift', '!NativeRuntime/Worker/Info.plist', '!NativeRuntime/**/*.entitlements', '!NativeRuntime/**/*.md') }}
-          fail-on-cache-miss: true
-      - name: ビルドを用意する(同じ tree のビルドがあれば使い、無ければビルドする)
-        # Tests run signed (no CODE_SIGNING_ALLOWED=NO): an unsigned run failed
-        # ClaudeAppAttestTests/testReinstalledDeviceRegistersANewKeyWhenTheStoredKeyIsUnusable (2026-10-22).
-        # The build of a tree is made once (scripts/ci/sim_build.py): a run that a runner failure stopped,
-        # `verify-shard`, and the Dev Box's "before" screenshots take it from the Artifact.
-        timeout-minutes: 40
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          udid=$(xcrun simctl list devices available -j | python3 -c '
-          import json, sys
-          runtimes = json.load(sys.stdin)["devices"]
-          ios = sorted((key for key in runtimes if ".iOS-" in key),
-                       key=lambda key: [int(part) for part in key.rsplit(".iOS-", 1)[1].split("-") if part.isdigit()])
-          for key in reversed(ios):
-              for device in runtimes[key]:
-                  if device["name"] == "iPhone 17":
-                      print(device["udid"]); sys.exit()
-          sys.exit("iPhone 17 simulator not found")')
-          echo "SIMULATOR_UDID=$udid" >> "$GITHUB_ENV"
-          python3 scripts/ci/sim_build.py prepare "$RUNNER_TEMP/DerivedData" "$udid"
-      - name: ビルドを Artifact に置く
-        if: env.BUILT == '1' && github.job == 'verify'
-        run: python3 scripts/ci/sim_build.py pack "$RUNNER_TEMP/DerivedData" "$RUNNER_TEMP/products.tar"
-      - name: ビルドを Artifact に置く(アップロード)
-        if: env.BUILT == '1' && github.job == 'verify'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ${{ env.BUILD_NAME }}
-          path: ${{ runner.temp }}/products.tar
-          retention-days: 14
-          overwrite: true
-          if-no-files-found: error
-      - name: Simulatorを起動する
-        if: needs.ui-plan.outputs.tier == 'pr'
-        run: |
-          xcrun simctl boot "$SIMULATOR_UDID" 2>/dev/null || true
-          xcrun simctl bootstatus "$SIMULATOR_UDID" -b
-      - name: 選んだUIテストを流す
-        if: env.UI_TESTS != ''
-        run: |
-          set -euo pipefail
-          read -r -a ui <<< "$UI_TESTS"
-          echo "UI tests: ${#ui[@]}"
-          xcodebuild test-without-building -project strius.xcodeproj -scheme strius \
-            -destination "id=$SIMULATOR_UDID" -derivedDataPath "$RUNNER_TEMP/DerivedData" \
-            -resultBundlePath "$RUNNER_TEMP/StruisGateUI.xcresult" \
-            -collect-test-diagnostics never "${ui[@]}" \
-            -test-timeouts-enabled YES -default-test-execution-time-allowance 180 \
-            -maximum-test-execution-time-allowance 600 \
-            -parallel-testing-enabled NO ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES \
-            TEST_RUNNER_STRUIS_PROBE_DIR="$RUNNER_TEMP/ui-probe"
-      - name: 失敗したUIテストの録画とスクショを取り出す
-        # XCTest keeps a failed UI test's screen recording in the result bundle; scripts/ci/ui_failures.py
-        # exports it and the frame at the failure.
-        if: failure() && env.UI_TESTS != ''
-        run: python3 scripts/ci/ui_failures.py "$RUNNER_TEMP/ui-failures" "$RUNNER_TEMP/StruisGateUI.xcresult" >> "$GITHUB_STEP_SUMMARY"
-      - name: 失敗したUIテストの録画とスクショを置く
-        if: failure() && env.UI_TESTS != ''
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ui-failures-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/ui-failures
-          retention-days: 14
-          if-no-files-found: ignore
-      - name: メモリの様子を記録
-        if: always()
-        run: |
-          sysctl vm.swapusage || true
-          vm_stat | grep -E 'Pages (free|active|wired down|occupied by compressor)|Swapins|Swapouts' || true
-      - name: テスト結果を保存
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ios-test-results-${{ github.run_id }}-${{ github.job }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/*.xcresult
-            ${{ runner.temp }}/ui-probe
+          path: ${{ runner.temp }}/*.xcresult
           if-no-files-found: ignore
 
   # The Release archive check of the `pr` tier, on its own runner at the same time as `verify` (it used to run
@@ -762,7 +530,7 @@ jobs:
   # (worker: pull-requests write, cleanup: actions write), so this is the ceiling of all of them. Only
   # agent.yml's `report` job runs, with its own narrower permissions; the PR's code never runs in this job.
   report:
-    needs: [native, ui-plan, verify, verify-shard, release-archive]
+    needs: [native, ui-plan, verify, release-archive]
     if: always() && github.event_name == 'repository_dispatch'
     permissions:
       contents: write
@@ -776,16 +544,14 @@ jobs:
       ui_tier: ${{ needs.ui-plan.outputs.tier }}
       verify_conclusion: >-
         ${{ needs.ui-plan.result == 'success' && needs.ui-plan.outputs.tier == 'none' && 'success' ||
-            needs.verify.result == 'success' &&
-            (needs.verify-shard.result == 'success' || needs.verify-shard.result == 'skipped') &&
-            needs.release-archive.result == 'success' && 'success' ||
+            needs.verify.result == 'success' && needs.release-archive.result == 'success' && 'success' ||
             contains(needs.*.result, 'cancelled') && 'cancelled' || 'failure' }}
 
   # The merge queue's own runs (its verification, repository_dispatch; a PR's definition run as a self-test,
   # workflow_dispatch by github-actions[bot]) were started with GITHUB_TOKEN, so their end triggers no workflow_run
   # in merge-queue.yml (2026-11-07: #97's self-test ended green and the queue slept). They wake it themselves.
   wake-queue:
-    needs: [pending, native, build, ui-plan, verify, verify-shard, release-archive, ui-tests, signed-archive, report]
+    needs: [pending, native, build, ui-plan, verify, release-archive, ui-tests, signed-archive, report]
     if: >-
       always() && (github.event_name == 'repository_dispatch' ||
       (github.event_name == 'workflow_dispatch' && github.triggering_actor == 'github-actions[bot]'))
