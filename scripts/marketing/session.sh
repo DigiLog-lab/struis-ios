@@ -10,6 +10,8 @@
 # 作業ツリーの中に録ると取り込みとぶつかる)。アプリに渡す API キーは偽物で、本物のキー($DEVBOX_ANTHROPIC_KEY_FILE)は
 # 模擬サーバーの転送先にだけ使う(アプリにも記録にも出ない)。
 set -uo pipefail
+# 裏で起動するものは自分のプロセスグループに入れ、命令が終わっても残す(macOS に setsid は無い)。
+set -m
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 W="${MARKETING_DIR:-${RUNNER_TEMP:-/tmp}/marketing}"
 UDID="${SIMULATOR_UDID:?SIMULATOR_UDID が無い(Dev Box で動かす)}"
@@ -46,8 +48,8 @@ start() {
   fi
   printf 'sk-fake-for-the-simulator' > "$W/app-key"; chmod 600 "$W/app-key"
 
-  # 模擬サーバー(Messages API)。setsid で命令の終わりに巻き込まれないようにする。
-  setsid nohup python3 "$ROOT/scripts/e2e/fake_anthropic.py" --port "$PORT" --log-dir "$W/fake" --tape-dir "$W/tapes" \
+  # 模擬サーバー(Messages API)。
+  nohup python3 "$ROOT/scripts/e2e/fake_anthropic.py" --port "$PORT" --log-dir "$W/fake" --tape-dir "$W/tapes" \
     ${DEVBOX_ANTHROPIC_KEY_FILE:+--upstream-key-file "$DEVBOX_ANTHROPIC_KEY_FILE"} > "$W/logs/fake.log" 2>&1 < /dev/null &
   echo $! > "$W/fake.pid"
   for _ in $(seq 1 50); do curl -sf "http://127.0.0.1:$PORT/__health" >/dev/null && break; sleep 0.2; done
@@ -73,7 +75,7 @@ start() {
     export TEST_RUNNER_STRUIS_E2E_APP_ENV_STRUIS_DEBUG_ANTHROPIC_KEY_FILE="$W/app-key"
     export TEST_RUNNER_STRUIS_E2E_APP_ENV_STRUIS_ANTHROPIC_BASE_URL="http://127.0.0.1:$PORT"
     export TEST_RUNNER_STRUIS_E2E_APP_ENV_STRUIS_TEST_CAMERA_IMAGE="$W/camera.jpg"
-    exec setsid nohup xcodebuild test-without-building -xctestrun "$xctestrun" -destination "id=$UDID" \
+    exec nohup xcodebuild test-without-building -xctestrun "$xctestrun" -destination "id=$UDID" \
       -parallel-testing-enabled NO -only-testing:striusUITests/E2EDriverUITests/testDrive > "$W/logs/driver.log" 2>&1 < /dev/null
   ) &
   echo $! > "$W/driver.pid"
