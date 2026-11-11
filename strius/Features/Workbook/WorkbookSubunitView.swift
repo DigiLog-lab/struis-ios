@@ -322,9 +322,8 @@ struct WorkbookSubunitView: View {
             WorkbookStageSteps(stage: subunit.stage, passed: subunit.status == .passed)
                 .padding(.vertical, 6)
             if !subunit.outcome.isEmpty {
-                Text(subunit.outcome)
-                    .font(Typography.caption)
-                    .foregroundStyle(Theme.secondaryText)
+                // 小単元の説明文には式が入る(`$15^\circ$`)。数式を組む部品で描く。
+                TimelineRichText(text: subunit.outcome, size: 12, color: Theme.secondaryText)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
