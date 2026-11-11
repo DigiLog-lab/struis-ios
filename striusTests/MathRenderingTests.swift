@@ -229,4 +229,12 @@ struct MathRenderingTests {
         #expect(MathRenderDiagnostics.file.lastPathComponent == "math_fallback.jsonl")
         #expect(MathRenderDiagnostics.directory.path.hasPrefix(StruisPaths.root.path))
     }
+
+    /// オンボーディングの計画の説明文(日本語の文の中に `$…$` の式。2026-11-11 に実際の応答で出た形)は、数式として組める。
+    @Test func aPlanLeadWithInlineDollarMathIsDrawnAsMath() {
+        let lead: String = "お試しの1問で、$x+1=5$ から $x$ を求める最後の計算につまずいていたので、底を $2$ にそろえる練習から始めます。"
+        let source: String = TimelineRichText.source(lead)
+        #expect(source == lead)
+        #expect(NativeMathDocument.make(source, display: false) != nil)
+    }
 }

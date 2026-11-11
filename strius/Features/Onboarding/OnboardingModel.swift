@@ -797,9 +797,13 @@ final class OnboardingModel {
     }
 
     /// 通知の例(「今日は「平方根の考えで解く」です。」)。
-    var reminderExample: String {
-        let title = draft?.subunits.first?.title ?? profile.unit ?? "今日の小単元"
-        return "今日は「\(title)」です。"
+    var reminderExample: String { "今日は「\(reminderSubunitTitle)」です。" }
+
+    /// 通知で知らせる小単元: 確認の1問で合格にして飛ばした小単元を除いた、最初の小単元。
+    var reminderSubunitTitle: String {
+        let subunits = draft?.subunits ?? []
+        let next: Int? = subunits.indices.first { checkPassed[$0] != true }
+        return next.map { subunits[$0].title } ?? subunits.first?.title ?? profile.unit ?? "今日の小単元"
     }
 
     // MARK: - 保存

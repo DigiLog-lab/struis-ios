@@ -576,7 +576,7 @@ struct OnboardingFlowView: View {
             OnboardingPrimaryButton(title: "次へ", isEnabled: !isRequestingNotification, identifier: "onboarding-notify-next") {
                 isRequestingNotification = true
                 Task {
-                    await StudyReminder.request(hour: model.reminderHour, subunitTitle: model.draft?.subunits.first?.title ?? model.profile.unit ?? "今日の小単元")
+                    await StudyReminder.request(hour: model.reminderHour, subunitTitle: model.reminderSubunitTitle)
                     isRequestingNotification = false
                     model.finish()
                     onFinish()

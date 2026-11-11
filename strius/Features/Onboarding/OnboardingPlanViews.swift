@@ -33,7 +33,7 @@ struct OnboardingPlanView: View {
             VStack(alignment: .leading, spacing: 18) {
                 OnboardingTitle(title: "\(subject)の計画を作っています")
                 VStack(alignment: .leading, spacing: 14) {
-                    if !model.profile.trial.isEmpty { doneRow("お試しの1問の結果を読みました") }
+                    if !model.profile.trial.isEmpty { doneRow("お試しの\(model.profile.trial.count)問の結果を読みました") }
                     if !model.materials.isEmpty {
                         doneRow(model.profile.route == .university ? "資料を読みました(\(model.materials.count)件)" : "撮ったページを読みました(\(model.materials.count)枚)")
                     }
@@ -100,7 +100,13 @@ struct OnboardingPlanView: View {
         } else {
             OnboardingScaffold {
                 VStack(alignment: .leading, spacing: 16) {
-                    OnboardingTitle(title: draft.displayHeading, detail: draft.lead.isEmpty ? nil : draft.lead)
+                    VStack(alignment: .leading, spacing: 8) {
+                        OnboardingTitle(title: draft.displayHeading)
+                        // 説明文には式が入る(`$x+1=5$`)。iPad の横並びと同じく、数式を組む部品で描く。
+                        if !draft.lead.isEmpty {
+                            TimelineRichText(text: draft.lead, size: 15, color: Theme.secondaryText)
+                        }
+                    }
                     chips
                     subunitList(draft)
                     checkHint

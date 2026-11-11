@@ -86,6 +86,17 @@ nonisolated enum UsagePlan: String, CaseIterable, Codable, Sendable {
     }
 }
 
+/// 利用枠に数えない「初回の準備」の種類。始めたばかりの人の枠を、解く前の準備(上位モデル)だけで使い切らないために分ける。
+/// 費用は台帳にそのまま残す。数えないターンの数は `UsageRules.freeSetupTurns`。
+nonisolated enum UsageSetup: String, Codable, Sendable, CaseIterable {
+    /// オンボーディングの計画づくり。
+    case plan
+    /// 単元づくり。
+    case unit
+    /// 知識グラフの初めての構築・新しい単元の分の追加・つまずきの洗い出し(学習中の見直しと 1 段下りる依頼は含めない)。
+    case graph
+}
+
 /// 利用枠の決まり(#62)。
 nonisolated enum UsageRules {
     /// 1 問の目安(¥10)を USD にしたもの(1 ドル 160 円)。
@@ -96,6 +107,17 @@ nonisolated enum UsageRules {
     static let trialLimitUSD = 0.25
 
     static func limitUSD(plan: UsagePlan?) -> Double { plan?.weeklyLimitUSD ?? trialLimitUSD }
+
+    /// 「初回の準備」のうち、利用枠に数えないターンの数(種類ごと)。これを超えた分は普通に数える。
+    static func freeSetupTurns(_ setup: UsageSetup) -> Int {
+        switch setup {
+        case .plan: 3
+        case .unit: 3
+        // 単元 4 つ分(オンボーディングの 1 つ + 単元づくりの 3 つ)。1 つの単元の最初の構築は、構築(追加)1 回 +
+        // 続きの段 5 回まで(`TimelineTurns.graphStepLimit`)+ つまずきの洗い出し 1 回で、多くて 7 回。
+        case .graph: 28
+        }
+    }
 
     /// 1 期間の長さ(7 日)。課金した時刻から数えるので、暦や時間帯によらず秒で持つ。
     static let periodSeconds: TimeInterval = 7 * 86_400
@@ -301,6 +323,8 @@ nonisolated final class UsageMeter: @unchecked Sendable {
     /// 期間はこの時刻から 7 日ごと。時刻と ID を 1 つの値にして、片方だけ新しい組み合わせで鍵を作らないようにする。
     /// 使用額と同じ Keychain と iCloud に置く(入れ直しても、プランが切れた後のその期間の使用額を引き継ぐため)。
     static let chargeKey = "usage.charge.v1"
+    /// 枠に数えなかった「初回の準備」のターンの ID(種類ごと・端末ごとの鍵に、カンマ区切り)。
+    static let freeSetupPrefix = "usage.free-setup.v1."
     /// 次の更新の予定日時(自動更新が続いている時の `Transaction.expirationDate`)。更新されるとその時刻から新しい期間になるので、
     /// 戻る日時はこれより後にしない。解約の予約中は更新されず期間も替わらないので、持たない。
     static let renewsAtKey = "usage.renewsAt.v1"
@@ -490,6 +514,37 @@ nonisolated final class UsageMeter: @unchecked Sendable {
         Self.notifyChanged()
     }
 
+    /// 数えなかった「初回の準備」のターンの ID(ロックの中で呼ぶ)。使用額と同じく、端末ごとの鍵(種類の鍵 + `.device.` +
+    /// 端末の ID)に自分の分だけを書き、読む時は iCloud に集まった全端末の分を合わせる。1 つの鍵に全部の ID を書くと、
+    /// iPhone と iPad が同期の前にそれぞれ書いた時に、後から届いた方が相手の分を消してしまう。
+    private func freeSetupIDs(_ setup: UsageSetup) -> (ownKey: String, own: [String], all: Set<String>) {
+        func ids(_ text: String?) -> [String] { (text ?? "").split(separator: ",").map(String.init) }
+        let prefix: String = Self.freeSetupPrefix + setup.rawValue + Self.deviceMarker
+        let ownKey: String = prefix + deviceID()
+        var own: [String] = []
+        for id in ids(values.local.string(ownKey)) + ids(values.cloud.string(ownKey)) where !own.contains(id) { own.append(id) }
+        var all: Set<String> = Set(own)
+        for key in values.cloud.keys(withPrefix: prefix) { all.formUnion(ids(values.cloud.string(key))) }
+        return (ownKey, own, all)
+    }
+
+    /// 「初回の準備」のターンを、利用枠に数えずに通すか。数えないと決めたターンの ID を残し、同じターンの 2 回目以降の
+    /// 要求(送り直し・続き)は数を増やさずに通す。種類ごとの数(`UsageRules.freeSetupTurns`、全端末の合計)を超えたら数える。
+    func takesFree(_ setup: UsageSetup, turnID: String) -> Bool {
+        lock.withLock {
+            let stored = freeSetupIDs(setup)
+            if stored.all.contains(turnID) { return true }
+            guard stored.all.count < UsageRules.freeSetupTurns(setup) else { return false }
+            values.set((stored.own + [turnID]).joined(separator: ","), stored.ownKey)
+            return true
+        }
+    }
+
+    /// 数えなかった「初回の準備」のターンの数(全端末の合計)。
+    func freeSetupCount(_ setup: UsageSetup) -> Int {
+        lock.withLock { freeSetupIDs(setup).all.count }
+    }
+
     private static func notifyChanged() {
         DispatchQueue.main.async { NotificationCenter.default.post(name: .usageMeterChanged, object: nil) }
     }
@@ -563,6 +618,14 @@ nonisolated protocol UsageGate: Sendable {
     func denial(for request: UsageRequest) -> UsageDenial?
     /// 使った金額を記録する(`Attempt.finish` の記録と、送った本文の大きさ)。
     func record(_ attempt: [String: Any], requestBytes: Int)
+    /// ターンの種類つきの記録。`setup` が「初回の準備」のターンは、決まった数まで枠に数えない。
+    func record(_ attempt: [String: Any], requestBytes: Int, setup: UsageSetup?, turnID: String)
+}
+
+extension UsageGate {
+    func record(_ attempt: [String: Any], requestBytes: Int, setup: UsageSetup?, turnID: String) {
+        record(attempt, requestBytes: requestBytes)
+    }
 }
 
 /// 端末内で数える判定。ソフトリミットとして、途中の作業を終わらせる要求だけは上限を超えてもカード 1 枚分(`graceUSD`)まで通す。
@@ -585,6 +648,17 @@ nonisolated struct DeviceUsageGate: UsageGate {
 
     func record(_ attempt: [String: Any], requestBytes: Int) {
         meter.add(UsageRules.charge(record: attempt, requestBytes: requestBytes))
+    }
+
+    func record(_ attempt: [String: Any], requestBytes: Int, setup: UsageSetup?, turnID: String) {
+        let usd: Double = UsageRules.charge(record: attempt, requestBytes: requestBytes)
+        // 課金されなかった要求では、数えないターンの数を使わない。
+        guard usd > 0 else { return }
+        if let setup, meter.takesFree(setup, turnID: turnID) {
+            usageLog.info("setup turn \(turnID, privacy: .public) (\(setup.rawValue, privacy: .public)) is not counted: \(usd, privacy: .public) USD")
+            return
+        }
+        meter.add(usd)
     }
 }
 

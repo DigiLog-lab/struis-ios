@@ -891,7 +891,7 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
 
     private func settle(bytes: Int, _ record: [String: Any]) {
         log.append(record, key: key)
-        dependencies.upstream.gate.record(record, requestBytes: bytes)
+        dependencies.upstream.gate.record(record, requestBytes: bytes, setup: plan.setup, turnID: plan.id)
     }
 
     /// 要求を送って応答を読み切る。読む処理と見張りを並べ、期限や停止が先に来たら読む処理を止める。
