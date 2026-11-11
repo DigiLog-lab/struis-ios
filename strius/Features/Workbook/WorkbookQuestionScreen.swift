@@ -34,20 +34,7 @@ struct UnitCreationScreen: View {
             existingUnits: (store.home?.units ?? []).map(\.title),
             onFinish: { close() }
         )
-        .overlay(alignment: .topTrailing) {
-            Button { close() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Theme.secondaryText)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 12)
-            .padding(.trailing, 8)
-            .accessibilityLabel("閉じる")
-            .accessibilityIdentifier("unit-creation-close")
-        }
+        .environment(\.onboardingClose) { close() }
         // 計画づくり・確認の1問の採点が利用枠で止まったら、案内を出す。
         .usageLimitGuide([.onboardingPlan, .onboardingGrading])
         .presentationDetents([.large])
