@@ -22,6 +22,8 @@ struct ChatView: View {
     let onClose: (() -> Void)?
     /// 決まった thread を開く(小単元の会話・単元づくり)。nil なら最近の会話。
     let threadBootstrap: ((ChatStore) async -> Void)?
+    /// 開いた所から渡された下書き(タイムラインの「解説」「質問」: 問題文つき)。開いた時に 1 回だけ入力欄に入れる。
+    let initialDraft: String?
     /// 全体像カードの「はじめる」の後。
     let onProposalStarted: ((WorkbookProposalDTO) -> Void)?
     /// 返事の生成中に送ったら、止めてから送る(説明の途中の質問)。
@@ -45,6 +47,7 @@ struct ChatView: View {
     @State private var isSubmitting = false
     @State private var attachments: [ComposerAttachment] = []
     @State private var didAdoptThread = false
+    @State private var didApplyInitialDraft = false
     @State private var isHistoryPresented = false
     @State private var isSettingsPresented = false
     @State private var activeLearningSessionID: UUID?
@@ -64,6 +67,7 @@ struct ChatView: View {
         embedded: Bool = false,
         onClose: (() -> Void)? = nil,
         threadBootstrap: ((ChatStore) async -> Void)? = nil,
+        initialDraft: String? = nil,
         onProposalStarted: ((WorkbookProposalDTO) -> Void)? = nil,
         sendsWhileGenerating: Bool = false,
         floatingAccessory: AnyView? = nil,
@@ -80,6 +84,7 @@ struct ChatView: View {
         self.embedded = embedded
         self.onClose = onClose
         self.threadBootstrap = threadBootstrap
+        self.initialDraft = initialDraft
         self.onProposalStarted = onProposalStarted
         self.sendsWhileGenerating = sendsWhileGenerating
         self.floatingAccessory = floatingAccessory
@@ -252,9 +257,18 @@ struct ChatView: View {
                 dismissKeyboard()
             }
         }
-        .onAppear { consumePendingComposerDraft() }
+        .onAppear {
+            applyInitialDraft()
+            consumePendingComposerDraft()
+        }
         .onChange(of: chat.pendingComposerDraft) { _, _ in
             consumePendingComposerDraft()
+        }
+        // iPad の右の欄は開いたまま、別の問題の「質問」「解説」を押すと下書きだけが替わる(欄は作り直されない)。
+        // 新しい問題の下書きに入れ替える(前の問題の下書きのまま送らせない)。
+        .onChange(of: initialDraft) { _, draft in
+            guard let draft, !draft.isEmpty else { return }
+            chat.pendingComposerDraft = draft
         }
         .onChange(of: composerFocused) { _, focused in
             if focused { onLearnerActivity?(.focusedComposer) }
@@ -286,6 +300,13 @@ struct ChatView: View {
         // 前の会話は消さず、左上の履歴から開ける。
         await chat.adoptThread(nil)
         didAdoptThread = true
+    }
+
+
+    private func applyInitialDraft() {
+        guard !didApplyInitialDraft, let initialDraft, !initialDraft.isEmpty else { return }
+        didApplyInitialDraft = true
+        chat.pendingComposerDraft = initialDraft
     }
 
     /// 相談(入口 A)などから渡された下書きを入力欄へ流し込む。
