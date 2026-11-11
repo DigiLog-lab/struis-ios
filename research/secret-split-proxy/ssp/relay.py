@@ -100,6 +100,7 @@ class Session:
         self.response_start: int = 0                # いまの応答が始まる app_records の位置
         self.proved_until: int | None = None        # 直前の証明が「ここまでが応答」とした app_records の長さ
         self.late_records: bool = False             # 証明の後に、その応答のレコードが届いた
+        self.opened_plain: list[bytes] = []         # 証明で relay が知った平文(検証用の記録)
         self.server_closed: threading.Event = threading.Event()
         self.verdicts: list[dict[str, Any]] = []
         self.error: str | None = None
@@ -262,17 +263,33 @@ class Session:
         if tail_from["record"] < self.response_start:
             raise Reject("the tail starts before this response")
         result["message_delta"] = parse_tail(bytes(stream))
-        # 2) 冒頭の message_start(任意)
-        ms: dict[str, int] | None = stmt.get("message_start")
+        self.opened_plain.append(bytes(stream))
+        # 2) 冒頭の message_start(任意)。TLS のレコードをまたぐことがあるので、続きのレコードも受け付ける
+        ms: dict[str, Any] | None = stmt.get("message_start")
         if ms is not None:
-            idx = ms["record"]
-            if idx < self.response_start or idx not in opened:
-                raise Reject("message_start is outside this response")
-            try:
-                span: bytes = bytes(opened[idx][p] for p in range(ms["start"], ms["end"]))
-            except KeyError:
-                raise Reject("message_start range is not fully opened") from None
-            result["message_start"] = parse_message_start(span)
+            span: bytearray = bytearray()
+            segments: list[dict[str, int]] = ms["segments"]
+            for k, seg in enumerate(segments):
+                idx = seg["record"]
+                if idx < self.response_start or idx not in opened:
+                    raise Reject("message_start is outside this response")
+                if k and (idx != segments[k - 1]["record"] + 1 or seg["start"] != 0):
+                    raise Reject("message_start segments are not contiguous")
+                try:
+                    piece: bytes = bytes(opened[idx][p] for p in range(seg["start"], seg["end"]))
+                except KeyError:
+                    raise Reject("message_start range is not fully opened") from None
+                if k < len(segments) - 1:
+                    # 途中のレコードは最後のバイトまで開け、中身がアプリのデータであることを確かめる
+                    if seg["end"] != len(app[idx]) - 5 - 16:
+                        raise Reject("a middle segment does not reach the end of its record")
+                    stripped = piece.rstrip(b"\x00")
+                    if not stripped or stripped[-1] != tlsrec.APPLICATION_DATA:
+                        raise Reject("a middle segment is not application data")
+                    piece = stripped[:-1]
+                span += piece
+            result["message_start"] = parse_message_start(bytes(span))
+            self.opened_plain.append(bytes(span))
         return result
 
 

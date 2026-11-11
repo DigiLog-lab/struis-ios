@@ -88,9 +88,16 @@ class MockAnthropic:
                 close: bool = headers.get("connection", "").lower() == "close"
                 s.sendall(b"HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\n"
                           b"transfer-encoding: chunked\r\n" + (b"connection: close\r\n" if close else b"") + b"\r\n")
-                for e in events:
+                for n_event, e in enumerate(events):
                     data: bytes = e.encode()
-                    s.sendall(b"%x\r\n" % len(data) + data + b"\r\n")
+                    wire: bytes = b"%x\r\n" % len(data) + data + b"\r\n"
+                    if n_event == 0:
+                        # 本物と同じように、message_start が TLS のレコードをまたぐ形にする
+                        s.sendall(wire[:70])
+                        time.sleep(0.01)
+                        s.sendall(wire[70:])
+                    else:
+                        s.sendall(wire)
                     time.sleep(0.01)
                 s.sendall(b"0\r\n\r\n")
                 if close:

@@ -30,6 +30,7 @@ from ssp.util import HttpReader, TerminatingProxy, summarize, user_content
 
 RESULTS: list[tuple[str, bool, str]] = []
 SECRET: str = "PHONE-ONLY-MARKER-7c1e9a"
+ECHO: str = "ECHO-MARKER-" + os.urandom(8).hex()      # 応答に書かせる目印(relay から見えてはいけない)
 
 
 def record(check: str, ok: bool, detail: str) -> None:
@@ -190,11 +191,11 @@ def relay_decrypt_count(s: Session) -> int:
 
 def check_handoff(env: Env, rule: str, with_suffix_mode: bool, label: str) -> Run | None:
     """鍵を世代で分けて渡し、relay が先頭(と末尾)を、phone が真ん中を書く。"""
-    msgs: str = user_content(f"Reply with the single word OK. (ref {SECRET})")
+    msgs: str = user_content(f"Reply with exactly this text and nothing else: {ECHO} (ref {SECRET})")
     if with_suffix_mode:
-        prefix, middle, suffix, use_suffix = split_body(env, env.model_a, 32, msgs, "last")
+        prefix, middle, suffix, use_suffix = split_body(env, env.model_a, 64, msgs, "last")
     else:
-        prefix, middle, suffix, use_suffix = split_body(env, env.model_a, 32, msgs, "first")
+        prefix, middle, suffix, use_suffix = split_body(env, env.model_a, 64, msgs, "first")
     run: Run = Run(env, env.policy(prefix, suffix))
     run.phone.handshake()
     if env.mock is not None:
@@ -213,10 +214,10 @@ def check_handoff(env: Env, rule: str, with_suffix_mode: bool, label: str) -> Ru
         info = {"text": "authentication_error"}
     else:
         info = summarize(body)
-        ok = status == 200 and bool(info.get("text")) and info.get("delta_usage") is not None
+        ok = status == 200 and ECHO in info.get("text", "") and info.get("delta_usage") is not None
     if not env.keyless:
         record(f"{label} handoff", ok,
-               f"HTTP {status}, model={info.get('model')}, text={info.get('text', '')[:20]!r}, "
+               f"HTTP {status}, model={info.get('model')}, answer carries the echo marker: {ECHO in info.get('text', '')}, "
                f"usage={info.get('delta_usage')}, server cert issuer={issuer}")
     if not ok:
         print("   body:", body[:300])
@@ -224,10 +225,10 @@ def check_handoff(env: Env, rule: str, with_suffix_mode: bool, label: str) -> Ru
     run.phone.drain()
     s: Session = run.session
     seen: bytes = b"".join(s.client_records) + b"".join(s.server_records)
-    answer: bytes = info["text"].encode()
+    answer: bytes = b"authentication_error" if env.keyless else ECHO.encode()
     record(f"{label} relay cannot read", SECRET.encode() not in seen and answer not in seen
            and relay_decrypt_count(s) == 0,
-           f"marker in relay's view: {SECRET.encode() in seen}; answer text in relay's view: {answer in seen}; "
+           f"request marker in relay's view: {SECRET.encode() in seen}; answer marker in relay's view: {answer in seen}; "
            f"records the relay could decrypt with the keys it was given: {relay_decrypt_count(s)} "
            f"of {len(s.client_records) + len(s.app_records)}; keys given to relay: {len(s.held_keys)}")
     sent_down: bytes = b"".join(s.down_log)
@@ -361,8 +362,8 @@ def truth_of(body: bytes) -> dict[str, Any]:
 
 def check_proof(env: Env, rule: str) -> None:
     """usage の証明: relay は Anthropic から届いた暗号文の記録と証明だけで usage を得る。"""
-    msgs: str = user_content(f"Write one short sentence about the sea. (ref {SECRET})")
-    prefix, middle, suffix, use_suffix = split_body(env, env.model_a, 48, msgs, rule)
+    msgs: str = user_content(f"Write one short sentence about the sea, then this text: {ECHO} (ref {SECRET})")
+    prefix, middle, suffix, use_suffix = split_body(env, env.model_a, 96, msgs, rule)
     run: Run = Run(env, env.policy(prefix, suffix))
     run.phone.handshake()
     status, _, body = run.request(middle, use_suffix)
@@ -382,10 +383,11 @@ def check_proof(env: Env, rule: str) -> None:
                f"{stats['aes_blocks']} AES blocks, prove {stats['prove_s']}s, verify "
                f"{verdict.get('proof', {}).get('verify_s')}s | {verdict.get('reason', '')}")
     s: Session = run.session
-    answer: bytes = summarize(body)["text"].encode()
-    # relay が証明から知った平文は usage のイベントだけで、本文や回答は含まれない
-    record("C08 proof reveals no content", True if answer else False,
-           f"answer text length {len(answer)}; relay-side record of opened bytes holds only the two events (checked by parser)")
+    learned: bytes = b"".join(s.opened_plain)
+    carried: bool = ECHO in summarize(body)["text"]
+    record("C08 proof reveals no content", carried and ECHO.encode() not in learned and SECRET.encode() not in learned,
+           f"the answer carried the echo marker: {carried}; marker in the plaintext the relay learned from the proofs: "
+           f"{ECHO.encode() in learned}; plaintext the relay learned: {len(learned)} bytes, all inside the usage events")
 
     # --- 通らないはずの証明 ---
     stmt = run.phone.build_statement(include_message_start=False)

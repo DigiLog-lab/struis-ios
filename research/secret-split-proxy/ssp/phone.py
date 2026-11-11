@@ -168,14 +168,22 @@ class Phone:
         if include_message_start:
             a: int = text.find(b"\nevent: message_start\n")
             b: int = text.find(b"\n\n", a + 1) + 2
-            ai, aoff = where[a]
-            bi, boff = where[b - 1]
-            if ai != bi:
-                raise RuntimeError("message_start spans two records (not handled in this PoC)")
-            index, seq, rec, inner = records[ai]
-            entry = opens.setdefault(index, {"record": index, "seq": seq, "ranges": []})
-            entry["ranges"].append([aoff, boff + 1])
-            stmt["message_start"] = {"record": index, "start": aoff, "end": boff + 1}
+            segments: list[dict[str, int]] = []
+            for pos in range(a, b):
+                i, off = where[pos]
+                index, seq, rec, inner = records[i]
+                if not segments or segments[-1]["record"] != index:
+                    if segments:
+                        # 前のレコードは最後のバイト(種類のバイト)まで開ける
+                        segments[-1]["end"] = len(records[i - 1][3])
+                    segments.append({"record": index, "start": off, "end": off + 1, "seq": seq})
+                else:
+                    segments[-1]["end"] = off + 1
+            for seg in segments:
+                entry = opens.setdefault(seg["record"], {"record": seg["record"], "seq": seg.pop("seq"), "ranges": []})
+                seg.pop("seq", None)
+                entry["ranges"].append([seg["start"], seg["end"]])
+            stmt["message_start"] = {"segments": segments}
         stmt["opens"] = [opens[k] for k in sorted(opens)]
         return stmt
 
