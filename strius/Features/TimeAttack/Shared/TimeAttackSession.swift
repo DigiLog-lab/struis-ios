@@ -27,6 +27,9 @@ final class TimeAttackSession: Identifiable {
     let local: TimeAttackLocal
     /// 採点を始める時に呼ぶ(App Clip の1日の回数を数える)。
     var onGradingStarted: () -> Void = {}
+    /// 届いた5問を解き始める前に、採点まで頼めるかを確かめる(頼めない時はその理由)。
+    /// 解き終えてから採点を断られないように、タイマーを動かす前に止める。
+    var preflight: () -> String? = { nil }
 
     private(set) var phase: Phase = .preparing
     private(set) var field = ""
@@ -70,7 +73,13 @@ final class TimeAttackSession: Identifiable {
         }
     }
 
-    func start() { phase = .running }
+    func start() {
+        if let reason = preflight() {
+            phase = .failed(reason)
+            return
+        }
+        phase = .running
+    }
 
     /// 解き終えて撮った。採点してから結果に移る。
     func finish(laps: [Double], photo: Data) async {

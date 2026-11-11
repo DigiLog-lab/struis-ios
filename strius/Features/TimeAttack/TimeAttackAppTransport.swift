@@ -21,6 +21,11 @@ nonisolated struct AppTimeAttackTransport: TimeAttackTransport {
         }
     }
 
+    /// 届いた5問を解き始める前の確かめ: 新しい作業として利用枠と同意を見る(頼めない時はその理由)。
+    func startDenial() -> String? {
+        upstream.gate.denial(for: UsageRequest(kind: .timelineBatch, finishing: false)).flatMap { Failure.usage($0).errorDescription }
+    }
+
     func send(_ body: [String: Any], purpose: TimeAttackClaude.Purpose) async throws -> [String: Any] {
         let reading = purpose == .read
         if let denial = upstream.gate.denial(for: UsageRequest(kind: reading ? .timelineGrading : .timelineBatch, finishing: reading)) {

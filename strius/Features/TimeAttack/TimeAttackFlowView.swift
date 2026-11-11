@@ -36,13 +36,20 @@ struct TimeAttackFlowView: View {
             case .result:
                 TimeAttackResultView(session: session, secondaryTitle: "別の5問でもう一度", onSecondary: again, onClose: onClose)
             case .failed(let message):
-                TimeAttackFailedView(message: message, retryTitle: session.hasPhoto ? "もう一度読む" : "もう一度作る", onRetry: retry, onClose: onClose)
+                TimeAttackFailedView(message: message, retryTitle: retryTitle, onRetry: retry, onClose: onClose)
             }
         }
         .foregroundStyle(Theme.primaryText)
         .task { await session.prepare() }
         .onAppear { TimeAttackPresence.shared.isPresented = true }
         .onDisappear { TimeAttackPresence.shared.isPresented = false }
+    }
+
+    /// 撮った後なら読み直し、自分で始めた時は作り直し。届いた5問を解き始める前に止められた時は、やり直しを出さない。
+    private var retryTitle: String? {
+        if session.hasPhoto { return "もう一度読む" }
+        if case .own = session.mode { return "もう一度作る" }
+        return nil
     }
 
     private func retry() {
@@ -92,7 +99,7 @@ struct TimeAttackLinkHandler: ViewModifier {
                 if let url = activity.webpageURL { open(url) }
             }
             .fullScreenCover(item: $opened) { item in
-                TimeAttackFlowView(session: TimeAttackSession(mode: .challenge(item.challenge), transport: AppTimeAttackTransport())) {
+                TimeAttackFlowView(session: Self.challengeSession(item.challenge)) {
                     opened = nil
                 }
             }
@@ -109,6 +116,13 @@ struct TimeAttackLinkHandler: ViewModifier {
                 }
             }
             #endif
+    }
+
+    private static func challengeSession(_ challenge: TimeAttack.Challenge) -> TimeAttackSession {
+        let transport = AppTimeAttackTransport()
+        let session = TimeAttackSession(mode: .challenge(challenge), transport: transport)
+        session.preflight = { transport.startDenial() }
+        return session
     }
 
     private func open(_ url: URL) {

@@ -91,6 +91,23 @@ final class TimeAttackTests: XCTestCase {
         XCTAssertEqual(TimeAttackMath.plain("\\frac{x+1}{2}"), "(x+1)/2")
     }
 
+    private struct NoTransport: TimeAttackTransport {
+        func send(_ body: [String: Any], purpose: TimeAttackClaude.Purpose) async throws -> [String: Any] { [:] }
+    }
+
+    @MainActor
+    func testAReceivedChallengeDoesNotStartWhenItCannotBeGraded() {
+        let challenge = TimeAttack.Challenge(field: "三角関数", problems: problems, entries: [])
+        let session = TimeAttackSession(mode: .challenge(challenge), transport: NoTransport())
+        XCTAssertEqual(session.phase, .intro)
+        session.preflight = { "今週の利用枠を使い切りました。" }
+        session.start()
+        XCTAssertEqual(session.phase, .failed("今週の利用枠を使い切りました。"))
+        session.preflight = { nil }
+        session.start()
+        XCTAssertEqual(session.phase, .running)
+    }
+
     func testNicknameIsTrimmedToTenCharacters() {
         XCTAssertEqual(TimeAttack.trimmedName("  とてもながいなまえのひとです  "), "とてもながいなまえの")
     }
