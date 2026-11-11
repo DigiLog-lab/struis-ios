@@ -52,7 +52,8 @@ final class UnitCreationUITests: XCTestCase {
         XCTAssertTrue(start.appears(timeout: 5))
         start.tap()
         XCTAssertTrue(app.navigationBars["二次方程式"].appears(timeout: 20), "作った単元が開かない")
-        XCTAssertFalse(app.descendants(matching: .any)["unit-creation"].exists, "単元を作る画面が閉じない")
+        let closed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.descendants(matching: .any)["unit-creation"].firstMatch)
+        XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 10), .completed, "単元を作る画面が閉じない")
         UITestSupport.saveProbe(app, name: "unit-creation-5-unit")
     }
 }

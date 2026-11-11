@@ -136,7 +136,8 @@ final class OnboardingFlowUITests: XCTestCase {
         let start = element(app, "onboarding-plan-start")
         XCTAssertTrue(start.appears(timeout: 30), "計画が出ない")
         XCTAssertTrue(text(app, containing: "お試しの1問でできていたので短めです").exists, "計画にお試しの結果の反映が無い")
-        XCTAssertTrue(text(app, containing: "テストまで 2週間くらい").exists)
+        // 次のテストまでは、期限の日付のボタン(押すと直せる。#132)で出す。
+        XCTAssertTrue(element(app, "onboarding-plan-deadline").exists, "期限の日付が無い")
         attach(app, "plan")
         start.tap()
 
