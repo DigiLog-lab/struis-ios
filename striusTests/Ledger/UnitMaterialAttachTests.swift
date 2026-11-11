@@ -29,7 +29,8 @@ final class UnitMaterialAttachTests: XCTestCase {
     func testAttachingPagesSetsThemOnTheSubunitsWithoutAddingAny() async throws {
         let ledger = try Ledger.inMemory()
         let unitID = try await seed(ledger, route: "range", refs: ["p.62〜65", "", ""])
-        let request = try XCTUnwrap(UnitMaterialAttacher.request(machine: try await machine(ledger), unitID: unitID, universityLearner: true))
+        let before = try await machine(ledger)
+        let request = try XCTUnwrap(UnitMaterialAttacher.request(machine: before, unitID: unitID, universityLearner: true))
         XCTAssertFalse(request.isCourse, "計画が中高の範囲なら、大学生でも授業の回は足さない")
         let subunits = try XCTUnwrap(request.json["subunits"]?.arrayValue)
         XCTAssertEqual(subunits.first?["ref"]?.stringValue, "p.62〜65", "今付いているページも渡す")
@@ -61,8 +62,9 @@ final class UnitMaterialAttachTests: XCTestCase {
             for row in workbook.orderedSubunits(unitID: unitID) { workbook.passByCheck(subunitID: row.id) }
             return (workbook.events, ())
         }
-        XCTAssertEqual(try await machine(ledger).units[unitID]?.status, "passed")
-        let request = try XCTUnwrap(UnitMaterialAttacher.request(machine: try await machine(ledger), unitID: unitID, universityLearner: false))
+        let passed = try await machine(ledger)
+        XCTAssertEqual(passed.units[unitID]?.status, "passed")
+        let request = try XCTUnwrap(UnitMaterialAttacher.request(machine: passed, unitID: unitID, universityLearner: false))
         XCTAssertTrue(request.isCourse)
 
         let reply = String(decoding: try JSONSerialization.data(withJSONObject: MockTurnRunner.materialAttachment(
