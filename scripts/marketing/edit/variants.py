@@ -1,6 +1,9 @@
 """同じ録画から、切り口の違う宣伝の映像を作る(Claude の環境で動かす)。
 
-    MARKETING_OUT=/tmp/out python3 scripts/marketing/edit/variants.py A take.mp4    # A〜D のどれか
+    MARKETING_OUT=/tmp/out python3 scripts/marketing/edit/variants.py A take.mp4 textbook.mp4 consult.mp4    # A〜D のどれか
+
+take.mp4 はタイムラインの録画(takes/demo1.json)、textbook.mp4・consult.mp4 は単元づくりの録画(takes/unit-textbook.json・
+takes/unit-consult.json)。どの案も最初か途中に「教科書を撮っても、話すだけでも、単元ができる。」の場面を入れる。
 
 A: 最初は拍子抜けするほど簡単 / B: 撮る・○・次のテンポ / C: タイムラインを流すように / D: プロンプトはいらない。
 録画の中の出来事の秒(SHUTTER・RESULT・NEXT)と区間は、takes/demo1.json の録画(2026-11-11)を見て決めた値。録り直したら見直す。
@@ -11,6 +14,8 @@ from PIL import Image, ImageDraw
 
 which = sys.argv[1]
 take_src = sys.argv[2] if len(sys.argv) > 2 else ""
+textbook_src = sys.argv[3] if len(sys.argv) > 3 else ""   # takes/unit-textbook.json の録画
+consult_src = sys.argv[4] if len(sys.argv) > 4 else ""    # takes/unit-consult.json の録画
 sys.argv = [sys.argv[0], take_src]
 import edit as E
 M = E.M
@@ -121,6 +126,63 @@ def phone_scene(segs, caption, events, offset, sub=None, sub_at=None, rise=False
         return img
     return draw, len(frames)
 
+def cfr(path):
+    """可変フレームレートの録画を 30fps に直す(元の録画ごとに名前を分け、同じ録画は使い回す)。"""
+    st = os.stat(path)
+    key = __import__("hashlib").sha1(f"{os.path.abspath(path)}:{st.st_size}:{st.st_mtime_ns}".encode()).hexdigest()[:12]
+    out = str(M.OUT / f"take30-{key}.mp4")
+    if not os.path.exists(out):
+        tmp = out[:-4] + ".tmp.mp4"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", path, "-vf", f"fps={FPS},scale={E.SW}:{E.SH}:flags=lanczos",
+                        "-c:v", "libx264", "-preset", "veryfast", "-crf", "14", "-g", "30", "-pix_fmt", "yuv420p", tmp], check=True)
+        os.replace(tmp, out)
+    return out
+
+
+def read_src(src, a, b, speed):
+    if src is None:
+        return read_frames(a, b, speed)
+    cmd = ["ffmpeg", "-v", "error", "-ss", str(a), "-to", str(b), "-i", src, "-vf", f"scale={E.SW}:{E.SH}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+    raw = subprocess.run(cmd, capture_output=True).stdout
+    n = len(raw) // (E.SW * E.SH * 3)
+    fr = [raw[i * E.SW * E.SH * 3:(i + 1) * E.SW * E.SH * 3] for i in range(n)]
+    return fr[::speed] if speed > 1 else fr
+
+def unit_scene(events, offset):
+    """単元づくり: 教科書を撮っても、話すだけでも、単元ができる。区間ごとに見出しを替える。"""
+    tb, cs = cfr(textbook_src), cfr(consult_src)
+    segs = [(tb, 1.0, 1.8, "教科書を撮っても、"), (tb, 12.0, 13.2, "教科書を撮っても、"), (tb, 32.2, 32.9, "教科書を撮っても、"),
+            (cs, 35.0, 37.4, "話すだけでも、"), (tb, 81.0, 83.6, "単元ができる。")]
+    frames, caps = [], []
+    for src, a, b, cap in segs:
+        fr = read_src(src, a, b, 1)
+        if frames:
+            events.append(("cut", offset + len(frames) / FPS))
+        if src == tb and a == 12.0:
+            events.append(("shutter", offset + (len(frames) + len(fr) - 4) / FPS))
+        if cap == "単元ができる。":
+            events.append(("chime", offset + len(frames) / FPS + 0.2))
+        caps += [cap] * len(fr)
+        frames += fr
+    starts = {}
+    for i, c in enumerate(caps):
+        starts.setdefault(c, i)
+    dur = len(frames) / FPS
+
+    def draw(t, i):
+        img = Image.new("RGBA", (W, H), M.GROUND + (255,))
+        img.alpha_composite(E.SHADOW, (E.PX - 100, E.PY - 100))
+        img.alpha_composite(E.BODY, (E.PX, E.PY))
+        scr = Image.frombytes("RGB", (E.SW, E.SH), frames[min(i, len(frames) - 1)])
+        img.paste(scr, (E.PX + E.BZ, E.PY + E.BZ), E.SMASK)
+        cap = caps[min(i, len(caps) - 1)]
+        lt = (i - starts[cap]) / FPS
+        a = M.ease(M.prog(lt, 0.0, 0.3))
+        M.put_text(img, cap, M.F(66, "Bold"), M.ACCENT if cap == "単元ができる。" else M.TXT, W // 2, 130, a, int(18 * (1 - a)))
+        M.fade_ground(img, t, dur, 0.15, 0.2)
+        return img
+    return draw, len(frames)
+
 # ---------- 音 ----------
 def soundtrack(events, D, path):
     SR = 48000; n = int(SR * D); t = np.arange(n) / SR
@@ -164,7 +226,8 @@ T, T2, A, G = M.TXT, M.TXT2, M.ACCENT, M.GROWTH
 def plan(name, ev):
     s = []  # (builder) を順に。offset は組み立て時に決める
     if name == "A":   # 最初は拍子抜けするほど簡単
-        s.append(lambda o: text_scene([("勉強アプリを開いたら、", 72, "Bold", T, 780, 0.2), ("最初の問題が、これ。", 72, "Bold", T, 900, 0.9)], 2.6, ev, o))
+        s.append(lambda o: unit_scene(ev, o))
+        s.append(lambda o: text_scene([("そして、", 64, "Bold", T2, 780, 0.1), ("最初の問題が、これ。", 72, "Bold", T, 880, 0.5)], 2.2, ev, o))
         s.append(lambda o: phone_scene([(0.1, 3.3, 1, None)], "公式まで書いてある。", ev, o, rise=True))
         s.append(lambda o: phone_scene([(4.4, 7.4, 1, None)], "簡単すぎる？", ev, o, sub="それでいい。", sub_at=1.3))
         s.append(lambda o: phone_scene([(13.3, 14.6, 1, None), (35.9, 37.4, 1, None), (59.6, 61.6, 1, None), (82.4, 83.8, 1, None)],
@@ -172,12 +235,14 @@ def plan(name, ev):
         s.append(lambda o: text_scene([("気づいたら、", 64, "Bold", T2, 760, 0.1), ("平方完成まで", 96, "Bold", A, 870, 0.6), ("来ていた。", 96, "Bold", A, 1000, 0.9)], 3.0, ev, o))
         s.append(lambda o: end_scene("最初の1問は、簡単でいい。", 3.8, ev, o))
     elif name == "B":  # テンポ
+        s.append(lambda o: unit_scene(ev, o))
         s.append(lambda o: phone_scene([(18.4, 21.7, 2, "撮る"), (30.0, 31.5, 1, "○"), (35.6, 36.8, 1, "次"),
                                         (42.0, 44.6, 2, "撮る"), (50.8, 52.1, 1, "○"), (59.2, 60.5, 1, "次"),
                                         (65.6, 68.2, 2, "撮る"), (74.4, 75.6, 1, "○"), (82.0, 83.3, 1, "次")], None, ev, o, rise=False, stamp_y=140))
         s.append(lambda o: text_scene([("考えるのは、", 64, "Bold", T2, 800, 0.1), ("目の前の1問だけ。", 88, "Bold", T, 910, 0.5)], 2.6, ev, o))
         s.append(lambda o: end_scene("撮って、○、次。", 3.6, ev, o))
     elif name == "C":  # タイムライン
+        s.append(lambda o: unit_scene(ev, o))
         s.append(lambda o: text_scene([("タイムラインを", 80, "Bold", T, 760, 0.2), ("流すみたいに。", 80, "Bold", T, 880, 0.7)], 2.6, ev, o))
         s.append(lambda o: phone_scene([(35.2, 37.2, 1, None), (59.0, 61.2, 1, None), (81.7, 83.8, 1, None), (97.9, 100.2, 1, None)],
                                        "次の1問が、流れてくる。", ev, o, sub="解いたら、そのまま次へ。", sub_at=2.0, rise=True))
@@ -186,6 +251,7 @@ def plan(name, ev):
     elif name == "D":  # プロンプトはいらない
         s.append(lambda o: text_scene([("AIに聞くたび、", 72, "Bold", T, 760, 0.2), ("何て聞けばいいか", 72, "Bold", T, 880, 0.8), ("考えてた。", 72, "Bold", T, 1000, 1.2)], 3.4, ev, o))
         s.append(lambda o: text_scene([("もう、書かなくていい。", 84, "Bold", A, 860, 0.15)], 2.0, ev, o))
+        s.append(lambda o: unit_scene(ev, o))
         s.append(lambda o: phone_scene([(41.4, 44.9, 1, None), (50.6, 51.6, 1, None)], "答案を撮るだけ。", ev, o, rise=True))
         s.append(lambda o: phone_scene([(51.6, 56.2, 1, None)], "式の変形まで見て、", ev, o, sub="ひとこと返してくれる。", sub_at=1.6, zoom=(0.3, 1.4, 1.55, 0.50)))
         s.append(lambda o: end_scene("プロンプトは、いらない。", 3.8, ev, o))
