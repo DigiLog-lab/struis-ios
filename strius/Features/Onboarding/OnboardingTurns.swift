@@ -120,6 +120,39 @@ nonisolated struct OnboardingPlanDraft: Codable, Hashable, Sendable {
     }
 }
 
+/// 撮った範囲表・教科書・シラバス・スライドから読み取った範囲(#132)。書いていない値は空。
+nonisolated struct MaterialReading: Codable, Hashable, Sendable {
+    nonisolated struct Lecture: Codable, Hashable, Sendable {
+        var number: Int
+        var title: String
+    }
+
+    var readable: Bool
+    /// range_sheet | textbook | syllabus | slides | quiz | other
+    var kind: String
+    var subject: String
+    var unit: String
+    var course: String
+    var pages: String
+    var workbookPages: String
+    /// 「2026-11-27」。
+    var testDate: String
+    var lectures: [Lecture]
+    /// スライド・小テストにある回のうち一番大きいもの(シラバスだけなら 0)。
+    var latestLecture: Int
+    var words: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case readable, kind, subject, unit, course, pages, lectures, words
+        case workbookPages = "workbook_pages"
+        case testDate = "test_date"
+        case latestLecture = "latest_lecture"
+    }
+
+    /// 大学の授業として読めたか(授業名か回の一覧がある)。
+    var isCourse: Bool { !course.isEmpty || !lectures.isEmpty }
+}
+
 /// オンボーディングのモデルのターン(お試しの採点・最初の計画)。同梱のプロンプトとスキーマで、1 回の構造化ターンにする。
 /// 採点はタイムラインの採点と同じ役(Sonnet 5.5)、計画は上位モデル(`timeline_graph` の役、Opus 5.5)。
 nonisolated enum OnboardingTurns {
@@ -189,6 +222,28 @@ nonisolated enum OnboardingTurns {
         )
         plan.setup = setup
         return plan
+    }
+
+    /// 範囲の読み取り(#132)。`imagePaths` は `StruisPaths.captures` の中の撮った写真(8 枚まで)。採点と同じ役(Sonnet 5.5)の 1 回の構造化ターン。
+    static func readingPlan(assets: AssetCache, planID: String, request: LedgerJSON, imagePaths: [String]) async throws -> TurnPlan {
+        let images = imagePaths.prefix(8).enumerated().map { index, path in
+            let ext = (path as NSString).pathExtension.isEmpty ? "jpg" : (path as NSString).pathExtension
+            return TurnPlan.ImageRef(path: "tutor_desk/inbox/materials/read-\(index + 1).\(ext)", hostPath: StruisPaths.captures.appendingPathComponent(path).path,
+                                     maxDimension: 2048)
+        }
+        return TurnPlan(
+            id: planID, kind: .onboardingGrading, round: 1,
+            thread: try await thread(assets: assets, planID: planID, instructions: "prompt:material_read_instructions", role: TimelineModels.role),
+            turn: TurnPlan.TurnSpec(text: turnText(materials: request), images: Array(images),
+                                    outputSchema: try await assets.json("schema:material_read"), sandboxPolicy: "dangerFullAccess"),
+            workspace: TimelineTurns.workspace, delegation: nil, collect: [], limits: .structured
+        )
+    }
+
+    static func parseReading(_ text: String) -> MaterialReading? {
+        guard let data = JSONExtraction.object(in: text), var reading = try? JSONDecoder().decode(MaterialReading.self, from: data) else { return nil }
+        reading.lectures = reading.lectures.filter { $0.number > 0 }.sorted { $0.number < $1.number }
+        return reading
     }
 
     static func parseVerdict(_ text: String) -> TrialVerdict? {

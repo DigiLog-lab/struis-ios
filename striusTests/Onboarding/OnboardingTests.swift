@@ -387,21 +387,53 @@ final class OnboardingTests: XCTestCase {
         XCTAssertNil(after?.resumeStep, "続きの画面を書き換えない")
     }
 
-    func testUniversityUnitCreationStartsFromWhatToStudyAndAsksForAUniversityPlan() {
+    func testUniversityUnitCreationStartsFromTheCameraAndWithoutMaterialAsksForAUniversityPlan() {
         var university = profile(grade: OnboardingProfile.universityGrade)
         university.route = .university
         university.universityTopic = "前の授業"
         let model = OnboardingModel(profile: university, records: records(), hasPlan: { true }, isClaudeAvailable: { true }, purpose: .unitCreation)
-        XCTAssertEqual(model.step, .topic)
+        XCTAssertEqual(model.step, .capture, "大学生は撮るのが先")
         XCTAssertEqual(model.universityTopic, "", "前に書いた勉強することは引き継がない")
+        model.skipMaterials()
+        XCTAssertEqual(model.step, .universityChoices)
         model.universityTopic = "線形代数"
-        model.commitTopic()
-        model.universityGoal = "期末試験に通る"
-        model.commitGoal()
+        model.universityPurpose = "次の学期の予習"
+        model.selectUntilTest(OnboardingCatalog.untilHoliday)
+        model.commitUniversityChoices()
+        XCTAssertEqual(model.step, .planWait)
         let request = model.planRequest()
         XCTAssertEqual(request["route"]?.stringValue, "university", "大学生の計画として頼む")
         XCTAssertEqual(request["topic"]?.stringValue, "線形代数")
-        XCTAssertEqual(request["goal"]?.stringValue, "期末試験に通る")
+        XCTAssertEqual(request["goal"]?.stringValue, "次の学期の予習")
+        XCTAssertNotNil(request["deadline"]?.stringValue)
+        XCTAssertNil(request["material"], "資料が無ければ読み取った範囲も無い")
+    }
+
+    func testReadingASyllabusLetsTheLearnerChooseHowFarTheLecturesWent() throws {
+        let mock = MockTurnRunner.materialReading(["grade": OnboardingProfile.universityGrade])
+        let text = String(decoding: try JSONSerialization.data(withJSONObject: mock), as: UTF8.self)
+        let reading = try XCTUnwrap(OnboardingTurns.parseReading("```json\n\(text)\n```"))
+        XCTAssertTrue(reading.isCourse)
+        XCTAssertEqual(reading.lectures.count, 15)
+        XCTAssertEqual(reading.testDate, "2027-01-26")
+        XCTAssertNil(OnboardingTurns.parseReading("読めませんでした"))
+
+        let model = OnboardingModel(profile: profile(grade: OnboardingProfile.universityGrade), records: records(), hasPlan: { true },
+                                    isClaudeAvailable: { true }, purpose: .unitCreation)
+        let request = model.readingRequest()
+        XCTAssertEqual(request["task"]?.stringValue, "read_material")
+        XCTAssertEqual(request["units"]?.arrayValue?.count, 0, "大学生には中高の単元を渡さない")
+        XCTAssertEqual(OnboardingModel(profile: profile(grade: "高1"), records: records(), hasPlan: { true }, isClaudeAvailable: { true },
+                                       purpose: .unitCreation).readingRequest()["units"]?.arrayValue?.compactMap(\.stringValue).contains("二次関数"), true)
+    }
+
+    func testReadingARangeSheetMakesARangePlanWithItsPagesAndTestDate() throws {
+        let mock = MockTurnRunner.materialReading(["grade": "高1"])
+        let text = String(decoding: try JSONSerialization.data(withJSONObject: mock), as: UTF8.self)
+        let reading = try XCTUnwrap(OnboardingTurns.parseReading(text))
+        XCTAssertFalse(reading.isCourse)
+        XCTAssertEqual(reading.pages, "p.62〜p.96")
+        XCTAssertEqual(reading.workbookPages, "ニューアクションα p.40〜p.52")
     }
 
     func testAnotherGradesUnitIsOnlyForTheRangeRoute() {

@@ -66,7 +66,9 @@ actor MockTurnRunner: TurnRunning {
         case .timelineAnswer: text = Self.json(["readable": false, "learner_answer": ""])
         case .timelineGraph: text = Self.json(Self.timelineGraph(request))
         case .timelineReview: text = Self.json(["skill_results": [], "notes": ""])
-        case .onboardingGrading: text = Self.json(Self.onboardingGrading(request))
+        case .onboardingGrading:
+            // 単元を作る時の範囲の読み取り(#132)も同じ種類のターン。
+            text = Self.json((request["task"] as? String) == "read_material" ? Self.materialReading(request) : Self.onboardingGrading(request))
         case .onboardingPlan: text = Self.json(Self.onboardingPlan(request))
         }
         let threadID = plan.thread.codexThreadID ?? "thr_mock_\(UUID().uuidString.prefix(16).lowercased())"
@@ -383,6 +385,20 @@ actor MockTurnRunner: TurnRunning {
 
     /// 赤ペン: 依頼に付いた画像の左上寄りに 1 か所(アプリが実際の線の外枠に寄せる)。
     nonisolated static func timelineRedPen() -> [[String: Any]] { [["x": 0, "y": 0, "width": 400, "height": 200, "correction": "$-\\frac{1}{2}$($\\cos 2\\pi = 1$)"]] }
+
+    /// 範囲の読み取り(#132): 大学生ならシラバス(線形代数Ⅱ・第1〜15回)、それ以外は範囲表(数学Ⅰ・二次関数・p.62〜p.96)。
+    nonisolated static func materialReading(_ request: JSONObject) -> JSONObject {
+        if (request["grade"] as? String) == OnboardingProfile.universityGrade {
+            let titles = ["線形写像の定義と例", "表現行列(1)", "表現行列(2)", "核と像、次元定理", "固有値と固有ベクトル", "対角化(1)", "対角化(2)",
+                          "中間のまとめ", "ジョルダン標準形(1)", "ジョルダン標準形(2)", "内積空間", "グラム・シュミットの直交化", "直交行列", "二次形式", "まとめ"]
+            return ["readable": true, "kind": "syllabus", "subject": "線形代数Ⅱ", "unit": "", "course": "線形代数Ⅱ", "pages": "", "workbook_pages": "",
+                    "test_date": "2027-01-26", "lectures": titles.enumerated().map { ["number": $0.offset + 1, "title": $0.element] },
+                    "latest_lecture": 0, "words": ["線形写像", "表現行列", "固有値", "対角化"]]
+        }
+        return ["readable": true, "kind": "range_sheet", "subject": "数学Ⅰ", "unit": "二次関数", "course": "", "pages": "p.62〜p.96",
+                "workbook_pages": "ニューアクションα p.40〜p.52", "test_date": "2026-12-03", "lectures": [], "latest_lecture": 0,
+                "words": ["二次関数のグラフ", "最大・最小", "二次不等式"]]
+    }
 
     /// お試しの採点: 正解(`STRUIS_MOCK_TIMELINE_WRONG=1` で誤答、`STRUIS_MOCK_TRIAL_UNREADABLE=1` で読めない)。
     nonisolated static func onboardingGrading(_ request: JSONObject) -> JSONObject {

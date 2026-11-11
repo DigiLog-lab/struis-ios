@@ -191,9 +191,12 @@
       ]
     },
     "unit-creation": {
-      "property": "ホームの「単元を作る」(#132): 会話ではなくオンボーディングと同じ画面で単元と「いつまでに」を選び、計画の期限の日付を直せ、「はじめる」で作った単元が開く",
+      "property": "ホームの「単元を作る」(#132): 会話ではなくオンボーディングと同じ画面で単元と「いつまでに」を選び、計画の期限の日付を直せ、「はじめる」で作った単元が開く。範囲表・シラバスを撮って読み取り、大学生は授業がどこまで進んだかを選ぶ。資料が無い大学生はタップだけで作れる",
       "tests": [
-        "UnitCreationUITests/testChoosingAUnitAndDeadlineCreatesTheUnitAndOpensIt"
+        "UnitCreationUITests/testChoosingAUnitAndDeadlineCreatesTheUnitAndOpensIt",
+        "UnitCreationUITests/testShootingARangeSheetReadsTheRangeAndMakesThePlan",
+        "UnitCreationUITests/testUniversityShootsTheSyllabusAndChoosesHowFarTheLecturesWent",
+        "UnitCreationUITests/testUniversityWithoutMaterialChoosesEverythingByTapping"
       ],
       "paths": [
         "strius/Features/Onboarding/**",
@@ -427,6 +430,9 @@
     "OnboardingScreenshotUITests/testRealPlanPhase2": 0,
     "UsageResetUITests/testBuyingAPlanAfterTheTrialRunsOutResetsTheGaugeToZero": 30,
     "UsageResetUITests/testUpgradingAfterThePlanRunsOutResetsTheGaugeToZero": 30,
-    "UnitCreationUITests/testChoosingAUnitAndDeadlineCreatesTheUnitAndOpensIt": 60
+    "UnitCreationUITests/testChoosingAUnitAndDeadlineCreatesTheUnitAndOpensIt": 60,
+    "UnitCreationUITests/testShootingARangeSheetReadsTheRangeAndMakesThePlan": 60,
+    "UnitCreationUITests/testUniversityShootsTheSyllabusAndChoosesHowFarTheLecturesWent": 60,
+    "UnitCreationUITests/testUniversityWithoutMaterialChoosesEverythingByTapping": 60
   }
 }
