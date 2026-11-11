@@ -1,0 +1,30 @@
+name: Enclave repro check
+on:
+  push:
+    branches: [claude/secret-split-proxy]
+    paths:
+      - 'research/enclave-scope/**'
+      - '.github/workflows/enclave-repro.yml'
+permissions:
+  contents: read
+jobs:
+  repro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build twice and compare
+        working-directory: research/enclave-scope/repro-app
+        env:
+          SOURCE_DATE_EPOCH: '1700000000'
+        run: |
+          set -euo pipefail
+          docker version --format 'docker {{.Server.Version}}'; docker buildx version; uname -m
+          digest() { tar -xOf "$1" index.json | python3 -c 'import sys,json; print(json.load(sys.stdin)["manifests"][0]["digest"])'; }
+          for n in 1 2; do
+            docker buildx build --no-cache --provenance=false --sbom=false \
+              --output "type=oci,dest=$RUNNER_TEMP/repro$n.tar,rewrite-timestamp=true" . > "$RUNNER_TEMP/build$n.log" 2>&1 || { tail -30 "$RUNNER_TEMP/build$n.log"; exit 1; }
+            echo "build $n: $(digest "$RUNNER_TEMP/repro$n.tar")"
+          done
+          test "$(digest "$RUNNER_TEMP/repro1.tar")" = "$(digest "$RUNNER_TEMP/repro2.tar")"
+          echo "expected from the other machine: sha256:45b0f484e0df27d5"
