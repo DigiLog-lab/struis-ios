@@ -67,7 +67,8 @@ class MockAnthropic:
                 self.requests.append({"line": head.split(b"\r\n")[0].decode(), "headers": headers,
                                       "body": body.decode()})
                 parsed: dict[str, Any] = json.loads(body)
-                said: str = parsed["messages"][-1]["content"]
+                content: Any = parsed["messages"][-1]["content"]
+                said: str = content if isinstance(content, str) else str(content[-1].get("text", ""))
                 events: list[str] = [
                     'event: message_start\ndata: ' + json.dumps({"type": "message_start", "message": {
                         "id": "msg_mock", "type": "message", "role": "assistant", "content": [],
@@ -75,7 +76,7 @@ class MockAnthropic:
                         "usage": {"input_tokens": 42, "output_tokens": 1}}}) + "\n\n",
                     'event: content_block_start\ndata: {"type":"content_block_start","index":0}\n\n',
                 ]
-                for word in ("MOCK-ANSWER", "to:", said[:40]):
+                for word in ("MOCK-ANSWER", "to:", said[-150:]):
                     events.append('event: content_block_delta\ndata: ' + json.dumps(
                         {"type": "content_block_delta", "index": 0,
                          "delta": {"type": "text_delta", "text": word + " "}}) + "\n\n")

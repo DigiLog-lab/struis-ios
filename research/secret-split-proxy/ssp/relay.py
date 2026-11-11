@@ -13,9 +13,9 @@ import ssl
 import struct
 import threading
 import time
-from typing import Any, Callable
+from typing import Any
 
-from . import tlsrec
+from . import tlsrec, vzk
 from .channel import recv_frame, send_frame
 
 
@@ -79,10 +79,10 @@ class Session:
     """phone 1 接続ぶんの relay の状態。"""
 
     def __init__(self, down: socket.socket, upstream: tuple[str, int], policy: Policy,
-                 verifier: Callable[[list[bytes], list[bytes]], tuple[list[bytes], dict[str, Any]]] | None) -> None:
+                 ) -> None:
         self.down: socket.socket = down
         self.policy: Policy = policy
-        self.verifier = verifier
+        self.down_log: list[bytes] = []             # phone に送った枠の中身すべて(検証用の記録)
         self.down_lock: threading.Lock = threading.Lock()
         self.up: socket.socket = socket.create_connection(upstream)
         self.up.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -104,6 +104,10 @@ class Session:
         self.verdicts: list[dict[str, Any]] = []
         self.error: str | None = None
 
+    def _send_down(self, kind: bytes, payload: bytes) -> None:
+        self.down_log.append(payload)
+        send_frame(self.down, kind, payload, self.down_lock)
+
     def send_up(self, data: bytes) -> None:
         self.up_bytes += len(data)
         self.up.sendall(data)
@@ -121,12 +125,12 @@ class Session:
                         self.client_records.append(rec)
                         self.send_up(rec)
                 elif kind == b"H":
-                    reply: dict[str, Any] = self._handoff(json.loads(payload))
-                    send_frame(self.down, b"A", json.dumps(reply).encode(), self.down_lock)
+                    self._handoff(json.loads(payload))
                 elif kind == b"P":
-                    verdict: dict[str, Any] = self._judge(json.loads(payload))
+                    n: int = struct.unpack(">I", payload[:4])[0]
+                    verdict: dict[str, Any] = self._judge(json.loads(payload[4:4 + n]), payload[4 + n:])
                     self.verdicts.append(verdict)
-                    send_frame(self.down, b"R", json.dumps(verdict).encode(), self.down_lock)
+                    self._send_down(b"R", json.dumps(verdict).encode())
         except ClientHelloRejected as e:
             self.error = f"rejected: {e}"
         except (ConnectionError, OSError):
@@ -149,16 +153,16 @@ class Session:
                     self.server_records.append(rec)
                     if rec[0] == tlsrec.APPLICATION_DATA:
                         self.app_records.append(rec)
-                send_frame(self.down, b"D", data, self.down_lock)
+                self._send_down(b"D", data)
         except OSError:
             pass
         self.server_closed.set()
         try:
-            send_frame(self.down, b"E", b"", self.down_lock)
+            self._send_down(b"E", b"")
         except OSError:
             pass
 
-    def _handoff(self, msg: dict[str, Any]) -> dict[str, Any]:
+    def _handoff(self, msg: dict[str, Any]) -> None:
         """phone から「relay が書く世代」の鍵を受け取り、relay の持ち分を書いて KeyUpdate で閉じる。"""
         key: bytes = bytes.fromhex(msg["key"])
         iv: bytes = bytes.fromhex(msg["iv"])
@@ -179,18 +183,19 @@ class Session:
         for rec in tlsrec.RecordParser().feed(out):
             self.injected_records.append(rec)
         self.send_up(out)
-        return {"ok": True, "t": time.time()}
 
     # ------------------------------------------------------------ usage の証明 ----
-    def _judge(self, stmt: dict[str, Any]) -> dict[str, Any]:
+    def _judge(self, stmt: dict[str, Any], proof: bytes) -> dict[str, Any]:
         try:
-            return self._judge_inner(stmt)
+            return self._judge_inner(stmt, proof)
         except Reject as e:
             return {"accepted": False, "reason": str(e)}
+        except vzk.Invalid as e:
+            return {"accepted": False, "reason": f"proof invalid: {e}"}
+        except (KeyError, IndexError, ValueError, TypeError) as e:
+            return {"accepted": False, "reason": f"malformed statement: {type(e).__name__}"}
 
-    def _judge_inner(self, stmt: dict[str, Any]) -> dict[str, Any]:
-        if self.verifier is None:
-            raise Reject("no verifier configured")
+    def _judge_inner(self, stmt: dict[str, Any], proof: bytes) -> dict[str, Any]:
         if not self.policy.keep_alive and not self.server_closed.wait(timeout=15):
             raise Reject("the response has not ended")
         iv: bytes = bytes.fromhex(stmt["iv"])
@@ -201,7 +206,10 @@ class Session:
         for o in opens:
             rec: bytes = app[o["record"]]
             plan.add_record(o["record"], int(o["seq"]), len(rec) - 5 - 16, [tuple(r) for r in o["ranges"]])
-        outputs, stats = self.verifier(plan.blocks, plan.masks)
+        t0: float = time.time()
+        outputs: list[bytes] = vzk.verify(proof, plan.blocks, plan.masks)
+        stats: dict[str, Any] = {"proof_bytes": len(proof), "aes_blocks": len(plan.blocks),
+                                 "verify_s": round(time.time() - t0, 3)}
         h: bytes = outputs[0]
         opened: dict[int, dict[int, int]] = {}
         for o in opens:
@@ -358,11 +366,9 @@ class Plan:
 class Relay:
     """外側の TLS で phone を待ち受ける。"""
 
-    def __init__(self, upstream: tuple[str, int], policy: Policy, certfile: str, keyfile: str,
-                 verifier: Callable[[list[bytes], list[bytes]], tuple[list[bytes], dict[str, Any]]] | None = None) -> None:
+    def __init__(self, upstream: tuple[str, int], policy: Policy, certfile: str, keyfile: str) -> None:
         self.upstream: tuple[str, int] = upstream
         self.policy: Policy = policy
-        self.verifier = verifier
         self.ctx: ssl.SSLContext = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         self.ctx.load_cert_chain(certfile, keyfile)
         self.lsock: socket.socket = socket.socket()
@@ -382,7 +388,7 @@ class Relay:
             raw.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             try:
                 down: socket.socket = self.ctx.wrap_socket(raw, server_side=True)
-                session: Session = Session(down, self.upstream, self.policy, self.verifier)
+                session: Session = Session(down, self.upstream, self.policy)
             except (OSError, ssl.SSLError):
                 raw.close()
                 continue

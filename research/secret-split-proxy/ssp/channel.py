@@ -109,8 +109,9 @@ class Tunnel:
 class Meter:
     """TCP の中継をしながら、両方向のバイト数を数える(回線に流れた量の実測用)。"""
 
-    def __init__(self, target: tuple[str, int]) -> None:
+    def __init__(self, target: tuple[str, int], delay: float = 0.0) -> None:
         self.target: tuple[str, int] = target
+        self.delay: float = delay   # 片道の遅延(秒)。回線の遅さを模す
         self.up: int = 0      # 接続した側 → target
         self.down: int = 0    # target → 接続した側
         self.lsock: socket.socket = socket.socket()
@@ -133,6 +134,24 @@ class Meter:
             threading.Thread(target=self._pump, args=(b, a, False), daemon=True).start()
 
     def _pump(self, src: socket.socket, dst: socket.socket, upward: bool) -> None:
+        import time
+        q: queue.Queue[tuple[float, bytes | None]] = queue.Queue()
+
+        def sender() -> None:
+            while True:
+                due, data = q.get()
+                wait: float = due - time.time()
+                if wait > 0:
+                    time.sleep(wait)
+                try:
+                    if data is None:
+                        dst.shutdown(socket.SHUT_WR)
+                        return
+                    dst.sendall(data)
+                except OSError:
+                    return
+
+        threading.Thread(target=sender, daemon=True).start()
         try:
             while True:
                 data: bytes = src.recv(65536)
@@ -142,14 +161,10 @@ class Meter:
                     self.up += len(data)
                 else:
                     self.down += len(data)
-                dst.sendall(data)
+                q.put((time.time() + self.delay, data))
         except OSError:
             pass
-        finally:
-            try:
-                dst.shutdown(socket.SHUT_WR)
-            except OSError:
-                pass
+        q.put((time.time() + self.delay, None))
 
     def reset(self) -> None:
         self.up = 0

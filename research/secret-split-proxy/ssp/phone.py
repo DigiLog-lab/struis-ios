@@ -4,8 +4,9 @@ from __future__ import annotations
 import json
 import socket
 import ssl
+import struct
 import time
-from typing import Any, Callable
+from typing import Any
 
 from cryptography.exceptions import InvalidTag
 from tlslite import TLSConnection
@@ -13,9 +14,10 @@ from tlslite.constants import KeyUpdateMessageType
 from tlslite.handshakesettings import HandshakeSettings
 from tlslite.mathtls import HKDF_expand_label
 
-from . import tlsrec
-from .channel import Tunnel
+from . import tlsrec, vzk
+from .channel import Tunnel, send_frame
 from .relay import Plan
+from .util import HttpReader
 
 
 def key_iv(secret: bytes) -> tuple[bytes, bytes]:
@@ -40,6 +42,8 @@ class Phone:
         self.t_handshake: float = 0.0
         self.t_first_text: float | None = None
         self.t_end: float = 0.0
+        self.http: HttpReader = HttpReader(lambda: bytes(self.conn.read(max=65536, min=1)))
+        self.response_first_record: int = 0     # いまの応答が始まるレコードの番号(relay と同じ数え方)
 
     def handshake(self) -> None:
         st: HandshakeSettings = HandshakeSettings()
@@ -51,6 +55,21 @@ class Phone:
         self.server_key, self.server_iv = key_iv(bytes(self.conn.session.sr_app_secret))
         self.t_handshake = time.time()
 
+    def server_chain_der(self) -> list[bytes]:
+        return [bytes(c.bytes) for c in self.conn.session.serverCertChain.x509List]
+
+    def verify_server_chain(self, cafile: str | None = None) -> str:
+        """相手の証明書の鎖を公開の認証局まで確かめる(署名の検証は tlslite がハンドシェイクで済ませている)。"""
+        from cryptography import x509
+        from cryptography.x509.verification import PolicyBuilder, Store
+        import certifi
+        pem: bytes = open(cafile or certifi.where(), "rb").read()
+        store = Store(x509.load_pem_x509_certificates(pem))
+        chain = [x509.load_der_x509_certificate(d) for d in self.server_chain_der()]
+        verifier = PolicyBuilder().store(store).build_server_verifier(x509.DNSName(self.sni))
+        verifier.verify(chain[0], chain[1:])
+        return chain[0].issuer.rfc4514_string()
+
     # --- 送信鍵の世代 ---
     def _advance_locally(self) -> None:
         """KeyUpdate を送らずに自分の送信鍵だけ次の世代へ進める(KeyUpdate は relay が書いた)。"""
@@ -61,12 +80,17 @@ class Phone:
     def _hand_current_generation(self, role: str, **extra: Any) -> None:
         key, iv = key_iv(bytes(self.conn.session.cl_app_secret))
         self.handed.append((key, iv))
-        self.tunnel.call(b"H", {"role": role, "key": key.hex(), "iv": iv.hex(), **extra}, b"A")
+        # 返事を待たずに続きを送る。relay は届いた順に処理するので、順番は保たれる
+        send_frame(self.outer, b"H", json.dumps({"role": role, "key": key.hex(), "iv": iv.hex(), **extra}).encode(),
+                   self.tunnel.lock)
         self._advance_locally()
         self.kept.append(key_iv(bytes(self.conn.session.cl_app_secret)))
 
     def send_request(self, middle: bytes, with_suffix: bool) -> None:
         """relay が先頭(と末尾)を書き、phone は真ん中だけを自分の鍵で送る。"""
+        self.response_first_record = sum(
+            1 for r in tlsrec.RecordParser().feed(bytes(self.tunnel.inbound)) if r[0] == tlsrec.APPLICATION_DATA)
+        self.http.t_first_text = None
         self._hand_current_generation("head", middle_len=len(middle))
         self.conn.write(middle)
         if with_suffix:
@@ -80,64 +104,12 @@ class Phone:
             pass
 
     # --- 受信 ---
-    def read_response(self, on_text: Callable[[], None] | None = None) -> tuple[int, dict[str, str], bytes]:
+    def read_response(self) -> tuple[int, dict[str, str], bytes]:
         """HTTP/1.1 の応答を 1 つ読む。(ステータス, ヘッダー, 本文) を返す。"""
-        buf: bytearray = getattr(self, "_leftover", bytearray())
-
-        def more() -> bool:
-            try:
-                chunk = self.conn.read(max=65536, min=1)
-            except Exception:           # noqa: BLE001  接続の終わり
-                return False
-            if not chunk:
-                return False
-            buf.extend(chunk)
-            if self.t_first_text is None and b"content_block_delta" in buf:
-                self.t_first_text = time.time()
-            return True
-
-        while b"\r\n\r\n" not in buf:
-            if not more():
-                raise ConnectionError(f"connection ended before the response head: {bytes(buf)[:200]!r}")
-        head, _, rest = bytes(buf).partition(b"\r\n\r\n")
-        lines: list[bytes] = head.split(b"\r\n")
-        status: int = int(lines[0].split()[1])
-        headers: dict[str, str] = {}
-        for line in lines[1:]:
-            k, _, v = line.partition(b":")
-            headers[k.strip().lower().decode()] = v.strip().decode()
-        buf[:] = rest
-        body: bytearray = bytearray()
-        if headers.get("transfer-encoding", "").lower() == "chunked":
-            while True:
-                while b"\r\n" not in buf:
-                    if not more():
-                        raise ConnectionError("connection ended inside a chunk header")
-                size_line, _, after = bytes(buf).partition(b"\r\n")
-                size: int = int(size_line.split(b";")[0], 16)
-                buf[:] = after
-                while len(buf) < size + 2:
-                    if not more():
-                        raise ConnectionError("connection ended inside a chunk")
-                body += buf[:size]
-                del buf[:size + 2]
-                if size == 0:
-                    break
-        elif "content-length" in headers:
-            n: int = int(headers["content-length"])
-            while len(buf) < n:
-                if not more():
-                    raise ConnectionError("connection ended inside the body")
-            body += buf[:n]
-            del buf[:n]
-        else:
-            while more():
-                pass
-            body += buf
-            buf.clear()
-        self._leftover = buf
-        self.t_end = time.time()
-        return status, headers, bytes(body)
+        out = self.http.response()
+        self.t_first_text = self.http.t_first_text
+        self.t_end = self.http.t_end
+        return out
 
     def drain(self) -> None:
         """サーバーが接続を閉じるまで読む(connection: close の後始末)。"""
@@ -167,10 +139,10 @@ class Phone:
             seq += 1
         return out
 
-    def build_statement(self, first_record: int = 0, include_message_start: bool = True,
-                        tail_anchor: bytes = b"\nevent: message_delta\n") -> dict[str, Any]:
-        """開ける範囲の申告を作る。first_record より前のレコードは別の応答のもの。"""
-        records = [r for r in self.app_stream() if r[0] >= first_record]
+    def build_statement(self, include_message_start: bool = True,
+                        tail_from: int | None = None) -> dict[str, Any]:
+        """開ける範囲の申告を作る。tail_from は検証用(末尾の開始位置を偽る)。"""
+        records = [r for r in self.app_stream() if r[0] >= self.response_first_record]
         # アプリデータの通し位置 → (レコード, レコード内の位置)
         flat: bytearray = bytearray()
         where: list[tuple[int, int]] = []
@@ -181,7 +153,8 @@ class Phone:
                     where.append((i, off))
                 flat += stripped[:-1]
         text: bytes = bytes(flat)
-        pos: int = text.rfind(tail_anchor)
+        self.last_app_text = text
+        pos: int = text.rfind(b"\nevent: message_delta\n") if tail_from is None else tail_from
         if pos < 0:
             raise RuntimeError("no message_delta in the response")
         ti, toff = where[pos]
@@ -214,20 +187,18 @@ class Phone:
             plan.add_record(o["record"], int(o["seq"]), len(rec) - 5 - 16, [tuple(r) for r in o["ranges"]])
         return plan
 
-    def prove(self, stmt: dict[str, Any], prover: Callable[[bytes, list[bytes], list[bytes]], dict[str, Any]],
-              key: bytes | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
-        """申告を送り、証明を実行する。(relay の判定, 証明側の計測) を返す。"""
-        import threading
+    def prove(self, stmt: dict[str, Any], key: bytes | None = None, tamper: str | None = None,
+              ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """申告と証明を 1 通で送る。(relay の判定, 証明側の計測) を返す。key と tamper は検証用。"""
         plan: Plan = self.plan_for(stmt)
-        stats: dict[str, Any] = {}
-
-        def run() -> None:
-            stats.update(prover(key or self.server_key, plan.blocks, plan.masks))
-
-        th = threading.Thread(target=run, daemon=True)
-        th.start()
-        verdict: dict[str, Any] = self.tunnel.call(b"P", stmt, b"R", timeout=180.0)
-        th.join(timeout=30)
+        t0: float = time.time()
+        proof: bytes = vzk.prove(key or self.server_key, plan.blocks, plan.masks, tamper=tamper)
+        stats: dict[str, Any] = {"prove_s": round(time.time() - t0, 3), "proof_bytes": len(proof),
+                                 "aes_blocks": len(plan.blocks)}
+        body: bytes = json.dumps(stmt).encode()
+        send_frame(self.outer, b"P", struct.pack(">I", len(body)) + body + proof, self.tunnel.lock)
+        kind, verdict = self.tunnel.ctrl.get(timeout=120.0)
+        assert kind == b"R"
         return verdict, stats
 
     def close(self) -> None:
