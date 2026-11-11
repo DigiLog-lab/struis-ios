@@ -42,12 +42,16 @@ final class TimeAttackTests: XCTestCase {
 
     func testLinksWithImpossibleRecordsAreRejected() throws {
         // 鍵は公開リポジトリにあるので、誰でも復号できるリンクを作れる。範囲外の秒数でアプリを落とさない。
-        for laps in [[1e20, 1, 1, 1, 1], [Double.nan, 1, 1, 1, 1], [-1, 1, 1, 1, 1], [1, 1, 1]] {
+        for laps in [[1e20, 1, 1, 1, 1], [-1, 1, 1, 1, 1], [1, 1, 1]] {
             let challenge = TimeAttack.Challenge(field: "三角関数", problems: problems,
                                                  entries: [.init(name: "x", laps: laps, correct: Array(repeating: true, count: laps.count))])
             let url = try TimeAttackLink.url(for: challenge, bundleID: "com.digiloglab.strius.Clip")
             XCTAssertThrowsError(try TimeAttackLink.challenge(from: url)) { XCTAssertEqual($0 as? TimeAttackLink.Failure, .unreadable) }
         }
+        // NaN は JSON に書けない(作る側で落ちる)ので、確かめは直接。
+        let nan = TimeAttack.Challenge(field: "三角関数", problems: problems,
+                                       entries: [.init(name: "x", laps: [.nan, 1, 1, 1, 1], correct: Array(repeating: true, count: 5))])
+        XCTAssertFalse(TimeAttackLink.isSane(nan))
         XCTAssertEqual(TimeAttack.clock(1e20), TimeAttack.clock(TimeAttack.maxLapSeconds * 10))
         XCTAssertEqual(TimeAttack.clock(.nan), "0:00.0")
     }
