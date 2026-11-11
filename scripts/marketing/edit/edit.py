@@ -6,7 +6,7 @@ take.mp4 は take.py の録画(可変フレームレート)。最初に 30fps �
 区間の頭出しがずれる)。場面ごとに1本の mp4 を作り、最後に concat でつなぐ。音は別に作って重ねる。
 区間(録画の秒)は take.py の録画を見て決めた値で、録り直したら見直す。
 """
-import os, subprocess, sys, math
+import hashlib, os, subprocess, sys, math
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 TAKE_SRC = sys.argv[1] if len(sys.argv) > 1 else ""
@@ -14,7 +14,26 @@ sys.argv = [sys.argv[0], "noop"]
 import scenes as M  # s1, s5, s6 と描画の道具
 
 W, H, FPS = M.W, M.H, M.FPS
-TAKE = str(M.OUT / "take30.mp4")
+def converted_path(src: str) -> str:
+    """30fps に直した録画の置き場所。元の録画(場所・大きさ・更新時刻)ごとに名前を変え、別の録画の変換を使い回さない。"""
+    if not src:
+        return str(M.OUT / "take30.mp4")
+    st = os.stat(src)
+    key = hashlib.sha1(f"{os.path.abspath(src)}:{st.st_size}:{st.st_mtime_ns}".encode()).hexdigest()[:12]
+    return str(M.OUT / f"take30-{key}.mp4")
+
+
+TAKE = converted_path(TAKE_SRC)
+
+
+def ensure_take() -> None:
+    """元の録画を 30fps に直す(同じ録画の変換が既にあれば使う)。途中で止まった変換を残さないよう、一時の名前で書いてから移す。"""
+    if not TAKE_SRC or os.path.exists(TAKE):
+        return
+    tmp = TAKE[:-4] + ".tmp.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", TAKE_SRC, "-vf", f"fps={FPS},scale={SW}:{SH}:flags=lanczos",
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "14", "-g", "30", "-pix_fmt", "yuv420p", tmp], check=True)
+    os.replace(tmp, TAKE)
 SW, SH = 660, 1434
 BZ = 18
 PW, PH = SW + 2 * BZ, SH + 2 * BZ
@@ -86,9 +105,7 @@ SCENES = {
 }
 
 if __name__ == "__main__":
-    if TAKE_SRC and not os.path.exists(TAKE):
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", TAKE_SRC, "-vf", f"fps={FPS},scale={SW}:{SH}:flags=lanczos",
-                        "-c:v", "libx264", "-preset", "veryfast", "-crf", "14", "-g", "30", "-pix_fmt", "yuv420p", TAKE], check=True)
+    ensure_take()
     what = os.environ.get("ONLY")
     if os.environ.get("STILL"):
         name, t = os.environ["STILL"].split("@")

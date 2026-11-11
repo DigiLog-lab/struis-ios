@@ -210,7 +210,5 @@ def build(name):
     print(name, round(offset, 2))
 
 if __name__ == "__main__":
-    if take_src and not os.path.exists(E.TAKE):
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", take_src, "-vf", f"fps={FPS},scale={E.SW}:{E.SH}:flags=lanczos",
-                        "-c:v", "libx264", "-preset", "veryfast", "-crf", "14", "-g", "30", "-pix_fmt", "yuv420p", E.TAKE], check=True)
+    E.ensure_take()
     build(which)
