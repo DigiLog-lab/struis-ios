@@ -18,6 +18,7 @@ App Store のプレビュー動画は「アプリそのものの画面収録」�
    mac.py run -- 'python3 scripts/marketing/take.py scripts/marketing/takes/demo1.json'   # take.mp4 と take.json が届く
    ```
 3. **編集**(Dev Box は使わない): `MARKETING_OUT=/tmp/out python3 scripts/marketing/edit/edit.py take.mp4`。
+   切り口の違う4案は `python3 scripts/marketing/edit/variants.py A take.mp4`(A〜D)。同じ録画から作るので、撮り直しは要らない。
 
 ## 仕組み
 
@@ -44,4 +45,4 @@ App Store のプレビュー動画は「アプリそのものの画面収録」�
 | `tapes/<名前>/` | 録音(種類ごとの返事。秘密の値は入らない) |
 | `answers/<名前>/` | 答案の写真 |
 | `answer.py` | 手書き風の答案の写真を作る(Claude の環境) |
-| `edit/` | 編集(Claude の環境) |
+| `edit/` | 編集(Claude の環境)。`edit.py` は基本の1本、`variants.py` は4案 |
