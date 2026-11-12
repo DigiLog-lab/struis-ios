@@ -30,14 +30,33 @@ from appstoreconnect import AppStoreConnect  # noqa: E402
 PROFILE_BUNDLES = {  # Xcode product name -> bundle ID
     'strius': 'com.digiloglab.strius',
     'StruisExec': 'com.digiloglab.strius.exec',
+    # The App Clip (#133). Its App ID is an App Clip ID tied to the app, which only the Developer portal can register
+    # (the API cannot set the parent app). It has no App Group.
+    'StruisClip': 'com.digiloglab.strius.Clip',
 }
+APP_CLIP_PRODUCT = 'StruisClip'
+# The switch for the time attack and its App Clip (Config/Build.xcconfig). While it is NO the app does not embed the App
+# Clip, so the archive needs no App Clip profile and the app's profile need not name the App Clip.
+FEATURES_XCCONFIG = ROOT / 'Config/Build.xcconfig'
+APP_CLIP_PARENT_KEY = 'com.apple.developer.parent-application-identifiers'
+APP_CLIP_ASSOCIATED_KEY = 'com.apple.developer.associated-appclip-app-identifiers'
 APP_GROUP = 'group.com.digiloglab.struis.runtime'
 ICLOUD_CONTAINER = 'iCloud.com.digiloglab.strius'
 CONTAINERS_KEY = 'com.apple.developer.icloud-container-identifiers'
 PROFILE_MIN_DAYS = 7
 
 
-def profile_problem(document, product, certificate_der):
+def time_attack_enabled(xcconfig=FEATURES_XCCONFIG):
+    """Whether `STRUIS_TIME_ATTACK = YES` in the xcconfig (the app then embeds the App Clip)."""
+    return re.search(r'^STRUIS_TIME_ATTACK\s*=\s*YES\s*$', Path(xcconfig).read_text(), re.M) is not None
+
+
+def profile_bundles(app_clip):
+    """The products to sign: the App Clip only when the app embeds it."""
+    return {product: identifier for product, identifier in PROFILE_BUNDLES.items() if app_clip or product != APP_CLIP_PRODUCT}
+
+
+def profile_problem(document, product, certificate_der, app_clip=True):
     """Why an App Store profile cannot sign `product`, or None."""
     entitlements = document.get('Entitlements', {})
     team = (document.get('TeamIdentifier') or [''])[0]
@@ -47,15 +66,22 @@ def profile_problem(document, product, certificate_der):
         return 'devices'
     if certificate_der not in document.get('DeveloperCertificates', []):
         return 'certificate'
+    if product == APP_CLIP_PRODUCT:
+        return None if f'{team}.{PROFILE_BUNDLES["strius"]}' in entitlements.get(APP_CLIP_PARENT_KEY, []) else 'app-clip'
     if APP_GROUP not in entitlements.get('com.apple.security.application-groups', []):
         return 'app-group'
     if product == 'strius' and ICLOUD_CONTAINER not in entitlements.get(CONTAINERS_KEY, []):
         return 'icloud'
+    if (app_clip and product == 'strius'
+            and f'{team}.{PROFILE_BUNDLES[APP_CLIP_PRODUCT]}' not in entitlements.get(APP_CLIP_ASSOCIATED_KEY, [])):
+        return 'app-clip'
     return None
 
 
-def ensure_store_profiles(asc, certificate_der, serial, decode, now=None):
-    """App Store profiles for the two bundles: product -> (profile bytes, decoded profile)."""
+def ensure_store_profiles(asc, certificate_der, serial, decode, now=None, app_clip=None):
+    """App Store profiles for the bundles the archive signs: product -> (profile bytes, decoded profile)."""
+    if app_clip is None:
+        app_clip = time_attack_enabled()
     now = now or datetime.datetime.now(datetime.timezone.utc)
     horizon = (now + datetime.timedelta(days=PROFILE_MIN_DAYS)).strftime('%Y-%m-%dT%H:%M:%S')
     certificates = [cert for cert in asc.distribution_certificates()
@@ -63,9 +89,12 @@ def ensure_store_profiles(asc, certificate_der, serial, decode, now=None):
     if not certificates:
         raise RuntimeError('The distribution certificate is not registered in App Store Connect')
     profiles = {}
-    for product, identifier in PROFILE_BUNDLES.items():
+    for product, identifier in profile_bundles(app_clip).items():
         bundle = asc.find_bundle_id(identifier)
         if not bundle:
+            if product == APP_CLIP_PRODUCT:
+                raise RuntimeError(f'App Clip ID {identifier} is missing. Register it on the Developer portal as an App Clip '
+                                   f'of {PROFILE_BUNDLES["strius"]} and run again.')
             raise RuntimeError(f'App ID {identifier} is missing')
         chosen = None
         candidates = sorted(asc.profiles_for(bundle), key=lambda item: item['attributes'].get('expirationDate') or '', reverse=True)
@@ -77,7 +106,7 @@ def ensure_store_profiles(asc, certificate_der, serial, decode, now=None):
                 continue
             data = base64.b64decode(attributes['profileContent'])
             document = decode(data)
-            if profile_problem(document, product, certificate_der) is None:
+            if profile_problem(document, product, certificate_der, app_clip) is None:
                 chosen = (data, document)
                 break
         if not chosen:
@@ -85,13 +114,17 @@ def ensure_store_profiles(asc, certificate_der, serial, decode, now=None):
                                          [certificates[0]['id']], 'IOS_APP_STORE')
             data = base64.b64decode(created['attributes']['profileContent'])
             document = decode(data)
-            problem = profile_problem(document, product, certificate_der)
+            problem = profile_problem(document, product, certificate_der, app_clip)
             if problem == 'icloud':
                 raise RuntimeError(f'App ID {identifier} has no iCloud container {ICLOUD_CONTAINER}. '
                                    'Assign it on the Developer portal and run again.')
             if problem == 'app-group':
                 raise RuntimeError(f'App ID {identifier} has no App Group {APP_GROUP}. '
                                    'Assign it on the Developer portal and run again.')
+            if problem == 'app-clip':
+                raise RuntimeError(f'The profile for {identifier} does not tie the app and its App Clip together. '
+                                   f'Register {PROFILE_BUNDLES[APP_CLIP_PRODUCT]} on the Developer portal as an App Clip '
+                                   f'of {PROFILE_BUNDLES["strius"]} and run again.')
             if problem:
                 raise RuntimeError(f'The new App Store profile for {product} does not match ({problem})')
             chosen = (data, document)
