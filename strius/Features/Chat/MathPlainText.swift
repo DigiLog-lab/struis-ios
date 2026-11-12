@@ -213,6 +213,8 @@ nonisolated enum MathPlainText {
         }
 
         private func script(_ value: String, map: [Character: Character], fallback: String) -> String {
+            // 度の記号(`35^\circ`)は、もともと上付きの形の文字。`35^°` にせず `35°` にする。
+            if fallback == "^", value == "°" || value == "′" || value == "″" { return value }
             let trimmed = value.trimmingCharacters(in: .whitespaces)
             let mapped = trimmed.compactMap { map[$0] }
             if !trimmed.isEmpty, mapped.count == trimmed.count { return String(mapped) }

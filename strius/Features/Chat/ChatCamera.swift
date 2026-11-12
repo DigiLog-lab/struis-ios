@@ -226,6 +226,8 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
     private var closed = false
     private var capturing = false
     private var processedPhoto: Data?
+    /// 撮影の途中でアプリが裏に回った: 写真の処理が終わったら、渡してから閉じる。
+    private var deliversWhenProcessed: Bool = false
 
     #if DEBUG && targetEnvironment(simulator)
     // Simulator has no capture device. Opt-in UI tests supply only the sensor
@@ -324,7 +326,7 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
             message.trailingAnchor.constraint(equalTo: previewView.trailingAnchor, constant: -12)
         ])
         if batch != nil { layoutBatchControls() }
-        NotificationCenter.default.addObserver(self, selector: #selector(cancel),
+        NotificationCenter.default.addObserver(self, selector: #selector(enteredBackground),
             name: UIApplication.didEnterBackgroundNotification, object: nil)
         Task { await authorize() }
     }
@@ -655,11 +657,23 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
         // Keep the bytes private until didFinishCaptureFor and stopRunning
         // have completed, so the composer cannot send during teardown.
         processedPhoto = jpeg
+        // 撮影の途中でアプリが裏に回っていた時は、ここで渡して閉じる(`stop` がカメラを止めてから渡す)。
+        if deliversWhenProcessed, batch == nil, !closed {
+            deliversWhenProcessed = false
+            processedPhoto = nil
+            stop { [self] in onPhoto?(jpeg) }
+        }
     }
 
     private func captureFailed() {
         capturing = false
         processedPhoto = nil
+        if deliversWhenProcessed {
+            // 裏に回っている間に撮影が失敗した: 渡す写真が無いので、いつもどおり閉じる。
+            deliversWhenProcessed = false
+            close()
+            return
+        }
         updatePreviewOrientation()
         shutter.isEnabled = true
         message.text = "撮影できませんでした。もう一度お試しください。"
@@ -687,6 +701,22 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
             return
         }
         stop { [self] in onPhoto?(data) }
+    }
+
+    /// アプリが裏に回ったらカメラを閉じる。ただし、シャッターを押した直後で写真がまだ届いていない時は、
+    /// その 1 枚を捨てずに渡してから閉じる(撮った答案が黙って消えないように)。
+    @objc private func enteredBackground() {
+        guard capturing, batch == nil, !closed else {
+            cancel()
+            return
+        }
+        if let data: Data = processedPhoto {
+            processedPhoto = nil
+            stop { [self] in onPhoto?(data) }
+        } else {
+            // 写真の処理が終わるのを待つ(`processPhoto` が渡す。撮影に失敗したら `captureFailed` が閉じる)。
+            deliversWhenProcessed = true
+        }
     }
 
     @objc private func cancel() {

@@ -98,7 +98,9 @@ struct OnboardingFlowView: View {
     private var grade: some View {
         OnboardingScaffold(showsBrand: true, isPad: isPad) {
             VStack(alignment: .leading, spacing: 22) {
-                OnboardingTitle(title: "まず1問、解いてみましょう", detail: "どの学年の数学にしますか")
+                // 大学生・それ以外はお試しの問題を用意していない(学ぶ内容を聞いてから計画を作る)。「まず1問」と約束しない。
+                OnboardingTitle(title: model.selectedGrade == OnboardingProfile.universityGrade ? "学びたい内容から始めます" : "まず1問、解いてみましょう",
+                                detail: "どの学年の数学にしますか")
                 OnboardingPillGrid(options: OnboardingCatalog.grades, selection: model.selectedGrade) { model.chooseGrade($0) }
                 OnboardingPill(title: OnboardingProfile.universityGrade, isSelected: model.selectedGrade == OnboardingProfile.universityGrade) {
                     model.chooseGrade(OnboardingProfile.universityGrade)
@@ -178,7 +180,8 @@ struct OnboardingFlowView: View {
                 }
                 OnboardingListCard {
                     OnboardingPointRow(title: "採点と説明は AI が行います", detail: "間違えることがあります。おかしいと思ったら「質問」で確かめてください。")
-                    OnboardingPointRow(title: "お試しは3問まで、続きは有料です", detail: "プランごとに1週間に使える量が決まっています。")
+                    OnboardingPointRow(title: model.profile.isUniversity ? "使うには有料のプランが必要です" : "お試しは3問まで、続きは有料です",
+                                       detail: "プランごとに1週間に使える量が決まっています。")
                     OnboardingPointRow(title: "解約と返金は App Store で行います", detail: "解約は設定の「利用枠」から、いつでもできます。", showsDivider: false)
                 }
                 if model.isUnder16 {

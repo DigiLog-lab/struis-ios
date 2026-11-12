@@ -87,6 +87,39 @@ final class TimelineGraphScheduleTests: XCTestCase {
         XCTAssertNil(TimelineGraphSchedule.next(timeline: timeline, workbook: workbook))
     }
 
+    /// 学習中の見直しと 1 段下りる依頼は利用枠に数えないので、7 日に 1 回までしか頼まない。7 日たてば、溜まった変更をまとめて頼む。
+    func testReviewAndDescendAreAskedAtMostOnceInSevenDays() async throws {
+        let (ledger, unitID, _) = try await unitLedger()
+        try await ledger.commit { db in
+            var timeline = try TimelineMachine(loading: db)
+            let id = timeline.insertBatchRequest(purpose: "graph_build", request: .object(["units": .array([.string(unitID)])]), accuracy: nil, levelCap: nil)
+            var row = timeline.batches[id]!
+            row.status = "ready"
+            timeline.put("test", row)
+            return (timeline.events, ())
+        }
+        let (loaded, workbook) = try await ledger.read { db in (try TimelineMachine(loading: db), try WorkbookMachine(loading: db)) }
+        var timeline = loaded
+        var clock: Date = LedgerClock.parse("2026-11-12T08:00:00.000000+00:00")!
+        timeline.now = { LedgerClock.iso(clock) }
+        for index in 0..<3 { timeline.recordChange(kind: "add_prerequisite", detail: .emptyObject, attemptIDs: ["a\(index)"], source: "app") }
+        let first: [String] = TimelineGraphSchedule.pendingReviewChanges(timeline)
+        XCTAssertEqual(TimelineGraphSchedule.next(timeline: timeline, workbook: workbook), .review(changeIDs: first))
+        let review: String = timeline.insertBatchRequest(purpose: "graph_review", request: .object(["change_ids": .array(first.map(LedgerJSON.string))]), accuracy: nil, levelCap: nil)
+        var row = timeline.batches[review]!
+        row.status = "ready"
+        timeline.put("test", row)
+        // 同じ週のうちに変更がまた溜まっても、見直しは頼まない。
+        clock = clock.addingTimeInterval(3 * 86_400)
+        for index in 3..<6 { timeline.recordChange(kind: "add_prerequisite", detail: .emptyObject, attemptIDs: ["a\(index)"], source: "app") }
+        XCTAssertFalse(TimelineGraphSchedule.upkeepAllowed(timeline))
+        XCTAssertNil(TimelineGraphSchedule.next(timeline: timeline, workbook: workbook))
+        // 7 日たてば、溜まった分をまとめて頼む。
+        clock = clock.addingTimeInterval(4 * 86_400 + 60)
+        XCTAssertTrue(TimelineGraphSchedule.upkeepAllowed(timeline))
+        XCTAssertEqual(TimelineGraphSchedule.next(timeline: timeline, workbook: workbook), .review(changeIDs: TimelineGraphSchedule.pendingReviewChanges(timeline)))
+    }
+
     /// 撮り足した授業の回(#132): 単元の分を頼んだ後に小単元が足されたら、その単元の分をもう一度頼む。頼んだ後は(失敗しても)頼み直さない。
     func testSubunitAppendedAfterTheGraphIsExtendedOnce() async throws {
         let (ledger, unitID, subunitIDs) = try await unitLedger()

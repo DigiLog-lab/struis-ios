@@ -195,6 +195,17 @@ final class OnboardingModel {
         Calendar.current.date(from: DateComponents(year: Calendar.current.component(.year, from: Date()) - 15, month: 4, day: 15)) ?? Date()
     }
 
+    /// 生年月日の欄の初めの値を、選んだ学年に合わせる(中2 なら今年度に 14 歳になる 4 月 15 日)。学年に関係なく 15 歳にしておくと、
+    /// 大学生がそのまま「次へ」を押した時に 16 歳未満として扱ってしまう。学年が分からない時は `defaultBirthdate`。
+    static func defaultBirthdate(grade: String?, now: Date = Date(), calendar: Calendar = .current) -> Date {
+        let ages: [String: Int] = ["中1": 13, "中2": 14, "中3": 15, "高1": 16, "高2": 17, "高3": 18, OnboardingProfile.universityGrade: 19]
+        guard let grade, let age: Int = ages[grade] else { return defaultBirthdate }
+        let parts: DateComponents = calendar.dateComponents([.year, .month], from: now)
+        // 年度は 4 月に始まる。
+        let schoolYear: Int = (parts.year ?? 2026) - ((parts.month ?? 4) < 4 ? 1 : 0)
+        return calendar.date(from: DateComponents(year: schoolYear - age, month: 4, day: 15)) ?? defaultBirthdate
+    }
+
     init(profile: OnboardingProfile? = nil, records: OnboardingRecords = .shared, consentUploader: GuardianConsentUploader = .shared,
          hasPlan: @escaping () -> Bool, isClaudeAvailable: @escaping () -> Bool, start: OnboardingStep? = nil, reconsent: Bool = false,
          purpose: Purpose = .onboarding) {
@@ -286,6 +297,8 @@ final class OnboardingModel {
 
     func chooseGrade(_ grade: String) {
         selectedGrade = grade
+        // 次の生年月日の欄を、選んだ学年の年から始める。
+        birthdate = Self.defaultBirthdate(grade: grade)
     }
 
     /// 学年の「次へ」の後: 年齢の結果が残っていて 1 年以内なら、聞き直さない。

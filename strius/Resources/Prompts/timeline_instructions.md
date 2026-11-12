@@ -10,6 +10,7 @@
 - `skills`: 今回の材料の `allowed_skill_ids` の ID だけ。グラフにない前提が要る時は `wanted_prerequisites` に書いてください。
 - `subunit_id`: 単元ホームの小単元の演習に数える時の小単元の ID(今回の材料の `subunits`)。数えなければ null。
 - `prompt`・`question`: 画面に出す日本語の文(文の中の式は `$…$`)。`math`: 画面に出す式(LaTeX)。
+- `prompt`・`math`・`question` は、画面に上からこの順で全部並びます。同じ内容を 2 か所に書かないでください。条件や式を `prompt` の文の中に書いたら `math` は空にし、`math` に式を置く時は `prompt` でその式を繰り返しません。`question` を `prompt` と同じ問いの言い換えにしないでください(`prompt` で問いまで言い切った時は `question` を空にします)。
 - `answer_key`: 正しい答え(区切りの無い LaTeX)。`answer_expr`・`checks`: プログラムで評価できる式(`*` を省かない、べき乗は `^`、関数は sqrt sin cos tan exp log abs、`pi`)。アプリが `checks` の両辺を数値で比べ、合わない・読めないカードは受け取りません。
 - `steps`: 解き方の手順(1行ずつ)。採点の参考にもなります。`common_mistakes`・`mistake_steps`: よくある間違いと、手順の何行目がどう変わるか。
 - `chain`: 「さっきの続き」の何問目か・全何問か・変えた所(`changed`。`prompt`・`math`・`question` のどこかにある文字列そのまま)・前の値(`previous`、LaTeX でよい)。

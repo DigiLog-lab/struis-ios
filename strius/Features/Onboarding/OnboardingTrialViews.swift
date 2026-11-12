@@ -302,10 +302,15 @@ struct TrialProblemCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             if !problem.math.isEmpty {
-                HStack {
-                    Spacer(minLength: 0)
-                    TimelineMath(latex: problem.math, size: compact ? 18 : 26).fixedSize()
-                    Spacer(minLength: 0)
+                // 枠に入る式は中央に置く。入らない長い式は、枠を押し広げずに枠の中で横にスクロールさせる
+                // (前は `fixedSize` で式の幅のまま置き、長い式で画面全体が左右にはみ出した)。
+                ViewThatFits(in: .horizontal) {
+                    HStack {
+                        Spacer(minLength: 0)
+                        TimelineMath(latex: problem.math, size: compact ? 18 : 26).fixedSize()
+                        Spacer(minLength: 0)
+                    }
+                    TimelineMath(latex: problem.math, size: compact ? 18 : 26).fixedSize(horizontal: false, vertical: true)
                 }
                 .opacity(compact ? 0.8 : 1)
             }

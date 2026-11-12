@@ -236,6 +236,14 @@ struct TimelineResultView: View {
             }
             if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? false {
                 answers
+            } else if !correct, let shown = TimelineCards.shownAnswers(card, chosen: attempt.checkpointResults.arrayValue?.first) {
+                // 選ぶ・並べる・仕分けるカード(端末の中で採点する)も、間違えた時は選んだ答えと正しい答えを出す。
+                VStack(alignment: .leading, spacing: 10) {
+                    if let learner: String = shown.learner {
+                        labeled("あなたの答え", learner, size: 16, plainMath: false).accessibilityIdentifier("timeline-learner-answer")
+                    }
+                    labeled("正しい答え", shown.correct, size: 16, plainMath: false).accessibilityIdentifier("timeline-answer-key")
+                }
             }
             if !correct, !checkpoints.isEmpty {
                 // どの場合が抜けたか(前の版の採点。書けた場合に ○、抜けた場合に ×。地の色も変える)。
@@ -286,10 +294,10 @@ struct TimelineResultView: View {
         }
     }
 
-    private func labeled(_ label: String, _ value: String) -> some View {
+    private func labeled(_ label: String, _ value: String, size: CGFloat = 18, plainMath: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label).font(Typography.sans(size: 12, weight: .bold)).foregroundStyle(Theme.secondaryText)
-            TimelineRichText(text: value, size: 18, weight: .bold, plainMath: true)
+            TimelineRichText(text: value, size: size, weight: .bold, plainMath: plainMath)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)

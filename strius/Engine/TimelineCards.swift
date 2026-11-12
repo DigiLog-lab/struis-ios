@@ -412,6 +412,40 @@ nonisolated enum TimelineCards {
         }
     }
 
+    /// 端末の中で採点するカードの、結果の画面に出す「あなたの答え」と「正しい答え」。`chosen` は答案に残した答え
+    /// (選んだ番号など)。出せない種類(グラフと式を結ぶ・正誤の無いカード)は nil。
+    static func shownAnswers(_ card: TimelineCardRecord, chosen: LedgerJSON?) -> (learner: String?, correct: String)? {
+        func strings(_ key: String) -> [String] { card.payload[key]?.arrayValue?.compactMap(\.stringValue) ?? [] }
+        func picked(_ lines: [String]) -> String? {
+            guard let index: Int = chosen?.intValue, lines.indices.contains(index) else { return nil }
+            return lines[index]
+        }
+        switch Kind(rawValue: card.kind) {
+        case .findError:
+            let lines: [String] = strings("lines")
+            guard let index: Int = card.payload["answer_index"]?.intValue, lines.indices.contains(index) else { return nil }
+            let fixed: String = card.payload["correct_line"]?.stringValue ?? ""
+            let correct: String = fixed.isEmpty ? lines[index] : "間違っている行: " + lines[index] + "\n正しくは: " + fixed
+            return (picked(lines), correct)
+        case .nextStep, .compare, .reason, .predict:
+            let options: [String] = strings("options")
+            guard let index: Int = card.payload["answer_index"]?.intValue, options.indices.contains(index) else { return nil }
+            return (picked(options), options[index])
+        case .order:
+            let steps: [String] = strings("steps")
+            guard !steps.isEmpty else { return nil }
+            return (nil, steps.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"))
+        case .sort:
+            let items: [LedgerJSON] = card.payload["items"]?.arrayValue ?? []
+            guard !items.isEmpty else { return nil }
+            let left: String = card.payload["left_label"]?.stringValue ?? "左"
+            let right: String = card.payload["right_label"]?.stringValue ?? "右"
+            return (nil, items.map { "\($0["text"]?.stringValue ?? ""): \($0["right"]?.boolValue == true ? right : left)" }.joined(separator: "\n"))
+        default:
+            return nil
+        }
+    }
+
     /// 手書きを読み取った後の正誤(数式で判定する)。04 は隠した行、09 は頂点を計算して判定する(答えは何通りあってもよい)。
     static func gradeWritten(_ card: TimelineCardRecord, learnerExpr: String) -> Bool? {
         let written = learnerExpr.trimmingCharacters(in: .whitespacesAndNewlines)
