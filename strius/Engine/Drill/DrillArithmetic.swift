@@ -188,6 +188,18 @@ nonisolated enum DrillArithmetic {
         return nil
     }
 
+    /// 絶対値(複素数は大きさ √(実部² + 虚部²))。定まらない時は nil。
+    static func magnitude(_ number: DrillNumber) -> DrillNumber? {
+        if let rational: DrillRational = number.rational { return DrillNumber(rational: rational.magnitude) }
+        if case DrillNumber.exact(let value) = number, value.hasImaginary {
+            let realPart: DrillNumber = DrillNumber.exact(value.realPart)
+            let imaginaryPart: DrillNumber = DrillNumber.exact(value.imaginaryPart)
+            return squareRoot(add(multiply(realPart, realPart), multiply(imaginaryPart, imaginaryPart)))
+        }
+        guard let value: Double = number.doubleValue else { return nil }
+        return value < 0 ? negate(number) : number
+    }
+
     static func isPrime(_ value: Int) -> Bool {
         guard value >= 2 else { return false }
         if value < 4 { return true }

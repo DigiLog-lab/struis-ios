@@ -259,4 +259,15 @@ final class DrillValidatorTests: XCTestCase {
         let prime: DrillTemplate = S.template(variables: [S.integer("a", 1, 30)], lets: [DrillLet(name: "b", expr: "if(is_prime(10^18 + a), 1, 2)")], math: "{a}", answer: "${b}$")
         assertFails(prime, code: "undefined", "is_prime は 1 兆以下")
     }
+
+
+    /// 2 回目のレビューで見つかったもの: 和の範囲に Int に直せない大きさを書いても落ちない。
+    func testSeriesWithHugeEndpointsIsRefusedWithoutCrashing() {
+        let template: DrillTemplate = S.template(variables: [S.integer("a", 1, 30)], math: "{a} + 1", answer: "$1$",
+                                                 checks: [DrillCheck(kind: "series", answer: "1", from: "1e20", to: "1e20", term: "k", index: "k")])
+        assertFails(template, code: "numeric", "整数の範囲になっていません")
+        let root: DrillTemplate = S.template(variables: [S.integer("a", 1, 30)], math: "{a} + 1", answer: "$1$",
+                                             checks: [DrillCheck(kind: "value", tex: "\\sqrt[10^{30}]{-8} + {a}", equals: "a")])
+        XCTAssertFalse(inspect(root).passed)
+    }
 }

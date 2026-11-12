@@ -57,8 +57,6 @@ nonisolated struct DrillUnit: Hashable, Sendable {
         "h": entry(3600, 1, dimension(0, 0, 1)),
         "t": entry(1000, 1, dimension(0, 1, 0)),
         "atm": entry(101_325, 1, dimension(-1, 1, -2)),
-        "degC": entry(1, 1, dimension(0, 0, 0, 0, 1)),
-        "℃": entry(1, 1, dimension(0, 0, 0, 0, 1)),
         "deg": entry(1, 1, DrillDimension.none),
         "°": entry(1, 1, DrillDimension.none),
         "rad": entry(1, 1, DrillDimension.none),
@@ -128,6 +126,10 @@ nonisolated struct DrillUnit: Hashable, Sendable {
     /// 単位の文字列を読む。知らない単位は投げる。
     static func parse(_ text: String) throws -> DrillUnit {
         guard text.count <= 40 else { throw ParseError(message: "単位が長すぎます(「\(text.prefix(20))…」)") }
+        // ℃ は目盛りの原点が K とずれているので、掛け算だけの換算では扱えない(20 ℃ を 20 K として計算してしまう)。
+        guard !text.contains("degC"), !text.contains("℃") else {
+            throw ParseError(message: "℃(degC)は単位として使えません。温度は q(t + 273, 'K') でケルビンに直して計算し、問題文には ${t}^{\\circ}\\mathrm{C}$ と書いてください。温度差の単位は K です")
+        }
         let tokens: [Token] = try tokenize(text)
         guard !tokens.isEmpty else { throw ParseError(message: "単位が空です") }
         var position: Int = 0
@@ -182,7 +184,6 @@ nonisolated struct DrillUnit: Hashable, Sendable {
     /// 画面に出す LaTeX。書かれた順のまま、`*` は中点、`^2` は上付きにする。
     var tex: String {
         if source == "deg" || source == "°" { return "^{\\circ}" }
-        if source == "degC" || source == "℃" { return "^{\\circ}\\mathrm{C}" }
         if source == "%" { return "\\%" }
         var out: String = ""
         let characters: [Character] = Array(source)
@@ -210,7 +211,6 @@ nonisolated struct DrillUnit: Hashable, Sendable {
     private static func symbolTeX(_ symbol: String) -> String {
         switch symbol {
         case "ohm", "Ω": return "\\Omega "
-        case "degC", "℃": return "{}^{\\circ}C"
         case "%": return "\\%"
         case "個", "回": return "\\text{\(symbol)}"
         default: break
@@ -222,5 +222,5 @@ nonisolated struct DrillUnit: Hashable, Sendable {
     }
 
     /// 数と単位の間に空きを入れるか(度と % は詰める)。
-    var attachesDirectly: Bool { ["deg", "°", "%", "degC", "℃"].contains(source) }
+    var attachesDirectly: Bool { ["deg", "°", "%"].contains(source) }
 }

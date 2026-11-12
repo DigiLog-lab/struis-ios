@@ -238,6 +238,11 @@ nonisolated enum DrillFormat {
     /// 数を、書き方に従って「符号を外した本体」にする。`display` は名前の宣言(単位・有効数字)。
     static func body(of quantity: DrillQuantity, spec: DrillFormatSpec, display: DrillDisplay) throws -> Body {
         var number: DrillNumber = quantity.number
+        if spec.sign == DrillFormatSpec.Sign.magnitude {
+            // 絶対値は、書く前の値で取る。符号を外すだけだと、1-√2 が (1-√2) のまま(負の値)になり、3+4i が 5 にならない。
+            guard let size: DrillNumber = DrillArithmetic.magnitude(number) else { throw FormatError(message: "絶対値が定まりません") }
+            number = size
+        }
         if let unit: DrillUnit = display.unit {
             guard unit.dimension == quantity.dimension else {
                 throw FormatError(message: "単位「\(unit.source)」と値の次元(\(quantity.dimension.text))が合いません")
@@ -326,7 +331,8 @@ nonisolated enum DrillFormat {
             }
             return "(\(body.negative ? "-" : "+")\(body.text))"
         case DrillFormatSpec.Sign.magnitude:
-            return text
+            // 値の絶対値を取ってあるので、そのまま書く(-1+√2 は正の数)。a × 10^n もかっこで囲まない。
+            return body.text
         }
     }
 

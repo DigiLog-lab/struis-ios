@@ -225,4 +225,16 @@ final class DrillFormatTests: XCTestCase {
             XCTAssertTrue((error as? DrillFailure)?.message.contains("単位「J」が合いません") ?? false, "\(error)")
         }
     }
+
+
+    /// abs は、値の絶対値を取ってから書く(前は符号を外すだけで、1-√2 が (1-√2) のまま、3+4i が (3+4i) のままだった)。
+    func testAbsoluteValueIsTakenFromTheValue() throws {
+        XCTAssertEqual(try S.tex("-3", ["abs"]), "3")
+        XCTAssertEqual(try S.tex("1 - sqrt(2)", ["abs"]), "-1+\\sqrt{2}")
+        XCTAssertEqual(try S.tex("-1 - sqrt(2)", ["abs"]), "1+\\sqrt{2}")
+        XCTAssertEqual(try S.tex("3 + 4*i", ["abs"]), "5")
+        XCTAssertEqual(try S.tex("-3/4", ["abs"]), "\\frac{3}{4}")
+        XCTAssertEqual(try S.evaluate("abs(1 - sqrt(2)) == sqrt(2) - 1"), DrillValue.bool(true))
+        XCTAssertEqual(try S.evaluate("abs(3 + 4*i)"), S.number(5))
+    }
 }

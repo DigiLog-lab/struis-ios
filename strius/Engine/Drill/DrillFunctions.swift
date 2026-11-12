@@ -147,17 +147,8 @@ nonisolated enum DrillFunctions {
 
         switch name {
         case "abs":
-            if let rational: DrillRational = first.number.rational { return DrillValue.quantity(DrillQuantity(DrillNumber(rational: rational.magnitude), dimension: first.dimension)) }
-            if case DrillNumber.exact(let value) = first.number, value.hasImaginary {
-                // 複素数の絶対値 √(実部² + 虚部²)。
-                let realPart: DrillNumber = DrillNumber.exact(value.realPart)
-                let imaginaryPart: DrillNumber = DrillNumber.exact(value.imaginaryPart)
-                let sum: DrillNumber = DrillArithmetic.add(DrillArithmetic.multiply(realPart, realPart), DrillArithmetic.multiply(imaginaryPart, imaginaryPart))
-                guard let root: DrillNumber = DrillArithmetic.squareRoot(sum) else { throw EvaluationError.undefined("絶対値が定まりません") }
-                return DrillValue.quantity(DrillQuantity(root, dimension: first.dimension))
-            }
-            guard let value: Double = first.number.doubleValue else { throw EvaluationError.undefined("絶対値が定まりません") }
-            return DrillValue.quantity(DrillQuantity(value < 0 ? DrillArithmetic.negate(first.number) : first.number, dimension: first.dimension))
+            guard let size: DrillNumber = DrillArithmetic.magnitude(first.number) else { throw EvaluationError.undefined("絶対値が定まりません") }
+            return DrillValue.quantity(DrillQuantity(size, dimension: first.dimension))
         case "sqrt":
             guard let root: DrillNumber = DrillArithmetic.squareRoot(first.number) else { throw EvaluationError.undefined("負の数の平方根になっています") }
             return DrillValue.quantity(DrillQuantity(root, dimension: first.dimension.power(DrillRational(1, 2) ?? DrillRational.one)))
