@@ -33,11 +33,13 @@ actor AssetCache {
         self.timelineClaudeModel = timelineClaudeModel
     }
 
-    /// 役割(`astra` / `luna` / `timeline` / `timeline_graph`)の Claude のモデル(`ClaudeModels`・`TimelineModels`)。
+    /// 役割(`chat` / `astra` / `luna` / `timeline` / `timeline_graph`)の Claude のモデル(`ClaudeModels`・`TimelineModels`)。
     func model(_ role: String) -> TurnModel {
-        let fallback: TurnModel = role == "luna"
-            ? TurnModel(model: ClaudeModels.lunaModel, effort: ClaudeModels.lunaEffort)
-            : TurnModel(model: ClaudeModels.astraModel, effort: ClaudeModels.astraEffort)
+        let fallback: TurnModel = switch role {
+        case "luna": TurnModel(model: ClaudeModels.lunaModel, effort: ClaudeModels.lunaEffort)
+        case "chat": TurnModel(model: ClaudeModels.chatModel, effort: ClaudeModels.chatEffort)
+        default: TurnModel(model: ClaudeModels.astraModel, effort: ClaudeModels.astraEffort)
+        }
         var model: TurnModel = TimelineModels.fallback(role: role) ?? fallback
         model.provider = .anthropic
         // 出題・採点・見直しは、設定で選んだモデルを使う(考える深さは `TimelineTurns.tutorEffort`)。

@@ -94,6 +94,11 @@ final class WorkbookSubunitLayoutTests: XCTestCase {
         XCTAssertEqual(WorkbookExampleCard.headline("$y = x^2 - 4x + 3$ の頂点の座標を\n求めよ"), "y = x^2 - 4x + 3 の頂点の座標を 求めよ")
         XCTAssertEqual(WorkbookExampleCard.headline("\\(x + y = 12\\)  と  $$x - y = 4$$"), "x + y = 12 と x - y = 4")
         XCTAssertEqual(WorkbookExampleCard.headline("りんごとみかんが合わせて12個あります。"), "りんごとみかんが合わせて12個あります。")
+        // 表示する方は数式の区切りを残す(数式として組む)。別行立ての区切りは行内の区切りにそろえる。
+        XCTAssertEqual(WorkbookExampleCard.headlineSource("加法定理を使って、$\\sin 75^\\circ$ の値を\n求めなさい。"), "加法定理を使って、$\\sin 75^\\circ$ の値を 求めなさい。")
+        XCTAssertEqual(WorkbookExampleCard.headlineSource("\\(x + y = 12\\)  と  $$x - y = 4$$"), "$x + y = 12$ と $x - y = 4$")
+        XCTAssertTrue(WorkbookExampleCard.headlineSource("$\\sin 75^\\circ$ を求めよ").containsCatalogLaTeX)
+        XCTAssertFalse(WorkbookExampleCard.headlineSource("りんごとみかんが合わせて12個あります。").containsCatalogLaTeX)
     }
 
     // MARK: 段が変わった直後
