@@ -1,0 +1,69 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.relative_velocity",
+  "title": "相対速度(一直線上)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "va",
+      "kind": "integer",
+      "min": 5,
+      "max": 30,
+      "unit": "m/s"
+    },
+    {
+      "name": "vb",
+      "kind": "integer",
+      "min": 5,
+      "max": 30,
+      "unit": "m/s"
+    },
+    {
+      "name": "dir",
+      "kind": "choice",
+      "options": [
+        {
+          "text": "同じ向き",
+          "s": 1
+        },
+        {
+          "text": "逆向き",
+          "s": -1
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "rel",
+      "expr": "dir.s*vb - va",
+      "unit": "m/s"
+    }
+  ],
+  "constraints": [
+    "va != vb"
+  ],
+  "parts": [
+    {
+      "name": "sense",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "rel > 0",
+          "tex": "A の進む向き"
+        }
+      ],
+      "otherwise": "A の進む向きと逆向き"
+    }
+  ],
+  "prompt": "一直線上を、自動車 A が速さ ${va|q}$ で、自動車 B が A と{dir.text}に速さ ${vb|q}$ で進んでいる。A から見た B の相対速度の向きと大きさを求めなさい。",
+  "answer": "{sense}に ${rel|abs|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "rel + va == dir.s*vb"
+      ]
+    }
+  ]
+}

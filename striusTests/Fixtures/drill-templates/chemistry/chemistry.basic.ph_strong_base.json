@@ -1,0 +1,76 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.ph_strong_base",
+  "title": "強塩基の水溶液の pH",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "base",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "水酸化ナトリウム",
+          "v": 1
+        },
+        {
+          "name": "水酸化カリウム",
+          "v": 1
+        }
+      ]
+    },
+    {
+      "name": "mult",
+      "kind": "choice",
+      "options": [
+        1,
+        10,
+        100
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "q(10^(-k),'mol/L')",
+      "unit": "mol/L",
+      "sig": 2
+    },
+    {
+      "name": "poh",
+      "expr": "k + log10(mult)"
+    },
+    {
+      "name": "ph",
+      "expr": "14 - poh"
+    }
+  ],
+  "parts": [
+    {
+      "name": "dil",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "mult == 1",
+          "tex": ""
+        }
+      ],
+      "otherwise": "を水で ${mult}$ 倍にうすめた水溶液"
+    }
+  ],
+  "prompt": "${c|q}$ の{base.name}水溶液{dil}の pH を求めなさい。ただし、{base.name}は完全に電離しているものとし、水のイオン積を $1.0 \\times 10^{-14}\\,(\\mathrm{mol/L})^{2}$ とする。",
+  "answer": "$\\mathrm{pH} = {ph}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(10^(-ph)*value(c,'mol/L')/mult, 1.0e-14)"
+      ]
+    }
+  ]
+}

@@ -2366,6 +2366,1770 @@
    "name": "行列の対角化(固有ベクトルを求めて P を作る)",
    "example": "行列 A を対角化しなさい。",
    "unrepresentable": "固有ベクトルは定数倍の取り方が決まらず、答えが 1 つに定まらない。固有値を求める所までは型にしてある"
+  },
+  {
+   "id": "physics.mech.uniform_motion",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の表し方",
+   "name": "等速直線運動(距離・速さ・時間)",
+   "template": "physics/physics.mech.uniform_motion.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.average_speed_kmh",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の表し方",
+   "name": "平均の速さと単位の換算(km/h と m/s)",
+   "template": "physics/physics.mech.average_speed_kmh.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.relative_velocity",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の表し方",
+   "name": "相対速度(一直線上)",
+   "template": "physics/physics.mech.relative_velocity.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.velocity_time",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "等加速度直線運動",
+   "name": "等加速度直線運動(v = v₀ + at)",
+   "template": "physics/physics.mech.velocity_time.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.displacement_time",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "等加速度直線運動",
+   "name": "等加速度直線運動(x = v₀t + ½at²)",
+   "template": "physics/physics.mech.displacement_time.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.velocity_displacement",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "等加速度直線運動",
+   "name": "等加速度直線運動(v² − v₀² = 2ax)",
+   "template": "physics/physics.mech.velocity_displacement.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.free_fall",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "落体の運動",
+   "name": "自由落下(速さと落下距離)",
+   "template": "physics/physics.mech.free_fall.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.throw_up_max_height",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "落体の運動",
+   "name": "鉛直投げ上げ(最高点の高さと時間)",
+   "template": "physics/physics.mech.throw_up_max_height.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.horizontal_projection",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "落体の運動",
+   "name": "水平投射(落下時間と水平距離)",
+   "template": "physics/physics.mech.horizontal_projection.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.projectile_range",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "落体の運動",
+   "name": "斜方投射(最高点の高さと水平到達距離)",
+   "template": "physics/physics.mech.projectile_range.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.weight",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "重力の大きさ(W = mg)",
+   "template": "physics/physics.mech.weight.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.hooke",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "フックの法則(F = kx)",
+   "template": "physics/physics.mech.hooke.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.spring_hanging",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "ばねにつるしたおもりのつり合い",
+   "template": "physics/physics.mech.spring_hanging.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.incline_components",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "斜面上の物体にはたらく重力の分力",
+   "template": "physics/physics.mech.incline_components.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.two_strings_tension",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "2 本の糸でつるした物体の張力",
+   "template": "physics/physics.mech.two_strings_tension.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.friction_max_static",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "最大摩擦力と動摩擦力",
+   "template": "physics/physics.mech.friction_max_static.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.pressure",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "圧力(p = F/S)",
+   "template": "physics/physics.mech.pressure.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.water_pressure",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "水圧(p = ρgh)",
+   "template": "physics/physics.mech.water_pressure.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.buoyancy",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "浮力(F = ρVg)",
+   "template": "physics/physics.mech.buoyancy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.newton_second",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の法則",
+   "name": "運動方程式(ma = F)",
+   "template": "physics/physics.mech.newton_second.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.friction_acceleration",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の法則",
+   "name": "動摩擦力がはたらく物体の加速度",
+   "template": "physics/physics.mech.friction_acceleration.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.two_blocks_string",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の法則",
+   "name": "糸でつながれた 2 物体の運動",
+   "template": "physics/physics.mech.two_blocks_string.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.atwood",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の法則",
+   "name": "定滑車にかけた 2 物体の運動",
+   "template": "physics/physics.mech.atwood.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.incline_acceleration",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の法則",
+   "name": "斜面をすべり下りる物体の加速度",
+   "template": "physics/physics.mech.incline_acceleration.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.work",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "仕事と力学的エネルギー",
+   "name": "仕事(W = Fx cos θ)",
+   "template": "physics/physics.mech.work.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.power",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "仕事と力学的エネルギー",
+   "name": "仕事率(P = W/t)",
+   "template": "physics/physics.mech.power.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.kinetic_energy",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "仕事と力学的エネルギー",
+   "name": "運動エネルギー(½mv²)",
+   "template": "physics/physics.mech.kinetic_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.potential_energy_gravity",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "仕事と力学的エネルギー",
+   "name": "重力による位置エネルギー(mgh)",
+   "template": "physics/physics.mech.potential_energy_gravity.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.potential_energy_spring",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "仕事と力学的エネルギー",
+   "name": "弾性力による位置エネルギー(½kx²)",
+   "template": "physics/physics.mech.potential_energy_spring.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.energy_conservation_fall",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "仕事と力学的エネルギー",
+   "name": "力学的エネルギーの保存(落下する物体の速さ)",
+   "template": "physics/physics.mech.energy_conservation_fall.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.energy_conservation_spring",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "仕事と力学的エネルギー",
+   "name": "力学的エネルギーの保存(ばねから離れる物体の速さ)",
+   "template": "physics/physics.mech.energy_conservation_spring.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.momentum_impulse",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動量の保存",
+   "name": "運動量と力積",
+   "template": "physics/physics.mech.momentum_impulse.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.momentum_conservation_merge",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動量の保存",
+   "name": "運動量保存(衝突して一体になる)",
+   "template": "physics/physics.mech.momentum_conservation_merge.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.restitution",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動量の保存",
+   "name": "反発係数(床ではね返る小球)",
+   "template": "physics/physics.mech.restitution.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.collision_1d",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動量の保存",
+   "name": "一直線上の衝突(運動量保存と反発係数)",
+   "template": "physics/physics.mech.collision_1d.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.circular_motion",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "円運動と単振動",
+   "name": "等速円運動(周期・角速度・向心加速度)",
+   "template": "physics/physics.mech.circular_motion.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.centripetal_force",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "円運動と単振動",
+   "name": "向心力(F = mv²/r)",
+   "template": "physics/physics.mech.centripetal_force.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.spring_pendulum_period",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "円運動と単振動",
+   "name": "ばね振り子の周期(T = 2π√(m/k))",
+   "template": "physics/physics.mech.spring_pendulum_period.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.simple_pendulum_period",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "円運動と単振動",
+   "name": "単振り子の周期(T = 2π√(L/g))",
+   "template": "physics/physics.mech.simple_pendulum_period.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.shm_max_speed",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "円運動と単振動",
+   "name": "単振動の最大の速さと加速度",
+   "template": "physics/physics.mech.shm_max_speed.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.gravitation",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "万有引力",
+   "name": "万有引力の法則",
+   "template": "physics/physics.mech.gravitation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.orbital_speed",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "万有引力",
+   "name": "第一宇宙速度(v = √(gR))",
+   "template": "physics/physics.mech.orbital_speed.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.kepler_third",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "万有引力",
+   "name": "ケプラーの第 3 法則",
+   "template": "physics/physics.mech.kepler_third.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.torque",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "剛体のつり合い",
+   "name": "力のモーメント(M = Fl)",
+   "template": "physics/physics.mech.torque.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.lever_balance",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "剛体のつり合い",
+   "name": "てこのつり合い(力のモーメントのつり合い)",
+   "template": "physics/physics.mech.lever_balance.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.center_of_mass",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "剛体のつり合い",
+   "name": "2 物体の重心の位置",
+   "template": "physics/physics.mech.center_of_mass.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.vt_graph_reading",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の表し方",
+   "name": "v-t グラフから加速度と移動距離を読み取る",
+   "example": "v-t グラフから、0 s から 4 s までの加速度と移動距離を求めなさい。(図)",
+   "unrepresentable": "問題文にグラフが要る。書式は文と式だけを作る"
+  },
+  {
+   "id": "physics.mech.free_body_diagram",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "物体にはたらく力を図示する",
+   "example": "斜面上で静止している物体にはたらく力をすべて図示しなさい。",
+   "unrepresentable": "答えが図で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "physics.heat.heat_quantity",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "熱と温度",
+   "name": "熱量(Q = mcΔT)",
+   "template": "physics/physics.heat.heat_quantity.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.heat_capacity",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "熱と温度",
+   "name": "熱容量(C = mc)",
+   "template": "physics/physics.heat.heat_capacity.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.calorimetry_mixing",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "熱と温度",
+   "name": "熱量の保存(混ぜた後の温度)",
+   "template": "physics/physics.heat.calorimetry_mixing.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.specific_heat_measurement",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "熱と温度",
+   "name": "熱量の保存から比熱を求める",
+   "template": "physics/physics.heat.specific_heat_measurement.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.latent_heat",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "熱と温度",
+   "name": "融解熱・蒸発熱",
+   "template": "physics/physics.heat.latent_heat.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.boyle_charles",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "気体の法則",
+   "name": "ボイル・シャルルの法則",
+   "template": "physics/physics.heat.boyle_charles.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.ideal_gas_law",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "気体の法則",
+   "name": "理想気体の状態方程式(PV = nRT)",
+   "template": "physics/physics.heat.ideal_gas_law.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.internal_energy",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "気体の内部エネルギー",
+   "name": "単原子分子理想気体の内部エネルギー",
+   "template": "physics/physics.heat.internal_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.first_law",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "気体の内部エネルギー",
+   "name": "熱力学第 1 法則(ΔU = Q + W)",
+   "template": "physics/physics.heat.first_law.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.work_isobaric",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "気体の内部エネルギー",
+   "name": "定圧変化で気体がする仕事(W = pΔV)",
+   "template": "physics/physics.heat.work_isobaric.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.thermal_efficiency",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "気体の内部エネルギー",
+   "name": "熱機関の熱効率",
+   "template": "physics/physics.heat.thermal_efficiency.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.wave_speed",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "波の性質",
+   "name": "波の基本式(v = fλ)",
+   "template": "physics/physics.wave.wave_speed.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.sine_wave_reading",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "波の性質",
+   "name": "正弦波の式から振幅・周期・波長・速さを読み取る",
+   "template": "physics/physics.wave.sine_wave_reading.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.sound_speed_temperature",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "音",
+   "name": "気温と音速(V = 331.5 + 0.6t)",
+   "template": "physics/physics.wave.sound_speed_temperature.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.beats",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "音",
+   "name": "うなりの回数",
+   "template": "physics/physics.wave.beats.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.string_harmonics",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "音",
+   "name": "弦の固有振動",
+   "template": "physics/physics.wave.string_harmonics.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.closed_pipe",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "音",
+   "name": "気柱の固有振動(閉管・開管)",
+   "template": "physics/physics.wave.closed_pipe.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.doppler",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "音",
+   "name": "ドップラー効果",
+   "template": "physics/physics.wave.doppler.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.refraction_index",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "光",
+   "name": "屈折の法則(屈折率と屈折角)",
+   "template": "physics/physics.wave.refraction_index.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.critical_angle",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "光",
+   "name": "全反射の臨界角(sin θ₀ = 1/n)",
+   "template": "physics/physics.wave.critical_angle.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.lens_formula",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "光",
+   "name": "レンズの式と倍率(凸レンズ)",
+   "template": "physics/physics.wave.lens_formula.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.young_double_slit",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "光",
+   "name": "ヤングの実験(明線の間隔)",
+   "template": "physics/physics.wave.young_double_slit.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.diffraction_grating",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "光",
+   "name": "回折格子(d sin θ = mλ)",
+   "template": "physics/physics.wave.diffraction_grating.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.wave_graph_reading",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "波の性質",
+   "name": "y-x グラフ・y-t グラフから波長・周期を読み取る",
+   "example": "図の正弦波の波長と振幅を読み取りなさい。(図)",
+   "unrepresentable": "問題文にグラフが要る。書式は文と式だけを作る"
+  },
+  {
+   "id": "physics.wave.ray_diagram",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "光",
+   "name": "レンズによる像を作図する",
+   "example": "凸レンズによる物体の像を作図しなさい。",
+   "unrepresentable": "答えが図で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "physics.em.coulomb_law",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電場と電位",
+   "name": "クーロンの法則",
+   "template": "physics/physics.em.coulomb_law.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.electric_field_force",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電場と電位",
+   "name": "電場から受ける力(F = qE)",
+   "template": "physics/physics.em.electric_field_force.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.point_charge_field_potential",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電場と電位",
+   "name": "点電荷がつくる電場と電位",
+   "template": "physics/physics.em.point_charge_field_potential.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.uniform_field_potential",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電場と電位",
+   "name": "一様な電場と電位差(V = Ed)",
+   "template": "physics/physics.em.uniform_field_potential.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.work_by_field",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電場と電位",
+   "name": "電場がする仕事(W = qV)",
+   "template": "physics/physics.em.work_by_field.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.capacitor_charge",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "コンデンサー",
+   "name": "コンデンサーの電気量(Q = CV)",
+   "template": "physics/physics.em.capacitor_charge.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.capacitor_combined",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "コンデンサー",
+   "name": "コンデンサーの合成容量",
+   "template": "physics/physics.em.capacitor_combined.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.parallel_plate_capacitance",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "コンデンサー",
+   "name": "平行板コンデンサーの電気容量の変化",
+   "template": "physics/physics.em.parallel_plate_capacitance.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.current_definition",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "電流と電気量(I = Q/t)",
+   "template": "physics/physics.em.current_definition.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.ohm_law",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "オームの法則(V = RI)",
+   "template": "physics/physics.em.ohm_law.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.resistivity",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "抵抗率と抵抗(R = ρL/S)",
+   "template": "physics/physics.em.resistivity.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.resistors_combined",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "合成抵抗(直列・並列)",
+   "template": "physics/physics.em.resistors_combined.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.series_circuit_voltage",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "直列回路の電流と各抵抗の電圧",
+   "template": "physics/physics.em.series_circuit_voltage.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.electric_power",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "電力とジュール熱",
+   "template": "physics/physics.em.electric_power.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.energy_kwh",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "電力量(kWh と J)",
+   "template": "physics/physics.em.energy_kwh.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.internal_resistance",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "電池の起電力と内部抵抗",
+   "template": "physics/physics.em.internal_resistance.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.magnetic_field_wire",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流と磁場",
+   "name": "直線電流がつくる磁場(H = I/2πr)",
+   "template": "physics/physics.em.magnetic_field_wire.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.force_on_current",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流と磁場",
+   "name": "電流が磁場から受ける力(F = IBL sin θ)",
+   "template": "physics/physics.em.force_on_current.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.lorentz_force",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流と磁場",
+   "name": "ローレンツ力と円運動の半径",
+   "template": "physics/physics.em.lorentz_force.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.faraday_law",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電磁誘導",
+   "name": "ファラデーの電磁誘導の法則",
+   "template": "physics/physics.em.faraday_law.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.motional_emf",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電磁誘導",
+   "name": "磁場を横切る導体棒の誘導起電力(V = vBL)",
+   "template": "physics/physics.em.motional_emf.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.self_induction",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電磁誘導",
+   "name": "自己誘導(V = L ΔI/Δt)",
+   "template": "physics/physics.em.self_induction.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.ac_effective",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "交流",
+   "name": "交流の実効値と最大値",
+   "template": "physics/physics.em.ac_effective.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.transformer",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "交流",
+   "name": "変圧器(電圧と巻数の比)",
+   "template": "physics/physics.em.transformer.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.reactance",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "交流",
+   "name": "コイルとコンデンサーのリアクタンス",
+   "template": "physics/physics.em.reactance.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.resonance_frequency",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "交流",
+   "name": "共振周波数(f = 1/2π√(LC))",
+   "template": "physics/physics.em.resonance_frequency.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.electromagnetic_wave",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "交流",
+   "name": "電磁波の波長と周波数(c = fλ)",
+   "template": "physics/physics.em.electromagnetic_wave.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.atom.photon_energy",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "原子",
+   "name": "光子のエネルギー(E = hc/λ)",
+   "template": "physics/physics.atom.photon_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.atom.photoelectric_effect",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "原子",
+   "name": "光電効果(K = hν − W)",
+   "template": "physics/physics.atom.photoelectric_effect.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.atom.de_broglie",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "原子",
+   "name": "ド・ブロイ波長(λ = h/mv)",
+   "template": "physics/physics.atom.de_broglie.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.atom.half_life",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "原子",
+   "name": "半減期",
+   "template": "physics/physics.atom.half_life.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.atom.mass_energy",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "原子",
+   "name": "質量とエネルギーの等価性(E = mc²)",
+   "template": "physics/physics.atom.mass_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.field_lines",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電場と電位",
+   "name": "電気力線・等電位線を図示する",
+   "example": "正負の点電荷のまわりの電気力線の概形をかきなさい。",
+   "unrepresentable": "答えが図で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "physics.em.kirchhoff_network",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "キルヒホッフの法則で複雑な回路の電流を求める",
+   "example": "図の回路で、各抵抗を流れる電流を求めなさい。(図)",
+   "unrepresentable": "回路のつながりを図で示す必要がある。直列・並列と内部抵抗までは、文だけで書ける型にしてある"
+  },
+  {
+   "id": "physics.univ.velocity_from_position",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "力学(微積分を使う)",
+   "name": "位置の式から速度・加速度を求める",
+   "template": "physics/physics.univ.velocity_from_position.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.work_integral",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "力学(微積分を使う)",
+   "name": "位置によって変わる力がする仕事(積分)",
+   "template": "physics/physics.univ.work_integral.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.terminal_velocity",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "力学(微積分を使う)",
+   "name": "空気抵抗を受ける落下の終端速度",
+   "template": "physics/physics.univ.terminal_velocity.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.moment_of_inertia_energy",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "剛体の回転",
+   "name": "回転の運動エネルギー(½Iω²)",
+   "template": "physics/physics.univ.moment_of_inertia_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.angular_momentum",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "剛体の回転",
+   "name": "角運動量(L = Iω)と角運動量保存",
+   "template": "physics/physics.univ.angular_momentum.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.shm_angular_frequency",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "振動",
+   "name": "単振動の微分方程式から角振動数と周期を求める",
+   "template": "physics/physics.univ.shm_angular_frequency.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.carnot_efficiency",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "熱力学",
+   "name": "カルノーサイクルの熱効率",
+   "template": "physics/physics.univ.carnot_efficiency.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.entropy_change",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "熱力学",
+   "name": "エントロピーの変化(ΔS = Q/T)",
+   "template": "physics/physics.univ.entropy_change.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.isothermal_work",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "熱力学",
+   "name": "等温変化で理想気体がする仕事(W = nRT ln(V₂/V₁))",
+   "template": "physics/physics.univ.isothermal_work.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.rc_time_constant",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "電気回路",
+   "name": "RC 回路の時定数",
+   "template": "physics/physics.univ.rc_time_constant.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.lc_oscillation_period",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "電気回路",
+   "name": "LC 回路の電気振動の周期",
+   "template": "physics/physics.univ.lc_oscillation_period.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.gauss_sphere_field",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "電磁気学",
+   "name": "ガウスの法則(一様に帯電した球の外側の電場)",
+   "template": "physics/physics.univ.gauss_sphere_field.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.unit.speed_conversion",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "単位と次元",
+   "name": "速さの単位換算(km/h と m/s)",
+   "template": "physics/physics.unit.speed_conversion.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.unit.density_conversion",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "単位と次元",
+   "name": "密度の単位換算(g/cm³ と kg/m³)",
+   "template": "physics/physics.unit.density_conversion.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.unit.energy_conversion",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "単位と次元",
+   "name": "エネルギーの単位換算(kWh・J)",
+   "template": "physics/physics.unit.energy_conversion.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.unit.prefix_conversion",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "単位と次元",
+   "name": "接頭語のついた単位の換算",
+   "template": "physics/physics.unit.prefix_conversion.json",
+   "numeric_check": false
+  },
+  {
+   "id": "physics.unit.si_base_units",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "単位と次元",
+   "name": "組立単位を SI 基本単位で表す(次元の確認)",
+   "template": "physics/physics.unit.si_base_units.json",
+   "numeric_check": false
+  },
+  {
+   "id": "physics.unit.dimensional_analysis",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "単位と次元",
+   "name": "次元解析で公式の指数を決める",
+   "example": "単振り子の周期 T が長さ L と重力加速度 g だけで決まるとして、T ∝ L^a g^b の a、b を次元解析で求めなさい。",
+   "unrepresentable": "数字を入れ替える所が無く、型にすると毎回同じ問題になる(関係する量の組を選ぶ所が問題の本体)"
+  },
+  {
+   "id": "physics.univ.lagrangian",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "力学(微積分を使う)",
+   "name": "運動方程式を立てて解く(束縛のある系)",
+   "example": "斜面上を転がる円柱の加速度を、並進と回転の運動方程式から求めなさい。",
+   "unrepresentable": "式を立てて連立して整理する過程が答えで、数字を入れ替えても式の変形が要る(数式処理は作らない)。結果の公式に数を入れる所は、円運動や回転のエネルギーの型にしてある"
+  },
+  {
+   "id": "chemistry.basic.average_atomic_mass",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質の構成",
+   "name": "同位体の存在比から原子量を求める",
+   "template": "chemistry/chemistry.basic.average_atomic_mass.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.formula_weight",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "分子量・式量の計算",
+   "template": "chemistry/chemistry.basic.formula_weight.json",
+   "numeric_check": false
+  },
+  {
+   "id": "chemistry.basic.mass_to_moles",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "質量から物質量を求める",
+   "template": "chemistry/chemistry.basic.mass_to_moles.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.moles_to_mass",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "物質量から質量を求める",
+   "template": "chemistry/chemistry.basic.moles_to_mass.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.particles",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "物質量と粒子の数(アボガドロ定数)",
+   "template": "chemistry/chemistry.basic.particles.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.gas_volume_stp",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "標準状態の気体の体積と物質量",
+   "template": "chemistry/chemistry.basic.gas_volume_stp.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.mass_percent",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "質量パーセント濃度",
+   "template": "chemistry/chemistry.basic.mass_percent.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.molarity",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "モル濃度(溶質の質量と溶液の体積から)",
+   "template": "chemistry/chemistry.basic.molarity.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.solution_preparation",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "決まったモル濃度の水溶液をつくるのに必要な溶質の質量",
+   "template": "chemistry/chemistry.basic.solution_preparation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.dilution",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "水溶液の希釈",
+   "template": "chemistry/chemistry.basic.dilution.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.percent_to_molarity",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "質量パーセント濃度からモル濃度への換算",
+   "template": "chemistry/chemistry.basic.percent_to_molarity.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.balance_equation",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "化学反応式の係数を合わせる",
+   "template": "chemistry/chemistry.basic.balance_equation.json",
+   "numeric_check": false
+  },
+  {
+   "id": "chemistry.basic.combustion_alkane_coefficients",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "炭化水素の完全燃焼の係数(一般式)",
+   "template": "chemistry/chemistry.basic.combustion_alkane_coefficients.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.stoichiometry_mass_mass",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "化学反応の量的関係(質量から質量)",
+   "template": "chemistry/chemistry.basic.stoichiometry_mass_mass.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.stoichiometry_mass_gas",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "化学反応の量的関係(質量から気体の体積)",
+   "template": "chemistry/chemistry.basic.stoichiometry_mass_gas.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.limiting_reagent",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "過不足のある反応(どちらが残るか)",
+   "template": "chemistry/chemistry.basic.limiting_reagent.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.ph_strong_acid",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "酸と塩基",
+   "name": "強酸の水溶液の pH",
+   "template": "chemistry/chemistry.basic.ph_strong_acid.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.ph_strong_base",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "酸と塩基",
+   "name": "強塩基の水溶液の pH",
+   "template": "chemistry/chemistry.basic.ph_strong_base.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.ph_from_concentration",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "酸と塩基",
+   "name": "水素イオン濃度から pH を求める(log を使う)",
+   "template": "chemistry/chemistry.basic.ph_from_concentration.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.neutralization_titration",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "酸と塩基",
+   "name": "中和滴定(濃度を求める)",
+   "template": "chemistry/chemistry.basic.neutralization_titration.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.oxidation_number",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "酸化還元反応",
+   "name": "酸化数を求める",
+   "template": "chemistry/chemistry.basic.oxidation_number.json",
+   "numeric_check": false
+  },
+  {
+   "id": "chemistry.basic.redox_titration",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "酸化還元反応",
+   "name": "酸化還元滴定(過マンガン酸カリウム)",
+   "template": "chemistry/chemistry.basic.redox_titration.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.faraday_electrolysis",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "酸化還元反応",
+   "name": "電気分解の量的関係(ファラデーの法則)",
+   "template": "chemistry/chemistry.basic.faraday_electrolysis.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.electron_configuration",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質の構成",
+   "name": "電子配置・電子式を書く",
+   "example": "塩素原子の電子配置と、塩化水素の電子式を書きなさい。",
+   "unrepresentable": "答えが図(電子式)や決まった配置の暗記で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "chemistry.basic.write_equation",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "反応物と生成物から化学反応式を自分で書く",
+   "example": "アルミニウムと希硫酸の反応を化学反応式で表しなさい。",
+   "unrepresentable": "生成物を化学の知識から決める所が答えで、数字を入れ替える計算ではない(係数を合わせる所は、反応の表から出す型にしてある)"
+  },
+  {
+   "id": "chemistry.theory.ideal_gas_moles",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "気体の状態方程式(物質量を求める)",
+   "template": "chemistry/chemistry.theory.ideal_gas_moles.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.molar_mass_from_gas",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "気体の密度・質量から分子量を求める",
+   "template": "chemistry/chemistry.theory.molar_mass_from_gas.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.partial_pressure",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "混合気体の分圧(ドルトンの分圧の法則)",
+   "template": "chemistry/chemistry.theory.partial_pressure.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.boiling_point_elevation",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "沸点上昇・凝固点降下(Δt = K m)",
+   "template": "chemistry/chemistry.theory.boiling_point_elevation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.osmotic_pressure",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "浸透圧(Π = cRT)",
+   "template": "chemistry/chemistry.theory.osmotic_pressure.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.solubility_crystallization",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "溶解度と析出量",
+   "template": "chemistry/chemistry.theory.solubility_crystallization.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.henry_law",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "ヘンリーの法則",
+   "template": "chemistry/chemistry.theory.henry_law.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.hess_formation",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応とエネルギー",
+   "name": "ヘスの法則(生成エンタルピーから反応エンタルピーを求める)",
+   "template": "chemistry/chemistry.theory.hess_formation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.calorimetry_reaction",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応とエネルギー",
+   "name": "温度変化から反応で出入りした熱量を求める",
+   "template": "chemistry/chemistry.theory.calorimetry_reaction.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.bond_energy",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応とエネルギー",
+   "name": "結合エネルギーから反応エンタルピーを求める",
+   "template": "chemistry/chemistry.theory.bond_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.battery_charge",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応とエネルギー",
+   "name": "電池から取り出せる電気量と反応する物質の量",
+   "template": "chemistry/chemistry.theory.battery_charge.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.reaction_rate_average",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "平均の反応速度",
+   "template": "chemistry/chemistry.theory.reaction_rate_average.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.rate_law",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "反応速度式から速度定数を求める",
+   "template": "chemistry/chemistry.theory.rate_law.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.equilibrium_constant",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "平衡定数を求める",
+   "template": "chemistry/chemistry.theory.equilibrium_constant.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.equilibrium_amounts",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "平衡定数から平衡時の物質量を求める",
+   "template": "chemistry/chemistry.theory.equilibrium_amounts.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.weak_acid_ph",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "弱酸の電離度と pH",
+   "template": "chemistry/chemistry.theory.weak_acid_ph.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.weak_acid_ka",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "電離定数から弱酸の水素イオン濃度を求める",
+   "template": "chemistry/chemistry.theory.weak_acid_ka.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.solubility_product",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "溶解度積から溶解度を求める",
+   "template": "chemistry/chemistry.theory.solubility_product.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.elemental_analysis",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "有機化合物",
+   "name": "元素分析から組成式を求める",
+   "template": "chemistry/chemistry.theory.elemental_analysis.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.molecular_formula",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "有機化合物",
+   "name": "組成式と分子量から分子式を求める",
+   "template": "chemistry/chemistry.theory.molecular_formula.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.combined_gas_law",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "ボイル・シャルルの法則",
+   "template": "chemistry/chemistry.theory.combined_gas_law.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.gas_over_water",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "水上置換で集めた気体の分圧と物質量",
+   "template": "chemistry/chemistry.theory.gas_over_water.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.unit_cell_density",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "単位格子から結晶の密度を求める",
+   "template": "chemistry/chemistry.theory.unit_cell_density.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.degree_of_ionization",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "電離定数から弱酸の電離度を求める",
+   "template": "chemistry/chemistry.theory.degree_of_ionization.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.lead_storage_battery",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応とエネルギー",
+   "name": "鉛蓄電池の放電による電極の質量変化",
+   "template": "chemistry/chemistry.theory.lead_storage_battery.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.degree_of_polymerization",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "高分子化合物",
+   "name": "平均分子量から重合度を求める",
+   "template": "chemistry/chemistry.theory.degree_of_polymerization.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.structural_formula",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "有機化合物",
+   "name": "構造式を書く・異性体を数え上げる",
+   "example": "分子式 C₄H₁₀O の構造異性体をすべて構造式で書きなさい。",
+   "unrepresentable": "答えが構造式(図)で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "chemistry.theory.titration_curve",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "滴定曲線から中和点や指示薬を読み取る",
+   "example": "滴定曲線から、適切な指示薬を選びなさい。(図)",
+   "unrepresentable": "問題文にグラフが要る。書式は文と式だけを作る"
+  },
+  {
+   "id": "chemistry.theory.le_chatelier",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "ルシャトリエの原理で平衡の移動の向きを判断する",
+   "example": "N₂ + 3H₂ ⇄ 2NH₃ の平衡で、圧力を上げると平衡はどちらに移動するか。",
+   "unrepresentable": "計算ではなく、原理を当てはめて向きを判断する問題(概念の理解は対象外)"
+  },
+  {
+   "id": "chemistry.univ.first_order_half_life",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "反応速度論",
+   "name": "1 次反応の半減期(t½ = ln 2 / k)",
+   "template": "chemistry/chemistry.univ.first_order_half_life.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.first_order_remaining",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "反応速度論",
+   "name": "1 次反応の濃度の時間変化",
+   "template": "chemistry/chemistry.univ.first_order_remaining.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.arrhenius_activation_energy",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "反応速度論",
+   "name": "アレニウスの式から活性化エネルギーを求める",
+   "template": "chemistry/chemistry.univ.arrhenius_activation_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.gibbs_energy",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "化学熱力学",
+   "name": "ギブズエネルギー変化(ΔG = ΔH − TΔS)",
+   "template": "chemistry/chemistry.univ.gibbs_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.equilibrium_from_gibbs",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "化学熱力学",
+   "name": "標準ギブズエネルギー変化から平衡定数を求める",
+   "template": "chemistry/chemistry.univ.equilibrium_from_gibbs.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.nernst",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "電気化学",
+   "name": "ネルンストの式",
+   "template": "chemistry/chemistry.univ.nernst.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.buffer_ph",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "酸と塩基の平衡",
+   "name": "緩衝液の pH(ヘンダーソン・ハッセルバルヒの式)",
+   "template": "chemistry/chemistry.univ.buffer_ph.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.photon_energy_per_mole",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "量子化学の基礎",
+   "name": "光の波長から 1 mol あたりのエネルギーを求める",
+   "template": "chemistry/chemistry.univ.photon_energy_per_mole.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.compression_factor",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "気体",
+   "name": "実在気体の圧縮因子(Z = PV/nRT)",
+   "template": "chemistry/chemistry.univ.compression_factor.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.entropy_phase_change",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "化学熱力学",
+   "name": "相転移のエントロピー変化(ΔS = ΔH/T)",
+   "template": "chemistry/chemistry.univ.entropy_phase_change.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.enthalpy_from_internal_energy",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "化学熱力学",
+   "name": "内部エネルギー変化から反応エンタルピーを求める(ΔH = ΔU + ΔnRT)",
+   "template": "chemistry/chemistry.univ.enthalpy_from_internal_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.clausius_clapeyron",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "化学熱力学",
+   "name": "クラウジウス・クラペイロンの式から蒸発エンタルピーを求める",
+   "template": "chemistry/chemistry.univ.clausius_clapeyron.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.beer_lambert",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "分析化学の基礎",
+   "name": "ランベルト・ベールの法則(A = εcl)",
+   "template": "chemistry/chemistry.univ.beer_lambert.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.molality",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "溶液",
+   "name": "質量モル濃度とモル分率",
+   "template": "chemistry/chemistry.univ.molality.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.orbital_diagram",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "量子化学の基礎",
+   "name": "電子配置と軌道図を書く",
+   "example": "鉄原子の電子配置を書きなさい。",
+   "unrepresentable": "決まった配置を書く問題で、数字を入れ替える計算ではない(暗記事項は対象外)"
+  },
+  {
+   "id": "chemistry.univ.reaction_mechanism",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "有機化学",
+   "name": "反応機構を矢印で書く",
+   "example": "SN2 反応の機構を、電子の動きを示す矢印を使って書きなさい。",
+   "unrepresentable": "答えが図で、数字を入れ替える計算ではない"
   }
  ]
 }

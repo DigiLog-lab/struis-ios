@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.friction_acceleration",
+  "title": "動摩擦力がはたらく物体の加速度",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "g",
+      "kind": "constant",
+      "value": 9.8,
+      "unit": "m/s^2",
+      "sig": 2
+    },
+    {
+      "name": "m",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 10.0,
+      "step": 1.0,
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "f",
+      "kind": "decimal",
+      "min": 10,
+      "max": 80,
+      "step": 5.0,
+      "unit": "N",
+      "sig": 2
+    },
+    {
+      "name": "mud",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 0.5,
+      "step": 0.1
+    }
+  ],
+  "lets": [
+    {
+      "name": "a",
+      "expr": "(f - mud*m*g)/m",
+      "unit": "m/s^2",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "f > mud*m*g"
+  ],
+  "prompt": "あらい水平面上で、質量 ${m|q}$ の物体を水平方向に大きさ ${f|q}$ の力で引いた。物体と面の間の動摩擦係数を ${mud|dec:2}$ として、物体の加速度の大きさを求めなさい。重力加速度の大きさを ${g|q}$ とする。",
+  "answer": "${a|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(m*a + mud*m*g, f)"
+      ]
+    }
+  ]
+}

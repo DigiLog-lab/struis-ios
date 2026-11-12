@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.torque",
+  "title": "力のモーメント(M = Fl)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "f",
+      "kind": "decimal",
+      "min": 2.0,
+      "max": 60.0,
+      "step": 2.0,
+      "unit": "N",
+      "sig": 2
+    },
+    {
+      "name": "l",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 2.0,
+      "step": 0.1,
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "mo",
+      "expr": "f*l",
+      "unit": "N*m",
+      "sig": 2
+    }
+  ],
+  "prompt": "回転軸から ${l|q}$ 離れた点に、腕に垂直な向きに大きさ ${f|q}$ の力を加えた。回転軸のまわりの力のモーメントの大きさを求めなさい。",
+  "answer": "${mo|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(mo/l, f)"
+      ]
+    }
+  ]
+}

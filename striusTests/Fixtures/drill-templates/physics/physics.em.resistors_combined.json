@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.resistors_combined",
+  "title": "合成抵抗(直列・並列)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "r1",
+      "kind": "integer",
+      "min": 2,
+      "max": 60,
+      "step": 2,
+      "unit": "ohm",
+      "sig": 2
+    },
+    {
+      "name": "r2",
+      "kind": "integer",
+      "min": 2,
+      "max": 60,
+      "step": 2,
+      "unit": "ohm",
+      "sig": 2
+    },
+    {
+      "name": "conn",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "直列",
+          "t": 1
+        },
+        {
+          "name": "並列",
+          "t": 2
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "r",
+      "expr": "if(conn.t == 1, r1 + r2, r1*r2/(r1 + r2))",
+      "unit": "ohm",
+      "sig": 2
+    }
+  ],
+  "prompt": "抵抗値 ${r1|q}$ と ${r2|q}$ の 2 つの抵抗を{conn.name}に接続した。合成抵抗を求めなさい。",
+  "answer": "${r|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "if(conn.t == 1, approx(r - r1, r2), approx(1/r, 1/r1 + 1/r2))"
+      ]
+    }
+  ]
+}

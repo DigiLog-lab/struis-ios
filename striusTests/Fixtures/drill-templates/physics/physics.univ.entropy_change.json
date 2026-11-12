@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "skill_id": "physics.univ.entropy_change",
+  "title": "エントロピーの変化(ΔS = Q/T)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "heat",
+      "kind": "integer",
+      "min": 200,
+      "max": 3000,
+      "step": 100,
+      "unit": "J",
+      "sig": 2
+    },
+    {
+      "name": "temp",
+      "kind": "integer",
+      "min": 250,
+      "max": 600,
+      "step": 50,
+      "unit": "K",
+      "sig": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "ds",
+      "expr": "heat/temp",
+      "unit": "J/K",
+      "sig": 2
+    }
+  ],
+  "prompt": "温度 ${temp|q}$ の熱源から、可逆的に ${heat|q}$ の熱量を受け取った。系のエントロピーの変化を求めなさい。",
+  "answer": "${ds|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(ds*temp, heat)"
+      ]
+    }
+  ]
+}

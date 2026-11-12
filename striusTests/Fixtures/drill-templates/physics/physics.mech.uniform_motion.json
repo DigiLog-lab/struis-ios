@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.uniform_motion",
+  "title": "等速直線運動(距離・速さ・時間)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "v",
+      "kind": "decimal",
+      "min": 1.5,
+      "max": 9.5,
+      "step": 0.5,
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "t",
+      "kind": "decimal",
+      "min": 2.0,
+      "max": 9.5,
+      "step": 0.5,
+      "unit": "s",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "x",
+      "expr": "v*t",
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "prompt": "速さ ${v|q}$ で等速直線運動をする物体が、${t|q}$ 間に進む距離を求めなさい。",
+  "answer": "${x|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(x/t, v)"
+      ]
+    }
+  ]
+}

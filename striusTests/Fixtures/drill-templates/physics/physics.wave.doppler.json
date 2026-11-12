@@ -1,0 +1,74 @@
+{
+  "format": 1,
+  "skill_id": "physics.wave.doppler",
+  "title": "ドップラー効果",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "v",
+      "kind": "constant",
+      "value": 340,
+      "unit": "m/s",
+      "sig": 3
+    },
+    {
+      "name": "f0",
+      "kind": "integer",
+      "min": 400,
+      "max": 1000,
+      "step": 40,
+      "unit": "Hz",
+      "sig": 3
+    },
+    {
+      "name": "u",
+      "kind": "integer",
+      "min": 10,
+      "max": 40,
+      "step": 5,
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "case",
+      "kind": "choice",
+      "options": [
+        {
+          "text": "音源が、静止している観測者に近づく",
+          "t": 1
+        },
+        {
+          "text": "音源が、静止している観測者から遠ざかる",
+          "t": 2
+        },
+        {
+          "text": "観測者が、静止している音源に近づく",
+          "t": 3
+        },
+        {
+          "text": "観測者が、静止している音源から遠ざかる",
+          "t": 4
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "f",
+      "expr": "if(case.t == 1, v/(v - u)*f0, if(case.t == 2, v/(v + u)*f0, if(case.t == 3, (v + u)/v*f0, (v - u)/v*f0)))",
+      "unit": "Hz",
+      "sig": 3
+    }
+  ],
+  "prompt": "振動数 ${f0|q}$ の音を出す音源がある。{case.text}とき(動く速さは ${u|q}$)、観測者が聞く音の振動数を求めなさい。音の速さを ${v|q}$ とする。",
+  "answer": "${f|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "if(case.t <= 2, approx(f*(v + if(case.t == 1, -u, u)), v*f0), approx(f*v, (v + if(case.t == 3, u, -u))*f0))",
+        "(f > f0) == (case.t == 1 or case.t == 3)"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "skill_id": "physics.wave.closed_pipe",
+  "title": "気柱の固有振動(閉管・開管)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "len",
+      "kind": "decimal",
+      "min": 0.2,
+      "max": 1.0,
+      "step": 0.05,
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "v",
+      "kind": "constant",
+      "value": 340,
+      "unit": "m/s",
+      "sig": 3
+    },
+    {
+      "name": "pipe",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "閉管",
+          "k": 4
+        },
+        {
+          "name": "開管",
+          "k": 2
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "lam",
+      "expr": "pipe.k*len",
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "f",
+      "expr": "v/(pipe.k*len)",
+      "unit": "Hz",
+      "sig": 2
+    }
+  ],
+  "prompt": "長さ ${len|q}$ の{pipe.name}が基本振動をしているときの、音波の波長と振動数を求めなさい。音の速さを ${v|q}$ とし、開口端補正は無視する。",
+  "answer": "波長 ${lam|q}$、振動数 ${f|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(f*lam, v)",
+        "approx(lam/pipe.k, len)"
+      ]
+    }
+  ]
+}

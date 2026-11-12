@@ -72,8 +72,8 @@ nonisolated indirect enum DrillExpression: Hashable, Sendable {
                     }
                 }
                 let literal: String = String(characters[index..<end])
-                if let rational: DrillRational = DrillRational(decimal: literal) {
-                    tokens.append(Token.number(DrillNumber(rational: rational)))
+                if let number: DrillNumber = DrillNumber(decimal: literal) {
+                    tokens.append(Token.number(number))
                 } else if let double: Double = Double(literal) {
                     tokens.append(Token.number(DrillNumber.real(double)))
                 } else {

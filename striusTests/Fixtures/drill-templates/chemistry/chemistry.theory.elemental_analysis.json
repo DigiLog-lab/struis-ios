@@ -1,0 +1,128 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.elemental_analysis",
+  "title": "元素分析から組成式を求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "f",
+      "kind": "choice",
+      "options": [
+        {
+          "c": 1,
+          "h": 2,
+          "o": 1,
+          "tex": "\\mathrm{CH_2O}"
+        },
+        {
+          "c": 2,
+          "h": 6,
+          "o": 1,
+          "tex": "\\mathrm{C_2H_6O}"
+        },
+        {
+          "c": 1,
+          "h": 4,
+          "o": 1,
+          "tex": "\\mathrm{CH_4O}"
+        },
+        {
+          "c": 2,
+          "h": 4,
+          "o": 1,
+          "tex": "\\mathrm{C_2H_4O}"
+        },
+        {
+          "c": 3,
+          "h": 8,
+          "o": 1,
+          "tex": "\\mathrm{C_3H_8O}"
+        },
+        {
+          "c": 3,
+          "h": 6,
+          "o": 1,
+          "tex": "\\mathrm{C_3H_6O}"
+        },
+        {
+          "c": 1,
+          "h": 2,
+          "o": 2,
+          "tex": "\\mathrm{CH_2O_2}"
+        },
+        {
+          "c": 4,
+          "h": 10,
+          "o": 1,
+          "tex": "\\mathrm{C_4H_{10}O}"
+        },
+        {
+          "c": 3,
+          "h": 6,
+          "o": 2,
+          "tex": "\\mathrm{C_3H_6O_2}"
+        },
+        {
+          "c": 4,
+          "h": 8,
+          "o": 1,
+          "tex": "\\mathrm{C_4H_8O}"
+        },
+        {
+          "c": 3,
+          "h": 8,
+          "o": 3,
+          "tex": "\\mathrm{C_3H_8O_3}"
+        }
+      ]
+    },
+    {
+      "name": "n",
+      "kind": "decimal",
+      "min": 0.01,
+      "max": 0.05,
+      "step": 0.01
+    }
+  ],
+  "lets": [
+    {
+      "name": "mm",
+      "expr": "12*f.c + f.h + 16*f.o"
+    },
+    {
+      "name": "sample",
+      "expr": "n*mm*1000"
+    },
+    {
+      "name": "co2",
+      "expr": "n*f.c*44*1000"
+    },
+    {
+      "name": "h2o",
+      "expr": "n*f.h/2*18*1000"
+    },
+    {
+      "name": "mc",
+      "expr": "co2*12/44"
+    },
+    {
+      "name": "mh",
+      "expr": "h2o*2/18"
+    },
+    {
+      "name": "mo",
+      "expr": "sample - mc - mh"
+    }
+  ],
+  "prompt": "炭素、水素、酸素だけからなる有機化合物 ${sample|dec}\\,\\mathrm{mg}$ を完全燃焼させたところ、二酸化炭素 ${co2|dec}\\,\\mathrm{mg}$ と水 ${h2o|dec}\\,\\mathrm{mg}$ が生じた。この化合物の組成式を求めなさい。原子量は H = 1.0、C = 12、O = 16 とする。",
+  "answer": "${f.tex}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(mc/12/f.c, mh/1/f.h)",
+        "approx(mc/12/f.c, mo/16/f.o)"
+      ]
+    }
+  ]
+}

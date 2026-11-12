@@ -1,0 +1,74 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.projectile_range",
+  "title": "斜方投射(最高点の高さと水平到達距離)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "g",
+      "kind": "constant",
+      "value": 9.8,
+      "unit": "m/s^2",
+      "sig": 2
+    },
+    {
+      "name": "v0",
+      "kind": "decimal",
+      "min": 9.8,
+      "max": 39.2,
+      "step": 4.9,
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "deg",
+      "kind": "choice",
+      "options": [
+        30,
+        45,
+        60
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "vx",
+      "expr": "v0*cosd(deg)",
+      "unit": "m/s"
+    },
+    {
+      "name": "vy",
+      "expr": "v0*sind(deg)",
+      "unit": "m/s"
+    },
+    {
+      "name": "h",
+      "expr": "vy^2/(2*g)",
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "tf",
+      "expr": "2*vy/g",
+      "unit": "s"
+    },
+    {
+      "name": "r",
+      "expr": "vx*tf",
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "prompt": "小球を、水平面から ${deg}^{\\circ}$ の向きに初速度 ${v0|q}$ で投げ上げた。最高点の高さと、水平到達距離を求めなさい。重力加速度の大きさを ${g|q}$ とする。",
+  "answer": "最高点の高さ ${h|q}$、水平到達距離 ${r|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(r, v0^2*sind(2*deg)/g)",
+        "approx(vy*tf - g*tf^2/2, 0*h, 0.000001)",
+        "approx(h, vy*(tf/2) - g*(tf/2)^2/2)"
+      ]
+    }
+  ]
+}

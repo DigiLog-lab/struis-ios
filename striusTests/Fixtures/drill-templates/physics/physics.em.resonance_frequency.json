@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.resonance_frequency",
+  "title": "共振周波数(f = 1/2π√(LC))",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "ind",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 1.0,
+      "unit": "mH",
+      "sig": 2
+    },
+    {
+      "name": "cap",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 1.0,
+      "unit": "uF",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "f",
+      "expr": "1/(2*pi*sqrt(ind*cap))",
+      "unit": "Hz",
+      "sig": 2
+    }
+  ],
+  "prompt": "自己インダクタンス ${ind|q}$ のコイルと電気容量 ${cap|q}$ のコンデンサーからなる回路の共振周波数を求めなさい。",
+  "answer": "${f|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx((2*pi*f)^2*ind*cap, 1)"
+      ]
+    }
+  ]
+}

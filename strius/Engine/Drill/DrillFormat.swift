@@ -103,6 +103,8 @@ nonisolated enum DrillFormat {
         var text: String
         var compound: Bool = false
         var isZero: Bool = false
+        /// a × 10^n の形(係数として使う時だけかっこが要る)。
+        var scientific: Bool = false
     }
 
     // MARK: 誤差なしの数
@@ -275,7 +277,7 @@ nonisolated enum DrillFormat {
             var forceScientific: Bool = false
             if case DrillFormatSpec.Style.scientific = style { forceScientific = true }
             let text: String = significantText(significant, forceScientific: forceScientific)
-            return Body(negative: significant.negative, text: text, compound: text.contains("\\times"), isZero: significant.mantissa == 0)
+            return Body(negative: significant.negative, text: text, isZero: significant.mantissa == 0, scientific: text.contains("\\times"))
         case DrillFormatSpec.Style.timesPi, DrillFormatSpec.Style.overPi:
             guard let rational: DrillRational = number.rational else { throw FormatError(message: "π の倍数として表示できるのは有理数だけです") }
             if rational.isZero { return Body(negative: false, text: "0", isZero: true) }
@@ -297,15 +299,17 @@ nonisolated enum DrillFormat {
     /// 本体に符号の扱いを当てる。
     static func apply(_ sign: DrillFormatSpec.Sign, to body: Body) -> String {
         let text: String = body.compound && sign != DrillFormatSpec.Sign.plain ? "(\(body.text))" : body.text
+        // 係数として文字の前に置く時は、a × 10^n もかっこで囲む。
+        let coefficient: String = body.scientific ? "(\(body.text))" : text
         switch sign {
         case DrillFormatSpec.Sign.plain:
             return (body.negative ? "-" : "") + (body.compound && body.negative ? "(\(body.text))" : body.text)
         case DrillFormatSpec.Sign.signed:
             return (body.negative ? "-" : "+") + text
         case DrillFormatSpec.Sign.coefficient:
-            return (body.negative ? "-" : "") + (text == "1" ? "" : text)
+            return (body.negative ? "-" : "") + (coefficient == "1" ? "" : coefficient)
         case DrillFormatSpec.Sign.signedCoefficient:
-            return (body.negative ? "-" : "+") + (text == "1" ? "" : text)
+            return (body.negative ? "-" : "+") + (coefficient == "1" ? "" : coefficient)
         case DrillFormatSpec.Sign.paren:
             return body.negative ? "(-\(body.text))" : body.text
         case DrillFormatSpec.Sign.signedParen:

@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.work",
+  "title": "仕事(W = Fx cos θ)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "f",
+      "kind": "decimal",
+      "min": 5.0,
+      "max": 60.0,
+      "step": 5.0,
+      "unit": "N",
+      "sig": 2
+    },
+    {
+      "name": "x",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 12.0,
+      "step": 0.5,
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "deg",
+      "kind": "choice",
+      "options": [
+        0,
+        30,
+        45,
+        60
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "w",
+      "expr": "f*x*cosd(deg)",
+      "unit": "J",
+      "sig": 2
+    }
+  ],
+  "parts": [
+    {
+      "name": "dir",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "deg == 0",
+          "tex": "力の向きに"
+        }
+      ],
+      "otherwise": "力の向きと ${deg}^{\\circ}$ の角をなす向きに"
+    }
+  ],
+  "prompt": "物体に大きさ ${f|q}$ の力を加え続けて、{dir} ${x|q}$ だけ動かした。この力がした仕事を求めなさい。",
+  "answer": "${w|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(w/x, f*cosd(deg))"
+      ]
+    }
+  ]
+}

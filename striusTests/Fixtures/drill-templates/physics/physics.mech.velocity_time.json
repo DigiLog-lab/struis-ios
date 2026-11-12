@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.velocity_time",
+  "title": "等加速度直線運動(v = v₀ + at)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "v0",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.5,
+      "step": 0.5,
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "a",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 4.0,
+      "step": 0.5,
+      "unit": "m/s^2",
+      "sig": 2
+    },
+    {
+      "name": "t",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 0.5,
+      "unit": "s",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "v",
+      "expr": "v0 + a*t",
+      "unit": "m/s",
+      "sig": 2
+    }
+  ],
+  "prompt": "初速度 ${v0|q}$ で進んでいた物体が、一定の加速度 ${a|q}$ で ${t|q}$ 間加速した。加速した後の速さを求めなさい。",
+  "answer": "${v|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx((v - v0)/t, a)"
+      ]
+    }
+  ]
+}

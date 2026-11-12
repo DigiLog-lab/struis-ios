@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "skill_id": "physics.heat.heat_capacity",
+  "title": "熱容量(C = mc)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "sub",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "水",
+          "c": 4.2
+        },
+        {
+          "name": "アルミニウム",
+          "c": 0.9
+        },
+        {
+          "name": "鉄",
+          "c": 0.45
+        },
+        {
+          "name": "銅",
+          "c": 0.38
+        }
+      ]
+    },
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": 100,
+      "max": 900,
+      "step": 100,
+      "unit": "g",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "q(sub.c,'J/(g*K)')",
+      "unit": "J/(g*K)",
+      "sig": 2
+    },
+    {
+      "name": "cap",
+      "expr": "m*c",
+      "unit": "J/K",
+      "sig": 2
+    }
+  ],
+  "prompt": "質量 ${m|q}$ の{sub.name}でできた物体の熱容量を求めなさい。{sub.name}の比熱を ${c|q}$ とする。",
+  "answer": "${cap|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(cap/m, c)"
+      ]
+    }
+  ]
+}

@@ -44,7 +44,9 @@ final class DrillNumberTests: XCTestCase {
         XCTAssertNil(DrillRational(decimal: "6.02e23"))
         XCTAssertNil(DrillRational(decimal: "abc"))
         XCTAssertEqual(DrillNumber(json: 0.1).rational, S.rational(1, 10))
-        XCTAssertEqual(DrillNumber(json: 6.02e23), DrillNumber.real(6.02e23))
+        XCTAssertEqual(DrillNumber(json: 6.02e23), DrillNumber.wide(DrillWideRational(integer: 602_000_000_000_000_000_000_000)))
+        XCTAssertEqual(DrillNumber(json: 6.6e-34).wideRational, DrillWideRational(decimal: "6.6e-34"))
+        XCTAssertEqual(DrillNumber(json: 1e300), DrillNumber.real(1e300))
     }
 
     func testSquareRootIsSimplified() {

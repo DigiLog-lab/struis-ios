@@ -1,0 +1,70 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.collision_1d",
+  "title": "一直線上の衝突(運動量保存と反発係数)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "m1",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 4.0,
+      "step": 1.0,
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "m2",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 4.0,
+      "step": 1.0,
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "u1",
+      "kind": "decimal",
+      "min": 2.0,
+      "max": 10.0,
+      "step": 1.0,
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "e0",
+      "kind": "decimal",
+      "min": 0.2,
+      "max": 1.0,
+      "step": 0.2
+    }
+  ],
+  "lets": [
+    {
+      "name": "w1",
+      "expr": "(m1 - e0*m2)*u1/(m1 + m2)",
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "w2",
+      "expr": "(1 + e0)*m1*u1/(m1 + m2)",
+      "unit": "m/s",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "m1 > e0*m2"
+  ],
+  "prompt": "なめらかな水平面上で、速さ ${u1|q}$ で進む質量 ${m1|q}$ の小球 A が、静止している質量 ${m2|q}$ の小球 B に正面衝突した。反発係数を ${e0|dec:1}$ として、衝突後の A、B の速さを求めなさい。",
+  "answer": "A の速さ ${w1|q}$、B の速さ ${w2|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(m1*w1 + m2*w2, m1*u1)",
+        "approx(w2 - w1, e0*u1)"
+      ]
+    }
+  ]
+}

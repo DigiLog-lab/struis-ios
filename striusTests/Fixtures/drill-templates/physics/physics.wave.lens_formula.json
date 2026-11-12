@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "skill_id": "physics.wave.lens_formula",
+  "title": "レンズの式と倍率(凸レンズ)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "f",
+      "kind": "integer",
+      "min": 5,
+      "max": 30,
+      "step": 5,
+      "unit": "cm",
+      "sig": 2
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 2,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "a",
+      "expr": "f*k/(k - 1)*1",
+      "unit": "cm",
+      "sig": 2
+    },
+    {
+      "name": "b",
+      "expr": "f*k",
+      "unit": "cm",
+      "sig": 2
+    },
+    {
+      "name": "mag",
+      "expr": "b/a"
+    }
+  ],
+  "prompt": "焦点距離 ${f|q}$ の凸レンズの前方 ${a|q}$ の位置に物体を置いた。像ができる位置(レンズからの距離)と倍率を求めなさい。",
+  "answer": "レンズの後方 ${b|q}$、倍率 ${mag|sig:2}$ 倍",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(1/a + 1/b, 1/f)",
+        "approx(mag*a, b)"
+      ]
+    }
+  ]
+}

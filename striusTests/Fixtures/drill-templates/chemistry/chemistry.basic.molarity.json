@@ -1,0 +1,93 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.molarity",
+  "title": "モル濃度(溶質の質量と溶液の体積から)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "s",
+      "kind": "choice",
+      "options": [
+        {
+          "tex": "\\mathrm{NaCl}",
+          "name": "塩化ナトリウム",
+          "M": 58.5
+        },
+        {
+          "tex": "\\mathrm{NaOH}",
+          "name": "水酸化ナトリウム",
+          "M": 40
+        },
+        {
+          "tex": "\\mathrm{C_6H_{12}O_6}",
+          "name": "グルコース",
+          "M": 180
+        },
+        {
+          "tex": "\\mathrm{KNO_3}",
+          "name": "硝酸カリウム",
+          "M": 101
+        },
+        {
+          "tex": "\\mathrm{CuSO_4}",
+          "name": "硫酸銅(II)",
+          "M": 160
+        },
+        {
+          "tex": "\\mathrm{Na_2CO_3}",
+          "name": "炭酸ナトリウム",
+          "M": 106
+        }
+      ]
+    },
+    {
+      "name": "n0",
+      "kind": "decimal",
+      "min": 0.05,
+      "max": 1.0,
+      "step": 0.05
+    },
+    {
+      "name": "vol",
+      "kind": "choice",
+      "options": [
+        100,
+        200,
+        250,
+        500,
+        1000
+      ],
+      "unit": "mL",
+      "sig": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "M",
+      "expr": "q(s.M,'g/mol')",
+      "unit": "g/mol"
+    },
+    {
+      "name": "m",
+      "expr": "sig(n0*s.M, 2)*q(1,'g')",
+      "unit": "g",
+      "sig": 2
+    },
+    {
+      "name": "c",
+      "expr": "m/M/vol",
+      "unit": "mol/L",
+      "sig": 2
+    }
+  ],
+  "prompt": "{s.name} ${s.tex}$(モル質量 ${s.M|dec}\\,\\mathrm{g/mol}$)${m|q}$ を水に溶かして ${vol|q}$ にした。この水溶液のモル濃度を求めなさい。",
+  "answer": "${c|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(c*vol*M, m)"
+      ]
+    }
+  ]
+}

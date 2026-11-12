@@ -1,0 +1,74 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.gas_over_water",
+  "title": "水上置換で集めた気体の分圧と物質量",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "R",
+      "kind": "constant",
+      "value": 8300.0,
+      "unit": "Pa*L/(K*mol)",
+      "sig": 2
+    },
+    {
+      "name": "w",
+      "kind": "choice",
+      "options": [
+        {
+          "t": 27,
+          "pw": 3.6
+        },
+        {
+          "t": 17,
+          "pw": 1.9
+        },
+        {
+          "t": 37,
+          "pw": 6.3
+        },
+        {
+          "t": 47,
+          "pw": 10.6
+        }
+      ]
+    },
+    {
+      "name": "ptot",
+      "kind": "decimal",
+      "min": 98.0,
+      "max": 104.0,
+      "step": 1.0
+    },
+    {
+      "name": "vol",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 1.0,
+      "step": 0.1,
+      "unit": "L",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "pgas",
+      "expr": "ptot - w.pw"
+    },
+    {
+      "name": "n",
+      "expr": "pgas*1000*value(vol,'L')/(8.3e3*(w.t + 273))"
+    }
+  ],
+  "prompt": "水上置換で気体を集めたところ、${w.t}^{\\circ}\\mathrm{C}$、大気圧 ${ptot|dec:1}\\,\\mathrm{kPa}$ で体積は ${vol|q}$ であった。${w.t}^{\\circ}\\mathrm{C}$ の水の蒸気圧を ${w.pw|dec:1}\\,\\mathrm{kPa}$ として、集めた気体の分圧と物質量を求めなさい。気体定数を ${R|q}$ とする。",
+  "answer": "分圧 ${pgas|dec:1}\\,\\mathrm{kPa}$、物質量 ${n|sig:2}\\,\\mathrm{mol}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(pgas + w.pw, ptot)",
+        "approx(n*8.3e3*(w.t + 273), pgas*1000*value(vol,'L'))"
+      ]
+    }
+  ]
+}

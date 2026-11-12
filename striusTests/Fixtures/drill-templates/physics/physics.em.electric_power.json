@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.electric_power",
+  "title": "電力とジュール熱",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 5,
+      "max": 100,
+      "step": 5,
+      "unit": "ohm",
+      "sig": 2
+    },
+    {
+      "name": "cur",
+      "kind": "decimal",
+      "min": 0.2,
+      "max": 3.0,
+      "step": 0.2,
+      "unit": "A",
+      "sig": 2
+    },
+    {
+      "name": "t",
+      "kind": "integer",
+      "min": 10,
+      "max": 300,
+      "step": 10,
+      "unit": "s",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "p",
+      "expr": "r*cur^2",
+      "unit": "W",
+      "sig": 2
+    },
+    {
+      "name": "heat",
+      "expr": "r*cur^2*t",
+      "unit": "J",
+      "sig": 2
+    }
+  ],
+  "prompt": "抵抗値 ${r|q}$ の抵抗に ${cur|q}$ の電流を ${t|q}$ 間流した。抵抗で消費される電力と、発生するジュール熱を求めなさい。",
+  "answer": "電力 ${p|q}$、ジュール熱 ${heat|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(heat/t, p)",
+        "approx(p, (r*cur)*cur)"
+      ]
+    }
+  ]
+}

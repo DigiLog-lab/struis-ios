@@ -1,0 +1,79 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.parallel_plate_capacitance",
+  "title": "平行板コンデンサーの電気容量の変化",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "c",
+      "kind": "decimal",
+      "min": 2.0,
+      "max": 20.0,
+      "step": 1.0,
+      "unit": "pF",
+      "sig": 2
+    },
+    {
+      "name": "ks",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "name": "kd",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        4
+      ]
+    },
+    {
+      "name": "er",
+      "kind": "choice",
+      "options": [
+        1,
+        2,
+        3,
+        5
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "c2",
+      "expr": "c*er*ks/kd",
+      "unit": "pF",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "ks != kd or er != 1"
+  ],
+  "parts": [
+    {
+      "name": "diel",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "er == 1",
+          "tex": ""
+        }
+      ],
+      "otherwise": "、極板間を比誘電率 ${er}$ の誘電体で満たし"
+    }
+  ],
+  "prompt": "電気容量 ${c|q}$ の平行板コンデンサーがある。極板の面積を ${ks}$ 倍、極板の間隔を ${kd}$ 倍にし{diel}たときの電気容量を求めなさい。",
+  "answer": "${c2|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(c2*kd, c*er*ks)"
+      ]
+    }
+  ]
+}

@@ -14,13 +14,14 @@ nonisolated enum DrillRounding {
 
     static func powerOfTen(_ exponent: Int) -> DrillRational? {
         guard abs(exponent) <= 18 else { return nil }
-        return DrillRational(integer: 10).power(exponent)
+        return DrillRational.powerOfTen(exponent)
     }
 
     static func significant(_ number: DrillNumber, digits: Int) -> Significant? {
         guard digits >= 1, digits <= 15 else { return nil }
         if number.isZero { return Significant(negative: false, mantissa: 0, exponent: 0, digits: digits, stable: true) }
         if let rational: DrillRational = number.rational, let exact: Significant = exactSignificant(rational, digits: digits) { return exact }
+        if let wide: DrillWideRational = number.wideRational, let exact: Significant = exactSignificant(wide, digits: digits) { return exact }
         guard let value: Double = number.doubleValue, value.isFinite else { return nil }
         let size: Double = abs(value)
         var exponent: Int = Int(log10(size).rounded(FloatingPointRoundingRule.down))
@@ -35,15 +36,16 @@ nonisolated enum DrillRounding {
         return Significant(negative: value < 0, mantissa: mantissa, exponent: exponent, digits: digits, stable: stable)
     }
 
-    private static func exactSignificant(_ rational: DrillRational, digits: Int) -> Significant? {
-        let size: DrillRational = rational.magnitude
+    /// 有理数を、誤差なしで有効数字に丸める。
+    private static func exactSignificant<Integer: FixedWidthInteger & SignedInteger & Sendable>(_ rational: DrillFraction<Integer>, digits: Int) -> Significant? {
+        let size: DrillFraction<Integer> = rational.magnitude
         var exponent: Int = Int(log10(size.doubleValue).rounded(FloatingPointRoundingRule.down))
         for _ in 0..<3 {
-            guard let low: DrillRational = powerOfTen(exponent), let high: DrillRational = powerOfTen(exponent + 1) else { return nil }
+            guard let low: DrillFraction<Integer> = DrillFraction<Integer>.powerOfTen(exponent), let high: DrillFraction<Integer> = DrillFraction<Integer>.powerOfTen(exponent + 1) else { return nil }
             if size < low { exponent -= 1 } else if !(size < high) { exponent += 1 } else { break }
         }
-        guard let unit: DrillRational = powerOfTen(exponent - digits + 1), let scaled: DrillRational = size.divided(by: unit),
-              var mantissa: Int = scaled.roundedValue, let upper: DrillRational = powerOfTen(digits) else { return nil }
+        guard let unit: DrillFraction<Integer> = DrillFraction<Integer>.powerOfTen(exponent - digits + 1), let scaled: DrillFraction<Integer> = size.divided(by: unit),
+              let rounded: Integer = scaled.roundedValue, var mantissa: Int = Int(exactly: rounded), let upper: DrillRational = powerOfTen(digits) else { return nil }
         if mantissa >= upper.numerator { mantissa /= 10; exponent += 1 }
         return Significant(negative: rational.isNegative, mantissa: mantissa, exponent: exponent, digits: digits, stable: true)
     }
@@ -54,6 +56,10 @@ nonisolated enum DrillRounding {
         if let rational: DrillRational = number.rational {
             guard let scaled: DrillRational = rational.divided(by: unit), let rounded: Int = scaled.roundedValue,
                   let value: DrillRational = DrillRational(integer: rounded).multiplied(by: unit) else { return nil }
+            return (value, true)
+        }
+        if let wide: DrillWideRational = number.wideRational, let wideUnit: DrillWideRational = DrillWideRational(converting: unit), let scaled: DrillWideRational = wide.divided(by: wideUnit),
+           let roundedWide: Int128 = scaled.roundedValue, let rounded: Int = Int(exactly: roundedWide), let value: DrillRational = DrillRational(integer: rounded).multiplied(by: unit) {
             return (value, true)
         }
         guard let double: Double = number.doubleValue, double.isFinite else { return nil }
@@ -348,7 +354,10 @@ nonisolated enum DrillFunctions {
                 throw EvaluationError.dimension("approx の両側の次元が合いません(\(first.dimension.text) と \(values[1].dimension.text))")
             }
             let tolerance: Double = values.count == 3 ? try double(2) : 1e-9
-            return DrillValue.bool(DrillArithmetic.equal(first.number, values[1].number, tolerance: tolerance))
+            // 誤差なしの数どうしでも、ここでは数値として近いかどうかで比べる。
+            if first.number == values[1].number { return DrillValue.bool(true) }
+            guard let a: Double = first.number.doubleValue, let b: Double = values[1].number.doubleValue else { return DrillValue.bool(false) }
+            return DrillValue.bool(abs(a - b) <= tolerance * max(1, abs(a), abs(b)))
         case "re", "im", "conj":
             guard case DrillNumber.exact(let value) = try plain() else {
                 if name == "im" { return DrillValue.number(DrillNumber.zero) }

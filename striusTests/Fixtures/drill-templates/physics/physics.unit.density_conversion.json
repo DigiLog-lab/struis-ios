@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "skill_id": "physics.unit.density_conversion",
+  "title": "密度の単位換算(g/cm³ と kg/m³)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "rho",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 13.5,
+      "step": 0.1
+    }
+  ],
+  "lets": [
+    {
+      "name": "si",
+      "expr": "value(q(rho,'g/cm^3'),'kg/m^3')"
+    }
+  ],
+  "prompt": "${rho|dec:2}\\,\\mathrm{g/cm^{3}}$ は何 $\\mathrm{kg/m^{3}}$ か。",
+  "answer": "${si|sig:3}\\,\\mathrm{kg/m^{3}}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "value(q(si,'kg/m^3'),'g/cm^3') == rho",
+        "si == rho*1000"
+      ]
+    }
+  ]
+}

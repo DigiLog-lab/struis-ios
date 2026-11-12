@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.magnetic_field_wire",
+  "title": "直線電流がつくる磁場(H = I/2πr)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "cur",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 10.0,
+      "step": 0.5,
+      "unit": "A",
+      "sig": 2
+    },
+    {
+      "name": "r",
+      "kind": "decimal",
+      "min": 0.05,
+      "max": 0.5,
+      "step": 0.05,
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "h",
+      "expr": "cur/(2*pi*r)",
+      "unit": "A/m",
+      "sig": 2
+    }
+  ],
+  "prompt": "十分に長い直線状の導線に ${cur|q}$ の電流が流れている。導線から ${r|q}$ 離れた点の磁場の強さを求めなさい。",
+  "answer": "${h|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(h*2*pi*r, cur)"
+      ]
+    }
+  ]
+}

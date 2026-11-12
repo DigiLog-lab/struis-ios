@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.mass_percent",
+  "title": "質量パーセント濃度",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "solute",
+      "kind": "integer",
+      "min": 5,
+      "max": 60,
+      "step": 5,
+      "unit": "g",
+      "sig": 2
+    },
+    {
+      "name": "water",
+      "kind": "integer",
+      "min": 40,
+      "max": 400,
+      "step": 20,
+      "unit": "g",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "pct",
+      "expr": "100*solute/(solute + water)"
+    }
+  ],
+  "prompt": "水 ${water|q}$ に溶質 ${solute|q}$ を溶かした水溶液の質量パーセント濃度を求めなさい。",
+  "answer": "${pct|sig:2}\\%$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(pct*(solute + water), 100*solute)"
+      ]
+    }
+  ]
+}

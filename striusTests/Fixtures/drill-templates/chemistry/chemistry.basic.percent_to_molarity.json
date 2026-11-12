@@ -1,0 +1,170 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.percent_to_molarity",
+  "title": "質量パーセント濃度からモル濃度への換算",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "s",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "硫酸",
+          "tex": "\\mathrm{H_2SO_4}",
+          "M": 98,
+          "pct": 98,
+          "d": 1.84
+        },
+        {
+          "name": "塩酸(塩化水素)",
+          "tex": "\\mathrm{HCl}",
+          "M": 36.5,
+          "pct": 36.5,
+          "d": 1.18
+        },
+        {
+          "name": "硝酸",
+          "tex": "\\mathrm{HNO_3}",
+          "M": 63,
+          "pct": 63,
+          "d": 1.38
+        },
+        {
+          "name": "アンモニア",
+          "tex": "\\mathrm{NH_3}",
+          "M": 17,
+          "pct": 28,
+          "d": 0.9
+        },
+        {
+          "name": "水酸化ナトリウム",
+          "tex": "\\mathrm{NaOH}",
+          "M": 40,
+          "pct": 20,
+          "d": 1.22
+        },
+        {
+          "name": "硫酸",
+          "tex": "\\mathrm{H_2SO_4}",
+          "M": 98,
+          "pct": 49,
+          "d": 1.39
+        },
+        {
+          "name": "塩酸(塩化水素)",
+          "tex": "\\mathrm{HCl}",
+          "M": 36.5,
+          "pct": 20,
+          "d": 1.1
+        },
+        {
+          "name": "硝酸",
+          "tex": "\\mathrm{HNO_3}",
+          "M": 63,
+          "pct": 30,
+          "d": 1.18
+        },
+        {
+          "name": "酢酸",
+          "tex": "\\mathrm{CH_3COOH}",
+          "M": 60,
+          "pct": 30,
+          "d": 1.04
+        },
+        {
+          "name": "水酸化ナトリウム",
+          "tex": "\\mathrm{NaOH}",
+          "M": 40,
+          "pct": 10,
+          "d": 1.11
+        },
+        {
+          "name": "硫酸",
+          "tex": "\\mathrm{H_2SO_4}",
+          "M": 98,
+          "pct": 20,
+          "d": 1.14
+        },
+        {
+          "name": "アンモニア",
+          "tex": "\\mathrm{NH_3}",
+          "M": 17,
+          "pct": 10,
+          "d": 0.96
+        },
+        {
+          "name": "塩酸(塩化水素)",
+          "tex": "\\mathrm{HCl}",
+          "M": 36.5,
+          "pct": 10,
+          "d": 1.05
+        },
+        {
+          "name": "硝酸",
+          "tex": "\\mathrm{HNO_3}",
+          "M": 63,
+          "pct": 10,
+          "d": 1.05
+        },
+        {
+          "name": "酢酸",
+          "tex": "\\mathrm{CH_3COOH}",
+          "M": 60,
+          "pct": 10,
+          "d": 1.01
+        },
+        {
+          "name": "硫酸",
+          "tex": "\\mathrm{H_2SO_4}",
+          "M": 98,
+          "pct": 10,
+          "d": 1.07
+        },
+        {
+          "name": "水酸化ナトリウム",
+          "tex": "\\mathrm{NaOH}",
+          "M": 40,
+          "pct": 30,
+          "d": 1.33
+        },
+        {
+          "name": "水酸化カリウム",
+          "tex": "\\mathrm{KOH}",
+          "M": 56,
+          "pct": 20,
+          "d": 1.19
+        },
+        {
+          "name": "水酸化カリウム",
+          "tex": "\\mathrm{KOH}",
+          "M": 56,
+          "pct": 10,
+          "d": 1.09
+        },
+        {
+          "name": "硫酸",
+          "tex": "\\mathrm{H_2SO_4}",
+          "M": 98,
+          "pct": 60,
+          "d": 1.5
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "1000*s.d*s.pct/100/s.M"
+    }
+  ],
+  "prompt": "質量パーセント濃度 ${s.pct|dec}\\%$、密度 ${s.d|dec:2}\\,\\mathrm{g/cm^{3}}$ の{s.name}の水溶液がある。溶質 ${s.tex}$ のモル質量を ${s.M|dec}\\,\\mathrm{g/mol}$ として、モル濃度を求めなさい。",
+  "answer": "${c|sig:2}\\,\\mathrm{mol/L}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(c*s.M, 1000*s.d*s.pct/100)"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.ideal_gas_moles",
+  "title": "気体の状態方程式(物質量を求める)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "R",
+      "kind": "constant",
+      "value": 8300.0,
+      "unit": "Pa*L/(K*mol)",
+      "sig": 2
+    },
+    {
+      "name": "p",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 5.0,
+      "step": 0.5
+    },
+    {
+      "name": "vol",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 20.0,
+      "step": 1.0,
+      "unit": "L",
+      "sig": 2
+    },
+    {
+      "name": "t",
+      "kind": "integer",
+      "min": 27,
+      "max": 127,
+      "step": 20
+    }
+  ],
+  "lets": [
+    {
+      "name": "press",
+      "expr": "q(p*100000,'Pa')",
+      "unit": "Pa",
+      "sig": 2
+    },
+    {
+      "name": "temp",
+      "expr": "q(t + 273,'K')",
+      "unit": "K"
+    },
+    {
+      "name": "n",
+      "expr": "press*vol/(R*temp)",
+      "unit": "mol",
+      "sig": 2
+    }
+  ],
+  "prompt": "${t}^{\\circ}\\mathrm{C}$、${press|q}$ で体積が ${vol|q}$ の気体の物質量を求めなさい。気体定数を ${R|q}$ とする。",
+  "answer": "${n|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(n,'mol')*8.3e3*(t + 273), p*100000*value(vol,'L'))"
+      ]
+    }
+  ]
+}

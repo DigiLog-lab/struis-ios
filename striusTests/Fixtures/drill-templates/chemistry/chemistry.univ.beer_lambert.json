@@ -1,0 +1,59 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.univ.beer_lambert",
+  "title": "ランベルト・ベールの法則(A = εcl)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "eps0",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.5,
+      "step": 0.5
+    },
+    {
+      "name": "ex",
+      "kind": "choice",
+      "options": [
+        3,
+        4
+      ]
+    },
+    {
+      "name": "c0",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 1.0
+    },
+    {
+      "name": "len",
+      "kind": "choice",
+      "options": [
+        1.0,
+        2.0,
+        0.5
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ab",
+      "expr": "eps0*10^ex*c0*0.00001*len"
+    }
+  ],
+  "constraints": [
+    "ab <= 2",
+    "ab >= 0.05"
+  ],
+  "prompt": "モル吸光係数が ${eps0|dec:1} \\times 10^{{ex}}\\,\\mathrm{L/(mol \\cdot cm)}$ の物質の、濃度 ${c0|dec:1} \\times 10^{-5}\\,\\mathrm{mol/L}$ の溶液を、光路長 ${len|dec:1}\\,\\mathrm{cm}$ のセルに入れた。吸光度を求めなさい。",
+  "answer": "${ab|sig:2}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(ab/(c0*0.00001*len), eps0*10^ex)"
+      ]
+    }
+  ]
+}

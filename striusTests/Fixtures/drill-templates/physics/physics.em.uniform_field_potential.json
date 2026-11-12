@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.uniform_field_potential",
+  "title": "一様な電場と電位差(V = Ed)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "v",
+      "kind": "integer",
+      "min": 10,
+      "max": 500,
+      "step": 10,
+      "unit": "V",
+      "sig": 2
+    },
+    {
+      "name": "d",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 10.0,
+      "step": 0.5,
+      "unit": "cm",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "e0",
+      "expr": "v/d",
+      "unit": "V/m",
+      "sig": 2
+    }
+  ],
+  "prompt": "間隔 ${d|q}$ の平行な 2 枚の金属板の間に ${v|q}$ の電位差を与えた。金属板の間の一様な電場の強さを求めなさい。",
+  "answer": "${e0|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(e0,'V/m')*value(d,'cm')/100, value(v,'V'))"
+      ]
+    }
+  ]
+}

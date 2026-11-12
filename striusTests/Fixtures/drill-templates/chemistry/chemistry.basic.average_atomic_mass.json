@@ -1,0 +1,71 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.average_atomic_mass",
+  "title": "同位体の存在比から原子量を求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "el",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "塩素",
+          "m1": 35,
+          "m2": 37
+        },
+        {
+          "name": "銅",
+          "m1": 63,
+          "m2": 65
+        },
+        {
+          "name": "ホウ素",
+          "m1": 10,
+          "m2": 11
+        },
+        {
+          "name": "臭素",
+          "m1": 79,
+          "m2": 81
+        },
+        {
+          "name": "ガリウム",
+          "m1": 69,
+          "m2": 71
+        },
+        {
+          "name": "銀",
+          "m1": 107,
+          "m2": 109
+        }
+      ]
+    },
+    {
+      "name": "p1",
+      "kind": "integer",
+      "min": 20,
+      "max": 80,
+      "step": 5
+    }
+  ],
+  "lets": [
+    {
+      "name": "p2",
+      "expr": "100 - p1"
+    },
+    {
+      "name": "avg",
+      "expr": "(el.m1*p1 + el.m2*p2)/100"
+    }
+  ],
+  "prompt": "{el.name}には、相対質量 ${el.m1}$ の同位体が ${p1}\\%$、相対質量 ${el.m2}$ の同位体が ${p2}\\%$ の割合で存在するとする。このときの{el.name}の原子量を、小数第 1 位まで求めなさい。",
+  "answer": "${avg|dec:1}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx((avg - el.m1)*100, (el.m2 - el.m1)*p2)"
+      ]
+    }
+  ]
+}

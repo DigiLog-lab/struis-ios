@@ -1,0 +1,76 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.force_on_current",
+  "title": "電流が磁場から受ける力(F = IBL sin θ)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "cur",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 10.0,
+      "step": 0.5,
+      "unit": "A",
+      "sig": 2
+    },
+    {
+      "name": "b",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 2.0,
+      "step": 0.1,
+      "unit": "T",
+      "sig": 2
+    },
+    {
+      "name": "len",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 1.0,
+      "step": 0.1,
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "deg",
+      "kind": "choice",
+      "options": [
+        90,
+        30,
+        45,
+        60
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "f",
+      "expr": "cur*b*len*sind(deg)",
+      "unit": "N",
+      "sig": 2
+    }
+  ],
+  "parts": [
+    {
+      "name": "dir",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "deg == 90",
+          "tex": "磁場に垂直に"
+        }
+      ],
+      "otherwise": "磁場の向きと ${deg}^{\\circ}$ の角をなすように"
+    }
+  ],
+  "prompt": "磁束密度 ${b|q}$ の一様な磁場の中に、長さ ${len|q}$ の導線を{dir}置き、${cur|q}$ の電流を流した。導線が磁場から受ける力の大きさを求めなさい。",
+  "answer": "${f|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(f, cur*b*len*cosd(90 - deg))"
+      ]
+    }
+  ]
+}

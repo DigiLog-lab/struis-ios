@@ -246,6 +246,8 @@ nonisolated struct DrillCompiledCheck: Sendable {
             case DrillNumber.exact(let exact):
                 let value: (real: Double, imaginary: Double) = exact.complexValue
                 return DrillComplex(value.real, value.imaginary)
+            case DrillNumber.wide(let wide):
+                return DrillComplex(wide.doubleValue)
             case DrillNumber.real(let double):
                 return DrillComplex(double)
             }

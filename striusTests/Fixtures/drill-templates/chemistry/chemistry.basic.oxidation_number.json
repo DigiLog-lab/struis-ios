@@ -1,0 +1,157 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.oxidation_number",
+  "title": "酸化数を求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "s",
+      "kind": "choice",
+      "options": [
+        {
+          "tex": "\\mathrm{H_2SO_4}",
+          "el": "S",
+          "ox": "+6"
+        },
+        {
+          "tex": "\\mathrm{SO_2}",
+          "el": "S",
+          "ox": "+4"
+        },
+        {
+          "tex": "\\mathrm{H_2S}",
+          "el": "S",
+          "ox": "-2"
+        },
+        {
+          "tex": "\\mathrm{HNO_3}",
+          "el": "N",
+          "ox": "+5"
+        },
+        {
+          "tex": "\\mathrm{NH_3}",
+          "el": "N",
+          "ox": "-3"
+        },
+        {
+          "tex": "\\mathrm{NO_2}",
+          "el": "N",
+          "ox": "+4"
+        },
+        {
+          "tex": "\\mathrm{NO}",
+          "el": "N",
+          "ox": "+2"
+        },
+        {
+          "tex": "\\mathrm{KMnO_4}",
+          "el": "Mn",
+          "ox": "+7"
+        },
+        {
+          "tex": "\\mathrm{MnO_2}",
+          "el": "Mn",
+          "ox": "+4"
+        },
+        {
+          "tex": "\\mathrm{K_2Cr_2O_7}",
+          "el": "Cr",
+          "ox": "+6"
+        },
+        {
+          "tex": "\\mathrm{H_2O_2}",
+          "el": "O",
+          "ox": "-1"
+        },
+        {
+          "tex": "\\mathrm{CO_2}",
+          "el": "C",
+          "ox": "+4"
+        },
+        {
+          "tex": "\\mathrm{CO}",
+          "el": "C",
+          "ox": "+2"
+        },
+        {
+          "tex": "\\mathrm{CH_4}",
+          "el": "C",
+          "ox": "-4"
+        },
+        {
+          "tex": "\\mathrm{HClO}",
+          "el": "Cl",
+          "ox": "+1"
+        },
+        {
+          "tex": "\\mathrm{KClO_3}",
+          "el": "Cl",
+          "ox": "+5"
+        },
+        {
+          "tex": "\\mathrm{HCl}",
+          "el": "Cl",
+          "ox": "-1"
+        },
+        {
+          "tex": "\\mathrm{Fe_2O_3}",
+          "el": "Fe",
+          "ox": "+3"
+        },
+        {
+          "tex": "\\mathrm{FeSO_4}",
+          "el": "Fe",
+          "ox": "+2"
+        },
+        {
+          "tex": "\\mathrm{CuO}",
+          "el": "Cu",
+          "ox": "+2"
+        },
+        {
+          "tex": "\\mathrm{Cu_2O}",
+          "el": "Cu",
+          "ox": "+1"
+        },
+        {
+          "tex": "\\mathrm{SO_4^{2-}}",
+          "el": "S",
+          "ox": "+6"
+        },
+        {
+          "tex": "\\mathrm{NO_3^{-}}",
+          "el": "N",
+          "ox": "+5"
+        },
+        {
+          "tex": "\\mathrm{MnO_4^{-}}",
+          "el": "Mn",
+          "ox": "+7"
+        },
+        {
+          "tex": "\\mathrm{Cr_2O_7^{2-}}",
+          "el": "Cr",
+          "ox": "+6"
+        },
+        {
+          "tex": "\\mathrm{NH_4^{+}}",
+          "el": "N",
+          "ox": "-3"
+        },
+        {
+          "tex": "\\mathrm{H_3PO_4}",
+          "el": "P",
+          "ox": "+5"
+        },
+        {
+          "tex": "\\mathrm{NaH}",
+          "el": "H",
+          "ox": "-1"
+        }
+      ]
+    }
+  ],
+  "prompt": "${s.tex}$ の中の $\\mathrm{{s.el}}$ 原子の酸化数を求めなさい。",
+  "answer": "${s.ox}$",
+  "no_numeric_check": "酸化数の決まりを当てはめた結果を表として持っている。式の代入で確かめる数値が無い"
+}

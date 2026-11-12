@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "skill_id": "physics.heat.ideal_gas_law",
+  "title": "理想気体の状態方程式(PV = nRT)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "R",
+      "kind": "constant",
+      "value": 8.31,
+      "unit": "J/(mol*K)",
+      "sig": 3
+    },
+    {
+      "name": "n",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 2.0,
+      "step": 0.1,
+      "unit": "mol",
+      "sig": 2
+    },
+    {
+      "name": "temp",
+      "kind": "integer",
+      "min": 250,
+      "max": 400,
+      "step": 10,
+      "unit": "K",
+      "sig": 3
+    },
+    {
+      "name": "vol",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 50.0,
+      "step": 1.0,
+      "unit": "L",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "p",
+      "expr": "n*R*temp/vol",
+      "unit": "Pa",
+      "sig": 2
+    }
+  ],
+  "prompt": "物質量 ${n|q}$ の理想気体が、温度 ${temp|q}$ で体積 ${vol|q}$ の容器に入っている。気体の圧力を求めなさい。気体定数を ${R|q}$ とする。",
+  "answer": "${p|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(p,'Pa')*value(vol,'L')*0.001, value(n,'mol')*8.31*value(temp,'K'))"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "format": 1,
+  "skill_id": "physics.wave.string_harmonics",
+  "title": "弦の固有振動",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "len",
+      "kind": "decimal",
+      "min": 0.4,
+      "max": 1.2,
+      "step": 0.1,
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "v",
+      "kind": "integer",
+      "min": 100,
+      "max": 400,
+      "step": 20,
+      "unit": "m/s",
+      "sig": 3
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "lam",
+      "expr": "2*len/n",
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "f",
+      "expr": "n*v/(2*len)",
+      "unit": "Hz",
+      "sig": 2
+    }
+  ],
+  "parts": [
+    {
+      "name": "mode",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "n == 1",
+          "tex": "基本振動"
+        }
+      ],
+      "otherwise": "${n}$ 倍振動"
+    }
+  ],
+  "prompt": "両端を固定した長さ ${len|q}$ の弦を伝わる波の速さが ${v|q}$ である。この弦が{mode}をしているときの、波長と振動数を求めなさい。",
+  "answer": "波長 ${lam|q}$、振動数 ${f|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(f*lam, v)",
+        "approx(n*lam/2, len)"
+      ]
+    }
+  ]
+}

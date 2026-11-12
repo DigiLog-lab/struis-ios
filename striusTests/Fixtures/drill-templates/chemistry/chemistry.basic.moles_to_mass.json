@@ -1,0 +1,106 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.moles_to_mass",
+  "title": "物質量から質量を求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "s",
+      "kind": "choice",
+      "options": [
+        {
+          "tex": "\\mathrm{H_2O}",
+          "name": "水",
+          "M": 18
+        },
+        {
+          "tex": "\\mathrm{CO_2}",
+          "name": "二酸化炭素",
+          "M": 44
+        },
+        {
+          "tex": "\\mathrm{NaCl}",
+          "name": "塩化ナトリウム",
+          "M": 58.5
+        },
+        {
+          "tex": "\\mathrm{NaOH}",
+          "name": "水酸化ナトリウム",
+          "M": 40
+        },
+        {
+          "tex": "\\mathrm{NH_3}",
+          "name": "アンモニア",
+          "M": 17
+        },
+        {
+          "tex": "\\mathrm{CH_4}",
+          "name": "メタン",
+          "M": 16
+        },
+        {
+          "tex": "\\mathrm{O_2}",
+          "name": "酸素",
+          "M": 32
+        },
+        {
+          "tex": "\\mathrm{N_2}",
+          "name": "窒素",
+          "M": 28
+        },
+        {
+          "tex": "\\mathrm{H_2SO_4}",
+          "name": "硫酸",
+          "M": 98
+        },
+        {
+          "tex": "\\mathrm{CaCO_3}",
+          "name": "炭酸カルシウム",
+          "M": 100
+        },
+        {
+          "tex": "\\mathrm{C_6H_{12}O_6}",
+          "name": "グルコース",
+          "M": 180
+        },
+        {
+          "tex": "\\mathrm{HCl}",
+          "name": "塩化水素",
+          "M": 36.5
+        }
+      ]
+    },
+    {
+      "name": "n",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 3.0,
+      "step": 0.05,
+      "unit": "mol",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "M",
+      "expr": "q(s.M,'g/mol')",
+      "unit": "g/mol"
+    },
+    {
+      "name": "m",
+      "expr": "n*M",
+      "unit": "g",
+      "sig": 2
+    }
+  ],
+  "prompt": "{s.name} ${s.tex}$(モル質量 ${s.M|dec}\\,\\mathrm{g/mol}$)${n|q}$ の質量を求めなさい。",
+  "answer": "${m|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(m/M, n)"
+      ]
+    }
+  ]
+}

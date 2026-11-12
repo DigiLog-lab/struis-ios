@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.internal_resistance",
+  "title": "電池の起電力と内部抵抗",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "emf",
+      "kind": "decimal",
+      "min": 1.5,
+      "max": 12.0,
+      "step": 1.5,
+      "unit": "V",
+      "sig": 2
+    },
+    {
+      "name": "r0",
+      "kind": "decimal",
+      "min": 0.2,
+      "max": 2.0,
+      "step": 0.2,
+      "unit": "ohm",
+      "sig": 2
+    },
+    {
+      "name": "r",
+      "kind": "decimal",
+      "min": 2.0,
+      "max": 20.0,
+      "step": 2.0,
+      "unit": "ohm",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "cur",
+      "expr": "emf/(r + r0)",
+      "unit": "A",
+      "sig": 2
+    },
+    {
+      "name": "v",
+      "expr": "emf*r/(r + r0)",
+      "unit": "V",
+      "sig": 2
+    }
+  ],
+  "prompt": "起電力 ${emf|q}$、内部抵抗 ${r0|q}$ の電池に、抵抗値 ${r|q}$ の抵抗を接続した。回路を流れる電流と、電池の端子電圧を求めなさい。",
+  "answer": "電流 ${cur|q}$、端子電圧 ${v|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(v, emf - r0*cur)",
+        "approx(v, r*cur)"
+      ]
+    }
+  ]
+}

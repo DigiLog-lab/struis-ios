@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "skill_id": "physics.wave.diffraction_grating",
+  "title": "回折格子(d sin θ = mλ)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "deg",
+      "kind": "choice",
+      "options": [
+        30,
+        45,
+        60
+      ]
+    },
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": 1,
+      "max": 2
+    },
+    {
+      "name": "lam",
+      "kind": "decimal",
+      "min": 4.0,
+      "max": 7.0,
+      "step": 0.5
+    }
+  ],
+  "lets": [
+    {
+      "name": "d",
+      "expr": "m*lam/sind(deg)"
+    }
+  ],
+  "prompt": "回折格子に波長 ${lam|dec:1} \\times 10^{-7}\\,\\mathrm{m}$ の単色光を垂直に当てたところ、入射方向と ${deg}^{\\circ}$ の角をなす方向に ${m}$ 次の明線が観測された。格子定数(隣り合うスリットの間隔)を求めなさい。",
+  "answer": "${d|sig:2} \\times 10^{-7}\\,\\mathrm{m}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(d*sind(deg), m*lam)"
+      ]
+    }
+  ]
+}

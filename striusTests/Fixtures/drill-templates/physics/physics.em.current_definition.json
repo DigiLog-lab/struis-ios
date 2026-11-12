@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.current_definition",
+  "title": "電流と電気量(I = Q/t)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "cur",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 5.0,
+      "step": 0.1,
+      "unit": "A",
+      "sig": 2
+    },
+    {
+      "name": "t",
+      "kind": "integer",
+      "min": 10,
+      "max": 600,
+      "step": 10,
+      "unit": "s",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "charge",
+      "expr": "cur*t",
+      "unit": "C",
+      "sig": 2
+    }
+  ],
+  "prompt": "導線に ${cur|q}$ の電流が ${t|q}$ 間流れた。導線の断面を通過した電気量を求めなさい。",
+  "answer": "${charge|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(charge/t, cur)"
+      ]
+    }
+  ]
+}

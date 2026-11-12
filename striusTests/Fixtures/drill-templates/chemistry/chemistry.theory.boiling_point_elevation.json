@@ -1,0 +1,65 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.boiling_point_elevation",
+  "title": "沸点上昇・凝固点降下(Δt = K m)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "kind",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "沸点上昇度",
+          "k": 0.52,
+          "kname": "モル沸点上昇"
+        },
+        {
+          "name": "凝固点降下度",
+          "k": 1.85,
+          "kname": "モル凝固点降下"
+        }
+      ]
+    },
+    {
+      "name": "n",
+      "kind": "decimal",
+      "min": 0.01,
+      "max": 0.2,
+      "step": 0.01,
+      "unit": "mol",
+      "sig": 2
+    },
+    {
+      "name": "w",
+      "kind": "choice",
+      "options": [
+        100,
+        200,
+        250,
+        500
+      ],
+      "unit": "g",
+      "sig": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "m",
+      "expr": "value(n,'mol')/(value(w,'g')/1000)"
+    },
+    {
+      "name": "dt",
+      "expr": "kind.k*m"
+    }
+  ],
+  "prompt": "水 ${w|q}$ に非電解質 ${n|q}$ を溶かした水溶液の{kind.name}を求めなさい。水の{kind.kname}を ${kind.k|dec:2}\\,\\mathrm{K \\cdot kg/mol}$ とする。",
+  "answer": "${dt|sig:2}\\,\\mathrm{K}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(dt/kind.k*value(w,'g'), 1000*value(n,'mol'))"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.henry_law",
+  "title": "ヘンリーの法則",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "s0",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 0.5
+    },
+    {
+      "name": "p",
+      "kind": "decimal",
+      "min": 2.0,
+      "max": 5.0,
+      "step": 0.5
+    },
+    {
+      "name": "vol",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 5.0,
+      "step": 0.5,
+      "unit": "L",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "n",
+      "expr": "s0*0.001*p*value(vol,'L')"
+    }
+  ],
+  "prompt": "ある気体は、ある温度で圧力が $1.0 \\times 10^{5}\\,\\mathrm{Pa}$ のとき、水 1.0 L に ${s0|dec:1} \\times 10^{-3}\\,\\mathrm{mol}$ 溶ける。同じ温度で、圧力 ${p|dec:1} \\times 10^{5}\\,\\mathrm{Pa}$ のこの気体が水 ${vol|q}$ に接しているとき、溶ける気体の物質量を求めなさい。",
+  "answer": "${n|sig:2}\\,\\mathrm{mol}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(n/(p*value(vol,'L')), s0*0.001)"
+      ]
+    }
+  ]
+}

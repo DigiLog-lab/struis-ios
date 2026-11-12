@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.horizontal_projection",
+  "title": "水平投射(落下時間と水平距離)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "g",
+      "kind": "constant",
+      "value": 9.8,
+      "unit": "m/s^2",
+      "sig": 2
+    },
+    {
+      "name": "h",
+      "kind": "choice",
+      "options": [
+        4.9,
+        19.6,
+        44.1,
+        78.4,
+        122.5
+      ],
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "v0",
+      "kind": "decimal",
+      "min": 2.0,
+      "max": 20.0,
+      "step": 1.0,
+      "unit": "m/s",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "t",
+      "expr": "sqrt(2*h/g)",
+      "unit": "s",
+      "sig": 2
+    },
+    {
+      "name": "x",
+      "expr": "v0*t",
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "prompt": "高さ ${h|q}$ の所から、小球を水平方向に速さ ${v0|q}$ で投げ出した。地面に達するまでの時間と、その間に水平方向に進む距離を求めなさい。重力加速度の大きさを ${g|q}$ とする。",
+  "answer": "時間 ${t|q}$、水平距離 ${x|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(g*t^2/2, h)",
+        "approx(x/t, v0)"
+      ]
+    }
+  ]
+}

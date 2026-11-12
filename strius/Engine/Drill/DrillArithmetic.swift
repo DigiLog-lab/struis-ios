@@ -10,16 +10,24 @@ nonisolated enum DrillArithmetic {
         number.doubleValue ?? Double.nan
     }
 
+    /// どちらも有理数なら、桁の多い型(Int128)で計算する。Int であふれた時と、桁の多い数が混ざった時に使う。
+    private static func wide(_ left: DrillNumber, _ right: DrillNumber, _ operation: (DrillWideRational, DrillWideRational) -> DrillWideRational?) -> DrillNumber? {
+        guard let a: DrillWideRational = left.wideRational, let b: DrillWideRational = right.wideRational, let result: DrillWideRational = operation(a, b) else { return nil }
+        return DrillNumber(wide: result)
+    }
+
     static func add(_ left: DrillNumber, _ right: DrillNumber) -> DrillNumber {
         if case DrillNumber.exact(let a) = left, case DrillNumber.exact(let b) = right, let sum: DrillExact = a.adding(b) {
             return DrillNumber.exact(sum)
         }
+        if let sum: DrillNumber = wide(left, right, { (a: DrillWideRational, b: DrillWideRational) -> DrillWideRational? in a.adding(b) }) { return sum }
         return DrillNumber.real(real(left) + real(right))
     }
 
     static func negate(_ value: DrillNumber) -> DrillNumber {
         switch value {
         case DrillNumber.exact(let exact): return DrillNumber.exact(exact.negated)
+        case DrillNumber.wide(let wide): return DrillNumber.wide(wide.negated)
         case DrillNumber.real(let double): return DrillNumber.real(-double)
         }
     }
@@ -32,6 +40,7 @@ nonisolated enum DrillArithmetic {
         if case DrillNumber.exact(let a) = left, case DrillNumber.exact(let b) = right, let product: DrillExact = a.multiplied(by: b) {
             return DrillNumber.exact(product)
         }
+        if let product: DrillNumber = wide(left, right, { (a: DrillWideRational, b: DrillWideRational) -> DrillWideRational? in a.multiplied(by: b) }) { return product }
         return DrillNumber.real(real(left) * real(right))
     }
 
@@ -42,6 +51,7 @@ nonisolated enum DrillArithmetic {
            let quotient: DrillExact = a.multiplied(by: inverse) {
             return DrillNumber.exact(quotient)
         }
+        if let quotient: DrillNumber = wide(left, right, { (a: DrillWideRational, b: DrillWideRational) -> DrillWideRational? in a.divided(by: b) }) { return quotient }
         let divisor: Double = real(right)
         guard divisor != 0 else { return nil }
         return DrillNumber.real(real(left) / divisor)
@@ -112,6 +122,10 @@ nonisolated enum DrillArithmetic {
                 }
             }
         }
+        // 桁の多い有理数の整数乗(c² の c = 3.0 × 10⁸ など)。
+        if let power: Int = exponent.integer, let wide: DrillWideRational = base.wideRational, !(wide.isZero && power < 0), let result: DrillWideRational = wide.power(power) {
+            return DrillNumber(wide: result)
+        }
         guard let b: Double = base.doubleValue, let e: Double = exponent.doubleValue else { return nil }
         if b == 0 && e < 0 { return nil }
         let value: Double = pow(b, e)
@@ -125,6 +139,10 @@ nonisolated enum DrillArithmetic {
             return a < b ? ComparisonResult.orderedAscending : ComparisonResult.orderedDescending
         }
         if left.isExact, right.isExact, left == right { return ComparisonResult.orderedSame }
+        if let a: DrillWideRational = left.wideRational, let b: DrillWideRational = right.wideRational {
+            if a == b { return ComparisonResult.orderedSame }
+            return a < b ? ComparisonResult.orderedAscending : ComparisonResult.orderedDescending
+        }
         guard let a: Double = left.doubleValue, let b: Double = right.doubleValue, a.isFinite, b.isFinite else { return nil }
         if !(left.isExact && right.isExact), abs(a - b) <= tolerance * max(1, abs(a), abs(b)) { return ComparisonResult.orderedSame }
         if a == b { return ComparisonResult.orderedSame }
@@ -134,6 +152,7 @@ nonisolated enum DrillArithmetic {
     /// 等しいか。誤差なしの数どうしは厳密に、実数が混ざれば相対誤差 1e-9 で比べる。
     static func equal(_ left: DrillNumber, _ right: DrillNumber, tolerance: Double = DrillArithmetic.tolerance) -> Bool {
         if case DrillNumber.exact(let a) = left, case DrillNumber.exact(let b) = right { return a == b }
+        if let a: DrillWideRational = left.wideRational, let b: DrillWideRational = right.wideRational { return a == b }
         guard let a: Double = left.doubleValue, let b: Double = right.doubleValue else { return false }
         return abs(a - b) <= tolerance * max(1, abs(a), abs(b))
     }

@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.newton_second",
+  "title": "運動方程式(ma = F)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "m",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 20.0,
+      "step": 0.5,
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "f",
+      "kind": "decimal",
+      "min": 2.0,
+      "max": 60.0,
+      "step": 2.0,
+      "unit": "N",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "a",
+      "expr": "f/m",
+      "unit": "m/s^2",
+      "sig": 2
+    }
+  ],
+  "prompt": "なめらかな水平面上に置いた質量 ${m|q}$ の物体に、水平方向に大きさ ${f|q}$ の力を加えた。物体に生じる加速度の大きさを求めなさい。",
+  "answer": "${a|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(m*a, f)"
+      ]
+    }
+  ]
+}

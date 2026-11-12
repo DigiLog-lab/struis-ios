@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.solubility_crystallization",
+  "title": "溶解度と析出量",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "s1",
+      "kind": "integer",
+      "min": 60,
+      "max": 170,
+      "step": 10
+    },
+    {
+      "name": "s2",
+      "kind": "integer",
+      "min": 10,
+      "max": 50,
+      "step": 5
+    },
+    {
+      "name": "w",
+      "kind": "choice",
+      "options": [
+        100,
+        200,
+        300,
+        50
+      ],
+      "unit": "g",
+      "sig": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "out",
+      "expr": "(s1 - s2)*value(w,'g')/100"
+    }
+  ],
+  "prompt": "ある物質の溶解度(水 100 g に溶ける質量)は、60℃ で ${s1}$、20℃ で ${s2}$ である。60℃ の水 ${w|q}$ にこの物質を溶かして飽和水溶液をつくり、20℃ まで冷やした。析出する結晶の質量を求めなさい。",
+  "answer": "${out|dec}\\,\\mathrm{g}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "out*100 == (s1 - s2)*value(w,'g')"
+      ]
+    }
+  ]
+}

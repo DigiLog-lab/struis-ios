@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "skill_id": "physics.atom.half_life",
+  "title": "半減期",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "half",
+      "kind": "integer",
+      "min": 2,
+      "max": 30
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 5
+    },
+    {
+      "name": "n0",
+      "kind": "integer",
+      "min": 16,
+      "max": 96,
+      "step": 16
+    }
+  ],
+  "lets": [
+    {
+      "name": "t",
+      "expr": "half*k"
+    },
+    {
+      "name": "n",
+      "expr": "n0/2^k"
+    }
+  ],
+  "prompt": "半減期が ${half}$ 日の放射性原子核が、はじめ ${n0|dec:1} \\times 10^{20}$ 個あった。${t}$ 日後に崩壊せずに残っている原子核の数を求めなさい。",
+  "answer": "${n|dec} \\times 10^{20}$ 個",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "n * 2^(t/half) == n0"
+      ]
+    }
+  ]
+}

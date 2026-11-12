@@ -1,0 +1,92 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.unit_cell_density",
+  "title": "単位格子から結晶の密度を求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "m",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "銅",
+          "M": 63.5,
+          "z": 4,
+          "kind": "面心立方格子",
+          "a": 3.6
+        },
+        {
+          "name": "鉄",
+          "M": 55.8,
+          "z": 2,
+          "kind": "体心立方格子",
+          "a": 2.9
+        },
+        {
+          "name": "アルミニウム",
+          "M": 27.0,
+          "z": 4,
+          "kind": "面心立方格子",
+          "a": 4.0
+        },
+        {
+          "name": "ナトリウム",
+          "M": 23.0,
+          "z": 2,
+          "kind": "体心立方格子",
+          "a": 4.3
+        },
+        {
+          "name": "銀",
+          "M": 108,
+          "z": 4,
+          "kind": "面心立方格子",
+          "a": 4.1
+        },
+        {
+          "name": "カリウム",
+          "M": 39.1,
+          "z": 2,
+          "kind": "体心立方格子",
+          "a": 5.3
+        },
+        {
+          "name": "金",
+          "M": 197,
+          "z": 4,
+          "kind": "面心立方格子",
+          "a": 4.1
+        }
+      ]
+    },
+    {
+      "name": "da",
+      "kind": "choice",
+      "options": [
+        -0.1,
+        0,
+        0.1
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "edge",
+      "expr": "m.a + da"
+    },
+    {
+      "name": "rho",
+      "expr": "m.z*m.M/(6.0e23*(edge*1e-8)^3)"
+    }
+  ],
+  "prompt": "{m.name}の結晶は{m.kind}で、単位格子の一辺の長さは ${edge|dec:1} \\times 10^{-8}\\,\\mathrm{cm}$ である。{m.name}の結晶の密度を求めなさい。{m.name}のモル質量を ${m.M|dec}\\,\\mathrm{g/mol}$、アボガドロ定数を $6.0 \\times 10^{23}\\,\\mathrm{/mol}$ とする。",
+  "answer": "${rho|sig:2}\\,\\mathrm{g/cm^{3}}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(rho*6.0e23*(edge*1e-8)^3, m.z*m.M)"
+      ]
+    }
+  ]
+}

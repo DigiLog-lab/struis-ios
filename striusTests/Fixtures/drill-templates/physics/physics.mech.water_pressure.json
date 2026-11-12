@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.water_pressure",
+  "title": "水圧(p = ρgh)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "g",
+      "kind": "constant",
+      "value": 9.8,
+      "unit": "m/s^2",
+      "sig": 2
+    },
+    {
+      "name": "rho",
+      "kind": "constant",
+      "value": 1000,
+      "unit": "kg/m^3"
+    },
+    {
+      "name": "h",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 20.0,
+      "step": 0.5,
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "p",
+      "expr": "rho*g*h",
+      "unit": "Pa",
+      "sig": 2
+    }
+  ],
+  "prompt": "水深 ${h|q}$ の所での、水による圧力を求めなさい。水の密度を $1.0 \\times 10^{3}\\,\\mathrm{kg/m^{3}}$ とし、重力加速度の大きさを ${g|q}$ とする。",
+  "answer": "${p|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(p/(rho*g), h)"
+      ]
+    }
+  ]
+}

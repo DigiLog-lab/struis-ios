@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.work_by_field",
+  "title": "電場がする仕事(W = qV)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "charge",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 0.5,
+      "unit": "uC",
+      "sig": 2
+    },
+    {
+      "name": "v",
+      "kind": "integer",
+      "min": 10,
+      "max": 500,
+      "step": 10,
+      "unit": "V",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "w",
+      "expr": "charge*v",
+      "unit": "J",
+      "sig": 2
+    }
+  ],
+  "prompt": "${charge|q}$ の点電荷が、電位差 ${v|q}$ の 2 点間を、電位の高い点から低い点へ移動した。この間に電場がした仕事を求めなさい。",
+  "answer": "${w|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(w/v, charge)"
+      ]
+    }
+  ]
+}

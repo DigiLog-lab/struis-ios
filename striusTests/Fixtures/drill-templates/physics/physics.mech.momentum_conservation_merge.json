@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.momentum_conservation_merge",
+  "title": "運動量保存(衝突して一体になる)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "m1",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 6.0,
+      "step": 0.5,
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "v1",
+      "kind": "decimal",
+      "min": 2.0,
+      "max": 12.0,
+      "step": 1.0,
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "m2",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 6.0,
+      "step": 0.5,
+      "unit": "kg",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "v",
+      "expr": "m1*v1/(m1 + m2)",
+      "unit": "m/s",
+      "sig": 2
+    }
+  ],
+  "prompt": "なめらかな水平面上で、速さ ${v1|q}$ で進む質量 ${m1|q}$ の物体 A が、静止している質量 ${m2|q}$ の物体 B に衝突し、一体となって進んだ。衝突後の速さを求めなさい。",
+  "answer": "${v|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx((m1 + m2)*v, m1*v1)"
+      ]
+    }
+  ]
+}

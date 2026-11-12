@@ -110,6 +110,25 @@ final class DrillFormatTests: XCTestCase {
         XCTAssertEqual(try S.tex("0", ["sig:2"]), "0.0")
         XCTAssertEqual(try S.tex("-9.8", ["sig:2"]), "-9.8")
         XCTAssertEqual(try S.tex("sqrt(2)", ["sig:3"]), "1.41")
+        // a × 10^n は、絶対値や符号つきではかっこを付けず、係数として使う時だけかっこで囲む。
+        XCTAssertEqual(try S.tex("-1200", ["abs", "sig:2"]), "1.2 \\times 10^{3}")
+        XCTAssertEqual(try S.tex("-1200", ["sig:2"]), "-1.2 \\times 10^{3}")
+        XCTAssertEqual(try S.tex("1200", ["+", "sig:2"]), "+1.2 \\times 10^{3}")
+        XCTAssertEqual(try S.tex("1200", ["coef", "sig:2"]), "(1.2 \\times 10^{3})")
+    }
+
+    func testTinyAndHugeConstantsStayExact() throws {
+        // 6.6 × 10⁻³⁴ のような定数は Int に収まらないが、Int128 の分数で誤差なしに持つ。丸めの境目(2.25 → 2.3)もぶれない。
+        XCTAssertEqual(try S.tex("2.5e-30 * 3.0e8^2", ["sig:2"]), "2.3 \\times 10^{-13}")
+        XCTAssertEqual(try S.tex("6.6e-34 * 3.0e8 / 3.0e-7", ["sig:2"]), "6.6 \\times 10^{-19}")
+        XCTAssertEqual(try S.tex("6.02e23 * 0.25", ["sig:3"]), "1.51 \\times 10^{23}")
+        XCTAssertEqual(try S.tex("1.6e-19 * 1.0e7 * 5.0e-3", ["sig:2"]), "8.0 \\times 10^{-15}")
+        // Int に収まる所まで戻れば、普通の分数として扱う。
+        XCTAssertEqual(try S.evaluate("6.6e-34 / 6.6e-34 * 3"), S.number(3))
+        XCTAssertEqual(try S.evaluate("6.6e-34 * 2 == 13.2e-34"), DrillValue.bool(true))
+        XCTAssertEqual(try S.evaluate("6.6e-34 < 1"), DrillValue.bool(true))
+        // 桁を決めずには表示できない。
+        XCTAssertThrowsError(try S.tex("6.6e-34"))
     }
 
     func testRoundingAtTheBoundaryIsRejectedForRealNumbers() {

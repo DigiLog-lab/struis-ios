@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "skill_id": "physics.atom.de_broglie",
+  "title": "ド・ブロイ波長(λ = h/mv)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "h",
+      "kind": "constant",
+      "value": 6.6e-34,
+      "unit": "J*s",
+      "sig": 2
+    },
+    {
+      "name": "me",
+      "kind": "constant",
+      "value": 9.1e-31,
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "v0",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 0.5
+    },
+    {
+      "name": "ex",
+      "kind": "choice",
+      "options": [
+        5,
+        6,
+        7
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "v",
+      "expr": "q(v0*10^ex,'m/s')",
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "lam",
+      "expr": "h/(me*v)",
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "prompt": "速さ ${v|q}$ で運動する電子のド・ブロイ波長を求めなさい。プランク定数を ${h|q}$、電子の質量を ${me|q}$ とする。",
+  "answer": "${lam|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(lam,'m')*9.1e-31*v0*10^ex, 6.6e-34)"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.free_fall",
+  "title": "自由落下(速さと落下距離)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "g",
+      "kind": "constant",
+      "value": 9.8,
+      "unit": "m/s^2",
+      "sig": 2
+    },
+    {
+      "name": "t",
+      "kind": "decimal",
+      "min": 0.2,
+      "max": 6.0,
+      "step": 0.2,
+      "unit": "s",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "v",
+      "expr": "g*t",
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "y",
+      "expr": "g*t^2/2",
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "prompt": "物体を静かに放して自由落下させた。放してから ${t|q}$ 後の速さと、それまでに落下した距離を求めなさい。重力加速度の大きさを ${g|q}$ とする。",
+  "answer": "速さ ${v|q}$、落下距離 ${y|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(v^2, 2*g*y)",
+        "approx(y, v*t/2)"
+      ]
+    }
+  ]
+}

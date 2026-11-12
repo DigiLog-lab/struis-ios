@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.energy_kwh",
+  "title": "電力量(kWh と J)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": 100,
+      "max": 1500,
+      "step": 100,
+      "unit": "W",
+      "sig": 2
+    },
+    {
+      "name": "t",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 8.0,
+      "step": 0.5,
+      "unit": "h",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "wk",
+      "expr": "value(p,'W')*value(t,'h')/1000"
+    },
+    {
+      "name": "wj",
+      "expr": "p*t",
+      "unit": "J",
+      "sig": 2
+    }
+  ],
+  "prompt": "消費電力 ${p|q}$ の電気器具を ${t|q}$ 使用した。消費した電力量は何 kWh か。また、それは何 J か。",
+  "answer": "${wk|sig:2}\\,\\mathrm{kWh}$、${wj|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(wk*3600000, value(wj,'J'))"
+      ]
+    }
+  ]
+}

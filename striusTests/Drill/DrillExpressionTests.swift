@@ -20,6 +20,11 @@ final class DrillExpressionTests: XCTestCase {
         XCTAssertEqual(try S.evaluate("sqrt(2) * sqrt(2) == 2"), DrillValue.bool(true))
         XCTAssertEqual(try S.evaluate("'sin' == 'cos'"), DrillValue.bool(false))
         XCTAssertEqual(try S.evaluate("if(1 < 2, 10, 20)"), S.number(10))
+        // == は誤差なしの数どうしを厳密に比べる。approx は数値として近いかで比べる。
+        XCTAssertEqual(try S.evaluate("1/3 == 0.3333333333"), DrillValue.bool(false))
+        XCTAssertEqual(try S.evaluate("approx(1/3, 0.3333333333)"), DrillValue.bool(true))
+        XCTAssertEqual(try S.evaluate("approx(1.414 * sind(45), 1, 0.001)"), DrillValue.bool(true))
+        XCTAssertEqual(try S.evaluate("approx(1.5, 1, 0.001)"), DrillValue.bool(false))
         // 条件で選ばれなかった側は評価しない(0 で割る式があっても投げない)。
         XCTAssertEqual(try S.evaluate("if(true, 1, 1/0)"), S.number(1))
     }

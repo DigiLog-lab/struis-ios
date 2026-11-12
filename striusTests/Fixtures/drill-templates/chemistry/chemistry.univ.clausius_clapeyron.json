@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.univ.clausius_clapeyron",
+  "title": "クラウジウス・クラペイロンの式から蒸発エンタルピーを求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "t1",
+      "kind": "integer",
+      "min": 300,
+      "max": 360,
+      "step": 10
+    },
+    {
+      "name": "dt",
+      "kind": "integer",
+      "min": 10,
+      "max": 30,
+      "step": 10
+    },
+    {
+      "name": "ratio",
+      "kind": "choice",
+      "options": [
+        {
+          "r": 2,
+          "ln": 0.693
+        },
+        {
+          "r": 3,
+          "ln": 1.1
+        },
+        {
+          "r": 1.5,
+          "ln": 0.405
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "t2",
+      "expr": "t1 + dt"
+    },
+    {
+      "name": "dh",
+      "expr": "8.31*ratio.ln/(1/t1 - 1/t2)/1000"
+    }
+  ],
+  "prompt": "ある液体の蒸気圧は、温度を ${t1}\\,\\mathrm{K}$ から ${t2}\\,\\mathrm{K}$ に上げると ${ratio.r|dec}$ 倍になった。蒸発エンタルピーを求めなさい。気体定数を $8.31\\,\\mathrm{J/(mol \\cdot K)}$、$\\ln {ratio.r|dec} = {ratio.ln|sig:3}$ とする。",
+  "answer": "${dh|sig:2}\\,\\mathrm{kJ/mol}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(exp(-dh*1000/8.31*(1/t2 - 1/t1)), ratio.r, 0.01)"
+      ]
+    }
+  ]
+}

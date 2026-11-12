@@ -1,0 +1,126 @@
+{
+  "format": 1,
+  "skill_id": "physics.unit.prefix_conversion",
+  "title": "接頭語のついた単位の換算",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "x",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.9,
+      "step": 0.1
+    },
+    {
+      "name": "u",
+      "kind": "choice",
+      "options": [
+        {
+          "from": "mm",
+          "to": "m"
+        },
+        {
+          "from": "cm",
+          "to": "m"
+        },
+        {
+          "from": "km",
+          "to": "m"
+        },
+        {
+          "from": "mg",
+          "to": "kg"
+        },
+        {
+          "from": "g",
+          "to": "kg"
+        },
+        {
+          "from": "mA",
+          "to": "A"
+        },
+        {
+          "from": "uF",
+          "to": "F"
+        },
+        {
+          "from": "nm",
+          "to": "m"
+        },
+        {
+          "from": "kPa",
+          "to": "Pa"
+        },
+        {
+          "from": "mL",
+          "to": "m^3"
+        },
+        {
+          "from": "cm^2",
+          "to": "m^2"
+        },
+        {
+          "from": "cm^3",
+          "to": "m^3"
+        },
+        {
+          "from": "ms",
+          "to": "s"
+        },
+        {
+          "from": "min",
+          "to": "s"
+        },
+        {
+          "from": "h",
+          "to": "s"
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "if(u.from == 'mm', value(q(x,'mm'),'m'), if(u.from == 'cm', value(q(x,'cm'),'m'), if(u.from == 'km', value(q(x,'km'),'m'), if(u.from == 'mg', value(q(x,'mg'),'kg'), if(u.from == 'g', value(q(x,'g'),'kg'), if(u.from == 'mA', value(q(x,'mA'),'A'), if(u.from == 'uF', value(q(x,'uF'),'F'), if(u.from == 'nm', value(q(x,'nm'),'m'), if(u.from == 'kPa', value(q(x,'kPa'),'Pa'), if(u.from == 'mL', value(q(x,'mL'),'m^3'), if(u.from == 'cm^2', value(q(x,'cm^2'),'m^2'), if(u.from == 'cm^3', value(q(x,'cm^3'),'m^3'), if(u.from == 'ms', value(q(x,'ms'),'s'), if(u.from == 'min', value(q(x,'min'),'s'), value(q(x,'h'),'s')))))))))))))))"
+    }
+  ],
+  "parts": [
+    {
+      "name": "fromtex",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "u.from == 'uF'",
+          "tex": "\\mu F"
+        },
+        {
+          "when": "u.from == 'cm^2'",
+          "tex": "cm^{2}"
+        },
+        {
+          "when": "u.from == 'cm^3'",
+          "tex": "cm^{3}"
+        }
+      ],
+      "otherwise": "{u.from}"
+    },
+    {
+      "name": "totex",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "u.to == 'm^3'",
+          "tex": "m^{3}"
+        },
+        {
+          "when": "u.to == 'm^2'",
+          "tex": "m^{2}"
+        }
+      ],
+      "otherwise": "{u.to}"
+    }
+  ],
+  "prompt": "${x|dec:1}\\,\\mathrm{{fromtex}}$ を、単位 $\\mathrm{{totex}}$ で表しなさい。",
+  "answer": "${ans|sig:2}\\,\\mathrm{{totex}}$",
+  "no_numeric_check": "単位の倍率を表から引くだけで、別の関係式で確かめる数値が無い(倍率そのものは単位の読み取りの単体テストで確かめている)"
+}

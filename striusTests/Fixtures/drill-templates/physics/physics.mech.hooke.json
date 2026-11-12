@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.hooke",
+  "title": "フックの法則(F = kx)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 20,
+      "max": 200,
+      "step": 10,
+      "unit": "N/m",
+      "sig": 2
+    },
+    {
+      "name": "x",
+      "kind": "decimal",
+      "min": 2.0,
+      "max": 25.0,
+      "step": 1.0,
+      "unit": "cm",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "f",
+      "expr": "k*x",
+      "unit": "N",
+      "sig": 2
+    }
+  ],
+  "prompt": "ばね定数 ${k|q}$ のばねを ${x|q}$ だけ伸ばすのに必要な力の大きさを求めなさい。",
+  "answer": "${f|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(f,'N'), value(k,'N/m')*value(x,'cm')/100)"
+      ]
+    }
+  ]
+}

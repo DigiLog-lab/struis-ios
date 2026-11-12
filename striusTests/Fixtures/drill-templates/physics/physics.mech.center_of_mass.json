@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.center_of_mass",
+  "title": "2 物体の重心の位置",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "m1",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 6.0,
+      "step": 0.5,
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "m2",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 6.0,
+      "step": 0.5,
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "d",
+      "kind": "decimal",
+      "min": 0.2,
+      "max": 2.0,
+      "step": 0.1,
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "x",
+      "expr": "m2*d/(m1 + m2)",
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "m1 != m2"
+  ],
+  "prompt": "質量 ${m1|q}$ の小球 A と質量 ${m2|q}$ の小球 B を、長さ ${d|q}$ の軽い棒の両端に取りつけた。A から重心までの距離を求めなさい。",
+  "answer": "${x|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(m1*x, m2*(d - x))"
+      ]
+    }
+  ]
+}

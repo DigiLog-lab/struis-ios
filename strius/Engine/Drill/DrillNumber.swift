@@ -4,135 +4,146 @@ import Foundation
 /// 分数と平方根は誤差なしで持ち、三角関数や対数など誤差なしで持てない値だけ実数(Double)にする。
 /// 式を式のまま変形する数式処理はしない。扱うのは数どうしの計算だけ。
 
-/// 既約分数。分母は正。計算が Int からあふれたら nil を返す(呼び出し側が実数に切り替える)。
-nonisolated struct DrillRational: Hashable, Sendable {
-    let numerator: Int
-    let denominator: Int
+/// 既約分数。分母は正。計算が整数の型からあふれたら nil を返す(呼び出し側が、桁の多い型か実数に切り替える)。
+/// ふだんは `DrillRational`(Int)を使う。プランク定数のように Int に収まらない桁の数だけ `DrillWideRational`(Int128)で持ち、
+/// 有効数字の丸めを誤差なしで行う。
+nonisolated struct DrillFraction<Integer: FixedWidthInteger & SignedInteger & Sendable>: Hashable, Sendable {
+    let numerator: Integer
+    let denominator: Integer
 
-    static let zero: DrillRational = DrillRational(integer: 0)
-    static let one: DrillRational = DrillRational(integer: 1)
+    static var zero: DrillFraction<Integer> { DrillFraction<Integer>(integer: 0) }
+    static var one: DrillFraction<Integer> { DrillFraction<Integer>(integer: 1) }
 
-    init(integer: Int) {
+    init(integer: Integer) {
         self.numerator = integer
         self.denominator = 1
     }
 
-    init?(_ numerator: Int, _ denominator: Int) {
-        guard denominator != 0, numerator != Int.min, denominator != Int.min else { return nil }
-        let divisor: Int = DrillRational.gcd(abs(numerator), abs(denominator))
-        let sign: Int = denominator < 0 ? -1 : 1
-        self.numerator = sign * (numerator / divisor)
-        self.denominator = abs(denominator) / divisor
+    init?(_ numerator: Integer, _ denominator: Integer) {
+        guard denominator != 0, numerator != Integer.min, denominator != Integer.min else { return nil }
+        let top: Integer = numerator < 0 ? -numerator : numerator
+        let bottom: Integer = denominator < 0 ? -denominator : denominator
+        let divisor: Integer = DrillFraction<Integer>.gcd(top, bottom)
+        self.numerator = (denominator < 0 ? -numerator : numerator) / divisor
+        self.denominator = bottom / divisor
+    }
+
+    private init(unchecked numerator: Integer, _ denominator: Integer) {
+        self.numerator = numerator
+        self.denominator = denominator
     }
 
     /// 最大公約数(どちらも 0 以上)。gcd(0, n) = n。
-    static func gcd(_ a: Int, _ b: Int) -> Int {
-        var x: Int = a
-        var y: Int = b
+    static func gcd(_ a: Integer, _ b: Integer) -> Integer {
+        var x: Integer = a
+        var y: Integer = b
         while y != 0 {
-            let r: Int = x % y
+            let r: Integer = x % y
             x = y
             y = r
         }
         return x == 0 ? 1 : x
     }
 
+    private static func magnitude(_ value: Integer) -> Integer { value < 0 ? -value : value }
+
     var isZero: Bool { numerator == 0 }
     var isInteger: Bool { denominator == 1 }
     var isNegative: Bool { numerator < 0 }
     var doubleValue: Double { Double(numerator) / Double(denominator) }
-    var negated: DrillRational { DrillRational(unchecked: -numerator, denominator) }
-    var magnitude: DrillRational { DrillRational(unchecked: abs(numerator), denominator) }
+    var negated: DrillFraction<Integer> { DrillFraction<Integer>(unchecked: -numerator, denominator) }
+    var magnitude: DrillFraction<Integer> { DrillFraction<Integer>(unchecked: DrillFraction<Integer>.magnitude(numerator), denominator) }
 
-    private init(unchecked numerator: Int, _ denominator: Int) {
-        self.numerator = numerator
-        self.denominator = denominator
-    }
-
-    func adding(_ other: DrillRational) -> DrillRational? {
-        let divisor: Int = DrillRational.gcd(denominator, other.denominator)
-        let leftScale: Int = other.denominator / divisor
-        let rightScale: Int = denominator / divisor
-        let (left, overflowLeft): (Int, Bool) = numerator.multipliedReportingOverflow(by: leftScale)
-        let (right, overflowRight): (Int, Bool) = other.numerator.multipliedReportingOverflow(by: rightScale)
-        let (sum, overflowSum): (Int, Bool) = left.addingReportingOverflow(right)
-        let (common, overflowCommon): (Int, Bool) = denominator.multipliedReportingOverflow(by: leftScale)
+    func adding(_ other: DrillFraction<Integer>) -> DrillFraction<Integer>? {
+        let divisor: Integer = DrillFraction<Integer>.gcd(denominator, other.denominator)
+        let leftScale: Integer = other.denominator / divisor
+        let rightScale: Integer = denominator / divisor
+        let (left, overflowLeft): (Integer, Bool) = numerator.multipliedReportingOverflow(by: leftScale)
+        let (right, overflowRight): (Integer, Bool) = other.numerator.multipliedReportingOverflow(by: rightScale)
+        let (sum, overflowSum): (Integer, Bool) = left.addingReportingOverflow(right)
+        let (common, overflowCommon): (Integer, Bool) = denominator.multipliedReportingOverflow(by: leftScale)
         guard !overflowLeft, !overflowRight, !overflowSum, !overflowCommon else { return nil }
-        return DrillRational(sum, common)
+        return DrillFraction<Integer>(sum, common)
     }
 
-    func subtracting(_ other: DrillRational) -> DrillRational? {
+    func subtracting(_ other: DrillFraction<Integer>) -> DrillFraction<Integer>? {
         adding(other.negated)
     }
 
-    func multiplied(by other: DrillRational) -> DrillRational? {
+    func multiplied(by other: DrillFraction<Integer>) -> DrillFraction<Integer>? {
         // 先に斜めに約分して、あふれにくくする。
-        let first: Int = DrillRational.gcd(abs(numerator), other.denominator)
-        let second: Int = DrillRational.gcd(abs(other.numerator), denominator)
-        let (top, overflowTop): (Int, Bool) = (numerator / first).multipliedReportingOverflow(by: other.numerator / second)
-        let (bottom, overflowBottom): (Int, Bool) = (denominator / second).multipliedReportingOverflow(by: other.denominator / first)
+        let first: Integer = DrillFraction<Integer>.gcd(DrillFraction<Integer>.magnitude(numerator), other.denominator)
+        let second: Integer = DrillFraction<Integer>.gcd(DrillFraction<Integer>.magnitude(other.numerator), denominator)
+        let (top, overflowTop): (Integer, Bool) = (numerator / first).multipliedReportingOverflow(by: other.numerator / second)
+        let (bottom, overflowBottom): (Integer, Bool) = (denominator / second).multipliedReportingOverflow(by: other.denominator / first)
         guard !overflowTop, !overflowBottom else { return nil }
-        return DrillRational(top, bottom)
+        return DrillFraction<Integer>(top, bottom)
     }
 
     /// 0 で割る時は nil。
-    func divided(by other: DrillRational) -> DrillRational? {
-        guard let inverse: DrillRational = other.reciprocal else { return nil }
+    func divided(by other: DrillFraction<Integer>) -> DrillFraction<Integer>? {
+        guard let inverse: DrillFraction<Integer> = other.reciprocal else { return nil }
         return multiplied(by: inverse)
     }
 
-    var reciprocal: DrillRational? {
-        DrillRational(denominator, numerator)
+    var reciprocal: DrillFraction<Integer>? {
+        DrillFraction<Integer>(denominator, numerator)
     }
 
     /// 整数乗。0 の負の数乗と、あふれは nil。
-    func power(_ exponent: Int) -> DrillRational? {
-        if exponent == 0 { return DrillRational.one }
+    func power(_ exponent: Int) -> DrillFraction<Integer>? {
+        if exponent == 0 { return DrillFraction<Integer>.one }
         if exponent < 0 {
-            guard exponent != Int.min, let inverse: DrillRational = reciprocal else { return nil }
+            guard exponent != Int.min, let inverse: DrillFraction<Integer> = reciprocal else { return nil }
             return inverse.power(-exponent)
         }
-        var result: DrillRational = DrillRational.one
-        var base: DrillRational = self
+        var result: DrillFraction<Integer> = DrillFraction<Integer>.one
+        var base: DrillFraction<Integer> = self
         var remaining: Int = exponent
         while remaining > 0 {
             if remaining & 1 == 1 {
-                guard let next: DrillRational = result.multiplied(by: base) else { return nil }
+                guard let next: DrillFraction<Integer> = result.multiplied(by: base) else { return nil }
                 result = next
             }
             remaining >>= 1
             if remaining > 0 {
-                guard let squared: DrillRational = base.multiplied(by: base) else { return nil }
+                guard let squared: DrillFraction<Integer> = base.multiplied(by: base) else { return nil }
                 base = squared
             }
         }
         return result
     }
 
-    static func < (left: DrillRational, right: DrillRational) -> Bool {
-        let (a, overflowA): (Int, Bool) = left.numerator.multipliedReportingOverflow(by: right.denominator)
-        let (b, overflowB): (Int, Bool) = right.numerator.multipliedReportingOverflow(by: left.denominator)
+    static func < (left: DrillFraction<Integer>, right: DrillFraction<Integer>) -> Bool {
+        let (a, overflowA): (Integer, Bool) = left.numerator.multipliedReportingOverflow(by: right.denominator)
+        let (b, overflowB): (Integer, Bool) = right.numerator.multipliedReportingOverflow(by: left.denominator)
         if overflowA || overflowB { return left.doubleValue < right.doubleValue }
         return a < b
     }
 
     /// 床関数。
-    var floorValue: Int {
-        let quotient: Int = numerator / denominator
+    var floorValue: Integer {
+        let quotient: Integer = numerator / denominator
         return (numerator % denominator != 0 && numerator < 0) ? quotient - 1 : quotient
     }
 
     /// 四捨五入(0.5 は 0 から遠い方へ)。あふれは nil。
-    var roundedValue: Int? {
-        let (doubled, overflow): (Int, Bool) = abs(numerator).multipliedReportingOverflow(by: 2)
-        let (shifted, overflowShift): (Int, Bool) = doubled.addingReportingOverflow(denominator)
-        let (bottom, overflowBottom): (Int, Bool) = denominator.multipliedReportingOverflow(by: 2)
+    var roundedValue: Integer? {
+        let (doubled, overflow): (Integer, Bool) = DrillFraction<Integer>.magnitude(numerator).multipliedReportingOverflow(by: 2)
+        let (shifted, overflowShift): (Integer, Bool) = doubled.addingReportingOverflow(denominator)
+        let (bottom, overflowBottom): (Integer, Bool) = denominator.multipliedReportingOverflow(by: 2)
         guard !overflow, !overflowShift, !overflowBottom else { return nil }
-        let magnitude: Int = shifted / bottom
-        return numerator < 0 ? -magnitude : magnitude
+        let size: Integer = shifted / bottom
+        return numerator < 0 ? -size : size
     }
 
-    /// 10 進の文字列("12"、"-0.25"、"6.02e23")を誤差なしで読む。Int に収まらなければ nil。
+    /// 10 の整数乗。あふれは nil。
+    static func powerOfTen(_ exponent: Int) -> DrillFraction<Integer>? {
+        guard abs(exponent) <= 38 else { return nil }
+        return DrillFraction<Integer>(integer: 10).power(exponent)
+    }
+
+    /// 10 進の文字列("12"、"-0.25"、"6.02e23")を誤差なしで読む。整数の型に収まらなければ nil。
     init?(decimal text: String) {
         var mantissa: Substring = Substring(text)
         var exponent: Int = 0
@@ -154,21 +165,24 @@ nonisolated struct DrillRational: Hashable, Sendable {
         let fraction: Substring = pieces.count == 2 ? pieces[1] : Substring("")
         guard !(whole.isEmpty && fraction.isEmpty) else { return nil }
         guard (whole + fraction).allSatisfy({ (c: Character) -> Bool in c.isASCII && c.isNumber }) else { return nil }
-        guard let digits: Int = Int(String(whole + fraction)) else { return nil }
+        guard let digits: Integer = Integer(String(whole + fraction)) else { return nil }
         exponent -= fraction.count
-        guard abs(exponent) <= 18 else { return nil }
-        var scale: Int = 1
-        for _ in 0..<abs(exponent) { scale *= 10 }
-        let signed: Int = negative ? -digits : digits
-        if exponent >= 0 {
-            let (value, overflow): (Int, Bool) = signed.multipliedReportingOverflow(by: scale)
-            guard !overflow else { return nil }
-            self.init(integer: value)
-        } else {
-            self.init(signed, scale)
-        }
+        guard let scale: DrillFraction<Integer> = DrillFraction<Integer>.powerOfTen(exponent),
+              let value: DrillFraction<Integer> = DrillFraction<Integer>(integer: negative ? -digits : digits).multiplied(by: scale) else { return nil }
+        self = value
+    }
+
+    /// 別の整数の型の分数から作る。収まらなければ nil。
+    init?<Other: FixedWidthInteger & SignedInteger & Sendable>(converting other: DrillFraction<Other>) {
+        guard let top: Integer = Integer(exactly: other.numerator), let bottom: Integer = Integer(exactly: other.denominator) else { return nil }
+        self.init(unchecked: top, bottom)
     }
 }
+
+/// ふだん使う分数(Int)。
+typealias DrillRational = DrillFraction<Int>
+/// Int に収まらない桁の分数(Int128)。
+typealias DrillWideRational = DrillFraction<Int128>
 
 /// 誤差なしで持つ数。有理数 × 平方根の和: Σ 係数 × √(根号の中)。
 /// 根号の中は平方因数を持たない 0 でない整数で、1 は有理数の項、負の数 -k は i√k(-1 は虚数単位 i)。
@@ -358,6 +372,8 @@ nonisolated struct DrillExact: Hashable, Sendable {
 /// 数。誤差なしの値か、実数(Double)。
 nonisolated enum DrillNumber: Hashable, Sendable {
     case exact(DrillExact)
+    /// Int に収まらない桁の有理数(6.6 × 10⁻³⁴ など)。有効数字の丸めを誤差なしで行うために持つ。
+    case wide(DrillWideRational)
     case real(Double)
 
     static let zero: DrillNumber = DrillNumber.exact(DrillExact.zero)
@@ -371,12 +387,37 @@ nonisolated enum DrillNumber: Hashable, Sendable {
         self = DrillNumber.exact(DrillExact(rational: rational))
     }
 
-    /// JSON の数(Double)を、10 進の表記どおりに誤差なしで読む。Int に収まらない大きさだけ実数にする。
+    /// JSON の数(Double)を、10 進の表記どおりに誤差なしで読む。
     init(json value: Double) {
-        if let rational: DrillRational = DrillRational(decimal: "\(value)") {
+        self = DrillNumber(decimal: "\(value)") ?? DrillNumber.real(value)
+    }
+
+    /// 10 進の文字列を誤差なしで読む。Int に収まらなければ Int128 で持つ。どちらにも収まらなければ nil。
+    init?(decimal text: String) {
+        if let rational: DrillRational = DrillRational(decimal: text) {
+            self = DrillNumber.exact(DrillExact(rational: rational))
+        } else if let wide: DrillWideRational = DrillWideRational(decimal: text) {
+            self = DrillNumber.wide(wide)
+        } else {
+            return nil
+        }
+    }
+
+    /// 桁の多い有理数を、Int に収まるなら普通の分数に戻して持つ。
+    init(wide: DrillWideRational) {
+        if let rational: DrillRational = DrillRational(converting: wide) {
             self = DrillNumber.exact(DrillExact(rational: rational))
         } else {
-            self = DrillNumber.real(value)
+            self = DrillNumber.wide(wide)
+        }
+    }
+
+    /// 有理数なら、桁の多い型での値。
+    var wideRational: DrillWideRational? {
+        switch self {
+        case DrillNumber.exact(let value): return value.rational.flatMap { (rational: DrillRational) -> DrillWideRational? in DrillWideRational(converting: rational) }
+        case DrillNumber.wide(let value): return value
+        case DrillNumber.real: return nil
         }
     }
 
@@ -392,6 +433,7 @@ nonisolated enum DrillNumber: Hashable, Sendable {
     var doubleValue: Double? {
         switch self {
         case DrillNumber.exact(let value): return value.doubleValue
+        case DrillNumber.wide(let value): return value.doubleValue
         case DrillNumber.real(let value): return value
         }
     }
@@ -399,13 +441,15 @@ nonisolated enum DrillNumber: Hashable, Sendable {
     var isZero: Bool {
         switch self {
         case DrillNumber.exact(let value): return value.isZero
+        case DrillNumber.wide(let value): return value.isZero
         case DrillNumber.real(let value): return value == 0
         }
     }
 
+    /// 誤差なしで持っているか。
     var isExact: Bool {
-        if case DrillNumber.exact = self { return true }
-        return false
+        if case DrillNumber.real = self { return false }
+        return true
     }
 }
 
