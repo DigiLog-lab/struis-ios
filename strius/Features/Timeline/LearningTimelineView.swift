@@ -92,7 +92,9 @@ struct LearningTimelineView: View {
                     .offset(y: min(0, dragOffset) * 0.35)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             }
-            if showsInk { placedInkLayer }
+            // iPad の縦向きの結果の画面では、書く面を見えなくする(結果の列が全幅なので、書いた線が講評の文に重なって読めなくなる)。
+            // 書いた答案は結果の列の中に出す。木からは外さない(外すと書く面が作り直され、横向きに回した時に線が消える)。
+            if showsInk { placedInkLayer.opacity(hidesInkInResult ? 0 : 1).allowsHitTesting(!hidesInkInResult) }
             if store.skipBannerAttemptID != nil { skipBanner.transition(.move(edge: .top).combined(with: .opacity)) }
             if let error = store.actionError {
                 Text(error)
@@ -431,10 +433,17 @@ struct LearningTimelineView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         TimelineResultView(card: card, attempt: attempt, store: store)
-                        // iPhone は結果の画面で書く面を出さないので、送った手書きに赤ペンを重ねてここに出す。
-                        if !layout.isPad, let answer = store.inkAnswer(attempt.id) {
+                        // iPhone と iPad の縦向きは結果の画面で書く面を出さないので、送った手書きに赤ペンを重ねてここに出す。
+                        // iPhone は赤ペンがある時だけ。iPad の縦向きは、書いた答案が消えたように見えないよう、いつも出す
+                        // (書いた時の大きさより大きくはしない)。
+                        if layout != .padLandscape, let answer = store.inkAnswer(attempt.id) {
                             let marks = store.redPen(attempt.id)
-                            if !marks.isEmpty { TimelineRedPenPaper(answer: answer, marks: marks) }
+                            if layout == .padPortrait {
+                                TimelineRedPenPaper(answer: answer, marks: marks)
+                                    .frame(maxWidth: answer.frame.bounds.width, alignment: .leading)
+                            } else if !marks.isEmpty {
+                                TimelineRedPenPaper(answer: answer, marks: marks)
+                            }
                         }
                         if attempt.verdict == "wrong", store.isStuck(card) {
                             // 2日続けて同じ所で止まった: 直近の答案をすべて渡して、質問(チューターとの会話)で一緒に考える。
@@ -718,7 +727,8 @@ struct LearningTimelineView: View {
                         } message: {
                             Text("この答案を見直します。見直した結果は、区切りのよいところでお知らせします。")
                         }
-                    if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? false {
+                    // 撮る・書くカードはいつでも、選ぶ・並べる・仕分けるカードは間違えた時に「解説」を出す。
+                    if showsExplain(card) {
                         TimelineActionButton(symbol: TimelineSymbol.explain, label: "解説", identifier: "timeline-explain") { explain(card) }
                     }
                     TimelineActionButton(symbol: TimelineSymbol.next, label: "次へ", prominent: true, identifier: "timeline-next") { Task { await store.goNext() } }
@@ -775,6 +785,8 @@ struct LearningTimelineView: View {
     private var isRapid: Bool { if case .rapid = store.phase { true } else { false } }
     private var isGrading: Bool { if case .grading = store.phase { true } else { false } }
     private var isResult: Bool { if case .result = store.phase { true } else { false } }
+    /// iPad の縦向きの結果の画面: 書く面を見えなくして、書いた答案は結果の列の中に出す。
+    private var hidesInkInResult: Bool { layout == .padPortrait && isResult }
 
     private var stripLine: String {
         guard let next = store.upcoming else { return store.phase == .waiting ? "用意しています" : "" }
@@ -848,25 +860,60 @@ struct LearningTimelineView: View {
         inkGeneration += 1
     }
 
+    private func showsExplain(_ card: TimelineCardRecord) -> Bool {
+        guard let kind: TimelineCards.Kind = TimelineCards.Kind(rawValue: card.kind) else { return false }
+        if kind.needsReading { return true }
+        switch kind {
+        case .guide, .ask, .notice: return false
+        default: return store.lastAttempt?.verdict == "wrong"
+        }
+    }
+
+    /// 質問・解説に添える問題。式は `$…$` で囲む(送った後の吹き出しで数式として組まれる)。選ぶカードは選択肢も付ける。
     private func problemText(_ card: TimelineCardRecord) -> String {
-        // `problem` が空の文字で入っているカード(仕分けなど)は、問いかけの文を使う(空のまま渡すと、下書きに問題が入らない)。
+        // `problem` が空の文字で入っているカード(仕分けなど)は、問いかけの文を使う(空のまま渡すと、問題が入らない)。
         let problem: String = card.payload["problem"]?.stringValue ?? ""
-        return [problem.isEmpty ? card.prompt : problem, card.math, card.question].filter { !$0.isEmpty }.joined(separator: "\n")
+        let math: String = card.math.isEmpty || card.math.contains("$") ? card.math : "$" + card.math + "$"
+        // 「理由を選ぶ」「比べる」は、問いの文が `prompt` に入っている(`question` は同じ問いの言い換え)。
+        let asksInPrompt: Bool = card.kind == TimelineCards.Kind.reason.rawValue || card.kind == TimelineCards.Kind.compare.rawValue
+        var lines: [String] = [problem, problem.isEmpty || asksInPrompt ? card.prompt : "", math, asksInPrompt ? "" : card.question].filter { !$0.isEmpty }
+        lines += TimelineCards.optionLines(card)
+        return lines.joined(separator: "\n")
+    }
+
+    /// 解説に添える答え。正しい答え(撮る・書くカードは答えの式、選ぶ・並べる・仕分けるカードは正しい選択肢)と、
+    /// 間違えた時は本人の答えを、どちらの答えか分かる見出しを付けて渡す(見出しが「答え」だけだと、本人が正解したものとして説明される)。
+    private func answerText(_ card: TimelineCardRecord) -> String {
+        let attempt: TimelineAttemptRecord? = store.lastAttempt
+        let wrong: Bool = attempt?.verdict == "wrong"
+        let shown: (learner: String?, correct: String)? = TimelineCards.shownAnswers(card, chosen: attempt?.checkpointResults.arrayValue?.first)
+        let correct: String = shown?.correct ?? (card.answerKey.isEmpty ? "" : TimelineRichText.answerSource(card.answerKey))
+        let written: String = attempt?.learnerAnswer ?? ""
+        let learner: String = shown?.learner ?? (written.isEmpty ? "" : TimelineRichText.answerSource(written))
+        var lines: [String] = []
+        if !correct.isEmpty { lines.append("正しい答え: " + correct) }
+        if wrong, !learner.isEmpty { lines.append("自分の答え(誤答): " + learner) }
+        return lines.joined(separator: "\n")
     }
 
     private func ask(_ card: TimelineCardRecord) {
         coordinator.ask(WorkbookQuestionContext(subunitId: card.subunitId, setId: nil, title: "タイムライン", stageLabel: nil,
-                                                initialDraft: "この問題について質問です。\n" + problemText(card)))
+                                                initialDraft: nil, attachedProblem: problemText(card)))
     }
 
     private func askWithHistory(_ card: TimelineCardRecord) {
         coordinator.ask(WorkbookQuestionContext(subunitId: card.subunitId, setId: nil, title: "タイムライン", stageLabel: nil,
-                                                initialDraft: "同じところで2日続けて止まっています。一緒に考えてください。\n" + problemText(card) + "\n\nこれまでの答案:\n" + store.recentAnswers(for: card)))
+                                                initialDraft: nil,
+                                                attachedProblem: problemText(card) + "\n\nこれまでの答案:\n" + store.recentAnswers(for: card),
+                                                autoSendText: "同じところで2日続けて止まっています。一緒に考えてください。"))
     }
 
     private func explain(_ card: TimelineCardRecord) {
+        let answer: String = answerText(card)
         coordinator.ask(WorkbookQuestionContext(subunitId: card.subunitId, setId: nil, title: "タイムライン", stageLabel: nil,
-                                                initialDraft: "この問題の解き方を説明してください。\n" + problemText(card) + "\n答え: " + card.answerKey))
+                                                initialDraft: nil,
+                                                attachedProblem: problemText(card) + (answer.isEmpty ? "" : "\n" + answer),
+                                                autoSendText: "この問題の解き方を説明してください。"))
     }
 
     private var skipBanner: some View {
@@ -907,8 +954,8 @@ struct TimelineStopSheet: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label(TimelineRules.chainPosition(next) != nil ? "続き" : "次の1問", systemImage: TimelineSymbol.chain).font(Typography.sans(size: 13, weight: .bold))
                         .foregroundStyle(Theme.secondaryText)
-                    Text(TimelineMath.previewLine(next))
-                        .font(Typography.sans(size: 16, weight: .medium)).lineLimit(2)
+                    TimelineRichText(text: TimelineMath.richPreviewLine(next), size: 16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     if summary.total > 0 {
                         HStack(spacing: 8) {
                             TimelineMark(correct: true, size: 11)
@@ -920,22 +967,29 @@ struct TimelineStopSheet: View {
                 .padding(14)
                 .background(Theme.ground, in: RoundedRectangle(cornerRadius: 16))
             }
-            HStack(spacing: 12) {
-                Button { dismiss() } label: {
-                    Text("あと 1 つ").frame(maxWidth: .infinity).padding(.vertical, 14)
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("timeline-one-more")
-                Button { store.stopForToday() } label: {
-                    Text("今日はここまで").frame(maxWidth: .infinity).padding(.vertical, 14)
-                }
-                .buttonStyle(.bordered)
-                .accessibilityIdentifier("timeline-stop-today")
+            // 2 つのボタンは同じ大きさで並べる。文字サイズが大きくて 1 行に入らない時は、文字を縮めたり折ったりせず縦に並べる。
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) { stopButtons }
+                VStack(spacing: 10) { stopButtons }
             }
             .font(Typography.sans(size: 16, weight: .bold))
         }
         .padding(24)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("timeline-stop-sheet")
+    }
+
+    @ViewBuilder
+    private var stopButtons: some View {
+        Button { dismiss() } label: {
+            Text("あと 1 つ").lineLimit(1).frame(maxWidth: .infinity).padding(.vertical, 14)
+        }
+        .buttonStyle(.borderedProminent)
+        .accessibilityIdentifier("timeline-one-more")
+        Button { store.stopForToday() } label: {
+            Text("今日はここまで").lineLimit(1).frame(maxWidth: .infinity).padding(.vertical, 14)
+        }
+        .buttonStyle(.bordered)
+        .accessibilityIdentifier("timeline-stop-today")
     }
 }

@@ -34,8 +34,9 @@ struct TimelineDipChoiceView: View {
                             Label("10秒 × \(rapid.count)", systemImage: TimelineSymbol.clock).font(Typography.sans(size: 13, weight: .bold))
                         }
                         ForEach(Array(rapid.enumerated()), id: \.offset) { index, card in
-                            Text(card.math.isEmpty ? MathPlainText.preview(card.prompt) : TimelineMath.plain(card.math))
-                                .font(Typography.sans(size: 17, weight: .medium))
+                            // 式は数式として組む(文字に直すと `35^°` のような記号が見えてしまう)。
+                            TimelineRichText(text: TimelineMath.richLine(card), size: 17)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .opacity(1 - Double(index) * 0.3)
                         }
                         if let best = store.rapidBest {
@@ -128,8 +129,8 @@ struct TimelineRapidDoneView: View {
                 if let card = store.machine.cards[id], let result = store.rapidVerdict(id) {
                     HStack {
                         if result.verdict == "grading" { ProgressView().controlSize(.small) } else { TimelineMark(correct: result.verdict == "correct") }
-                        Text(card.math.isEmpty ? MathPlainText.preview(card.prompt) : TimelineMath.plain(card.math)).font(Typography.sans(size: 15, weight: .medium)).lineLimit(1)
-                        Spacer()
+                        TimelineRichText(text: TimelineMath.richLine(card), size: 15)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         Text(String(format: "%.1f秒", result.seconds)).font(Typography.sans(size: 15, weight: .bold)).monospacedDigit()
                     }
                 }

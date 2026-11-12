@@ -81,6 +81,8 @@ struct WorkbookChatQuestionScreen: View {
                 onClose: { close() },
                 threadBootstrap: unitCreationBootstrap,
                 initialDraft: context.initialDraft,
+                attachedProblem: context.attachedProblem,
+                autoSendText: context.autoSendText,
                 onProposalStarted: { started in openFirstSubunit(started) }
             )
         }

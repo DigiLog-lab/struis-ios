@@ -27,6 +27,9 @@ final class ScreenConsistencyTests: XCTestCase {
         XCTAssertEqual(MathPlainText.preview("\\(D>0\\) のときは解が 2 つです。"), "D > 0 のときは解が 2 つです。")
         XCTAssertEqual(MathPlainText.preview("判別式は $D=b^2-4ac$"), "判別式は D = b²−4ac")
         XCTAssertEqual(MathPlainText.readable("$\\frac{b}{2a}$"), "b/(2a)")
+        // 度の記号は上付きの印(^)を付けない。
+        XCTAssertTrue(MathPlainText.preview("$\\angle C = 35^\\circ$ のとき").contains("35°"))
+        XCTAssertFalse(MathPlainText.preview("$\\angle C = 35^\\circ$ のとき").contains("^"))
         XCTAssertFalse(MathPlainText.preview("$$x^{2}$$\n\n**重要**").contains("$"))
     }
 

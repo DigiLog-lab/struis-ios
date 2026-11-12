@@ -537,7 +537,8 @@ nonisolated enum TimelineTurns {
     /// 1段下りる依頼(対象の 1 点の直前の前提だけを聞く。モデルは上位モデル)。見直しなどのモデルが
     /// `struis.timeline_descend` で出す。いつ下りるかはモデルに任せ、アプリは条件を決めない。
     static func insertDescend(skillID: String, timeline: inout TimelineMachine, workbook: WorkbookMachine, note: String = "") -> String? {
-        guard let skill = timeline.skills[skillID], !TimelineGraphSchedule.descendRequested(timeline, skillID: skillID) else { return nil }
+        guard let skill = timeline.skills[skillID], !TimelineGraphSchedule.descendRequested(timeline, skillID: skillID),
+              TimelineGraphSchedule.upkeepAllowed(timeline) else { return nil }
         var body = decomposeRequest(mode: "descend", nodes: [skill], units: [], depth: 1, workbook: workbook, timeline: timeline, profile: OnboardingProfile.load())
         if case .object(var object) = body {
             object["skill_id"] = .string(skillID)
@@ -574,8 +575,13 @@ nonisolated enum TimelineTurns {
 
     /// 利用枠に数えない知識グラフの依頼(`UsageSetup.graph`)。1 つの単元の最初の構築は、構築(または単元の分の追加)1 回・
     /// 続きの段(`graphStepLimit` まで)・つまずきの洗い出し 1 回で、上位モデルのターンが 5〜7 回になる(実測で約 1 ドル。
-    /// ライトの 1 週間の枠より大きい)。学習中に起きる見直し(`graph_review`)と 1 段下りる依頼(`graph_descend`)は数える。
+    /// ライトの 1 週間の枠より大きい)。学習中に起きる見直し(`graph_review`)と 1 段下りる依頼(`graph_descend`)は、ここには入れず
+    /// `upkeepPurposes` で扱う。
     static let setupPurposes: Set<String> = ["graph_build", "graph_extend", "graph_step", "graph_misconceptions"]
+
+    /// 学習中の知識グラフの手入れ(`UsageSetup.graphUpkeep`)。利用枠に数えない代わりに、7 日に 1 回までしか頼まない
+    /// (`TimelineGraphSchedule.upkeepAllowed`)。
+    static let upkeepPurposes: Set<String> = ["graph_review", "graph_descend"]
 
     static func graph(composer: TurnComposer, planID: String, batchID: String, workbook: WorkbookMachine, timeline: TimelineMachine) async throws -> TurnPlan {
         guard let batch = timeline.batches[batchID] else { throw LedgerError.notFound("timeline graph request") }
@@ -592,8 +598,9 @@ nonisolated enum TimelineTurns {
             turn: TurnPlan.TurnSpec(text: TurnComposer.dump(.object(request)), images: [], outputSchema: try await composer.assets.json(schema), sandboxPolicy: "dangerFullAccess"),
             workspace: workspace, delegation: nil, collect: [], limits: .structured
         )
-        // 初めての構築・単元の分の追加・つまずきの洗い出しは「初回の準備」(学習中の見直し・1 段下りる依頼は普通に数える)。
-        if setupPurposes.contains(batch.purpose) { plan.setup = .graph }
+        // 初めての構築・単元の分の追加・つまずきの洗い出しは「初回の準備」。学習中の見直し・1 段下りる依頼は「手入れ」
+        // (どちらも利用枠に数えない)。
+        if setupPurposes.contains(batch.purpose) { plan.setup = .graph } else if upkeepPurposes.contains(batch.purpose) { plan.setup = .graphUpkeep }
         return plan
     }
 

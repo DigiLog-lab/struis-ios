@@ -95,6 +95,10 @@ nonisolated enum UsageSetup: String, Codable, Sendable, CaseIterable {
     case unit
     /// 知識グラフの初めての構築・新しい単元の分の追加・つまずきの洗い出し(学習中の見直しと 1 段下りる依頼は含めない)。
     case graph
+    /// 学習中の知識グラフの手入れ(見直しと 1 段下りる依頼)。利用者が頼んでいない裏の仕事で、上位モデルの 1 回がライトの
+    /// 1 週間の 3 割近くになる(実測 0.23 ドル、2026-11-12)。数えない代わりに、頼む回数を `TimelineGraphSchedule.upkeepAllowed`
+    /// が 7 日に 1 回までに抑える。
+    case graphUpkeep
 }
 
 /// 利用枠の決まり(#62)。
@@ -116,6 +120,8 @@ nonisolated enum UsageRules {
         // 単元 4 つ分(オンボーディングの 1 つ + 単元づくりの 3 つ)。1 つの単元の最初の構築は、構築(追加)1 回 +
         // 続きの段 5 回まで(`TimelineTurns.graphStepLimit`)+ つまずきの洗い出し 1 回で、多くて 7 回。
         case .graph: 28
+        // 回数は頼む側(7 日に 1 回まで)で抑えるので、ここでは数を限らない。
+        case .graphUpkeep: Int.max
         }
     }
 
@@ -531,7 +537,9 @@ nonisolated final class UsageMeter: @unchecked Sendable {
     /// 「初回の準備」のターンを、利用枠に数えずに通すか。数えないと決めたターンの ID を残し、同じターンの 2 回目以降の
     /// 要求(送り直し・続き)は数を増やさずに通す。種類ごとの数(`UsageRules.freeSetupTurns`、全端末の合計)を超えたら数える。
     func takesFree(_ setup: UsageSetup, turnID: String) -> Bool {
-        lock.withLock {
+        // 学習中の手入れは、いつも数えない(ID を残さない。回数は頼む側が抑える)。
+        if setup == .graphUpkeep { return true }
+        return lock.withLock {
             let stored = freeSetupIDs(setup)
             if stored.all.contains(turnID) { return true }
             guard stored.all.count < UsageRules.freeSetupTurns(setup) else { return false }

@@ -154,12 +154,29 @@ struct TimelineMath: View {
 
     private var fitted: CGFloat {
         let length = TimelineMath.plain(latex).count
-        return length > 14 ? max(18, size * 14 / CGFloat(length) * 1.25) : size
+        // 元の大きさより大きくはしない(15〜17 文字の式は、前は計算の上で元より大きくなり、iPad 横向きの問題の列で右が切れた)。
+        return length > 14 ? min(size, max(18, size * 14 / CGFloat(length) * 1.25)) : size
     }
 
     /// 下の帯・選択肢に 1 行で出す、読める文字。
     static func plain(_ latex: String) -> String {
         latex.isEmpty ? "" : MathPlainText.preview("\\(" + latex + "\\)")
+    }
+
+    /// 式を `$…$` で囲む(もう囲んであればそのまま)。
+    static func wrapped(_ latex: String) -> String {
+        latex.isEmpty || latex.contains("$") ? latex : "$" + latex + "$"
+    }
+
+    /// 2 択の画面・速攻の結果に出す 1 問: 式があれば式、無ければ問題文。数式として組む(`TimelineRichText` に渡す)。
+    static func richLine(_ card: TimelineCardRecord) -> String {
+        card.math.isEmpty ? card.prompt : wrapped(card.math)
+    }
+
+    /// 「次の1問」: 式と問い。どちらも無ければ問題文。数式として組む(`TimelineRichText` に渡す)。
+    static func richPreviewLine(_ card: TimelineCardRecord) -> String {
+        let line: String = [wrapped(card.math), card.question].filter { !$0.isEmpty }.joined(separator: "  ")
+        return line.isEmpty ? card.prompt : line
     }
 
     /// 「次の1問」の 1 行: 式と問い(問いの中の `$…$` も読める文字に)。どちらも無ければ問題文。
