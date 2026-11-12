@@ -57,6 +57,31 @@ final class TimelineCardsTests: XCTestCase {
         XCTAssertTrue(TimelineCards.grade(graph, answer: graph.payload["graph_order"]!))
     }
 
+    /// 端末の中で採点するカードを間違えた時は、出題の時に作った手順を「解き方」として結果に出す(モデルを呼ばない)。
+    func testWrongChoiceCardsShowTheSolutionStepsOnTheResult() throws {
+        let card: TimelineCardRecord = try base()
+        let steps: [String] = ["y = 2x^2 - 8x + 3", "= 2(x^2 - 4x) + 3", "= 2(x - 2)^2 - 5", "最小値 -5"]
+        func make(_ kind: TimelineCards.Kind) -> TimelineCardRecord {
+            var copy: TimelineCardRecord = card
+            copy.kind = kind.rawValue
+            copy.payload = .object((card.payload.objectValue ?? [:]).merging(TimelineCards.derive(kind, from: card)!.payload) { _, new in new })
+            return copy
+        }
+        for kind in [TimelineCards.Kind.findError, .nextStep, .sort, .predict, .reason, .graphMatch] {
+            XCTAssertEqual(TimelineCards.solutionSteps(make(kind)), steps, "\(kind) の結果に解き方が出ない")
+        }
+        // 並べ替えは、手順そのものが「正しい答え」として出るので重ねない。
+        XCTAssertTrue(TimelineCards.solutionSteps(make(.order)).isEmpty)
+        // 読み取って採点するカードは、採点のコメントが説明になる。
+        XCTAssertTrue(TimelineCards.solutionSteps(card).isEmpty)
+        XCTAssertTrue(TimelineCards.solutionSteps(make(.fillLine)).isEmpty)
+        XCTAssertTrue(TimelineCards.solutionSteps(make(.inverse)).isEmpty)
+        // 手順を持たないカード(空の行だけ)は、何も出さない。
+        var bare: TimelineCardRecord = make(.reason)
+        bare.payload = .object((bare.payload.objectValue ?? [:]).merging(["steps": .array([.string(" "), .string("")])]) { _, new in new })
+        XCTAssertTrue(TimelineCards.solutionSteps(bare).isEmpty)
+    }
+
     func testWrittenAnswersAreCheckedWithMath() throws {
         let card = try base()
         var inverse = card

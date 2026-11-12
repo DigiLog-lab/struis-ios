@@ -247,6 +247,18 @@ struct TimelineResultView: View {
                     labeled("正しい答え", shown.correct, size: 16, plainMath: false).accessibilityIdentifier("timeline-answer-key")
                 }
             }
+            if !correct, !solution.isEmpty {
+                // 端末の中で採点するカードは採点のコメントが無いので、出題の時に作ってある解き方をそのまま出す(「解説」を押さなくても理由が分かる)。
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("解き方").font(Typography.sans(size: 12, weight: .bold)).foregroundStyle(Theme.secondaryText)
+                    ForEach(Array(solution.enumerated()), id: \.offset) { _, line in
+                        TimelineRichText(text: line, size: 15)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("timeline-solution")
+            }
             if !correct, !checkpoints.isEmpty {
                 // どの場合が抜けたか(前の版の採点。書けた場合に ○、抜けた場合に ×。地の色も変える)。
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
@@ -282,6 +294,9 @@ struct TimelineResultView: View {
             if let text = store.revealText { reveal(text) }
         }
     }
+
+    /// 選ぶ・仕分けるカードを間違えた時に出す解き方(無ければ空)。
+    private var solution: [String] { TimelineCards.solutionSteps(card) }
 
     /// 「あなたの答え」と「正しい答え」をラベル付きで並べる(正解の時は答えだけ)。
     @ViewBuilder
