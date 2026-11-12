@@ -1,3 +1,12 @@
 // Claude Console の App integration の client ID(clid_...)。秘密値ではない。App Attest で端末から Claude を直接呼ぶ。
 STRUIS_CLAUDE_CLIENT_ID = clid_01VktLSgwMYeBarCsxhUjHUk
+
+// タイムアタックと App Clip(#133)のスイッチ。リリースの都合で延期中なので NO。
+// NO の間: 本体はタイムアタックのコードをコンパイルせず(`#if STRUIS_TIME_ATTACK`)、App Clip を埋め込まない。
+// YES にしたら scripts/sync_project.py を流し直す(本体が App Clip を埋め込み、本体の entitlements に App Clip を足す)。
+// その前に Developer portal で App Clip ID の登録が要る(scripts/ci_archive.py が案内する)。
+STRUIS_TIME_ATTACK = NO
+STRUIS_TIME_ATTACK_CONDITION_YES = STRUIS_TIME_ATTACK
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) $(STRUIS_TIME_ATTACK_CONDITION_$(STRUIS_TIME_ATTACK))
+
 #include? "Local.xcconfig"

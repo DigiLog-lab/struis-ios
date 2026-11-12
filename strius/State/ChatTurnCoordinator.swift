@@ -130,16 +130,16 @@ extension TurnCoordinator {
     /// `thread/fork` だけ(台帳の会話には結ばない。先回りの例題は、使う時に結ぶ)。
     func forkCodexThread(from fork: (codexThreadID: String, lastTurnID: String)) async throws -> String {
         let planID = LedgerID.make()
-        let astra = await assets.model("astra")
+        let chat = await assets.model("chat")
         let plan = TurnPlan(
             id: planID, kind: .threadFork, round: 1,
             thread: TurnPlan.ThreadSpec(
-                codexThreadID: fork.codexThreadID, mode: .fork, cwd: TurnPlan.guestWorkspace(id: planID), model: astra.model, effort: astra.effort,
+                codexThreadID: fork.codexThreadID, mode: .fork, cwd: TurnPlan.guestWorkspace(id: planID), model: chat.model, effort: chat.effort,
                 ephemeral: false, baseInstructions: try await assets.ref("prompt:base"),
                 developerInstructions: try await ChatTurns.developerRef(assets: assets),
                 developerText: nil, injectDeveloperOnResume: false,
-                config: .object(["model_reasoning_effort": .string(astra.effort), "features.multi_agent": .bool(false), "features.unified_exec": .bool(false)]),
-                lastTurnID: fork.lastTurnID, provider: astra.provider
+                config: .object(["model_reasoning_effort": .string(chat.effort), "features.multi_agent": .bool(false), "features.unified_exec": .bool(false)]),
+                lastTurnID: fork.lastTurnID, provider: chat.provider
             ),
             turn: nil, workspace: TurnPlan.WorkspaceSpec(files: [], dirs: []), delegation: nil, collect: [], limits: .structured
         )

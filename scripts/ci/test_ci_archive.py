@@ -15,11 +15,18 @@ CERT = b'certificate-der'
 TEAM = 'TEAM123456'
 
 
-def document(product, *, container=True, group=True, cert=CERT, devices=None, uuid='u'):
-    entitlements = {'application-identifier': f'{TEAM}.{archive.PROFILE_BUNDLES[product]}',
-                    'com.apple.security.application-groups': [archive.APP_GROUP] if group else []}
+def document(product, *, container=True, group=True, cert=CERT, devices=None, uuid='u', clip=True):
+    entitlements = {'application-identifier': f'{TEAM}.{archive.PROFILE_BUNDLES[product]}'}
+    if product == archive.APP_CLIP_PRODUCT:
+        # An App Clip profile carries its parent app and no App Group.
+        if clip:
+            entitlements[archive.APP_CLIP_PARENT_KEY] = [f"{TEAM}.{archive.PROFILE_BUNDLES['strius']}"]
+    else:
+        entitlements['com.apple.security.application-groups'] = [archive.APP_GROUP] if group else []
     if container:
         entitlements[archive.CONTAINERS_KEY] = [archive.ICLOUD_CONTAINER]
+    if product == 'strius' and clip:
+        entitlements[archive.APP_CLIP_ASSOCIATED_KEY] = [f'{TEAM}.{archive.PROFILE_BUNDLES[archive.APP_CLIP_PRODUCT]}']
     profile = {'TeamIdentifier': [TEAM], 'Entitlements': entitlements, 'DeveloperCertificates': [cert], 'UUID': uuid}
     if devices:
         profile['ProvisionedDevices'] = devices
@@ -54,8 +61,9 @@ class FakeConnect:
         return resource(key)
 
 
-def ensure(connect):
-    return archive.ensure_store_profiles(connect, CERT, 'ABC', lambda data: connect.documents[data.decode()], now=NOW)
+def ensure(connect, app_clip=True):
+    return archive.ensure_store_profiles(connect, CERT, 'ABC', lambda data: connect.documents[data.decode()], now=NOW,
+                                         app_clip=app_clip)
 
 
 class StoreProfileTests(unittest.TestCase):
@@ -114,7 +122,44 @@ class StoreProfileTests(unittest.TestCase):
         self.assertNotIn('BUILD_PROVISION_PROFILE', source)
 
     def test_the_retired_runtime_extension_needs_no_profile(self):
-        self.assertEqual(set(archive.PROFILE_BUNDLES), {'strius', 'StruisExec'})
+        self.assertEqual(set(archive.PROFILE_BUNDLES), {'strius', 'StruisExec', 'StruisClip'})
+
+    def test_a_profile_without_the_app_clip_link_asks_for_the_portal(self):
+        # The App Clip ID ties the app and the App Clip together; only the Developer portal can register it (#133).
+        profiles, documents = self.all_reusable()
+        app = archive.PROFILE_BUNDLES['strius']
+        profiles[app] = []
+        connect = FakeConnect(profiles, documents, created={app: document('strius', clip=False)})
+        with self.assertRaisesRegex(RuntimeError, 'App Clip .* Developer portal'):
+            ensure(connect)
+
+    def test_a_missing_app_clip_id_asks_for_the_portal(self):
+        profiles, documents = self.all_reusable()
+        connect = FakeConnect(profiles, documents)
+        clip = archive.PROFILE_BUNDLES['StruisClip']
+        connect.find_bundle_id = lambda identifier: None if identifier == clip else {'id': identifier}
+        with self.assertRaisesRegex(RuntimeError, 'App Clip ID .* Developer portal'):
+            ensure(connect)
+
+    def test_without_the_time_attack_the_app_clip_needs_no_portal_work(self):
+        # While the time attack is off (Config/Build.xcconfig), the app does not embed the App Clip (#133).
+        profiles, documents = self.all_reusable()
+        app = archive.PROFILE_BUNDLES['strius']
+        documents['ok-strius'] = document('strius', clip=False)
+        connect = FakeConnect(profiles, documents)
+        clip = archive.PROFILE_BUNDLES['StruisClip']
+        connect.find_bundle_id = lambda identifier: None if identifier == clip else {'id': identifier}
+        self.assertEqual(set(ensure(connect, app_clip=False)), {'strius', 'StruisExec'})
+        self.assertEqual(connect.created, [], f'the profile for {app} without the App Clip link is reused')
+
+    def test_the_switch_is_read_from_the_xcconfig(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / 'Build.xcconfig'
+            config.write_text('STRUIS_TIME_ATTACK = NO\nSTRUIS_TIME_ATTACK_CONDITION_YES = STRUIS_TIME_ATTACK\n')
+            self.assertFalse(archive.time_attack_enabled(config))
+            config.write_text('STRUIS_TIME_ATTACK = YES\n')
+            self.assertTrue(archive.time_attack_enabled(config))
 
 
 if __name__ == '__main__':

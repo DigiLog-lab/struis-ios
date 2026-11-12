@@ -66,7 +66,7 @@ struct DeveloperSettingsView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             SettingsDivider()
-            SettingsValueRow(title: "質問", value: Self.shortName(ClaudeModels.astraModel))
+            SettingsValueRow(title: "質問", value: Self.shortName(ClaudeModels.chatModel))
             SettingsDivider()
             SettingsValueRow(title: "下調べ", value: Self.shortName(ClaudeModels.lunaModel))
             SettingsDivider()

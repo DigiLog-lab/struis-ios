@@ -614,12 +614,14 @@ struct WorkbookExampleCard: View {
                 Text("例題")
                     .font(Typography.eyebrow)
                     .foregroundStyle(Theme.secondaryText)
-                Text(Self.headline(prompt))
-                    .font(Typography.caption)
-                    .foregroundStyle(Theme.primaryText)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                // 数式を含む問題文は数式として組む(区切りを外しただけの文字にすると `\sin 75^\circ` がそのまま出る)。1 行分の高さで切る。
+                ProblemCatalogRichText(
+                    text: Self.headlineSource(prompt), font: Typography.caption, katexFontSize: 13,
+                    color: UIColor(Theme.primaryText), lineLimit: 1, maxKatexHeight: 20
+                )
+                .foregroundStyle(Theme.primaryText)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(Theme.tertiaryText)
@@ -634,7 +636,17 @@ struct WorkbookExampleCard: View {
         .accessibilityIdentifier("workbook-example-collapsed")
     }
 
-    /// 1 行にしまった時の問題文の頭。数式の区切り(`$`・`\(`・`\)`)を外し、改行と連続する空白を 1 つにまとめる。
+    /// 1 行にしまった時に表示する問題文。数式の区切りは残し(別行立ての区切りは行内の `$` にそろえる)、改行と連続する
+    /// 空白を 1 つにまとめる。
+    static func headlineSource(_ prompt: String) -> String {
+        var text = prompt
+        for token in ["$$", "\\[", "\\]", "\\(", "\\)"] {
+            text = text.replacingOccurrences(of: token, with: "$")
+        }
+        return text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+    }
+
+    /// 1 行にしまった時の問題文の読み上げ用の文字。数式の区切り(`$`・`\(`・`\)`)を外し、改行と連続する空白を 1 つにまとめる。
     static func headline(_ prompt: String) -> String {
         var text = prompt
         for token in ["$$", "$", "\\(", "\\)", "\\[", "\\]"] {
