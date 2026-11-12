@@ -173,8 +173,8 @@ final class LaneRecoveryTests: XCTestCase {
         XCTAssertEqual(message.errorDetail, "closed stub")
     }
 
-    /// 3.6: 検証の差し戻しは 1 ターンに 1 回まで。2 回目も通らなければ、送り直し続けずに失敗にする(ラウンド ≤ 3)。
-    @MainActor func testValidationRepairIsSentOnceThenTheTurnFails() async throws {
+    /// 3.6: 検証の差し戻しは 1 ターンに 2 回まで。3 回目も通らなければ、送り直し続けずに失敗にする(ラウンド ≤ 3)。
+    @MainActor func testValidationRepairIsSentTwiceThenTheTurnFails() async throws {
         let ledger = try Ledger.inMemory()
         let seeded = try await Self.seed(ledger, userMetadata: [:])
         var state = ChatTurns.State(
@@ -191,12 +191,46 @@ final class LaneRecoveryTests: XCTestCase {
         let first = await ChatTurns.applyRound(ledger: ledger, state: &state, outcome: outcome())
         guard case .again = first else { return XCTFail("1 回目の差し戻しが無い: \(first)") }
         let second = await ChatTurns.applyRound(ledger: ledger, state: &state, outcome: outcome())
-        guard case .failed(let message, let detail) = second else { return XCTFail("2 回目で失敗にならない: \(second)") }
+        guard case .again = second else { return XCTFail("2 回目の差し戻しが無い: \(second)") }
+        let third = await ChatTurns.applyRound(ledger: ledger, state: &state, outcome: outcome())
+        guard case .failed(let message, let detail) = third else { return XCTFail("3 回目で失敗にならない: \(third)") }
         XCTAssertEqual(message, ChatTurns.learnerFacingFailure)
-        XCTAssertEqual(detail?.hasPrefix("validation repair limit (1) reached"), true, detail ?? "-")
-        XCTAssertEqual(state.checks.filter { $0["accepted"]?.boolValue == false }.count, 2)
+        XCTAssertEqual(detail?.hasPrefix("validation repair limit (2) reached"), true, detail ?? "-")
+        XCTAssertEqual(state.checks.filter { $0["accepted"]?.boolValue == false }.count, 3)
+        XCTAssertEqual(state.round, ChatTurns.roundLimit)
         XCTAssertTrue(ChatTurns.repairsExhausted(state.checks))
         XCTAssertFalse(ChatTurns.repairsExhausted([.object(["accepted": .bool(false)])]), "1 回目の差し戻しは送る")
+        XCTAssertFalse(ChatTurns.repairsExhausted([.object(["accepted": .bool(false)]), .object(["accepted": .bool(false)])]), "2 回目の差し戻しも送る")
+    }
+
+    /// 誤りが 2 つある返事(検証は最初の 1 つしか伝えない)は、2 回の差し戻しで直る。直した記録は、最初に書いた返事と一緒に届く。
+    @MainActor func testAReplyWithTwoMistakesIsDeliveredAfterTwoRepairs() async throws {
+        let ledger = try Ledger.inMemory()
+        let seeded = try await Self.seed(ledger, userMetadata: [:])
+        var state = ChatTurns.State(
+            turnID: LedgerID.make(), threadID: seeded.threadID, userMessageID: seeded.userID, assistantMessageID: seeded.assistantID,
+            learnerID: "fixture-learner", text: "質問", attachments: [], workbookView: nil,
+            codexThreadID: nil, progressBefore: ProgressState(), progressAfter: ProgressState()
+        )
+        func outcome(_ text: String) -> TurnOutcome {
+            TurnOutcome(planID: "p", round: state.round + 1, status: .completed, codexThreadID: nil, codexTurnID: nil, finalText: text,
+                        executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: 1)
+        }
+        let reply = "解き方を説明します。\n\nまず、角を分けて紙に書いてください。"
+        // 1 回目: 引用が返事の文と一致しない。2 回目: 引用は直したが、出した問題が無いのに答えを待っている。3 回目: 通る。
+        let quoteMismatch = #"{"schema_version":1,"base_revision":0,"current_goal_id":null,"disposition":"waiting","next_action":"角を分けて教えてください。","waiting_for":"answer","wait_reason":"確認","reply_quotes":["解き方を説明します。"]}"#
+        let noServedProblem = #"{"schema_version":1,"base_revision":0,"current_goal_id":null,"disposition":"waiting","next_action":"まず、角を分けて紙に書いてください。","waiting_for":"answer","wait_reason":"確認","reply_quotes":["まず、角を分けて紙に書いてください。"]}"#
+        let valid = #"{"schema_version":1,"base_revision":0,"current_goal_id":null,"disposition":"not_learning","next_action":"","reply_quotes":["解き方を説明します。"]}"#
+        let first = await ChatTurns.applyRound(ledger: ledger, state: &state, outcome: outcome("\(reply)\n<struis_memory_update>\nNO_UPDATE\n</struis_memory_update>\n<struis_progress_update>\(quoteMismatch)</struis_progress_update>"))
+        guard case .again(let firstPrompt) = first else { return XCTFail("1 回目の差し戻しが無い: \(first)") }
+        XCTAssertTrue(firstPrompt.contains("do NOT write the reply again"))
+        let second = await ChatTurns.applyRound(ledger: ledger, state: &state, outcome: outcome("<struis_progress_update>\(noServedProblem)</struis_progress_update>"))
+        guard case .again(let secondPrompt) = second else { return XCTFail("2 回目の差し戻しが無い: \(second)") }
+        XCTAssertTrue(secondPrompt.contains("answer waiting requires a served problem"), secondPrompt)
+        let third = await ChatTurns.applyRound(ledger: ledger, state: &state, outcome: outcome("<struis_progress_update>\(valid)</struis_progress_update>"))
+        guard case .done = third else { return XCTFail("3 回目で通らない: \(third)") }
+        XCTAssertEqual(state.visibleText, reply, "最初に書いた返事がそのまま届く")
+        XCTAssertEqual(state.checks.map { $0["accepted"]?.boolValue }, [false, false, true])
     }
 
     /// 3.6: 続き(`disposition: continue`)もラウンドに数える。3 ラウンド目で続きを求められても、届いている分で返事を終える。

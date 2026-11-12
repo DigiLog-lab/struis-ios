@@ -10,10 +10,13 @@ private let chatTurnLog = Logger(subsystem: "com.digiloglab.strius", category: "
 nonisolated enum ChatTurns {
     static let learnerFacingFailure = "学習の進行を保存できませんでした。もう一度送信してください。"
     /// 1 ターンで検証の差し戻し(validation repair)を送り直す回数の上限(勉強を止めない仕組み 3.6)。
-    /// 差し戻し 1 回はモデルの呼び出し 45〜65 秒。2 回目も通らないなら学習者に送り直してもらう方が早い。
-    static let repairLimit = 1
-    /// 1 ターンのモデルの呼び出し(ラウンド)の上限。最初 + 差し戻し 1 + 続き 1 = 3。続き(`disposition: continue`)が
-    /// この数に達したら、届いている分で返事を終える(失敗にはしない)。差し戻しで達したら失敗にする。
+    /// 以前は 1 回だった(Opus 5.5 では差し戻し 1 回が 45〜65 秒かかり、2 回目は学習者に送り直してもらう方が早かった)。
+    /// Sonnet 5.5 の差し戻しは約 2 秒・$0.01 で、検証は最初に見つけた誤り 1 つしか伝えないので、誤りが 2 つある返事は
+    /// 1 回では直らない(2026-11-12 の実測: 引用の不一致を直した後に「answer waiting requires a served problem」で
+    /// 落ち、正しい返事ごと失敗になった。同じ会話でもう 1 回直させると 3 回中 3 回通った)。
+    static let repairLimit = 2
+    /// 1 ターンのモデルの呼び出し(ラウンド)の上限。最初 + 差し戻し 2 = 3、または 最初 + 差し戻し 1 + 続き 1 = 3。
+    /// 続き(`disposition: continue`)がこの数に達したら、届いている分で返事を終える(失敗にはしない)。差し戻しで達したら失敗にする。
     static let roundLimit = 3
 
     /// 差し戻しの回数が上限に達したか(`checks` の `accepted == false` の数で数える)。
@@ -409,7 +412,7 @@ nonisolated enum ChatTurns {
             let round = state.round
             state.checks.append(.object(["round": .number(Double(round)), "accepted": .bool(false), "error": .string(String(detail.prefix(2000)))]))
             chatTurnLog.error("round \(round) rejected: \(detail, privacy: .public)")
-            // 3.6: 差し戻しは 1 回まで、ラウンドは 3 まで。超えたら送り直し続けずに学習者へ返す(理由は吹き出しに出る)。
+            // 3.6: 差し戻しは 2 回まで、ラウンドは 3 まで。超えたら送り直し続けずに学習者へ返す(理由は吹き出しに出る)。
             if Self.repairsExhausted(state.checks) {
                 return .failed(learnerFacingFailure, detail: "validation repair limit (\(repairLimit)) reached: " + String(detail.prefix(300)))
             }
