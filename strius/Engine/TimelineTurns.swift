@@ -514,7 +514,7 @@ nonisolated enum TimelineTurns {
 
     /// 依頼の行を書く(グラフを頼むかの判定の後、同じ書き込みの中で)。もう頼んでいたら・頼むものが無ければ nil。
     static func insertGraphRequest(_ request: TimelineGraphSchedule.Request, timeline: inout TimelineMachine, workbook: WorkbookMachine, profile: OnboardingProfile?) -> String? {
-        guard !TimelineGraphSchedule.isBlocked(request, timeline: timeline) else { return nil }
+        guard !TimelineGraphSchedule.isBlocked(request, timeline: timeline, workbook: workbook) else { return nil }
         switch request {
         case .build, .extend:
             let units: [String]

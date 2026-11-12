@@ -37,10 +37,15 @@ nonisolated enum OnboardingCatalog {
     }
 
     /// A:「次のテストまでどれくらいですか」。
-    static let untilTest = ["1週間以内", "2週間くらい", "1か月くらい", "まだ先・決まっていない"]
+    static let untilTest = ["1週間以内", "2週間くらい", "1か月くらい", untilHoliday, "まだ先・決まっていない"]
+    /// テストの無い長期休みに合わせる選択肢(#132)。期限は `StudyDeadline.holidayEnd`。
+    static let untilHoliday = "休みが終わるまで"
 
     /// U:「何を勉強しますか」の例。
     static let universityTopics = ["線形代数", "微分積分", "力学", "統計学", "資格試験"]
+
+    /// U: 資料が無い時の「何のために」(#132)。
+    static let universityPurposes = ["次の学期の予習", "授業の復習", "試験・資格の対策", "決まっていない"]
 
     /// U:「授業の資料はありますか」の例。
     static let universityMaterials = ["シラバス", "講義のスライド・プリント", "教科書の演習問題のページ", "過去の小テスト・レポート課題"]

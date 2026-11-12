@@ -15,19 +15,25 @@ struct OnboardingFlowView: View {
     let onFinish: () -> Void
 
     /// - Parameter reconsent: 規約の版が上がった時の同意の取り直し(#78)。規約と送る内容の 2 画面だけを出し、同意したら `onFinish`。
-    init(learnerData: LearnerData, subscriptions: SubscriptionStore, start: OnboardingStep? = nil, reconsent: Bool = false, onFinish: @escaping () -> Void) {
+    /// - Parameter unitCreation: ホームの「単元を作る」(#132)。オンボーディングと同じ画面で選び、計画の「はじめる」で作った単元の ID を渡す。
+    ///   `existingUnits` はすでにある単元の名前(同じ単元を作らないようモデルに渡す)。
+    init(learnerData: LearnerData, subscriptions: SubscriptionStore, start: OnboardingStep? = nil, reconsent: Bool = false,
+         unitCreation: ((String) -> Void)? = nil, existingUnits: [String] = [], onFinish: @escaping () -> Void) {
         self.learnerData = learnerData
         self.subscriptions = subscriptions
         self.onFinish = onFinish
         // DEBUG の途中の画面からの確認は、前に保存した回答を使わずに始める。
         let model = OnboardingModel(
-            profile: start == nil ? nil : OnboardingProfile(),
+            profile: start == nil || unitCreation != nil ? nil : OnboardingProfile(),
             hasPlan: { [subscriptions] in subscriptions.plan != nil },
             isClaudeAvailable: { [learnerData] in Self.claudeAvailable(learnerData: learnerData) },
             start: start,
-            reconsent: reconsent
+            reconsent: reconsent,
+            purpose: unitCreation == nil ? .onboarding : .unitCreation
         )
         model.onReconsented = onFinish
+        model.onUnitCreated = unitCreation
+        model.existingUnits = existingUnits
         #if DEBUG
         if let start { model.prepareForPreview(start) }
         #endif
@@ -60,13 +66,17 @@ struct OnboardingFlowView: View {
             case .paywall:
                 OnboardingPaywallView(store: subscriptions, isPad: isPad, onPurchased: { model.afterPurchase() })
             case .intent: intent
-            case .unit: unit
+            case .unit: model.purpose == .unitCreation ? AnyView(unitWithDeadline) : AnyView(unit)
             case .untilTest: untilTest
             case .pages: pages
             case .weak: weakUnit
             case .topic: topic
             case .material: material
             case .goal: goal
+            case .capture: capture
+            case .reading: readingWait
+            case .readResult: readResult
+            case .universityChoices: universityChoices
             case .planWait, .plan:
                 OnboardingPlanView(model: model, learnerData: learnerData, isPad: isPad)
             case .notify: notify
@@ -330,6 +340,260 @@ struct OnboardingFlowView: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+
+    // MARK: - 単元を作る: 単元と「いつまでに」を 1 画面で(#132)
+
+    /// 単元の一覧を切り替えられる学年(今の学年と、その前後)。学年が分からない時は全部。
+    private var unitGrades: [String] {
+        let grades = OnboardingCatalog.grades
+        guard let index = grades.firstIndex(of: model.profile.grade ?? "") else { return grades }
+        return Array(grades[max(0, index - 1)...min(grades.count - 1, index + 1)])
+    }
+
+    private var unitWithDeadline: some View {
+        let units = OnboardingCatalog.units(grade: model.unitListGrade)
+        let columns = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
+        return OnboardingScaffold(onBack: back, isPad: isPad) {
+            VStack(alignment: .leading, spacing: 16) {
+                OnboardingTitle(title: "どの単元ですか")
+                Button { model.startCapture() } label: {
+                    Label("範囲表・教科書を撮って選ぶ", systemImage: "camera")
+                        .font(Typography.sans(size: 15, weight: .medium))
+                        .foregroundStyle(Theme.accentColor)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 44)
+                        .background(Theme.accentColor.opacity(0.16), in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("unit-creation-capture")
+                OnboardingFlow {
+                    ForEach(unitGrades, id: \.self) { grade in
+                        OnboardingChip(title: grade, isSelected: model.unitListGrade == grade) { model.chooseUnitGrade(grade) }
+                            .accessibilityIdentifier("unit-creation-grade-\(grade)")
+                    }
+                }
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(units, id: \.self) { unit in
+                        OnboardingPill(title: unit, isSelected: model.selectedUnit == unit, height: 44) { model.selectedUnit = unit }
+                            .accessibilityIdentifier("unit-creation-unit-\(unit)")
+                    }
+                }
+                Text("いつまでに").font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText).padding(.top, 8)
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(OnboardingCatalog.untilTest, id: \.self) { option in
+                        OnboardingPill(title: option, isSelected: model.profile.untilTest == option, height: 44) { model.selectUntilTest(option) }
+                            .accessibilityIdentifier("unit-creation-until-\(option)")
+                    }
+                }
+            }
+        } footer: {
+            OnboardingPrimaryButton(title: "計画を作る", isEnabled: model.selectedUnit != nil, identifier: "unit-creation-plan") { model.commitUnitWithDeadline() }
+        }
+    }
+
+    // MARK: - 単元を作る: 撮る → 読み取る → 確認(#132)
+
+    private var capture: some View {
+        let university = model.profile.isUniversity
+        return OnboardingScaffold(onBack: back, isPad: isPad) {
+            VStack(alignment: .leading, spacing: 18) {
+                OnboardingTitle(title: university ? "シラバス、講義のスライド、小テストを撮ってください" : "範囲表、教科書の目次やページを撮ってください")
+                materialStatus
+            }
+        } footer: {
+            if model.materials.isEmpty {
+                OnboardingPrimaryButton(title: "撮る", identifier: "onboarding-material-camera") { isCameraPresented = true }
+                OnboardingSecondaryButton(title: "写真・PDF から選ぶ", identifier: "onboarding-material-pick") { isSourceDialogPresented = true }
+                if university {
+                    OnboardingTextButton(title: "資料なしで作る", identifier: "unit-creation-no-material") { model.skipMaterials() }
+                }
+            } else {
+                OnboardingPrimaryButton(title: "読み取る", identifier: "unit-creation-read") { model.go(.reading) }
+                OnboardingSecondaryButton(title: "撮り足す", identifier: "onboarding-material-camera") { isCameraPresented = true }
+                OnboardingTextButton(title: "写真・PDF から選ぶ") { isSourceDialogPresented = true }
+            }
+        }
+        .modifier(materialPickers)
+    }
+
+    private var readingWait: some View {
+        OnboardingScaffold(isPad: isPad) {
+            VStack(alignment: .leading, spacing: 18) {
+                OnboardingTitle(title: "範囲を読み取っています")
+                if let error = model.readingError {
+                    TrialErrorText(text: error)
+                } else {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        HStack(spacing: 10) {
+                            StruisLoadingIndicator().controlSize(.regular)
+                            Text("\(model.materials.count)枚を読んでいます").font(Typography.sans(size: 15, weight: .medium)).foregroundStyle(Theme.primaryText)
+                            Text("\(max(0, Int(context.date.timeIntervalSince(model.readingStartedAt ?? context.date))))秒")
+                                .font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.tertiaryText).monospacedDigit()
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("unit-creation-reading")
+                }
+            }
+            .padding(.top, 20)
+        } footer: {
+            if model.readingError != nil {
+                OnboardingPrimaryButton(title: "もう一度読み取る", identifier: "unit-creation-read-retry") {
+                    model.readMaterials(assets: learnerData.assets, turns: learnerData.turns, runner: learnerData.runner)
+                }
+                OnboardingSecondaryButton(title: "撮り直す", identifier: "unit-creation-retake") { model.retake() }
+            }
+        }
+        .task(id: model.step) {
+            if model.step == .reading {
+                model.readMaterials(assets: learnerData.assets, turns: learnerData.turns, runner: learnerData.runner)
+            }
+        }
+    }
+
+    private func readRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(label).font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText)
+            Spacer(minLength: 8)
+            Text(value).font(Typography.sans(size: 15, weight: .bold)).foregroundStyle(Theme.primaryText).monospacedDigit()
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.horizontal, 16)
+        .frame(minHeight: 48)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// 読み取った範囲の行(書いていない値の行は出さない)。
+    private func readRows(_ reading: MaterialReading) -> [(String, String)] {
+        let test = StudyDeadline.day(from: reading.testDate).map { date -> String in
+            let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: date).day ?? 0
+            return "\(StudyDeadline.label(date).replacingOccurrences(of: "まで", with: ""))\(days > 0 ? "　あと\(days)日" : "")"
+        }
+        if model.profile.isUniversity || (reading.unit.isEmpty && reading.isCourse) {
+            return [("授業", reading.course.isEmpty ? reading.subject : reading.course), ("試験", test ?? ""), ("資料", "\(model.materials.count)枚")]
+                .filter { !$0.1.isEmpty }
+        }
+        return [("科目", reading.subject), ("単元", reading.unit), ("範囲", reading.pages), ("問題集", reading.workbookPages), ("テスト", test ?? "")]
+            .filter { !$0.1.isEmpty }
+    }
+
+    @ViewBuilder
+    private var readResult: some View {
+        if let reading = model.reading {
+            let course = model.profile.isUniversity || (reading.unit.isEmpty && reading.isCourse)
+            let rows = readRows(reading)
+            OnboardingScaffold(onBack: back, isPad: isPad) {
+                VStack(alignment: .leading, spacing: 16) {
+                    OnboardingTitle(title: course ? "この授業で作りますか" : "この範囲で作りますか")
+                    OnboardingListCard {
+                        ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                            readRow(row.0, row.1)
+                            if index < rows.count - 1 { Rectangle().fill(Theme.hairline).frame(height: 1).padding(.horizontal, 16) }
+                        }
+                    }
+                    .accessibilityIdentifier("unit-creation-read-rows")
+                    if course, !reading.lectures.isEmpty {
+                        Text("授業はどこまで進みましたか").font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText).padding(.top, 4)
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
+                            ForEach(reading.lectures, id: \.number) { lecture in
+                                lectureButton(lecture.number)
+                            }
+                        }
+                    }
+                }
+            } footer: {
+                OnboardingPrimaryButton(title: course ? "この授業で作る" : "この範囲で作る",
+                                        isEnabled: !course || reading.lectures.isEmpty || model.lectureUpTo != nil,
+                                        identifier: "unit-creation-read-confirm") { model.confirmReading() }
+                OnboardingSecondaryButton(title: "撮り直す", identifier: "unit-creation-retake") { model.retake() }
+            }
+        } else {
+            OnboardingScaffold(onBack: back, isPad: isPad) { EmptyView() } footer: { EmptyView() }
+        }
+    }
+
+    /// 回のボタン。選んだ回までを淡い銅の面、選んだ回に縁を付ける。
+    private func lectureButton(_ number: Int) -> some View {
+        let upTo = model.lectureUpTo ?? 0
+        let chosen = number == upTo
+        return Button { model.lectureUpTo = number } label: {
+            Text("第\(number)回")
+                .font(Typography.sans(size: 14, weight: chosen ? .bold : .medium))
+                .foregroundStyle(Theme.primaryText)
+                .frame(maxWidth: .infinity, minHeight: 40)
+                .background(number <= upTo ? AnyShapeStyle(Theme.accentColor.opacity(0.16)) : AnyShapeStyle(Theme.card), in: Capsule())
+                .overlay { Capsule().strokeBorder(chosen ? Theme.accentColor : (number <= upTo ? Color.clear : Theme.hairline), lineWidth: chosen ? 1.5 : 1) }
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("第\(number)回まで")
+        .accessibilityAddTraits(chosen ? [.isSelected] : [])
+        .accessibilityIdentifier("unit-creation-lecture-\(number)")
+    }
+
+    // MARK: - 単元を作る: 大学生で資料が無い時(#132)
+
+    @State private var isOtherTopic = false
+
+    private var universityChoices: some View {
+        let columns = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
+        return OnboardingScaffold(onBack: back, isPad: isPad) {
+            VStack(alignment: .leading, spacing: 16) {
+                OnboardingTitle(title: "何を勉強しますか")
+                OnboardingFlow {
+                    ForEach(OnboardingCatalog.universityTopics, id: \.self) { topic in
+                        OnboardingChip(title: topic, isSelected: !isOtherTopic && model.universityTopic == topic) {
+                            isOtherTopic = false
+                            model.universityTopic = topic
+                        }
+                        .accessibilityIdentifier("unit-creation-topic-\(topic)")
+                    }
+                    OnboardingChip(title: "ほかを書く", isSelected: isOtherTopic) {
+                        isOtherTopic = true
+                        model.universityTopic = ""
+                        isTopicFocused = true
+                    }
+                    .accessibilityIdentifier("unit-creation-topic-other")
+                }
+                if isOtherTopic {
+                    TextField("例: 解析学I", text: $model.universityTopic)
+                        .font(Typography.sans(size: 16, weight: .medium))
+                        .padding(.horizontal, 18)
+                        .frame(minHeight: 52)
+                        .background(Theme.card, in: Capsule())
+                        .overlay { Capsule().strokeBorder(Theme.hairline, lineWidth: 1) }
+                        .focused($isTopicFocused)
+                        .accessibilityIdentifier("unit-creation-topic-field")
+                }
+                Text("何のために").font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText).padding(.top, 8)
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(OnboardingCatalog.universityPurposes, id: \.self) { purpose in
+                        OnboardingPill(title: purpose, isSelected: model.universityPurpose == purpose, height: 44) { model.universityPurpose = purpose }
+                            .accessibilityIdentifier("unit-creation-purpose-\(purpose)")
+                    }
+                }
+                Text("いつまでに").font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText).padding(.top, 8)
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(OnboardingCatalog.untilTest, id: \.self) { option in
+                        OnboardingPill(title: option, isSelected: model.profile.untilTest == option, height: 44) { model.selectUntilTest(option) }
+                            .accessibilityIdentifier("unit-creation-until-\(option)")
+                    }
+                }
+            }
+        } footer: {
+            OnboardingPrimaryButton(title: "計画を作る", isEnabled: !model.universityTopic.trimmingCharacters(in: .whitespaces).isEmpty,
+                                    identifier: "unit-creation-plan") {
+                isTopicFocused = false
+                model.commitUniversityChoices()
+            }
+        }
+        // 前に書いた題目(一覧に無いもの)は「ほかを書く」の欄に出して、見えないまま送らない。
+        .onAppear {
+            let topic = model.universityTopic.trimmingCharacters(in: .whitespaces)
+            isOtherTopic = !topic.isEmpty && !OnboardingCatalog.universityTopics.contains(topic)
+        }
     }
 
     // MARK: - A2 次のテストまで
@@ -629,7 +893,7 @@ private struct MaterialPickers: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background {
-                ChatCameraPresentation(isPresented: $isCameraPresented, batch: ChatCameraBatch(existingCount: model.materials.count, limit: 8) { photos in
+                ChatCameraPresentation(isPresented: $isCameraPresented, batch: ChatCameraBatch(existingCount: model.materials.count, limit: 8, doneTitle: "終える") { photos in
                     model.addMaterialPhotos(photos)
                 })
             }

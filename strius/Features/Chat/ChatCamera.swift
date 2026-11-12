@@ -190,6 +190,8 @@ private final class ChatCameraScrimView: UIView {
 struct ChatCameraBatch {
     var existingCount = 0
     var limit = 8
+    /// 束を渡すボタンの文字(答案は「採点する」、資料は「終える」)。
+    var doneTitle = "採点する"
     let onPhotos: ([Data]) -> Void
 }
 
@@ -390,10 +392,11 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
         guard let batch else { return }
         let total = batchTotal
         done.isHidden = total == 0
-        done.configuration?.attributedTitle = AttributedString("採点する \(total)", attributes: AttributeContainer([
+        let title = batch.doneTitle
+        done.configuration?.attributedTitle = AttributedString("\(title) \(total)", attributes: AttributeContainer([
             .font: UIFont.systemFont(ofSize: 15, weight: .semibold)
         ]))
-        done.accessibilityLabel = "\(total) 枚を採点する"
+        done.accessibilityLabel = title == "採点する" ? "\(total) 枚を採点する" : "\(total) 枚で\(title)"
         let full = total >= batch.limit
         counter.text = full ? "  \(batch.limit) 枚まで撮れます  " : "  \(total + 1) 枚目  "
         counter.isHidden = total == 0

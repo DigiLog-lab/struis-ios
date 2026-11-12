@@ -6,6 +6,7 @@ struct OnboardingPlanView: View {
     let learnerData: LearnerData
     let isPad: Bool
     @State private var isRebuildPresented = false
+    @State private var isDeadlinePresented = false
 
     var body: some View {
         Group {
@@ -73,9 +74,29 @@ struct OnboardingPlanView: View {
 
     // MARK: - 計画
 
+    /// 横並びにする最小の幅: 左右の余白 100 × 2 + 小単元の一覧 380 + すき間 40 + 左の列(見出し・説明文)に要る 320。
+    /// iPad mini の縦(744pt)や 11 インチの縦(834pt)では左の列が 124〜214pt しか残らず、見出しが 1 行 3〜4 文字に折れる。
+    static let sideBySideMinWidth: CGFloat = 940
+
     @ViewBuilder
     private func plan(_ draft: OnboardingPlanDraft) -> some View {
         if isPad {
+            GeometryReader { proxy in
+                Group {
+                    if proxy.size.width >= Self.sideBySideMinWidth {
+                        planSideBySide(draft)
+                    } else {
+                        planStacked(draft)
+                    }
+                }
+                .frame(width: proxy.size.width, height: proxy.size.height)
+            }
+        } else {
+            planStacked(draft)
+        }
+    }
+
+    private func planSideBySide(_ draft: OnboardingPlanDraft) -> some View {
             HStack(alignment: .top, spacing: 40) {
                 VStack(alignment: .leading, spacing: 16) {
                     description(draft)
@@ -97,8 +118,10 @@ struct OnboardingPlanView: View {
             .padding(.top, 80)
             .padding(.bottom, 32)
             .background(Theme.ground.ignoresSafeArea())
-        } else {
-            OnboardingScaffold {
+    }
+
+    private func planStacked(_ draft: OnboardingPlanDraft) -> some View {
+            OnboardingScaffold(isPad: isPad) {
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
                         OnboardingTitle(title: draft.displayHeading)
@@ -117,7 +140,6 @@ struct OnboardingPlanView: View {
                 startButton
                 rebuildButton
             }
-        }
     }
 
     private func description(_ draft: OnboardingPlanDraft) -> some View {
@@ -133,8 +155,48 @@ struct OnboardingPlanView: View {
 
     @ViewBuilder
     private var chips: some View {
-        if !model.planChips.isEmpty {
-            HStack(spacing: 8) { ForEach(model.planChips, id: \.self) { OnboardingInfoChip(text: $0) } }
+        if model.deadline != nil || !model.planChips.isEmpty {
+            HStack(spacing: 8) {
+                if let deadline = model.deadline { deadlineButton(deadline) }
+                ForEach(model.planChips, id: \.self) { OnboardingInfoChip(text: $0) }
+            }
+        }
+    }
+
+    /// 期限(「8月31日まで」)。押すと日付を直せる(#132)。
+    private func deadlineButton(_ deadline: Date) -> some View {
+        Button { isDeadlinePresented = true } label: {
+            HStack(spacing: 6) {
+                Text(StudyDeadline.label(deadline)).font(Typography.sans(size: 14, weight: .medium))
+                Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundStyle(Theme.primaryText)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 32)
+            .background(Theme.primaryText.opacity(0.09), in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("期限の日付を変えます")
+        .accessibilityIdentifier("onboarding-plan-deadline")
+        .sheet(isPresented: $isDeadlinePresented) {
+            NavigationStack {
+                DatePicker("期限", selection: Binding(get: { model.deadline ?? deadline }, set: { model.deadline = $0 }),
+                           in: Calendar.current.startOfDay(for: Date()).addingTimeInterval(86_400)..., displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .labelsHidden()
+                    .padding(.horizontal, 20)
+                    .navigationTitle("いつまでに")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("完了") { isDeadlinePresented = false }
+                        }
+                    }
+                    .frame(maxHeight: .infinity, alignment: .top)
+            }
+            .presentationDetents([.medium, .large])
+            .environment(\.locale, Locale(identifier: "ja_JP"))
         }
     }
 
@@ -158,7 +220,13 @@ struct OnboardingPlanView: View {
                         Text("\(index + 1)").font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText).monospacedDigit()
                             .frame(width: 14, alignment: .leading)
                         VStack(alignment: .leading, spacing: 4) {
-                            TimelineRichText(text: subunit.title, size: 15, weight: .medium, color: checked ? Theme.secondaryText : Theme.primaryText)
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                TimelineRichText(text: subunit.title, size: 15, weight: .medium, color: checked ? Theme.secondaryText : Theme.primaryText)
+                                if let ref = subunit.ref {
+                                    Text(ref).font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText).monospacedDigit()
+                                        .fixedSize()
+                                }
+                            }
                             if !subunit.note.isEmpty {
                                 // 補足にも式が入る(`$\mathbb{R}^n$` など)ので、数式として組む。
                                 TimelineRichText(text: subunit.note, size: 12, weight: .medium, color: Theme.secondaryText)

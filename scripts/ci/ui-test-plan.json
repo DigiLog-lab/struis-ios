@@ -190,6 +190,22 @@
         "strius/Features/Timeline/TimelineStore.swift"
       ]
     },
+    "unit-creation": {
+      "property": "ホームの「単元を作る」(#132): 会話ではなくオンボーディングと同じ画面で単元と「いつまでに」を選び、計画の期限の日付を直せ、「はじめる」で作った単元が開く。範囲表・シラバスを撮って読み取り、大学生は授業がどこまで進んだかを選ぶ。資料が無い大学生はタップだけで作れる。計画の後に単元の画面から教科書を撮り足すと、小単元にページが付く",
+      "tests": [
+        "UnitCreationUITests/testChoosingAUnitAndDeadlineCreatesTheUnitAndOpensIt",
+        "UnitCreationUITests/testShootingARangeSheetReadsTheRangeAndMakesThePlan",
+        "UnitCreationUITests/testUniversityShootsTheSyllabusAndChoosesHowFarTheLecturesWent",
+        "UnitCreationUITests/testUniversityWithoutMaterialChoosesEverythingByTapping"
+      ],
+      "paths": [
+        "strius/Features/Onboarding/**",
+        "strius/Features/Workbook/WorkbookQuestionScreen.swift",
+        "strius/Features/Workbook/WorkbookHomeView.swift",
+        "strius/Features/Workbook/WorkbookUnitView.swift",
+        "strius/Features/Workbook/UnitMaterialAttacher.swift"
+      ]
+    },
     "guardian-consent": {
       "property": "保護者の同意(#76): 16歳未満は規約の次に保護者の同意が出て、押すだけでは進まず、スワイプで同意するとお試しへ進む。文面の版が上がるとタイムラインに同意の画面を重ねて出し直す",
       "tests": [
@@ -337,7 +353,10 @@
     "OnboardingScreenshotUITests/testIPhonePlanCheck": "計画の「確認の1問だけ」と作り直すの iPhone の写真を目で見る(#103)。自動の判定は OnboardingTests が持つ",
     "OnboardingScreenshotUITests/testRealPlanPhase1": "実Claude(Anthropic の API キー)が要る",
     "OnboardingScreenshotUITests/testRealPlanPhase2": "実Claude(Anthropic の API キー)が要る。testRealPlanPhase1 が作った計画を使う",
-    "TimelineScopeDemoUITests/testScopeTour": "実Claude(Anthropic の API キー)で解く範囲を一通り動かして撮る、持ち主に見せる確かめ用"
+    "TimelineScopeDemoUITests/testScopeTour": "実Claude(Anthropic の API キー)で解く範囲を一通り動かして撮る、持ち主に見せる確かめ用",
+    "UnitCreationUITests/testRealClaudeMakesAPlanForTheChosenUnitAndDeadline": "本物の Claude の API キーが要り、費用がかかる(Dev Box で手動)",
+    "UnitCreationUITests/testRealClaudeReadsARangeSheetAndPlansByPage": "本物の Claude の API キーと撮る写真が要り、費用がかかる(Dev Box で手動)",
+    "UnitCreationUITests/testRealClaudeReadsASyllabusAndPlansByLecture": "本物の Claude の API キーと撮る写真が要り、費用がかかる(Dev Box で手動)"
   },
   "excluded": {
     "striusUITests/testExample": "起動するだけのテンプレート。起動の失敗は選ばれたどのUIテストでも分かる",
@@ -414,6 +433,10 @@
     "OnboardingScreenshotUITests/testRealPlanPhase1": 0,
     "OnboardingScreenshotUITests/testRealPlanPhase2": 0,
     "UsageResetUITests/testBuyingAPlanAfterTheTrialRunsOutResetsTheGaugeToZero": 30,
-    "UsageResetUITests/testUpgradingAfterThePlanRunsOutResetsTheGaugeToZero": 30
+    "UsageResetUITests/testUpgradingAfterThePlanRunsOutResetsTheGaugeToZero": 30,
+    "UnitCreationUITests/testChoosingAUnitAndDeadlineCreatesTheUnitAndOpensIt": 60,
+    "UnitCreationUITests/testShootingARangeSheetReadsTheRangeAndMakesThePlan": 60,
+    "UnitCreationUITests/testUniversityShootsTheSyllabusAndChoosesHowFarTheLecturesWent": 60,
+    "UnitCreationUITests/testUniversityWithoutMaterialChoosesEverythingByTapping": 60
   }
 }

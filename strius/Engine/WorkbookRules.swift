@@ -242,7 +242,8 @@ nonisolated struct WorkbookMachine {
             returnStage: metadata["return_stage"]?.intValue,
             threadId: metadata["thread_id"]?.stringValue,
             kickoffKey: Self.kickoffKey(row),
-            kickoffMessageId: Self.kickoffKey(row).flatMap { metadata["kickoffs"]?[$0]?.stringValue }
+            kickoffMessageId: Self.kickoffKey(row).flatMap { metadata["kickoffs"]?[$0]?.stringValue },
+            ref: metadata["ref"]?.stringValue.flatMap { $0.isEmpty ? nil : $0 }
         )
     }
 
@@ -446,12 +447,15 @@ nonisolated struct WorkbookMachine {
         var outcome: String = ""
         var n: Int = 5
         var scoringUnit: String = ""
+        /// 小単元の名前の横に出すページや授業の回(「p.66〜69」「第4回」。#132)。
+        var ref: String = ""
 
-        init(title: String, outcome: String = "", n: Int = 5, scoringUnit: String = "") {
+        init(title: String, outcome: String = "", n: Int = 5, scoringUnit: String = "", ref: String = "") {
             self.title = title
             self.outcome = outcome
             self.n = n
             self.scoringUnit = scoringUnit
+            self.ref = ref
         }
 
         init?(json: LedgerJSON) {
@@ -484,8 +488,33 @@ nonisolated struct WorkbookMachine {
             id: id, unitId: unitID, title: String(spec.title.prefix(300)), outcome: String(spec.outcome.prefix(2000)),
             position: resolvedPosition, stage: max(1, min(4, stage)), status: status, n: max(1, min(100, spec.n)),
             threshold: Self.defaultThreshold, assistance: "independent_first", scoringUnit: String(spec.scoringUnit.prefix(300)),
-            metadata: .emptyObject, createdAt: timestamp, updatedAt: timestamp, passedAt: nil
+            metadata: spec.ref.isEmpty ? .emptyObject : .object(["ref": .string(String(spec.ref.prefix(40)))]),
+            createdAt: timestamp, updatedAt: timestamp, passedAt: nil
         ))
+        return id
+    }
+
+    /// 撮り足した資料のページや授業の回を小単元に付ける(#132。空なら外す)。
+    mutating func setSubunitRef(subunitID: String, ref: String) {
+        guard var row = subunits[subunitID] else { return }
+        let value = String(ref.trimmingCharacters(in: .whitespacesAndNewlines).prefix(40))
+        row.metadata = Self.merge(row.metadata, ["ref": value.isEmpty ? .null : .string(value)])
+        row.updatedAt = now()
+        put("subunit.ref_set", row)
+    }
+
+    /// 撮り足した授業の回の小単元を単元の最後に足す(#132)。学んでいる小単元が無ければ(全部合格なら)すぐ学べるようにし、単元を学習中に戻す。
+    @discardableResult
+    mutating func appendSubunit(unitID: String, spec: SubunitSpec) -> String? {
+        guard var unit = units[unitID] else { return nil }
+        let hasActive = subunits.values.contains { $0.unitId == unitID && $0.status == "active" }
+        let id = createSubunit(unitID: unitID, spec: spec, status: hasActive ? "pending" : "active")
+        if unit.status == "passed" {
+            unit.status = "active"
+            unit.passedAt = nil
+            unit.updatedAt = now()
+            put("unit.reopened", unit)
+        }
         return id
     }
 
@@ -718,7 +747,7 @@ nonisolated struct WorkbookMachine {
     mutating func passByCheck(subunitID: String) {
         guard let subunit = subunits[subunitID], subunit.status != "passed" else { return }
         var row = subunit
-        row.metadata = .object(["passed_by": .string("onboarding_check")])
+        row.metadata = Self.merge(row.metadata, ["passed_by": .string("onboarding_check")])
         if subunit.status == "active" {
             _ = passSubunit(row)
             return

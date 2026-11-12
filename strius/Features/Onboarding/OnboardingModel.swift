@@ -33,6 +33,12 @@ nonisolated enum OnboardingStep: String, CaseIterable, Codable, Sendable {
     case goal
     case planWait
     case plan
+    /// 単元を作る(#132): 範囲表・教科書・シラバス・スライドを撮る → 読み取る → 読み取った範囲の確認。
+    case capture
+    case reading
+    case readResult
+    /// 単元を作る(#132): 大学生で資料が無い時に、科目・何のために・いつまでにを選ぶ。
+    case universityChoices
     /// 計画で「確認の1問だけ」にした小単元を、1問ずつ確かめる(解く・採点を待つ・結果)。
     case check
     case checkGrading
@@ -42,7 +48,8 @@ nonisolated enum OnboardingStep: String, CaseIterable, Codable, Sendable {
     /// 左上の戻るを出すか(デザインのとおり)。
     var showsBack: Bool {
         switch self {
-        case .birthdate, .terms, .consent, .guardian, .trial, .unit, .untilTest, .pages, .weak, .topic, .material, .goal, .check: true
+        case .birthdate, .terms, .consent, .guardian, .trial, .unit, .untilTest, .pages, .weak, .topic, .material, .goal, .check,
+             .capture, .readResult, .universityChoices: true
         default: false
         }
     }
@@ -111,6 +118,18 @@ final class OnboardingModel {
     let isReconsent: Bool
     var onReconsented: (() -> Void)?
 
+    /// オンボーディングか、ホームの「単元を作る」(#132)か。単元を作る時は、オンボーディングの回答・続きの画面・計画の下書きを書き換えない。
+    nonisolated enum Purpose: Sendable {
+        case onboarding
+        case unitCreation
+    }
+
+    let purpose: Purpose
+    /// 単元を作った(「はじめる」の後)。単元を作る時だけ呼ぶ。作った単元の ID を渡す。
+    var onUnitCreated: ((String) -> Void)?
+    /// すでにある単元の名前(単元を作る時に、同じ単元を作らないようモデルに渡す)。
+    var existingUnits: [String] = []
+
     // 学年
     var selectedGrade: String?
     var isCheckingAge = false
@@ -127,7 +146,26 @@ final class OnboardingModel {
 
     // ルート
     var selectedUnit: String?
+    /// 単元を作る時に選んだ学年(今の学年と違う学年の単元も選べる)。nil は今の学年。
+    var unitGrade: String?
+    /// 「いつまでに」から決めた期限(計画の画面で押すと直せる)。回答と一緒に残す(途中で閉じて計画の画面に戻った時も出す)。
+    var deadline: Date? {
+        didSet {
+            profile.deadline = deadline.map { StudyDeadline.isoDay($0) }
+            saveProfile()
+        }
+    }
     var universityTopic = ""
+    /// 大学生で資料が無い時の「何のために」(#132)。
+    var universityPurpose: String?
+
+    // 範囲の読み取り(#132)
+    var reading: MaterialReading?
+    var readingError: String?
+    private(set) var readingStartedAt: Date?
+    private var readingTask: Task<Void, Never>?
+    /// 大学生: 授業がどこまで進んだか(回の番号。本人が選ぶ)。
+    var lectureUpTo: Int?
     var universityGoal = ""
     private(set) var materials: [OnboardingMaterial] = []
     var materialError: String?
@@ -158,8 +196,10 @@ final class OnboardingModel {
     }
 
     init(profile: OnboardingProfile? = nil, records: OnboardingRecords = .shared, consentUploader: GuardianConsentUploader = .shared,
-         hasPlan: @escaping () -> Bool, isClaudeAvailable: @escaping () -> Bool, start: OnboardingStep? = nil, reconsent: Bool = false) {
+         hasPlan: @escaping () -> Bool, isClaudeAvailable: @escaping () -> Bool, start: OnboardingStep? = nil, reconsent: Bool = false,
+         purpose: Purpose = .onboarding) {
         var profile = profile ?? OnboardingProfile.load() ?? OnboardingProfile()
+        self.purpose = purpose
         self.records = records
         self.consentUploader = consentUploader
         self.isReconsent = reconsent
@@ -177,14 +217,30 @@ final class OnboardingModel {
            consent.textVersion == GuardianConsentText.version {
             profile.photoConsentAt = ISO8601DateFormatter().string(from: consent.acceptedAt)
         }
+        if purpose == .unitCreation {
+            // 前の単元の選び方は引き継がない(学年・お試しの結果は使う)。大学生は「大学生・それ以外」のまま
+            // (計画づくりに勉強すること・やりたいことを渡す)。
+            #if DEBUG
+            // 画面の確認用(UI テスト): オンボーディングを飛ばした起動でも学年を変える(「大学生・それ以外」など)。
+            if let grade = ProcessInfo.processInfo.environment["STRUIS_UNIT_CREATION_GRADE"] { profile.grade = grade }
+            #endif
+            profile.route = profile.isUniversity ? .university : nil
+            profile.deadline = nil
+            profile.unit = nil
+            profile.untilTest = nil
+            profile.universityTopic = nil
+            profile.universityGoal = nil
+            profile.resumeStep = nil
+        }
         self.profile = profile
         selectedGrade = profile.grade
         selectedUnit = profile.unit
         universityTopic = profile.universityTopic ?? ""
         universityGoal = profile.universityGoal ?? ""
-        let saved = UserDefaults.standard.data(forKey: Self.draftKey).flatMap { try? JSONDecoder().decode(OnboardingPlanDraft.self, from: $0) }
+        deadline = profile.deadline.flatMap { StudyDeadline.day(from: $0) }
+        let saved = purpose == .unitCreation ? nil : UserDefaults.standard.data(forKey: Self.draftKey).flatMap { try? JSONDecoder().decode(OnboardingPlanDraft.self, from: $0) }
         draft = saved
-        let resumed = reconsent ? .terms : start ?? OnboardingResume.step(
+        let resumed = reconsent ? .terms : start ?? (purpose == .unitCreation ? (profile.isUniversity ? OnboardingStep.capture : OnboardingStep.intent) : nil) ?? OnboardingResume.step(
             profile: profile, age: records.age, termsAccepted: records.termsAcceptedAt != nil, trialUsed: records.trialUsed,
             hasPlan: hasPlan(), hasDraft: saved != nil, needsGuardianConsent: records.needsGuardianConsent(band: records.age?.band ?? profile.ageBand)
         )
@@ -198,13 +254,19 @@ final class OnboardingModel {
         if remember, step != next { history.append(step) }
         step = next
         // 同意の取り直しは、終わったオンボーディングの続きの画面を書き換えない。
-        if !isReconsent, ![.unsupported, .grading, .checkGrading, .birthdate].contains(next) {
+        if !isReconsent, purpose == .onboarding, ![.unsupported, .grading, .checkGrading, .birthdate].contains(next) {
             profile.resumeStep = next.rawValue
-            profile.save()
+            saveProfile()
         }
     }
 
     var canGoBack: Bool { step.showsBack && !history.isEmpty }
+
+    /// 回答を端末に残す。単元を作る時は、オンボーディングの回答を書き換えない。
+    private func saveProfile() {
+        guard purpose == .onboarding else { return }
+        profile.save()
+    }
 
     func back() {
         guard let previous = history.popLast() else { return }
@@ -239,7 +301,7 @@ final class OnboardingModel {
             if grade == OnboardingProfile.universityGrade { profile.route = .university }
             else if profile.route == .university { profile.route = nil }
         }
-        profile.save()
+        saveProfile()
     }
 
     /// Declared Age Range の結果。共有されなかった・取れなかった時は生年月日を聞く。
@@ -265,7 +327,7 @@ final class OnboardingModel {
         profile.ageBand = result.band
         profile.ageDeclaration = result.declaration
         profile.ageCheckedAt = ISO8601DateFormatter().string(from: result.checkedAt)
-        profile.save()
+        saveProfile()
     }
 
     func afterAge() {
@@ -280,7 +342,7 @@ final class OnboardingModel {
         let now = Date()
         records.acceptTerms(at: now)
         profile.termsAcceptedAt = ISO8601DateFormatter().string(from: now)
-        profile.save()
+        saveProfile()
         // 同意し直した規約と合わせて、送る内容も読み直してもらう(前に同意した時の文面と違うことがある)。
         // 16 歳未満は、送る内容への同意を保護者の同意で取る。
         go(isUnder16 ? .guardian : .consent)
@@ -298,7 +360,7 @@ final class OnboardingModel {
 
     func acceptPhotoConsent() {
         profile.photoConsentAt = ISO8601DateFormatter().string(from: Date())
-        profile.save()
+        saveProfile()
         if isReconsent {
             onReconsented?()
             return
@@ -319,7 +381,7 @@ final class OnboardingModel {
     func acceptGuardianConsent() {
         records.recordGuardianConsent()
         profile.photoConsentAt = ISO8601DateFormatter().string(from: Date())
-        profile.save()
+        saveProfile()
         let uploader = consentUploader
         Task { await uploader.sendPending() }
         if isReconsent {
@@ -404,7 +466,7 @@ final class OnboardingModel {
         self.verdict = verdict
         records.recordTrialSolved()
         profile.trial.append(TrialRecord(problemID: problem.id, label: problem.label, correct: verdict.isCorrect, learnerAnswer: verdict.learnerAnswer, comment: verdict.comment))
-        profile.save()
+        saveProfile()
         go(.result, remember: false)
     }
 
@@ -441,7 +503,13 @@ final class OnboardingModel {
 
     func choose(route: OnboardingProfile.Route) {
         profile.route = route
-        profile.save()
+        reading = nil
+        lectureUpTo = nil
+        // 前に選んだ学年・期限を、別の選び方に持ち込まない。
+        unitGrade = nil
+        deadline = nil
+        profile.untilTest = nil
+        saveProfile()
         switch route {
         case .range: go(.unit)
         case .weak: go(.weak)
@@ -453,33 +521,170 @@ final class OnboardingModel {
     func commitUnit() {
         guard let selectedUnit else { return }
         profile.unit = selectedUnit
-        profile.save()
+        saveProfile()
         go(.untilTest)
     }
 
     func chooseUntilTest(_ value: String) {
-        profile.untilTest = value
-        profile.save()
+        selectUntilTest(value)
         go(.pages)
+    }
+
+    /// 「いつまでに」を選ぶ(期限の日付も決める)。
+    func selectUntilTest(_ value: String) {
+        profile.untilTest = value
+        deadline = StudyDeadline.date(for: value, from: Date())
+        saveProfile()
+    }
+
+    /// 単元を作る時の「どの単元ですか」(単元と「いつまでに」を 1 画面で選ぶ)。
+    func commitUnitWithDeadline() {
+        guard let selectedUnit else { return }
+        // 一覧から選んだ時は、前に撮って読み取った範囲を使わない。
+        reading = nil
+        clearMaterials()
+        profile.unit = selectedUnit
+        saveProfile()
+        startPlanning()
+    }
+
+    /// 単元の一覧を出す学年(単元を作る時は切り替えられる)。
+    var unitListGrade: String { unitGrade ?? profile.grade ?? "中3" }
+
+    func chooseUnitGrade(_ grade: String) {
+        guard grade != unitListGrade else { return }
+        unitGrade = grade == profile.grade ? nil : grade
+        selectedUnit = nil
     }
 
     func commitWeakUnit() {
         guard let selectedUnit else { return }
         profile.unit = selectedUnit
-        profile.save()
+        saveProfile()
         startPlanning()
     }
 
     func commitTopic() {
         profile.universityTopic = universityTopic.trimmingCharacters(in: .whitespacesAndNewlines)
-        profile.save()
+        saveProfile()
         go(.material)
     }
 
     func commitGoal() {
         profile.universityGoal = universityGoal.trimmingCharacters(in: .whitespacesAndNewlines)
-        profile.save()
+        saveProfile()
         startPlanning()
+    }
+
+    // MARK: - 範囲の読み取り(#132)
+
+    /// 範囲表・教科書を撮る画面へ(中高生の「撮って選ぶ」)。
+    func startCapture() {
+        clearMaterials()
+        reading = nil
+        go(.capture)
+    }
+
+    /// 撮り直す: 撮った写真と読み取りを捨てて、撮る画面に戻る。
+    func retake() {
+        clearMaterials()
+        reading = nil
+        readingError = nil
+        // 捨てた読み取りの画面(結果・待ち)には戻れないようにする。
+        if let index = history.lastIndex(of: .capture) { history = Array(history.prefix(index)) }
+        go(.capture, remember: false)
+    }
+
+    /// 大学生の「資料なしで作る」。
+    func skipMaterials() {
+        clearMaterials()
+        reading = nil
+        // 読み取った試験日は捨て、本人が選んだ「いつまでに」があればそれから決め直す(表示と送る日付をそろえる)。
+        deadline = profile.untilTest.flatMap { StudyDeadline.date(for: $0, from: Date()) }
+        go(.universityChoices)
+    }
+
+    func readingRequest() -> LedgerJSON {
+        // 学年が分からない時(オンボーディングを飛ばした時)も、大学生でなければ中高の学年として頼む。
+        let grade = profile.isUniversity ? OnboardingProfile.universityGrade : unitListGrade
+        var units: [String] = []
+        if !profile.isUniversity, let index = OnboardingCatalog.grades.firstIndex(of: grade) {
+            let grades = OnboardingCatalog.grades[max(0, index - 1)...min(OnboardingCatalog.grades.count - 1, index + 1)]
+            units = grades.flatMap { OnboardingCatalog.units(grade: $0) }
+        }
+        return .object([
+            "task": .string("read_material"), "grade": .string(grade), "units": .array(units.map(LedgerJSON.string)),
+            "today": .string(StudyDeadline.isoDay(Date())),
+        ])
+    }
+
+    /// 撮った写真から範囲を読み取る(読み取りを待つ画面から呼ぶ)。
+    func readMaterials(assets: AssetCache, turns: TurnCoordinator, runner: any TurnRunning) {
+        guard readingTask == nil, !materials.isEmpty else { return }
+        readingError = nil
+        readingStartedAt = Date()
+        let request = readingRequest()
+        let images = materials.map(\.path)
+        readingTask = Task {
+            defer { readingTask = nil }
+            do {
+                let plan = try await OnboardingTurns.readingPlan(assets: assets, planID: LedgerID.make(), request: request, imagePaths: images)
+                let text = try await OnboardingTurns.run(plan, turns: turns, runner: runner, limit: OnboardingTurns.gradingTimeLimit)
+                guard let reading = OnboardingTurns.parseReading(text) else { throw OnboardingTurns.Failure.malformed }
+                guard reading.readable else {
+                    readingError = "範囲を読み取れませんでした。範囲が写るように撮り直してください。"
+                    return
+                }
+                self.reading = reading
+                lectureUpTo = reading.latestLecture > 0 ? reading.latestLecture : nil
+                if step == .reading { go(.readResult, remember: false) }
+            } catch {
+                onboardingLog.error("reading failed: \(String(describing: error), privacy: .public)")
+                readingError = (error as? LocalizedError)?.errorDescription ?? "読み取れませんでした。もう一度試してください。"
+            }
+        }
+    }
+
+    /// 読み取った範囲で計画を作る(「この範囲で作る」「この授業で作る」)。
+    func confirmReading() {
+        guard let reading else { return }
+        if profile.isUniversity || (reading.unit.isEmpty && reading.isCourse) {
+            profile.route = .university
+            profile.universityTopic = reading.course.isEmpty ? reading.subject : reading.course
+            universityTopic = profile.universityTopic ?? ""
+            profile.universityGoal = nil
+        } else {
+            profile.route = .range
+            let unit = reading.unit.isEmpty ? reading.subject : reading.unit
+            selectedUnit = unit
+            profile.unit = unit
+            // 選んでいた学年(前後の学年の範囲表を撮った時)は、読み取りと同じく計画づくりにも渡す。
+        }
+        // 試験日が読み取れた時だけ、それを期限にする。読み取れなかった時は本人が選んだ「いつまでに」を残す。
+        if let testDay = StudyDeadline.day(from: reading.testDate) {
+            deadline = testDay
+            profile.untilTest = nil
+        }
+        startPlanning()
+    }
+
+    /// 大学生で資料が無い時の「計画を作る」。
+    func commitUniversityChoices() {
+        let topic = universityTopic.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !topic.isEmpty else { return }
+        profile.route = .university
+        profile.universityTopic = topic
+        profile.universityGoal = universityPurpose
+        reading = nil
+        saveProfile()
+        startPlanning()
+    }
+
+    /// 読み取った授業の回のうち、計画に入れるもの(本人が選んだ回まで。「次の学期の予習」などで回が無ければ空)。
+    var plannedLectures: [MaterialReading.Lecture] {
+        guard let reading else { return [] }
+        guard let upTo = lectureUpTo else { return reading.lectures }
+        return reading.lectures.filter { $0.number <= upTo }
     }
 
     // MARK: - 資料
@@ -544,7 +749,7 @@ final class OnboardingModel {
     func startPlanning() {
         // 選び直した時は、前の計画の下書きを使わない。
         draft = nil
-        UserDefaults.standard.removeObject(forKey: Self.draftKey)
+        if purpose == .onboarding { UserDefaults.standard.removeObject(forKey: Self.draftKey) }
         if hasPlan() {
             go(.planWait)
         } else {
@@ -556,8 +761,8 @@ final class OnboardingModel {
     var planChips: [String] {
         var chips: [String] = []
         if profile.route == .range {
-            if let until = profile.untilTest { chips.append(until.hasPrefix("まだ") ? "テストはまだ先" : "テストまで \(until)") }
-            if !materials.isEmpty { chips.append("問題のページ \(materials.count)枚") }
+            if deadline == nil, let until = profile.untilTest { chips.append(until.hasPrefix("まだ") ? "テストはまだ先" : "テストまで \(until)") }
+            if !materials.isEmpty { chips.append(reading == nil ? "問題のページ \(materials.count)枚" : "撮った写真 \(materials.count)枚") }
         }
         if profile.route == .university, !materials.isEmpty { chips.append("資料 \(materials.count)件") }
         return chips
@@ -594,9 +799,13 @@ final class OnboardingModel {
 
     func planRequest() -> LedgerJSON {
         var request: [String: LedgerJSON] = ["task": .string("onboarding_plan"), "route": .string((profile.route ?? .unsure).rawValue)]
-        if let grade = profile.grade, grade != OnboardingProfile.universityGrade { request["grade"] = .string(grade) }
+        // 前後の学年の単元を選べるのは「やる範囲が決まっている」だけ。
+        let grade = profile.route == .range ? unitGrade ?? profile.grade : profile.grade
+        if let grade, grade != OnboardingProfile.universityGrade { request["grade"] = .string(grade) }
         if let unit = profile.unit, profile.route == .range || profile.route == .weak { request["unit"] = .string(unit) }
         if profile.route == .range, let until = profile.untilTest { request["until_test"] = .string(until) }
+        if profile.route == .range || profile.route == .university, let deadline { request["deadline"] = .string(StudyDeadline.isoDay(deadline)) }
+        if purpose == .unitCreation, !existingUnits.isEmpty { request["existing_units"] = .array(existingUnits.map(LedgerJSON.string)) }
         if profile.route == .university {
             request["topic"] = .string(profile.universityTopic ?? "")
             request["goal"] = .string(profile.universityGoal ?? "")
@@ -605,6 +814,18 @@ final class OnboardingModel {
             .object(["problem": .string(record.label), "correct": .bool(record.correct), "learner_answer": .string(record.learnerAnswer), "comment": .string(record.comment)])
         })
         request["material_count"] = .number(Double(materials.count))
+        if let reading {
+            var material: [String: LedgerJSON] = [
+                "kind": .string(reading.kind), "subject": .string(reading.subject), "unit": .string(reading.unit), "course": .string(reading.course),
+                "pages": .string(reading.pages), "workbook_pages": .string(reading.workbookPages), "test_date": .string(reading.testDate),
+            ]
+            let lectures = plannedLectures
+            if !lectures.isEmpty {
+                material["lectures"] = .array(lectures.map { .object(["number": .number(Double($0.number)), "title": .string($0.title)]) })
+            }
+            if let lectureUpTo { material["lectures_done_up_to"] = .number(Double(lectureUpTo)) }
+            request["material"] = .object(material)
+        }
         if let revisionFrom, !revisionFrom.isEmpty {
             request["revision"] = .object(["reason": .string("too_hard"), "previous": .array(revisionFrom.map(LedgerJSON.string))])
         }
@@ -621,13 +842,14 @@ final class OnboardingModel {
         planTask = Task {
             defer { planTask = nil }
             do {
-                let plan = try await OnboardingTurns.planPlan(assets: assets, planID: LedgerID.make(), request: request, imagePaths: images)
+                let plan = try await OnboardingTurns.planPlan(assets: assets, planID: LedgerID.make(), request: request, imagePaths: images,
+                                                              setup: purpose == .unitCreation ? .unit : .plan)
                 let text = try await OnboardingTurns.run(plan, turns: turns, runner: runner, limit: OnboardingTurns.planTimeLimit)
                 guard let draft = OnboardingTurns.parsePlan(text) else { throw OnboardingTurns.Failure.malformed }
                 self.draft = draft
                 self.resetChecks()
                 self.revisionFrom = nil
-                if let data = try? JSONEncoder().encode(draft) { UserDefaults.standard.set(data, forKey: Self.draftKey) }
+                if purpose == .onboarding, let data = try? JSONEncoder().encode(draft) { UserDefaults.standard.set(data, forKey: Self.draftKey) }
                 if step == .planWait { go(.plan, remember: false) }
             } catch {
                 onboardingLog.error("plan failed: \(String(describing: error), privacy: .public)")
@@ -735,15 +957,25 @@ final class OnboardingModel {
     func rebuildPlan(tooHard: Bool) {
         let previous = draft?.subunits.map(\.title) ?? []
         draft = nil
-        UserDefaults.standard.removeObject(forKey: Self.draftKey)
+        if purpose == .onboarding { UserDefaults.standard.removeObject(forKey: Self.draftKey) }
         resetChecks()
         if tooHard {
             revisionFrom = previous
             go(.planWait, remember: false)
         } else {
             revisionFrom = nil
+            // やりたいことと違う: 前に読み取った範囲・撮った写真・その試験日・その授業名で作り直さない。
+            if reading != nil, profile.isUniversity || profile.route == .university {
+                universityTopic = ""
+                profile.universityTopic = nil
+            }
+            reading = nil
+            lectureUpTo = nil
+            deadline = nil
+            profile.untilTest = nil
+            if purpose == .unitCreation { clearMaterials() }
             // 消した計画には戻れないので、戻る先は選び直す画面より前にする(計画の画面を履歴に残さない)。
-            let target: OnboardingStep = profile.isUniversity ? .topic : .intent
+            let target: OnboardingStep = profile.isUniversity ? (purpose == .unitCreation ? .capture : .topic) : .intent
             if let index = history.firstIndex(of: target) { history = Array(history.prefix(index)) }
             go(target, remember: false)
         }
@@ -762,13 +994,18 @@ final class OnboardingModel {
         guard let draft, !isStarting else { return false }
         isStarting = true
         defer { isStarting = false }
-        let specs = draft.subunits.map { WorkbookMachine.SubunitSpec(title: $0.title, outcome: $0.outcome, n: $0.n, scoringUnit: $0.scoringUnit) }
-        let overview: LedgerJSON = .object([
-            "unit_title": .string(draft.unitTitle), "outcome": .string(draft.outcome), "source": .string("onboarding"),
-            "subunits": .array(draft.subunits.map { .object(["title": .string($0.title), "outcome": .string($0.outcome), "n": .number(Double($0.n)), "scoring_unit": .string($0.scoringUnit), "note": .string($0.note)]) }),
-        ])
+        let specs = draft.subunits.map { WorkbookMachine.SubunitSpec(title: $0.title, outcome: $0.outcome, n: $0.n, scoringUnit: $0.scoringUnit, ref: $0.ref ?? "") }
+        var overviewFields: [String: LedgerJSON] = [
+            "unit_title": .string(draft.unitTitle), "outcome": .string(draft.outcome), "source": .string(purpose == .unitCreation ? "unit_creation" : "onboarding"),
+            "subunits": .array(draft.subunits.map { .object(["title": .string($0.title), "outcome": .string($0.outcome), "n": .number(Double($0.n)), "scoring_unit": .string($0.scoringUnit), "note": .string($0.note), "ref": .string($0.ref ?? "")]) }),
+            // 撮り足す時に、大学の授業の単元として割り当てる(授業の回で小単元を足せる)。
+            "route": .string(profile.route?.rawValue ?? ""),
+        ]
+        if let deadline { overviewFields["deadline"] = .string(StudyDeadline.isoDay(deadline)) }
+        let overview: LedgerJSON = .object(overviewFields)
         // 確認の1問で解けた小単元(位置の順)。
         let passedIndices: [Int] = checkPassed.filter(\.value).map(\.key).sorted()
+        let createdUnitID: String
         do {
             let (unitID, subunitID) = try await ledger.commit { db in
                 var workbook = try WorkbookMachine(loading: db)
@@ -786,10 +1023,16 @@ final class OnboardingModel {
                     return (timeline.events, ())
                 }
             }
+            createdUnitID = unitID
         } catch {
             onboardingLog.error("start plan failed: \(String(describing: error), privacy: .public)")
             planError = "計画を保存できませんでした。もう一度押してください。"
             return false
+        }
+        if purpose == .unitCreation {
+            // 単元を作る時は通知の設定を挟まない(オンボーディングで決めてある)。作った単元を開く。
+            onUnitCreated?(createdUnitID)
+            return true
         }
         UserDefaults.standard.removeObject(forKey: Self.draftKey)
         go(.notify, remember: false)
@@ -821,7 +1064,7 @@ final class OnboardingModel {
     /// 終わった時: 計画の下書きと、途中の画面の印を消す。
     func finish() {
         profile.resumeStep = nil
-        profile.save()
+        saveProfile()
         UserDefaults.standard.removeObject(forKey: Self.draftKey)
     }
 

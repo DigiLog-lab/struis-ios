@@ -133,6 +133,8 @@ struct WorkbookSubunitDTO: Decodable, Identifiable, Hashable, Sendable {
     /// 段階 1・2 でモデルのターンを起こす単位と、起こした時の起動メッセージ。
     var kickoffKey: String? = nil
     var kickoffMessageId: String? = nil
+    /// 名前の横に出すページや授業の回(「p.66〜69」「第4回」。#132)。
+    var ref: String? = nil
 
     var stageValue: WorkbookStage { WorkbookStage(rawValue: stage) ?? .introduction }
     var correctCount: Int { tiles.filter { $0.state == .correct }.count }

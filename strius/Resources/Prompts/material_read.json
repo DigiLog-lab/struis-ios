@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "properties": {
+    "readable": {"type": "boolean"},
+    "kind": {"type": "string", "enum": ["range_sheet", "textbook", "syllabus", "slides", "quiz", "other"]},
+    "subject": {"type": "string"},
+    "unit": {"type": "string"},
+    "course": {"type": "string"},
+    "pages": {"type": "string"},
+    "workbook_pages": {"type": "string"},
+    "test_date": {"type": "string"},
+    "lectures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {"number": {"type": "integer"}, "title": {"type": "string"}},
+        "required": ["number", "title"],
+        "additionalProperties": false
+      }
+    },
+    "latest_lecture": {"type": "integer"},
+    "words": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["readable", "kind", "subject", "unit", "course", "pages", "workbook_pages", "test_date", "lectures", "latest_lecture", "words"],
+  "additionalProperties": false
+}

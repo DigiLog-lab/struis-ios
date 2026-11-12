@@ -325,4 +325,219 @@ final class OnboardingTests: XCTestCase {
         XCTAssertEqual(card?.subunitId, "s1")
         XCTAssertEqual(card?.payload["starter"]?.boolValue, true)
     }
+
+    // MARK: - 単元を作る(#132)
+
+    func testDeadlineFromTheChoiceAndTheNextHolidayEnd() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        func day(_ y: Int, _ m: Int, _ d: Int) -> Date { calendar.date(from: DateComponents(year: y, month: m, day: d))! }
+        let today = day(2026, 11, 11)
+        XCTAssertEqual(StudyDeadline.date(for: "1週間以内", from: today, calendar: calendar), day(2026, 11, 18))
+        XCTAssertEqual(StudyDeadline.date(for: "2週間くらい", from: today, calendar: calendar), day(2026, 11, 25))
+        XCTAssertEqual(StudyDeadline.date(for: "1か月くらい", from: today, calendar: calendar), day(2026, 12, 11))
+        XCTAssertNil(StudyDeadline.date(for: "まだ先・決まっていない", from: today, calendar: calendar))
+        // 休みの終わり: 今日より後で一番近いもの(冬 1/7・春 4/5・夏 8/31)。
+        XCTAssertEqual(StudyDeadline.date(for: OnboardingCatalog.untilHoliday, from: today, calendar: calendar), day(2027, 1, 7))
+        XCTAssertEqual(StudyDeadline.holidayEnd(after: day(2027, 7, 20), calendar: calendar), day(2027, 8, 31))
+        XCTAssertEqual(StudyDeadline.holidayEnd(after: day(2027, 3, 20), calendar: calendar), day(2027, 4, 5))
+        XCTAssertEqual(StudyDeadline.holidayEnd(after: day(2027, 8, 31), calendar: calendar), day(2028, 1, 7), "終わりの当日は次の休み")
+        XCTAssertEqual(StudyDeadline.label(day(2027, 8, 31), calendar: calendar), "8月31日まで")
+        XCTAssertEqual(StudyDeadline.isoDay(day(2027, 1, 7), calendar: calendar), "2027-01-07")
+        XCTAssertTrue(OnboardingCatalog.untilTest.contains(OnboardingCatalog.untilHoliday))
+    }
+
+    func testUnitCreationStartsFromTheChoicesAndLeavesTheOnboardingAnswersAlone() {
+        let defaults = UserDefaults.standard
+        let saved = defaults.data(forKey: OnboardingProfile.profileKey)
+        defer { if let saved { defaults.set(saved, forKey: OnboardingProfile.profileKey) } else { defaults.removeObject(forKey: OnboardingProfile.profileKey) } }
+        var onboarding = profile(grade: "高1", trial: 1)
+        onboarding.route = .weak
+        onboarding.unit = "数と式"
+        onboarding.save()
+
+        let model = OnboardingModel(records: records(), hasPlan: { true }, isClaudeAvailable: { true }, purpose: .unitCreation)
+        XCTAssertEqual(model.step, .intent, "中高生は「ここから何をしますか」から")
+        XCTAssertNil(model.selectedUnit, "前の単元の選び方は引き継がない")
+        XCTAssertEqual(model.profile.trial.count, 1, "お試しの結果は使う")
+        model.existingUnits = ["二次関数"]
+        model.choose(route: .range)
+        XCTAssertEqual(model.step, .unit)
+        model.chooseUnitGrade("中3")
+        XCTAssertEqual(model.unitListGrade, "中3")
+        model.chooseUnitGrade("高1")
+        XCTAssertNil(model.unitGrade, "今の学年に戻したら nil")
+        model.selectedUnit = "二次不等式"
+        model.selectUntilTest(OnboardingCatalog.untilHoliday)
+        XCTAssertNotNil(model.deadline)
+        model.commitUnitWithDeadline()
+        XCTAssertEqual(model.step, .planWait)
+
+        let request = model.planRequest()
+        XCTAssertEqual(request["unit"]?.stringValue, "二次不等式")
+        XCTAssertEqual(request["grade"]?.stringValue, "高1")
+        XCTAssertEqual(request["until_test"]?.stringValue, OnboardingCatalog.untilHoliday)
+        XCTAssertEqual(request["deadline"]?.stringValue, StudyDeadline.isoDay(model.deadline!))
+        XCTAssertEqual(request["existing_units"]?.arrayValue?.compactMap(\.stringValue), ["二次関数"])
+        XCTAssertEqual(model.planChips, [], "期限は日付のボタンで出す")
+
+        let after = OnboardingProfile.load()
+        XCTAssertEqual(after?.route, .weak, "オンボーディングの回答を書き換えない")
+        XCTAssertEqual(after?.unit, "数と式")
+        XCTAssertNil(after?.resumeStep, "続きの画面を書き換えない")
+    }
+
+    func testUniversityUnitCreationStartsFromTheCameraAndWithoutMaterialAsksForAUniversityPlan() {
+        var university = profile(grade: OnboardingProfile.universityGrade)
+        university.route = .university
+        university.universityTopic = "前の授業"
+        let model = OnboardingModel(profile: university, records: records(), hasPlan: { true }, isClaudeAvailable: { true }, purpose: .unitCreation)
+        XCTAssertEqual(model.step, .capture, "大学生は撮るのが先")
+        XCTAssertEqual(model.universityTopic, "", "前に書いた勉強することは引き継がない")
+        model.skipMaterials()
+        XCTAssertEqual(model.step, .universityChoices)
+        model.universityTopic = "線形代数"
+        model.universityPurpose = "次の学期の予習"
+        model.selectUntilTest(OnboardingCatalog.untilHoliday)
+        model.commitUniversityChoices()
+        XCTAssertEqual(model.step, .planWait)
+        let request = model.planRequest()
+        XCTAssertEqual(request["route"]?.stringValue, "university", "大学生の計画として頼む")
+        XCTAssertEqual(request["topic"]?.stringValue, "線形代数")
+        XCTAssertEqual(request["goal"]?.stringValue, "次の学期の予習")
+        XCTAssertNotNil(request["deadline"]?.stringValue)
+        XCTAssertNil(request["material"], "資料が無ければ読み取った範囲も無い")
+    }
+
+    func testReadingASyllabusLetsTheLearnerChooseHowFarTheLecturesWent() throws {
+        let mock = MockTurnRunner.materialReading(["grade": OnboardingProfile.universityGrade])
+        let text = String(decoding: try JSONSerialization.data(withJSONObject: mock), as: UTF8.self)
+        let reading = try XCTUnwrap(OnboardingTurns.parseReading("```json\n\(text)\n```"))
+        XCTAssertTrue(reading.isCourse)
+        XCTAssertEqual(reading.lectures.count, 15)
+        XCTAssertEqual(reading.testDate, "2027-01-26")
+        XCTAssertNil(OnboardingTurns.parseReading("読めませんでした"))
+
+        let model = OnboardingModel(profile: profile(grade: OnboardingProfile.universityGrade), records: records(), hasPlan: { true },
+                                    isClaudeAvailable: { true }, purpose: .unitCreation)
+        let request = model.readingRequest()
+        XCTAssertEqual(request["task"]?.stringValue, "read_material")
+        XCTAssertEqual(request["units"]?.arrayValue?.count, 0, "大学生には中高の単元を渡さない")
+        XCTAssertEqual(OnboardingModel(profile: profile(grade: "高1"), records: records(), hasPlan: { true }, isClaudeAvailable: { true },
+                                       purpose: .unitCreation).readingRequest()["units"]?.arrayValue?.compactMap(\.stringValue).contains("二次関数"), true)
+        // 学年が分からない時も、中高の学年として頼む(大学生として読ませない)。
+        XCTAssertEqual(OnboardingModel(profile: profile(grade: nil), records: records(), hasPlan: { true }, isClaudeAvailable: { true },
+                                       purpose: .unitCreation).readingRequest()["grade"]?.stringValue, "中3")
+    }
+
+    func testReadingIsNewWorkForTheUsageGate() async throws {
+        // 採点の続きとして猶予を使わない(読み取りは新しい作業)。
+        let plan = try await OnboardingTurns.readingPlan(assets: AssetCache(), planID: "p", request: .object(["task": .string("read_material")]), imagePaths: [])
+        XCTAssertFalse(UsageRequest.of(kind: plan.kind, turnAdmitted: false).finishing)
+    }
+
+    func testRetakingAndRebuildingDropTheReading() {
+        let model = OnboardingModel(profile: profile(grade: "高1"), records: records(), hasPlan: { true }, isClaudeAvailable: { true }, purpose: .unitCreation)
+        model.choose(route: .range)
+        model.chooseUnitGrade("高2")
+        model.startCapture()
+        model.go(.reading)
+        model.retake()
+        XCTAssertEqual(model.step, .capture)
+        model.back()
+        XCTAssertEqual(model.step, .unit, "撮り直した後の戻るで、捨てた読み取りの画面に戻らない")
+        XCTAssertEqual(model.unitListGrade, "高2")
+
+        // 大学生がシラバスの計画を「やりたいことと違う」で捨てた時は、その試験日を次の計画に持ち込まない。
+        let university = OnboardingModel(profile: profile(grade: OnboardingProfile.universityGrade), records: records(), hasPlan: { true },
+                                         isClaudeAvailable: { true }, purpose: .unitCreation)
+        university.deadline = StudyDeadline.day(from: "2027-01-26")
+        university.rebuildPlan(tooHard: false)
+        XCTAssertEqual(university.step, .capture, "大学生は撮る画面に戻る")
+        XCTAssertNil(university.deadline)
+        XCTAssertNil(university.reading)
+
+        // シラバスの授業名も、捨てた計画と一緒に捨てる(選び直す画面に見えないまま残さない)。
+        let syllabus = OnboardingTurns.parseReading(String(decoding: try! JSONSerialization.data(
+            withJSONObject: MockTurnRunner.materialReading(["grade": OnboardingProfile.universityGrade])), as: UTF8.self))
+        university.reading = syllabus
+        university.confirmReading()
+        XCTAssertEqual(university.universityTopic, "線形代数Ⅱ")
+        university.rebuildPlan(tooHard: false)
+        XCTAssertEqual(university.universityTopic, "")
+        XCTAssertNil(university.profile.universityTopic)
+
+        // 「資料なしで作る」で「いつまでに」を選び、戻ってもう一度「資料なしで作る」にしても、選んだ期限を送る。
+        university.skipMaterials()
+        university.selectUntilTest("1週間以内")
+        university.back()
+        XCTAssertEqual(university.step, .capture)
+        university.skipMaterials()
+        XCTAssertEqual(university.profile.untilTest, "1週間以内")
+        XCTAssertNotNil(university.deadline)
+        // 読み取った試験日だけがある時は、それを持ち込まない。
+        university.back()
+        university.profile.untilTest = nil
+        university.deadline = StudyDeadline.day(from: "2027-01-26")
+        university.skipMaterials()
+        XCTAssertNil(university.deadline)
+    }
+
+    func testReadingARangeSheetMakesARangePlanWithItsPagesAndTestDate() throws {
+        let mock = MockTurnRunner.materialReading(["grade": "高1"])
+        let text = String(decoding: try JSONSerialization.data(withJSONObject: mock), as: UTF8.self)
+        let reading = try XCTUnwrap(OnboardingTurns.parseReading(text))
+        XCTAssertFalse(reading.isCourse)
+        XCTAssertEqual(reading.pages, "p.62〜p.96")
+        XCTAssertEqual(reading.workbookPages, "ニューアクションα p.40〜p.52")
+
+        // 試験日の無い資料(教科書の目次など)を撮った時は、本人が選んだ「いつまでに」を残す。
+        let model = OnboardingModel(profile: profile(grade: "高1"), records: records(), hasPlan: { true }, isClaudeAvailable: { true }, purpose: .unitCreation)
+        model.choose(route: .range)
+        model.selectUntilTest("1週間以内")
+        let chosen = try XCTUnwrap(model.deadline)
+        var withoutDate = reading
+        withoutDate.testDate = ""
+        model.reading = withoutDate
+        model.confirmReading()
+        XCTAssertEqual(model.deadline, chosen)
+        XCTAssertEqual(model.planRequest()["until_test"]?.stringValue, "1週間以内")
+        // 試験日が読み取れた時は、それを期限にする。
+        model.reading = reading
+        model.confirmReading()
+        XCTAssertEqual(model.deadline, StudyDeadline.day(from: "2026-12-03"))
+        XCTAssertNil(model.profile.untilTest)
+    }
+
+    func testAnotherGradesUnitIsOnlyForTheRangeRoute() {
+        let model = OnboardingModel(profile: profile(grade: "高1"), records: records(), hasPlan: { true }, isClaudeAvailable: { true }, purpose: .unitCreation)
+        model.choose(route: .range)
+        model.chooseUnitGrade("中3")
+        model.selectUntilTest("1週間以内")
+        XCTAssertEqual(model.planRequest()["grade"]?.stringValue, "中3")
+        // 「作り直す」→「やりたいことと違う」で別の選び方にした時は、今の学年で頼む。
+        model.choose(route: .unsure)
+        XCTAssertEqual(model.planRequest()["grade"]?.stringValue, "高1")
+        XCTAssertNil(model.unitGrade)
+        XCTAssertNil(model.deadline, "前の期限を持ち込まない")
+    }
+
+    func testTheDeadlineSurvivesClosingTheAppDuringOnboarding() {
+        let defaults = UserDefaults.standard
+        let saved = defaults.data(forKey: OnboardingProfile.profileKey)
+        defer { if let saved { defaults.set(saved, forKey: OnboardingProfile.profileKey) } else { defaults.removeObject(forKey: OnboardingProfile.profileKey) } }
+        OnboardingProfile().save()
+        let first = OnboardingModel(records: records(), hasPlan: { true }, isClaudeAvailable: { true }, start: .intent)
+        first.choose(route: .range)
+        first.selectUntilTest(OnboardingCatalog.untilHoliday)
+        let edited = Calendar.current.date(byAdding: .day, value: 3, to: first.deadline!)!
+        first.deadline = edited
+        // 閉じて開き直した(計画の画面に戻る)。
+        let reopened = OnboardingModel(records: records(), hasPlan: { true }, isClaudeAvailable: { true }, start: .plan)
+        XCTAssertEqual(reopened.deadline.map { StudyDeadline.isoDay($0) }, StudyDeadline.isoDay(edited), "直した期限が残っている")
+        XCTAssertEqual(reopened.planRequest()["deadline"]?.stringValue, StudyDeadline.isoDay(edited))
+        // 単元を作る時は、オンボーディングの期限を使わない。
+        let creation = OnboardingModel(records: records(), hasPlan: { true }, isClaudeAvailable: { true }, purpose: .unitCreation)
+        XCTAssertNil(creation.deadline)
+    }
 }
