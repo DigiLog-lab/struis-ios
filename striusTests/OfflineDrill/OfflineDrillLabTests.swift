@@ -1,4 +1,7 @@
 #if DEBUG
+import PencilKit
+import SwiftUI
+import UIKit
 import XCTest
 @testable import strius
 
@@ -62,6 +65,63 @@ final class OfflineDrillLabTests: XCTestCase {
         XCTAssertNil(DrillRenderProbe.swiftMath("\\frac{1}{2}x^{2} + \\sqrt{3}"))
         XCTAssertNotNil(DrillRenderProbe.swiftMath("\\rightleftarrows"), "平衡の矢印は SwiftMath に無い(型では式の外に ⇄ と書く)")
         XCTAssertNotNil(DrillRenderProbe.swiftMath("\\frac{1}{2"))
+    }
+
+    // MARK: - 書く面
+
+    private func canvas(in view: UIView) -> TimelinePassThroughCanvas? {
+        if let found: TimelinePassThroughCanvas = view as? TimelinePassThroughCanvas { return found }
+        for child: UIView in view.subviews {
+            if let found: TimelinePassThroughCanvas = canvas(in: child) { return found }
+        }
+        return nil
+    }
+
+    private func isCanvas(_ view: UIView?, _ canvas: TimelinePassThroughCanvas) -> Bool {
+        guard let view: UIView = view else { return false }
+        return view === canvas || view.isDescendant(of: canvas)
+    }
+
+    /// 余白は指で書ける状態で画面を覆い、ボタンの上だけ指をボタンに通す(画面を実際に組んで、指が届く先を確かめる)。
+    @MainActor
+    func testMarginIsWritableWithAFingerAndTheButtonsStayTappable() throws {
+        let window: UIWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 402, height: 874))
+        let host: UIHostingController<OfflineDrillLabView> = UIHostingController(rootView: OfflineDrillLabView())
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.layoutIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(1.0))
+
+        let ink: TimelinePassThroughCanvas = try XCTUnwrap(canvas(in: window), "書く面が画面に無い")
+        XCTAssertEqual(ink.drawingPolicy, PKCanvasViewDrawingPolicy.anyInput, "指で書ける")
+        XCTAssertTrue(ink.isDrawingAllowed)
+        XCTAssertTrue(ink.drawingGestureRecognizer.isEnabled)
+        let frame: CGRect = ink.convert(ink.bounds, to: window)
+        XCTAssertGreaterThanOrEqual(frame.width, 400, "端から端まで")
+        XCTAssertGreaterThanOrEqual(frame.height, 700)
+
+        // 余白(問題文の下の空いた所)と問題文の上の指は、書く面に届く。
+        for point: CGPoint in [CGPoint(x: 120, y: 560), CGPoint(x: 200, y: 220), CGPoint(x: 30, y: 800)] {
+            XCTAssertTrue(isCanvas(window.hitTest(point, with: nil), ink), "\(point) の指が書く面に届かない")
+        }
+        // ボタン(左上の「オフライン」、右下の「答え」「次へ」)の上の指は、書く面を通り抜ける。
+        XCTAssertGreaterThanOrEqual(ink.passThrough.count, 2)
+        for area: CGRect in ink.passThrough {
+            let point: CGPoint = ink.convert(CGPoint(x: area.midX, y: area.midY), to: window)
+            XCTAssertFalse(isCanvas(window.hitTest(point, with: nil), ink), "\(area) のボタンに指が届かない")
+        }
+
+        // 線を書くと「1つ戻す」「全部消す」が出て、その上も指を通す。
+        let before: Int = ink.passThrough.count
+        let points: [PKStrokePoint] = stride(from: 0, through: 120, by: 12).map { (offset: Int) -> PKStrokePoint in
+            PKStrokePoint(location: CGPoint(x: ink.contentOffset.x + 80 + CGFloat(offset), y: ink.contentOffset.y + 500 + CGFloat(offset) / 3),
+                          timeOffset: TimeInterval(offset) / 100, size: CGSize(width: 3, height: 3), opacity: 1, force: 1, azimuth: 0, altitude: 0)
+        }
+        ink.drawing = PKDrawing(strokes: [PKStroke(ink: PKInk(PKInkingTool.InkType.monoline, color: UIColor.black), path: PKStrokePath(controlPoints: points, creationDate: Date()))])
+        ink.delegate?.canvasViewDrawingDidChange?(ink)
+        RunLoop.main.run(until: Date().addingTimeInterval(0.6))
+        XCTAssertEqual(ink.passThrough.count, before + 1, "書いた後は、戻す・消すのボタンが出る")
     }
 
     // MARK: - プロトタイプの状態
