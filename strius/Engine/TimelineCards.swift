@@ -458,6 +458,24 @@ nonisolated enum TimelineCards {
         }
     }
 
+    /// 質問・解説に添える問題文(1 行ずつ)。画面に出ている順に、問題・問いかけ・式・選ぶものを並べる。
+    static func problemLines(_ card: TimelineCardRecord) -> [String] {
+        // `problem` が空の文字で入っているカード(仕分けなど)は、問いかけの文を使う(空のまま渡すと、問題が入らない)。
+        let problem: String = card.payload["problem"]?.stringValue ?? ""
+        let math: String = card.math.isEmpty || card.math.contains("$") ? card.math : "$" + card.math + "$"
+        let kind: Kind? = Kind(rawValue: card.kind)
+        // 「理由を選ぶ」「比べる」は、問いの文が `prompt` に入っている(`question` は同じ問いの言い換え)。
+        let asksInPrompt: Bool = kind == .reason || kind == .compare
+        // 読み取って採点するカードは `problem` が問題文の全部なので、`prompt` を重ねない。
+        // 選ぶ・並べる・仕分けるカードの `prompt` は「次の一手を選びなさい。」のような、何を答える問いかの文。
+        // これを落とすと、元の問題と選択肢だけが渡り、何を聞かれているのかが伝わらない。
+        let showsPrompt: Bool = problem.isEmpty || !(kind?.needsReading ?? true)
+        // 選ぶカードの `problem` は「問いかけ + 式」を 1 行にしたものなので、同じ式を重ねない。
+        let mathInProblem: Bool = !card.math.isEmpty && problem.contains(card.math)
+        let lines: [String] = [problem, showsPrompt && card.prompt != problem ? card.prompt : "", mathInProblem ? "" : math, asksInPrompt ? "" : card.question].filter { !$0.isEmpty }
+        return lines + optionLines(card)
+    }
+
     /// 質問・解説に添える、カードの選ぶもの(番号付き)。読み取って採点するカードには無い。
     /// グラフと式を組にするカードは図を送れないので、式の一覧と、グラフが左から並んでいることを文で書く。比べるカードは 2 つの解き方も添える。
     static func optionLines(_ card: TimelineCardRecord) -> [String] {
@@ -481,6 +499,11 @@ nonisolated enum TimelineCards {
                 lines.append((title.isEmpty ? "解き方 " + side.uppercased() : title) + ":")
                 lines += method
             }
+        }
+        if kind == .nextStep {
+            // 次の一手のカードは、そこまでの手順を画面に出してから選ばせる。添えないと、どこまで進んだ後の一手なのかが伝わらない。
+            let shown: [String] = strings("shown")
+            if !shown.isEmpty { lines += ["ここまでの手順:"] + shown }
         }
         let options: [String] = (card.payload["options"] ?? card.payload["lines"])?.arrayValue?.compactMap(\.stringValue) ?? []
         if !options.isEmpty { lines += ["選択肢:"] + options.enumerated().map { "\($0.offset + 1). \($0.element)" } }
