@@ -61,7 +61,11 @@ final class TimelineAssetTests: XCTestCase {
         XCTAssertEqual(claude.provider, .anthropic)
         let graph = await cache.model(TimelineModels.graphRole)
         XCTAssertEqual(graph.model, "claude-opus-5-5")
-        // 質問・下調べは Claude の既定。
+        // 質問・下調べは Claude の既定。チャット(質問・要点・例題などの対話)は Sonnet 5.5。
+        let chat = await cache.model("chat")
+        XCTAssertEqual(chat.model, "claude-sonnet-5-5")
+        XCTAssertEqual(chat.effort, "medium")
+        XCTAssertEqual(chat.provider, .anthropic)
         let astra = await cache.model("astra")
         XCTAssertEqual(astra.model, ClaudeModels.astraModel)
         XCTAssertEqual(astra.provider, .anthropic)

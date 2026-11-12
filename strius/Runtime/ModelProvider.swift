@@ -40,6 +40,11 @@ nonisolated enum TimelineModelPreference {
 
 /// Claude のモデル。
 nonisolated enum ClaudeModels {
+    /// チャット(質問・要点・例題などの対話)。2026-11-12 に Opus 5.5 から変えた: 同じ質問 16 問・写真つきの質問・例題の
+    /// やり取りで正しさに差が無く、費用は 4 割ほど、応答は 3 倍ほど速かった(PR の本文に実測)。
+    static let chatModel = "claude-sonnet-5-5"
+    static let chatEffort = "medium"
+    /// 形の決まった出力(採点・問題セット・単元の構成)。
     static let astraModel = "claude-opus-5-5"
     static let astraEffort = "medium"
     static let lunaModel = "claude-haiku-5-5"

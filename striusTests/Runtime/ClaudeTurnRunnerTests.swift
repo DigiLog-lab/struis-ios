@@ -182,13 +182,17 @@ final class ClaudeTurnRunnerTests: XCTestCase {
         // 最初の発話は AGENTS.md・今回の文の順。Skill の一覧は developer 指示の後ろに改行 1 つで続く。
         let opening: [String] = texts((sent[0]["messages"] as? [[String: Any]])?.first)
         XCTAssertEqual(opening.count, 2)
-        XCTAssertTrue(opening[0].hasPrefix("# AGENTS.md instructions for "))
-        XCTAssertTrue(opening[0].hasSuffix("\n\n<INSTRUCTIONS>\nAGENTS BODY\n\n</INSTRUCTIONS>"))
+        XCTAssertEqual(opening[0], "# AGENTS.md instructions for the working directory\n\n<INSTRUCTIONS>\nAGENTS BODY\n\n</INSTRUCTIONS>")
         XCTAssertEqual(opening[1], "質問 1")
         let system: String = (sent[0]["system"] as? [[String: Any]])?.first?["text"] as? String ?? ""
         XCTAssertTrue(system.hasPrefix("BASE\n\nDEVELOPER\n\n" + NativeToolRouter.instructions + "\n<skills_instructions>\n## Skills\n"))
+        XCTAssertTrue(system.contains("\n### Skill roots\n- `r0` = `.agents/skills`\n"))
         XCTAssertTrue(system.hasSuffix("- struis-document: Read attachments. (file: r0/struis-document/SKILL.md)\n</skills_instructions>"))
         XCTAssertEqual(sent[0]["cache_control"] as? [String: String], ["type": "ephemeral", "ttl": "1h"])
+        // AGENTS.md のブロックには 1 時間の印を置く(別の会話がここまでを読める)。今回の文には置かない(末尾の印が受け持つ)。
+        let openingBlocks: [[String: Any]] = (sent[0]["messages"] as? [[String: Any]])?.first?["content"] as? [[String: Any]] ?? []
+        XCTAssertEqual(openingBlocks.first?["cache_control"] as? [String: String], ["type": "ephemeral", "ttl": "1h"])
+        XCTAssertNil(openingBlocks.last?["cache_control"])
         // 道具の結果は失敗として返り、thinking は署名ごと次の要求に戻る。
         let afterTool: [[String: Any]] = sent[1]["messages"] as? [[String: Any]] ?? []
         XCTAssertEqual((afterTool[1]["content"] as? [[String: Any]])?.first?["signature"] as? String, "sig-tool")
@@ -209,7 +213,44 @@ final class ClaudeTurnRunnerTests: XCTestCase {
         XCTAssertEqual(try conversations.messages(thread).count, 6)
     }
 
-    func testForkCopiesTheHistoryUpToTheTurnAndResendsAgentsForItsFolder() async throws {
+    /// 別の会話(別の問題での質問)でも、system と AGENTS.md のブロックは 1 文字も変わらない。会話ごとに変わる文字
+    /// (作業フォルダ `thread-<id>` の場所)が入ると、1 時間のキャッシュを別の会話で読めず、約 3 万トークンを毎回書き直す。
+    func testSystemAndAgentsBlockAreIdenticalAcrossConversations() async throws {
+        let first: TurnOutcome = try await runner([Self.answer("一つ目")]).run(try await chatPlan(thread: nil, mode: .start, text: "質問 1")) { _ in }
+        let firstBody: [String: Any] = try XCTUnwrap(sent.first)
+        let second: TurnOutcome = try await runner([Self.answer("二つ目")]).run(try await chatPlan(thread: nil, mode: .start, text: "質問 2")) { _ in }
+        let secondBody: [String: Any] = try XCTUnwrap(sent.first)
+        XCTAssertNotEqual(first.codexThreadID, second.codexThreadID)
+        func system(_ body: [String: Any]) -> String { (body["system"] as? [[String: Any]])?.first?["text"] as? String ?? "" }
+        XCTAssertFalse(system(firstBody).isEmpty)
+        XCTAssertEqual(system(firstBody), system(secondBody))
+        XCTAssertEqual(texts((firstBody["messages"] as? [[String: Any]])?.first).first, texts((secondBody["messages"] as? [[String: Any]])?.first).first)
+        for body in [firstBody, secondBody] {
+            let data: Data = try JSONSerialization.data(withJSONObject: body)
+            XCTAssertFalse(String(decoding: data, as: UTF8.self).contains("thread-"), "要求のどこにも会話ごとのフォルダ名を入れない")
+        }
+    }
+
+    /// 以前の版は、AGENTS.md を送った時の作業フォルダの場所を控えていた。同じフォルダの控えは送り済みとして読み、
+    /// 別のフォルダの控え(以前の版で分岐した会話)と、本文が変わった時は、置き換えとして送り直す。
+    func testAgentsIsResentOnlyWhenItsTextWasNotDeliveredYet() async throws {
+        let first: TurnOutcome = try await runner([Self.answer("一つ目")]).run(try await chatPlan(thread: nil, mode: .start, text: "質問 1")) { _ in }
+        let thread: String = try XCTUnwrap(first.codexThreadID)
+        XCTAssertEqual(try conversations.conversation(thread)?.agentsPath?.hasPrefix("sha256:"), true)
+        let plan: TurnPlan = try await chatPlan(thread: thread, mode: .resume, text: "質問 2")
+        try conversations.recordAgentsPath(threadID: thread, path: plan.hostWorkspace.path)
+        _ = try await runner([Self.answer("二つ目")]).run(plan) { _ in }
+        XCTAssertEqual(texts((sent[0]["messages"] as? [[String: Any]])?.last), ["質問 2"], "同じ作業フォルダの控え(以前の版)は送り済み")
+        try conversations.recordAgentsPath(threadID: thread, path: "/old/container/workspace/thread-other")
+        _ = try await runner([Self.answer("三つ目")]).run(try await chatPlan(thread: thread, mode: .resume, text: "質問 3")) { _ in }
+        let resent: [String] = texts((sent[0]["messages"] as? [[String: Any]])?.last)
+        XCTAssertEqual(resent.count, 2)
+        XCTAssertTrue(resent[0].contains("<INSTRUCTIONS>\nThese AGENTS.md instructions replace all previously provided AGENTS.md instructions.\n\nAGENTS BODY"))
+        XCTAssertEqual(resent[1], "質問 3")
+        XCTAssertEqual(try conversations.conversation(thread)?.agentsPath?.hasPrefix("sha256:"), true)
+    }
+
+    func testForkCopiesTheHistoryUpToTheTurnAndDoesNotResendAgents() async throws {
         let runner: ClaudeTurnRunner = runner([Self.answer("一つ目"), Self.answer("二つ目"), Self.answer("分岐")])
         let first: TurnOutcome = try await runner.run(try await chatPlan(thread: nil, mode: .start, text: "質問 1")) { _ in }
         let thread: String = try XCTUnwrap(first.codexThreadID)
@@ -221,10 +262,12 @@ final class ClaudeTurnRunnerTests: XCTestCase {
         XCTAssertEqual(try conversations.messages(forked).count, 2, "最初のターン(質問 1 と答え)までを写す")
         let onFork: TurnOutcome = try await runner.run(try await chatPlan(thread: forked, mode: .resume, text: "分岐の質問")) { _ in }
         XCTAssertEqual(onFork.status, .completed, onFork.errorDetail ?? "")
-        let last: [String] = texts((sent[2]["messages"] as? [[String: Any]])?.last)
-        XCTAssertTrue(last[0].contains("<INSTRUCTIONS>\nThese AGENTS.md instructions replace all previously provided AGENTS.md instructions.\n\nAGENTS BODY"))
-        XCTAssertTrue(last[1].hasPrefix("<developer_instructions>\n<skills_instructions>\n"))
-        XCTAssertEqual(last[2], "分岐の質問")
+        // 写した履歴に同じ AGENTS.md が入っているので送り直さない。system も元の会話と同じなので、分岐は元の会話のキャッシュを読める。
+        let forkedMessages: [[String: Any]] = sent[2]["messages"] as? [[String: Any]] ?? []
+        XCTAssertEqual(texts(forkedMessages.last), ["分岐の質問"])
+        XCTAssertEqual(texts(forkedMessages.first), texts((sent[0]["messages"] as? [[String: Any]])?.first))
+        XCTAssertEqual((sent[2]["system"] as? [[String: Any]])?.first?["text"] as? String, (sent[0]["system"] as? [[String: Any]])?.first?["text"] as? String)
+        XCTAssertEqual(try conversations.conversation(forked)?.agentsPath, try conversations.conversation(thread)?.agentsPath)
     }
 
     func testStoppedTurnLeavesTheAbortMarkAndClosesOpenToolCalls() async throws {

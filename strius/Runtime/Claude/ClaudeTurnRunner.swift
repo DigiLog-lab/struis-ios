@@ -236,16 +236,16 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
                     if delegation.contractInDeveloper != true { text += created.prompt }
                 }
                 input = try userContent(text: text, images: turn.images, notes: notes)
-                if conversation, (try? dependencies.conversations.conversation(threadID))?.agentsPath != plan.hostWorkspace.path,
-                   let agents = await agentsInstructions(replacing: try dependencies.conversations.messageCount(threadID) > 0) {
-                    // 作業フォルダが変わった最初の発話(新しいスレッド・分岐): その AGENTS.md を先頭に置く(同じフォルダの間は送らない)。
-                    // 履歴のある会話(分岐)では、新しいフォルダの Skill の一覧も developer の注記として送り直す。
-                    var preface: [[String: Any]] = [["type": "text", "text": agents.text]]
-                    if agents.replacing, let skillsBlock = await skillsInstructions() {
-                        preface.append(["type": "text", "text": "<developer_instructions>\n" + skillsBlock + "\n</developer_instructions>"])
+                if conversation, let agents = await agentsInstructions() {
+                    // `AGENTS.md` は、その本文をまだ送っていない会話の最初の発話の先頭に置く(新しいスレッド。本文が変わった時は
+                    // 置き換えとして送り直す)。送ったかどうかは本文の hash で控える。分岐は元の会話の控えを引き継ぐので送り直さない。
+                    // 以前の版は作業フォルダの場所を控えていた: 同じフォルダの控えは、送り済みとして読む。
+                    let delivered: String? = (try? dependencies.conversations.conversation(threadID))?.agentsPath
+                    if delivered != agents.key, delivered != plan.hostWorkspace.path {
+                        let replacing: Bool = try dependencies.conversations.messageCount(threadID) > 0
+                        input.insert(["type": "text", "text": Self.agentsText(body: agents.body, replacing: replacing)], at: 0)
+                        try dependencies.conversations.recordAgentsPath(threadID: threadID, path: agents.key)
                     }
-                    input.insert(contentsOf: preface, at: 0)
-                    try dependencies.conversations.recordAgentsPath(threadID: threadID, path: plan.hostWorkspace.path)
                 }
             }
             if conversation {
@@ -408,12 +408,13 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
             entries.append((name: name, directory: directory, description: front["description"]?.stringValue ?? ""))
         }
         guard !entries.isEmpty else { return nil }
-        let root: String = plan.hostWorkspace.appendingPathComponent(".agents/skills").path
+        // 場所は作業フォルダからの相対で書く(コマンドは作業フォルダで動く)。会話ごとに変わるフォルダ名(`thread-<id>`)を
+        // 入れると、system の文面が会話ごとに変わり、処理をまたぐ 1 時間のキャッシュを別の会話で読めなくなる。
         var lines: [String] = [
             "## Skills",
-            "A skill is a set of local instructions to follow that is stored in a `SKILL.md` file. Below is the list of skills that can be used. Each entry includes a name, description, and a short path that can be expanded into an absolute path using the skill roots table.",
+            "A skill is a set of local instructions to follow that is stored in a `SKILL.md` file. Below is the list of skills that can be used. Each entry includes a name, description, and a short path that can be expanded into a path relative to the working directory using the skill roots table.",
             "### Skill roots",
-            "- `r0` = `\(root)`",
+            "- `r0` = `\(Self.skillsRoot)`",
             "### Available skills",
         ]
         for entry in entries.sorted(by: { $0.name < $1.name }) {
@@ -430,14 +431,24 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
         return front.objectValue
     }
 
-    /// 新しい会話の最初の発話の先頭に置く `AGENTS.md`(以前の経路が作業フォルダから読んで入れていた文面と同じ)。
-    /// `replacing`: 履歴に前の AGENTS.md がある(分岐した会話)。その時は置き換える旨を先頭に書く。
-    private func agentsInstructions(replacing: Bool) async -> (text: String, replacing: Bool)? {
+    /// Skill の場所(作業フォルダからの相対)。
+    static let skillsRoot: String = ".agents/skills"
+    /// `AGENTS.md` を入れる発話の先頭の行。会話ごとに変わる文字(作業フォルダの場所)は入れない: 入れると、同じ本文でも
+    /// 別の会話でキャッシュを読めなくなる。
+    static let agentsHeading: String = "# AGENTS.md instructions for the working directory"
+
+    /// この依頼の `AGENTS.md` の本文と、送った本文の控え(本文の hash)。
+    private func agentsInstructions() async -> (key: String, body: String)? {
         guard let file = plan.workspace.files.first(where: { $0.path == "AGENTS.md" }) else { return nil }
         let text: String? = if let asset = file.asset { try? await dependencies.assets.text(asset) } else { file.inline }
         guard let text, !text.isEmpty else { return nil }
+        return (key: "sha256:" + AssetCache.sha256Hex(Data(text.utf8)), body: text)
+    }
+
+    /// 会話の最初の発話の先頭に置く文面。`replacing`: 履歴に前の AGENTS.md がある。その時は置き換える旨を先頭に書く。
+    static func agentsText(body: String, replacing: Bool) -> String {
         let preface: String = replacing ? "These AGENTS.md instructions replace all previously provided AGENTS.md instructions.\n\n" : ""
-        return ("# AGENTS.md instructions for \(plan.hostWorkspace.path)\n\n<INSTRUCTIONS>\n\(preface)\(text)\n</INSTRUCTIONS>", replacing)
+        return "\(agentsHeading)\n\n<INSTRUCTIONS>\n\(preface)\(body)\n</INSTRUCTIONS>"
     }
 
     /// Codex の組み込みの `view_image`(Codex が足す定義と同じ文面)。`request_user_input` は Plan モード専用なので足さない。
@@ -595,6 +606,7 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
             "model": model, "max_tokens": ClaudeRequestFormat.maxTokens, "stream": true, "messages": sent,
             "system": system, "thinking": ["type": "adaptive", "display": "summarized"],
         ]
+        sent = ClaudeTranslation.markingAgents(sent)
         if ClaudeTranslation.marksTail(translation: translation, messages: sent) {
             body["cache_control"] = ClaudeTranslation.cacheControl(ttl: translation >= 2 && !tutor ? tailTTL : nil)
         }

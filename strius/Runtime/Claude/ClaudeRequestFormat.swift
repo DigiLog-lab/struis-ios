@@ -172,6 +172,21 @@ nonisolated enum ClaudeTranslation {
         return blocks
     }
 
+    /// `AGENTS.md` を入れた発話の先頭の行の始まり(以前の版は、この後ろに作業フォルダの場所を書いていた)。
+    static let agentsPrefix = "# AGENTS.md instructions for "
+
+    /// 会話の最初の発話の先頭にある `AGENTS.md` のブロックに 1 時間の印を置く。本文はどの会話でも同じなので、
+    /// 別の会話(別の問題での質問、新しい小単元)が system に続けてここまでを読める。印が無いと、読めるのは system までで、
+    /// `AGENTS.md`(約 6 千トークン)を会話ごとに書き直す。印は system・ここ・末尾の 3 つ(上限は 4 つ)。
+    static func markingAgents(_ messages: [[String: Any]]) -> [[String: Any]] {
+        guard var first = messages.first, first["role"] as? String == "user",
+              var content = first["content"] as? [[String: Any]], let block = content.first,
+              block["type"] as? String == "text", (block["text"] as? String)?.hasPrefix(agentsPrefix) == true else { return messages }
+        content[0]["cache_control"] = cacheControl(ttl: "1h")
+        first["content"] = content
+        return [first] + messages.dropFirst()
+    }
+
     static func cacheControl(ttl: String?) -> [String: Any] {
         guard let ttl, ttl != "5m" else { return ["type": "ephemeral"] }
         return ["type": "ephemeral", "ttl": ttl]

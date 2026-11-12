@@ -217,17 +217,17 @@ nonisolated enum ChatTurns {
         }
 
         let inbox = ".struis_delegations/" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
-        let astra = await assets.model("astra")
+        let chat = await assets.model("chat")
         let luna = await assets.model("luna")
         let existingThread = state.codexThreadID
         let thread = TurnPlan.ThreadSpec(
             codexThreadID: existingThread, mode: existingThread == nil ? .start : .resume, cwd: guestRoot,
-            model: astra.model, effort: astra.effort, ephemeral: false,
+            model: chat.model, effort: chat.effort, ephemeral: false,
             baseInstructions: try await assets.ref("prompt:base"),
             developerInstructions: try await developerRef(assets: assets),
             developerText: nil, injectDeveloperOnResume: existingThread != nil && roundText == nil,
-            config: .object(["model_reasoning_effort": .string(astra.effort), "features.multi_agent": .bool(false), "features.unified_exec": .bool(false)]),
-            lastTurnID: nil, provider: astra.provider
+            config: .object(["model_reasoning_effort": .string(chat.effort), "features.multi_agent": .bool(false), "features.unified_exec": .bool(false)]),
+            lastTurnID: nil, provider: chat.provider
         )
 
         // The fixed protocol (desk rules, output protocol, progress contract and schema, delegation

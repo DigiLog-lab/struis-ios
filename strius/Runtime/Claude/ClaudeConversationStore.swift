@@ -36,7 +36,8 @@ nonisolated final class ClaudeConversationStore: Sendable {
         /// 直近の要求で送った入力のトークン数(キャッシュの読み書きを含む)。上限に近づいたら新しいスレッドへ移る。
         var lastPromptTokens: Int
         var forkedFrom: String?
-        /// 最後に `AGENTS.md` を送った作業フォルダ。変わったら(分岐・アプリの入れ物の移動)もう一度送る。
+        /// 最後に送った `AGENTS.md` の控え(本文の hash `sha256:<hex>`)。本文が変わったらもう一度送る。
+        /// 以前の版は、送った時の作業フォルダの場所を入れていた(列の名前はその名残)。
         var agentsPath: String?
     }
 
@@ -151,7 +152,7 @@ nonisolated final class ClaudeConversationStore: Sendable {
     func fork(from source: String, upTo lastTurnID: String?, into threadID: String) throws {
         let now: String = LedgerClock.now()
         try queue.write { db in
-            guard let row: Row = try Row.fetchOne(db, sql: "SELECT kind, model, last_prompt_tokens FROM claude_conversations WHERE thread_id = ?", arguments: [source]) else {
+            guard let row: Row = try Row.fetchOne(db, sql: "SELECT kind, model, last_prompt_tokens, agents_path FROM claude_conversations WHERE thread_id = ?", arguments: [source]) else {
                 throw ClaudeConversationError.missing(source)
             }
             var limit: Int = try Int.fetchOne(db, sql: "SELECT MAX(seq) FROM claude_conversation_messages WHERE thread_id = ?", arguments: [source]) ?? 0
@@ -161,10 +162,12 @@ nonisolated final class ClaudeConversationStore: Sendable {
             let kind: String = row["kind"]
             let model: String = row["model"]
             let tokens: Int = row["last_prompt_tokens"]
+            // 写した履歴には元の会話の `AGENTS.md` が入っているので、その控えも引き継ぐ(分岐で同じ本文を送り直さない)。
+            let agents: String? = row["agents_path"]
             try db.execute(sql: """
-                INSERT INTO claude_conversations (thread_id, kind, model, forked_from, last_prompt_tokens, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, arguments: [threadID, kind, model, source, tokens, now, now])
+                INSERT INTO claude_conversations (thread_id, kind, model, forked_from, last_prompt_tokens, agents_path, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, arguments: [threadID, kind, model, source, tokens, agents, now, now])
             try db.execute(sql: """
                 INSERT INTO claude_conversation_messages (thread_id, seq, turn_id, role, content, created_at)
                 SELECT ?, seq, turn_id, role, content, created_at FROM claude_conversation_messages WHERE thread_id = ? AND seq <= ?
