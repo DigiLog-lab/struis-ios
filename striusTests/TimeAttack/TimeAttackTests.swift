@@ -138,14 +138,16 @@ final class TimeAttackTests: XCTestCase {
         session.submitSelfCheck([true, true, true, true, false])
         XCTAssertEqual(session.phase, .result)
         XCTAssertEqual(session.mine?.total ?? 0, 49, accuracy: 1e-9)
+        XCTAssertEqual(session.mine?.selfMarked, true, "相手に自分で採点した記録と分かるように残す")
+        XCTAssertFalse(session.hasPhoto)
         XCTAssertFalse(graded, "自分で採点する時は AI に頼まない(App Clip の回数も数えない)")
     }
 
     func testOnlySixteenAndOverSendThePhotoFromTheAppClip() {
         XCTAssertEqual(TimeAttackLocal.clipGrading(for: .adult), .ai)
         XCTAssertEqual(TimeAttackLocal.clipGrading(for: .under18), .ai)
-        XCTAssertEqual(TimeAttackLocal.clipGrading(for: .under16), .selfMarked)
-        XCTAssertEqual(TimeAttackLocal.clipGrading(for: nil), .selfMarked, "年齢を共有しなかった時は送らない")
+        XCTAssertEqual(TimeAttackLocal.clipGrading(for: .under16), .selfCheck)
+        XCTAssertEqual(TimeAttackLocal.clipGrading(for: nil), .selfCheck, "年齢を共有しなかった時は送らない")
     }
 
     func testTheAppClipAsksAgainWhenTheTermsChange() throws {
@@ -155,21 +157,6 @@ final class TimeAttackTests: XCTestCase {
         local.recordClipGrading(.ai, termsVersion: "2026-11-06")
         XCTAssertEqual(local.clipGrading(termsVersion: "2026-11-06"), .ai)
         XCTAssertNil(local.clipGrading(termsVersion: "2026-12-01"), "規約が新しくなったら聞き直す")
-    }
-
-    @MainActor
-    func testSelfMarkingFinishesWithoutAPhoto() {
-        let challenge = TimeAttack.Challenge(field: "三角関数", problems: problems, entries: [])
-        let session = TimeAttackSession(mode: .challenge(challenge), transport: NoTransport(),
-                                        local: TimeAttackLocal(defaults: UserDefaults(suiteName: "timeattack-tests-\(UUID().uuidString)")!))
-        session.start()
-        session.finishWithoutPhoto(laps: [3, 3, 3, 3, 3])
-        XCTAssertEqual(session.phase, .marking)
-        XCTAssertFalse(session.hasPhoto)
-        session.submitMarks([true, true, false, true, true])
-        XCTAssertEqual(session.phase, .result)
-        XCTAssertEqual(session.mine?.selfMarked, true)
-        XCTAssertEqual(session.mine?.total ?? 0, 25, accuracy: 1e-9)
     }
 
     func testNicknameIsTrimmedToTenCharacters() {

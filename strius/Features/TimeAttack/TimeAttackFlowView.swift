@@ -35,8 +35,7 @@ struct TimeAttackFlowView: View {
                     guard let photo else { return }
                     Task { await session.finish(laps: laps, photo: photo) }
                 }
-            case .marking:
-                TimeAttackMarkingView(session: session)
+
             case .selfCheck:
                 TimeAttackSelfCheckView(problems: session.problems, onSubmit: session.submitSelfCheck)
             case .result:

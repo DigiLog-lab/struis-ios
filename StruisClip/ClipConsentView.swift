@@ -64,7 +64,7 @@ struct ClipConsentView: View {
                 .disabled(isChecking)
                 .accessibilityIdentifier("clip-consent-agree")
                 Button {
-                    decide(.selfMarked)
+                    decide(.selfCheck)
                 } label: {
                     Text("写真を送らずに、自分で採点する")
                         .font(Typography.body)
@@ -86,7 +86,7 @@ struct ClipConsentView: View {
         .task {
             guard let choice = ProcessInfo.processInfo.environment["STRUIS_CLIP_CONSENT"] else { return }
             try? await Task.sleep(for: .seconds(3))
-            if choice == "agree" { agree() } else { decide(.selfMarked) }
+            if choice == "agree" { agree() } else { decide(.selfCheck) }
         }
         #endif
     }

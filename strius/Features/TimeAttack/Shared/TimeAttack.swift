@@ -212,7 +212,7 @@ nonisolated struct TimeAttackLocal: @unchecked Sendable {
     // App Clip の同意(#133): 今の規約の版に同意し、年齢の確認で16歳以上と分かった時だけ、答案の写真を AI に送る。
     // 16歳未満・年齢を共有しなかった・同意しなかった時は、写真を送らず自分で○×をつける。
 
-    nonisolated enum ClipGrading: String, Codable, Sendable { case ai, selfMarked }
+    nonisolated enum ClipGrading: String, Codable, Sendable { case ai, selfCheck }
 
     nonisolated struct ClipConsent: Codable, Sendable, Equatable {
         var termsVersion: String
@@ -237,7 +237,7 @@ nonisolated struct TimeAttackLocal: @unchecked Sendable {
     static func clipGrading(for band: AgeBand?) -> ClipGrading {
         switch band {
         case .under18, .adult: .ai
-        case .under16, nil: .selfMarked
+        case .under16, nil: .selfCheck
         }
     }
 

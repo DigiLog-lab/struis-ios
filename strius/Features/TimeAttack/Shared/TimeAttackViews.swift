@@ -492,6 +492,16 @@ struct TimeAttackSelfCheckView: View {
         }
         .foregroundStyle(Theme.primaryText)
         .onAppear { if marks.count != problems.count { marks = Array(repeating: nil, count: problems.count) } }
+        #if DEBUG
+        // Simulator の確認: `STRUIS_TIMEATTACK_AUTOPLAY` の時は、最後だけ × にして決める。
+        .task {
+            guard let step = ProcessInfo.processInfo.environment["STRUIS_TIMEATTACK_AUTOPLAY"].flatMap(Double.init) else { return }
+            try? await Task.sleep(for: .seconds(step * 2))
+            marks = problems.indices.map { $0 < problems.count - 1 }
+            try? await Task.sleep(for: .seconds(step * 2))
+            onSubmit(marks.map { $0 ?? false })
+        }
+        #endif
     }
 
     private var isComplete: Bool { marks.count == problems.count && marks.allSatisfy { $0 != nil } }
@@ -570,95 +580,5 @@ struct TimeAttackFailedView: View {
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("timeattack-failed")
-    }
-}
-
-// MARK: - 自分で採点する(写真を送らない時)
-
-/// 正答を見せて、紙の答えと見比べて○×をつけてもらう。全部つけたら結果へ。
-struct TimeAttackMarkingView: View {
-    let session: TimeAttackSession
-    @State private var marks: [Bool?] = []
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("答え合わせ").font(Typography.heading2)
-                Text("紙の答えと正答を見比べて、○か×をつけてください。タイムはもう止まっています。")
-                    .font(Typography.body).foregroundStyle(Theme.secondaryText).fixedSize(horizontal: false, vertical: true)
-                VStack(spacing: 0) {
-                    ForEach(session.problems.indices, id: \.self) { index in
-                        row(index)
-                        if index < session.problems.count - 1 { Divider().overlay(Theme.hairline) }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .struisSurface(radius: Theme.Radius.cardLarge)
-                Button {
-                    session.submitMarks(marks.map { $0 ?? false })
-                } label: {
-                    Text("結果を見る")
-                        .font(Typography.sans(size: 17, weight: .bold))
-                        .frame(maxWidth: .infinity).frame(height: 52)
-                        .foregroundStyle(Theme.onAccent)
-                        .background(Theme.accentColor.opacity(isComplete ? 1 : 0.4), in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .disabled(!isComplete)
-                .accessibilityIdentifier("timeattack-marks-done")
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-        }
-        .foregroundStyle(Theme.primaryText)
-        .onAppear { if marks.count != session.problems.count { marks = Array(repeating: nil, count: session.problems.count) } }
-        #if DEBUG
-        // Simulator の確認: `STRUIS_TIMEATTACK_AUTOPLAY` の時は、最後だけ × にして結果へ進む。
-        .task {
-            guard let step = ProcessInfo.processInfo.environment["STRUIS_TIMEATTACK_AUTOPLAY"].flatMap(Double.init) else { return }
-            try? await Task.sleep(for: .seconds(step * 2))
-            marks = session.problems.indices.map { $0 < session.problems.count - 1 }
-            try? await Task.sleep(for: .seconds(step * 2))
-            session.submitMarks(marks.map { $0 ?? false })
-        }
-        #endif
-    }
-
-    private var isComplete: Bool { marks.count == session.problems.count && !marks.contains(where: { $0 == nil }) }
-
-    private func row(_ index: Int) -> some View {
-        let problem = session.problems[index]
-        return HStack(spacing: 12) {
-            Text("\(index + 1)").foregroundStyle(Theme.secondaryText).frame(width: 18, alignment: .leading)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(problem.math.isEmpty ? problem.prompt : TimeAttackMath.plain(problem.math))
-                    .font(Typography.bodyCompact).foregroundStyle(Theme.secondaryText).lineLimit(1)
-                HStack(spacing: 6) {
-                    Text("正答").font(Typography.caption).foregroundStyle(Theme.secondaryText)
-                    TimeAttackMath(latex: problem.answerKey, size: 22)
-                }
-            }
-            Spacer()
-            markButton(index, value: true)
-            markButton(index, value: false)
-        }
-        .frame(minHeight: 64)
-    }
-
-    private func markButton(_ index: Int, value: Bool) -> some View {
-        let selected = marks.indices.contains(index) && marks[index] == value
-        let color = value ? Theme.growthColor : Theme.regressColor
-        return Button {
-            if marks.indices.contains(index) { marks[index] = value }
-        } label: {
-            Text(value ? "○" : "×")
-                .font(.system(size: 20, weight: .bold))
-                .frame(width: 44, height: 44)
-                .foregroundStyle(selected ? Theme.ground : color)
-                .background(selected ? color : color.opacity(0.12), in: Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(index + 1)問目を\(value ? "正解" : "誤答")にする")
-        .accessibilityIdentifier("timeattack-mark-\(index + 1)-\(value ? "o" : "x")")
     }
 }
