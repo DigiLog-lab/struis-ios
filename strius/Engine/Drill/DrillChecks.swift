@@ -490,7 +490,10 @@ nonisolated struct DrillCompiledCheck: Sendable {
             try requireBound(answer.items, Set(base.keys), answer.source)
             let from: Double = try real("from")
             let to: Double = try real("to")
-            guard from == from.rounded(), to == to.rounded(), to >= from, to - from <= 100_000 else { throw Failure(message: "和の範囲(\(from) から \(to))が整数の範囲になっていません") }
+            // 整数に直す前に、大きさも確かめる(1e20 のような値を Int に直すと落ちる)。
+            guard from == from.rounded(), to == to.rounded(), abs(from) <= 1_000_000_000, abs(to) <= 1_000_000_000, to >= from, to - from <= 100_000 else {
+                throw Failure(message: "和の範囲(\(from) から \(to))が整数の範囲になっていません")
+            }
             var total: DrillComplex = DrillComplex.zero
             for k: Int in Int(from)...Int(to) {
                 var local: [String: DrillComplex] = base

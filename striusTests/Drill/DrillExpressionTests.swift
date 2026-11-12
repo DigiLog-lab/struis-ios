@@ -174,6 +174,17 @@ final class DrillExpressionTests: XCTestCase {
         XCTAssertEqual(try S.evaluate("is_prime(999999999989)"), DrillValue.bool(true))
         XCTAssertThrowsError(try S.evaluate("is_prime(10^18 + 3)"))
     }
+
+
+    /// ℃ は単位として読まない(掛け算だけの換算だと、20 ℃ を 20 K として計算してしまう)。
+    func testCelsiusIsNotAUnit() throws {
+        XCTAssertThrowsError(try DrillUnit.parse("degC"))
+        XCTAssertThrowsError(try DrillUnit.parse("℃"))
+        XCTAssertThrowsError(try DrillUnit.parse("J/(g*degC)"))
+        XCTAssertThrowsError(try S.evaluate("value(q(20, 'degC'), 'K')"))
+        XCTAssertEqual(try S.evaluate("value(q(20 + 273, 'K'), 'K')"), S.number(293))
+    }
+
 }
 
 /// 別のスレッドで計算した結果を受け取る入れ物。

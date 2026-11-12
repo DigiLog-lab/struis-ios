@@ -238,6 +238,11 @@ nonisolated enum DrillFormat {
     /// 数を、書き方に従って「符号を外した本体」にする。`display` は名前の宣言(単位・有効数字)。
     static func body(of quantity: DrillQuantity, spec: DrillFormatSpec, display: DrillDisplay) throws -> Body {
         var number: DrillNumber = quantity.number
+        if spec.sign == DrillFormatSpec.Sign.magnitude {
+            // 絶対値は、書く前の値で取る。符号を外すだけだと、1-√2 が (1-√2) のまま(負の値)になり、3+4i が 5 にならない。
+            guard let size: DrillNumber = DrillArithmetic.magnitude(number) else { throw FormatError(message: "絶対値が定まりません") }
+            number = size
+        }
         if let unit: DrillUnit = display.unit {
             guard unit.dimension == quantity.dimension else {
                 throw FormatError(message: "単位「\(unit.source)」と値の次元(\(quantity.dimension.text))が合いません")
@@ -326,6 +331,8 @@ nonisolated enum DrillFormat {
             }
             return "(\(body.negative ? "-" : "+")\(body.text))"
         case DrillFormatSpec.Sign.magnitude:
+            // 値の絶対値は、書く前に取ってある。項が 2 つ以上の数は、式の中に置いても意味が変わらないようにかっこで囲む
+            // (3 \times {u|abs} が 3 \times 1+\sqrt{2} にならないように)。a × 10^n はかっこで囲まない。
             return text
         }
     }
@@ -334,6 +341,12 @@ nonisolated enum DrillFormat {
     /// 問題文に出す値がこれに当たると、学習者が表示された値で計算した答えと、型の答えが合わなくなる。
     static func losesValue(of quantity: DrillQuantity, spec: DrillFormatSpec, display: DrillDisplay) -> Bool {
         var number: DrillNumber = quantity.number
+        if spec.sign == DrillFormatSpec.Sign.magnitude {
+            // 表示する時(`body(of:spec:display:)`)と同じく、絶対値を取った値で比べる。複素数の大きさ(|1+i| = √2)を
+            // 小数第 2 位で 1.41 と出す、といった丸めを見落とさないように。
+            guard let size: DrillNumber = DrillArithmetic.magnitude(number) else { return false }
+            number = size
+        }
         if let unit: DrillUnit = display.unit {
             guard let scaled: DrillNumber = DrillArithmetic.divide(number, unit.scale) else { return false }
             number = scaled

@@ -548,7 +548,7 @@ nonisolated indirect enum DrillTeX: Equatable, Sendable {
         case DrillTeX.root(let degree, let inner):
             guard let n: DrillComplex = degree.evaluate(bindings, sign: sign), let x: DrillComplex = inner.evaluate(bindings, sign: sign), n.modulus != 0 else { return nil }
             // 負の実数の奇数乗根は、負の実数にする(∛(-8) = -2)。
-            if x.isReal, x.real < 0, n.isReal, n.real == n.real.rounded(), Int(n.real) % 2 != 0 {
+            if x.isReal, x.real < 0, n.isReal, n.real == n.real.rounded(), abs(n.real) <= 1_000_000, Int(n.real) % 2 != 0 {
                 return DrillComplex(-pow(-x.real, 1 / n.real))
             }
             return finite(x.power(DrillComplex.one / n))
