@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "skill_id": "physics.atom.photoelectric_effect",
+  "title": "光電効果(K = hν − W)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "hv",
+      "kind": "decimal",
+      "min": 2.0,
+      "max": 8.0,
+      "step": 0.2
+    },
+    {
+      "name": "w",
+      "kind": "decimal",
+      "min": 1.8,
+      "max": 5.0,
+      "step": 0.2
+    }
+  ],
+  "lets": [
+    {
+      "name": "kmax",
+      "expr": "hv - w"
+    }
+  ],
+  "constraints": [
+    "hv > w + 0.1"
+  ],
+  "prompt": "仕事関数が ${w|dec:1}\\,\\mathrm{eV}$ の金属に、光子のエネルギーが ${hv|dec:1}\\,\\mathrm{eV}$ の光を当てた。飛び出す光電子の運動エネルギーの最大値は何 eV か。",
+  "answer": "${kmax|dec:1}\\,\\mathrm{eV}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "kmax + w == hv"
+      ]
+    }
+  ]
+}

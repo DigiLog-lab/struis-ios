@@ -1,0 +1,80 @@
+{
+  "format": 1,
+  "skill_id": "math.mb.linear_transform_mean_variance",
+  "title": "aX + b の期待値と分散",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "ex",
+      "kind": "integer",
+      "min": 1,
+      "max": 20
+    },
+    {
+      "name": "vx",
+      "kind": "integer",
+      "min": 1,
+      "max": 16
+    },
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0,
+        1
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ey",
+      "expr": "a*ex + b"
+    },
+    {
+      "name": "vy",
+      "expr": "a^2*vx"
+    },
+    {
+      "name": "sy",
+      "expr": "sqrt(vy)"
+    }
+  ],
+  "parts": [
+    {
+      "name": "y",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "X"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    }
+  ],
+  "prompt": "確率変数 $X$ の期待値が ${ex}$、分散が ${vx}$ のとき、$Y = {y}$ の期待値、分散、標準偏差を求めなさい。",
+  "answer": "$E(Y) = {ey}$、$V(Y) = {vy}$、$\\sigma(Y) = {sy}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "ey - b == a*ex",
+        "vy == a*a*vx",
+        "sy*sy == vy"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.variance_sd",
+  "title": "分散と標準偏差",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 15
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 1,
+      "max": 15
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": 1,
+      "max": 15
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": 1,
+      "max": 15
+    },
+    {
+      "name": "f",
+      "kind": "integer",
+      "min": 1,
+      "max": 15
+    }
+  ],
+  "lets": [
+    {
+      "name": "m",
+      "expr": "mean(a,b,c,d,f)"
+    },
+    {
+      "name": "var",
+      "expr": "((a-m)^2 + (b-m)^2 + (c-m)^2 + (d-m)^2 + (f-m)^2)/5"
+    },
+    {
+      "name": "sd",
+      "expr": "sqrt(var)"
+    }
+  ],
+  "constraints": [
+    "is_integer(m)",
+    "is_integer(var)",
+    "var > 0"
+  ],
+  "prompt": "次のデータの平均値、分散、標準偏差を求めなさい。",
+  "math": "{a},\\ {b},\\ {c},\\ {d},\\ {f}",
+  "answer": "平均値 ${m}$、分散 ${var}$、標準偏差 ${sd}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "var == (a^2 + b^2 + c^2 + d^2 + f^2)/5 - m^2",
+        "sd^2 == var"
+      ]
+    }
+  ]
+}

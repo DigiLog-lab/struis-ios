@@ -1,0 +1,129 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.integral_power_rational",
+  "title": "不定積分(x の有理数乗)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "ex",
+      "kind": "choice",
+      "options": [
+        {
+          "n": 1,
+          "d": 2
+        },
+        {
+          "n": 3,
+          "d": 2
+        },
+        {
+          "n": 1,
+          "d": 3
+        },
+        {
+          "n": 2,
+          "d": 3
+        },
+        {
+          "n": -1,
+          "d": 2
+        },
+        {
+          "n": -3,
+          "d": 2
+        },
+        {
+          "n": -2,
+          "d": 1
+        },
+        {
+          "n": -3,
+          "d": 1
+        },
+        {
+          "n": 5,
+          "d": 2
+        },
+        {
+          "n": -1,
+          "d": 3
+        },
+        {
+          "n": 4,
+          "d": 3
+        }
+      ]
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "p",
+      "expr": "ex.n/ex.d"
+    },
+    {
+      "name": "p1",
+      "expr": "p + 1"
+    },
+    {
+      "name": "coef",
+      "expr": "k/p1"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k",
+          "powers": [
+            {
+              "base": "x",
+              "exp": "p"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "coef",
+          "powers": [
+            {
+              "base": "x",
+              "exp": "p1"
+            }
+          ]
+        },
+        {
+          "coef": "1",
+          "body": "C"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の不定積分を求めなさい。",
+  "math": "\\int {f}\\,dx",
+  "answer": "${g}$($C$ は積分定数)",
+  "checks": [
+    {
+      "kind": "antiderivative",
+      "integrand": "{f}",
+      "answer": "{g}",
+      "variable": "x",
+      "range": [
+        0.5,
+        3
+      ]
+    }
+  ]
+}

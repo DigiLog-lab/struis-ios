@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.shm_max_speed",
+  "title": "単振動の最大の速さと加速度",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "amp",
+      "kind": "decimal",
+      "min": 0.05,
+      "max": 0.5,
+      "step": 0.05,
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "period",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 4.0,
+      "step": 0.5,
+      "unit": "s",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "omega",
+      "expr": "2*pi/period",
+      "unit": "1/s"
+    },
+    {
+      "name": "vmax",
+      "expr": "amp*omega",
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "amax",
+      "expr": "amp*omega^2",
+      "unit": "m/s^2",
+      "sig": 2
+    }
+  ],
+  "prompt": "振幅 ${amp|q}$、周期 ${period|q}$ の単振動をする物体の、速さの最大値と加速度の大きさの最大値を求めなさい。",
+  "answer": "速さの最大値 ${vmax|q}$、加速度の最大値 ${amax|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(amax*amp, vmax^2)",
+        "approx(vmax*period, 2*pi*amp)"
+      ]
+    }
+  ]
+}

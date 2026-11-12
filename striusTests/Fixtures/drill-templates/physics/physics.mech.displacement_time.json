@@ -1,0 +1,59 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.displacement_time",
+  "title": "等加速度直線運動(x = v₀t + ½at²)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "v0",
+      "kind": "decimal",
+      "min": 0.0,
+      "max": 9.0,
+      "step": 1.0,
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "a",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 4.0,
+      "step": 0.5,
+      "unit": "m/s^2",
+      "sig": 2
+    },
+    {
+      "name": "t",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 8.0,
+      "step": 1.0,
+      "unit": "s",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "x",
+      "expr": "v0*t + a*t^2/2",
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "v",
+      "expr": "v0 + a*t",
+      "unit": "m/s"
+    }
+  ],
+  "prompt": "初速度 ${v0|q}$、加速度 ${a|q}$ の等加速度直線運動をする物体が、${t|q}$ 間に進む距離を求めなさい。",
+  "answer": "${x|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(x, (v0 + v)/2*t)",
+        "approx(v^2 - v0^2, 2*a*x)"
+      ]
+    }
+  ]
+}

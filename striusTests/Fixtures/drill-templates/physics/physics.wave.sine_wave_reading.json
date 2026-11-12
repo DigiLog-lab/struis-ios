@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "skill_id": "physics.wave.sine_wave_reading",
+  "title": "正弦波の式から振幅・周期・波長・速さを読み取る",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "amp",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 0.5,
+      "step": 0.1
+    },
+    {
+      "name": "period",
+      "kind": "decimal",
+      "min": 0.2,
+      "max": 2.0,
+      "step": 0.2
+    },
+    {
+      "name": "lam",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 4.0,
+      "step": 0.5
+    }
+  ],
+  "lets": [
+    {
+      "name": "v",
+      "expr": "lam/period"
+    }
+  ],
+  "prompt": "$x$ 軸の正の向きに進む正弦波が $y = {amp|dec:2}\\sin 2\\pi\\left(\\frac{t}{{period|dec:2}} - \\frac{x}{{lam|dec:2}}\\right)$ と表される($x$、$y$ の単位は m、$t$ の単位は s)。振幅、周期、波長、波の速さを求めなさい。",
+  "answer": "振幅 ${amp|dec:2}\\,\\mathrm{m}$、周期 ${period|dec:2}\\,\\mathrm{s}$、波長 ${lam|dec:2}\\,\\mathrm{m}$、速さ ${v|sig:2}\\,\\mathrm{m/s}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{amp|dec:2}\\sin 2\\pi\\left(\\frac{t}{{period|dec:2}} - \\frac{x}{{lam|dec:2}}\\right)",
+      "right": "{amp|dec:2}\\sin 2\\pi\\left(\\frac{t + {period|dec:2}}{{period|dec:2}} - \\frac{x + {lam|dec:2}}{{lam|dec:2}}\\right)",
+      "over": [
+        "t",
+        "x"
+      ]
+    },
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(v*period, lam)"
+      ]
+    }
+  ]
+}

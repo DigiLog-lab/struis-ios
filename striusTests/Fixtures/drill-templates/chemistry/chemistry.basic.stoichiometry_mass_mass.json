@@ -1,0 +1,102 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.stoichiometry_mass_mass",
+  "title": "化学反応の量的関係(質量から質量)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "choice",
+      "options": [
+        {
+          "text": "メタン CH₄ を完全燃焼させた",
+          "eq": "\\mathrm{CH_4} + 2\\mathrm{O_2} \\longrightarrow \\mathrm{CO_2} + 2\\mathrm{H_2O}",
+          "a": "メタン",
+          "ma": 16,
+          "b": "水",
+          "mb": 18,
+          "ca": 1,
+          "cb": 2
+        },
+        {
+          "text": "プロパン C₃H₈ を完全燃焼させた",
+          "eq": "\\mathrm{C_3H_8} + 5\\mathrm{O_2} \\longrightarrow 3\\mathrm{CO_2} + 4\\mathrm{H_2O}",
+          "a": "プロパン",
+          "ma": 44,
+          "b": "二酸化炭素",
+          "mb": 44,
+          "ca": 1,
+          "cb": 3
+        },
+        {
+          "text": "マグネシウム Mg を燃焼させた",
+          "eq": "2\\mathrm{Mg} + \\mathrm{O_2} \\longrightarrow 2\\mathrm{MgO}",
+          "a": "マグネシウム",
+          "ma": 24,
+          "b": "酸化マグネシウム",
+          "mb": 40,
+          "ca": 2,
+          "cb": 2
+        },
+        {
+          "text": "炭酸カルシウム CaCO₃ を塩酸に完全に溶かした",
+          "eq": "\\mathrm{CaCO_3} + 2\\mathrm{HCl} \\longrightarrow \\mathrm{CaCl_2} + \\mathrm{H_2O} + \\mathrm{CO_2}",
+          "a": "炭酸カルシウム",
+          "ma": 100,
+          "b": "二酸化炭素",
+          "mb": 44,
+          "ca": 1,
+          "cb": 1
+        },
+        {
+          "text": "アルミニウム Al を燃焼させた",
+          "eq": "4\\mathrm{Al} + 3\\mathrm{O_2} \\longrightarrow 2\\mathrm{Al_2O_3}",
+          "a": "アルミニウム",
+          "ma": 27,
+          "b": "酸化アルミニウム",
+          "mb": 102,
+          "ca": 4,
+          "cb": 2
+        },
+        {
+          "text": "エタノール C₂H₅OH を完全燃焼させた",
+          "eq": "\\mathrm{C_2H_5OH} + 3\\mathrm{O_2} \\longrightarrow 2\\mathrm{CO_2} + 3\\mathrm{H_2O}",
+          "a": "エタノール",
+          "ma": 46,
+          "b": "二酸化炭素",
+          "mb": 44,
+          "ca": 1,
+          "cb": 2
+        }
+      ]
+    },
+    {
+      "name": "n0",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 2.0,
+      "step": 0.05
+    }
+  ],
+  "lets": [
+    {
+      "name": "ma",
+      "expr": "sig(n0*r.ma, 2)"
+    },
+    {
+      "name": "mbv",
+      "expr": "ma/r.ma*r.cb/r.ca*r.mb"
+    }
+  ],
+  "prompt": "{r.text}。反応した{r.a}が ${ma|sig:2}\\,\\mathrm{g}$ のとき、生じる{r.b}の質量を求めなさい。モル質量は{r.a} ${r.ma|dec}\\,\\mathrm{g/mol}$、{r.b} ${r.mb|dec}\\,\\mathrm{g/mol}$ とする。",
+  "math": "{r.eq}",
+  "answer": "${mbv|sig:2}\\,\\mathrm{g}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(mbv/r.mb*r.ca, ma/r.ma*r.cb)"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "skill_id": "physics.heat.thermal_efficiency",
+  "title": "熱機関の熱効率",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "qin",
+      "kind": "integer",
+      "min": 400,
+      "max": 2000,
+      "step": 100,
+      "unit": "J",
+      "sig": 2
+    },
+    {
+      "name": "qout",
+      "kind": "integer",
+      "min": 200,
+      "max": 1600,
+      "step": 100,
+      "unit": "J",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "w",
+      "expr": "qin - qout",
+      "unit": "J",
+      "sig": 2
+    },
+    {
+      "name": "eff",
+      "expr": "(qin - qout)/qin"
+    }
+  ],
+  "constraints": [
+    "qout < qin"
+  ],
+  "prompt": "ある熱機関が、高温の熱源から ${qin|q}$ の熱量を受け取り、低温の熱源に ${qout|q}$ の熱量を放出した。この熱機関がした仕事と熱効率を求めなさい。",
+  "answer": "仕事 ${w|q}$、熱効率 ${eff|sig:2}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(eff*qin, w)",
+        "w + qout == qin"
+      ]
+    }
+  ]
+}

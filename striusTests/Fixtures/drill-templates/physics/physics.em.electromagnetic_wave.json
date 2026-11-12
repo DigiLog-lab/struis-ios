@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.electromagnetic_wave",
+  "title": "電磁波の波長と周波数(c = fλ)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "c",
+      "kind": "constant",
+      "value": 300000000.0,
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "f0",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.5,
+      "step": 0.5
+    },
+    {
+      "name": "ex",
+      "kind": "choice",
+      "options": [
+        6,
+        7,
+        8,
+        9
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "f",
+      "expr": "q(f0*10^ex,'Hz')",
+      "unit": "Hz",
+      "sig": 2
+    },
+    {
+      "name": "lam",
+      "expr": "c/f",
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "prompt": "周波数 ${f|q}$ の電磁波の、真空中での波長を求めなさい。真空中の光の速さを ${c|q}$ とする。",
+  "answer": "${lam|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(lam,'m')*f0*10^ex, 3.0e8)"
+      ]
+    }
+  ]
+}

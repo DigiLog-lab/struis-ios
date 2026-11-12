@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.determinant_2x2",
+  "title": "行列式(2 × 2)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    }
+  ],
+  "lets": [
+    {
+      "name": "det",
+      "expr": "a*d - b*c"
+    }
+  ],
+  "prompt": "次の行列式の値を求めなさい。",
+  "math": "\\begin{vmatrix} {a} & {b} \\\\ {c} & {d} \\end{vmatrix}",
+  "answer": "${det}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{a|paren} \\times {d|paren} - {b|paren} \\times {c|paren}",
+      "equals": "det"
+    }
+  ]
+}

@@ -1,0 +1,151 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.quadratic_max_min_domain",
+  "title": "定義域のある二次関数の最大値・最小値",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "choice",
+      "options": [
+        -2,
+        -1,
+        1,
+        2
+      ]
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -3,
+      "max": 3
+    },
+    {
+      "name": "q",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "lo",
+      "kind": "integer",
+      "min": -5,
+      "max": 3
+    },
+    {
+      "name": "w",
+      "kind": "integer",
+      "min": 2,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "hi",
+      "expr": "lo + w"
+    },
+    {
+      "name": "b",
+      "expr": "-2*a*p"
+    },
+    {
+      "name": "c",
+      "expr": "a*p^2 + q"
+    },
+    {
+      "name": "flo",
+      "expr": "a*(lo-p)^2 + q"
+    },
+    {
+      "name": "fhi",
+      "expr": "a*(hi-p)^2 + q"
+    },
+    {
+      "name": "inside",
+      "expr": "lo < p and p < hi"
+    },
+    {
+      "name": "big",
+      "expr": "if(inside and a < 0, q, max(flo, fhi))"
+    },
+    {
+      "name": "small",
+      "expr": "if(inside and a > 0, q, min(flo, fhi))"
+    },
+    {
+      "name": "xbig",
+      "expr": "if(inside and a < 0, p, if(flo > fhi, lo, hi))"
+    },
+    {
+      "name": "xsmall",
+      "expr": "if(inside and a > 0, p, if(flo < fhi, lo, hi))"
+    }
+  ],
+  "constraints": [
+    "flo != fhi"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "b",
+          "body": "x"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    }
+  ],
+  "prompt": "二次関数 $y = {f}$(${lo} \\le x \\le {hi}$)の最大値と最小値を求めなさい。",
+  "answer": "$x = {xbig}$ で最大値 ${big}$、$x = {xsmall}$ で最小値 ${small}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{f}",
+      "at": {
+        "x": "xbig"
+      },
+      "equals": "big"
+    },
+    {
+      "kind": "value",
+      "tex": "{f}",
+      "at": {
+        "x": "xsmall"
+      },
+      "equals": "small"
+    },
+    {
+      "kind": "inequality",
+      "left": "{f}",
+      "right": "{big}",
+      "relation": "<=",
+      "variable": "x",
+      "solution": "true",
+      "where": "lo <= x and x <= hi"
+    },
+    {
+      "kind": "inequality",
+      "left": "{f}",
+      "right": "{small}",
+      "relation": ">=",
+      "variable": "x",
+      "solution": "true",
+      "where": "lo <= x and x <= hi"
+    },
+    {
+      "kind": "assert",
+      "conditions": [
+        "lo <= xbig and xbig <= hi",
+        "lo <= xsmall and xsmall <= hi"
+      ]
+    }
+  ]
+}

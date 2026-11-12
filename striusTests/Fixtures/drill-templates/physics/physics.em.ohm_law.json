@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.ohm_law",
+  "title": "オームの法則(V = RI)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 5,
+      "max": 200,
+      "step": 5,
+      "unit": "ohm",
+      "sig": 2
+    },
+    {
+      "name": "v",
+      "kind": "decimal",
+      "min": 1.5,
+      "max": 24.0,
+      "step": 1.5,
+      "unit": "V",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "cur",
+      "expr": "v/r",
+      "unit": "A",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "value(v,'V') == sig(value(v,'V'), 2)",
+    "value(r,'ohm') == sig(value(r,'ohm'), 2)"
+  ],
+  "prompt": "抵抗値 ${r|q}$ の抵抗に ${v|q}$ の電圧を加えた。流れる電流の大きさを求めなさい。",
+  "answer": "${cur|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(cur*r, v)"
+      ]
+    }
+  ]
+}

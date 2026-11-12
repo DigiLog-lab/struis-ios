@@ -1,0 +1,103 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.hess_formation",
+  "title": "ヘスの法則(生成エンタルピーから反応エンタルピーを求める)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "choice",
+      "options": [
+        {
+          "fuel": "メタン",
+          "tex": "\\mathrm{CH_4}",
+          "hf": -75,
+          "c": 1,
+          "h": 2
+        },
+        {
+          "fuel": "エタン",
+          "tex": "\\mathrm{C_2H_6}",
+          "hf": -84,
+          "c": 2,
+          "h": 3
+        },
+        {
+          "fuel": "プロパン",
+          "tex": "\\mathrm{C_3H_8}",
+          "hf": -105,
+          "c": 3,
+          "h": 4
+        },
+        {
+          "fuel": "エチレン",
+          "tex": "\\mathrm{C_2H_4}",
+          "hf": 52,
+          "c": 2,
+          "h": 2
+        },
+        {
+          "fuel": "アセチレン",
+          "tex": "\\mathrm{C_2H_2}",
+          "hf": 227,
+          "c": 2,
+          "h": 1
+        },
+        {
+          "fuel": "メタノール",
+          "tex": "\\mathrm{CH_3OH}",
+          "hf": -239,
+          "c": 1,
+          "h": 2
+        },
+        {
+          "fuel": "エタノール",
+          "tex": "\\mathrm{C_2H_5OH}",
+          "hf": -278,
+          "c": 2,
+          "h": 3
+        },
+        {
+          "fuel": "ブタン",
+          "tex": "\\mathrm{C_4H_{10}}",
+          "hf": -126,
+          "c": 4,
+          "h": 5
+        }
+      ]
+    },
+    {
+      "name": "hco2",
+      "kind": "choice",
+      "options": [
+        -394,
+        -393
+      ]
+    },
+    {
+      "name": "hh2o",
+      "kind": "choice",
+      "options": [
+        -286,
+        -285,
+        -242
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "dh",
+      "expr": "r.c*hco2 + r.h*hh2o - r.hf"
+    }
+  ],
+  "prompt": "{r.fuel} ${r.tex}$ の生成エンタルピーは ${r.hf}\\,\\mathrm{kJ/mol}$、二酸化炭素と水の生成エンタルピーはそれぞれ ${hco2}\\,\\mathrm{kJ/mol}$、${hh2o}\\,\\mathrm{kJ/mol}$ である。{r.fuel} 1 mol が完全燃焼するときの反応エンタルピー(燃焼エンタルピー)を求めなさい。",
+  "answer": "${dh}\\,\\mathrm{kJ/mol}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "dh + r.hf == r.c*hco2 + r.h*hh2o"
+      ]
+    }
+  ]
+}

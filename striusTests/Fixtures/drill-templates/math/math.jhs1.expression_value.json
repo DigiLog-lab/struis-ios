@@ -1,0 +1,71 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.expression_value",
+  "title": "式の値(代入)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0,
+        1
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "x0",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "a*x0^2 + b*x0"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "b",
+          "body": "x"
+        }
+      ]
+    }
+  ],
+  "prompt": "$x = {x0}$ のとき、次の式の値を求めなさい。",
+  "math": "{f}",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{f}",
+      "at": {
+        "x": "x0"
+      },
+      "equals": "ans"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.fourier_sine_coefficient_x",
+  "title": "フーリエ係数 b_n(f(x) = kx)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 1,
+      "max": 8
+    }
+  ],
+  "lets": [
+    {
+      "name": "bn",
+      "expr": "2*k*(-1)^(n + 1)/n"
+    }
+  ],
+  "prompt": "$f(x) = {k|coef}x$($-\\pi < x < \\pi$)のフーリエ係数 $b_{{n}} = \\frac{1}{\\pi}\\int_{-\\pi}^{\\pi} f(x)\\sin {n|coef}x\\,dx$ を求めなさい。",
+  "answer": "$b_{{n}} = {bn}$",
+  "checks": [
+    {
+      "kind": "definite_integral",
+      "integrand": "\\frac{1}{\\pi} \\cdot {k}x\\sin {n}x",
+      "variable": "x",
+      "from": "-pi",
+      "to": "pi",
+      "answer": "{bn}"
+    }
+  ]
+}

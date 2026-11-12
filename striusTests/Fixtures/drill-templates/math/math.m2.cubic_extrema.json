@@ -1,0 +1,139 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.cubic_extrema",
+  "title": "三次関数の極値",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "choice",
+      "options": [
+        1,
+        2,
+        -1,
+        -2
+      ]
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -3,
+      "max": 3
+    },
+    {
+      "name": "w",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "q",
+      "expr": "p + 2*w"
+    },
+    {
+      "name": "b",
+      "expr": "-3*a*(p + q)/2"
+    },
+    {
+      "name": "c",
+      "expr": "3*a*p*q"
+    },
+    {
+      "name": "fp",
+      "expr": "a*p^3 + b*p^2 + c*p + d"
+    },
+    {
+      "name": "fq",
+      "expr": "a*q^3 + b*q^2 + c*q + d"
+    },
+    {
+      "name": "xmax",
+      "expr": "if(a > 0, p, q)"
+    },
+    {
+      "name": "xmin",
+      "expr": "if(a > 0, q, p)"
+    },
+    {
+      "name": "ymax",
+      "expr": "if(a > 0, fp, fq)"
+    },
+    {
+      "name": "ymin",
+      "expr": "if(a > 0, fq, fp)"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{3}"
+        },
+        {
+          "coef": "b",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "c",
+          "body": "x"
+        },
+        {
+          "coef": "d"
+        }
+      ]
+    }
+  ],
+  "prompt": "関数 $y = {f}$ の極値を求めなさい。",
+  "answer": "$x = {xmax}$ で極大値 ${ymax}$、$x = {xmin}$ で極小値 ${ymin}$",
+  "checks": [
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "variable": "x",
+      "point": "xmax",
+      "answer": "0"
+    },
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "variable": "x",
+      "point": "xmin",
+      "answer": "0"
+    },
+    {
+      "kind": "value",
+      "tex": "{f}",
+      "at": {
+        "x": "xmax"
+      },
+      "equals": "ymax"
+    },
+    {
+      "kind": "value",
+      "tex": "{f}",
+      "at": {
+        "x": "xmin"
+      },
+      "equals": "ymin"
+    },
+    {
+      "kind": "assert",
+      "conditions": [
+        "ymax > ymin",
+        "-6*a*xmax - 2*b > 0",
+        "6*a*xmin + 2*b > 0"
+      ]
+    }
+  ]
+}

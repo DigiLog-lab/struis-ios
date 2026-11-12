@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "skill_id": "physics.heat.boyle_charles",
+  "title": "ボイル・シャルルの法則",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "p1",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 3.0,
+      "step": 0.5
+    },
+    {
+      "name": "v1",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 6.0,
+      "step": 0.5,
+      "unit": "L",
+      "sig": 2
+    },
+    {
+      "name": "t1",
+      "kind": "integer",
+      "min": 27,
+      "max": 127,
+      "step": 50
+    },
+    {
+      "name": "p2",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 4.0,
+      "step": 0.5
+    },
+    {
+      "name": "t2",
+      "kind": "integer",
+      "min": 27,
+      "max": 327,
+      "step": 50
+    }
+  ],
+  "lets": [
+    {
+      "name": "v2",
+      "expr": "v1*p1*(t2 + 273)/(p2*(t1 + 273))",
+      "unit": "L",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "p1 != p2 or t1 != t2"
+  ],
+  "prompt": "圧力 ${p1|dec:1} \\times 10^{5}\\,\\mathrm{Pa}$、体積 ${v1|q}$、温度 ${t1}^{\\circ}\\mathrm{C}$ の気体を、圧力 ${p2|dec:1} \\times 10^{5}\\,\\mathrm{Pa}$、温度 ${t2}^{\\circ}\\mathrm{C}$ にした。このときの体積を求めなさい。",
+  "answer": "${v2|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(p1*v1/(t1 + 273), p2*v2/(t2 + 273))"
+      ]
+    }
+  ]
+}

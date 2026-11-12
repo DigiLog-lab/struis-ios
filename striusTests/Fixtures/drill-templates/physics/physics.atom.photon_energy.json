@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "skill_id": "physics.atom.photon_energy",
+  "title": "光子のエネルギー(E = hc/λ)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "h",
+      "kind": "constant",
+      "value": 6.6e-34,
+      "unit": "J*s",
+      "sig": 2
+    },
+    {
+      "name": "c",
+      "kind": "constant",
+      "value": 300000000.0,
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "lam0",
+      "kind": "decimal",
+      "min": 2.0,
+      "max": 8.0,
+      "step": 0.2
+    }
+  ],
+  "lets": [
+    {
+      "name": "lam",
+      "expr": "q(lam0*0.0000001,'m')",
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "en",
+      "expr": "h*c/lam",
+      "unit": "J",
+      "sig": 2
+    }
+  ],
+  "prompt": "波長 ${lam|q}$ の光の光子 1 個のエネルギーを求めなさい。プランク定数を ${h|q}$、真空中の光の速さを ${c|q}$ とする。",
+  "answer": "${en|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(en,'J')*lam0*0.0000001, 6.6e-34*3.0e8)"
+      ]
+    }
+  ]
+}

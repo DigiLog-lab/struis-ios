@@ -1,0 +1,81 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.ode_first_order_linear",
+  "title": "1 階線形微分方程式(y' + ay = b)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -4,
+      "max": 4,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "b",
+      "expr": "a*k"
+    },
+    {
+      "name": "ma",
+      "expr": "-a"
+    }
+  ],
+  "parts": [
+    {
+      "name": "lhs",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "y'"
+        },
+        {
+          "coef": "a",
+          "body": "y"
+        }
+      ]
+    },
+    {
+      "name": "sol",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "Ce^{{ma|coef}x}"
+        },
+        {
+          "coef": "k"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の微分方程式の一般解を求めなさい。",
+  "math": "{lhs} = {b}",
+  "answer": "$y = {sol}$($C$ は任意定数)",
+  "checks": [
+    {
+      "kind": "ode",
+      "function": "{sol}",
+      "variable": "x",
+      "left": "{lhs}",
+      "right": "{b}",
+      "range": [
+        -0.5,
+        0.5
+      ]
+    }
+  ]
+}

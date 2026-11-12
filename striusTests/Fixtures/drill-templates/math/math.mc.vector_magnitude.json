@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "skill_id": "math.mc.vector_magnitude",
+  "title": "ベクトルの大きさ",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a1",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "a2",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "len",
+      "expr": "sqrt(a1^2 + a2^2)"
+    }
+  ],
+  "constraints": [
+    "a1 != 0"
+  ],
+  "prompt": "$\\vec{a} = ({a1},\\ {a2})$ の大きさ $|\\vec{a}|$ を求めなさい。",
+  "answer": "$|\\vec{a}| = {len}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({len})^{2}",
+      "right": "({a1})^{2} + ({a2})^{2}"
+    }
+  ]
+}

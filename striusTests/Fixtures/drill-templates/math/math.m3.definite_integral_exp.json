@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.definite_integral_exp",
+  "title": "定積分(指数関数)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "hi",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "k/a"
+    },
+    {
+      "name": "m",
+      "expr": "a*hi"
+    }
+  ],
+  "constraints": [
+    "a*hi <= 6"
+  ],
+  "parts": [
+    {
+      "name": "ans",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "c",
+          "powers": [
+            {
+              "base": "e",
+              "exp": "m"
+            }
+          ]
+        },
+        {
+          "coef": "-c"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の定積分を求めなさい。",
+  "math": "\\int_{0}^{{hi}} {k|coef}e^{{a|coef}x}\\,dx",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "definite_integral",
+      "integrand": "{k}e^{{a}x}",
+      "variable": "x",
+      "from": "0",
+      "to": "hi",
+      "answer": "{ans}"
+    }
+  ]
+}

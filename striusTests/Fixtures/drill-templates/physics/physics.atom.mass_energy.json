@@ -1,0 +1,55 @@
+{
+  "format": 1,
+  "skill_id": "physics.atom.mass_energy",
+  "title": "質量とエネルギーの等価性(E = mc²)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "c",
+      "kind": "constant",
+      "value": 300000000.0,
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "dm0",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.5,
+      "step": 0.5
+    },
+    {
+      "name": "ex",
+      "kind": "choice",
+      "options": [
+        -30,
+        -29,
+        -28
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "dm",
+      "expr": "q(dm0*10^ex,'kg')",
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "en",
+      "expr": "dm*c^2",
+      "unit": "J",
+      "sig": 2
+    }
+  ],
+  "prompt": "核反応で質量が ${dm|q}$ だけ減少した。このとき放出されるエネルギーを求めなさい。真空中の光の速さを ${c|q}$ とする。",
+  "answer": "${en|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(en,'J'), dm0*10^ex*9.0e16)"
+      ]
+    }
+  ]
+}

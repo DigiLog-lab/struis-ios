@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.combination",
+  "title": "組合せ nCr の計算",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 4,
+      "max": 14
+    },
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 2,
+      "max": 7
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "comb(n, r)"
+    }
+  ],
+  "constraints": [
+    "r <= n - 1"
+  ],
+  "prompt": "次の値を求めなさい。",
+  "math": "{}_{{n}}\\mathrm{C}_{{r}}",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "ans * factorial(r) * factorial(n - r) == factorial(n)",
+        "ans == comb(n, n - r)"
+      ]
+    }
+  ]
+}

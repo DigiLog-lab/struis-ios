@@ -1,0 +1,68 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.mean_median_range",
+  "title": "平均値・中央値・範囲",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 20
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 1,
+      "max": 20
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": 1,
+      "max": 20
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": 1,
+      "max": 20
+    },
+    {
+      "name": "f",
+      "kind": "integer",
+      "min": 1,
+      "max": 20
+    }
+  ],
+  "lets": [
+    {
+      "name": "m",
+      "expr": "mean(a,b,c,d,f)"
+    },
+    {
+      "name": "med",
+      "expr": "median(a,b,c,d,f)"
+    },
+    {
+      "name": "rng",
+      "expr": "max(a,b,c,d,f) - min(a,b,c,d,f)"
+    }
+  ],
+  "constraints": [
+    "is_integer(m)"
+  ],
+  "prompt": "次のデータの平均値、中央値、範囲を求めなさい。",
+  "math": "{a},\\ {b},\\ {c},\\ {d},\\ {f}",
+  "answer": "平均値 ${m}$、中央値 ${med}$、範囲 ${rng}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "m*5 == a+b+c+d+f",
+        "med == nth(3,a,b,c,d,f)",
+        "rng == nth(5,a,b,c,d,f) - nth(1,a,b,c,d,f)"
+      ]
+    }
+  ]
+}

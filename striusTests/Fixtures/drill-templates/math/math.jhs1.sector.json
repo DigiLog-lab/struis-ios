@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.sector",
+  "title": "おうぎ形の弧の長さと面積",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 2,
+      "max": 12
+    },
+    {
+      "name": "deg",
+      "kind": "choice",
+      "options": [
+        30,
+        45,
+        60,
+        90,
+        120,
+        135,
+        150,
+        210,
+        240,
+        270
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "arc",
+      "expr": "2*r*deg/360"
+    },
+    {
+      "name": "area",
+      "expr": "r^2*deg/360"
+    }
+  ],
+  "prompt": "半径 ${r}\\,\\mathrm{cm}$、中心角 ${deg}^{\\circ}$ のおうぎ形の弧の長さと面積を求めなさい。",
+  "answer": "弧の長さ ${arc|pi}\\,\\mathrm{cm}$、面積 ${area|pi}\\,\\mathrm{cm^{2}}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{arc|pi}",
+      "equals": "2*pi*r*deg/360"
+    },
+    {
+      "kind": "value",
+      "tex": "{area|pi}",
+      "equals": "pi*r^2*deg/360"
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.point_charge_field_potential",
+  "title": "点電荷がつくる電場と電位",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "k0",
+      "kind": "constant",
+      "value": 9000000000.0,
+      "unit": "N*m^2/C^2",
+      "sig": 2
+    },
+    {
+      "name": "charge",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 1.0,
+      "unit": "uC",
+      "sig": 2
+    },
+    {
+      "name": "r",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 0.9,
+      "step": 0.1,
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "e0",
+      "expr": "k0*charge/r^2",
+      "unit": "N/C",
+      "sig": 2
+    },
+    {
+      "name": "v",
+      "expr": "k0*charge/r",
+      "unit": "V",
+      "sig": 2
+    }
+  ],
+  "prompt": "${charge|q}$ の点電荷から ${r|q}$ 離れた点の、電場の強さと電位を求めなさい。電位の基準は無限遠とし、クーロンの法則の比例定数を ${k0|q}$ とする。",
+  "answer": "電場の強さ ${e0|q}$、電位 ${v|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(e0*r, v)"
+      ]
+    }
+  ]
+}

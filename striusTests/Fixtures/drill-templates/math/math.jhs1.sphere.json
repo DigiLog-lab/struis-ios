@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.sphere",
+  "title": "球の表面積と体積",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 1,
+      "max": 30
+    }
+  ],
+  "lets": [
+    {
+      "name": "s",
+      "expr": "4*r^2"
+    },
+    {
+      "name": "v",
+      "expr": "4*r^3/3"
+    },
+    {
+      "name": "r2",
+      "expr": "r^2"
+    }
+  ],
+  "prompt": "半径 ${r}\\,\\mathrm{cm}$ の球の表面積と体積を求めなさい。",
+  "answer": "表面積 ${s|pi}\\,\\mathrm{cm^{2}}$、体積 ${v|pi}\\,\\mathrm{cm^{3}}$",
+  "checks": [
+    {
+      "kind": "definite_integral",
+      "integrand": "\\pi({r2} - x^{2})",
+      "variable": "x",
+      "from": "-r",
+      "to": "r",
+      "answer": "{v|pi}"
+    },
+    {
+      "kind": "derivative",
+      "function": "\\frac{4}{3}\\pi t^{3}",
+      "variable": "t",
+      "point": "r",
+      "answer": "{s|pi}"
+    }
+  ]
+}

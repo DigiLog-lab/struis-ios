@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "skill_id": "physics.univ.shm_angular_frequency",
+  "title": "単振動の微分方程式から角振動数と周期を求める",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "w",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "k",
+      "expr": "m*w^2"
+    },
+    {
+      "name": "period",
+      "expr": "2/w"
+    }
+  ],
+  "prompt": "質点の運動方程式が ${m|coef}\\frac{d^{2}x}{dt^{2}} = -{k|coef}x$($x$ の単位は m、$t$ の単位は s)で与えられる。この単振動の角振動数 $\\omega$ と周期 $T$ を求めなさい。",
+  "answer": "$\\omega = {w}\\,\\mathrm{rad/s}$、$T = {period|pi}\\,\\mathrm{s}$",
+  "checks": [
+    {
+      "kind": "ode",
+      "function": "C_{1}\\cos {w}t + C_{2}\\sin {w}t",
+      "variable": "t",
+      "left": "{m}y''",
+      "right": "-{k}y"
+    },
+    {
+      "kind": "value",
+      "tex": "{period|pi}",
+      "equals": "2*pi/w"
+    }
+  ]
+}

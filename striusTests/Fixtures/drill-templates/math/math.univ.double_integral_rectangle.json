@@ -1,0 +1,111 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.double_integral_rectangle",
+  "title": "長方形領域での重積分",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": 0,
+      "max": 2
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 0,
+      "max": 2
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    },
+    {
+      "name": "q",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "a * p^(m + 1)/(m + 1) * q^(n + 1)/(n + 1)"
+    },
+    {
+      "name": "inner",
+      "expr": "a * p^(m + 1)/(m + 1)"
+    }
+  ],
+  "constraints": [
+    "m + n >= 1"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "powers": [
+            {
+              "base": "x",
+              "exp": "m"
+            },
+            {
+              "base": "y",
+              "exp": "n"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "inner",
+          "powers": [
+            {
+              "base": "y",
+              "exp": "n"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "prompt": "次の重積分を求めなさい。ただし、$D = \\{(x, y) \\mid 0 \\le x \\le {p},\\ 0 \\le y \\le {q}\\}$ とする。",
+  "math": "\\iint_{D} {f}\\,dx\\,dy",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "definite_integral",
+      "integrand": "{f}",
+      "variable": "x",
+      "from": "0",
+      "to": "p",
+      "answer": "{g}",
+      "at": {
+        "y": "1.3"
+      }
+    },
+    {
+      "kind": "definite_integral",
+      "integrand": "{g}",
+      "variable": "y",
+      "from": "0",
+      "to": "q",
+      "answer": "{ans}"
+    }
+  ]
+}

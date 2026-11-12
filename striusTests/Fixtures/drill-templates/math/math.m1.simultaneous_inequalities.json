@@ -1,0 +1,106 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.simultaneous_inequalities",
+  "title": "連立不等式",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 5
+    },
+    {
+      "name": "lo",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": 1,
+      "max": 5
+    },
+    {
+      "name": "hi",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    }
+  ],
+  "lets": [
+    {
+      "name": "r1",
+      "expr": "a*lo + b"
+    },
+    {
+      "name": "r2",
+      "expr": "c*hi + d"
+    }
+  ],
+  "constraints": [
+    "lo < hi"
+  ],
+  "parts": [
+    {
+      "name": "l1",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "l2",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "c",
+          "body": "x"
+        },
+        {
+          "coef": "d"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の連立不等式を解きなさい。",
+  "math": "\\begin{cases} {l1} > {r1} \\\\ {l2} \\le {r2} \\end{cases}",
+  "answer": "${lo} < x \\le {hi}$",
+  "checks": [
+    {
+      "kind": "inequality",
+      "left": "{l1}",
+      "right": "{r1}",
+      "relation": ">",
+      "variable": "x",
+      "solution": "x > lo"
+    },
+    {
+      "kind": "inequality",
+      "left": "{l2}",
+      "right": "{r2}",
+      "relation": "<=",
+      "variable": "x",
+      "solution": "x <= hi"
+    }
+  ]
+}

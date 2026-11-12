@@ -1,0 +1,83 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs2.linear_function_two_points",
+  "title": "2 点を通る直線の式を求める",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "x1",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "y1",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "x2",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "y2",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    }
+  ],
+  "lets": [
+    {
+      "name": "a",
+      "expr": "(y2 - y1)/(x2 - x1)"
+    },
+    {
+      "name": "b",
+      "expr": "y1 - a*x1"
+    }
+  ],
+  "constraints": [
+    "x1 < x2",
+    "y1 != y2",
+    "is_integer(2*a)",
+    "is_integer(b)"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    }
+  ],
+  "prompt": "2 点 $({x1},\\ {y1})$、$({x2},\\ {y2})$ を通る直線の式を求めなさい。",
+  "answer": "$y = {f}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{f}",
+      "at": {
+        "x": "x1"
+      },
+      "equals": "y1"
+    },
+    {
+      "kind": "value",
+      "tex": "{f}",
+      "at": {
+        "x": "x2"
+      },
+      "equals": "y2"
+    }
+  ]
+}

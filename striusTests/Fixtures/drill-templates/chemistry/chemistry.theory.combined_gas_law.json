@@ -1,0 +1,84 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.combined_gas_law",
+  "title": "ボイル・シャルルの法則",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "p1",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 3.0,
+      "step": 0.5
+    },
+    {
+      "name": "v1",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 10.0,
+      "step": 1.0,
+      "unit": "L",
+      "sig": 2
+    },
+    {
+      "name": "t1",
+      "kind": "choice",
+      "options": [
+        27,
+        77,
+        127
+      ]
+    },
+    {
+      "name": "p2",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 4.0,
+      "step": 0.5
+    },
+    {
+      "name": "t2",
+      "kind": "choice",
+      "options": [
+        27,
+        127,
+        227,
+        327
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "pa",
+      "expr": "q(p1*100000,'Pa')",
+      "unit": "Pa",
+      "sig": 2
+    },
+    {
+      "name": "pb",
+      "expr": "q(p2*100000,'Pa')",
+      "unit": "Pa",
+      "sig": 2
+    },
+    {
+      "name": "v2",
+      "expr": "v1*p1*(t2 + 273)/(p2*(t1 + 273))",
+      "unit": "L",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "t1 != t2",
+    "p1 != p2"
+  ],
+  "prompt": "${t1}^{\\circ}\\mathrm{C}$、${pa|q}$ で体積が ${v1|q}$ の気体を、${t2}^{\\circ}\\mathrm{C}$、${pb|q}$ にしたときの体積を求めなさい。",
+  "answer": "${v2|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(p1*value(v1,'L')/(t1 + 273), p2*value(v2,'L')/(t2 + 273))"
+      ]
+    }
+  ]
+}

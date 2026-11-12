@@ -1,0 +1,76 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.ph_strong_acid",
+  "title": "強酸の水溶液の pH",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 5
+    },
+    {
+      "name": "acid",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "塩酸",
+          "v": 1
+        },
+        {
+          "name": "硝酸",
+          "v": 1
+        }
+      ]
+    },
+    {
+      "name": "mult",
+      "kind": "choice",
+      "options": [
+        1,
+        10,
+        100,
+        1000
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "q(10^(-k),'mol/L')",
+      "unit": "mol/L",
+      "sig": 2
+    },
+    {
+      "name": "ph",
+      "expr": "k + log10(mult)"
+    }
+  ],
+  "constraints": [
+    "k + log10(mult) <= 6"
+  ],
+  "parts": [
+    {
+      "name": "dil",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "mult == 1",
+          "tex": ""
+        }
+      ],
+      "otherwise": "を水で ${mult}$ 倍にうすめた水溶液"
+    }
+  ],
+  "prompt": "${c|q}$ の{acid.name}{dil}の pH を求めなさい。ただし、{acid.name}は完全に電離しているものとする。",
+  "answer": "$\\mathrm{pH} = {ph}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(10^(-ph)*mult, value(c,'mol/L'))"
+      ]
+    }
+  ]
+}

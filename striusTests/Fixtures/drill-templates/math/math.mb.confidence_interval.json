@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "skill_id": "math.mb.confidence_interval",
+  "title": "母平均の信頼区間(信頼度 95%)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "mean",
+      "kind": "integer",
+      "min": 50,
+      "max": 80
+    },
+    {
+      "name": "sd",
+      "kind": "integer",
+      "min": 4,
+      "max": 20,
+      "step": 2
+    },
+    {
+      "name": "n",
+      "kind": "choice",
+      "options": [
+        25,
+        36,
+        49,
+        64,
+        100,
+        144,
+        196,
+        400
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "half",
+      "expr": "1.96*sd/sqrt(n)"
+    },
+    {
+      "name": "lo",
+      "expr": "mean - half"
+    },
+    {
+      "name": "hi",
+      "expr": "mean + half"
+    }
+  ],
+  "prompt": "母標準偏差が ${sd}$ の母集団から大きさ ${n}$ の標本を取り出したところ、標本平均は ${mean}$ であった。母平均 $m$ に対する信頼度 95% の信頼区間を、小数第 2 位まで求めなさい。",
+  "answer": "${lo|dec:2} \\le m \\le {hi|dec:2}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx((hi - lo)/2 * sqrt(n), 1.96*sd)",
+        "lo + hi == 2*mean"
+      ]
+    }
+  ]
+}

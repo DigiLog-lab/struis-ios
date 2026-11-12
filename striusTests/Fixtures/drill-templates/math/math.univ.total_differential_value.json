@@ -1,0 +1,128 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.total_differential_value",
+  "title": "接平面の方程式",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -3,
+      "max": 3,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -3,
+      "max": 3,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "x0",
+      "kind": "integer",
+      "min": -3,
+      "max": 3,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "y0",
+      "kind": "integer",
+      "min": -3,
+      "max": 3,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "z0",
+      "expr": "a*x0^2 + b*y0^2"
+    },
+    {
+      "name": "p",
+      "expr": "2*a*x0"
+    },
+    {
+      "name": "q",
+      "expr": "2*b*y0"
+    },
+    {
+      "name": "k",
+      "expr": "z0 - p*x0 - q*y0"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "b",
+          "body": "y^{2}"
+        }
+      ]
+    },
+    {
+      "name": "plane",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "p",
+          "body": "x"
+        },
+        {
+          "coef": "q",
+          "body": "y"
+        },
+        {
+          "coef": "k"
+        }
+      ]
+    }
+  ],
+  "prompt": "曲面 $z = {f}$ 上の点 $({x0},\\ {y0},\\ {z0})$ における接平面の方程式を求めなさい。",
+  "answer": "$z = {plane}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{plane}",
+      "at": {
+        "x": "x0",
+        "y": "y0"
+      },
+      "equals": "z0"
+    },
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "variable": "x",
+      "point": "x0",
+      "answer": "{p}",
+      "at": {
+        "y": "y0"
+      }
+    },
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "variable": "y",
+      "point": "y0",
+      "answer": "{q}",
+      "at": {
+        "x": "x0"
+      }
+    }
+  ]
+}

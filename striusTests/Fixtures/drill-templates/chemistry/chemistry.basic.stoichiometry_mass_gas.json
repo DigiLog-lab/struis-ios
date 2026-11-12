@@ -1,0 +1,87 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.stoichiometry_mass_gas",
+  "title": "化学反応の量的関係(質量から気体の体積)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "choice",
+      "options": [
+        {
+          "text": "亜鉛 Zn を希硫酸に完全に溶かした",
+          "eq": "\\mathrm{Zn} + \\mathrm{H_2SO_4} \\longrightarrow \\mathrm{ZnSO_4} + \\mathrm{H_2}",
+          "a": "亜鉛",
+          "ma": 65,
+          "gas": "水素",
+          "ca": 1,
+          "cg": 1
+        },
+        {
+          "text": "マグネシウム Mg を塩酸に完全に溶かした",
+          "eq": "\\mathrm{Mg} + 2\\mathrm{HCl} \\longrightarrow \\mathrm{MgCl_2} + \\mathrm{H_2}",
+          "a": "マグネシウム",
+          "ma": 24,
+          "gas": "水素",
+          "ca": 1,
+          "cg": 1
+        },
+        {
+          "text": "アルミニウム Al を塩酸に完全に溶かした",
+          "eq": "2\\mathrm{Al} + 6\\mathrm{HCl} \\longrightarrow 2\\mathrm{AlCl_3} + 3\\mathrm{H_2}",
+          "a": "アルミニウム",
+          "ma": 27,
+          "gas": "水素",
+          "ca": 2,
+          "cg": 3
+        },
+        {
+          "text": "炭酸カルシウム CaCO₃ を塩酸に完全に溶かした",
+          "eq": "\\mathrm{CaCO_3} + 2\\mathrm{HCl} \\longrightarrow \\mathrm{CaCl_2} + \\mathrm{H_2O} + \\mathrm{CO_2}",
+          "a": "炭酸カルシウム",
+          "ma": 100,
+          "gas": "二酸化炭素",
+          "ca": 1,
+          "cg": 1
+        },
+        {
+          "text": "過酸化水素 H₂O₂ を完全に分解した",
+          "eq": "2\\mathrm{H_2O_2} \\longrightarrow 2\\mathrm{H_2O} + \\mathrm{O_2}",
+          "a": "過酸化水素",
+          "ma": 34,
+          "gas": "酸素",
+          "ca": 2,
+          "cg": 1
+        }
+      ]
+    },
+    {
+      "name": "n0",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 2.0,
+      "step": 0.05
+    }
+  ],
+  "lets": [
+    {
+      "name": "ma",
+      "expr": "sig(n0*r.ma, 2)"
+    },
+    {
+      "name": "vol",
+      "expr": "ma/r.ma*r.cg/r.ca*22.4"
+    }
+  ],
+  "prompt": "{r.text}。反応した{r.a}が ${ma|sig:2}\\,\\mathrm{g}$ のとき、発生する{r.gas}の標準状態での体積を求めなさい。{r.a}のモル質量を ${r.ma|dec}\\,\\mathrm{g/mol}$、標準状態での気体のモル体積を $22.4\\,\\mathrm{L/mol}$ とする。",
+  "math": "{r.eq}",
+  "answer": "${vol|sig:2}\\,\\mathrm{L}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(vol/22.4*r.ca, ma/r.ma*r.cg)"
+      ]
+    }
+  ]
+}

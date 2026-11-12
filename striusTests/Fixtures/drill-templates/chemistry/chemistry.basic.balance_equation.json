@@ -1,0 +1,138 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.balance_equation",
+  "title": "化学反応式の係数を合わせる",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "メタンの完全燃焼",
+          "skeleton": "\\mathrm{CH_4} + \\mathrm{O_2} \\longrightarrow \\mathrm{CO_2} + \\mathrm{H_2O}",
+          "balanced": "\\mathrm{CH_4} + 2\\mathrm{O_2} \\longrightarrow \\mathrm{CO_2} + 2\\mathrm{H_2O}"
+        },
+        {
+          "name": "プロパンの完全燃焼",
+          "skeleton": "\\mathrm{C_3H_8} + \\mathrm{O_2} \\longrightarrow \\mathrm{CO_2} + \\mathrm{H_2O}",
+          "balanced": "\\mathrm{C_3H_8} + 5\\mathrm{O_2} \\longrightarrow 3\\mathrm{CO_2} + 4\\mathrm{H_2O}"
+        },
+        {
+          "name": "エタンの完全燃焼",
+          "skeleton": "\\mathrm{C_2H_6} + \\mathrm{O_2} \\longrightarrow \\mathrm{CO_2} + \\mathrm{H_2O}",
+          "balanced": "2\\mathrm{C_2H_6} + 7\\mathrm{O_2} \\longrightarrow 4\\mathrm{CO_2} + 6\\mathrm{H_2O}"
+        },
+        {
+          "name": "エタノールの完全燃焼",
+          "skeleton": "\\mathrm{C_2H_5OH} + \\mathrm{O_2} \\longrightarrow \\mathrm{CO_2} + \\mathrm{H_2O}",
+          "balanced": "\\mathrm{C_2H_5OH} + 3\\mathrm{O_2} \\longrightarrow 2\\mathrm{CO_2} + 3\\mathrm{H_2O}"
+        },
+        {
+          "name": "水素の燃焼",
+          "skeleton": "\\mathrm{H_2} + \\mathrm{O_2} \\longrightarrow \\mathrm{H_2O}",
+          "balanced": "2\\mathrm{H_2} + \\mathrm{O_2} \\longrightarrow 2\\mathrm{H_2O}"
+        },
+        {
+          "name": "アンモニアの合成",
+          "skeleton": "\\mathrm{N_2} + \\mathrm{H_2} \\longrightarrow \\mathrm{NH_3}",
+          "balanced": "\\mathrm{N_2} + 3\\mathrm{H_2} \\longrightarrow 2\\mathrm{NH_3}"
+        },
+        {
+          "name": "アルミニウムの燃焼",
+          "skeleton": "\\mathrm{Al} + \\mathrm{O_2} \\longrightarrow \\mathrm{Al_2O_3}",
+          "balanced": "4\\mathrm{Al} + 3\\mathrm{O_2} \\longrightarrow 2\\mathrm{Al_2O_3}"
+        },
+        {
+          "name": "マグネシウムの燃焼",
+          "skeleton": "\\mathrm{Mg} + \\mathrm{O_2} \\longrightarrow \\mathrm{MgO}",
+          "balanced": "2\\mathrm{Mg} + \\mathrm{O_2} \\longrightarrow 2\\mathrm{MgO}"
+        },
+        {
+          "name": "鉄と塩酸の反応",
+          "skeleton": "\\mathrm{Fe} + \\mathrm{HCl} \\longrightarrow \\mathrm{FeCl_2} + \\mathrm{H_2}",
+          "balanced": "\\mathrm{Fe} + 2\\mathrm{HCl} \\longrightarrow \\mathrm{FeCl_2} + \\mathrm{H_2}"
+        },
+        {
+          "name": "アルミニウムと塩酸の反応",
+          "skeleton": "\\mathrm{Al} + \\mathrm{HCl} \\longrightarrow \\mathrm{AlCl_3} + \\mathrm{H_2}",
+          "balanced": "2\\mathrm{Al} + 6\\mathrm{HCl} \\longrightarrow 2\\mathrm{AlCl_3} + 3\\mathrm{H_2}"
+        },
+        {
+          "name": "過酸化水素の分解",
+          "skeleton": "\\mathrm{H_2O_2} \\longrightarrow \\mathrm{H_2O} + \\mathrm{O_2}",
+          "balanced": "2\\mathrm{H_2O_2} \\longrightarrow 2\\mathrm{H_2O} + \\mathrm{O_2}"
+        },
+        {
+          "name": "炭酸カルシウムと塩酸の反応",
+          "skeleton": "\\mathrm{CaCO_3} + \\mathrm{HCl} \\longrightarrow \\mathrm{CaCl_2} + \\mathrm{H_2O} + \\mathrm{CO_2}",
+          "balanced": "\\mathrm{CaCO_3} + 2\\mathrm{HCl} \\longrightarrow \\mathrm{CaCl_2} + \\mathrm{H_2O} + \\mathrm{CO_2}"
+        },
+        {
+          "name": "ナトリウムと水の反応",
+          "skeleton": "\\mathrm{Na} + \\mathrm{H_2O} \\longrightarrow \\mathrm{NaOH} + \\mathrm{H_2}",
+          "balanced": "2\\mathrm{Na} + 2\\mathrm{H_2O} \\longrightarrow 2\\mathrm{NaOH} + \\mathrm{H_2}"
+        },
+        {
+          "name": "硫酸と水酸化ナトリウムの中和",
+          "skeleton": "\\mathrm{H_2SO_4} + \\mathrm{NaOH} \\longrightarrow \\mathrm{Na_2SO_4} + \\mathrm{H_2O}",
+          "balanced": "\\mathrm{H_2SO_4} + 2\\mathrm{NaOH} \\longrightarrow \\mathrm{Na_2SO_4} + 2\\mathrm{H_2O}"
+        },
+        {
+          "name": "塩酸と水酸化カルシウムの中和",
+          "skeleton": "\\mathrm{HCl} + \\mathrm{Ca(OH)_2} \\longrightarrow \\mathrm{CaCl_2} + \\mathrm{H_2O}",
+          "balanced": "2\\mathrm{HCl} + \\mathrm{Ca(OH)_2} \\longrightarrow \\mathrm{CaCl_2} + 2\\mathrm{H_2O}"
+        },
+        {
+          "name": "酸化鉄(III)の一酸化炭素による還元",
+          "skeleton": "\\mathrm{Fe_2O_3} + \\mathrm{CO} \\longrightarrow \\mathrm{Fe} + \\mathrm{CO_2}",
+          "balanced": "\\mathrm{Fe_2O_3} + 3\\mathrm{CO} \\longrightarrow 2\\mathrm{Fe} + 3\\mathrm{CO_2}"
+        },
+        {
+          "name": "塩素酸カリウムの分解",
+          "skeleton": "\\mathrm{KClO_3} \\longrightarrow \\mathrm{KCl} + \\mathrm{O_2}",
+          "balanced": "2\\mathrm{KClO_3} \\longrightarrow 2\\mathrm{KCl} + 3\\mathrm{O_2}"
+        },
+        {
+          "name": "炭酸水素ナトリウムの熱分解",
+          "skeleton": "\\mathrm{NaHCO_3} \\longrightarrow \\mathrm{Na_2CO_3} + \\mathrm{H_2O} + \\mathrm{CO_2}",
+          "balanced": "2\\mathrm{NaHCO_3} \\longrightarrow \\mathrm{Na_2CO_3} + \\mathrm{H_2O} + \\mathrm{CO_2}"
+        },
+        {
+          "name": "二酸化硫黄の酸化",
+          "skeleton": "\\mathrm{SO_2} + \\mathrm{O_2} \\longrightarrow \\mathrm{SO_3}",
+          "balanced": "2\\mathrm{SO_2} + \\mathrm{O_2} \\longrightarrow 2\\mathrm{SO_3}"
+        },
+        {
+          "name": "銅と希硝酸の反応",
+          "skeleton": "\\mathrm{Cu} + \\mathrm{HNO_3} \\longrightarrow \\mathrm{Cu(NO_3)_2} + \\mathrm{H_2O} + \\mathrm{NO}",
+          "balanced": "3\\mathrm{Cu} + 8\\mathrm{HNO_3} \\longrightarrow 3\\mathrm{Cu(NO_3)_2} + 4\\mathrm{H_2O} + 2\\mathrm{NO}"
+        },
+        {
+          "name": "ブタンの完全燃焼",
+          "skeleton": "\\mathrm{C_4H_{10}} + \\mathrm{O_2} \\longrightarrow \\mathrm{CO_2} + \\mathrm{H_2O}",
+          "balanced": "2\\mathrm{C_4H_{10}} + 13\\mathrm{O_2} \\longrightarrow 8\\mathrm{CO_2} + 10\\mathrm{H_2O}"
+        },
+        {
+          "name": "グルコースの完全燃焼",
+          "skeleton": "\\mathrm{C_6H_{12}O_6} + \\mathrm{O_2} \\longrightarrow \\mathrm{CO_2} + \\mathrm{H_2O}",
+          "balanced": "\\mathrm{C_6H_{12}O_6} + 6\\mathrm{O_2} \\longrightarrow 6\\mathrm{CO_2} + 6\\mathrm{H_2O}"
+        },
+        {
+          "name": "エチレンの完全燃焼",
+          "skeleton": "\\mathrm{C_2H_4} + \\mathrm{O_2} \\longrightarrow \\mathrm{CO_2} + \\mathrm{H_2O}",
+          "balanced": "\\mathrm{C_2H_4} + 3\\mathrm{O_2} \\longrightarrow 2\\mathrm{CO_2} + 2\\mathrm{H_2O}"
+        },
+        {
+          "name": "アセチレンの完全燃焼",
+          "skeleton": "\\mathrm{C_2H_2} + \\mathrm{O_2} \\longrightarrow \\mathrm{CO_2} + \\mathrm{H_2O}",
+          "balanced": "2\\mathrm{C_2H_2} + 5\\mathrm{O_2} \\longrightarrow 4\\mathrm{CO_2} + 2\\mathrm{H_2O}"
+        }
+      ]
+    }
+  ],
+  "prompt": "{r.name}について、次の式に係数を付けて化学反応式を完成させなさい。",
+  "math": "{r.skeleton}",
+  "answer": "${r.balanced}$",
+  "no_numeric_check": "答えが化学式の並びで、式の数値化ができない(反応ごとに係数を表として持っている)"
+}

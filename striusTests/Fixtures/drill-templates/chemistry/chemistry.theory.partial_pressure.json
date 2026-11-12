@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.partial_pressure",
+  "title": "混合気体の分圧(ドルトンの分圧の法則)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "na",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 1.0,
+      "step": 0.1,
+      "unit": "mol",
+      "sig": 2
+    },
+    {
+      "name": "nb",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 1.0,
+      "step": 0.1,
+      "unit": "mol",
+      "sig": 2
+    },
+    {
+      "name": "p",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 5.0,
+      "step": 0.5
+    }
+  ],
+  "lets": [
+    {
+      "name": "total",
+      "expr": "q(p*100000,'Pa')",
+      "unit": "Pa",
+      "sig": 2
+    },
+    {
+      "name": "pa",
+      "expr": "total*na/(na + nb)",
+      "unit": "Pa",
+      "sig": 2
+    },
+    {
+      "name": "xa",
+      "expr": "na/(na + nb)"
+    }
+  ],
+  "prompt": "窒素 ${na|q}$ と酸素 ${nb|q}$ の混合気体の全圧が ${total|q}$ である。窒素のモル分率と分圧を求めなさい。",
+  "answer": "モル分率 ${xa|sig:2}$、分圧 ${pa|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(pa/total, xa)",
+        "approx(xa*(na + nb), na)"
+      ]
+    }
+  ]
+}

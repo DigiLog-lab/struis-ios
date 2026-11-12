@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.gravitation",
+  "title": "万有引力の法則",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "G0",
+      "kind": "constant",
+      "value": 6.67e-11,
+      "unit": "N*m^2/kg^2",
+      "sig": 3
+    },
+    {
+      "name": "m1",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 1.0,
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "m2",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 1.0,
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "r",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 1.0,
+      "step": 0.1,
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "f",
+      "expr": "G0*m1*m2/r^2",
+      "unit": "N",
+      "sig": 2
+    }
+  ],
+  "prompt": "質量 ${m1|q}$ と ${m2|q}$ の 2 つの小球が、中心間の距離 ${r|q}$ だけ離れて置かれている。2 球の間にはたらく万有引力の大きさを求めなさい。万有引力定数を ${G0|q}$ とする。",
+  "answer": "${f|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(f*r^2/(m1*m2), G0)"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.univ.enthalpy_from_internal_energy",
+  "title": "内部エネルギー変化から反応エンタルピーを求める(ΔH = ΔU + ΔnRT)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "du",
+      "kind": "integer",
+      "min": -900,
+      "max": -100,
+      "step": 50
+    },
+    {
+      "name": "dn",
+      "kind": "integer",
+      "min": -3,
+      "max": 3,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "temp",
+      "kind": "choice",
+      "options": [
+        298,
+        350,
+        400
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "dh",
+      "expr": "du + dn*8.31*temp/1000"
+    }
+  ],
+  "prompt": "ある反応の ${temp}\\,\\mathrm{K}$ での内部エネルギー変化は $\\Delta U = {du}\\,\\mathrm{kJ}$ で、反応によって気体の物質量は ${dn|+}\\,\\mathrm{mol}$ 変化する。反応エンタルピー $\\Delta H$ を求めなさい。気体は理想気体とし、気体定数を $8.31\\,\\mathrm{J/(mol \\cdot K)}$ とする。",
+  "answer": "$\\Delta H = {dh|dec:1}\\,\\mathrm{kJ}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx((dh - du)*1000, dn*8.31*temp)"
+      ]
+    }
+  ]
+}

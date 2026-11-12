@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "skill_id": "physics.univ.rc_time_constant",
+  "title": "RC 回路の時定数",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 100.0,
+      "step": 1.0,
+      "unit": "kohm",
+      "sig": 2
+    },
+    {
+      "name": "c",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 100.0,
+      "step": 1.0,
+      "unit": "uF",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "tau",
+      "expr": "r*c",
+      "unit": "s",
+      "sig": 2
+    }
+  ],
+  "prompt": "抵抗値 ${r|sig:2}\\,\\mathrm{k\\Omega}$ の抵抗と電気容量 ${c|q}$ のコンデンサーを直列につないだ回路の時定数を求めなさい。",
+  "answer": "${tau|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(tau,'s'), value(r,'ohm')*value(c,'F'))"
+      ]
+    }
+  ]
+}

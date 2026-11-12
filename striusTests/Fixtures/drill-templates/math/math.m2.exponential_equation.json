@@ -1,0 +1,75 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.exponential_equation",
+  "title": "指数方程式",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "b",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        5
+      ]
+    },
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "x0",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    }
+  ],
+  "lets": [
+    {
+      "name": "rhs",
+      "expr": "b^(m*x0 + c)"
+    }
+  ],
+  "constraints": [
+    "m*x0 + c >= -3",
+    "m*x0 + c <= 5",
+    "m > 1 or c != 0"
+  ],
+  "parts": [
+    {
+      "name": "ex",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "m",
+          "body": "x"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の方程式を解きなさい。",
+  "math": "{b}^{{ex}} = {rhs}",
+  "answer": "$x = {x0}$",
+  "checks": [
+    {
+      "kind": "root",
+      "left": "{b}^{{ex}}",
+      "right": "{rhs}",
+      "variable": "x",
+      "solutions": [
+        "{x0}"
+      ]
+    }
+  ]
+}

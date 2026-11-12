@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.decimal_to_base",
+  "title": "10 進法から n 進法へ",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 5,
+      "max": 255
+    },
+    {
+      "name": "base",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        5
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "digits",
+      "expr": "to_base(n, base)"
+    }
+  ],
+  "constraints": [
+    "n >= base^2",
+    "to_base(n, base) <= 111111111"
+  ],
+  "prompt": "10 進法の数 ${n}$ を ${base}$ 進法で表しなさい。",
+  "answer": "${digits}_{({base})}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "to_base(n, base) == digits"
+      ]
+    }
+  ]
+}

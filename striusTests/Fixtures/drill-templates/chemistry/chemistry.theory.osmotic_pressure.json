@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.osmotic_pressure",
+  "title": "浸透圧(Π = cRT)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "R",
+      "kind": "constant",
+      "value": 8300.0,
+      "unit": "Pa*L/(K*mol)",
+      "sig": 2
+    },
+    {
+      "name": "c",
+      "kind": "decimal",
+      "min": 0.01,
+      "max": 0.2,
+      "step": 0.01,
+      "unit": "mol/L",
+      "sig": 2
+    },
+    {
+      "name": "t",
+      "kind": "integer",
+      "min": 17,
+      "max": 37,
+      "step": 10
+    }
+  ],
+  "lets": [
+    {
+      "name": "temp",
+      "expr": "q(t + 273,'K')",
+      "unit": "K"
+    },
+    {
+      "name": "pi0",
+      "expr": "c*R*temp",
+      "unit": "Pa",
+      "sig": 2
+    }
+  ],
+  "prompt": "${t}^{\\circ}\\mathrm{C}$ で、モル濃度 ${c|q}$ の非電解質の水溶液の浸透圧を求めなさい。気体定数を ${R|q}$ とする。",
+  "answer": "${pi0|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(pi0,'Pa'), value(c,'mol/L')*8.3e3*(t + 273))"
+      ]
+    }
+  ]
+}

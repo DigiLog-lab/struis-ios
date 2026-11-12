@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "skill_id": "physics.wave.refraction_index",
+  "title": "屈折の法則(屈折率と屈折角)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "pair",
+      "kind": "choice",
+      "options": [
+        {
+          "i": 45,
+          "r": 30,
+          "n2": 2
+        },
+        {
+          "i": 60,
+          "r": 30,
+          "n2": 3
+        },
+        {
+          "i": 60,
+          "r": 45,
+          "n2": 1.5
+        },
+        {
+          "i": 90,
+          "r": 45,
+          "n2": 2
+        },
+        {
+          "i": 90,
+          "r": 60,
+          "n2": 1.3333333333333333
+        },
+        {
+          "i": 45,
+          "r": 30,
+          "n2": 2
+        }
+      ]
+    },
+    {
+      "name": "lam0",
+      "kind": "decimal",
+      "min": 4.0,
+      "max": 7.0,
+      "step": 0.2
+    }
+  ],
+  "lets": [
+    {
+      "name": "n",
+      "expr": "sind(pair.i)/sind(pair.r)"
+    },
+    {
+      "name": "lam",
+      "expr": "lam0/n"
+    }
+  ],
+  "prompt": "光が空気中からある媒質に入射角 ${pair.i}^{\\circ}$ で入射し、屈折角 ${pair.r}^{\\circ}$ で屈折した。空気の屈折率を 1 として、この媒質の屈折率を求めなさい。また、空気中での波長が ${lam0|dec:1} \\times 10^{-7}\\,\\mathrm{m}$ の光の、媒質中での波長を求めなさい。",
+  "answer": "屈折率 ${n|sig:2}$、波長 ${lam|sig:2} \\times 10^{-7}\\,\\mathrm{m}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(n*sind(pair.r), sind(pair.i))",
+        "approx(lam*n, lam0)"
+      ]
+    }
+  ]
+}

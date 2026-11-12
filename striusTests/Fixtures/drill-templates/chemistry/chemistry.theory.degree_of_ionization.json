@@ -1,0 +1,81 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.degree_of_ionization",
+  "title": "電離定数から弱酸の電離度を求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "ka",
+      "kind": "choice",
+      "options": [
+        {
+          "m": 1.0,
+          "e": 5
+        },
+        {
+          "m": 4.0,
+          "e": 5
+        },
+        {
+          "m": 9.0,
+          "e": 5
+        },
+        {
+          "m": 1.6,
+          "e": 5
+        },
+        {
+          "m": 2.5,
+          "e": 5
+        },
+        {
+          "m": 4.9,
+          "e": 5
+        },
+        {
+          "m": 3.6,
+          "e": 5
+        },
+        {
+          "m": 6.4,
+          "e": 5
+        }
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "choice",
+      "options": [
+        0.1,
+        0.4,
+        0.9,
+        0.01,
+        0.04,
+        1.0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "kav",
+      "expr": "ka.m*10^(-ka.e)"
+    },
+    {
+      "name": "alpha",
+      "expr": "sqrt(kav/c)"
+    }
+  ],
+  "constraints": [
+    "alpha < 0.05"
+  ],
+  "prompt": "電離定数が $K_{a} = {ka.m|dec:1} \\times 10^{-{ka.e}}\\,\\mathrm{mol/L}$ の弱酸の ${c|sig:2}\\,\\mathrm{mol/L}$ 水溶液における電離度 $\\alpha$ を求めなさい。$\\alpha$ は 1 に比べて十分小さいものとする。",
+  "answer": "$\\alpha = {alpha|sig:2}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(c*alpha*alpha, kav)"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.linear_eq_fraction",
+  "title": "分数をふくむ一次方程式",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": 2,
+      "max": 6
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 2,
+      "max": 6
+    },
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "x0",
+      "kind": "integer",
+      "min": -10,
+      "max": 10
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "(x0 + a)/m - (x0 + b)/n"
+    }
+  ],
+  "constraints": [
+    "m != n",
+    "is_integer(c)",
+    "abs(c) <= 9"
+  ],
+  "parts": [
+    {
+      "name": "p",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "a"
+        }
+      ]
+    },
+    {
+      "name": "q",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の方程式を解きなさい。",
+  "math": "\\frac{{p}}{{m}} - \\frac{{q}}{{n}} = {c}",
+  "answer": "$x = {x0}$",
+  "checks": [
+    {
+      "kind": "root",
+      "left": "\\frac{{p}}{{m}} - \\frac{{q}}{{n}}",
+      "right": "{c}",
+      "variable": "x",
+      "solutions": [
+        "{x0}"
+      ]
+    }
+  ]
+}

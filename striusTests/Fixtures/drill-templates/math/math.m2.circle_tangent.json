@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.circle_tangent",
+  "title": "円周上の点における接線の方程式",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "x0",
+      "kind": "integer",
+      "min": -7,
+      "max": 7,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "y0",
+      "kind": "integer",
+      "min": -7,
+      "max": 7,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "r2",
+      "expr": "x0^2 + y0^2"
+    }
+  ],
+  "parts": [
+    {
+      "name": "t",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "x0",
+          "body": "x"
+        },
+        {
+          "coef": "y0",
+          "body": "y"
+        }
+      ]
+    }
+  ],
+  "prompt": "円 $x^{2} + y^{2} = {r2}$ 上の点 $({x0},\\ {y0})$ における接線の方程式を求めなさい。",
+  "answer": "${t} = {r2}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{t}",
+      "at": {
+        "x": "x0",
+        "y": "y0"
+      },
+      "equals": "r2"
+    },
+    {
+      "kind": "assert",
+      "conditions": [
+        "abs(r2)/sqrt(x0^2 + y0^2) == sqrt(r2)"
+      ]
+    }
+  ]
+}

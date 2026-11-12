@@ -1,0 +1,70 @@
+{
+  "format": 1,
+  "skill_id": "math.mc.de_moivre",
+  "title": "ド・モアブルの定理",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "base",
+      "kind": "choice",
+      "options": [
+        {
+          "re": 1,
+          "im": 1,
+          "r2": 2,
+          "deg": 45
+        },
+        {
+          "re": 1,
+          "im": -1,
+          "r2": 2,
+          "deg": -45
+        },
+        {
+          "re": -1,
+          "im": 1,
+          "r2": 2,
+          "deg": 135
+        },
+        {
+          "re": -1,
+          "im": -1,
+          "r2": 2,
+          "deg": -135
+        }
+      ]
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 3,
+      "max": 10
+    }
+  ],
+  "lets": [
+    {
+      "name": "z",
+      "expr": "base.re + base.im*i"
+    },
+    {
+      "name": "w",
+      "expr": "z^n"
+    }
+  ],
+  "prompt": "次の式を計算しなさい。",
+  "math": "({z})^{{n}}",
+  "answer": "${w}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({z})^{{n}}",
+      "right": "{w}"
+    },
+    {
+      "kind": "assert",
+      "conditions": [
+        "abs(w)^2 == base.r2^n"
+      ]
+    }
+  ]
+}

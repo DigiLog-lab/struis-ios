@@ -1,0 +1,88 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.factor_two_variables",
+  "title": "2 文字の二次式の因数分解",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -7,
+      "max": 7,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -7,
+      "max": 7,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "constraints": [
+    "a < b",
+    "a + b != 0"
+  ],
+  "parts": [
+    {
+      "name": "p",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "a",
+          "body": "y"
+        }
+      ]
+    },
+    {
+      "name": "q",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "b",
+          "body": "y"
+        }
+      ]
+    },
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "a+b",
+          "body": "xy"
+        },
+        {
+          "coef": "a*b",
+          "body": "y^{2}"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の式を因数分解しなさい。",
+  "math": "{f}",
+  "answer": "$({p})({q})$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{f}",
+      "right": "({p})({q})"
+    }
+  ]
+}

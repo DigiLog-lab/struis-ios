@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.series_circuit_voltage",
+  "title": "直列回路の電流と各抵抗の電圧",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "r1",
+      "kind": "integer",
+      "min": 5,
+      "max": 50,
+      "step": 5,
+      "unit": "ohm",
+      "sig": 2
+    },
+    {
+      "name": "r2",
+      "kind": "integer",
+      "min": 5,
+      "max": 50,
+      "step": 5,
+      "unit": "ohm",
+      "sig": 2
+    },
+    {
+      "name": "v",
+      "kind": "decimal",
+      "min": 3.0,
+      "max": 24.0,
+      "step": 3.0,
+      "unit": "V",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "cur",
+      "expr": "v/(r1 + r2)",
+      "unit": "A",
+      "sig": 2
+    },
+    {
+      "name": "v1",
+      "expr": "v*r1/(r1 + r2)",
+      "unit": "V",
+      "sig": 2
+    }
+  ],
+  "prompt": "抵抗値 ${r1|q}$ の抵抗 $R_{1}$ と ${r2|q}$ の抵抗 $R_{2}$ を直列に接続し、両端に ${v|q}$ の電圧を加えた。回路を流れる電流と、$R_{1}$ の両端の電圧を求めなさい。",
+  "answer": "電流 ${cur|q}$、$R_{1}$ の電圧 ${v1|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(cur*r1, v1)",
+        "approx(v1 + cur*r2, v)"
+      ]
+    }
+  ]
+}

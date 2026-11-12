@@ -1,0 +1,68 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.battery_charge",
+  "title": "電池から取り出せる電気量と反応する物質の量",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "F",
+      "kind": "constant",
+      "value": 96500.0,
+      "unit": "C/mol",
+      "sig": 3
+    },
+    {
+      "name": "cur",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 2.0,
+      "step": 0.1,
+      "unit": "A",
+      "sig": 2
+    },
+    {
+      "name": "t",
+      "kind": "choice",
+      "options": [
+        965,
+        1930,
+        3860,
+        5790,
+        7720,
+        9650,
+        19300
+      ],
+      "unit": "s",
+      "sig": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "charge",
+      "expr": "cur*t",
+      "unit": "C",
+      "sig": 2
+    },
+    {
+      "name": "ne",
+      "expr": "cur*t/F",
+      "unit": "mol",
+      "sig": 2
+    },
+    {
+      "name": "zn",
+      "expr": "value(cur*t/F,'mol')/2*65.4"
+    }
+  ],
+  "prompt": "ダニエル電池から ${cur|q}$ の電流を ${t|q}$ 間取り出した。流れた電気量、電子の物質量、溶け出した亜鉛の質量を求めなさい。ファラデー定数を ${F|q}$、亜鉛のモル質量を $65.4\\,\\mathrm{g/mol}$ とする。",
+  "answer": "電気量 ${charge|q}$、電子 ${ne|q}$、亜鉛 ${zn|sig:2}\\,\\mathrm{g}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(ne*F, charge)",
+        "approx(zn*2, value(ne,'mol')*65.4)"
+      ]
+    }
+  ]
+}

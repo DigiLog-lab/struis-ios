@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.parabola_value",
+  "title": "y = ax² の式を求める",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "fraction",
+      "numerator": {
+        "min": -9,
+        "max": 9
+      },
+      "denominator": {
+        "min": 1,
+        "max": 4
+      }
+    },
+    {
+      "name": "x1",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "y1",
+      "expr": "a*x1^2"
+    }
+  ],
+  "constraints": [
+    "is_integer(y1)",
+    "abs(y1) <= 60"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        }
+      ]
+    }
+  ],
+  "prompt": "$y$ は $x$ の 2 乗に比例し、$x = {x1}$ のとき $y = {y1}$ である。$y$ を $x$ の式で表しなさい。",
+  "answer": "$y = {f}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{f}",
+      "at": {
+        "x": "x1"
+      },
+      "equals": "y1"
+    }
+  ]
+}

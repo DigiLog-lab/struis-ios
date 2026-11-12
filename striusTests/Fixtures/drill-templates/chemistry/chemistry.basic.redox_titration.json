@@ -1,0 +1,73 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.redox_titration",
+  "title": "酸化還元滴定(過マンガン酸カリウム)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "red",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "過酸化水素水",
+          "e": 2
+        },
+        {
+          "name": "シュウ酸水溶液",
+          "e": 2
+        },
+        {
+          "name": "硫酸鉄(II)水溶液",
+          "e": 1
+        }
+      ]
+    },
+    {
+      "name": "vr",
+      "kind": "choice",
+      "options": [
+        10.0,
+        20.0,
+        25.0
+      ],
+      "unit": "mL",
+      "sig": 3
+    },
+    {
+      "name": "co",
+      "kind": "decimal",
+      "min": 0.01,
+      "max": 0.05,
+      "step": 0.005,
+      "unit": "mol/L",
+      "sig": 2
+    },
+    {
+      "name": "vo",
+      "kind": "decimal",
+      "min": 8.0,
+      "max": 25.0,
+      "step": 0.5,
+      "unit": "mL",
+      "sig": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "cr",
+      "expr": "5*co*vo/(red.e*vr)",
+      "unit": "mol/L",
+      "sig": 2
+    }
+  ],
+  "prompt": "硫酸で酸性にした{red.name} ${vr|q}$ を、${co|q}$ の過マンガン酸カリウム水溶液で滴定したところ、${vo|q}$ を加えた所で赤紫色が消えなくなった。{red.name}のモル濃度を求めなさい。過マンガン酸イオン 1 mol は電子 5 mol を受け取り、{red.name}の溶質 1 mol は電子 ${red.e}$ mol を与える。",
+  "answer": "${cr|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(red.e*cr*vr, 5*co*vo)"
+      ]
+    }
+  ]
+}

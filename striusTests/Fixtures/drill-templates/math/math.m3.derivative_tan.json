@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.derivative_tan",
+  "title": "tan の微分",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "ka",
+      "expr": "k*a"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k",
+          "body": "\\tan {a|coef}x"
+        }
+      ]
+    },
+    {
+      "name": "neg",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "k*a < 0",
+          "tex": "-"
+        }
+      ],
+      "otherwise": ""
+    }
+  ],
+  "prompt": "次の関数を微分しなさい。",
+  "math": "y = {f}",
+  "answer": "$y' = {neg}\\frac{{ka|abs}}{\\cos^{2} {a|coef}x}$",
+  "checks": [
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "answer": "\\frac{{ka}}{\\cos^{2} {a|coef}x}",
+      "variable": "x",
+      "range": [
+        -0.2,
+        0.2
+      ]
+    }
+  ]
+}

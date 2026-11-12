@@ -1,0 +1,85 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.expand_xa_xb",
+  "title": "(x + a)(x + b) の展開",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "constraints": [
+    "a < b",
+    "a + b != 0"
+  ],
+  "parts": [
+    {
+      "name": "p",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "a"
+        }
+      ]
+    },
+    {
+      "name": "q",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "a+b",
+          "body": "x"
+        },
+        {
+          "coef": "a*b"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の式を展開しなさい。",
+  "math": "({p})({q})",
+  "answer": "${g}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({p})({q})",
+      "right": "{g}"
+    }
+  ]
+}

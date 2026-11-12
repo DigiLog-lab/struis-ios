@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.integral_substitution_log",
+  "title": "置換積分(f'(x)/f(x) の形)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": 1,
+      "max": 9
+    }
+  ],
+  "constraints": [
+    "b^2 - 4*a*c < 0"
+  ],
+  "parts": [
+    {
+      "name": "u",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "b",
+          "body": "x"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    },
+    {
+      "name": "du",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "2*a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の不定積分を求めなさい。",
+  "math": "\\int \\frac{{du}}{{u}}\\,dx",
+  "answer": "$\\log ({u}) + C$($C$ は積分定数)",
+  "checks": [
+    {
+      "kind": "antiderivative",
+      "integrand": "\\frac{{du}}{{u}}",
+      "answer": "\\log ({u}) + C",
+      "variable": "x"
+    }
+  ]
+}

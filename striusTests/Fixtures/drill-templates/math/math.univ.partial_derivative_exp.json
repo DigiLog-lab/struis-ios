@@ -1,0 +1,144 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.partial_derivative_exp",
+  "title": "指数関数・三角関数の偏導関数",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -4,
+      "max": 4,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -4,
+      "max": 4,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "fn",
+      "kind": "choice",
+      "options": [
+        {
+          "f": "e^{",
+          "close": "}",
+          "t": 1
+        },
+        {
+          "f": "\\sin(",
+          "close": ")",
+          "t": 2
+        },
+        {
+          "f": "\\cos(",
+          "close": ")",
+          "t": 3
+        }
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "u",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b",
+          "body": "y"
+        }
+      ]
+    },
+    {
+      "name": "f",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "fn.t == 1",
+          "tex": "e^{{u}}"
+        },
+        {
+          "when": "fn.t == 2",
+          "tex": "\\sin({u})"
+        }
+      ],
+      "otherwise": "\\cos({u})"
+    },
+    {
+      "name": "d",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "fn.t == 1",
+          "tex": "e^{{u}}"
+        },
+        {
+          "when": "fn.t == 2",
+          "tex": "\\cos({u})"
+        }
+      ],
+      "otherwise": "\\sin({u})"
+    },
+    {
+      "name": "fx",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "if(fn.t == 3, -a, a)",
+          "body": "{d}"
+        }
+      ]
+    },
+    {
+      "name": "fy",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "if(fn.t == 3, -b, b)",
+          "body": "{d}"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の関数の偏導関数 $f_{x}$、$f_{y}$ を求めなさい。",
+  "math": "f(x, y) = {f}",
+  "answer": "$f_{x} = {fx}$、$f_{y} = {fy}$",
+  "checks": [
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "answer": "{fx}",
+      "variable": "x",
+      "over": [
+        "y"
+      ],
+      "range": [
+        -0.5,
+        0.5
+      ]
+    },
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "answer": "{fy}",
+      "variable": "y",
+      "over": [
+        "x"
+      ],
+      "range": [
+        -0.5,
+        0.5
+      ]
+    }
+  ]
+}

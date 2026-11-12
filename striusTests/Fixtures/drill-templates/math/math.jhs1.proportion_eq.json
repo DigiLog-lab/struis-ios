@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.proportion_eq",
+  "title": "比例式を解く",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 2,
+      "max": 9
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 2,
+      "max": 9
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 2,
+      "max": 9
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "b*k"
+    },
+    {
+      "name": "x0",
+      "expr": "a*k"
+    }
+  ],
+  "constraints": [
+    "gcd(a,b) == 1"
+  ],
+  "prompt": "次の比例式で、$x$ の値を求めなさい。",
+  "math": "x : {c} = {a} : {b}",
+  "answer": "$x = {x0}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "x0 * b == c * a"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.lever_balance",
+  "title": "てこのつり合い(力のモーメントのつり合い)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "w1",
+      "kind": "decimal",
+      "min": 10,
+      "max": 90,
+      "step": 10.0,
+      "unit": "N",
+      "sig": 2
+    },
+    {
+      "name": "l1",
+      "kind": "decimal",
+      "min": 0.2,
+      "max": 1.0,
+      "step": 0.1,
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "l2",
+      "kind": "decimal",
+      "min": 0.2,
+      "max": 1.0,
+      "step": 0.1,
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "w2",
+      "expr": "w1*l1/l2",
+      "unit": "N",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "l1 != l2"
+  ],
+  "prompt": "軽い棒を支点で支え、支点から左に ${l1|q}$ の点に重さ ${w1|q}$ のおもりをつるした。支点から右に ${l2|q}$ の点に何 N のおもりをつるせば、棒は水平につり合うか。",
+  "answer": "${w2|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(w1*l1, w2*l2)"
+      ]
+    }
+  ]
+}

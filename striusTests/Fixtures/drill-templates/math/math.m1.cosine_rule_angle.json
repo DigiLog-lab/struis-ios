@@ -1,0 +1,57 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.cosine_rule_angle",
+  "title": "余弦定理(角を求める)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 1,
+      "max": 24
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": 1,
+      "max": 24
+    },
+    {
+      "name": "A",
+      "kind": "choice",
+      "options": [
+        60,
+        120,
+        90
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "a2",
+      "expr": "b^2 + c^2 - 2*b*c*cosd(A)"
+    },
+    {
+      "name": "a",
+      "expr": "sqrt(a2)"
+    },
+    {
+      "name": "cosA",
+      "expr": "(b^2 + c^2 - a^2)/(2*b*c)"
+    }
+  ],
+  "constraints": [
+    "is_square(a2)",
+    "b < c"
+  ],
+  "prompt": "$\\triangle \\mathrm{ABC}$ において、$a = {a}$、$b = {b}$、$c = {c}$ のとき、$\\cos A$ の値と $A$ を求めなさい。",
+  "answer": "$\\cos A = {cosA}$、$A = {A}^{\\circ}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "cosd(A) == (b^2 + c^2 - a^2)/(2*b*c)"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "skill_id": "physics.wave.beats",
+  "title": "うなりの回数",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "f1",
+      "kind": "integer",
+      "min": 256,
+      "max": 520,
+      "step": 4,
+      "unit": "Hz"
+    },
+    {
+      "name": "df",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "f2",
+      "expr": "f1 + q(df,'Hz')",
+      "unit": "Hz"
+    },
+    {
+      "name": "n",
+      "expr": "df"
+    }
+  ],
+  "prompt": "振動数 ${f1|q}$ のおんさと振動数 ${f2|q}$ のおんさを同時に鳴らした。1 秒間に聞こえるうなりの回数を求めなさい。",
+  "answer": "${n}$ 回",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "value(f2 - f1,'Hz') == n"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,140 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.cramer_2x2",
+  "title": "連立一次方程式(クラメルの公式)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "x0",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "y0",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    }
+  ],
+  "lets": [
+    {
+      "name": "det",
+      "expr": "a*d - b*c"
+    },
+    {
+      "name": "p",
+      "expr": "a*x0 + b*y0"
+    },
+    {
+      "name": "q",
+      "expr": "c*x0 + d*y0"
+    },
+    {
+      "name": "dx",
+      "expr": "p*d - b*q"
+    },
+    {
+      "name": "dy",
+      "expr": "a*q - p*c"
+    }
+  ],
+  "constraints": [
+    "det != 0"
+  ],
+  "parts": [
+    {
+      "name": "l1",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b",
+          "body": "y"
+        }
+      ]
+    },
+    {
+      "name": "l2",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "c",
+          "body": "x"
+        },
+        {
+          "coef": "d",
+          "body": "y"
+        }
+      ]
+    }
+  ],
+  "prompt": "クラメルの公式を用いて、次の連立一次方程式を解きなさい。",
+  "math": "\\begin{cases} {l1} = {p} \\\\ {l2} = {q} \\end{cases}",
+  "answer": "$D = {det}$、$D_{x} = {dx}$、$D_{y} = {dy}$ より、$x = {x0}$、$y = {y0}$",
+  "checks": [
+    {
+      "kind": "system",
+      "equations": [
+        {
+          "left": "{l1}",
+          "right": "{p}"
+        },
+        {
+          "left": "{l2}",
+          "right": "{q}"
+        }
+      ],
+      "values": {
+        "x": "{x0}",
+        "y": "{y0}"
+      }
+    },
+    {
+      "kind": "assert",
+      "conditions": [
+        "dx == det*x0",
+        "dy == det*y0"
+      ]
+    }
+  ]
+}

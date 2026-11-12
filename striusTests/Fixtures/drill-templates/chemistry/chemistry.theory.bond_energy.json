@@ -1,0 +1,65 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.bond_energy",
+  "title": "結合エネルギーから反応エンタルピーを求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "x",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "塩素",
+          "tex": "\\mathrm{Cl_2}",
+          "p": "\\mathrm{HCl}",
+          "xx": 243,
+          "hx": 432
+        },
+        {
+          "name": "臭素",
+          "tex": "\\mathrm{Br_2}",
+          "p": "\\mathrm{HBr}",
+          "xx": 193,
+          "hx": 366
+        },
+        {
+          "name": "フッ素",
+          "tex": "\\mathrm{F_2}",
+          "p": "\\mathrm{HF}",
+          "xx": 158,
+          "hx": 568
+        },
+        {
+          "name": "ヨウ素",
+          "tex": "\\mathrm{I_2}",
+          "p": "\\mathrm{HI}",
+          "xx": 151,
+          "hx": 299
+        }
+      ]
+    },
+    {
+      "name": "hh",
+      "kind": "integer",
+      "min": 432,
+      "max": 440
+    }
+  ],
+  "lets": [
+    {
+      "name": "dh",
+      "expr": "hh + x.xx - 2*x.hx"
+    }
+  ],
+  "prompt": "H–H、{x.name}分子の結合、H と{x.name}原子の結合の結合エネルギーは、それぞれ ${hh}\\,\\mathrm{kJ/mol}$、${x.xx}\\,\\mathrm{kJ/mol}$、${x.hx}\\,\\mathrm{kJ/mol}$ である。次の反応の反応エンタルピーを求めなさい。",
+  "math": "\\mathrm{H_2} + {x.tex} \\longrightarrow 2{x.p}",
+  "answer": "${dh}\\,\\mathrm{kJ}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "dh + 2*x.hx == hh + x.xx"
+      ]
+    }
+  ]
+}

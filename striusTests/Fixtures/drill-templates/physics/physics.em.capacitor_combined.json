@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.capacitor_combined",
+  "title": "コンデンサーの合成容量",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "c1",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 12.0,
+      "step": 1.0,
+      "unit": "uF",
+      "sig": 2
+    },
+    {
+      "name": "c2",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 12.0,
+      "step": 1.0,
+      "unit": "uF",
+      "sig": 2
+    },
+    {
+      "name": "conn",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "並列",
+          "t": 1
+        },
+        {
+          "name": "直列",
+          "t": 2
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "if(conn.t == 1, c1 + c2, c1*c2/(c1 + c2))",
+      "unit": "uF",
+      "sig": 2
+    }
+  ],
+  "prompt": "電気容量 ${c1|q}$ と ${c2|q}$ のコンデンサーを{conn.name}に接続した。合成容量を求めなさい。",
+  "answer": "${c|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "if(conn.t == 1, approx(c - c1, c2), approx(1/c, 1/c1 + 1/c2))"
+      ]
+    }
+  ]
+}

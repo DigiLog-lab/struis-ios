@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.repeated_permutation",
+  "title": "重複順列",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 2,
+      "max": 6
+    },
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 2,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "n^r"
+    }
+  ],
+  "constraints": [
+    "n^r <= 10000"
+  ],
+  "prompt": "${n}$ 種類の数字をくり返し使ってよいとき、${r}$ けたの番号は何通り作れるか。ただし、どの位にも ${n}$ 種類すべての数字を使えるものとする。",
+  "answer": "${ans}$ 通り",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "log(n, ans) == r"
+      ]
+    }
+  ]
+}

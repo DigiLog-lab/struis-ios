@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.simple_pendulum_period",
+  "title": "単振り子の周期(T = 2π√(L/g))",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "g",
+      "kind": "constant",
+      "value": 9.8,
+      "unit": "m/s^2",
+      "sig": 2
+    },
+    {
+      "name": "len",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 2.5,
+      "step": 0.05,
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "period",
+      "expr": "2*pi*sqrt(len/g)",
+      "unit": "s",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "value(len,'m') == sig(value(len,'m'), 2)"
+  ],
+  "prompt": "長さ ${len|q}$ の単振り子の周期を求めなさい。重力加速度の大きさを ${g|q}$ とする。",
+  "answer": "${period|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx((period/(2*pi))^2*g, len)"
+      ]
+    }
+  ]
+}

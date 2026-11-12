@@ -1,0 +1,71 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.parabola_range",
+  "title": "y = ax² の y の変域",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "fraction",
+      "numerator": {
+        "min": -4,
+        "max": 4
+      },
+      "denominator": {
+        "min": 1,
+        "max": 2
+      }
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -6,
+      "max": -1
+    },
+    {
+      "name": "q",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "far",
+      "expr": "a*max(abs(p), abs(q))^2"
+    },
+    {
+      "name": "lo",
+      "expr": "min(0, far)"
+    },
+    {
+      "name": "hi",
+      "expr": "max(0, far)"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        }
+      ]
+    }
+  ],
+  "prompt": "関数 $y = {f}$ について、$x$ の変域が ${p} \\le x \\le {q}$ のときの $y$ の変域を求めなさい。",
+  "answer": "${lo} \\le y \\le {hi}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "lo <= a*p^2 and a*p^2 <= hi",
+        "lo <= a*q^2 and a*q^2 <= hi",
+        "lo == 0 or hi == 0",
+        "lo == a*p^2 or lo == a*q^2 or hi == a*p^2 or hi == a*q^2"
+      ]
+    }
+  ]
+}

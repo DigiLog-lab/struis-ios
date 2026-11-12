@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.tangent_line_exp_log",
+  "title": "接線の方程式(指数・対数)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 5
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": 1,
+      "max": 5
+    }
+  ],
+  "lets": [
+    {
+      "name": "slope",
+      "expr": "a/p"
+    }
+  ],
+  "parts": [
+    {
+      "name": "t",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "slope",
+          "body": "x"
+        },
+        {
+          "coef": "-a"
+        }
+      ]
+    }
+  ],
+  "prompt": "曲線 $y = {a|coef}\\log x$ 上の $x = {p}$ の点における接線の傾きを求めなさい。",
+  "answer": "${slope}$",
+  "checks": [
+    {
+      "kind": "derivative",
+      "function": "{a}\\log x",
+      "variable": "x",
+      "point": "p",
+      "answer": "{slope}"
+    }
+  ]
+}

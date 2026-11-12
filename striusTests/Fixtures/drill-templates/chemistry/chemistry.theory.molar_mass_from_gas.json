@@ -1,0 +1,94 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.molar_mass_from_gas",
+  "title": "気体の密度・質量から分子量を求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "R",
+      "kind": "constant",
+      "value": 8300.0,
+      "unit": "Pa*L/(K*mol)",
+      "sig": 2
+    },
+    {
+      "name": "gas",
+      "kind": "choice",
+      "options": [
+        {
+          "M": 16
+        },
+        {
+          "M": 28
+        },
+        {
+          "M": 32
+        },
+        {
+          "M": 44
+        },
+        {
+          "M": 58
+        },
+        {
+          "M": 17
+        },
+        {
+          "M": 30
+        },
+        {
+          "M": 64
+        }
+      ]
+    },
+    {
+      "name": "vol",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 5.0,
+      "step": 0.5,
+      "unit": "L",
+      "sig": 2
+    },
+    {
+      "name": "t",
+      "kind": "integer",
+      "min": 27,
+      "max": 127,
+      "step": 50
+    },
+    {
+      "name": "p",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 2.0,
+      "step": 0.5
+    }
+  ],
+  "lets": [
+    {
+      "name": "press",
+      "expr": "q(p*100000,'Pa')",
+      "unit": "Pa",
+      "sig": 2
+    },
+    {
+      "name": "mass",
+      "expr": "sig(gas.M*p*100000*value(vol,'L')/(8.3e3*(t + 273)), 2)"
+    },
+    {
+      "name": "mm",
+      "expr": "mass*8.3e3*(t + 273)/(p*100000*value(vol,'L'))"
+    }
+  ],
+  "prompt": "ある気体 ${mass|sig:2}\\,\\mathrm{g}$ は、${t}^{\\circ}\\mathrm{C}$、${press|q}$ で ${vol|q}$ の体積を占める。この気体の分子量を求めなさい。気体定数を ${R|q}$ とする。",
+  "answer": "${mm|sig:2}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(mass/mm*8.3e3*(t + 273), p*100000*value(vol,'L'))"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.derivative_chain_power",
+  "title": "合成関数の微分((ax + b)ⁿ)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0,
+        1
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 3,
+      "max": 7
+    }
+  ],
+  "parts": [
+    {
+      "name": "u",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "n*a",
+          "powers": [
+            {
+              "base": "({u})",
+              "exp": "n - 1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "prompt": "次の関数を微分しなさい。",
+  "math": "y = ({u})^{{n}}",
+  "answer": "$y' = {g}$",
+  "checks": [
+    {
+      "kind": "derivative",
+      "function": "({u})^{{n}}",
+      "answer": "{g}",
+      "variable": "x"
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.power",
+  "title": "仕事率(P = W/t)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "g",
+      "kind": "constant",
+      "value": 9.8,
+      "unit": "m/s^2",
+      "sig": 2
+    },
+    {
+      "name": "m",
+      "kind": "decimal",
+      "min": 10,
+      "max": 90,
+      "step": 5.0,
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "h",
+      "kind": "decimal",
+      "min": 2.0,
+      "max": 20.0,
+      "step": 1.0,
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "t",
+      "kind": "decimal",
+      "min": 4.0,
+      "max": 20.0,
+      "step": 2.0,
+      "unit": "s",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "w",
+      "expr": "m*g*h",
+      "unit": "J",
+      "sig": 2
+    },
+    {
+      "name": "p",
+      "expr": "m*g*h/t",
+      "unit": "W",
+      "sig": 2
+    }
+  ],
+  "prompt": "質量 ${m|q}$ の荷物を、${t|q}$ かけて一定の速さで ${h|q}$ の高さまで持ち上げた。このときの仕事と仕事率を求めなさい。重力加速度の大きさを ${g|q}$ とする。",
+  "answer": "仕事 ${w|q}$、仕事率 ${p|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(p*t, w)",
+        "approx(w/h, m*g)"
+      ]
+    }
+  ]
+}

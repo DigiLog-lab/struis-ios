@@ -1,0 +1,95 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.weak_acid_ph",
+  "title": "弱酸の電離度と pH",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "m",
+      "kind": "choice",
+      "options": [
+        {
+          "c": 0.1,
+          "alpha": 0.01,
+          "ph": 3
+        },
+        {
+          "c": 0.01,
+          "alpha": 0.01,
+          "ph": 4
+        },
+        {
+          "c": 0.1,
+          "alpha": 0.001,
+          "ph": 4
+        },
+        {
+          "c": 1.0,
+          "alpha": 0.001,
+          "ph": 3
+        },
+        {
+          "c": 0.01,
+          "alpha": 0.1,
+          "ph": 3
+        },
+        {
+          "c": 0.001,
+          "alpha": 0.1,
+          "ph": 4
+        },
+        {
+          "c": 0.1,
+          "alpha": 0.1,
+          "ph": 2
+        },
+        {
+          "c": 1.0,
+          "alpha": 0.01,
+          "ph": 2
+        },
+        {
+          "c": 0.001,
+          "alpha": 0.01,
+          "ph": 5
+        },
+        {
+          "c": 0.01,
+          "alpha": 0.001,
+          "ph": 5
+        }
+      ]
+    },
+    {
+      "name": "acid",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "酢酸"
+        },
+        {
+          "name": "ギ酸"
+        },
+        {
+          "name": "弱酸 HA"
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "h",
+      "expr": "m.c*m.alpha"
+    }
+  ],
+  "prompt": "濃度 ${m.c|sig:2}\\,\\mathrm{mol/L}$ の{acid.name}の水溶液がある。電離度が ${m.alpha|sig:2}$ のとき、水素イオン濃度と pH を求めなさい。",
+  "answer": "$[\\mathrm{H^{+}}] = {h|sig:2}\\,\\mathrm{mol/L}$、$\\mathrm{pH} = {m.ph}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(10^(-m.ph), h)"
+      ]
+    }
+  ]
+}

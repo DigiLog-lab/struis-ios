@@ -1,0 +1,118 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.double_angle",
+  "title": "2 倍角の公式",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "tri",
+      "kind": "choice",
+      "options": [
+        {
+          "o": 3,
+          "a": 4,
+          "h": 5
+        },
+        {
+          "o": 4,
+          "a": 3,
+          "h": 5
+        },
+        {
+          "o": 5,
+          "a": 12,
+          "h": 13
+        },
+        {
+          "o": 12,
+          "a": 5,
+          "h": 13
+        },
+        {
+          "o": 8,
+          "a": 15,
+          "h": 17
+        },
+        {
+          "o": 15,
+          "a": 8,
+          "h": 17
+        },
+        {
+          "o": 7,
+          "a": 24,
+          "h": 25
+        },
+        {
+          "o": 24,
+          "a": 7,
+          "h": 25
+        },
+        {
+          "o": 20,
+          "a": 21,
+          "h": 29
+        },
+        {
+          "o": 21,
+          "a": 20,
+          "h": 29
+        },
+        {
+          "o": 9,
+          "a": 40,
+          "h": 41
+        },
+        {
+          "o": 40,
+          "a": 9,
+          "h": 41
+        }
+      ]
+    },
+    {
+      "name": "quad",
+      "kind": "choice",
+      "options": [
+        {
+          "text": "0 < \\alpha < \\frac{\\pi}{2}",
+          "s": 1
+        },
+        {
+          "text": "\\frac{\\pi}{2} < \\alpha < \\pi",
+          "s": -1
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "sinv",
+      "expr": "tri.o/tri.h"
+    },
+    {
+      "name": "cosv",
+      "expr": "quad.s*tri.a/tri.h"
+    },
+    {
+      "name": "s2",
+      "expr": "2*sinv*cosv"
+    },
+    {
+      "name": "c2",
+      "expr": "1 - 2*sinv^2"
+    }
+  ],
+  "prompt": "${quad.text}$ で $\\sin\\alpha = {sinv}$ のとき、$\\sin 2\\alpha$ と $\\cos 2\\alpha$ の値を求めなさい。",
+  "answer": "$\\sin 2\\alpha = {s2}$、$\\cos 2\\alpha = {c2}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "s2^2 + c2^2 == 1",
+        "c2 == cosv^2 - sinv^2",
+        "sinv^2 + cosv^2 == 1"
+      ]
+    }
+  ]
+}

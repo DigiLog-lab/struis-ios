@@ -1,0 +1,57 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.circular_motion",
+  "title": "等速円運動(周期・角速度・向心加速度)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "decimal",
+      "min": 0.2,
+      "max": 2.0,
+      "step": 0.1,
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "v",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 10.0,
+      "step": 0.5,
+      "unit": "m/s",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "omega",
+      "expr": "v/r",
+      "unit": "1/s",
+      "sig": 2
+    },
+    {
+      "name": "period",
+      "expr": "2*pi*r/v",
+      "unit": "s",
+      "sig": 2
+    },
+    {
+      "name": "a",
+      "expr": "v^2/r",
+      "unit": "m/s^2",
+      "sig": 2
+    }
+  ],
+  "prompt": "半径 ${r|q}$ の円周上を、速さ ${v|q}$ で等速円運動をする物体がある。角速度、周期、向心加速度の大きさを求めなさい。",
+  "answer": "角速度 ${omega|sig:2}\\,\\mathrm{rad/s}$、周期 ${period|q}$、向心加速度 ${a|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(omega*period, 2*pi)",
+        "approx(a, r*omega^2)"
+      ]
+    }
+  ]
+}

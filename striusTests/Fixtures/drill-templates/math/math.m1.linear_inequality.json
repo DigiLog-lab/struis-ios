@@ -1,0 +1,126 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.linear_inequality",
+  "title": "一次不等式",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0,
+        1
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -12,
+      "max": 12,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -12,
+      "max": 12
+    },
+    {
+      "name": "rel",
+      "kind": "choice",
+      "options": [
+        {
+          "tex": "<",
+          "flip": ">"
+        },
+        {
+          "tex": ">",
+          "flip": "<"
+        },
+        {
+          "tex": "\\le",
+          "flip": "\\ge"
+        },
+        {
+          "tex": "\\ge",
+          "flip": "\\le"
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "bound",
+      "expr": "(d - b)/(a - c)"
+    }
+  ],
+  "constraints": [
+    "a != c",
+    "is_integer(2*bound)"
+  ],
+  "parts": [
+    {
+      "name": "lhs",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "rhs",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "c",
+          "body": "x"
+        },
+        {
+          "coef": "d"
+        }
+      ]
+    },
+    {
+      "name": "dir",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "a - c > 0",
+          "tex": "{rel.tex}"
+        }
+      ],
+      "otherwise": "{rel.flip}"
+    }
+  ],
+  "prompt": "次の不等式を解きなさい。",
+  "math": "{lhs} {rel.tex} {rhs}",
+  "answer": "$x {dir} {bound}$",
+  "checks": [
+    {
+      "kind": "inequality",
+      "left": "{lhs}",
+      "right": "{rhs}",
+      "relation": "{rel.tex}",
+      "variable": "x",
+      "solution": "if((rel.tex == '<' or rel.tex == '\\le') == (a - c > 0), x < bound, x > bound)"
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.fourier_a0",
+  "title": "フーリエ係数 a_0",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 12
+    },
+    {
+      "name": "fn",
+      "kind": "choice",
+      "options": [
+        {
+          "t": 1
+        },
+        {
+          "t": 2
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "if(fn.t == 1, k, 2*k/3)"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "fn.t == 1",
+          "tex": "{k|coef}|x|"
+        }
+      ],
+      "otherwise": "{k|coef}x^{2}"
+    },
+    {
+      "name": "ans",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "fn.t == 1",
+          "tex": "{c|pi}"
+        }
+      ],
+      "otherwise": "{c}\\pi^{2}"
+    }
+  ],
+  "prompt": "$f(x) = {f}$($-\\pi \\le x \\le \\pi$)のフーリエ係数 $a_{0} = \\frac{1}{\\pi}\\int_{-\\pi}^{\\pi} f(x)\\,dx$ を求めなさい。",
+  "answer": "$a_{0} = {ans}$",
+  "checks": [
+    {
+      "kind": "definite_integral",
+      "integrand": "\\frac{1}{\\pi}({f})",
+      "variable": "x",
+      "from": "-pi",
+      "to": "pi",
+      "answer": "{ans}"
+    }
+  ]
+}

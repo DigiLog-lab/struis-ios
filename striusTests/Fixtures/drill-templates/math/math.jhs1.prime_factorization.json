@@ -1,0 +1,76 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.prime_factorization",
+  "title": "素因数分解",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "e2",
+      "kind": "integer",
+      "min": 0,
+      "max": 4
+    },
+    {
+      "name": "e3",
+      "kind": "integer",
+      "min": 0,
+      "max": 3
+    },
+    {
+      "name": "e5",
+      "kind": "integer",
+      "min": 0,
+      "max": 2
+    },
+    {
+      "name": "e7",
+      "kind": "integer",
+      "min": 0,
+      "max": 1
+    }
+  ],
+  "lets": [
+    {
+      "name": "n",
+      "expr": "2^e2 * 3^e3 * 5^e5 * 7^e7"
+    }
+  ],
+  "constraints": [
+    "e2 + e3 + e5 + e7 >= 2",
+    "n <= 1000"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "product",
+      "powers": [
+        {
+          "base": "2",
+          "exp": "e2"
+        },
+        {
+          "base": "3",
+          "exp": "e3"
+        },
+        {
+          "base": "5",
+          "exp": "e5"
+        },
+        {
+          "base": "7",
+          "exp": "e7"
+        }
+      ],
+      "separator": " \\times "
+    }
+  ],
+  "prompt": "${n}$ を素因数分解しなさい。",
+  "answer": "${n} = {f}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{f}",
+      "equals": "n"
+    }
+  ]
+}

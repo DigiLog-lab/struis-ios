@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "skill_id": "physics.unit.speed_conversion",
+  "title": "速さの単位換算(km/h と m/s)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "v",
+      "kind": "integer",
+      "min": 18,
+      "max": 216,
+      "step": 9
+    },
+    {
+      "name": "dir",
+      "kind": "choice",
+      "options": [
+        {
+          "from": "km/h",
+          "to": "m/s",
+          "t": 1
+        },
+        {
+          "from": "m/s",
+          "to": "km/h",
+          "t": 2
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "shown",
+      "expr": "if(dir.t == 1, v, v/3.6)"
+    },
+    {
+      "name": "ans",
+      "expr": "if(dir.t == 1, v/3.6, v)"
+    }
+  ],
+  "prompt": "${shown|dec}\\,\\mathrm{{dir.from}}$ は何 {dir.to} か。",
+  "answer": "${ans|dec}\\,\\mathrm{{dir.to}}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "if(dir.t == 1, value(q(shown,'km/h'),'m/s') == ans, value(q(shown,'m/s'),'km/h') == ans)"
+      ]
+    }
+  ]
+}

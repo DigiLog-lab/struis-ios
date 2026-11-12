@@ -1,0 +1,74 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.factor_difference_of_squares",
+  "title": "x² − a² の因数分解",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 12
+    }
+  ],
+  "constraints": [
+    "gcd(k,a) == 1"
+  ],
+  "parts": [
+    {
+      "name": "p",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k",
+          "body": "x"
+        },
+        {
+          "coef": "a"
+        }
+      ]
+    },
+    {
+      "name": "q",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k",
+          "body": "x"
+        },
+        {
+          "coef": "-a"
+        }
+      ]
+    },
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k^2",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "-a^2"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の式を因数分解しなさい。",
+  "math": "{f}",
+  "answer": "$({p})({q})$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{f}",
+      "right": "({p})({q})"
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.throw_up_max_height",
+  "title": "鉛直投げ上げ(最高点の高さと時間)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "g",
+      "kind": "constant",
+      "value": 9.8,
+      "unit": "m/s^2",
+      "sig": 2
+    },
+    {
+      "name": "v0",
+      "kind": "decimal",
+      "min": 5.0,
+      "max": 40.0,
+      "step": 1.0,
+      "unit": "m/s",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "t",
+      "expr": "v0/g",
+      "unit": "s",
+      "sig": 2
+    },
+    {
+      "name": "h",
+      "expr": "v0^2/(2*g)",
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "prompt": "物体を初速度 ${v0|q}$ で鉛直上向きに投げ上げた。最高点に達するまでの時間と、最高点の高さを求めなさい。重力加速度の大きさを ${g|q}$ とする。",
+  "answer": "時間 ${t|q}$、高さ ${h|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(h, v0*t - g*t^2/2)",
+        "approx(v0 - g*t, 0*v0)"
+      ]
+    }
+  ]
+}

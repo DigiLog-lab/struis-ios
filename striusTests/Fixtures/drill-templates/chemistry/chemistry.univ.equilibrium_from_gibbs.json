@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.univ.equilibrium_from_gibbs",
+  "title": "標準ギブズエネルギー変化から平衡定数を求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "dg",
+      "kind": "decimal",
+      "min": -30.0,
+      "max": 30.0,
+      "step": 2.0,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "temp",
+      "kind": "choice",
+      "options": [
+        298,
+        350,
+        400,
+        500
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "lnk",
+      "expr": "-dg*1000/(8.31*temp)"
+    }
+  ],
+  "prompt": "ある反応の ${temp}\\,\\mathrm{K}$ での標準ギブズエネルギー変化が $\\Delta G^{\\circ} = {dg|dec:1}\\,\\mathrm{kJ/mol}$ である。$\\Delta G^{\\circ} = -RT\\ln K$ を用いて、平衡定数の自然対数 $\\ln K$ を求めなさい。気体定数を $8.31\\,\\mathrm{J/(mol \\cdot K)}$ とする。",
+  "answer": "$\\ln K = {lnk|sig:2}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(-8.31*temp*lnk, dg*1000)"
+      ]
+    }
+  ]
+}

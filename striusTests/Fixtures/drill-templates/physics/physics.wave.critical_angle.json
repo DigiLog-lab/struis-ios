@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "skill_id": "physics.wave.critical_angle",
+  "title": "全反射の臨界角(sin θ₀ = 1/n)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "n",
+      "kind": "decimal",
+      "min": 1.2,
+      "max": 2.5,
+      "step": 0.05
+    }
+  ],
+  "lets": [
+    {
+      "name": "s",
+      "expr": "1/n"
+    },
+    {
+      "name": "deg",
+      "expr": "asind(s)"
+    }
+  ],
+  "prompt": "屈折率 ${n|dec:2}$ の媒質から空気(屈折率 1)へ光が進むときの臨界角を $\\theta_{0}$ とする。$\\sin\\theta_{0}$ の値を求めなさい。",
+  "answer": "$\\sin\\theta_{0} = {s|sig:2}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(n*sind(deg), 1, 0.000001)",
+        "approx(s*n, 1)"
+      ]
+    }
+  ]
+}

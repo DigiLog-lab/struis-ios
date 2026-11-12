@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.reaction_rate_average",
+  "title": "平均の反応速度",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "c1",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 2.0,
+      "step": 0.1,
+      "unit": "mol/L",
+      "sig": 2
+    },
+    {
+      "name": "dc",
+      "kind": "decimal",
+      "min": 0.05,
+      "max": 0.4,
+      "step": 0.05,
+      "unit": "mol/L",
+      "sig": 2
+    },
+    {
+      "name": "dt",
+      "kind": "choice",
+      "options": [
+        10,
+        20,
+        30,
+        60,
+        120
+      ],
+      "unit": "s",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "c2",
+      "expr": "c1 - dc",
+      "unit": "mol/L",
+      "sig": 2
+    },
+    {
+      "name": "v",
+      "expr": "dc/dt",
+      "unit": "mol/(L*s)",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "value(c2,'mol/L') == sig(value(c2,'mol/L'), 2)"
+  ],
+  "prompt": "ある反応で、反応物の濃度が ${dt|q}$ の間に ${c1|q}$ から ${c2|q}$ に減少した。この間の平均の反応速度を求めなさい。",
+  "answer": "${v|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(v*dt, c1 - c2)"
+      ]
+    }
+  ]
+}

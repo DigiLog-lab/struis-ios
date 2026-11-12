@@ -1,0 +1,79 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.quadratic_formula",
+  "title": "二次方程式(解の公式)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "disc",
+      "expr": "b^2 - 4*a*c"
+    }
+  ],
+  "constraints": [
+    "disc > 0",
+    "not is_square(disc)",
+    "gcd(a, gcd(abs(b), abs(c))) == 1"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "b",
+          "body": "x"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    },
+    {
+      "name": "roots",
+      "kind": "pm",
+      "center": "-b/(2*a)",
+      "radicand": "disc",
+      "scale": "1/(2*a)"
+    }
+  ],
+  "prompt": "次の方程式を解きなさい。",
+  "math": "{f} = 0",
+  "answer": "$x = {roots}$",
+  "checks": [
+    {
+      "kind": "root",
+      "left": "{f}",
+      "variable": "x",
+      "solutions": [
+        "{roots}"
+      ]
+    }
+  ]
+}

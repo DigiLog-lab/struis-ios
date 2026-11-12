@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.molecular_formula",
+  "title": "組成式と分子量から分子式を求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "f",
+      "kind": "choice",
+      "options": [
+        {
+          "emp": "\\mathrm{CH_2O}",
+          "w": 30
+        },
+        {
+          "emp": "\\mathrm{CH_2}",
+          "w": 14
+        },
+        {
+          "emp": "\\mathrm{CH}",
+          "w": 13
+        },
+        {
+          "emp": "\\mathrm{C_2H_4O}",
+          "w": 44
+        },
+        {
+          "emp": "\\mathrm{CH_3}",
+          "w": 15
+        },
+        {
+          "emp": "\\mathrm{C_3H_6O}",
+          "w": 58
+        },
+        {
+          "emp": "\\mathrm{C_2H_5}",
+          "w": 29
+        }
+      ]
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 2,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "mw",
+      "expr": "f.w*k"
+    }
+  ],
+  "prompt": "組成式が ${f.emp}$(式量 ${f.w}$)で、分子量が ${mw}$ の化合物がある。分子式は組成式を何倍したものか。",
+  "answer": "${k}$ 倍",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "mw == f.w*k"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.univ.molality",
+  "title": "質量モル濃度とモル分率",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "s",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "グルコース",
+          "M": 180
+        },
+        {
+          "name": "尿素",
+          "M": 60
+        },
+        {
+          "name": "スクロース",
+          "M": 342
+        },
+        {
+          "name": "エタノール",
+          "M": 46
+        }
+      ]
+    },
+    {
+      "name": "n",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 1.0,
+      "step": 0.1
+    },
+    {
+      "name": "w",
+      "kind": "choice",
+      "options": [
+        100,
+        200,
+        250,
+        500
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "mass",
+      "expr": "s.M*n"
+    },
+    {
+      "name": "molal",
+      "expr": "n/(w/1000)"
+    },
+    {
+      "name": "x",
+      "expr": "n/(n + w/18)"
+    }
+  ],
+  "constraints": [
+    "mass == sig(mass, 3)"
+  ],
+  "prompt": "{s.name}(モル質量 ${s.M}\\,\\mathrm{g/mol}$)${mass|sig:3}\\,\\mathrm{g}$ を水 ${w}\\,\\mathrm{g}$ に溶かした。この溶液の質量モル濃度と、{s.name}のモル分率を求めなさい。水のモル質量を $18\\,\\mathrm{g/mol}$ とする。",
+  "answer": "質量モル濃度 ${molal|sig:2}\\,\\mathrm{mol/kg}$、モル分率 ${x|sig:2}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(molal*w, 1000*mass/s.M)",
+        "approx(x*(mass/s.M + w/18), mass/s.M)"
+      ]
+    }
+  ]
+}

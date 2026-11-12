@@ -21,6 +21,8 @@ nonisolated enum LedgerSchema {
         ("sync-v1", addSync),
         // Claude に直接送る会話の履歴(2026-11-03、Codex を外した)。台帳のイベントには入れない控えの表を足すだけ。
         ("v6-claude-conversations", ClaudeConversationStore.createTables),
+        // オフライン反復の「問題の型」の控え(2026-11-12)。台帳のイベントには入れない控えの表を足すだけ。
+        ("v7-drill-templates", DrillTemplateStore.createTables),
     ]
 
     static var migrator: DatabaseMigrator {

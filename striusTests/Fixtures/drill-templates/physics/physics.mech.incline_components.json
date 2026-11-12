@@ -1,0 +1,57 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.incline_components",
+  "title": "斜面上の物体にはたらく重力の分力",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "g",
+      "kind": "constant",
+      "value": 9.8,
+      "unit": "m/s^2",
+      "sig": 2
+    },
+    {
+      "name": "m",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 10.0,
+      "step": 0.5,
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "deg",
+      "kind": "choice",
+      "options": [
+        30,
+        45,
+        60
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "para",
+      "expr": "m*g*sind(deg)",
+      "unit": "N",
+      "sig": 2
+    },
+    {
+      "name": "perp",
+      "expr": "m*g*cosd(deg)",
+      "unit": "N",
+      "sig": 2
+    }
+  ],
+  "prompt": "水平面と ${deg}^{\\circ}$ の角をなすなめらかな斜面上に、質量 ${m|q}$ の物体を置いた。重力の、斜面に平行な方向の分力の大きさと、斜面に垂直な方向の分力の大きさを求めなさい。重力加速度の大きさを ${g|q}$ とする。",
+  "answer": "斜面に平行な分力 ${para|q}$、斜面に垂直な分力 ${perp|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(para^2 + perp^2, (m*g)^2)"
+      ]
+    }
+  ]
+}

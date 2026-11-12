@@ -1,0 +1,59 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.signed_mixed",
+  "title": "四則の混じった計算",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0,
+        1,
+        -1
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": 2,
+      "max": 4
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "a + b*c^2 - d"
+    }
+  ],
+  "prompt": "次の計算をしなさい。",
+  "math": "{a} + {b|paren} \\times {c|paren}^{2} - {d}",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{a} + {b|paren} \\times {c|paren}^{2} - {d}",
+      "equals": "ans"
+    }
+  ]
+}

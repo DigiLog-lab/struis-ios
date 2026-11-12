@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.addition_theorem",
+  "title": "加法定理で値を求める",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "fn",
+      "kind": "choice",
+      "options": [
+        {
+          "tex": "\\sin",
+          "k": 1
+        },
+        {
+          "tex": "\\cos",
+          "k": 2
+        },
+        {
+          "tex": "\\tan",
+          "k": 3
+        }
+      ]
+    },
+    {
+      "name": "deg",
+      "kind": "choice",
+      "options": [
+        15,
+        75,
+        105,
+        165,
+        195,
+        255,
+        285,
+        345
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "v",
+      "expr": "if(fn.k == 1, sind(deg), if(fn.k == 2, cosd(deg), tand(deg)))"
+    }
+  ],
+  "prompt": "加法定理を用いて、次の値を求めなさい。",
+  "math": "{fn.tex} {deg}^{\\circ}",
+  "answer": "${v}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{fn.tex} {deg}^{\\circ}",
+      "right": "{v}"
+    }
+  ]
+}

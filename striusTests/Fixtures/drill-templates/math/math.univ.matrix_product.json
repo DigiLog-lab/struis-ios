@@ -1,0 +1,88 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.matrix_product",
+  "title": "行列の積(2 × 2)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "q",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "s",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    }
+  ],
+  "lets": [
+    {
+      "name": "m11",
+      "expr": "a*p + b*r"
+    },
+    {
+      "name": "m12",
+      "expr": "a*q + b*s"
+    },
+    {
+      "name": "m21",
+      "expr": "c*p + d*r"
+    },
+    {
+      "name": "m22",
+      "expr": "c*q + d*s"
+    }
+  ],
+  "prompt": "次の行列の積を計算しなさい。",
+  "math": "\\begin{pmatrix} {a} & {b} \\\\ {c} & {d} \\end{pmatrix}\\begin{pmatrix} {p} & {q} \\\\ {r} & {s} \\end{pmatrix}",
+  "answer": "$\\begin{pmatrix} {m11} & {m12} \\\\ {m21} & {m22} \\end{pmatrix}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "m11*m22 - m12*m21 == (a*d - b*c)*(p*s - q*r)",
+        "m11 + m12 == a*(p + q) + b*(r + s)",
+        "m21 + m22 == c*(p + q) + d*(r + s)",
+        "m11 + m21 == (a + c)*p + (b + d)*r"
+      ]
+    }
+  ]
+}

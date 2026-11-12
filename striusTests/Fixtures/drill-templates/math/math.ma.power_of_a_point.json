@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.power_of_a_point",
+  "title": "方べきの定理",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "pa",
+      "kind": "integer",
+      "min": 2,
+      "max": 9
+    },
+    {
+      "name": "pb",
+      "kind": "integer",
+      "min": 3,
+      "max": 16
+    },
+    {
+      "name": "pc",
+      "kind": "integer",
+      "min": 2,
+      "max": 12
+    }
+  ],
+  "lets": [
+    {
+      "name": "pd",
+      "expr": "pa*pb/pc"
+    }
+  ],
+  "constraints": [
+    "pa < pb",
+    "mod(pa*pb, pc) == 0",
+    "pa*pb/pc > pc",
+    "pa != pc"
+  ],
+  "prompt": "円の外部の点 $\\mathrm{P}$ を通る 2 直線が、円とそれぞれ 2 点 $\\mathrm{A}$、$\\mathrm{B}$ と 2 点 $\\mathrm{C}$、$\\mathrm{D}$ で交わっている。$\\mathrm{PA} = {pa}$、$\\mathrm{PB} = {pb}$、$\\mathrm{PC} = {pc}$ のとき、$\\mathrm{PD}$ の長さを求めなさい。",
+  "answer": "$\\mathrm{PD} = {pd}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "pa * pb == pc * pd"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.univ.gibbs_energy",
+  "title": "ギブズエネルギー変化(ΔG = ΔH − TΔS)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "dh",
+      "kind": "integer",
+      "min": -200,
+      "max": 200,
+      "step": 10,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "ds",
+      "kind": "integer",
+      "min": -300,
+      "max": 300,
+      "step": 20,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "temp",
+      "kind": "integer",
+      "min": 250,
+      "max": 500,
+      "step": 50
+    }
+  ],
+  "lets": [
+    {
+      "name": "dg",
+      "expr": "dh - temp*ds/1000"
+    }
+  ],
+  "constraints": [
+    "dg != 0"
+  ],
+  "parts": [
+    {
+      "name": "spont",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "dg < 0",
+          "tex": "自発的に進む"
+        }
+      ],
+      "otherwise": "自発的には進まない"
+    }
+  ],
+  "prompt": "ある反応の $\\Delta H = {dh}\\,\\mathrm{kJ/mol}$、$\\Delta S = {ds}\\,\\mathrm{J/(mol \\cdot K)}$ である。${temp}\\,\\mathrm{K}$ での $\\Delta G$ を求め、この温度で反応が自発的に進むかどうかを答えなさい。",
+  "answer": "$\\Delta G = {dg|dec:1}\\,\\mathrm{kJ/mol}$、{spont}",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx((dh - dg)*1000, temp*ds)"
+      ]
+    }
+  ]
+}

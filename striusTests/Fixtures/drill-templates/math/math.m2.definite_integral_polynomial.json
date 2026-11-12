@@ -1,0 +1,83 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.definite_integral_polynomial",
+  "title": "多項式の定積分",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -3,
+      "max": 3,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "lo",
+      "kind": "integer",
+      "min": -3,
+      "max": 2
+    },
+    {
+      "name": "w",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    }
+  ],
+  "lets": [
+    {
+      "name": "hi",
+      "expr": "lo + w"
+    },
+    {
+      "name": "ans",
+      "expr": "a*(hi^3 - lo^3)/3 + b*(hi^2 - lo^2)/2 + c*(hi - lo)"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "b",
+          "body": "x"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の定積分を求めなさい。",
+  "math": "\\int_{{lo}}^{{hi}} ({f})\\,dx",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "definite_integral",
+      "integrand": "{f}",
+      "variable": "x",
+      "from": "lo",
+      "to": "hi",
+      "answer": "{ans}"
+    }
+  ]
+}

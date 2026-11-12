@@ -1,0 +1,97 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.derivative_quotient",
+  "title": "商の微分",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "k",
+      "expr": "a*d - b*c"
+    }
+  ],
+  "constraints": [
+    "a*d - b*c != 0"
+  ],
+  "parts": [
+    {
+      "name": "u",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "v",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "c",
+          "body": "x"
+        },
+        {
+          "coef": "d"
+        }
+      ]
+    },
+    {
+      "name": "neg",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "k < 0",
+          "tex": "-"
+        }
+      ],
+      "otherwise": ""
+    }
+  ],
+  "prompt": "次の関数を微分しなさい。",
+  "math": "y = \\frac{{u}}{{v}}",
+  "answer": "$y' = {neg}\\frac{{k|abs}}{({v})^{2}}$",
+  "checks": [
+    {
+      "kind": "derivative",
+      "function": "\\frac{{u}}{{v}}",
+      "answer": "\\frac{{k}}{({v})^{2}}",
+      "variable": "x"
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.resistivity",
+  "title": "抵抗率と抵抗(R = ρL/S)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "metal",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "銅",
+          "rho": 1.7e-08
+        },
+        {
+          "name": "アルミニウム",
+          "rho": 2.8e-08
+        },
+        {
+          "name": "鉄",
+          "rho": 1e-07
+        },
+        {
+          "name": "ニクロム",
+          "rho": 1.1e-06
+        }
+      ]
+    },
+    {
+      "name": "len",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 20.0,
+      "step": 1.0,
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "area",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 2.0,
+      "step": 0.1,
+      "unit": "mm^2",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "rho",
+      "expr": "q(metal.rho,'ohm*m')",
+      "unit": "ohm*m",
+      "sig": 2
+    },
+    {
+      "name": "r",
+      "expr": "rho*len/area",
+      "unit": "ohm",
+      "sig": 2
+    }
+  ],
+  "prompt": "抵抗率 ${rho|q}$ の{metal.name}でできた、長さ ${len|q}$、断面積 ${area|q}$ の導線の抵抗値を求めなさい。",
+  "answer": "${r|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(r,'ohm')*value(area,'mm^2')*0.000001, metal.rho*value(len,'m'))"
+      ]
+    }
+  ]
+}

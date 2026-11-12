@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.fraction_add_sub",
+  "title": "分数の加法・減法",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "p",
+      "kind": "fraction",
+      "numerator": {
+        "min": -9,
+        "max": 9
+      },
+      "denominator": {
+        "min": 2,
+        "max": 9
+      }
+    },
+    {
+      "name": "q",
+      "kind": "fraction",
+      "numerator": {
+        "min": 1,
+        "max": 9
+      },
+      "denominator": {
+        "min": 2,
+        "max": 9
+      }
+    },
+    {
+      "name": "op",
+      "kind": "choice",
+      "options": [
+        {
+          "tex": "+",
+          "s": 1
+        },
+        {
+          "tex": "-",
+          "s": -1
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "p + op.s*q"
+    }
+  ],
+  "constraints": [
+    "den(p) != den(q)",
+    "ans != 0"
+  ],
+  "prompt": "次の計算をしなさい。",
+  "math": "{p} {op.tex} {q}",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{p} {op.tex} {q}",
+      "equals": "ans"
+    }
+  ]
+}

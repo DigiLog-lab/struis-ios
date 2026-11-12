@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.fourier_cosine_coefficient_x2",
+  "title": "フーリエ係数 a_n(f(x) = kx²)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 5
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 1,
+      "max": 8
+    }
+  ],
+  "lets": [
+    {
+      "name": "an",
+      "expr": "4*k*(-1)^n/n^2"
+    }
+  ],
+  "prompt": "$f(x) = {k|coef}x^{2}$($-\\pi \\le x \\le \\pi$)のフーリエ係数 $a_{{n}} = \\frac{1}{\\pi}\\int_{-\\pi}^{\\pi} f(x)\\cos {n|coef}x\\,dx$ を求めなさい。",
+  "answer": "$a_{{n}} = {an}$",
+  "checks": [
+    {
+      "kind": "definite_integral",
+      "integrand": "\\frac{1}{\\pi} \\cdot {k}x^{2}\\cos {n}x",
+      "variable": "x",
+      "from": "-pi",
+      "to": "pi",
+      "answer": "{an}"
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.orbital_speed",
+  "title": "第一宇宙速度(v = √(gR))",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "planet",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "地球",
+          "g": 9.8,
+          "R": 6400000.0
+        },
+        {
+          "name": "月",
+          "g": 1.6,
+          "R": 1700000.0
+        },
+        {
+          "name": "火星",
+          "g": 3.7,
+          "R": 3400000.0
+        },
+        {
+          "name": "金星",
+          "g": 8.9,
+          "R": 6100000.0
+        }
+      ]
+    },
+    {
+      "name": "k",
+      "kind": "choice",
+      "options": [
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        3.0,
+        4.0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "gs",
+      "expr": "q(planet.g,'m/s^2')",
+      "unit": "m/s^2",
+      "sig": 2
+    },
+    {
+      "name": "rs",
+      "expr": "q(planet.R,'m')",
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "r",
+      "expr": "k*rs",
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "v",
+      "expr": "sqrt(gs*rs^2/r)",
+      "unit": "m/s",
+      "sig": 2
+    }
+  ],
+  "prompt": "{planet.name}の半径を ${rs|q}$、表面での重力加速度の大きさを ${gs|q}$ とする。{planet.name}の中心から、{planet.name}の半径の ${k|dec:1}$ 倍の距離を等速円運動する人工衛星の速さを求めなさい。",
+  "answer": "${v|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(v^2/r, gs*rs^2/r^2)"
+      ]
+    }
+  ]
+}
