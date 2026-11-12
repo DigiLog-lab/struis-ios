@@ -24,6 +24,10 @@ struct ChatView: View {
     let threadBootstrap: ((ChatStore) async -> Void)?
     /// 開いた所から渡された下書き(タイムラインの「解説」「質問」: 問題文つき)。開いた時に 1 回だけ入力欄に入れる。
     let initialDraft: String?
+    /// 最初に送る文に添える問題(タイムラインの「質問」「解説」。式は `$…$`)。入力欄には入れない。
+    let attachedProblem: String?
+    /// 開いたらすぐに送る文(タイムラインの「解説」)。
+    let autoSendText: String?
     /// 全体像カードの「はじめる」の後。
     let onProposalStarted: ((WorkbookProposalDTO) -> Void)?
     /// 返事の生成中に送ったら、止めてから送る(説明の途中の質問)。
@@ -47,6 +51,10 @@ struct ChatView: View {
     @State private var isSubmitting = false
     @State private var attachments: [ComposerAttachment] = []
     @State private var didAdoptThread = false
+    /// もう送った「添える問題」(同じ問題を 2 回添えない)。
+    @State private var sentAttachedProblem: String? = nil
+    /// もう自動で送った依頼(`autoSendKey`)。
+    @State private var autoSentKey: String? = nil
     @State private var didApplyInitialDraft = false
     @State private var isHistoryPresented = false
     @State private var isSettingsPresented = false
@@ -68,6 +76,8 @@ struct ChatView: View {
         onClose: (() -> Void)? = nil,
         threadBootstrap: ((ChatStore) async -> Void)? = nil,
         initialDraft: String? = nil,
+        attachedProblem: String? = nil,
+        autoSendText: String? = nil,
         onProposalStarted: ((WorkbookProposalDTO) -> Void)? = nil,
         sendsWhileGenerating: Bool = false,
         floatingAccessory: AnyView? = nil,
@@ -85,6 +95,8 @@ struct ChatView: View {
         self.onClose = onClose
         self.threadBootstrap = threadBootstrap
         self.initialDraft = initialDraft
+        self.attachedProblem = attachedProblem
+        self.autoSendText = autoSendText
         self.onProposalStarted = onProposalStarted
         self.sendsWhileGenerating = sendsWhileGenerating
         self.floatingAccessory = floatingAccessory
@@ -250,7 +262,17 @@ struct ChatView: View {
                 .presentationDetents([.large])
         }
         .onAppear { chat.start() }
-        .task { await prepareInitialThread() }
+        .task {
+            await prepareInitialThread()
+            autoSendIfNeeded()
+        }
+        // iPad の右の欄は開いたまま、別の問題の「解説」を押すと依頼だけが替わる。新しい問題の解説を送る。
+        .onChange(of: autoSendKey) { _, _ in autoSendIfNeeded() }
+        .onChange(of: chat.loadState) { _, _ in autoSendIfNeeded() }
+        // 前の返事を書いている間に来た依頼(iPad で質問の欄を開いたまま、別の問題の「解説」を押した時)は、返事が終わってから送る。
+        // 送信中かどうかは `loadState` を変えないので、ここで見ないと依頼が落ちる。
+        .onChange(of: chat.isSending) { _, sending in if !sending { autoSendIfNeeded() } }
+        .onChange(of: isSubmitting) { _, submitting in if !submitting { autoSendIfNeeded() } }
         .onDisappear { chat.stop() }
         .onChange(of: isHistoryPresented) { _, presented in
             if presented {
@@ -302,6 +324,37 @@ struct ChatView: View {
         didAdoptThread = true
     }
 
+
+    /// まだ送っていない「添える問題」。
+    private var pendingAttachedProblem: String? {
+        guard let attachedProblem, !attachedProblem.isEmpty, attachedProblem != sentAttachedProblem else { return nil }
+        return attachedProblem
+    }
+
+    /// 自動で送る依頼の見分け(依頼の文と問題)。無ければ nil。
+    private var autoSendKey: String? {
+        guard let autoSendText, !autoSendText.isEmpty else { return nil }
+        return autoSendText + "\n" + (attachedProblem ?? "")
+    }
+
+    /// タイムラインの「解説」: 会話の用意ができたら、依頼の文に問題を付けてそのまま送る(入力欄に LaTeX を出さない)。
+    private func autoSendIfNeeded() {
+        guard didAdoptThread, chat.loadState == .loaded, !isSubmitting, !chat.isSending,
+              let key: String = autoSendKey, key != autoSentKey, let request: String = autoSendText else { return }
+        autoSentKey = key
+        sentAttachedProblem = attachedProblem
+        isSubmitting = true
+        onLearnerActivity?(.sent)
+        Task {
+            defer { isSubmitting = false }
+            let didSend: Bool = await chat.send(text: key, workbookView: workbookContext?.viewRef)
+            // 送れなかった時は、依頼の文を入力欄に残す(問題は次の送信でもう一度添える)。
+            if !didSend {
+                sentAttachedProblem = nil
+                if composer.isEmpty { composer = request }
+            }
+        }
+    }
 
     private func applyInitialDraft() {
         guard !didApplyInitialDraft, let initialDraft, !initialDraft.isEmpty else { return }
@@ -460,9 +513,31 @@ struct ChatView: View {
             }
             .frame(maxWidth: .infinity)
             .accessibilityIdentifier("chat-kickoff-waiting")
+        } else if let problem: String = pendingAttachedProblem {
+            attachedProblemPane(problem)
         } else {
             freeEmptyPane
         }
+    }
+
+    /// タイムラインの「質問」「解説」から開いた時: どの問題についての会話かを、数式として組んで見せる。
+    private func attachedProblemPane(_ problem: String) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(autoSendText == nil ? "この問題について質問できます" : "この問題の解き方を聞いています")
+                    .font(Typography.sans(size: 13, weight: .bold))
+                    .foregroundStyle(Theme.textSecondary(scheme))
+                TimelineRichText(text: problem, size: 16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(16)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("question-attached-problem")
     }
 
     private var freeEmptyPane: some View {
@@ -547,7 +622,11 @@ struct ChatView: View {
         // 前の送信(返事を止めてから送る間も含む)が終わるまで、次の送信は受けない。入力欄の下書きはそのまま残る。
         guard !isSubmitting else { return }
         isSubmitting = true
-        let text = composer
+        let typed: String = composer
+        // タイムラインの「質問」: 最初の 1 通に問題を添える(入力欄には出さない)。
+        let problem: String? = pendingAttachedProblem
+        let text: String = problem.map { "この問題について質問です。\n" + $0 + (typed.isEmpty ? "" : "\n\n" + typed) } ?? typed
+        if problem != nil { sentAttachedProblem = attachedProblem }
         let pendingAttachments = attachments
         composer = ""
         attachments = []
@@ -566,9 +645,12 @@ struct ChatView: View {
                 )
             }
             // 送れなかった時は下書きに戻す。待っている間に新しく打った下書きがあれば、そちらを消さない。
-            if !didSend, composer.isEmpty, attachments.isEmpty {
-                composer = text
-                attachments = pendingAttachments
+            if !didSend {
+                if problem != nil { sentAttachedProblem = nil }
+                if composer.isEmpty, attachments.isEmpty {
+                    composer = typed
+                    attachments = pendingAttachments
+                }
             }
         }
     }

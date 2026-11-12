@@ -591,6 +591,19 @@ nonisolated enum TimelineGraphSchedule {
         timeline.batches.values.contains { $0.purpose == "graph_descend" && $0.request["skill_id"]?.stringValue == skillID }
     }
 
+    /// 学習中の手入れ(見直し・1 段下りる依頼)の間隔。
+    static let upkeepInterval: TimeInterval = 7 * 86_400
+
+    /// 学習中の手入れを頼んでよいか。利用枠に数えない代わりに、7 日に 1 回まで(失敗した依頼は数えない)。
+    static func upkeepAllowed(_ timeline: TimelineMachine) -> Bool {
+        let now: Date = LedgerClock.parse(timeline.now()) ?? Date()
+        return !timeline.batches.values.contains { batch in
+            guard TimelineTurns.upkeepPurposes.contains(batch.purpose), batch.status != "failed",
+                  let asked: Date = LedgerClock.parse(batch.createdAt) else { return false }
+            return now.timeIntervalSince(asked) < upkeepInterval
+        }
+    }
+
     /// その依頼をもう出したか、グラフの依頼が走っている最中か(行を書く書き込みの中で確かめ直す)。
     static func isBlocked(_ request: Request, timeline: TimelineMachine, workbook: WorkbookMachine? = nil) -> Bool {
         if timeline.batches.values.contains(where: { $0.purpose.hasPrefix("graph") && $0.status == "requested" }) { return true }
@@ -600,7 +613,8 @@ nonisolated enum TimelineGraphSchedule {
             // 頼んだ単元でも、その後に小単元が足されていれば、その分を頼める。
             return requestedUnits(timeline).contains(unitID)
                 && !(workbook.map { unitsWithAppendedSubunits(timeline, workbook: $0).contains(unitID) } ?? false)
-        case .review(let ids): return timeline.batches.values.contains { $0.purpose == "graph_review" && changeIDs(in: $0.request) == ids }
+        case .review(let ids):
+            return !upkeepAllowed(timeline) || timeline.batches.values.contains { $0.purpose == "graph_review" && changeIDs(in: $0.request) == ids }
         }
     }
 
@@ -626,7 +640,8 @@ nonisolated enum TimelineGraphSchedule {
         if let unit = units.first(where: { appended.contains($0.id) && allowed?.contains($0.id) != false }) {
             return .extend(unitID: unit.id)
         }
-        if timeline.needsReview {
+        // 見直しは 7 日に 1 回まで(利用枠に数えないので、回数の方を抑える)。溜まった変更は、次に頼める時にまとめて見直す。
+        if timeline.needsReview, upkeepAllowed(timeline) {
             let ids = pendingReviewChanges(timeline)
             let asked = timeline.batches.values.contains { $0.purpose == "graph_review" && changeIDs(in: $0.request) == ids }
             if !ids.isEmpty, !asked { return .review(changeIDs: ids) }
@@ -758,7 +773,9 @@ nonisolated enum TimelineWriteTools {
             guard let skill = machine.skills[id], skill.isActive else { return (false, "スキル \(id) はこの生徒の知識グラフにありません。") }
             guard !skill.isDug else { return (false, "\(skill.name) の直前の前提はもう調べてあります。timeline_query の prerequisites で見られます。") }
             guard let batchID = TimelineTurns.insertDescend(skillID: id, timeline: &machine, workbook: workbook, note: text("note")) else {
-                return (false, "\(skill.name) の 1段下りる依頼はもう出してあります。")
+                return (false, TimelineGraphSchedule.upkeepAllowed(machine)
+                        ? "\(skill.name) の 1段下りる依頼はもう出してあります。"
+                        : "知識グラフの見直し・1段下りる依頼は 7 日に 1 回までです。今週はもう出してあるので、今ある点で進めてください。")
             }
             return (true, "\(skill.name) の直前の前提を調べる依頼 \(batchID) を出しました。このターンの後に裏で回り、足した点にも「まだ掘っていない」印が付きます。")
         case "timeline_notice":

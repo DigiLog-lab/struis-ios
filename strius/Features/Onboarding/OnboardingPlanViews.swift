@@ -196,6 +196,8 @@ struct OnboardingPlanView: View {
                     .frame(maxHeight: .infinity, alignment: .top)
             }
             .presentationDetents([.medium, .large])
+            // 不透明にする(半透明のままだと、後ろの「はじめる」ボタンの色が透けて、1 週間が選ばれているように見えた)。
+            .presentationBackground(Theme.card)
             .environment(\.locale, Locale(identifier: "ja_JP"))
         }
     }

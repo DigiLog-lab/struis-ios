@@ -26,6 +26,11 @@ struct WorkbookQuestionContext: Identifiable, Hashable {
     /// リザルト画面の「質問する」: この答案と判定を文脈にする。
     var captureId: String? = nil
     var purpose: Purpose = .question
+    /// タイムラインの「質問」「解説」: 最初に送る文に添える問題(式は `$…$` の LaTeX)。入力欄には入れず、
+    /// 会話が空の間は画面に数式として出しておく。
+    var attachedProblem: String? = nil
+    /// 開いたらすぐに送る文(タイムラインの「解説」)。`attachedProblem` を後ろに付けて送る。
+    var autoSendText: String? = nil
 
     var id: String { "\(purpose.rawValue)/\(subunitId ?? "-")/\(setId ?? "-")/\(captureId ?? "-")" }
     var viewRef: WorkbookViewRef? {

@@ -412,6 +412,114 @@ nonisolated enum TimelineCards {
         }
     }
 
+    /// 端末の中で採点するカードの、結果の画面に出す「あなたの答え」と「正しい答え」。`chosen` は答案に残した答え
+    /// (選んだ番号など)。出せない種類(グラフと式を結ぶ・正誤の無いカード)は nil。
+    static func shownAnswers(_ card: TimelineCardRecord, chosen: LedgerJSON?) -> (learner: String?, correct: String)? {
+        func strings(_ key: String) -> [String] { card.payload[key]?.arrayValue?.compactMap(\.stringValue) ?? [] }
+        func picked(_ lines: [String]) -> String? {
+            guard let index: Int = chosen?.intValue, lines.indices.contains(index) else { return nil }
+            return lines[index]
+        }
+        switch Kind(rawValue: card.kind) {
+        case .findError:
+            let lines: [String] = strings("lines")
+            guard let index: Int = card.payload["answer_index"]?.intValue, lines.indices.contains(index) else { return nil }
+            let fixed: String = card.payload["correct_line"]?.stringValue ?? ""
+            let correct: String = fixed.isEmpty ? lines[index] : "間違っている行: " + lines[index] + "\n正しくは: " + fixed
+            return (picked(lines), correct)
+        case .nextStep, .compare, .reason, .predict:
+            let options: [String] = strings("options")
+            guard let index: Int = card.payload["answer_index"]?.intValue, options.indices.contains(index) else { return nil }
+            return (picked(options), options[index])
+        case .order:
+            let steps: [String] = strings("steps")
+            guard !steps.isEmpty else { return nil }
+            return (nil, steps.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"))
+        case .graphMatch:
+            // グラフは `graph_order` の順に左から並ぶ。答えは、グラフごとに選んだ式の番号。
+            // (前は nil で、解説には元の問題の答えが「正しい答え」として渡っていた。)
+            let exprs: [String] = strings("exprs")
+            let order: [Int] = card.payload["graph_order"]?.arrayValue?.compactMap(\.intValue) ?? []
+            guard !exprs.isEmpty, order.count == exprs.count, order.allSatisfy({ exprs.indices.contains($0) }) else { return nil }
+            func pairs(_ chosenExprs: [Int]) -> String {
+                chosenExprs.enumerated().map { "左から\($0.offset + 1)番目のグラフ: " + (exprs.indices.contains($0.element) ? "式 \($0.element + 1)" : "選んでいない") }
+                    .joined(separator: "\n")
+            }
+            let chosenExprs: [Int]? = chosen?.arrayValue?.compactMap(\.intValue)
+            return (chosenExprs.flatMap { $0.count == order.count ? pairs($0) : nil }, pairs(order))
+        case .sort:
+            let items: [LedgerJSON] = card.payload["items"]?.arrayValue ?? []
+            guard !items.isEmpty else { return nil }
+            let left: String = card.payload["left_label"]?.stringValue ?? "左"
+            let right: String = card.payload["right_label"]?.stringValue ?? "右"
+            return (nil, items.map { "\($0["text"]?.stringValue ?? ""): \($0["right"]?.boolValue == true ? right : left)" }.joined(separator: "\n"))
+        default:
+            return nil
+        }
+    }
+
+    /// 質問・解説に添える、カードの選ぶもの(番号付き)。読み取って採点するカードには無い。
+    /// グラフと式を組にするカードは図を送れないので、式の一覧と、グラフが左から並んでいることを文で書く。比べるカードは 2 つの解き方も添える。
+    static func optionLines(_ card: TimelineCardRecord) -> [String] {
+        guard let kind: Kind = Kind(rawValue: card.kind), !kind.needsReading else { return [] }
+        func strings(_ key: String) -> [String] { card.payload[key]?.arrayValue?.compactMap(\.stringValue) ?? [] }
+        if kind == .graphMatch {
+            let exprs: [String] = strings("exprs")
+            guard !exprs.isEmpty else { return [] }
+            let lines: [String] = exprs.enumerated().map { item in
+                "式 \(item.offset + 1): " + (TimelinePlainMath.latex(item.element).map { "$y = " + $0 + "$" } ?? "y = " + item.element)
+            }
+            return ["グラフが\(exprs.count)つ、左から並んでいます(図は送れません)。それぞれのグラフに合う式を選ぶ問題です。"] + lines
+        }
+        var lines: [String] = []
+        if kind == .compare {
+            // 比べるカードは、画面に 2 つの解き方が並ぶ。添えないと、何と何を比べる問いなのかが伝わらない。
+            for side: String in ["a", "b"] {
+                let method: [String] = strings(side + "_lines")
+                guard !method.isEmpty else { continue }
+                let title: String = card.payload[side + "_title"]?.stringValue ?? ""
+                lines.append((title.isEmpty ? "解き方 " + side.uppercased() : title) + ":")
+                lines += method
+            }
+        }
+        let options: [String] = (card.payload["options"] ?? card.payload["lines"])?.arrayValue?.compactMap(\.stringValue) ?? []
+        if !options.isEmpty { lines += ["選択肢:"] + options.enumerated().map { "\($0.offset + 1). \($0.element)" } }
+        return lines
+    }
+
+    /// 端末の中で採点するカード(選ぶ・仕分ける・組にする)を間違えた時に、結果の画面にそのまま出す解き方。
+    /// モデルを呼ばない(前は「解説」を押すまで、なぜその答えになるのかが出なかった)。
+    /// - 間違い探し・次の一手・予想・理由・比べる: 出題の時に作ってある `steps`(その問題の解き方)。
+    /// - 仕分け・グラフと式: アプリが元の問題から作った別の問いなので、元の問題の `steps` では説明にならない。問いに合わせた説明をここで作る。
+    /// - 並べ替え: `steps` そのものが「正しい答え」として出るので重ねない。読み取って採点するカードは、採点のコメントが説明になる。
+    static func solutionSteps(_ card: TimelineCardRecord) -> [String] {
+        guard let kind: Kind = Kind(rawValue: card.kind), !kind.needsReading else { return [] }
+        switch kind {
+        case .order, .guide, .ask, .notice:
+            return []
+        case .sort:
+            guard let axis: Double = card.payload["facts"]?["axis"]?.doubleValue else { return [] }
+            let left: String = card.payload["left_label"]?.stringValue ?? "含まない"
+            let right: String = card.payload["right_label"]?.stringValue ?? "含む"
+            return ["軸 x = \(format(axis)) が、範囲の左端と右端の間(端も入ります)にあれば「\(right)」、なければ「\(left)」です。"]
+        case .graphMatch:
+            let exprs: [String] = card.payload["exprs"]?.arrayValue?.compactMap(\.stringValue) ?? []
+            let lines: [String] = exprs.enumerated().compactMap { item -> String? in
+                guard let vertex: (x: Double, y: Double) = TimelineExpression.vertex(of: item.element),
+                      let f: TimelineExpression = try? TimelineExpression.parse(item.element),
+                      let beside: Double = f.evaluate([f.variables.first ?? "x": vertex.x + 1]) else { return nil }
+                // 頂点は数値で求めるので、小数第 2 位に丸めてから書く(2.0000001 を「2.00」と書かない)。
+                func tidy(_ value: Double) -> String { format((value * 100).rounded() / 100 + 0) }
+                return "式 \(item.offset + 1): 頂点は (\(tidy(vertex.x)), \(tidy(vertex.y)))、" + (beside > vertex.y ? "下に凸(上に開く)" : "上に凸(下に開く)")
+            }
+            guard !lines.isEmpty, lines.count == exprs.count else { return [] }
+            return ["頂点の位置と、グラフが上と下のどちらに開くかで見分けます。"] + lines
+        default:
+            let steps: [String] = card.payload["steps"]?.arrayValue?.compactMap(\.stringValue) ?? []
+            return steps.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        }
+    }
+
     /// 手書きを読み取った後の正誤(数式で判定する)。04 は隠した行、09 は頂点を計算して判定する(答えは何通りあってもよい)。
     static func gradeWritten(_ card: TimelineCardRecord, learnerExpr: String) -> Bool? {
         let written = learnerExpr.trimmingCharacters(in: .whitespacesAndNewlines)

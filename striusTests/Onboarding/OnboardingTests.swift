@@ -29,6 +29,21 @@ final class OnboardingTests: XCTestCase {
         XCTAssertEqual(AgeBand.from(birthdate: birth(2008, 10, 31), now: now, calendar: calendar), .adult, "18 歳の誕生日")
     }
 
+    /// 生年月日の欄の初めの値は、選んだ学年に合わせる(大学生がそのまま「次へ」を押しても 16 歳未満にならない)。
+    func testDefaultBirthdateFollowsTheGrade() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 11, day: 12))!
+        func year(_ grade: String, _ at: Date) -> Int { calendar.component(.year, from: OnboardingModel.defaultBirthdate(grade: grade, now: at, calendar: calendar)) }
+        XCTAssertEqual(year("中2", now), 2012)
+        XCTAssertEqual(year("高1", now), 2010)
+        XCTAssertEqual(year(OnboardingProfile.universityGrade, now), 2007)
+        XCTAssertEqual(AgeBand.from(birthdate: OnboardingModel.defaultBirthdate(grade: OnboardingProfile.universityGrade, now: now, calendar: calendar), now: now, calendar: calendar), .adult)
+        // 1〜3 月は、前の年の 4 月に始まった年度。
+        let winter = calendar.date(from: DateComponents(year: 2027, month: 2, day: 1))!
+        XCTAssertEqual(year("中2", winter), 2012)
+    }
+
     func testBirthdateIsDiscardedAndOnlyTheBandIsKept() throws {
         let model = OnboardingModel(profile: OnboardingProfile(), records: records(), hasPlan: { false }, isClaudeAvailable: { true }, start: .birthdate)
         model.birthdate = Calendar.current.date(byAdding: .year, value: -20, to: Date())!

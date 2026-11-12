@@ -29,7 +29,8 @@ struct OnboardingPaywallView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 if let error = store.errorMessage { TrialErrorText(text: error) }
             }
-            .padding(.top, isPad ? 40 : 4)
+            // 設定から開いた時は左上に「閉じる」(44pt)が重なるので、見出しをその下から始める。
+            .padding(.top, onClose != nil ? 60 : (isPad ? 40 : 4))
         } footer: {
             OnboardingPrimaryButton(title: store.purchasing == nil ? "\(selection.displayName)\(onClose == nil ? "で始める" : "にする")" : "購入しています",
                                     isEnabled: store.purchasing == nil && !(onClose != nil && store.plan == selection), identifier: "paywall-purchase") {
@@ -62,7 +63,9 @@ struct OnboardingPaywallView: View {
         .overlay(alignment: .topLeading) {
             if let onClose {
                 Button(action: onClose) {
+                    // 押せる範囲を 44pt の四角にする。付けない時は、記号の真ん中を押しても閉じなかった(iOS 26 のシミュレータ、2026-11-12)。
                     Image(systemName: "xmark").font(.system(size: 16, weight: .semibold)).foregroundStyle(Theme.primaryText).frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .padding(.leading, 8).padding(.top, 12)

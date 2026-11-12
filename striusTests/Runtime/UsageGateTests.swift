@@ -119,6 +119,13 @@ final class UsageGateTests: XCTestCase {
         XCTAssertEqual(TimelineTurns.setupPurposes, ["graph_build", "graph_extend", "graph_step", "graph_misconceptions"])
         XCTAssertFalse(TimelineTurns.setupPurposes.contains("graph_review"))
         XCTAssertFalse(TimelineTurns.setupPurposes.contains("graph_descend"))
+        // 学習中の見直し・1 段下りる依頼は「手入れ」: 何回でも数えない(回数は頼む側が 7 日に 1 回までに抑える)。
+        XCTAssertEqual(TimelineTurns.upkeepPurposes, ["graph_review", "graph_descend"])
+        let meter: UsageMeter = meter(plan: .light)
+        let gate: DeviceUsageGate = gate(meter)
+        for index in 0..<40 { gate.record(billed(0.23), requestBytes: 10, setup: .graphUpkeep, turnID: "review-\(index)") }
+        XCTAssertEqual(meter.freeSetupCount(.graphUpkeep), 0, "数えないターンの ID は残さない")
+        XCTAssertEqual(meter.snapshot().spentUSD, 0, accuracy: 1e-6)
         // 単元 4 つ分の最初の構築(構築 1 + 続きの段 + つまずきの洗い出し 1)が、数えないターンの数に収まる。
         XCTAssertGreaterThanOrEqual(UsageRules.freeSetupTurns(.graph), 4 * (TimelineTurns.graphStepLimit + 1))
     }
