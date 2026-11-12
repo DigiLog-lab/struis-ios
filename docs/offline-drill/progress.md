@@ -4,7 +4,7 @@
 
 ## 今の段階
 
-- 2026-11-12 19:15 **指示書の完了条件の 5 つを満たし、Draft PR を 1 本出す所(出した後は、持ち主のレビュー待ち)。**
+- 2026-11-12 19:20 **指示書の完了条件の 5 つを満たし、Draft PR #140 を出した。持ち主のレビュー待ち。** PR はこの 1 本だけで、直しはこのブランチに push する。
 - 終わったもの:
   1. 書式の仕様書(`docs/offline-drill/format.md`)と JSON Schema(`strius/Resources/Prompts/drill_template.json`)。
   2. 解釈器・生成器・点検器(`strius/Engine/Drill/`)と単体テスト。
