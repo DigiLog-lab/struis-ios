@@ -177,6 +177,8 @@ struct TimeAttackIntroView: View {
     let rival: TimeAttack.Entry?
     /// App Clip で今日あと何セット解けるか(本体は nil)。
     var setsLeft: Int?
+    /// 最後に紙を撮るか(自分で採点すると決めている人には、撮らない流れを説明する)。
+    var capturesPhoto = true
     var onStart: () -> Void
 
     var body: some View {
@@ -199,9 +201,15 @@ struct TimeAttackIntroView: View {
             VStack(spacing: 0) {
                 rule("pencil", "紙とペンを用意して、上から順に書きます")
                 Divider().overlay(Theme.hairline)
-                rule("camera", "\(TimeAttack.problemCount)問解いたら、最後に1枚撮ります")
-                Divider().overlay(Theme.hairline)
-                rule("stopwatch", "問題が出てから撮るまでを計ります")
+                if capturesPhoto {
+                    rule("camera", "\(TimeAttack.problemCount)問解いたら、最後に1枚撮ります")
+                    Divider().overlay(Theme.hairline)
+                    rule("stopwatch", "問題が出てから撮るまでを計ります")
+                } else {
+                    rule("checkmark.circle", "\(TimeAttack.problemCount)問解いたら、正答と見比べて自分で○×をつけます")
+                    Divider().overlay(Theme.hairline)
+                    rule("stopwatch", "問題が出てから書き終えるまでを計ります")
+                }
                 Divider().overlay(Theme.hairline)
                 rule("xmark", "誤答は1問につき +10秒")
                 Divider().overlay(Theme.hairline)
@@ -515,9 +523,10 @@ struct TimeAttackSelfCheckView: View {
                     .font(Typography.bodyCompact).lineLimit(1)
                 HStack(spacing: 6) {
                     Text("正答").font(Typography.caption).foregroundStyle(Theme.secondaryText)
-                    TimeAttackMath(latex: problem.answerKey, size: 22)
+                    TimeAttackMath(latex: problem.answerKey, size: 20)
                 }
             }
+            .padding(.vertical, 10)
             Spacer()
             mark(index, value: true, symbol: "○", color: Theme.growthColor)
             mark(index, value: false, symbol: "×", color: Theme.regressColor)

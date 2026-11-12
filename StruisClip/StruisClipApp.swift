@@ -81,7 +81,8 @@ private struct ClipChallengeView: View {
                     }, onBack: { asksConsent = false })
                 } else {
                     header
-                    TimeAttackIntroView(field: session.field, rival: session.rival, setsLeft: setsLeft, onStart: begin)
+                    TimeAttackIntroView(field: session.field, rival: session.rival, setsLeft: setsLeft,
+                                        capturesPhoto: local.clipGrading(termsVersion: LegalVersion.terms) != .selfCheck, onStart: begin)
                 }
             case .running:
                 TimeAttackRunView(field: session.field, problems: session.problems, capturesPhoto: session.grading == .ai,
