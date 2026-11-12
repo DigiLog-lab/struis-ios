@@ -46,6 +46,9 @@
       "expr": "heat/value(n,'mol')"
     }
   ],
+  "constraints": [
+    "value(dt,'K') == sig(value(dt,'K'), 2)"
+  ],
   "prompt": "ある物質 ${n|q}$ を水に溶かしたところ、水溶液 ${w|q}$ の温度が ${dt|q}$ 上昇した。発生した熱量と、この物質 1 mol あたりの発熱量を求めなさい。水溶液の比熱を $4.2\\,\\mathrm{J/(g \\cdot K)}$ とする。",
   "answer": "${heat|sig:2}\\,\\mathrm{kJ}$、${per|sig:2}\\,\\mathrm{kJ/mol}$",
   "checks": [

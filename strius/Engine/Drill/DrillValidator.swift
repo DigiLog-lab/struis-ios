@@ -113,12 +113,17 @@ nonisolated struct DrillValidator: Sendable {
         var kept: [[DrillValue]] = []
         var failures: [String: String] = [:]
         var lintFound: [String] = []
+        var roundedGiven: (names: [String], example: String)? = nil
 
         func examine(_ values: [DrillValue]) {
             examined += 1
             do {
                 guard let instance: DrillCompiledTemplate.Instance = try compiled.instance(values: values) else { return }
                 satisfying += 1
+                if roundedGiven == nil {
+                    let rounded: [String] = compiled.roundedGivens(scope: instance.scope)
+                    if !rounded.isEmpty { roundedGiven = (rounded, DrillValidator.oneLine(instance.problem)) }
+                }
                 if keys.insert(instance.problem.key).inserted {
                     kept.append(values)
                     if lintFound.count < 12, keys.count <= DrillValidator.lintLimit || keys.count % 16 == 0 {
@@ -183,6 +188,11 @@ nonisolated struct DrillValidator: Sendable {
         for issue: String in lintFound {
             add("display", issue)
         }
+        if let given: (names: [String], example: String) = roundedGiven {
+            let names: String = given.names.map { (name: String) -> String in "「\(name)」" }.joined(separator: "・")
+            add("given", "問題文に出している \(names) は、丸めた表示と実際の値が違います(例: \(given.example))。学習者は表示された値で計算するので、型の答えと合いません。"
+                + "表示する桁で割り切れる組だけを使うか(constraints)、lets で sig(x, 2) や round(x, 1) のように丸めた値を作って、問題文にも答えの計算にもその値を使ってください")
+        }
 
         // 画面の数式描画で読めるか(端末で確かめる)。
         if let probe: (@Sendable (String) -> String?) = renderProbe {
@@ -226,6 +236,11 @@ nonisolated struct DrillValidator: Sendable {
             return pieces.prefix(2).joined(separator: ":")
         }
         return head(a) == head(b)
+    }
+
+    /// 問題 1 問を 1 行で(落ちた理由に添える例)。
+    private static func oneLine(_ problem: DrillProblem) -> String {
+        problem.math.isEmpty ? problem.prompt : "\(problem.prompt) \(problem.math)"
     }
 
     /// 全体からまんべんなく `limit` 個を選ぶ。

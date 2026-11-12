@@ -93,6 +93,9 @@
       "expr": "n*NA"
     }
   ],
+  "constraints": [
+    "value(n,'mol') == sig(value(n,'mol'), 2)"
+  ],
   "prompt": "{s.name} ${s.tex}$ ${n|q}$ にふくまれる分子(または組成式の単位)の数を求めなさい。アボガドロ定数を ${NA|sig:2}\\,\\mathrm{/mol}$ とする。",
   "answer": "${count|sig:2}$ 個",
   "checks": [

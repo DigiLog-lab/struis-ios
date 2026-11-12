@@ -82,6 +82,9 @@
       "sig": 2
     }
   ],
+  "constraints": [
+    "value(n,'mol') == sig(value(n,'mol'), 2)"
+  ],
   "parts": [
     {
       "name": "ask",

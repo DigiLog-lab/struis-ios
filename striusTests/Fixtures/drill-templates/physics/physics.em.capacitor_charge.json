@@ -37,6 +37,9 @@
       "sig": 2
     }
   ],
+  "constraints": [
+    "value(v,'V') == sig(value(v,'V'), 2)"
+  ],
   "prompt": "電気容量 ${c|q}$ のコンデンサーに ${v|q}$ の電圧を加えた。たくわえられる電気量と静電エネルギーを求めなさい。",
   "answer": "電気量 ${charge|q}$、静電エネルギー ${u|q}$",
   "checks": [

@@ -127,4 +127,76 @@ final class DrillExpressionTests: XCTestCase {
         XCTAssertEqual(try DrillUnit.parse("uF").tex, "\\mathrm{\\mu F}")
         XCTAssertEqual(try DrillUnit.parse("deg").tex, "^{\\circ}")
     }
+
+
+    /// approx は、大きい方に対する割合で比べる。式の中の量は SI の値なので、小さい量を差の大きさで比べると何でも合ってしまう。
+    func testApproxComparesRelativeToTheSizeOfTheValues() throws {
+        XCTAssertEqual(try S.evaluate("approx(3.0e-19, 6.0e-19)"), DrillValue.bool(false), "光子のエネルギーの大きさの量でも、2 倍違えば合わない")
+        XCTAssertEqual(try S.evaluate("approx(6.63e-34*3.0e8/5.0e-7, 3.978e-19)"), DrillValue.bool(true))
+        XCTAssertEqual(try S.evaluate("approx(6.63e-34*3.0e8/5.0e-7, 3.98e-19, 0.001)"), DrillValue.bool(true))
+        XCTAssertEqual(try S.evaluate("approx(6.63e-34*3.0e8/5.0e-7, 0)"), DrillValue.bool(false), "0 と等しいのは 0 だけ")
+        XCTAssertEqual(try S.evaluate("approx(0, 0)"), DrillValue.bool(true))
+        XCTAssertEqual(try S.evaluate("approx(6.02e23, 6.03e23)"), DrillValue.bool(false))
+        XCTAssertEqual(try S.evaluate("approx(6.02e23, 6.02e23 + 1)"), DrillValue.bool(true))
+        XCTAssertEqual(try S.evaluate("approx(q(660, 'nm'), q(6.6e-7, 'm'))"), DrillValue.bool(true))
+        XCTAssertEqual(try S.evaluate("approx(q(660, 'nm'), q(6.7e-7, 'm'))"), DrillValue.bool(false))
+    }
+
+    /// 長すぎる式・深すぎるかっこは、読む前に断る(スタックを使い切って落ちない)。上限までの式は、スタックの小さいスレッドでも計算できる。
+    func testVeryLongExpressionsAreRefusedAndTheLongestAllowedOnesStillEvaluate() throws {
+        XCTAssertThrowsError(try DrillExpression.parse(String(repeating: "(", count: 3000) + "1" + String(repeating: ")", count: 3000)))
+        XCTAssertThrowsError(try DrillExpression.parse("1" + String(repeating: "+1", count: 20000)))
+        XCTAssertThrowsError(try DrillExpression.parse(String(repeating: "-", count: 5000) + "1"))
+
+        let deepest: Int = DrillExpression.maximumDepth
+        XCTAssertThrowsError(try DrillExpression.parse(String(repeating: "(", count: deepest + 1) + "1" + String(repeating: ")", count: deepest + 1)))
+        let sources: [String] = [
+            String(repeating: "(", count: deepest) + "1" + String(repeating: ")", count: deepest),
+            "1" + String(repeating: "+1", count: (DrillExpression.maximumTokens - 1) / 2),
+            String(repeating: "-", count: deepest) + "1",
+            "2" + String(repeating: "^1", count: deepest),
+        ]
+        let results: DrillStackProbe = DrillStackProbe()
+        let thread: Thread = Thread {
+            for source: String in sources {
+                results.append((try? DrillExpression.parse(source).evaluate([:])) != nil)
+            }
+            results.finish()
+        }
+        // iOS のメイン以外のスレッドのスタックは 512 KB。
+        thread.stackSize = 512 * 1024
+        thread.start()
+        XCTAssertTrue(results.wait(seconds: 20), "計算が終わらない")
+        XCTAssertEqual(results.values, [true, true, true, true])
+    }
+
+    func testIsPrimeRefusesNumbersTooLargeForTrialDivision() throws {
+        XCTAssertEqual(try S.evaluate("is_prime(999999999989)"), DrillValue.bool(true))
+        XCTAssertThrowsError(try S.evaluate("is_prime(10^18 + 3)"))
+    }
+}
+
+/// 別のスレッドで計算した結果を受け取る入れ物。
+final class DrillStackProbe: @unchecked Sendable {
+    private let lock: NSLock = NSLock()
+    private let done: DispatchSemaphore = DispatchSemaphore(value: 0)
+    private var stored: [Bool] = []
+
+    var values: [Bool] {
+        lock.lock()
+        defer { lock.unlock() }
+        return stored
+    }
+
+    func append(_ value: Bool) {
+        lock.lock()
+        stored.append(value)
+        lock.unlock()
+    }
+
+    func finish() { done.signal() }
+
+    func wait(seconds: Int) -> Bool {
+        done.wait(timeout: DispatchTime.now() + DispatchTimeInterval.seconds(seconds)) == DispatchTimeoutResult.success
+    }
 }

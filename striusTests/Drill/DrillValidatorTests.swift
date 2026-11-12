@@ -205,4 +205,58 @@ final class DrillValidatorTests: XCTestCase {
         let decoded: DrillTemplate = try DrillTemplate.decode(json: try template.canonicalJSON())
         XCTAssertEqual(decoded, template)
     }
+
+
+    // MARK: - Codex のレビュー(PR #140)で見つかったもの
+
+    /// 問題文に出す値を丸めて表示していると、学習者は表示された値で計算するので、型の答えと合わない(レンズの式で起きていた)。
+    func testGivenValueShownRoundedIsFound() {
+        let variables: [DrillVariable] = [DrillVariable(name: "f", kind: "integer", min: 5, max: 60, step: 5, unit: "cm", sig: 2), S.integer("k", 2, 6)]
+        let lets: [DrillLet] = [DrillLet(name: "a", expr: "f*k/(k - 1)", unit: "cm", sig: 2), DrillLet(name: "b", expr: "f*k", unit: "cm", sig: 2)]
+        let wrong: DrillTemplate = S.template(variables: variables, lets: lets, prompt: "焦点距離 ${f|q}$ の凸レンズの前方 ${a|q}$ の位置に物体を置いた。像ができる位置を求めなさい。",
+                                              math: "", answer: "レンズの後方 ${b|q}$", checks: [DrillCheck(kind: "assert", conditions: ["approx(1/a + 1/b, 1/f)"])], subject: "physics")
+        assertFails(wrong, code: "given", "「a」")
+        // 表示する桁で割り切れる組だけにすれば通る。
+        var right: DrillTemplate = wrong
+        right.constraints = ["value(a,'cm') == sig(value(a,'cm'), 2)"]
+        XCTAssertEqual(inspect(right).issues, [])
+        // 変数そのものを丸めて出している時も見つける(10.5 kg を有効数字 2 桁で 11 kg と出す)。
+        let mass: DrillTemplate = S.template(variables: [DrillVariable(name: "m", kind: "decimal", min: 0.5, max: 20.0, step: 0.5, unit: "kg", sig: 2)],
+                                             lets: [DrillLet(name: "w", expr: "m*q(9.8,'m/s^2')", unit: "N", sig: 2)], prompt: "質量 ${m|q}$ の物体にはたらく重力の大きさを求めなさい。",
+                                             math: "", answer: "${w|q}$", checks: [DrillCheck(kind: "assert", conditions: ["approx(w/m, q(9.8,'m/s^2'))"])], subject: "physics")
+        assertFails(mass, code: "given", "「m」")
+        // 答えを丸めて出すのは構わない。
+        let answerOnly: DrillTemplate = S.template(variables: [S.integer("a", 1, 40)], lets: [DrillLet(name: "r", expr: "a/7")], math: "{a} \\div 7", answer: "${r|dec:2}$",
+                                                   checks: [DrillCheck(kind: "assert", conditions: ["approx(r*7, a)"])])
+        XCTAssertEqual(inspect(answerOnly).issues, [])
+    }
+
+    /// 小さい量(光子のエネルギーは 1e-19 J の大きさ)でも、公式が間違っていれば数値の点検で落ちる。前は、答えが 0 でも通っていた。
+    func testWrongFormulaForATinyQuantityFailsNumericCheck() {
+        let variables: [DrillVariable] = [DrillVariable(name: "h", kind: "constant", value: 6.6e-34, unit: "J*s", sig: 2), DrillVariable(name: "c", kind: "constant", value: 3.0e8, unit: "m/s", sig: 2),
+                                          DrillVariable(name: "lam", kind: "integer", min: 300, max: 750, step: 10, unit: "nm", sig: 2)]
+        func photon(_ formula: String) -> DrillTemplate {
+            S.template(variables: variables, lets: [DrillLet(name: "en", expr: formula, unit: "J", sig: 2)], prompt: "波長 ${lam|q}$ の光の光子 1 個のエネルギーを求めなさい。プランク定数を ${h|q}$、光の速さを ${c|q}$ とする。",
+                       math: "", answer: "${en|q}$", checks: [DrillCheck(kind: "assert", conditions: ["approx(en*lam, h*c)"])], subject: "physics")
+        }
+        XCTAssertEqual(inspect(photon("h*c/lam")).issues, [])
+        assertFails(photon("0*h*c/lam"), code: "numeric", "数値の点検に落ちました")
+        assertFails(photon("2*h*c/lam"), code: "numeric", "数値の点検に落ちました")
+    }
+
+    /// AI が極端な範囲や長さを書いても、点検器は落ちずに理由を返す(落ちると、書き直しを頼む流れに入れない)。
+    func testExtremeTemplatesAreRefusedWithoutCrashing() {
+        let huge: DrillVariable = DrillVariable(name: "a", kind: "fraction", numerator: DrillIntegerRange(min: 1, max: 10_000_000_000), denominator: DrillIntegerRange(min: 1, max: 10_000_000_000))
+        assertFails(S.template(variables: [huge], math: "{a}", answer: "${a}$"), code: "compile", "取り得る値が多すぎます")
+        let widest: DrillVariable = DrillVariable(name: "a", kind: "fraction", numerator: DrillIntegerRange(min: Int.min, max: Int.max), denominator: DrillIntegerRange(min: 1, max: Int.max))
+        assertFails(S.template(variables: [widest], math: "{a}", answer: "${a}$"), code: "compile", "取り得る値が多すぎます")
+        let many: [DrillVariable] = (0..<40).map { (index: Int) -> DrillVariable in S.integer("v\(index)", 1, 50_000) }
+        assertFails(S.template(variables: many, math: "{v0}", answer: "${v0}$"), code: "compile", "型が大きすぎます")
+        let deep: String = String(repeating: "(", count: 3000) + "a" + String(repeating: ")", count: 3000)
+        assertFails(S.template(variables: [S.integer("a", 1, 30)], lets: [DrillLet(name: "b", expr: deep)], math: "{a}", answer: "${b}$"), code: "compile", "式が長すぎます")
+        let unit: DrillVariable = DrillVariable(name: "a", kind: "integer", min: 1, max: 30, unit: String(repeating: "(", count: 3000) + "m" + String(repeating: ")", count: 3000))
+        assertFails(S.template(variables: [unit], math: "{a|q}", answer: "${a|q}$"), code: "compile", "単位が長すぎます")
+        let prime: DrillTemplate = S.template(variables: [S.integer("a", 1, 30)], lets: [DrillLet(name: "b", expr: "if(is_prime(10^18 + a), 1, 2)")], math: "{a}", answer: "${b}$")
+        assertFails(prime, code: "undefined", "is_prime は 1 兆以下")
+    }
 }

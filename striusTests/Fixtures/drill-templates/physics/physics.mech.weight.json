@@ -29,6 +29,9 @@
       "sig": 2
     }
   ],
+  "constraints": [
+    "value(m,'kg') == sig(value(m,'kg'), 2)"
+  ],
   "prompt": "質量 ${m|q}$ の物体にはたらく重力の大きさを求めなさい。重力加速度の大きさを ${g|q}$ とする。",
   "answer": "${w|q}$",
   "checks": [

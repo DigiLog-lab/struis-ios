@@ -31,6 +31,10 @@
       "sig": 2
     }
   ],
+  "constraints": [
+    "value(v,'V') == sig(value(v,'V'), 2)",
+    "value(r,'ohm') == sig(value(r,'ohm'), 2)"
+  ],
   "prompt": "抵抗値 ${r|q}$ の抵抗に ${v|q}$ の電圧を加えた。流れる電流の大きさを求めなさい。",
   "answer": "${cur|q}$",
   "checks": [

@@ -79,6 +79,15 @@ final class DrillFormatTests: XCTestCase {
         XCTAssertEqual(try S.tex("3", ["paren"]), "3")
         XCTAssertEqual(try S.tex("3", ["+paren"]), "(+3)")
         XCTAssertEqual(try S.tex("-1/2", ["+paren"]), "(-\\frac{1}{2})")
+        // 項が 2 つ以上の数は、正でもかっこで囲む。全部の項が負なら、符号を中に配る(前は -1-√2 を (-1+√2) と出していた)。
+        XCTAssertEqual(try S.tex("-1 - sqrt(2)", ["paren"]), "(-1-\\sqrt{2})")
+        XCTAssertEqual(try S.tex("1 + sqrt(2)", ["paren"]), "(1+\\sqrt{2})")
+        XCTAssertEqual(try S.tex("-1 + sqrt(2)", ["paren"]), "(-1+\\sqrt{2})")
+        XCTAssertEqual(try S.tex("-1 - sqrt(2)", ["+paren"]), "(-1-\\sqrt{2})")
+        XCTAssertEqual(try S.tex("1 + sqrt(2)", ["+paren"]), "(+1+\\sqrt{2})")
+        XCTAssertEqual(try S.tex("(-1 - sqrt(5))/2", ["paren"]), "(-\\frac{1+\\sqrt{5}}{2})")
+        XCTAssertEqual(try S.tex("2 + 3*i", ["paren"]), "(2+3i)")
+        XCTAssertEqual(try S.tex("-1 - sqrt(2)"), "-(1+\\sqrt{2})")
         XCTAssertEqual(try S.tex("-3", ["abs"]), "3")
         XCTAssertEqual(try S.tex("1 + sqrt(2)", ["coef"]), "(1+\\sqrt{2})")
     }

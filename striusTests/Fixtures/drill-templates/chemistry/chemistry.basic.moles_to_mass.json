@@ -93,6 +93,9 @@
       "sig": 2
     }
   ],
+  "constraints": [
+    "value(n,'mol') == sig(value(n,'mol'), 2)"
+  ],
   "prompt": "{s.name} ${s.tex}$(モル質量 ${s.M|dec}\\,\\mathrm{g/mol}$)${n|q}$ の質量を求めなさい。",
   "answer": "${m|q}$",
   "checks": [

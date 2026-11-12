@@ -127,6 +127,7 @@ nonisolated struct DrillUnit: Hashable, Sendable {
 
     /// 単位の文字列を読む。知らない単位は投げる。
     static func parse(_ text: String) throws -> DrillUnit {
+        guard text.count <= 40 else { throw ParseError(message: "単位が長すぎます(「\(text.prefix(20))…」)") }
         let tokens: [Token] = try tokenize(text)
         guard !tokens.isEmpty else { throw ParseError(message: "単位が空です") }
         var position: Int = 0

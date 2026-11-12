@@ -31,6 +31,9 @@
       "sig": 2
     }
   ],
+  "constraints": [
+    "value(m,'kg') == sig(value(m,'kg'), 2)"
+  ],
   "prompt": "質量 ${m|q}$ の物体が速さ ${v|q}$ で運動しているときの運動エネルギーを求めなさい。",
   "answer": "${k|q}$",
   "checks": [

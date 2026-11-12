@@ -66,13 +66,20 @@
   ],
   "lets": [
     {
+      "name": "mant",
+      "expr": "s.m*scale"
+    },
+    {
       "name": "ksp",
-      "expr": "s.m*scale*10^(-s.e)"
+      "expr": "mant*10^(-s.e)"
     },
     {
       "name": "sol",
       "expr": "sqrt(ksp)"
     }
+  ],
+  "constraints": [
+    "mant == sig(mant, 2)"
   ],
   "prompt": "{s.name} ${s.tex}$ の溶解度積を $K_{sp} = {ksp|sig:2}\\,(\\mathrm{mol/L})^{2}$ とする。{s.name}の飽和水溶液のモル濃度を求めなさい。",
   "answer": "${sol|sig:2}\\,\\mathrm{mol/L}$",

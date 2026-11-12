@@ -46,6 +46,9 @@
       "sig": 2
     }
   ],
+  "constraints": [
+    "value(emf,'V') == sig(value(emf,'V'), 2)"
+  ],
   "prompt": "起電力 ${emf|q}$、内部抵抗 ${r0|q}$ の電池に、抵抗値 ${r|q}$ の抵抗を接続した。回路を流れる電流と、電池の端子電圧を求めなさい。",
   "answer": "電流 ${cur|q}$、端子電圧 ${v|q}$",
   "checks": [

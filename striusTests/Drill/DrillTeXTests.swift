@@ -98,4 +98,34 @@ final class DrillTeXTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(DrillNumerics.integral(sine, from: 0, to: Double.pi)).real, 2, accuracy: 1e-10)
         XCTAssertEqual(try XCTUnwrap(DrillNumerics.integral(sine, from: 1, to: 0)).real, cos(1) - 1, accuracy: 1e-10)
     }
+
+
+    /// 長すぎる式・深すぎる入れ子は読む前に断る。上限までの式は、スタックの小さいスレッドでも数値にできる。
+    func testVeryLongOrDeepLaTeXIsRefusedAndTheLargestAllowedStillEvaluates() throws {
+        XCTAssertThrowsError(try DrillTeX.parse("x" + String(repeating: "+x", count: 300)))
+        XCTAssertThrowsError(try DrillTeX.parse(String(repeating: "{", count: DrillTeX.maximumDepth + 1) + "x" + String(repeating: "}", count: DrillTeX.maximumDepth + 1)))
+        XCTAssertThrowsError(try DrillTeX.parse(String(repeating: "\\frac{1}{", count: 800) + "x" + String(repeating: "}", count: 800)))
+        XCTAssertThrowsError(try DrillTeX.parse(String(repeating: "-", count: DrillTeX.maximumSigns + 1) + "x"))
+
+        let sources: [String] = [
+            "x" + String(repeating: "+x", count: (DrillTeX.maximumTokens - 1) / 2),
+            String(repeating: "{", count: DrillTeX.maximumDepth) + "x" + String(repeating: "}", count: DrillTeX.maximumDepth),
+            String(repeating: "\\frac{1}{", count: DrillTeX.maximumDepth) + "x" + String(repeating: "}", count: DrillTeX.maximumDepth),
+            String(repeating: "-", count: DrillTeX.maximumSigns) + "x",
+            "x^{" + String(repeating: "x^{", count: DrillTeX.maximumDepth - 2) + "x" + String(repeating: "}", count: DrillTeX.maximumDepth - 2) + "}",
+        ]
+        let results: DrillStackProbe = DrillStackProbe()
+        let thread: Thread = Thread {
+            for source: String in sources {
+                let parsed: [DrillTeX]? = try? DrillTeX.parse(source)
+                results.append(parsed?.first?.evaluate(["x": DrillComplex(1.0)]) != nil)
+            }
+            results.finish()
+        }
+        // iOS のメイン以外のスレッドのスタックは 512 KB。
+        thread.stackSize = 512 * 1024
+        thread.start()
+        XCTAssertTrue(results.wait(seconds: 20), "計算が終わらない")
+        XCTAssertEqual(results.values, [true, true, true, true, true])
+    }
 }

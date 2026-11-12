@@ -193,6 +193,8 @@ nonisolated struct DrillCompiledTemplate: Sendable {
     let names: Set<String>
 
     static let maxDomain: Int = 50_000
+    /// 変数の数の上限。
+    static let maximumVariables: Int = 24
     static let reserved: Set<String> = DrillExpression.constants.union(["and", "or", "not"])
 
     // MARK: 読み取る
@@ -201,6 +203,11 @@ nonisolated struct DrillCompiledTemplate: Sendable {
         self.template = template
         guard template.format == DrillTemplate.currentFormat else {
             throw DrillFailure(message: "format は \(DrillTemplate.currentFormat) にしてください")
+        }
+        // 型の大きさの上限(実際に書いた型は、変数 10・lets 10・parts 5・checks 5 が最大)。
+        guard template.variables.count <= DrillCompiledTemplate.maximumVariables, template.lets.count <= 60, template.constraints.count <= 40,
+              template.parts.count <= 40, template.checks.count <= 20 else {
+            throw DrillFailure(message: "型が大きすぎます(variables は \(DrillCompiledTemplate.maximumVariables) 個、lets は 60 個、constraints・parts は 40 個、checks は 20 個まで)")
         }
         var declared: Set<String> = []
         func declare(_ name: String, _ place: String) throws {
@@ -363,7 +370,11 @@ nonisolated struct DrillCompiledTemplate: Sendable {
                   numerator.min <= numerator.max, denominator.min <= denominator.max, denominator.min >= 1 else {
                 throw DrillFailure(message: "\(place): fraction には numerator と denominator(min・max、分母は 1 以上)が要ります")
             }
-            guard (numerator.max - numerator.min + 1) * (denominator.max - denominator.min + 1) <= maxDomain else {
+            // 幅の計算と掛け算は、あふれを確かめながら行う(AI が書いた極端な範囲で落ちないように)。
+            let tops: (partialValue: Int, overflow: Bool) = numerator.max.subtractingReportingOverflow(numerator.min)
+            let bottoms: (partialValue: Int, overflow: Bool) = denominator.max.subtractingReportingOverflow(denominator.min)
+            guard !tops.overflow, !bottoms.overflow, tops.partialValue < maxDomain, bottoms.partialValue < maxDomain,
+                  (tops.partialValue + 1) * (bottoms.partialValue + 1) <= maxDomain else {
                 throw DrillFailure(message: "\(place): 取り得る値が多すぎます")
             }
             var seen: Set<DrillRational> = []
@@ -459,6 +470,46 @@ nonisolated struct DrillCompiledTemplate: Sendable {
         } catch let error as DrillFormat.FormatError {
             throw DrillFailure(message: "\(place): \(error.message)")
         }
+    }
+
+    /// 問題文と式(学習者に与える値)のうち、丸めた表示と実際の値が違う名前。
+    /// 学習者は表示された値で計算するので、型の答えが表示された値から計算したものでないと、答えが合わなくなる。
+    func roundedGivens(scope: [String: DrillValue]) -> [String] {
+        var found: [String] = []
+        var visited: Set<String> = []
+        func walk(_ text: DrillText) {
+            for segment: DrillText.Segment in text.segments {
+                guard case DrillText.Segment.placeholder(let name, let field, let spec, _) = segment else { continue }
+                if let part: Part = parts.first(where: { (part: Part) -> Bool in part.name == name }) {
+                    guard visited.insert(name).inserted else { continue }
+                    switch part.body {
+                    case PartBody.text(let inner):
+                        walk(inner)
+                    case PartBody.select(let cases, let otherwise):
+                        let chosen: DrillText = cases.first(where: { (entry: (when: DrillExpression, tex: DrillText)) -> Bool in
+                            (try? DrillExpression.bool(try entry.when.evaluate(scope))) ?? false
+                        })?.tex ?? otherwise
+                        walk(chosen)
+                    default:
+                        break
+                    }
+                    continue
+                }
+                guard var value: DrillValue = scope[name] else { continue }
+                var display: DrillDisplay = displays[name] ?? DrillDisplay.none
+                if let field: String = field {
+                    guard case DrillValue.record(let fields) = value, let inner: DrillValue = fields[field] else { continue }
+                    value = inner
+                    display = DrillDisplay.none
+                }
+                guard case DrillValue.quantity(let quantity) = value else { continue }
+                let label: String = field.map { (field: String) -> String in "\(name).\(field)" } ?? name
+                if DrillFormat.losesValue(of: quantity, spec: spec, display: display), !found.contains(label) { found.append(label) }
+            }
+        }
+        walk(prompt)
+        walk(math)
+        return found
     }
 
     private func render(_ text: DrillText, scope: [String: DrillValue], partTexts: [String: String]) throws -> String {

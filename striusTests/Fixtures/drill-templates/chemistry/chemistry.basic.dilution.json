@@ -44,7 +44,8 @@
     }
   ],
   "constraints": [
-    "c2 < c1"
+    "c2 < c1",
+    "value(c1,'mol/L') == sig(value(c1,'mol/L'), 2)"
   ],
   "prompt": "${c1|q}$ の塩酸を水でうすめて、${c2|q}$ の塩酸を ${v2|q}$ つくりたい。もとの塩酸は何 mL 必要か。",
   "answer": "${v1|q}$",

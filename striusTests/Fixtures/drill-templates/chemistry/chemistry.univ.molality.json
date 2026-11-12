@@ -58,6 +58,9 @@
       "expr": "n/(n + w/18)"
     }
   ],
+  "constraints": [
+    "mass == sig(mass, 3)"
+  ],
   "prompt": "{s.name}(モル質量 ${s.M}\\,\\mathrm{g/mol}$)${mass|sig:3}\\,\\mathrm{g}$ を水 ${w}\\,\\mathrm{g}$ に溶かした。この溶液の質量モル濃度と、{s.name}のモル分率を求めなさい。水のモル質量を $18\\,\\mathrm{g/mol}$ とする。",
   "answer": "質量モル濃度 ${molal|sig:2}\\,\\mathrm{mol/kg}$、モル分率 ${x|sig:2}$",
   "checks": [

@@ -328,6 +328,8 @@ nonisolated enum DrillFunctions {
             return DrillValue.bool(isSquare(rational.numerator) && isSquare(rational.denominator))
         case "is_prime":
             guard let value: Int = first.number.integer else { return DrillValue.bool(false) }
+            // 試し割りで調べるので、大きすぎる数は受け付けない(1 兆で約 50 万回の割り算)。
+            guard value <= 1_000_000_000_000 else { throw EvaluationError.undefined("is_prime は 1 兆以下の整数にしてください") }
             return DrillValue.bool(DrillArithmetic.isPrime(value))
         case "divisors":
             // 正の約数の個数。
@@ -356,8 +358,10 @@ nonisolated enum DrillFunctions {
             let tolerance: Double = values.count == 3 ? try double(2) : 1e-9
             // 誤差なしの数どうしでも、ここでは数値として近いかどうかで比べる。
             if first.number == values[1].number { return DrillValue.bool(true) }
-            guard let a: Double = first.number.doubleValue, let b: Double = values[1].number.doubleValue else { return DrillValue.bool(false) }
-            return DrillValue.bool(abs(a - b) <= tolerance * max(1, abs(a), abs(b)))
+            guard let a: Double = first.number.doubleValue, let b: Double = values[1].number.doubleValue, a.isFinite, b.isFinite else { return DrillValue.bool(false) }
+            // 大きい方に対する割合で比べる。式の中の量は SI の値なので(660 nm は 6.6e-7)、差の大きさそのもので比べると、
+            // 小さい量はどんな値でも「ほぼ等しい」になってしまう。片方が 0 なら、もう片方も 0 の時だけ等しい。
+            return DrillValue.bool(abs(a - b) <= tolerance * max(abs(a), abs(b)))
         case "re", "im", "conj":
             guard case DrillNumber.exact(let value) = try plain() else {
                 if name == "im" { return DrillValue.number(DrillNumber.zero) }

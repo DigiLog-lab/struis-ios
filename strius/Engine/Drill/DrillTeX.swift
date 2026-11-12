@@ -430,8 +430,31 @@ nonisolated indirect enum DrillTeX: Equatable, Sendable {
     }
 
     /// LaTeX の式を読む。コンマで区切られていれば、その数だけ返す。
+    /// 数値にする LaTeX の大きさの上限: 語の数、かっこ(波かっこ・丸かっこ・角かっこ)の入れ子の深さ、続けて書ける符号の数。
+    /// 読む時と計算する時の再帰が浅く収まるようにする(AI が極端な式を書いても、スタックを使い切って落ちない)。
+    /// 実際に書いた型の点検の式は、入れ子が 5 段まで。
+    static let maximumTokens: Int = 200
+    static let maximumDepth: Int = 24
+    static let maximumSigns: Int = 6
+
     static func parse(_ source: String) throws -> [DrillTeX] {
-        var parser: Parser = Parser(tokens: try tokenize(source), source: source)
+        let tokens: [Token] = try tokenize(source)
+        guard tokens.count <= maximumTokens else { throw ParseError(message: "式が長すぎて数値にできません(「\(source.prefix(40))…」)") }
+        var depth: Int = 0
+        var signs: Int = 0
+        for token: Token in tokens {
+            if case Token.symbol(let c) = token {
+                if c == "{" || c == "(" || c == "[" || c == "|" { depth += 1 }
+                if c == "}" || c == ")" || c == "]" { depth = max(0, depth - 1) }
+                signs = (c == "-" || c == "+") ? signs + 1 : 0
+            } else if token == Token.command("frac") || token == Token.command("sqrt") {
+                signs = 0
+            } else {
+                signs = 0
+            }
+            guard depth <= maximumDepth, signs <= maximumSigns else { throw ParseError(message: "式の入れ子が深すぎて数値にできません(「\(source.prefix(40))…」)") }
+        }
+        var parser: Parser = Parser(tokens: tokens, source: source)
         guard parser.peek != nil else { throw ParseError(message: "式が空です") }
         let items: [DrillTeX] = try parser.list()
         guard parser.peek == nil else { throw ParseError(message: "式「\(source)」に読めない所があります") }
@@ -491,16 +514,30 @@ nonisolated indirect enum DrillTeX: Equatable, Sendable {
                 l = DrillComplex.zero
             }
             return l + DrillComplex(flipped ? -sign : sign) * r
-        case DrillTeX.binary(let op, let left, let right):
-            guard let l: DrillComplex = left.evaluate(bindings, sign: sign), let r: DrillComplex = right.evaluate(bindings, sign: sign) else { return nil }
-            switch op {
-            case "+": return finite(l + r)
-            case "-": return finite(l - r)
-            case "*": return finite(l * r)
-            case "/": return r.modulus == 0 ? nil : finite(l / r)
-            case "^": return finite(l.power(r))
-            default: return nil
+        case DrillTeX.binary:
+            // 左に伸びる連なり(a + b + c + …)は、再帰せずに左から順に計算する(長い式でスタックを使い切らないように)。
+            var pending: [(op: Character, right: DrillTeX)] = []
+            var node: DrillTeX = self
+            while case DrillTeX.binary(let op, let left, let right) = node {
+                pending.append((op, right))
+                node = left
             }
+            guard var value: DrillComplex = node.evaluate(bindings, sign: sign) else { return nil }
+            for step: (op: Character, right: DrillTeX) in pending.reversed() {
+                guard let r: DrillComplex = step.right.evaluate(bindings, sign: sign) else { return nil }
+                let next: DrillComplex?
+                switch step.op {
+                case "+": next = finite(value + r)
+                case "-": next = finite(value - r)
+                case "*": next = finite(value * r)
+                case "/": next = r.modulus == 0 ? nil : finite(value / r)
+                case "^": next = finite(value.power(r))
+                default: next = nil
+                }
+                guard let result: DrillComplex = next else { return nil }
+                value = result
+            }
+            return value
         case DrillTeX.factorial(let inner):
             guard let value: DrillComplex = inner.evaluate(bindings, sign: sign), value.isReal, value.real >= 0, value.real <= 170, value.real == value.real.rounded() else { return nil }
             return DrillComplex((1...max(1, Int(value.real))).reduce(1.0) { (product: Double, k: Int) -> Double in product * Double(k) })

@@ -105,6 +105,8 @@ nonisolated enum DrillFormat {
         var isZero: Bool = false
         /// a × 10^n の形(係数として使う時だけかっこが要る)。
         var scientific: Bool = false
+        /// 項が 2 つ以上で全部が負の時の、符号を外に出さない書き方(`-1-\sqrt{2}`)。かっこで囲む書き方で使う。
+        var expanded: String? = nil
     }
 
     // MARK: 誤差なしの数
@@ -176,7 +178,9 @@ nonisolated enum DrillFormat {
             return Body(negative: false, text: text, compound: true)
         }
         let joined: (negative: Bool, text: String) = compoundText(terms)
-        return Body(negative: joined.negative, text: joined.text, compound: !joined.text.hasPrefix("\\frac"))
+        let compound: Bool = !joined.text.hasPrefix("\\frac")
+        return Body(negative: joined.negative, text: joined.text, compound: compound,
+                    expanded: compound && joined.negative ? compoundText(terms, factorsSign: false).text : nil)
     }
 
     // MARK: 小数・有効数字
@@ -311,13 +315,46 @@ nonisolated enum DrillFormat {
         case DrillFormatSpec.Sign.signedCoefficient:
             return (body.negative ? "-" : "+") + (coefficient == "1" ? "" : coefficient)
         case DrillFormatSpec.Sign.paren:
+            // 項が 2 つ以上の数(1+√2、2+3i)は、正でもかっこで囲む。全部の項が負なら、符号を中に配る((-1-√2))。
+            if body.compound { return "(\(body.negative ? (body.expanded ?? "-(\(body.text))") : body.text))" }
             return body.negative ? "(-\(body.text))" : body.text
         case DrillFormatSpec.Sign.signedParen:
             if body.isZero { return body.text }
+            if body.compound {
+                if body.negative { return "(\(body.expanded ?? "-(\(body.text))"))" }
+                return body.text.hasPrefix("-") ? "(\(body.text))" : "(+\(body.text))"
+            }
             return "(\(body.negative ? "-" : "+")\(body.text))"
         case DrillFormatSpec.Sign.magnitude:
             return text
         }
+    }
+
+    /// この書き方で表示すると、丸めで値が変わるか(13.33… を有効数字 2 桁で 13 と出す、など)。
+    /// 問題文に出す値がこれに当たると、学習者が表示された値で計算した答えと、型の答えが合わなくなる。
+    static func losesValue(of quantity: DrillQuantity, spec: DrillFormatSpec, display: DrillDisplay) -> Bool {
+        var number: DrillNumber = quantity.number
+        if let unit: DrillUnit = display.unit {
+            guard let scaled: DrillNumber = DrillArithmetic.divide(number, unit.scale) else { return false }
+            number = scaled
+        }
+        var style: DrillFormatSpec.Style = spec.style
+        if style == DrillFormatSpec.Style.automatic, let digits: Int = display.sig { style = DrillFormatSpec.Style.significant(digits) }
+        let shown: DrillNumber
+        switch style {
+        case DrillFormatSpec.Style.decimal(let places):
+            guard let places: Int = places, let rounded: (value: DrillRational, stable: Bool) = DrillRounding.decimals(number, places: places) else { return false }
+            shown = DrillNumber(rational: rounded.value)
+        case DrillFormatSpec.Style.significant(let digits), DrillFormatSpec.Style.scientific(let digits):
+            guard let significant: DrillRounding.Significant = DrillRounding.significant(number, digits: digits) else { return false }
+            guard let value: Double = number.doubleValue else { return false }
+            let rounded: Double = Double(significant.mantissa) * pow(10.0, Double(significant.exponent - digits + 1)) * (significant.negative ? -1 : 1)
+            return abs(rounded - value) > 1e-9 * max(abs(value), abs(rounded))
+        default:
+            return false
+        }
+        guard let before: Double = number.doubleValue, let after: Double = shown.doubleValue else { return false }
+        return abs(after - before) > 1e-9 * max(abs(before), abs(after))
     }
 
     /// 数を LaTeX にする(符号・桁・単位まで)。

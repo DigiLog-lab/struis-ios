@@ -115,8 +115,16 @@ nonisolated indirect enum DrillExpression: Hashable, Sendable {
         let tokens: [Token]
         let source: String
         var index: Int = 0
+        /// かっこ・関数の引数・符号の入れ子の深さ。
+        var depth: Int = 0
 
         var peek: Token? { index < tokens.count ? tokens[index] : nil }
+
+        /// 入れ子を 1 段深くする。深すぎる式は断る(読む時の再帰でスタックを使い切らないように)。
+        mutating func descend() throws {
+            depth += 1
+            guard depth <= DrillExpression.maximumDepth else { throw SyntaxError(message: "式のかっこの入れ子が深すぎます(「\(source.prefix(40))…」)。lets に分けて書いてください") }
+        }
 
         mutating func accept(_ symbol: String) -> Bool {
             if peek == Token.symbol(symbol) {
@@ -190,14 +198,26 @@ nonisolated indirect enum DrillExpression: Hashable, Sendable {
         }
 
         mutating func unary() throws -> DrillExpression {
-            if accept("-") { return DrillExpression.negate(try unary()) }
-            if accept("+") { return try unary() }
+            if accept("-") {
+                try descend()
+                defer { depth -= 1 }
+                return DrillExpression.negate(try unary())
+            }
+            if accept("+") {
+                try descend()
+                defer { depth -= 1 }
+                return try unary()
+            }
             return try power()
         }
 
         mutating func power() throws -> DrillExpression {
             let base: DrillExpression = try postfix()
-            if accept("^") { return DrillExpression.binary("^", base, try unary()) }
+            if accept("^") {
+                try descend()
+                defer { depth -= 1 }
+                return DrillExpression.binary("^", base, try unary())
+            }
             return base
         }
 
@@ -221,6 +241,8 @@ nonisolated indirect enum DrillExpression: Hashable, Sendable {
                 return DrillExpression.string(text)
             case Token.identifier(let name):
                 if accept("(") {
+                    try descend()
+                    defer { depth -= 1 }
                     var arguments: [DrillExpression] = []
                     if !accept(")") {
                         arguments.append(try expression())
@@ -231,6 +253,8 @@ nonisolated indirect enum DrillExpression: Hashable, Sendable {
                 }
                 return DrillExpression.name(name)
             case Token.symbol("("):
+                try descend()
+                defer { depth -= 1 }
                 let inner: DrillExpression = try expression()
                 guard accept(")") else { throw SyntaxError(message: "式「\(source)」のかっこが閉じていません") }
                 return inner
@@ -240,8 +264,16 @@ nonisolated indirect enum DrillExpression: Hashable, Sendable {
         }
     }
 
+    /// 1 つの式の長さの上限(語の数)。式の木の深さはこれを超えないので、読む時と計算する時の再帰が浅く収まる
+    /// (AI が極端に長い式や深いかっこを書いても、スタックを使い切って落ちない)。
+    static let maximumTokens: Int = 400
+    /// かっこ・関数の引数・符号の入れ子の深さの上限(実際に書いた型の最大は 16)。
+    static let maximumDepth: Int = 40
+
     static func parse(_ source: String) throws -> DrillExpression {
-        var parser: Parser = Parser(tokens: try tokenize(source), source: source)
+        let tokens: [Token] = try tokenize(source)
+        guard tokens.count <= maximumTokens else { throw SyntaxError(message: "式が長すぎます(「\(source.prefix(40))…」)。lets に分けて書いてください") }
+        var parser: Parser = Parser(tokens: tokens, source: source)
         guard parser.peek != nil else { throw SyntaxError(message: "式が空です") }
         let value: DrillExpression = try parser.expression()
         guard parser.peek == nil else { throw SyntaxError(message: "式「\(source)」に余分な文字があります(掛け算の「*」は省けません)") }
@@ -300,8 +332,8 @@ nonisolated indirect enum DrillExpression: Hashable, Sendable {
             return DrillValue.quantity(DrillQuantity(DrillArithmetic.negate(value.number), dimension: value.dimension))
         case DrillExpression.not(let inner):
             return DrillValue.bool(!(try DrillExpression.bool(try inner.evaluate(scope))))
-        case DrillExpression.binary(let op, let left, let right):
-            return try DrillExpression.binary(op, left, right, scope)
+        case DrillExpression.binary:
+            return try DrillExpression.chain(self, scope)
         case DrillExpression.call(let name, let arguments):
             return try DrillFunctions.call(name, arguments, scope)
         }
@@ -331,17 +363,30 @@ nonisolated indirect enum DrillExpression: Hashable, Sendable {
         throw EvaluationError.dimension("「\(op)」の両側の次元が合いません(\(left.dimension.text) と \(right.dimension.text))")
     }
 
-    private static func binary(_ op: String, _ leftExpression: DrillExpression, _ rightExpression: DrillExpression, _ scope: [String: DrillValue]) throws -> DrillValue {
-        if op == "and" {
-            guard try bool(try leftExpression.evaluate(scope)) else { return DrillValue.bool(false) }
-            return DrillValue.bool(try bool(try rightExpression.evaluate(scope)))
+    /// 2 項の演算を計算する。左に伸びる連なり(a + b + c + …)は、再帰せずに左から順に計算する。
+    /// 再帰で下りると 1 段ごとにスタックを使い、長い式(実際の型で 300 語ほど)を、スタックの小さいスレッドで計算できなかった。
+    private static func chain(_ top: DrillExpression, _ scope: [String: DrillValue]) throws -> DrillValue {
+        var pending: [(op: String, right: DrillExpression)] = []
+        var node: DrillExpression = top
+        while case DrillExpression.binary(let op, let left, let right) = node {
+            pending.append((op, right))
+            node = left
         }
-        if op == "or" {
-            if try bool(try leftExpression.evaluate(scope)) { return DrillValue.bool(true) }
-            return DrillValue.bool(try bool(try rightExpression.evaluate(scope)))
+        var value: DrillValue = try node.evaluate(scope)
+        for step: (op: String, right: DrillExpression) in pending.reversed() {
+            if step.op == "and" {
+                // 左が偽なら、右は計算しない。
+                value = DrillValue.bool(try bool(value) ? try bool(try step.right.evaluate(scope)) : false)
+            } else if step.op == "or" {
+                value = DrillValue.bool(try bool(value) ? true : try bool(try step.right.evaluate(scope)))
+            } else {
+                value = try combine(step.op, value, try step.right.evaluate(scope))
+            }
         }
-        let leftValue: DrillValue = try leftExpression.evaluate(scope)
-        let rightValue: DrillValue = try rightExpression.evaluate(scope)
+        return value
+    }
+
+    private static func combine(_ op: String, _ leftValue: DrillValue, _ rightValue: DrillValue) throws -> DrillValue {
         if op == "==" || op == "!=" {
             let same: Bool
             switch (leftValue, rightValue) {

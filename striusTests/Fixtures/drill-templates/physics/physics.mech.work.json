@@ -41,6 +41,9 @@
       "sig": 2
     }
   ],
+  "constraints": [
+    "value(x,'m') == sig(value(x,'m'), 2)"
+  ],
   "parts": [
     {
       "name": "dir",

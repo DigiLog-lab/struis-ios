@@ -35,6 +35,9 @@
       "sig": 2
     }
   ],
+  "constraints": [
+    "value(h,'m') == sig(value(h,'m'), 2)"
+  ],
   "prompt": "水深 ${h|q}$ の所での、水による圧力を求めなさい。水の密度を $1.0 \\times 10^{3}\\,\\mathrm{kg/m^{3}}$ とし、重力加速度の大きさを ${g|q}$ とする。",
   "answer": "${p|q}$",
   "checks": [

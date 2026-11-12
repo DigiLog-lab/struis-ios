@@ -8,7 +8,7 @@
       "name": "f",
       "kind": "integer",
       "min": 5,
-      "max": 30,
+      "max": 60,
       "step": 5,
       "unit": "cm",
       "sig": 2
@@ -23,7 +23,7 @@
   "lets": [
     {
       "name": "a",
-      "expr": "f*k/(k - 1)*1",
+      "expr": "f*k/(k - 1)",
       "unit": "cm",
       "sig": 2
     },
@@ -37,6 +37,9 @@
       "name": "mag",
       "expr": "b/a"
     }
+  ],
+  "constraints": [
+    "value(a,'cm') == sig(value(a,'cm'), 2)"
   ],
   "prompt": "焦点距離 ${f|q}$ の凸レンズの前方 ${a|q}$ の位置に物体を置いた。像ができる位置(レンズからの距離)と倍率を求めなさい。",
   "answer": "レンズの後方 ${b|q}$、倍率 ${mag|sig:2}$ 倍",

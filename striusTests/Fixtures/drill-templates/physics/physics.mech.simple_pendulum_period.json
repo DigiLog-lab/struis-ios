@@ -29,6 +29,9 @@
       "sig": 2
     }
   ],
+  "constraints": [
+    "value(len,'m') == sig(value(len,'m'), 2)"
+  ],
   "prompt": "長さ ${len|q}$ の単振り子の周期を求めなさい。重力加速度の大きさを ${g|q}$ とする。",
   "answer": "${period|q}$",
   "checks": [

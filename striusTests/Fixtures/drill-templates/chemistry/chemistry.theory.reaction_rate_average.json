@@ -50,6 +50,9 @@
       "sig": 2
     }
   ],
+  "constraints": [
+    "value(c2,'mol/L') == sig(value(c2,'mol/L'), 2)"
+  ],
   "prompt": "ある反応で、反応物の濃度が ${dt|q}$ の間に ${c1|q}$ から ${c2|q}$ に減少した。この間の平均の反応速度を求めなさい。",
   "answer": "${v|q}$",
   "checks": [
