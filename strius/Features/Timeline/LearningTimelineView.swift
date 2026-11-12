@@ -874,7 +874,9 @@ struct LearningTimelineView: View {
         // `problem` が空の文字で入っているカード(仕分けなど)は、問いかけの文を使う(空のまま渡すと、問題が入らない)。
         let problem: String = card.payload["problem"]?.stringValue ?? ""
         let math: String = card.math.isEmpty || card.math.contains("$") ? card.math : "$" + card.math + "$"
-        var lines: [String] = [problem.isEmpty ? card.prompt : problem, math, card.question].filter { !$0.isEmpty }
+        // 「理由を選ぶ」「比べる」は、問いの文が `prompt` に入っている(`question` は同じ問いの言い換え)。
+        let asksInPrompt: Bool = card.kind == TimelineCards.Kind.reason.rawValue || card.kind == TimelineCards.Kind.compare.rawValue
+        var lines: [String] = [problem, problem.isEmpty || asksInPrompt ? card.prompt : "", math, asksInPrompt ? "" : card.question].filter { !$0.isEmpty }
         let options: [String] = (card.payload["options"] ?? card.payload["lines"])?.arrayValue?.compactMap(\.stringValue) ?? []
         if !(TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true), !options.isEmpty {
             lines.append("選択肢:")
@@ -883,10 +885,19 @@ struct LearningTimelineView: View {
         return lines.joined(separator: "\n")
     }
 
-    /// 解説に添える「答え」。撮る・書くカードは答えの式、選ぶ・並べる・仕分けるカードは正しい選択肢。
+    /// 解説に添える答え。正しい答え(撮る・書くカードは答えの式、選ぶ・並べる・仕分けるカードは正しい選択肢)と、
+    /// 間違えた時は本人の答えを、どちらの答えか分かる見出しを付けて渡す(見出しが「答え」だけだと、本人が正解したものとして説明される)。
     private func answerText(_ card: TimelineCardRecord) -> String {
-        if let shown = TimelineCards.shownAnswers(card, chosen: nil) { return shown.correct }
-        return card.answerKey.isEmpty ? "" : TimelineRichText.answerSource(card.answerKey)
+        let attempt: TimelineAttemptRecord? = store.lastAttempt
+        let wrong: Bool = attempt?.verdict == "wrong"
+        let shown: (learner: String?, correct: String)? = TimelineCards.shownAnswers(card, chosen: attempt?.checkpointResults.arrayValue?.first)
+        let correct: String = shown?.correct ?? (card.answerKey.isEmpty ? "" : TimelineRichText.answerSource(card.answerKey))
+        let written: String = attempt?.learnerAnswer ?? ""
+        let learner: String = shown?.learner ?? (written.isEmpty ? "" : TimelineRichText.answerSource(written))
+        var lines: [String] = []
+        if !correct.isEmpty { lines.append("正しい答え: " + correct) }
+        if wrong, !learner.isEmpty { lines.append("自分の答え(誤答): " + learner) }
+        return lines.joined(separator: "\n")
     }
 
     private func ask(_ card: TimelineCardRecord) {
@@ -905,7 +916,7 @@ struct LearningTimelineView: View {
         let answer: String = answerText(card)
         coordinator.ask(WorkbookQuestionContext(subunitId: card.subunitId, setId: nil, title: "タイムライン", stageLabel: nil,
                                                 initialDraft: nil,
-                                                attachedProblem: problemText(card) + (answer.isEmpty ? "" : "\n答え: " + answer),
+                                                attachedProblem: problemText(card) + (answer.isEmpty ? "" : "\n" + answer),
                                                 autoSendText: "この問題の解き方を説明してください。"))
     }
 

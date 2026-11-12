@@ -21,7 +21,9 @@ struct TimelineProblemView: View {
             if !card.math.isEmpty, card.kind == "solve" || card.kind == "predict" {
                 TimelineMath(latex: card.math, size: compact ? 20 : 34, changed: card.chain?["changed"]?.stringValue)
             }
-            if !card.question.isEmpty {
+            // 「理由を選ぶ」「2つの解き方を比べる」は、問いの文(`reason.question`・`compare.question`)を問題文として上に出している。
+            // カードの `question` も出すと、同じ問いが 2 回並ぶ(2026-11-12 の実使用テスト)。
+            if !card.question.isEmpty, card.kind != TimelineCards.Kind.reason.rawValue, card.kind != TimelineCards.Kind.compare.rawValue {
                 TimelineQuestionText(text: card.question, changed: card.chain?["changed"]?.stringValue, size: compact ? 15 : 20)
             }
             if !compact, let previous = card.chain?["previous"]?.stringValue, !previous.isEmpty {
