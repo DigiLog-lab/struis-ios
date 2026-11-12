@@ -105,6 +105,16 @@ final class TimelineCardsTests: XCTestCase {
         reason.payload = .object((card.payload.objectValue ?? [:]).merging(TimelineCards.derive(.reason, from: card)!.payload) { _, new in new })
         XCTAssertEqual(TimelineCards.optionLines(reason), ["選択肢:", "1. a", "2. b", "3. c"])
         XCTAssertTrue(TimelineCards.optionLines(card).isEmpty)
+        // 比べるカードは、画面に並ぶ 2 つの解き方も添える(添えないと、何を比べているのかが伝わらない)。
+        let compare: TimelineCardRecord = F.card("c", kind: TimelineCards.Kind.compare.rawValue, payload: [
+            "a_title": .string("平方完成"), "a_lines": .array([.string("y = 2(x - 2)^2 - 5"), .string("最小値 -5")]),
+            "b_title": .string(""), "b_lines": .array([.string("y' = 4x - 8 = 0"), .string("x = 2")]),
+            "options": .array([.string("どちらも最小値を求めている"), .string("求めているものが違う")]), "answer_index": .number(0),
+        ])
+        XCTAssertEqual(TimelineCards.optionLines(compare), [
+            "平方完成:", "y = 2(x - 2)^2 - 5", "最小値 -5", "解き方 B:", "y' = 4x - 8 = 0", "x = 2",
+            "選択肢:", "1. どちらも最小値を求めている", "2. 求めているものが違う",
+        ])
     }
 
     func testWrittenAnswersAreCheckedWithMath() throws {

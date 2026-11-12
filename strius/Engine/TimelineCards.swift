@@ -459,7 +459,7 @@ nonisolated enum TimelineCards {
     }
 
     /// 質問・解説に添える、カードの選ぶもの(番号付き)。読み取って採点するカードには無い。
-    /// グラフと式を組にするカードは図を送れないので、式の一覧と、グラフが左から並んでいることを文で書く。
+    /// グラフと式を組にするカードは図を送れないので、式の一覧と、グラフが左から並んでいることを文で書く。比べるカードは 2 つの解き方も添える。
     static func optionLines(_ card: TimelineCardRecord) -> [String] {
         guard let kind: Kind = Kind(rawValue: card.kind), !kind.needsReading else { return [] }
         func strings(_ key: String) -> [String] { card.payload[key]?.arrayValue?.compactMap(\.stringValue) ?? [] }
@@ -471,8 +471,20 @@ nonisolated enum TimelineCards {
             }
             return ["グラフが\(exprs.count)つ、左から並んでいます(図は送れません)。それぞれのグラフに合う式を選ぶ問題です。"] + lines
         }
+        var lines: [String] = []
+        if kind == .compare {
+            // 比べるカードは、画面に 2 つの解き方が並ぶ。添えないと、何と何を比べる問いなのかが伝わらない。
+            for side: String in ["a", "b"] {
+                let method: [String] = strings(side + "_lines")
+                guard !method.isEmpty else { continue }
+                let title: String = card.payload[side + "_title"]?.stringValue ?? ""
+                lines.append((title.isEmpty ? "解き方 " + side.uppercased() : title) + ":")
+                lines += method
+            }
+        }
         let options: [String] = (card.payload["options"] ?? card.payload["lines"])?.arrayValue?.compactMap(\.stringValue) ?? []
-        return options.isEmpty ? [] : ["選択肢:"] + options.enumerated().map { "\($0.offset + 1). \($0.element)" }
+        if !options.isEmpty { lines += ["選択肢:"] + options.enumerated().map { "\($0.offset + 1). \($0.element)" } }
+        return lines
     }
 
     /// 端末の中で採点するカード(選ぶ・仕分ける・組にする)を間違えた時に、結果の画面にそのまま出す解き方。
