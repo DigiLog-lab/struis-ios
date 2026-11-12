@@ -204,6 +204,7 @@ struct UsageLimitSheet: View {
                 Spacer()
                 Button(action: onClose) {
                     Image(systemName: "xmark").font(.system(size: 16, weight: .semibold)).foregroundStyle(Theme.primaryText).frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("閉じる")
