@@ -1,0 +1,68 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.rationalize_binomial",
+  "title": "分母の有理化(分母が 2 項)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        5,
+        7
+      ]
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "op",
+      "kind": "choice",
+      "options": [
+        {
+          "tex": "+",
+          "s": 1
+        },
+        {
+          "tex": "-",
+          "s": -1
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "k/(sqrt(a) + op.s*sqrt(b))"
+    }
+  ],
+  "constraints": [
+    "a > b"
+  ],
+  "prompt": "次の式の分母を有理化しなさい。",
+  "math": "\\frac{{k}}{\\sqrt{{a}} {op.tex} \\sqrt{{b}}}",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "\\frac{{k}}{\\sqrt{{a}} {op.tex} \\sqrt{{b}}}",
+      "right": "{ans}"
+    }
+  ]
+}

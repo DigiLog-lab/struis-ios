@@ -1,0 +1,69 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.sqrt_add_sub",
+  "title": "平方根の加法・減法",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "m",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": 2,
+      "max": 6
+    },
+    {
+      "name": "q",
+      "kind": "integer",
+      "min": 1,
+      "max": 5
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "n1",
+      "expr": "p^2*m"
+    },
+    {
+      "name": "n2",
+      "expr": "q^2*m"
+    },
+    {
+      "name": "ans",
+      "expr": "sqrt(n1) - sqrt(n2) + c*sqrt(m)"
+    }
+  ],
+  "constraints": [
+    "p != q",
+    "p - q + c != 0",
+    "q >= 2"
+  ],
+  "prompt": "次の計算をしなさい。",
+  "math": "\\sqrt{{n1}} - \\sqrt{{n2}} {c|+coef}\\sqrt{{m}}",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "\\sqrt{{n1}} - \\sqrt{{n2}} {c|+coef}\\sqrt{{m}}",
+      "right": "{ans}"
+    }
+  ]
+}

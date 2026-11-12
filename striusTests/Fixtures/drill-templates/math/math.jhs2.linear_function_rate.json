@@ -1,0 +1,65 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs2.linear_function_rate",
+  "title": "一次関数の変化の割合と y の増加量",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "fraction",
+      "numerator": {
+        "min": -9,
+        "max": 9
+      },
+      "denominator": {
+        "min": 1,
+        "max": 4
+      }
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "dx",
+      "kind": "integer",
+      "min": 2,
+      "max": 12
+    }
+  ],
+  "lets": [
+    {
+      "name": "dy",
+      "expr": "a*dx"
+    }
+  ],
+  "constraints": [
+    "is_integer(dy)"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    }
+  ],
+  "prompt": "一次関数 $y = {f}$ で、$x$ の増加量が ${dx}$ のときの $y$ の増加量を求めなさい。",
+  "answer": "${dy}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({a|paren})(x + {dx}) - ({a|paren})x",
+      "right": "{dy}"
+    }
+  ]
+}

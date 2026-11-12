@@ -107,7 +107,8 @@
 
 | 関数 | 意味 |
 | --- | --- |
-| `abs(x)`、`sign(x)`、`min(a, b, …)`、`max(a, b, …)`、`median(a, b, …)` | 絶対値(複素数は大きさ)、符号(-1・0・1)、最小、最大、中央値 |
+| `abs(x)`、`sign(x)`、`min(a, b, …)`、`max(a, b, …)` | 絶対値(複素数は大きさ)、符号(-1・0・1)、最小、最大 |
+| `mean(a, b, …)`、`median(a, b, …)`、`nth(k, a, b, …)` | 平均、中央値、小さい順に並べた時の k 番目 |
 | `sqrt(x)`、`csqrt(x)` | 平方根(負の数は定まらない)、複素数の範囲の平方根(`csqrt(-4)` は 2i) |
 | `exp(x)`、`ln(x)`、`log10(x)`、`log2(x)`、`log(b, x)` | 指数・対数。有理数で求まる時は誤差なし(`log(4, 8)` は 3/2) |
 | `sin`・`cos`・`tan`・`asin`・`acos`・`atan` | ラジアン。結果は実数 |
@@ -180,6 +181,16 @@
 
 `format` に `dec:1` や `sig:2` を書くと、係数をその桁で出します。
 
+### `product`: べきの積
+
+`powers` のべきを順に並べます。指数が 0 のものは書かず、1 なら指数を書きません。`separator` で区切りを決めます(素因数分解なら ` \\times `、単項式なら省く)。全部の指数が 0 なら `otherwise`(省くと `1`)。
+
+```json
+{"name": "factored", "kind": "product", "separator": " \\times ", "powers": [{"base": "2", "exp": "e2"}, {"base": "3", "exp": "e3"}, {"base": "5", "exp": "e5"}]}
+```
+
+e2 = 3、e3 = 1、e5 = 0 なら `2^{3} \\times 3` になります。
+
 ### `text`: 文字列の組み立て
 
 ```json
@@ -212,7 +223,7 @@
 
 ## 差し込みと書き方
 
-`prompt`・`math`・`answer`・部品の LaTeX・点検の LaTeX には、`{名前}` で値を差し込みます。名前は変数・`lets`・`parts` のどれかです。宣言していない名前の `{…}` は、LaTeX の波かっことしてそのまま残ります。
+`prompt`・`math`・`answer`・部品の LaTeX・点検の LaTeX には、`{名前}` で値を差し込みます。名前は変数・`lets`・`parts` のどれかです。宣言していない名前の `{…}` は、`^`・`_`・命令の直後にあれば LaTeX の波かっことしてそのまま残ります(`x^{n}`、`\frac{dy}{dx}`)。前に何も無い `{名前}` は、宣言し忘れた差し込みとして読み込みを断ります。
 
 - `x^{n}`・`a_{n}`・`\frac{a}{b}`・`\sqrt{d}` のように、`^`・`_`・命令の直後にある差し込みは、値を入れた後も波かっこで囲みます(n = 12 の時に `x^{12}` になります)。
 - `\mathrm{pH}`・`\text{…}`・`\vec{a}`・`\begin{cases}` などの直後の `{名前}` は差し込みにしません(同じ名前の変数があっても文字のまま)。
@@ -251,7 +262,7 @@
 | `definite_integral` | `integrand`、`variable`、`from`、`to`、`answer` | 数値積分の値が `answer` と等しい。 |
 | `root` | `left`、`right`(省くと 0)、`variable`、`solutions` | 解を代入すると等式が成り立つ。 |
 | `system` | `equations`(`left`・`right` の組)、`values`(文字 → LaTeX) | 解を代入すると、どの式も成り立つ。 |
-| `inequality` | `left`、`right`、`relation`、`variable`、`solution` | 変数に多くの値を入れて、不等式が成り立つ範囲と `solution`(変数を使った真偽の式)が一致する。 |
+| `inequality` | `left`、`right`、`relation`、`variable`、`solution`、`where` | 変数に多くの値を入れて、不等式が成り立つ範囲と `solution`(変数を使った真偽の式)が一致する。`where`(変数を使った真偽の式)を書くと、その範囲だけで確かめる(定義域の中で最大値を超えない、など)。 |
 | `assert` | `conditions` | 型の式の条件がすべて成り立つ。物理・化学で、別の関係式に代入して確かめる時に使う。 |
 | `series` | `term`、`index`、`from`、`to`、`answer` | 項を足し上げた値が `answer` と等しい。 |
 | `limit` | `function`、`variable`、`to`(式か `inf`・`-inf`)、`answer` | 近づけた時の値が `answer` に近い。 |

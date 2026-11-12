@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs2.regular_polygon_angle",
+  "title": "正多角形の 1 つの内角・外角",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "n",
+      "kind": "choice",
+      "options": [
+        5,
+        6,
+        8,
+        9,
+        10,
+        12,
+        15,
+        18,
+        20,
+        24,
+        30,
+        36,
+        40,
+        45
+      ]
+    },
+    {
+      "name": "kind",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "内角",
+          "t": 1
+        },
+        {
+          "name": "外角",
+          "t": 2
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "if(kind.t == 1, 180 - 360/n, 360/n)"
+    }
+  ],
+  "prompt": "正 ${n}$ 角形の 1 つの{kind.name}の大きさを求めなさい。",
+  "answer": "${ans}^{\\circ}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "if(kind.t == 1, (180 - ans)*n == 360, ans*n == 360)"
+      ]
+    }
+  ]
+}

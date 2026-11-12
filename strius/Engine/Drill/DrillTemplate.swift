@@ -237,10 +237,12 @@ nonisolated struct DrillLet: Codable, Equatable, Sendable {
 /// 表示の部品。整形の規則(係数 1 を書かない、+- を - にする、x^1 を x にする、0 の項を書かない)を当てて LaTeX を組み立てる。
 nonisolated struct DrillPart: Codable, Equatable, Sendable {
     var name: String
-    /// sum(項の和)| text(文字列の組み立て)| select(条件で選ぶ)| list(値の並び)| pm(a ± b√c)
+    /// sum(項の和)| product(べきの積)| text(文字列の組み立て)| select(条件で選ぶ)| list(値の並び)| pm(a ± b√c)
     var kind: String
     /// sum の項。
     var terms: [DrillTerm]?
+    /// product のべき(指数が 0 のものは書かず、1 なら指数を書かない)。
+    var powers: [DrillPower]?
     /// text の中身。
     var tex: String?
     /// select の場合分け(上から順に、最初に成り立ったものを使う)。
@@ -253,7 +255,7 @@ nonisolated struct DrillPart: Codable, Equatable, Sendable {
     var sort: Bool?
     /// list から同じ値を除くか。
     var unique: Bool?
-    /// list の区切り(既定は `,\ `)。
+    /// list の区切り(既定は `,\ `)。product の区切り(既定は無し。素因数分解なら ` \times `)。
     var separator: String?
     /// sum の係数・list の値の書き方(`dec:1`、`sig:2` など)。
     var format: String?
@@ -262,11 +264,12 @@ nonisolated struct DrillPart: Codable, Equatable, Sendable {
     var radicand: String?
     var scale: String?
 
-    init(name: String, kind: String, terms: [DrillTerm]? = nil, tex: String? = nil, cases: [DrillCase]? = nil, otherwise: String? = nil, items: [String]? = nil,
+    init(name: String, kind: String, terms: [DrillTerm]? = nil, powers: [DrillPower]? = nil, tex: String? = nil, cases: [DrillCase]? = nil, otherwise: String? = nil, items: [String]? = nil,
          sort: Bool? = nil, unique: Bool? = nil, separator: String? = nil, format: String? = nil, center: String? = nil, radicand: String? = nil, scale: String? = nil) {
         self.name = name
         self.kind = kind
         self.terms = terms
+        self.powers = powers
         self.tex = tex
         self.cases = cases
         self.otherwise = otherwise
@@ -350,6 +353,8 @@ nonisolated struct DrillCheck: Codable, Equatable, Sendable {
     var solution: String?
     /// 不等号(`<`、`<=`、`>`、`>=`)。
     var relation: String?
+    /// 不等式を確かめる変数の範囲(変数を使った真偽の式。定義域のある最大・最小など)。
+    var `where`: String?
     var conditions: [String]?
     var term: String?
     var index: String?
@@ -359,7 +364,7 @@ nonisolated struct DrillCheck: Codable, Equatable, Sendable {
     init(kind: String, left: String? = nil, right: String? = nil, over: [String]? = nil, range: [Double]? = nil, tex: String? = nil, equals: String? = nil,
          at: [String: String]? = nil, function: String? = nil, answer: String? = nil, variable: String? = nil, order: Int? = nil, point: String? = nil,
          integrand: String? = nil, from: String? = nil, to: String? = nil, solutions: [String]? = nil, equations: [DrillEquation]? = nil,
-         values: [String: String]? = nil, solution: String? = nil, relation: String? = nil, conditions: [String]? = nil, term: String? = nil,
+         values: [String: String]? = nil, solution: String? = nil, relation: String? = nil, where: String? = nil, conditions: [String]? = nil, term: String? = nil,
          index: String? = nil, tolerance: Double? = nil) {
         self.kind = kind
         self.left = left
@@ -382,6 +387,7 @@ nonisolated struct DrillCheck: Codable, Equatable, Sendable {
         self.values = values
         self.solution = solution
         self.relation = relation
+        self.where = `where`
         self.conditions = conditions
         self.term = term
         self.index = index
@@ -434,13 +440,13 @@ nonisolated enum DrillTemplateKeys {
     static let variable: Set<String> = ["name", "kind", "min", "max", "step", "exclude", "numerator", "denominator", "options", "value", "unit", "sig"]
     static let range: Set<String> = ["min", "max"]
     static let letKeys: Set<String> = ["name", "expr", "unit", "sig"]
-    static let part: Set<String> = ["name", "kind", "terms", "tex", "cases", "otherwise", "items", "sort", "unique", "separator", "format", "center", "radicand", "scale"]
+    static let part: Set<String> = ["name", "kind", "terms", "powers", "tex", "cases", "otherwise", "items", "sort", "unique", "separator", "format", "center", "radicand", "scale"]
     static let term: Set<String> = ["coef", "powers", "body", "times"]
     static let power: Set<String> = ["base", "exp"]
     static let caseKeys: Set<String> = ["when", "tex"]
     static let equation: Set<String> = ["left", "right"]
     static let check: Set<String> = ["kind", "left", "right", "over", "range", "tex", "equals", "at", "function", "answer", "variable", "order", "point", "integrand",
-                                     "from", "to", "solutions", "equations", "values", "solution", "relation", "conditions", "term", "index", "tolerance"]
+                                     "from", "to", "solutions", "equations", "values", "solution", "relation", "where", "conditions", "term", "index", "tolerance"]
 
     private static func extra(_ value: DrillJSON?, _ known: Set<String>, _ path: String) -> [String] {
         guard case DrillJSON.object(let fields)? = value else { return [] }
@@ -474,6 +480,9 @@ nonisolated enum DrillTemplateKeys {
                 for power: DrillJSON in items(field(term, "powers")) {
                     found += extra(power, DrillTemplateKeys.power, "parts[\(index)].terms[\(termIndex)].powers")
                 }
+            }
+            for power: DrillJSON in items(field(part, "powers")) {
+                found += extra(power, DrillTemplateKeys.power, "parts[\(index)].powers")
             }
             for entry: DrillJSON in items(field(part, "cases")) {
                 found += extra(entry, caseKeys, "parts[\(index)].cases")

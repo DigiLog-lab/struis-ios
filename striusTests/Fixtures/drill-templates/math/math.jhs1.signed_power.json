@@ -1,0 +1,68 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.signed_power",
+  "title": "累乗の計算",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 2,
+      "max": 6
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 2,
+      "max": 3
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 2,
+      "max": 5
+    },
+    {
+      "name": "form",
+      "kind": "choice",
+      "options": [
+        1,
+        2,
+        3
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "if(form == 1, (-a)^n, if(form == 2, -(a^n), (-a)^n * b))"
+    }
+  ],
+  "parts": [
+    {
+      "name": "expr",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "form == 1",
+          "tex": "(-{a})^{{n}}"
+        },
+        {
+          "when": "form == 2",
+          "tex": "-{a}^{{n}}"
+        }
+      ],
+      "otherwise": "(-{a})^{{n}} \\times {b}"
+    }
+  ],
+  "prompt": "次の計算をしなさい。",
+  "math": "{expr}",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{expr}",
+      "equals": "ans"
+    }
+  ]
+}

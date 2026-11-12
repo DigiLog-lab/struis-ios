@@ -1,0 +1,104 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.complete_square_vertex",
+  "title": "平方完成して頂点を求める",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -3,
+      "max": 3,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "q",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    }
+  ],
+  "lets": [
+    {
+      "name": "b",
+      "expr": "-2*a*p"
+    },
+    {
+      "name": "c",
+      "expr": "a*p^2 + q"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "b",
+          "body": "x"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    },
+    {
+      "name": "inner",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "-p"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "({inner})^{2}"
+        },
+        {
+          "coef": "q"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の二次関数を平方完成して、グラフの頂点の座標を求めなさい。",
+  "math": "y = {f}",
+  "answer": "$y = {g}$ より、頂点は $({p},\\ {q})$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{f}",
+      "right": "{g}"
+    },
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "variable": "x",
+      "point": "p",
+      "answer": "0"
+    }
+  ]
+}

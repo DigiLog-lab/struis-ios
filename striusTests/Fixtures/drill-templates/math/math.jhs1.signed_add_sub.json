@@ -1,0 +1,65 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.signed_add_sub",
+  "title": "正負の数の加法・減法",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -12,
+      "max": 12,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -12,
+      "max": 12,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -12,
+      "max": 12,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "op",
+      "kind": "choice",
+      "options": [
+        {
+          "tex": "+",
+          "s": 1
+        },
+        {
+          "tex": "-",
+          "s": -1
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "a + b + op.s*c"
+    }
+  ],
+  "prompt": "次の計算をしなさい。",
+  "math": "{a|+paren} + {b|+paren} {op.tex} {c|+paren}",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{a|+paren} + {b|+paren} {op.tex} {c|+paren}",
+      "equals": "ans"
+    }
+  ]
+}

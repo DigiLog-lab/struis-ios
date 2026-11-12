@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.triangle_area_sine",
+  "title": "三角形の面積(2 辺とその間の角)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 2,
+      "max": 12
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": 2,
+      "max": 12
+    },
+    {
+      "name": "A",
+      "kind": "choice",
+      "options": [
+        30,
+        45,
+        60,
+        90,
+        120,
+        135,
+        150
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "area",
+      "expr": "b*c*sind(A)/2"
+    }
+  ],
+  "constraints": [
+    "b <= c"
+  ],
+  "prompt": "$\\triangle \\mathrm{ABC}$ において、$b = {b}$、$c = {c}$、$A = {A}^{\\circ}$ のとき、面積 $S$ を求めなさい。",
+  "answer": "$S = {area}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{area}",
+      "right": "\\frac{1}{2} \\cdot {b} \\cdot {c} \\sin {A}^{\\circ}"
+    }
+  ]
+}

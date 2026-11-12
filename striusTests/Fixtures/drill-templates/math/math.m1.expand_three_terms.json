@@ -1,0 +1,90 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.expand_three_terms",
+  "title": "(a + b + c)² の展開",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -4,
+      "max": 4,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "p",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b",
+          "body": "y"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a^2",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "b^2",
+          "body": "y^{2}"
+        },
+        {
+          "coef": "2*a*b",
+          "body": "xy"
+        },
+        {
+          "coef": "2*a*c",
+          "body": "x"
+        },
+        {
+          "coef": "2*b*c",
+          "body": "y"
+        },
+        {
+          "coef": "c^2"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の式を展開しなさい。",
+  "math": "({p})^{2}",
+  "answer": "${g}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({p})^{2}",
+      "right": "{g}"
+    }
+  ]
+}

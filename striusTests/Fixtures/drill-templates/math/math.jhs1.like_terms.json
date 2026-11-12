@@ -1,0 +1,92 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.like_terms",
+  "title": "同類項をまとめる",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "constraints": [
+    "a + c != 0"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        },
+        {
+          "coef": "c",
+          "body": "x"
+        },
+        {
+          "coef": "d"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a+c",
+          "body": "x"
+        },
+        {
+          "coef": "b+d"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の式を計算しなさい。",
+  "math": "{f}",
+  "answer": "${g}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{f}",
+      "right": "{g}"
+    }
+  ]
+}

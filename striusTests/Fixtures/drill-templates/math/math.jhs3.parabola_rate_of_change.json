@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.parabola_rate_of_change",
+  "title": "y = ax² の変化の割合",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "fraction",
+      "numerator": {
+        "min": -6,
+        "max": 6
+      },
+      "denominator": {
+        "min": 1,
+        "max": 3
+      }
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "q",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "rate",
+      "expr": "a*(p + q)"
+    }
+  ],
+  "constraints": [
+    "p < q",
+    "p + q != 0"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        }
+      ]
+    }
+  ],
+  "prompt": "関数 $y = {f}$ について、$x$ の値が ${p}$ から ${q}$ まで増加するときの変化の割合を求めなさい。",
+  "answer": "${rate}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "rate * (q - p) == a*q^2 - a*p^2"
+      ]
+    }
+  ]
+}

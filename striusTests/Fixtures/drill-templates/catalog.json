@@ -1,0 +1,922 @@
+{
+ "entries": [
+  {
+   "id": "math.jhs1.signed_add_sub",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "正負の数",
+   "name": "正負の数の加法・減法",
+   "template": "math/math.jhs1.signed_add_sub.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.signed_mul_div",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "正負の数",
+   "name": "正負の数の乗法・除法",
+   "template": "math/math.jhs1.signed_mul_div.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.signed_power",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "正負の数",
+   "name": "累乗の計算",
+   "template": "math/math.jhs1.signed_power.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.signed_mixed",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "正負の数",
+   "name": "四則の混じった計算",
+   "template": "math/math.jhs1.signed_mixed.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.fraction_add_sub",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "正負の数",
+   "name": "分数の加法・減法",
+   "template": "math/math.jhs1.fraction_add_sub.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.fraction_mul_div",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "正負の数",
+   "name": "分数の乗法・除法",
+   "template": "math/math.jhs1.fraction_mul_div.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.decimal_arithmetic",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "正負の数",
+   "name": "小数をふくむ計算",
+   "template": "math/math.jhs1.decimal_arithmetic.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.prime_factorization",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "正負の数",
+   "name": "素因数分解",
+   "template": "math/math.jhs1.prime_factorization.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.like_terms",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "文字と式",
+   "name": "同類項をまとめる",
+   "template": "math/math.jhs1.like_terms.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.distribute",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "文字と式",
+   "name": "分配法則でかっこをはずす",
+   "template": "math/math.jhs1.distribute.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.linear_expr_combine",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "文字と式",
+   "name": "かっこのある一次式の加減",
+   "template": "math/math.jhs1.linear_expr_combine.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.expression_value",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "文字と式",
+   "name": "式の値(代入)",
+   "template": "math/math.jhs1.expression_value.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.linear_eq_basic",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "一次方程式",
+   "name": "一次方程式(ax + b = c)",
+   "template": "math/math.jhs1.linear_eq_basic.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.linear_eq_both_sides",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "一次方程式",
+   "name": "一次方程式(両辺に x がある)",
+   "template": "math/math.jhs1.linear_eq_both_sides.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.linear_eq_parentheses",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "一次方程式",
+   "name": "かっこのある一次方程式",
+   "template": "math/math.jhs1.linear_eq_parentheses.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.linear_eq_fraction",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "一次方程式",
+   "name": "分数をふくむ一次方程式",
+   "template": "math/math.jhs1.linear_eq_fraction.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.proportion_eq",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "一次方程式",
+   "name": "比例式を解く",
+   "template": "math/math.jhs1.proportion_eq.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.proportional_formula",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "比例と反比例",
+   "name": "比例の式を求める",
+   "template": "math/math.jhs1.proportional_formula.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.inverse_proportional_formula",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "比例と反比例",
+   "name": "反比例の式を求める",
+   "template": "math/math.jhs1.inverse_proportional_formula.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.sector",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "平面図形",
+   "name": "おうぎ形の弧の長さと面積",
+   "template": "math/math.jhs1.sector.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.cylinder_cone_volume",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "空間図形",
+   "name": "円柱・円錐の体積",
+   "template": "math/math.jhs1.cylinder_cone_volume.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.sphere",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "空間図形",
+   "name": "球の表面積と体積",
+   "template": "math/math.jhs1.sphere.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.mean_median_range",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "データの活用",
+   "name": "平均値・中央値・範囲",
+   "template": "math/math.jhs1.mean_median_range.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.construction",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "平面図形",
+   "name": "基本の作図(垂直二等分線・角の二等分線)",
+   "example": "線分 AB の垂直二等分線を作図しなさい。",
+   "unrepresentable": "答えが図で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "math.jhs1.projection",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "空間図形",
+   "name": "投影図・展開図を読む",
+   "example": "投影図で表された立体の名前を答えなさい。",
+   "unrepresentable": "問題文に図が要る。書式は文と式だけを作る"
+  },
+  {
+   "id": "math.jhs2.polynomial_add_sub",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "式の計算",
+   "name": "多項式の加法・減法",
+   "template": "math/math.jhs2.polynomial_add_sub.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.polynomial_scalar_combine",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "式の計算",
+   "name": "数と多項式の乗法をふくむ計算",
+   "template": "math/math.jhs2.polynomial_scalar_combine.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.monomial_mul",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "式の計算",
+   "name": "単項式の乗法",
+   "template": "math/math.jhs2.monomial_mul.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.monomial_div",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "式の計算",
+   "name": "単項式の除法",
+   "template": "math/math.jhs2.monomial_div.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.expression_value_two",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "式の計算",
+   "name": "式の値(2 つの文字)",
+   "template": "math/math.jhs2.expression_value_two.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.solve_for_letter",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "式の計算",
+   "name": "等式の変形(ある文字について解く)",
+   "template": "math/math.jhs2.solve_for_letter.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.simultaneous_elimination",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "連立方程式",
+   "name": "連立方程式(加減法)",
+   "template": "math/math.jhs2.simultaneous_elimination.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.simultaneous_substitution",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "連立方程式",
+   "name": "連立方程式(代入法)",
+   "template": "math/math.jhs2.simultaneous_substitution.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.linear_function_slope_point",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "一次関数",
+   "name": "傾きと 1 点から一次関数の式を求める",
+   "template": "math/math.jhs2.linear_function_slope_point.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.linear_function_two_points",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "一次関数",
+   "name": "2 点を通る直線の式を求める",
+   "template": "math/math.jhs2.linear_function_two_points.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.linear_function_rate",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "一次関数",
+   "name": "一次関数の変化の割合と y の増加量",
+   "template": "math/math.jhs2.linear_function_rate.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.lines_intersection",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "一次関数",
+   "name": "2 直線の交点の座標",
+   "template": "math/math.jhs2.lines_intersection.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.polygon_angle_sum",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "図形の性質",
+   "name": "多角形の内角の和",
+   "template": "math/math.jhs2.polygon_angle_sum.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.regular_polygon_angle",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "図形の性質",
+   "name": "正多角形の 1 つの内角・外角",
+   "template": "math/math.jhs2.regular_polygon_angle.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.probability_two_dice",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "確率",
+   "name": "2 つのさいころの目の和の確率",
+   "template": "math/math.jhs2.probability_two_dice.json",
+   "numeric_check": false
+  },
+  {
+   "id": "math.jhs2.probability_balls",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "確率",
+   "name": "玉を 2 個取り出す確率",
+   "template": "math/math.jhs2.probability_balls.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.quartiles",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "データの活用",
+   "name": "四分位数と四分位範囲",
+   "template": "math/math.jhs2.quartiles.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.parallel_lines_angles",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "図形の性質",
+   "name": "平行線と角(同位角・錯角)から角度を求める",
+   "example": "ℓ ∥ m のとき、∠x の大きさを求めなさい。(図)",
+   "unrepresentable": "問題文に図が要る。書式は文と式だけを作る"
+  },
+  {
+   "id": "math.jhs2.congruence_proof",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "図形の性質",
+   "name": "三角形の合同の証明",
+   "example": "△ABC ≡ △DEF を証明しなさい。",
+   "unrepresentable": "証明は計算操作ではない(対象外)"
+  },
+  {
+   "id": "math.jhs3.expand_xa_xb",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "式の展開と因数分解",
+   "name": "(x + a)(x + b) の展開",
+   "template": "math/math.jhs3.expand_xa_xb.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.expand_square",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "式の展開と因数分解",
+   "name": "(ax + b)² の展開",
+   "template": "math/math.jhs3.expand_square.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.expand_sum_difference",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "式の展開と因数分解",
+   "name": "(ax + b)(ax − b) の展開",
+   "template": "math/math.jhs3.expand_sum_difference.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.expand_general",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "式の展開と因数分解",
+   "name": "(ax + b)(cx + d) の展開",
+   "template": "math/math.jhs3.expand_general.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.factor_common",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "式の展開と因数分解",
+   "name": "共通因数をくくり出す",
+   "template": "math/math.jhs3.factor_common.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.factor_xa_xb",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "式の展開と因数分解",
+   "name": "x² + (a + b)x + ab の因数分解",
+   "template": "math/math.jhs3.factor_xa_xb.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.factor_square",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "式の展開と因数分解",
+   "name": "x² ± 2ax + a² の因数分解",
+   "template": "math/math.jhs3.factor_square.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.factor_difference_of_squares",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "式の展開と因数分解",
+   "name": "x² − a² の因数分解",
+   "template": "math/math.jhs3.factor_difference_of_squares.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.sqrt_simplify",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "平方根",
+   "name": "根号の中を簡単にする(a√b の形)",
+   "template": "math/math.jhs3.sqrt_simplify.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.sqrt_mul_div",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "平方根",
+   "name": "平方根の乗法・除法",
+   "template": "math/math.jhs3.sqrt_mul_div.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.sqrt_add_sub",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "平方根",
+   "name": "平方根の加法・減法",
+   "template": "math/math.jhs3.sqrt_add_sub.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.rationalize",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "平方根",
+   "name": "分母の有理化",
+   "template": "math/math.jhs3.rationalize.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.sqrt_expand",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "平方根",
+   "name": "平方根をふくむ式の展開",
+   "template": "math/math.jhs3.sqrt_expand.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.quadratic_square_root",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "二次方程式",
+   "name": "二次方程式(平方根の考えを使う)",
+   "template": "math/math.jhs3.quadratic_square_root.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.quadratic_factoring",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "二次方程式",
+   "name": "二次方程式(因数分解を使う)",
+   "template": "math/math.jhs3.quadratic_factoring.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.quadratic_formula",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "二次方程式",
+   "name": "二次方程式(解の公式)",
+   "template": "math/math.jhs3.quadratic_formula.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.parabola_value",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "関数 y = ax²",
+   "name": "y = ax² の式を求める",
+   "template": "math/math.jhs3.parabola_value.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.parabola_rate_of_change",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "関数 y = ax²",
+   "name": "y = ax² の変化の割合",
+   "template": "math/math.jhs3.parabola_rate_of_change.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.parabola_range",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "関数 y = ax²",
+   "name": "y = ax² の y の変域",
+   "template": "math/math.jhs3.parabola_range.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.similarity_ratio",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "相似",
+   "name": "相似比から面積比・体積比を求める",
+   "template": "math/math.jhs3.similarity_ratio.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.pythagorean_hypotenuse",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "三平方の定理",
+   "name": "三平方の定理(斜辺を求める)",
+   "template": "math/math.jhs3.pythagorean_hypotenuse.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.pythagorean_leg",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "三平方の定理",
+   "name": "三平方の定理(斜辺以外の辺を求める)",
+   "template": "math/math.jhs3.pythagorean_leg.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.distance_two_points",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "三平方の定理",
+   "name": "2 点間の距離",
+   "template": "math/math.jhs3.distance_two_points.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.special_right_triangles",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "三平方の定理",
+   "name": "特別な直角三角形の辺の比",
+   "template": "math/math.jhs3.special_right_triangles.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.inscribed_angle",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "円",
+   "name": "円周角と中心角",
+   "template": "math/math.jhs3.inscribed_angle.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.sampling_estimate",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "標本調査",
+   "name": "標本調査から全体の数を推定する",
+   "template": "math/math.jhs3.sampling_estimate.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.similarity_proof",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "相似",
+   "name": "三角形の相似の証明",
+   "example": "△ABC ∽ △DEF を証明しなさい。",
+   "unrepresentable": "証明は計算操作ではない(対象外)"
+  },
+  {
+   "id": "math.jhs3.parallel_lines_ratio",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "相似",
+   "name": "平行線と線分の比から長さを求める",
+   "example": "ℓ ∥ m ∥ n のとき、x の値を求めなさい。(図)",
+   "unrepresentable": "問題文に図が要る。書式は文と式だけを作る"
+  },
+  {
+   "id": "math.m1.expand_three_terms",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "(a + b + c)² の展開",
+   "template": "math/math.m1.expand_three_terms.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.factor_cross",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "たすき掛けによる因数分解",
+   "template": "math/math.m1.factor_cross.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.factor_two_variables",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "2 文字の二次式の因数分解",
+   "template": "math/math.m1.factor_two_variables.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.rationalize_binomial",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "分母の有理化(分母が 2 項)",
+   "template": "math/math.m1.rationalize_binomial.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.double_radical",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "二重根号をはずす",
+   "template": "math/math.m1.double_radical.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.symmetric_value",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "対称式の値",
+   "template": "math/math.m1.symmetric_value.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.absolute_value_calc",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "絶対値の計算",
+   "template": "math/math.m1.absolute_value_calc.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.linear_inequality",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "一次不等式",
+   "template": "math/math.m1.linear_inequality.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.simultaneous_inequalities",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "連立不等式",
+   "template": "math/math.m1.simultaneous_inequalities.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.absolute_equation",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "絶対値をふくむ方程式",
+   "template": "math/math.m1.absolute_equation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.absolute_inequality",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "絶対値をふくむ不等式",
+   "template": "math/math.m1.absolute_inequality.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.set_count",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "集合と命題",
+   "name": "和集合の要素の個数",
+   "template": "math/math.m1.set_count.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.complete_square_vertex",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "平方完成して頂点を求める",
+   "template": "math/math.m1.complete_square_vertex.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.complete_square_fraction",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "平方完成(頂点が分数になる)",
+   "template": "math/math.m1.complete_square_fraction.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.quadratic_max_min_domain",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "定義域のある二次関数の最大値・最小値",
+   "template": "math/math.m1.quadratic_max_min_domain.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.parabola_translation",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "放物線の平行移動",
+   "template": "math/math.m1.parabola_translation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.quadratic_from_vertex",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "頂点と 1 点から二次関数を決める",
+   "template": "math/math.m1.quadratic_from_vertex.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.discriminant_count",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "判別式で実数解の個数を調べる",
+   "template": "math/math.m1.discriminant_count.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.parabola_x_intercepts",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "放物線と x 軸の共有点の座標",
+   "template": "math/math.m1.parabola_x_intercepts.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.quadratic_inequality",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "二次不等式",
+   "template": "math/math.m1.quadratic_inequality.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.trig_ratio_values",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "図形と計量",
+   "name": "三角比の値(0° から 180°)",
+   "template": "math/math.m1.trig_ratio_values.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.trig_mutual_relations",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "図形と計量",
+   "name": "三角比の相互関係(sin から cos・tan)",
+   "template": "math/math.m1.trig_mutual_relations.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.sine_rule",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "図形と計量",
+   "name": "正弦定理(辺と外接円の半径)",
+   "template": "math/math.m1.sine_rule.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.cosine_rule_side",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "図形と計量",
+   "name": "余弦定理(辺を求める)",
+   "template": "math/math.m1.cosine_rule_side.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.cosine_rule_angle",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "図形と計量",
+   "name": "余弦定理(角を求める)",
+   "template": "math/math.m1.cosine_rule_angle.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.triangle_area_sine",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "図形と計量",
+   "name": "三角形の面積(2 辺とその間の角)",
+   "template": "math/math.m1.triangle_area_sine.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.variance_sd",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "データの分析",
+   "name": "分散と標準偏差",
+   "template": "math/math.m1.variance_sd.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.proposition_proof",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "集合と命題",
+   "name": "命題の真偽と証明(対偶・背理法)",
+   "example": "√2 が無理数であることを証明しなさい。",
+   "unrepresentable": "証明は計算操作ではない(対象外)"
+  },
+  {
+   "id": "math.m1.quadratic_graph",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "二次関数のグラフをかく",
+   "example": "y = x² − 4x + 3 のグラフをかきなさい。",
+   "unrepresentable": "答えが図で、数字を入れ替える計算ではない(頂点・軸・共有点を求める所までは型にしてある)"
+  },
+  {
+   "id": "math.m1.scatter_plot",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "データの分析",
+   "name": "散布図・箱ひげ図を読み取る",
+   "example": "散布図から相関の正負を答えなさい。(図)",
+   "unrepresentable": "問題文に図が要る。書式は文と式だけを作る"
+  }
+ ]
+}

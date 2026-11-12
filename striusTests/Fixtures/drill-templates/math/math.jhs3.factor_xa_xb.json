@@ -1,0 +1,85 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.factor_xa_xb",
+  "title": "x² + (a + b)x + ab の因数分解",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "constraints": [
+    "a < b",
+    "a + b != 0"
+  ],
+  "parts": [
+    {
+      "name": "p",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "a"
+        }
+      ]
+    },
+    {
+      "name": "q",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "a+b",
+          "body": "x"
+        },
+        {
+          "coef": "a*b"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の式を因数分解しなさい。",
+  "math": "{f}",
+  "answer": "$({p})({q})$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{f}",
+      "right": "({p})({q})"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.distance_two_points",
+  "title": "2 点間の距離",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "x1",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "y1",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "x2",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "y2",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "d",
+      "expr": "sqrt((x2-x1)^2 + (y2-y1)^2)"
+    }
+  ],
+  "constraints": [
+    "x1 != x2",
+    "y1 != y2"
+  ],
+  "prompt": "2 点 $\\mathrm{A}({x1},\\ {y1})$、$\\mathrm{B}({x2},\\ {y2})$ の間の距離を求めなさい。",
+  "answer": "${d}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({d})^{2}",
+      "right": "({x2} - {x1|paren})^{2} + ({y2} - {y1|paren})^{2}"
+    }
+  ]
+}

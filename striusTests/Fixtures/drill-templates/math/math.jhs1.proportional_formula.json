@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.proportional_formula",
+  "title": "比例の式を求める",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "x1",
+      "kind": "integer",
+      "min": -8,
+      "max": 8,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "a",
+      "kind": "fraction",
+      "numerator": {
+        "min": -9,
+        "max": 9
+      },
+      "denominator": {
+        "min": 1,
+        "max": 4
+      }
+    }
+  ],
+  "lets": [
+    {
+      "name": "y1",
+      "expr": "a*x1"
+    }
+  ],
+  "constraints": [
+    "is_integer(y1)"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        }
+      ]
+    }
+  ],
+  "prompt": "$y$ は $x$ に比例し、$x = {x1}$ のとき $y = {y1}$ である。$y$ を $x$ の式で表しなさい。",
+  "answer": "$y = {f}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{f}",
+      "at": {
+        "x": "x1"
+      },
+      "equals": "y1"
+    }
+  ]
+}

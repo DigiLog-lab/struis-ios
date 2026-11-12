@@ -1,0 +1,78 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs2.solve_for_letter",
+  "title": "等式の変形(ある文字について解く)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 2,
+      "max": 9
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -20,
+      "max": 20,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "lhs",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b",
+          "body": "y"
+        }
+      ]
+    },
+    {
+      "name": "num",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "-a",
+          "body": "x"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の等式を $y$ について解きなさい。",
+  "math": "{lhs} = {c}",
+  "answer": "$y = \\frac{{num}}{{b}}$",
+  "checks": [
+    {
+      "kind": "root",
+      "left": "{lhs}",
+      "right": "{c}",
+      "variable": "y",
+      "solutions": [
+        "\\frac{{num}}{{b}}"
+      ],
+      "at": {
+        "x": "1.7"
+      }
+    }
+  ]
+}

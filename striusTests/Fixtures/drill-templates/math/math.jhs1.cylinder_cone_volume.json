@@ -1,0 +1,49 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.cylinder_cone_volume",
+  "title": "円柱・円錐の体積",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 2,
+      "max": 9
+    },
+    {
+      "name": "h",
+      "kind": "integer",
+      "min": 2,
+      "max": 12
+    },
+    {
+      "name": "shape",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "円柱",
+          "k": 1
+        },
+        {
+          "name": "円錐",
+          "k": 3
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "v",
+      "expr": "r^2*h/shape.k"
+    }
+  ],
+  "prompt": "底面の半径が ${r}\\,\\mathrm{cm}$、高さが ${h}\\,\\mathrm{cm}$ の{shape.name}の体積を求めなさい。",
+  "answer": "${v|pi}\\,\\mathrm{cm^{3}}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{v|pi}",
+      "equals": "pi*r^2*h/shape.k"
+    }
+  ]
+}

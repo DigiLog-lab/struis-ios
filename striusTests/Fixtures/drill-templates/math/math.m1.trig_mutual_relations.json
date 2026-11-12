@@ -1,0 +1,104 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.trig_mutual_relations",
+  "title": "三角比の相互関係(sin から cos・tan)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "tri",
+      "kind": "choice",
+      "options": [
+        {
+          "o": 3,
+          "a": 4,
+          "h": 5
+        },
+        {
+          "o": 5,
+          "a": 12,
+          "h": 13
+        },
+        {
+          "o": 8,
+          "a": 15,
+          "h": 17
+        },
+        {
+          "o": 7,
+          "a": 24,
+          "h": 25
+        },
+        {
+          "o": 4,
+          "a": 3,
+          "h": 5
+        },
+        {
+          "o": 12,
+          "a": 5,
+          "h": 13
+        },
+        {
+          "o": 15,
+          "a": 8,
+          "h": 17
+        },
+        {
+          "o": 20,
+          "a": 21,
+          "h": 29
+        },
+        {
+          "o": 21,
+          "a": 20,
+          "h": 29
+        },
+        {
+          "o": 9,
+          "a": 40,
+          "h": 41
+        }
+      ]
+    },
+    {
+      "name": "quad",
+      "kind": "choice",
+      "options": [
+        {
+          "text": "0^{\\circ} < \\theta < 90^{\\circ}",
+          "s": 1
+        },
+        {
+          "text": "90^{\\circ} < \\theta < 180^{\\circ}",
+          "s": -1
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "sinv",
+      "expr": "tri.o/tri.h"
+    },
+    {
+      "name": "cosv",
+      "expr": "quad.s*tri.a/tri.h"
+    },
+    {
+      "name": "tanv",
+      "expr": "sinv/cosv"
+    }
+  ],
+  "prompt": "${quad.text}$ で $\\sin\\theta = {sinv}$ のとき、$\\cos\\theta$ と $\\tan\\theta$ の値を求めなさい。",
+  "answer": "$\\cos\\theta = {cosv}$、$\\tan\\theta = {tanv}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "sinv^2 + cosv^2 == 1",
+        "tanv*cosv == sinv",
+        "sign(cosv) == quad.s"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.expand_sum_difference",
+  "title": "(ax + b)(ax − b) の展開",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 7
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 1,
+      "max": 9
+    }
+  ],
+  "constraints": [
+    "gcd(a,b) == 1 or a == 1"
+  ],
+  "parts": [
+    {
+      "name": "p",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "q",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "-b"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a^2",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "-b^2"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の式を展開しなさい。",
+  "math": "({p})({q})",
+  "answer": "${g}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({p})({q})",
+      "right": "{g}"
+    }
+  ]
+}

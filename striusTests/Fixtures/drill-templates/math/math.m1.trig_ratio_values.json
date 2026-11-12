@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.trig_ratio_values",
+  "title": "三角比の値(0° から 180°)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "fn",
+      "kind": "choice",
+      "options": [
+        {
+          "tex": "\\sin",
+          "k": 1
+        },
+        {
+          "tex": "\\cos",
+          "k": 2
+        },
+        {
+          "tex": "\\tan",
+          "k": 3
+        }
+      ]
+    },
+    {
+      "name": "deg",
+      "kind": "choice",
+      "options": [
+        0,
+        30,
+        45,
+        60,
+        90,
+        120,
+        135,
+        150,
+        180
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "v",
+      "expr": "if(fn.k == 1, sind(deg), if(fn.k == 2, cosd(deg), tand(deg)))"
+    }
+  ],
+  "constraints": [
+    "not (fn.k == 3 and deg == 90)"
+  ],
+  "prompt": "次の値を求めなさい。",
+  "math": "{fn.tex} {deg}^{\\circ}",
+  "answer": "${v}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{fn.tex} {deg}^{\\circ}",
+      "right": "{v}"
+    }
+  ]
+}

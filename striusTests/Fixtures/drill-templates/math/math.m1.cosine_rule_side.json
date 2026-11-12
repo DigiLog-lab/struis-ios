@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.cosine_rule_side",
+  "title": "余弦定理(辺を求める)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 1,
+      "max": 9
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": 1,
+      "max": 9
+    },
+    {
+      "name": "A",
+      "kind": "choice",
+      "options": [
+        60,
+        120,
+        90,
+        45,
+        135,
+        30,
+        150
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "a2",
+      "expr": "b^2 + c^2 - 2*b*c*cosd(A)"
+    },
+    {
+      "name": "a",
+      "expr": "sqrt(a2)"
+    }
+  ],
+  "constraints": [
+    "is_integer(a2)",
+    "b <= c"
+  ],
+  "prompt": "$\\triangle \\mathrm{ABC}$ において、$b = {b}$、$c = {c}$、$A = {A}^{\\circ}$ のとき、$a$ を求めなさい。",
+  "answer": "$a = {a}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({a})^{2}",
+      "right": "{b}^{2} + {c}^{2} - 2 \\cdot {b} \\cdot {c} \\cos {A}^{\\circ}"
+    }
+  ]
+}

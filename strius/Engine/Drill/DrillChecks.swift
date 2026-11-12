@@ -153,6 +153,7 @@ nonisolated struct DrillCompiledCheck: Sendable {
             guard !compiled.names.contains(name) else { throw DrillFailure(message: "\(place): variable「\(name)」が変数や lets の名前と重なっています") }
             try text("relation", check.relation)
             try expression("solution", check.solution, extra: [name])
+            try expression("where", check.where, required: false, extra: [name])
         case "assert":
             guard let sources: [String] = check.conditions, !sources.isEmpty else { throw DrillFailure(message: "\(place): 「conditions」が要ります") }
             conditions = try sources.map { (source: String) -> (source: String, expression: DrillExpression) in (source, try parse(source)) }
@@ -450,13 +451,14 @@ nonisolated struct DrillCompiledCheck: Sendable {
                 }
                 var scope: [String: DrillValue] = instance.scope
                 scope[name] = DrillValue.number(DrillNumber.real(x))
+                if let restriction: DrillExpression = expressions["where"], !(try DrillExpression.bool(try restriction.evaluate(scope))) { continue }
                 let claimed: Bool = try DrillExpression.bool(try solution.evaluate(scope))
                 guard holds == claimed else {
                     throw Failure(message: "\(name) = \(String(format: "%.4g", x)) で、不等式「\(left.source) \(relation) \(right.source)」は\(holds ? "成り立つ" : "成り立たない")のに、解「\(check.solution ?? "")」は\(claimed ? "含んでいます" : "含んでいません")")
                 }
                 compared += 1
             }
-            guard compared >= 20 else { throw Failure(message: "不等式「\(left.source) \(relation) \(right.source)」を数値にできませんでした") }
+            guard compared >= (expressions["where"] == nil ? 20 : 5) else { throw Failure(message: "不等式「\(left.source) \(relation) \(right.source)」を数値にできませんでした") }
         case "assert":
             for condition: (source: String, expression: DrillExpression) in conditions {
                 guard try DrillExpression.bool(try condition.expression.evaluate(instance.scope)) else {

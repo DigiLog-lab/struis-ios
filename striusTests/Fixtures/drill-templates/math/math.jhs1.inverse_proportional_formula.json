@@ -1,0 +1,87 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.inverse_proportional_formula",
+  "title": "反比例の式を求める",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "x1",
+      "kind": "integer",
+      "min": -8,
+      "max": 8,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "y1",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "x2",
+      "kind": "integer",
+      "min": -8,
+      "max": 8,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "a",
+      "expr": "x1*y1"
+    },
+    {
+      "name": "y2",
+      "expr": "a/x2"
+    }
+  ],
+  "constraints": [
+    "x1 != x2",
+    "is_integer(y2)"
+  ],
+  "parts": [
+    {
+      "name": "neg",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "a < 0",
+          "tex": "-"
+        }
+      ],
+      "otherwise": ""
+    },
+    {
+      "name": "f",
+      "kind": "text",
+      "tex": "{neg}\\frac{{a|abs}}{x}"
+    }
+  ],
+  "prompt": "$y$ は $x$ に反比例し、$x = {x1}$ のとき $y = {y1}$ である。$x = {x2}$ のときの $y$ の値を求めなさい。",
+  "answer": "$y = {f}$ より、$y = {y2}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{f}",
+      "at": {
+        "x": "x1"
+      },
+      "equals": "y1"
+    },
+    {
+      "kind": "value",
+      "tex": "{f}",
+      "at": {
+        "x": "x2"
+      },
+      "equals": "y2"
+    }
+  ]
+}

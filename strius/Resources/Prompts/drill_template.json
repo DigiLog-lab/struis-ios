@@ -196,6 +196,7 @@
             "type": "string",
             "enum": [
               "sum",
+              "product",
               "text",
               "select",
               "list",
@@ -249,6 +250,29 @@
               "additionalProperties": false
             }
           },
+          "powers": {
+            "type": "array",
+            "minItems": 1,
+            "description": "product のべき。指数が 0 のものは書かず、1 なら指数を書かない。",
+            "items": {
+              "type": "object",
+              "properties": {
+                "base": {
+                  "type": "string",
+                  "description": "底の LaTeX。"
+                },
+                "exp": {
+                  "type": "string",
+                  "description": "指数の式。"
+                }
+              },
+              "required": [
+                "base",
+                "exp"
+              ],
+              "additionalProperties": false
+            }
+          },
           "tex": {
             "type": "string",
             "description": "text の中身。"
@@ -277,7 +301,7 @@
           },
           "otherwise": {
             "type": "string",
-            "description": "select でどれも成り立たない時の LaTeX。"
+            "description": "select でどれも成り立たない時の LaTeX。product で全部の指数が 0 の時の LaTeX(省くと 1)。"
           },
           "items": {
             "type": "array",
@@ -298,7 +322,7 @@
           },
           "separator": {
             "type": "string",
-            "description": "list の区切り。省くと ,\\ 。"
+            "description": "list の区切り(省くと ,\\ )。product の区切り(省くと無し)。"
           },
           "format": {
             "type": "string",
@@ -467,6 +491,10 @@
           "relation": {
             "type": "string",
             "description": "不等号。<・<=・>・>=(差し込みも書ける)。"
+          },
+          "where": {
+            "type": "string",
+            "description": "不等式を確かめる変数の範囲。変数を使った真偽の式。"
           },
           "conditions": {
             "type": "array",

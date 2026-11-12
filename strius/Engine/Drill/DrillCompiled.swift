@@ -120,6 +120,10 @@ nonisolated struct DrillText: Hashable, Sendable {
                 if !found.modifiers.isEmpty || found.field != nil {
                     throw DrillFailure(message: "「\(source)」の差し込み「\(found.name)」という名前がありません")
                 }
+                // 前に命令も ^ も _ も無い `{名前}` は、LaTeX の波かっことしては意味が無い。宣言し忘れた差し込みとして断る。
+                if !names.contains(found.name), !keepsBraces(characters, before: index), index != previousEnd {
+                    throw DrillFailure(message: "「\(source)」の「{\(found.name)}」という名前が、変数にも lets にも parts にもありません")
+                }
             }
             literal.append(characters[index])
             index += 1
@@ -157,6 +161,7 @@ nonisolated struct DrillCompiledTemplate: Sendable {
 
     nonisolated enum PartBody: Sendable {
         case sum(terms: [Term], spec: DrillFormatSpec)
+        case product(powers: [(base: DrillText, exponent: DrillExpression)], separator: String, empty: String)
         case text(DrillText)
         case select(cases: [(when: DrillExpression, tex: DrillText)], otherwise: DrillText)
         case list(items: [DrillExpression], sort: Bool, unique: Bool, separator: String, spec: DrillFormatSpec)
@@ -286,6 +291,10 @@ nonisolated struct DrillCompiledTemplate: Sendable {
                          body: try term.body.map { (source: String) -> DrillText in try text(source) },
                          times: term.times ?? false)
                 }, spec: try spec(part.format, place))
+            case "product":
+                guard let powers: [DrillPower] = part.powers, !powers.isEmpty else { throw DrillFailure(message: "\(place): product には powers が要ります") }
+                body = PartBody.product(powers: try powers.map { (power: DrillPower) -> (base: DrillText, exponent: DrillExpression) in (try text(power.base), try expression(power.exp, place)) },
+                                        separator: part.separator ?? "", empty: part.otherwise ?? "1")
             case "text":
                 guard let source: String = part.tex else { throw DrillFailure(message: "\(place): text には tex が要ります") }
                 body = PartBody.text(try text(source))
@@ -304,7 +313,7 @@ nonisolated struct DrillCompiledTemplate: Sendable {
                 body = PartBody.plusMinus(center: try expression(center, place), radicand: try expression(radicand, place),
                                           scale: try part.scale.map { (source: String) -> DrillExpression in try expression(source, place) })
             default:
-                throw DrillFailure(message: "\(place): kind「\(part.kind)」はありません(sum・text・select・list・pm)")
+                throw DrillFailure(message: "\(place): kind「\(part.kind)」はありません(sum・product・text・select・list・pm)")
             }
             try declare(part.name, "parts ")
             parts.append(Part(name: part.name, body: body))
@@ -531,6 +540,16 @@ nonisolated struct DrillCompiledTemplate: Sendable {
                 return try render(entry.tex, scope: scope, partTexts: partTexts)
             }
             return try render(otherwise, scope: scope, partTexts: partTexts)
+        case PartBody.product(let powers, let separator, let empty):
+            var pieces: [String] = []
+            for power: (base: DrillText, exponent: DrillExpression) in powers {
+                let exponent: DrillQuantity = try number(power.exponent, scope)
+                guard let value: DrillRational = exponent.number.rational else { throw DrillFormat.FormatError(message: "指数は有理数にしてください") }
+                if value.isZero { continue }
+                let base: String = try render(power.base, scope: scope, partTexts: partTexts)
+                pieces.append(value == DrillRational.one ? base : "\(base)^{\(try DrillFormat.text(of: exponent, spec: DrillFormatSpec.plain, display: DrillDisplay.none))}")
+            }
+            return pieces.isEmpty ? empty : pieces.joined(separator: separator)
         case PartBody.sum(let terms, let spec):
             var out: String = ""
             for term: Term in terms {

@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.absolute_value_calc",
+  "title": "絶対値の計算",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "abs(a - b) - abs(c)"
+    }
+  ],
+  "constraints": [
+    "a != b"
+  ],
+  "prompt": "次の値を求めなさい。",
+  "math": "|{a} - {b|paren}| - |{c}|",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "|{a} - {b|paren}| - |{c}|",
+      "equals": "ans"
+    }
+  ]
+}

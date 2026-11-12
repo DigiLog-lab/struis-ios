@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs2.probability_balls",
+  "title": "玉を 2 個取り出す確率",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 2,
+      "max": 6
+    },
+    {
+      "name": "w",
+      "kind": "integer",
+      "min": 2,
+      "max": 6
+    },
+    {
+      "name": "kind",
+      "kind": "choice",
+      "options": [
+        {
+          "text": "2 個とも赤玉である",
+          "t": 1
+        },
+        {
+          "text": "赤玉と白玉が 1 個ずつである",
+          "t": 2
+        },
+        {
+          "text": "2 個とも白玉である",
+          "t": 3
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "total",
+      "expr": "comb(r + w, 2)"
+    },
+    {
+      "name": "count",
+      "expr": "if(kind.t == 1, comb(r,2), if(kind.t == 2, r*w, comb(w,2)))"
+    },
+    {
+      "name": "p",
+      "expr": "count/total"
+    }
+  ],
+  "prompt": "赤玉 ${r}$ 個と白玉 ${w}$ 個が入った袋から、同時に 2 個の玉を取り出す。{kind.text}確率を求めなさい。",
+  "answer": "${p}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "comb(r,2) + r*w + comb(w,2) == total"
+      ]
+    }
+  ]
+}

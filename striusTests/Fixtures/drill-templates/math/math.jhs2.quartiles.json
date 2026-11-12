@@ -1,0 +1,80 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs2.quartiles",
+  "title": "四分位数と四分位範囲",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 30
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 1,
+      "max": 30
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": 1,
+      "max": 30
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": 1,
+      "max": 30
+    },
+    {
+      "name": "f",
+      "kind": "integer",
+      "min": 1,
+      "max": 30
+    },
+    {
+      "name": "g",
+      "kind": "integer",
+      "min": 1,
+      "max": 30
+    },
+    {
+      "name": "h",
+      "kind": "integer",
+      "min": 1,
+      "max": 30
+    }
+  ],
+  "lets": [
+    {
+      "name": "q1",
+      "expr": "nth(2,a,b,c,d,f,g,h)"
+    },
+    {
+      "name": "q2",
+      "expr": "nth(4,a,b,c,d,f,g,h)"
+    },
+    {
+      "name": "q3",
+      "expr": "nth(6,a,b,c,d,f,g,h)"
+    },
+    {
+      "name": "iqr",
+      "expr": "q3 - q1"
+    }
+  ],
+  "prompt": "次の 7 個のデータの第 1 四分位数、第 2 四分位数、第 3 四分位数と四分位範囲を求めなさい。",
+  "math": "{a},\\ {b},\\ {c},\\ {d},\\ {f},\\ {g},\\ {h}",
+  "answer": "第 1 四分位数 ${q1}$、第 2 四分位数 ${q2}$、第 3 四分位数 ${q3}$、四分位範囲 ${iqr}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "q2 == median(a,b,c,d,f,g,h)",
+        "q1 <= q2 and q2 <= q3"
+      ]
+    }
+  ]
+}

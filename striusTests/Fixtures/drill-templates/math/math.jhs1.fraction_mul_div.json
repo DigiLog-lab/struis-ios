@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.fraction_mul_div",
+  "title": "分数の乗法・除法",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "p",
+      "kind": "fraction",
+      "numerator": {
+        "min": -9,
+        "max": 9
+      },
+      "denominator": {
+        "min": 2,
+        "max": 9
+      }
+    },
+    {
+      "name": "q",
+      "kind": "fraction",
+      "numerator": {
+        "min": -9,
+        "max": 9
+      },
+      "denominator": {
+        "min": 2,
+        "max": 9
+      }
+    },
+    {
+      "name": "r",
+      "kind": "fraction",
+      "numerator": {
+        "min": 1,
+        "max": 9
+      },
+      "denominator": {
+        "min": 2,
+        "max": 9
+      }
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "p * q / r"
+    }
+  ],
+  "prompt": "次の計算をしなさい。",
+  "math": "{p|paren} \\times {q|paren} \\div {r}",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{p|paren} \\times {q|paren} \\div {r}",
+      "equals": "ans"
+    }
+  ]
+}

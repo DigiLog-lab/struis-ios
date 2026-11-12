@@ -83,7 +83,7 @@ nonisolated enum DrillFunctions {
         "sind": 1...1, "cosd": 1...1, "tand": 1...1, "asind": 1...1, "acosd": 1...1, "atand": 1...1,
         "floor": 1...1, "ceil": 1...1, "round": 1...2, "sig": 2...2,
         "gcd": 2...8, "lcm": 2...8, "mod": 2...2, "quot": 2...2, "factorial": 1...1, "comb": 2...2, "perm": 2...2,
-        "num": 1...1, "den": 1...1, "sign": 1...1, "min": 2...12, "max": 2...12, "median": 1...12,
+        "num": 1...1, "den": 1...1, "sign": 1...1, "min": 2...12, "max": 2...12, "median": 1...12, "nth": 2...13, "mean": 1...12,
         "is_integer": 1...1, "is_square": 1...1, "is_prime": 1...1, "to_base": 2...2,
         "if": 3...3, "approx": 2...3, "q": 2...2, "value": 2...2, "re": 1...1, "im": 1...1, "conj": 1...1, "pow": 2...2,
     ]
@@ -292,6 +292,25 @@ nonisolated enum DrillFunctions {
                 throw EvaluationError.undefined("中央値が定まりません")
             }
             return DrillValue.quantity(DrillQuantity(mean, dimension: dimension))
+        case "nth":
+            // nth(k, a, b, c, …): 小さい順に並べた時の k 番目(1 から数える)。
+            let k: Int = try integer(0)
+            let rest: [DrillQuantity] = Array(values.dropFirst())
+            guard k >= 1, k <= rest.count else { throw EvaluationError.undefined("nth の順番が範囲の外です") }
+            for value: DrillQuantity in rest where value.dimension != rest[0].dimension { throw EvaluationError.dimension("nth に次元の違う量を渡しています") }
+            var failed: Bool = false
+            let sorted: [DrillQuantity] = rest.sorted { (a: DrillQuantity, b: DrillQuantity) -> Bool in
+                guard let order: ComparisonResult = DrillArithmetic.compare(a.number, b.number) else { failed = true; return false }
+                return order == ComparisonResult.orderedAscending
+            }
+            guard !failed else { throw EvaluationError.undefined("大小を比べられない数です") }
+            return DrillValue.quantity(sorted[k - 1])
+        case "mean":
+            let dimension: DrillDimension = try sameDimension()
+            var total: DrillNumber = DrillNumber.zero
+            for value: DrillQuantity in values { total = DrillArithmetic.add(total, value.number) }
+            guard let mean: DrillNumber = DrillArithmetic.divide(total, DrillNumber(integer: values.count)) else { throw EvaluationError.undefined("平均が定まりません") }
+            return DrillValue.quantity(DrillQuantity(try DrillExpression.finite(mean, "平均"), dimension: dimension))
         case "is_integer":
             return DrillValue.bool(first.number.integer != nil)
         case "is_square":

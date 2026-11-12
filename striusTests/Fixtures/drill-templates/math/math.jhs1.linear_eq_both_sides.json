@@ -1,0 +1,94 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.linear_eq_both_sides",
+  "title": "一次方程式(両辺に x がある)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "x0",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -12,
+      "max": 12,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "d",
+      "expr": "(a - c)*x0 + b"
+    }
+  ],
+  "constraints": [
+    "a != c",
+    "d != 0",
+    "abs(d) <= 30"
+  ],
+  "parts": [
+    {
+      "name": "lhs",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "rhs",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "c",
+          "body": "x"
+        },
+        {
+          "coef": "d"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の方程式を解きなさい。",
+  "math": "{lhs} = {rhs}",
+  "answer": "$x = {x0}$",
+  "checks": [
+    {
+      "kind": "root",
+      "left": "{lhs}",
+      "right": "{rhs}",
+      "variable": "x",
+      "solutions": [
+        "{x0}"
+      ]
+    }
+  ]
+}

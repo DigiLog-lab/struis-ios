@@ -1,0 +1,102 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs2.lines_intersection",
+  "title": "2 直線の交点の座標",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -4,
+      "max": 4,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -4,
+      "max": 4,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "x0",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "y0",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    }
+  ],
+  "lets": [
+    {
+      "name": "b",
+      "expr": "y0 - a*x0"
+    },
+    {
+      "name": "d",
+      "expr": "y0 - c*x0"
+    }
+  ],
+  "constraints": [
+    "a != c",
+    "abs(b) <= 20",
+    "abs(d) <= 20"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "c",
+          "body": "x"
+        },
+        {
+          "coef": "d"
+        }
+      ]
+    }
+  ],
+  "prompt": "2 直線 $y = {f}$ と $y = {g}$ の交点の座標を求めなさい。",
+  "answer": "$({x0},\\ {y0})$",
+  "checks": [
+    {
+      "kind": "system",
+      "equations": [
+        {
+          "left": "y",
+          "right": "{f}"
+        },
+        {
+          "left": "y",
+          "right": "{g}"
+        }
+      ],
+      "values": {
+        "x": "{x0}",
+        "y": "{y0}"
+      }
+    }
+  ]
+}
