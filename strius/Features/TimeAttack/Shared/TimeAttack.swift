@@ -36,8 +36,17 @@ nonisolated enum TimeAttack {
         /// 1問ごとにかかった秒数(問題が出てから「次へ」まで。最後の問題は撮るまで)。
         var laps: [Double]
         var correct: [Bool]
+        /// 自分で○×をつけた記録(App Clip で写真を送らなかった時)。AI の採点なら nil。
+        var selfMarked: Bool?
 
-        enum CodingKeys: String, CodingKey { case name = "n", laps = "l", correct = "c" }
+        enum CodingKeys: String, CodingKey { case name = "n", laps = "l", correct = "c", selfMarked = "s" }
+
+        init(name: String, laps: [Double], correct: [Bool], selfMarked: Bool? = nil) {
+            self.name = name
+            self.laps = laps
+            self.correct = correct
+            self.selfMarked = selfMarked
+        }
 
         var solvedSeconds: Double { laps.reduce(0, +) }
         var wrongCount: Int { correct.filter { !$0 }.count }
@@ -176,6 +185,7 @@ nonisolated struct TimeAttackLocal: @unchecked Sendable {
 
     private static let nameKey = "timeattack.nickname"
     private static let bestKey = "timeattack.best"
+    private static let clipConsentKey = "timeattack.clip.consent"
     private static let clipDayKey = "timeattack.clip.day"
     private static let clipCountKey = "timeattack.clip.count"
 
@@ -197,6 +207,38 @@ nonisolated struct TimeAttackLocal: @unchecked Sendable {
         if previous.map({ total < $0 }) ?? true { bests[field] = total }
         defaults.set(bests, forKey: Self.bestKey)
         return previous
+    }
+
+    // App Clip の同意(#133): 今の規約の版に同意し、年齢の確認で16歳以上と分かった時だけ、答案の写真を AI に送る。
+    // 16歳未満・年齢を共有しなかった・同意しなかった時は、写真を送らず自分で○×をつける。
+
+    nonisolated enum ClipGrading: String, Codable, Sendable { case ai, selfMarked }
+
+    nonisolated struct ClipConsent: Codable, Sendable, Equatable {
+        var termsVersion: String
+        var grading: ClipGrading
+        var decidedAt: Date
+    }
+
+    /// 今の規約の版で決めた採点の仕方(まだ決めていない・規約が新しくなった時は nil)。
+    func clipGrading(termsVersion: String) -> ClipGrading? {
+        guard let data = defaults.data(forKey: Self.clipConsentKey),
+              let consent = try? JSONDecoder().decode(ClipConsent.self, from: data), consent.termsVersion == termsVersion else { return nil }
+        return consent.grading
+    }
+
+    func recordClipGrading(_ grading: ClipGrading, termsVersion: String, at date: Date = Date()) {
+        if let data = try? JSONEncoder().encode(ClipConsent(termsVersion: termsVersion, grading: grading, decidedAt: date)) {
+            defaults.set(data, forKey: Self.clipConsentKey)
+        }
+    }
+
+    /// 年齢の区分から採点の仕方を決める: 16歳以上(16〜17歳・18歳以上)だけ AI。
+    static func clipGrading(for band: AgeBand?) -> ClipGrading {
+        switch band {
+        case .under18, .adult: .ai
+        case .under16, nil: .selfMarked
+        }
     }
 
     // App Clip の無料の回数(端末の日付で数える。App Clip のデータは iOS に消されることがあるので厳密な上限ではない)。

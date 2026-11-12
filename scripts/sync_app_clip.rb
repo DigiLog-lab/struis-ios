@@ -10,8 +10,10 @@ app = project.targets.find { |t| t.name == 'strius' } or abort('app target not f
 
 NAME = 'StruisClip'
 PRODUCT_TYPE = 'com.apple.product-type.application.on-demand-install-capable'
-# The app's files that the App Clip compiles too (the time attack, the design system, the expression checker, App Attest).
+# The app's files that the App Clip compiles too (the time attack, the terms version and age bands, the design system,
+# the expression checker, App Attest).
 SHARED = Dir.glob('strius/Features/TimeAttack/Shared/*.swift', base: root).sort + %w[
+  strius/Features/Onboarding/LegalTerms.swift
   strius/Design/Theme.swift
   strius/Design/Typography.swift
   strius/Engine/TimelineExpression.swift

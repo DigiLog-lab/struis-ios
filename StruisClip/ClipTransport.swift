@@ -5,11 +5,13 @@ import Foundation
 nonisolated struct ClipTransport: TimeAttackTransport {
     enum Failure: Error, LocalizedError {
         case unavailable
+        case notConsented
         case http(Int)
 
         var errorDescription: String? {
             switch self {
             case .unavailable: "この端末では採点を使えません。"
+            case .notConsented: "写真を送る同意がないので、AI の採点は使えません。"
             case .http(let status): "採点を頼めませんでした(HTTP \(status))。少し時間をおいてもう一度試してください。"
             }
         }
@@ -18,6 +20,8 @@ nonisolated struct ClipTransport: TimeAttackTransport {
     var session: URLSession = .shared
 
     func send(_ body: [String: Any], purpose: TimeAttackClaude.Purpose) async throws -> [String: Any] {
+        // 今の規約に同意し、16歳以上と分かった時だけ送る(画面の側でも撮らせないが、送り口でも止める)。
+        guard TimeAttackLocal().clipGrading(termsVersion: LegalVersion.terms) == .ai else { throw Failure.notConsented }
         let data = try JSONSerialization.data(withJSONObject: body)
         for attempt in 0..<2 {
             var request = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)

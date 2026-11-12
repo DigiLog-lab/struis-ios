@@ -31,8 +31,14 @@ struct TimeAttackFlowView: View {
                 }
             case .running:
                 TimeAttackRunView(field: session.field, problems: session.problems, onQuit: onClose) { laps, photo in
+                    // 本体は必ず撮る(同意は本体のオンボーディングで済んでいる)。
+                    guard let photo else { return }
                     Task { await session.finish(laps: laps, photo: photo) }
                 }
+            case .marking:
+                TimeAttackMarkingView(session: session)
+            case .selfCheck:
+                TimeAttackSelfCheckView(problems: session.problems, onSubmit: session.submitSelfCheck)
             case .result:
                 TimeAttackResultView(session: session, secondaryTitle: "別の5問でもう一度", onSecondary: again, onClose: onClose)
             case .failed(let message):

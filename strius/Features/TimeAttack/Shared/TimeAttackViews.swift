@@ -6,8 +6,10 @@ import SwiftUI
 struct TimeAttackRunView: View {
     let field: String
     let problems: [TimeAttack.Problem]
+    /// 最後に紙を撮るか(自分で採点する時は撮らず、「書き終えた」でタイマーを止める)。
+    var capturesPhoto = true
     var onQuit: () -> Void
-    var onFinish: (_ laps: [Double], _ photo: Data) -> Void
+    var onFinish: (_ laps: [Double], _ photo: Data?) -> Void
 
     @State private var index = 0
     @State private var startedAt = Date()
@@ -82,7 +84,8 @@ struct TimeAttackRunView: View {
 
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "pencil").foregroundStyle(Theme.accentColor)
-                Text("答えは紙に上から順に書いてください。\(problems.count)問目のあとに、まとめて1枚撮ります。")
+                Text(capturesPhoto ? "答えは紙に上から順に書いてください。\(problems.count)問目のあとに、まとめて1枚撮ります。"
+                                   : "答えは紙に上から順に書いてください。\(problems.count)問目のあとに、正答を見て自分で○×をつけます。")
                     .font(Typography.bodyCompact).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
             }
             .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
@@ -90,7 +93,8 @@ struct TimeAttackRunView: View {
             .struisSurface()
 
             Button(action: advance) {
-                Label(isLast ? "書き終えたので撮る" : "次へ", systemImage: isLast ? "camera" : "arrow.right")
+                Label(isLast ? (capturesPhoto ? "書き終えたので撮る" : "書き終えた") : "次へ",
+                      systemImage: isLast ? (capturesPhoto ? "camera" : "checkmark") : "arrow.right")
                     .font(Typography.sans(size: 17, weight: .bold))
                     .frame(maxWidth: .infinity).frame(height: 52)
                     .foregroundStyle(Theme.onAccent)
@@ -147,6 +151,14 @@ struct TimeAttackRunView: View {
     }
 
     private func advance() {
+        if isLast, !capturesPhoto {
+            guard stoppedAt == nil else { return }
+            let now = Date()
+            laps.append(now.timeIntervalSince(lapStartedAt))
+            stoppedAt = now
+            onFinish(laps, nil)
+            return
+        }
         if isLast {
             isCameraPresented = true
             return
@@ -303,6 +315,10 @@ struct TimeAttackResultView: View {
                 let gap = TimeAttack.seconds(abs(rival.total - mine.total))
                 Text("\(rival.name.isEmpty ? "届いた記録" : rival.name + "さん")の \(TimeAttack.clock(rival.total)) より \(gap)\(won ? "速く" : "遅く")解きました")
                     .font(Typography.caption).foregroundStyle(Theme.secondaryText).multilineTextAlignment(.center)
+                if rival.selfMarked == true {
+                    Text("\(rival.name.isEmpty ? "届いた記録" : rival.name + "さんの記録")は自分で採点したものです")
+                        .font(Typography.caption).foregroundStyle(Theme.secondaryText)
+                }
             } else if let best = session.previousBest {
                 if mine.total < best {
                     badge("自己ベスト更新", color: Theme.growthColor)
@@ -316,6 +332,9 @@ struct TimeAttackResultView: View {
             }
         }
         .padding(.top, 16)
+        if mine.selfMarked == true {
+            Text("自分で採点した記録です").font(Typography.caption).foregroundStyle(Theme.secondaryText).padding(.top, 4)
+        }
     }
 
     private func badge(_ text: String, color: Color) -> some View {
@@ -434,6 +453,84 @@ struct TimeAttackResultView: View {
     }
 }
 
+// MARK: - 自分で採点する
+
+/// 写真を送らない時: 正答を見て、紙の答えと見比べて本人が○×をつける。
+struct TimeAttackSelfCheckView: View {
+    let problems: [TimeAttack.Problem]
+    var onSubmit: ([Bool]) -> Void
+
+    @State private var marks: [Bool?] = []
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("正答と見比べて、○か×を選んでください。").font(Typography.sans(size: 17, weight: .bold))
+                Text("タイムはもう止まっています。誤答は1問につき10秒を足します。").font(Typography.caption).foregroundStyle(Theme.secondaryText)
+                VStack(spacing: 0) {
+                    ForEach(problems.indices, id: \.self) { index in
+                        row(index)
+                        if index < problems.count - 1 { Divider().overlay(Theme.hairline) }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .struisSurface(radius: Theme.Radius.cardLarge)
+                Button {
+                    onSubmit(marks.map { $0 ?? false })
+                } label: {
+                    Text("これで決める").font(Typography.sans(size: 17, weight: .bold))
+                        .frame(maxWidth: .infinity).frame(height: 52)
+                        .foregroundStyle(Theme.onAccent)
+                        .background(Theme.accentColor.opacity(isComplete ? 1 : 0.4), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(!isComplete)
+                .accessibilityIdentifier("timeattack-selfcheck-submit")
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+        }
+        .foregroundStyle(Theme.primaryText)
+        .onAppear { if marks.count != problems.count { marks = Array(repeating: nil, count: problems.count) } }
+    }
+
+    private var isComplete: Bool { marks.count == problems.count && marks.allSatisfy { $0 != nil } }
+
+    private func row(_ index: Int) -> some View {
+        let problem = problems[index]
+        return HStack(spacing: 10) {
+            Text("\(index + 1)").foregroundStyle(Theme.secondaryText).frame(width: 18, alignment: .leading)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(problem.math.isEmpty ? problem.prompt : TimeAttackMath.plain(problem.math))
+                    .font(Typography.bodyCompact).lineLimit(1)
+                HStack(spacing: 6) {
+                    Text("正答").font(Typography.caption).foregroundStyle(Theme.secondaryText)
+                    TimeAttackMath(latex: problem.answerKey, size: 22)
+                }
+            }
+            Spacer()
+            mark(index, value: true, symbol: "○", color: Theme.growthColor)
+            mark(index, value: false, symbol: "×", color: Theme.regressColor)
+        }
+        .frame(minHeight: 64)
+    }
+
+    private func mark(_ index: Int, value: Bool, symbol: String, color: Color) -> some View {
+        let selected = marks.indices.contains(index) && marks[index] == value
+        return Button {
+            if marks.indices.contains(index) { marks[index] = value }
+        } label: {
+            Text(symbol).font(.system(size: 20, weight: .bold))
+                .foregroundStyle(selected ? Theme.ground : color)
+                .frame(width: 44, height: 44)
+                .background(selected ? color : color.opacity(0.12), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(index + 1)問目を\(value ? "正解" : "誤答")にする")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
 // MARK: - 待ち・失敗
 
 struct TimeAttackWaitView: View {
@@ -473,5 +570,95 @@ struct TimeAttackFailedView: View {
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("timeattack-failed")
+    }
+}
+
+// MARK: - 自分で採点する(写真を送らない時)
+
+/// 正答を見せて、紙の答えと見比べて○×をつけてもらう。全部つけたら結果へ。
+struct TimeAttackMarkingView: View {
+    let session: TimeAttackSession
+    @State private var marks: [Bool?] = []
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("答え合わせ").font(Typography.heading2)
+                Text("紙の答えと正答を見比べて、○か×をつけてください。タイムはもう止まっています。")
+                    .font(Typography.body).foregroundStyle(Theme.secondaryText).fixedSize(horizontal: false, vertical: true)
+                VStack(spacing: 0) {
+                    ForEach(session.problems.indices, id: \.self) { index in
+                        row(index)
+                        if index < session.problems.count - 1 { Divider().overlay(Theme.hairline) }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .struisSurface(radius: Theme.Radius.cardLarge)
+                Button {
+                    session.submitMarks(marks.map { $0 ?? false })
+                } label: {
+                    Text("結果を見る")
+                        .font(Typography.sans(size: 17, weight: .bold))
+                        .frame(maxWidth: .infinity).frame(height: 52)
+                        .foregroundStyle(Theme.onAccent)
+                        .background(Theme.accentColor.opacity(isComplete ? 1 : 0.4), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(!isComplete)
+                .accessibilityIdentifier("timeattack-marks-done")
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+        }
+        .foregroundStyle(Theme.primaryText)
+        .onAppear { if marks.count != session.problems.count { marks = Array(repeating: nil, count: session.problems.count) } }
+        #if DEBUG
+        // Simulator の確認: `STRUIS_TIMEATTACK_AUTOPLAY` の時は、最後だけ × にして結果へ進む。
+        .task {
+            guard let step = ProcessInfo.processInfo.environment["STRUIS_TIMEATTACK_AUTOPLAY"].flatMap(Double.init) else { return }
+            try? await Task.sleep(for: .seconds(step * 2))
+            marks = session.problems.indices.map { $0 < session.problems.count - 1 }
+            try? await Task.sleep(for: .seconds(step * 2))
+            session.submitMarks(marks.map { $0 ?? false })
+        }
+        #endif
+    }
+
+    private var isComplete: Bool { marks.count == session.problems.count && !marks.contains(where: { $0 == nil }) }
+
+    private func row(_ index: Int) -> some View {
+        let problem = session.problems[index]
+        return HStack(spacing: 12) {
+            Text("\(index + 1)").foregroundStyle(Theme.secondaryText).frame(width: 18, alignment: .leading)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(problem.math.isEmpty ? problem.prompt : TimeAttackMath.plain(problem.math))
+                    .font(Typography.bodyCompact).foregroundStyle(Theme.secondaryText).lineLimit(1)
+                HStack(spacing: 6) {
+                    Text("正答").font(Typography.caption).foregroundStyle(Theme.secondaryText)
+                    TimeAttackMath(latex: problem.answerKey, size: 22)
+                }
+            }
+            Spacer()
+            markButton(index, value: true)
+            markButton(index, value: false)
+        }
+        .frame(minHeight: 64)
+    }
+
+    private func markButton(_ index: Int, value: Bool) -> some View {
+        let selected = marks.indices.contains(index) && marks[index] == value
+        let color = value ? Theme.growthColor : Theme.regressColor
+        return Button {
+            if marks.indices.contains(index) { marks[index] = value }
+        } label: {
+            Text(value ? "○" : "×")
+                .font(.system(size: 20, weight: .bold))
+                .frame(width: 44, height: 44)
+                .foregroundStyle(selected ? Theme.ground : color)
+                .background(selected ? color : color.opacity(0.12), in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(index + 1)問目を\(value ? "正解" : "誤答")にする")
+        .accessibilityIdentifier("timeattack-mark-\(index + 1)-\(value ? "o" : "x")")
     }
 }

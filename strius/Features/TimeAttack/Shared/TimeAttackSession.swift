@@ -12,12 +12,20 @@ final class TimeAttackSession: Identifiable {
         case challenge(TimeAttack.Challenge)
     }
 
+    /// 採点のしかた。AI は写真を Anthropic に送って読む。自分で採点する時は写真を撮らず、正答を見て本人が○×をつける
+    /// (App Clip で、16歳未満・年齢を共有しなかった・送ることに同意しなかった人)。
+    enum Grading: Equatable { case ai, selfCheck }
+
     enum Phase: Equatable {
         case preparing
         /// 始める前(届いた記録とルール)。
         case intro
         case running
+        /// 自分で○×をつける(App Clip で写真を送らない時)。
+        case marking
         case grading
+        /// 正答を見て本人が○×をつける。
+        case selfCheck
         case result
         case failed(String)
     }
@@ -31,6 +39,7 @@ final class TimeAttackSession: Identifiable {
     /// 解き終えてから採点を断られないように、タイマーを動かす前に止める。
     var preflight: () -> String? = { nil }
 
+    var grading: Grading = .ai
     private(set) var phase: Phase = .preparing
     private(set) var field = ""
     private(set) var problems: [TimeAttack.Problem] = []
@@ -81,11 +90,28 @@ final class TimeAttackSession: Identifiable {
         phase = .running
     }
 
-    /// 解き終えて撮った。採点してから結果に移る。
-    func finish(laps: [Double], photo: Data) async {
+    /// 解き終えた。AI で採点する時は写真を読んでから、自分で採点する時は○×をつけてから結果に移る。
+    func finish(laps: [Double], photo: Data?) async {
         self.laps = laps
+        guard grading == .ai, let photo else {
+            phase = .selfCheck
+            return
+        }
         self.photo = photo
         await grade()
+    }
+
+    /// 本人がつけた○×で記録を決める。
+    func submitSelfCheck(_ correct: [Bool]) {
+        guard phase == .selfCheck, correct.count == problems.count else { return }
+        record(correct)
+    }
+
+    private func record(_ correct: [Bool]) {
+        let entry = TimeAttack.Entry(name: local.nickname, laps: laps, correct: correct)
+        mine = entry
+        previousBest = local.record(total: entry.total, field: field)
+        phase = .result
     }
 
     func retryGrading() async {
@@ -99,10 +125,7 @@ final class TimeAttackSession: Identifiable {
         onGradingStarted()
         do {
             let correct = try await TimeAttackClaude.grade(problems: problems, photo: photo, transport: transport)
-            let entry = TimeAttack.Entry(name: local.nickname, laps: laps, correct: correct)
-            mine = entry
-            previousBest = local.record(total: entry.total, field: field)
-            phase = .result
+            record(correct)
         } catch {
             phase = .failed(Self.message(error))
         }
