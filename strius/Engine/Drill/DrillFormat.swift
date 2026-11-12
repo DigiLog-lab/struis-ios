@@ -341,6 +341,12 @@ nonisolated enum DrillFormat {
     /// 問題文に出す値がこれに当たると、学習者が表示された値で計算した答えと、型の答えが合わなくなる。
     static func losesValue(of quantity: DrillQuantity, spec: DrillFormatSpec, display: DrillDisplay) -> Bool {
         var number: DrillNumber = quantity.number
+        if spec.sign == DrillFormatSpec.Sign.magnitude {
+            // 表示する時(`body(of:spec:display:)`)と同じく、絶対値を取った値で比べる。複素数の大きさ(|1+i| = √2)を
+            // 小数第 2 位で 1.41 と出す、といった丸めを見落とさないように。
+            guard let size: DrillNumber = DrillArithmetic.magnitude(number) else { return false }
+            number = size
+        }
         if let unit: DrillUnit = display.unit {
             guard let scaled: DrillNumber = DrillArithmetic.divide(number, unit.scale) else { return false }
             number = scaled

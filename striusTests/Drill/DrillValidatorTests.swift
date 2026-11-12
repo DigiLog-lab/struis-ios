@@ -270,4 +270,19 @@ final class DrillValidatorTests: XCTestCase {
                                              checks: [DrillCheck(kind: "value", tex: "\\sqrt[10^{30}]{-8} + {a}", equals: "a")])
         XCTAssertFalse(inspect(root).passed)
     }
+
+
+    /// 絶対値を丸めて問題文に出している時も、表示と実際の値の食い違いを見つける(複素数の大きさ |1+i| = √2 を 1.41 と出す)。
+    func testRoundedAbsoluteValueShownAsAGivenIsFound() {
+        let complex: DrillTemplate = S.template(variables: [S.integer("a", 1, 30)], lets: [DrillLet(name: "z", expr: "1 + i + a - a"), DrillLet(name: "r", expr: "a + abs(z)^2")],
+                                                math: "{a} + {z|abs|dec:2}^{2}", answer: "${r}$")
+        assertFails(complex, code: "given", "「z」")
+        let negative: DrillTemplate = S.template(variables: [S.integer("a", 1, 30)], lets: [DrillLet(name: "u", expr: "a - a - 1/3"), DrillLet(name: "r", expr: "a + abs(u)")],
+                                                 math: "{a} + {u|abs|dec:2}", answer: "${r}$")
+        assertFails(negative, code: "given", "「u」")
+        // 丸めずに出せる絶対値は通る。
+        let exact: DrillTemplate = S.template(variables: [S.integer("a", 1, 30)], lets: [DrillLet(name: "z", expr: "3 + 4*i + a - a"), DrillLet(name: "r", expr: "a + abs(z)")],
+                                              math: "{a} + {z|abs|dec:1}", answer: "${r}$", checks: [DrillCheck(kind: "value", tex: "{a} + {z|abs|dec:1}", equals: "r")])
+        XCTAssertEqual(inspect(exact).issues, [])
+    }
 }
