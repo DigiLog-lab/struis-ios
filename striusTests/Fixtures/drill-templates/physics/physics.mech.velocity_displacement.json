@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.velocity_displacement",
+  "title": "等加速度直線運動(v² − v₀² = 2ax)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "v0",
+      "kind": "decimal",
+      "min": 10,
+      "max": 30,
+      "step": 2.0,
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "a",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 6.0,
+      "step": 0.5,
+      "unit": "m/s^2",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "x",
+      "expr": "v0^2/(2*a)",
+      "unit": "m",
+      "sig": 2
+    },
+    {
+      "name": "t",
+      "expr": "v0/a",
+      "unit": "s"
+    }
+  ],
+  "prompt": "速さ ${v0|q}$ で走っていた自動車がブレーキをかけ、一定の加速度(大きさ ${a|q}$)で減速して止まった。ブレーキをかけてから止まるまでに進んだ距離を求めなさい。",
+  "answer": "${x|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(x, v0*t - a*t^2/2)",
+        "approx(v0 - a*t, 0*v0)"
+      ]
+    }
+  ]
+}

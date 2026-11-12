@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.quadratic_square_root",
+  "title": "二次方程式(平方根の考えを使う)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 2,
+      "max": 60
+    }
+  ],
+  "parts": [
+    {
+      "name": "inner",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "-p"
+        }
+      ]
+    },
+    {
+      "name": "roots",
+      "kind": "pm",
+      "center": "p",
+      "radicand": "k"
+    }
+  ],
+  "prompt": "次の方程式を解きなさい。",
+  "math": "({inner})^{2} = {k}",
+  "answer": "$x = {roots}$",
+  "checks": [
+    {
+      "kind": "root",
+      "left": "({inner})^{2}",
+      "right": "{k}",
+      "variable": "x",
+      "solutions": [
+        "{roots}"
+      ]
+    }
+  ]
+}

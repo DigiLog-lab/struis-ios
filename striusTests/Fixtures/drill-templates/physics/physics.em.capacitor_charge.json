@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.capacitor_charge",
+  "title": "コンデンサーの電気量(Q = CV)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "c",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 50.0,
+      "step": 1.0,
+      "unit": "uF",
+      "sig": 2
+    },
+    {
+      "name": "v",
+      "kind": "integer",
+      "min": 5,
+      "max": 200,
+      "step": 5,
+      "unit": "V",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "charge",
+      "expr": "c*v",
+      "unit": "C",
+      "sig": 2
+    },
+    {
+      "name": "u",
+      "expr": "c*v^2/2",
+      "unit": "J",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "value(v,'V') == sig(value(v,'V'), 2)"
+  ],
+  "prompt": "電気容量 ${c|q}$ のコンデンサーに ${v|q}$ の電圧を加えた。たくわえられる電気量と静電エネルギーを求めなさい。",
+  "answer": "電気量 ${charge|q}$、静電エネルギー ${u|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(u, charge*v/2)",
+        "approx(charge/v, c)"
+      ]
+    }
+  ]
+}

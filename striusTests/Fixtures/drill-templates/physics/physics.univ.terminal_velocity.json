@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "skill_id": "physics.univ.terminal_velocity",
+  "title": "空気抵抗を受ける落下の終端速度",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "g",
+      "kind": "constant",
+      "value": 9.8,
+      "unit": "m/s^2",
+      "sig": 2
+    },
+    {
+      "name": "m",
+      "kind": "decimal",
+      "min": 0.01,
+      "max": 0.2,
+      "step": 0.01,
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "k",
+      "kind": "decimal",
+      "min": 0.01,
+      "max": 0.1,
+      "step": 0.01,
+      "unit": "kg/s",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "v",
+      "expr": "m*g/k",
+      "unit": "m/s",
+      "sig": 2
+    }
+  ],
+  "prompt": "質量 ${m|q}$ の物体が、速さ $v$ に比例する空気抵抗 $kv$($k = {k|q}$)を受けながら落下している。終端速度を求めなさい。重力加速度の大きさを ${g|q}$ とする。",
+  "answer": "${v|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(k*v, m*g)"
+      ]
+    }
+  ]
+}

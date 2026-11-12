@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.sine_rule",
+  "title": "正弦定理(辺と外接円の半径)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 2,
+      "max": 12
+    },
+    {
+      "name": "A",
+      "kind": "choice",
+      "options": [
+        30,
+        45,
+        60,
+        120,
+        135,
+        150
+      ]
+    },
+    {
+      "name": "B",
+      "kind": "choice",
+      "options": [
+        30,
+        45,
+        60
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "b",
+      "expr": "a*sind(B)/sind(A)"
+    },
+    {
+      "name": "R",
+      "expr": "a/(2*sind(A))"
+    }
+  ],
+  "constraints": [
+    "A + B < 180",
+    "A != B"
+  ],
+  "prompt": "$\\triangle \\mathrm{ABC}$ において、$a = {a}$、$A = {A}^{\\circ}$、$B = {B}^{\\circ}$ のとき、$b$ と外接円の半径 $R$ を求めなさい。",
+  "answer": "$b = {b}$、$R = {R}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "\\frac{{a}}{\\sin {A}^{\\circ}}",
+      "right": "\\frac{{b}}{\\sin {B}^{\\circ}}"
+    },
+    {
+      "kind": "identity",
+      "left": "\\frac{{a}}{\\sin {A}^{\\circ}}",
+      "right": "2 \\cdot ({R})"
+    }
+  ]
+}

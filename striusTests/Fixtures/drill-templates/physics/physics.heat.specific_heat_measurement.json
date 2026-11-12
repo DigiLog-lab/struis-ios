@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "skill_id": "physics.heat.specific_heat_measurement",
+  "title": "熱量の保存から比熱を求める",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "mm",
+      "kind": "integer",
+      "min": 100,
+      "max": 300,
+      "step": 50,
+      "unit": "g",
+      "sig": 3
+    },
+    {
+      "name": "tm",
+      "kind": "integer",
+      "min": 80,
+      "max": 100,
+      "step": 10
+    },
+    {
+      "name": "mw",
+      "kind": "integer",
+      "min": 100,
+      "max": 300,
+      "step": 50,
+      "unit": "g",
+      "sig": 3
+    },
+    {
+      "name": "tw",
+      "kind": "integer",
+      "min": 15,
+      "max": 25,
+      "step": 5
+    },
+    {
+      "name": "rise",
+      "kind": "integer",
+      "min": 2,
+      "max": 8
+    }
+  ],
+  "lets": [
+    {
+      "name": "tf",
+      "expr": "tw + rise"
+    },
+    {
+      "name": "cm",
+      "expr": "4.2*value(mw,'g')*rise/(value(mm,'g')*(tm - tf))"
+    }
+  ],
+  "prompt": "${tm}^{\\circ}\\mathrm{C}$ に熱した質量 ${mm|q}$ の金属球を、${tw}^{\\circ}\\mathrm{C}$ の水 ${mw|q}$ の中に入れたところ、全体の温度が ${tf}^{\\circ}\\mathrm{C}$ になった。水の比熱を $4.2\\,\\mathrm{J/(g \\cdot K)}$ として、この金属の比熱を求めなさい。熱は外に逃げないものとする。",
+  "answer": "${cm|sig:2}\\,\\mathrm{J/(g \\cdot K)}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(cm*value(mm,'g')*(tm - tf), 4.2*value(mw,'g')*(tf - tw))"
+      ]
+    }
+  ]
+}

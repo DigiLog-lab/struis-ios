@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.inscribed_angle",
+  "title": "円周角と中心角",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "half",
+      "kind": "integer",
+      "min": 10,
+      "max": 89
+    },
+    {
+      "name": "kind",
+      "kind": "choice",
+      "options": [
+        {
+          "given": "中心角",
+          "want": "円周角",
+          "t": 1
+        },
+        {
+          "given": "円周角",
+          "want": "中心角",
+          "t": 2
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "shown",
+      "expr": "if(kind.t == 1, 2*half, half)"
+    },
+    {
+      "name": "ans",
+      "expr": "if(kind.t == 1, half, 2*half)"
+    }
+  ],
+  "prompt": "ある弧に対する{kind.given}が ${shown}^{\\circ}$ のとき、同じ弧に対する{kind.want}の大きさを求めなさい。",
+  "answer": "${ans}^{\\circ}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "if(kind.t == 1, shown == 2*ans, ans == 2*shown)"
+      ]
+    }
+  ]
+}

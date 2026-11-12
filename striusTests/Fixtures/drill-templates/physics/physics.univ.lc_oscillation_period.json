@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "skill_id": "physics.univ.lc_oscillation_period",
+  "title": "LC 回路の電気振動の周期",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "ind",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 1.0,
+      "unit": "mH",
+      "sig": 2
+    },
+    {
+      "name": "cap",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 1.0,
+      "unit": "uF",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "period",
+      "expr": "2*pi*sqrt(ind*cap)",
+      "unit": "s",
+      "sig": 2
+    }
+  ],
+  "prompt": "自己インダクタンス ${ind|q}$ のコイルと電気容量 ${cap|q}$ のコンデンサーからなる回路の電気振動の周期を求めなさい。",
+  "answer": "${period|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx((period/(2*pi))^2, ind*cap)"
+      ]
+    }
+  ]
+}

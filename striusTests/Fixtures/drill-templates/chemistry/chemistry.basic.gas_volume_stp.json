@@ -1,0 +1,123 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.gas_volume_stp",
+  "title": "標準状態の気体の体積と物質量",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "s",
+      "kind": "choice",
+      "options": [
+        {
+          "tex": "\\mathrm{CO_2}",
+          "name": "二酸化炭素",
+          "M": 44
+        },
+        {
+          "tex": "\\mathrm{NH_3}",
+          "name": "アンモニア",
+          "M": 17
+        },
+        {
+          "tex": "\\mathrm{CH_4}",
+          "name": "メタン",
+          "M": 16
+        },
+        {
+          "tex": "\\mathrm{O_2}",
+          "name": "酸素",
+          "M": 32
+        },
+        {
+          "tex": "\\mathrm{N_2}",
+          "name": "窒素",
+          "M": 28
+        },
+        {
+          "tex": "\\mathrm{HCl}",
+          "name": "塩化水素",
+          "M": 36.5
+        }
+      ]
+    },
+    {
+      "name": "n",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 3.0,
+      "step": 0.05,
+      "unit": "mol",
+      "sig": 2
+    },
+    {
+      "name": "dir",
+      "kind": "choice",
+      "options": [
+        {
+          "t": 1
+        },
+        {
+          "t": 2
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "vol",
+      "expr": "n*q(22.4,'L/mol')",
+      "unit": "L",
+      "sig": 2
+    },
+    {
+      "name": "n2",
+      "expr": "sig(value(vol,'L'), 2)/22.4*q(1,'mol')",
+      "unit": "mol",
+      "sig": 2
+    },
+    {
+      "name": "vshow",
+      "expr": "sig(value(vol,'L'), 2)*q(1,'L')",
+      "unit": "L",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "value(n,'mol') == sig(value(n,'mol'), 2)"
+  ],
+  "parts": [
+    {
+      "name": "ask",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "dir.t == 1",
+          "tex": "{s.name} ${s.tex}$ ${n|q}$ が標準状態で占める体積を求めなさい。"
+        }
+      ],
+      "otherwise": "標準状態で ${vshow|q}$ の{s.name} ${s.tex}$ の物質量を求めなさい。"
+    },
+    {
+      "name": "ans",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "dir.t == 1",
+          "tex": "{vol|q}"
+        }
+      ],
+      "otherwise": "{n2|q}"
+    }
+  ],
+  "prompt": "{ask}標準状態での気体のモル体積を $22.4\\,\\mathrm{L/mol}$ とする。",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(vol,'L'), 22.4*value(n,'mol'))",
+        "approx(value(n2,'mol')*22.4, value(vshow,'L'))"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "format": 1,
+  "skill_id": "math.mb.binomial_distribution",
+  "title": "二項分布の期待値と標準偏差",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 10,
+      "max": 400,
+      "step": 10
+    },
+    {
+      "name": "pr",
+      "kind": "choice",
+      "options": [
+        {
+          "num": 1,
+          "den": 2
+        },
+        {
+          "num": 1,
+          "den": 3
+        },
+        {
+          "num": 1,
+          "den": 4
+        },
+        {
+          "num": 1,
+          "den": 5
+        },
+        {
+          "num": 1,
+          "den": 6
+        },
+        {
+          "num": 2,
+          "den": 3
+        },
+        {
+          "num": 2,
+          "den": 5
+        },
+        {
+          "num": 3,
+          "den": 4
+        },
+        {
+          "num": 1,
+          "den": 10
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "p0",
+      "expr": "pr.num/pr.den"
+    },
+    {
+      "name": "ex",
+      "expr": "n*p0"
+    },
+    {
+      "name": "vx",
+      "expr": "n*p0*(1 - p0)"
+    },
+    {
+      "name": "sx",
+      "expr": "sqrt(vx)"
+    }
+  ],
+  "constraints": [
+    "is_integer(ex)"
+  ],
+  "prompt": "確率変数 $X$ が二項分布 $B\\left({n},\\ {p0}\\right)$ に従うとき、$X$ の期待値、分散、標準偏差を求めなさい。",
+  "answer": "$E(X) = {ex}$、$V(X) = {vx}$、$\\sigma(X) = {sx}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "vx == ex*(1 - p0)",
+        "sx^2 == vx"
+      ]
+    }
+  ]
+}

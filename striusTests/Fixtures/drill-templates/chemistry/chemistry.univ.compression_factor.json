@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.univ.compression_factor",
+  "title": "実在気体の圧縮因子(Z = PV/nRT)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "p",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 20.0,
+      "step": 1.0
+    },
+    {
+      "name": "vol",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 2.0,
+      "step": 0.1
+    },
+    {
+      "name": "temp",
+      "kind": "integer",
+      "min": 250,
+      "max": 400,
+      "step": 50
+    },
+    {
+      "name": "n",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 5.0,
+      "step": 1.0
+    }
+  ],
+  "lets": [
+    {
+      "name": "z",
+      "expr": "p*1000000*vol*0.001/(n*8.31*temp)"
+    }
+  ],
+  "constraints": [
+    "z > 0.3",
+    "z < 3"
+  ],
+  "prompt": "ある実在気体 ${n|dec:1}\\,\\mathrm{mol}$ が、${temp}\\,\\mathrm{K}$、${p|dec:1}\\,\\mathrm{MPa}$ で ${vol|dec:2}\\,\\mathrm{L}$ の体積を占めている。圧縮因子 $Z = \\frac{PV}{nRT}$ を求めなさい。気体定数を $8.31\\,\\mathrm{J/(mol \\cdot K)}$ とする。",
+  "answer": "$Z = {z|sig:2}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(z*n*8.31*temp, p*1000000*vol*0.001)"
+      ]
+    }
+  ]
+}

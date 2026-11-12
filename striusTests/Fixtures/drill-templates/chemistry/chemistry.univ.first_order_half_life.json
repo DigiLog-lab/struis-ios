@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.univ.first_order_half_life",
+  "title": "1 次反応の半減期(t½ = ln 2 / k)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "k0",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.5,
+      "step": 0.5
+    },
+    {
+      "name": "ex",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        4
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "k",
+      "expr": "k0*10^(-ex)"
+    },
+    {
+      "name": "half",
+      "expr": "0.693/k"
+    }
+  ],
+  "prompt": "速度定数が $k = {k0|dec:1} \\times 10^{-{ex}}\\,\\mathrm{/s}$ の 1 次反応の半減期を求めなさい。$\\ln 2 = 0.693$ とする。",
+  "answer": "${half|sig:2}\\,\\mathrm{s}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(exp(-k*half), 0.5, 0.001)"
+      ]
+    }
+  ]
+}

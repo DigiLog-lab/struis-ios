@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "skill_id": "physics.wave.wave_speed",
+  "title": "波の基本式(v = fλ)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "f",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 10.0,
+      "step": 0.5,
+      "unit": "Hz",
+      "sig": 2
+    },
+    {
+      "name": "lam",
+      "kind": "decimal",
+      "min": 0.2,
+      "max": 4.0,
+      "step": 0.2,
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "v",
+      "expr": "f*lam",
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "period",
+      "expr": "1/f",
+      "unit": "s",
+      "sig": 2
+    }
+  ],
+  "prompt": "振動数 ${f|q}$、波長 ${lam|q}$ の波の速さと周期を求めなさい。",
+  "answer": "速さ ${v|q}$、周期 ${period|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(v*period, lam)"
+      ]
+    }
+  ]
+}

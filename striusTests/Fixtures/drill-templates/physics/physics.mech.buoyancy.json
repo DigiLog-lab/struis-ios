@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.buoyancy",
+  "title": "浮力(F = ρVg)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "g",
+      "kind": "constant",
+      "value": 9.8,
+      "unit": "m/s^2",
+      "sig": 2
+    },
+    {
+      "name": "rho",
+      "kind": "constant",
+      "value": 1000,
+      "unit": "kg/m^3"
+    },
+    {
+      "name": "v",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 50.0,
+      "step": 1.0,
+      "unit": "cm^3",
+      "sig": 2
+    },
+    {
+      "name": "scale",
+      "kind": "choice",
+      "options": [
+        10,
+        100
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "vol",
+      "expr": "v*scale",
+      "unit": "cm^3",
+      "sig": 2
+    },
+    {
+      "name": "f",
+      "expr": "rho*vol*g",
+      "unit": "N",
+      "sig": 2
+    }
+  ],
+  "prompt": "体積 ${vol|q}$ の物体を水中に完全に沈めた。物体が受ける浮力の大きさを求めなさい。水の密度を $1.0 \\times 10^{3}\\,\\mathrm{kg/m^{3}}$ とし、重力加速度の大きさを ${g|q}$ とする。",
+  "answer": "${f|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(f,'N'), value(vol,'cm^3')*0.000001*1000*9.8)"
+      ]
+    }
+  ]
+}

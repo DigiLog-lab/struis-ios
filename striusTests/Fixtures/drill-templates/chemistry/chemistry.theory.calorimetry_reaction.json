@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.calorimetry_reaction",
+  "title": "温度変化から反応で出入りした熱量を求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "w",
+      "kind": "choice",
+      "options": [
+        100,
+        150,
+        200,
+        250,
+        500
+      ],
+      "unit": "g",
+      "sig": 3
+    },
+    {
+      "name": "dt",
+      "kind": "decimal",
+      "min": 2.0,
+      "max": 12.0,
+      "step": 0.5,
+      "unit": "K",
+      "sig": 2
+    },
+    {
+      "name": "n",
+      "kind": "decimal",
+      "min": 0.01,
+      "max": 0.1,
+      "step": 0.01,
+      "unit": "mol",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "heat",
+      "expr": "value(w,'g')*4.2*value(dt,'K')/1000"
+    },
+    {
+      "name": "per",
+      "expr": "heat/value(n,'mol')"
+    }
+  ],
+  "constraints": [
+    "value(dt,'K') == sig(value(dt,'K'), 2)"
+  ],
+  "prompt": "ある物質 ${n|q}$ を水に溶かしたところ、水溶液 ${w|q}$ の温度が ${dt|q}$ 上昇した。発生した熱量と、この物質 1 mol あたりの発熱量を求めなさい。水溶液の比熱を $4.2\\,\\mathrm{J/(g \\cdot K)}$ とする。",
+  "answer": "${heat|sig:2}\\,\\mathrm{kJ}$、${per|sig:2}\\,\\mathrm{kJ/mol}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(heat*1000, 4.2*value(w,'g')*value(dt,'K'))",
+        "approx(per*value(n,'mol'), heat)"
+      ]
+    }
+  ]
+}

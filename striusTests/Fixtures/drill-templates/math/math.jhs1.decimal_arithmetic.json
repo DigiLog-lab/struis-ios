@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.decimal_arithmetic",
+  "title": "小数をふくむ計算",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "decimal",
+      "min": -9.9,
+      "max": 9.9,
+      "step": 0.1,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "decimal",
+      "min": 0.2,
+      "max": 9.8,
+      "step": 0.2
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0,
+        1
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "a - b*c"
+    }
+  ],
+  "constraints": [
+    "not is_integer(a)"
+  ],
+  "prompt": "次の計算をしなさい。",
+  "math": "{a|paren} - {b} \\times {c|paren}",
+  "answer": "${ans|dec}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{a|paren} - {b} \\times {c|paren}",
+      "equals": "ans"
+    }
+  ]
+}

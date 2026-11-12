@@ -1,0 +1,75 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.symmetric_value",
+  "title": "対称式の値",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        5,
+        6,
+        7,
+        10,
+        11,
+        13
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "choice",
+      "options": [
+        1,
+        2,
+        3,
+        5,
+        6,
+        7
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "x0",
+      "expr": "sqrt(a) + sqrt(b)"
+    },
+    {
+      "name": "y0",
+      "expr": "sqrt(a) - sqrt(b)"
+    },
+    {
+      "name": "sum",
+      "expr": "x0 + y0"
+    },
+    {
+      "name": "prod",
+      "expr": "x0*y0"
+    },
+    {
+      "name": "ans",
+      "expr": "x0^2 + y0^2"
+    }
+  ],
+  "constraints": [
+    "a > b",
+    "not is_square(a*b)"
+  ],
+  "prompt": "$x = {x0}$、$y = {y0}$ のとき、$x + y$、$xy$、$x^{2} + y^{2}$ の値を求めなさい。",
+  "answer": "$x + y = {sum}$、$xy = {prod}$、$x^{2} + y^{2} = {ans}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "ans == sum^2 - 2*prod"
+      ]
+    },
+    {
+      "kind": "identity",
+      "left": "({x0})^{2} + ({y0})^{2}",
+      "right": "{ans}"
+    }
+  ]
+}

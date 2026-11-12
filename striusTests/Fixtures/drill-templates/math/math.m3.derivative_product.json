@@ -1,0 +1,94 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.derivative_product",
+  "title": "積の微分",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "u",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "v",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "c",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "d"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "3*a*c",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "2*b*c",
+          "body": "x"
+        },
+        {
+          "coef": "a*d"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の関数を微分しなさい。",
+  "math": "y = ({u})({v})",
+  "answer": "$y' = {g}$",
+  "checks": [
+    {
+      "kind": "derivative",
+      "function": "({u})({v})",
+      "answer": "{g}",
+      "variable": "x"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.potential_energy_gravity",
+  "title": "重力による位置エネルギー(mgh)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "g",
+      "kind": "constant",
+      "value": 9.8,
+      "unit": "m/s^2",
+      "sig": 2
+    },
+    {
+      "name": "m",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 20.0,
+      "step": 0.5,
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "h",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 30.0,
+      "step": 1.0,
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "u",
+      "expr": "m*g*h",
+      "unit": "J",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "value(m,'kg') == sig(value(m,'kg'), 2)"
+  ],
+  "prompt": "地面を基準として、高さ ${h|q}$ の所にある質量 ${m|q}$ の物体の、重力による位置エネルギーを求めなさい。重力加速度の大きさを ${g|q}$ とする。",
+  "answer": "${u|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(u/(m*g), h)"
+      ]
+    }
+  ]
+}

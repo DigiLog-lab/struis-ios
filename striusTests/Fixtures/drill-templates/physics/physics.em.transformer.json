@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.transformer",
+  "title": "変圧器(電圧と巻数の比)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "n1",
+      "kind": "integer",
+      "min": 100,
+      "max": 1000,
+      "step": 100
+    },
+    {
+      "name": "n2",
+      "kind": "integer",
+      "min": 50,
+      "max": 2000,
+      "step": 50
+    },
+    {
+      "name": "v1",
+      "kind": "integer",
+      "min": 100,
+      "max": 200,
+      "step": 100,
+      "unit": "V",
+      "sig": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "v2",
+      "expr": "v1*n2/n1",
+      "unit": "V",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "n1 != n2"
+  ],
+  "prompt": "一次コイルが ${n1}$ 回巻き、二次コイルが ${n2}$ 回巻きの変圧器がある。一次コイルに実効値 ${v1|q}$ の交流電圧を加えたとき、二次コイルに生じる電圧の実効値を求めなさい。",
+  "answer": "${v2|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(v2*n1, v1*n2)"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.degree_of_polymerization",
+  "title": "平均分子量から重合度を求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "p",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "ポリエチレン",
+          "unit": "\\mathrm{C_2H_4}",
+          "w": 28
+        },
+        {
+          "name": "ポリプロピレン",
+          "unit": "\\mathrm{C_3H_6}",
+          "w": 42
+        },
+        {
+          "name": "ポリ塩化ビニル",
+          "unit": "\\mathrm{C_2H_3Cl}",
+          "w": 62.5
+        },
+        {
+          "name": "ポリスチレン",
+          "unit": "\\mathrm{C_8H_8}",
+          "w": 104
+        },
+        {
+          "name": "ポリ酢酸ビニル",
+          "unit": "\\mathrm{C_4H_6O_2}",
+          "w": 86
+        }
+      ]
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 500,
+      "max": 5000,
+      "step": 250
+    }
+  ],
+  "lets": [
+    {
+      "name": "mw",
+      "expr": "p.w*n"
+    }
+  ],
+  "prompt": "平均分子量が ${mw|dec}$ の{p.name}がある。繰り返し単位 ${p.unit}$ の式量を ${p.w|dec}$ として、平均の重合度を求めなさい。",
+  "answer": "${n}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(mw, p.w*n)"
+      ]
+    }
+  ]
+}

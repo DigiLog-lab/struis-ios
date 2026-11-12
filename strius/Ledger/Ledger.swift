@@ -248,6 +248,8 @@ actor Ledger {
             try db.execute(sql: "DELETE FROM claude_conversation_messages WHERE thread_id = ?", arguments: [id])
             try db.execute(sql: "DELETE FROM claude_conversations WHERE thread_id = ?", arguments: [id])
         }
+        // オフライン反復の「問題の型」の控え(イベントの外の表)も、消すスキルの分を消す。
+        try DrillTemplateStore.erase(skillIDs: journal.fact.scope.ids[LedgerEntity.timelineSkills.rawValue] ?? [], from: db)
         for seq in Set(seqs) {
             try db.execute(sql: """
                 INSERT OR IGNORE INTO sync_tombstones (record_name)

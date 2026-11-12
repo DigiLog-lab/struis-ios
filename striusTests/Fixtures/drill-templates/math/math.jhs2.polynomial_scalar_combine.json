@@ -1,0 +1,113 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs2.polynomial_scalar_combine",
+  "title": "数と多項式の乗法をふくむ計算",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 2,
+      "max": 5
+    },
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": 2,
+      "max": 5
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "constraints": [
+    "k*a - m*c != 0 or k*b - m*d != 0"
+  ],
+  "parts": [
+    {
+      "name": "p",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b",
+          "body": "y"
+        }
+      ]
+    },
+    {
+      "name": "q",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "c",
+          "body": "x"
+        },
+        {
+          "coef": "d",
+          "body": "y"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k*a - m*c",
+          "body": "x"
+        },
+        {
+          "coef": "k*b - m*d",
+          "body": "y"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の式を計算しなさい。",
+  "math": "{k}({p}) - {m}({q})",
+  "answer": "${g}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{k}({p}) - {m}({q})",
+      "right": "{g}"
+    }
+  ]
+}

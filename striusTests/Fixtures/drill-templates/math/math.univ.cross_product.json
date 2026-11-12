@@ -1,0 +1,73 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.cross_product",
+  "title": "外積(ベクトル積)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a1",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "a2",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "a3",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "b1",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "b2",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "b3",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    }
+  ],
+  "lets": [
+    {
+      "name": "c1",
+      "expr": "a2*b3 - a3*b2"
+    },
+    {
+      "name": "c2",
+      "expr": "a3*b1 - a1*b3"
+    },
+    {
+      "name": "c3",
+      "expr": "a1*b2 - a2*b1"
+    }
+  ],
+  "constraints": [
+    "c1 != 0 or c2 != 0 or c3 != 0"
+  ],
+  "prompt": "$\\boldsymbol{a} = ({a1},\\ {a2},\\ {a3})$、$\\boldsymbol{b} = ({b1},\\ {b2},\\ {b3})$ のとき、外積 $\\boldsymbol{a} \\times \\boldsymbol{b}$ を求めなさい。",
+  "answer": "$\\boldsymbol{a} \\times \\boldsymbol{b} = ({c1},\\ {c2},\\ {c3})$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "a1*c1 + a2*c2 + a3*c3 == 0",
+        "b1*c1 + b2*c2 + b3*c3 == 0",
+        "c1^2 + c2^2 + c3^2 == (a1^2 + a2^2 + a3^2)*(b1^2 + b2^2 + b3^2) - (a1*b1 + a2*b2 + a3*b3)^2"
+      ]
+    }
+  ]
+}

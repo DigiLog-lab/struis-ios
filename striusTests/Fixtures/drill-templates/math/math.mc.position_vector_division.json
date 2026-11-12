@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "skill_id": "math.mc.position_vector_division",
+  "title": "内分点の位置ベクトル",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": 1,
+      "max": 7
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 1,
+      "max": 7
+    }
+  ],
+  "constraints": [
+    "gcd(m, n) == 1",
+    "m != n"
+  ],
+  "parts": [
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "n/(m + n)",
+          "body": "\\vec{a}"
+        },
+        {
+          "coef": "m/(m + n)",
+          "body": "\\vec{b}"
+        }
+      ]
+    }
+  ],
+  "prompt": "2 点 $\\mathrm{A}(\\vec{a})$、$\\mathrm{B}(\\vec{b})$ を結ぶ線分 $\\mathrm{AB}$ を ${m} : {n}$ に内分する点 $\\mathrm{P}$ の位置ベクトル $\\vec{p}$ を、$\\vec{a}$、$\\vec{b}$ で表しなさい。",
+  "answer": "$\\vec{p} = {g}$",
+  "no_numeric_check": "答えがベクトルの式で、\\vec を数値にできない(係数の和が 1 になることは型の式で決まっている)"
+}

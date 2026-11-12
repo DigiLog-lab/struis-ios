@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "skill_id": "physics.heat.internal_energy",
+  "title": "単原子分子理想気体の内部エネルギー",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "R",
+      "kind": "constant",
+      "value": 8.31,
+      "unit": "J/(mol*K)",
+      "sig": 3
+    },
+    {
+      "name": "n",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 5.0,
+      "step": 0.5,
+      "unit": "mol",
+      "sig": 2
+    },
+    {
+      "name": "temp",
+      "kind": "integer",
+      "min": 200,
+      "max": 600,
+      "step": 20,
+      "unit": "K",
+      "sig": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "u",
+      "expr": "3*n*R*temp/2",
+      "unit": "J",
+      "sig": 2
+    }
+  ],
+  "prompt": "温度 ${temp|q}$ の単原子分子理想気体 ${n|q}$ の内部エネルギーを求めなさい。気体定数を ${R|q}$ とする。",
+  "answer": "${u|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(2*u/(3*n*temp), R)"
+      ]
+    }
+  ]
+}

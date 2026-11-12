@@ -1,0 +1,79 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.determinant_3x3",
+  "title": "行列式(3 × 3、サラスの方法)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -3,
+      "max": 3
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -3,
+      "max": 3
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -3,
+      "max": 3
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -3,
+      "max": 3
+    },
+    {
+      "name": "f",
+      "kind": "integer",
+      "min": -3,
+      "max": 3
+    },
+    {
+      "name": "g",
+      "kind": "integer",
+      "min": -3,
+      "max": 3
+    },
+    {
+      "name": "h",
+      "kind": "integer",
+      "min": -3,
+      "max": 3
+    },
+    {
+      "name": "j",
+      "kind": "integer",
+      "min": -3,
+      "max": 3
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": -3,
+      "max": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "det",
+      "expr": "a*f*k + b*g*h + c*d*j - c*f*h - b*d*k - a*g*j"
+    }
+  ],
+  "prompt": "次の行列式の値を求めなさい。",
+  "math": "\\begin{vmatrix} {a} & {b} & {c} \\\\ {d} & {f} & {g} \\\\ {h} & {j} & {k} \\end{vmatrix}",
+  "answer": "${det}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "det == a*(f*k - g*j) - b*(d*k - g*h) + c*(d*j - f*h)"
+      ]
+    }
+  ]
+}

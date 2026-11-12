@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.univ.arrhenius_activation_energy",
+  "title": "アレニウスの式から活性化エネルギーを求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "t1",
+      "kind": "integer",
+      "min": 280,
+      "max": 320,
+      "step": 10
+    },
+    {
+      "name": "dt",
+      "kind": "integer",
+      "min": 10,
+      "max": 40,
+      "step": 10
+    },
+    {
+      "name": "ratio",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        4,
+        5,
+        8,
+        10
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "t2",
+      "expr": "t1 + dt"
+    },
+    {
+      "name": "ea",
+      "expr": "8.31*ln(ratio)/(1/t1 - 1/t2)/1000"
+    }
+  ],
+  "prompt": "ある反応の速度定数は、温度を ${t1}\\,\\mathrm{K}$ から ${t2}\\,\\mathrm{K}$ に上げると ${ratio}$ 倍になった。この反応の活性化エネルギーを求めなさい。気体定数を $8.31\\,\\mathrm{J/(mol \\cdot K)}$ とする。",
+  "answer": "${ea|sig:2}\\,\\mathrm{kJ/mol}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(exp(-ea*1000/8.31*(1/t2 - 1/t1)), ratio, 0.000001)"
+      ]
+    }
+  ]
+}

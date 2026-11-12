@@ -1,0 +1,79 @@
+{
+  "format": 1,
+  "skill_id": "math.mc.vector_perpendicular",
+  "title": "ベクトルが垂直になる条件",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a1",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "a2",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b2",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "x0",
+      "kind": "integer",
+      "min": -8,
+      "max": 8
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "-a2*b2 - a1*x0"
+    }
+  ],
+  "constraints": [
+    "is_integer(c/a1)",
+    "abs(c/a1) <= 9"
+  ],
+  "parts": [
+    {
+      "name": "bx",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "c/a1"
+        }
+      ]
+    }
+  ],
+  "prompt": "$\\vec{a} = ({a1},\\ {a2})$ と $\\vec{b} = ({bx},\\ {b2})$ が垂直になるとき、$x$ の値を求めなさい。",
+  "answer": "$x = {x0}$",
+  "checks": [
+    {
+      "kind": "root",
+      "left": "{a1}({bx}) + {a2|paren} \\cdot {b2|paren}",
+      "right": "0",
+      "variable": "x",
+      "solutions": [
+        "{x0}"
+      ]
+    }
+  ]
+}

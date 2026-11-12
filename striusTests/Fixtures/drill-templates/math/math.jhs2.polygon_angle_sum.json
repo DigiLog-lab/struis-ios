@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs2.polygon_angle_sum",
+  "title": "多角形の内角の和",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 5,
+      "max": 30
+    }
+  ],
+  "lets": [
+    {
+      "name": "total",
+      "expr": "180*(n - 2)"
+    }
+  ],
+  "prompt": "${n}$ 角形の内角の和を求めなさい。",
+  "answer": "${total}^{\\circ}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "total + 360 == 180*n"
+      ]
+    }
+  ]
+}

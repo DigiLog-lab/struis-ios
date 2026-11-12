@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.conditional_probability",
+  "title": "条件付き確率",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 2,
+      "max": 9
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 2,
+      "max": 9
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": 2,
+      "max": 9
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": 2,
+      "max": 9
+    }
+  ],
+  "lets": [
+    {
+      "name": "total",
+      "expr": "a + b + c + d"
+    },
+    {
+      "name": "ab",
+      "expr": "a + b"
+    },
+    {
+      "name": "p",
+      "expr": "a/ab"
+    }
+  ],
+  "prompt": "ある集団 ${total}$ 人を調べたところ、条件 A を満たす人は ${ab}$ 人、そのうち条件 B も満たす人は ${a}$ 人であった。この集団から 1 人を選ぶとき、その人が A を満たすことが分かっているとして、B も満たす条件付き確率 $P_{A}(B)$ を求めなさい。",
+  "answer": "$P_{A}(B) = {p}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "p == (a/total)/(ab/total)"
+      ]
+    }
+  ]
+}

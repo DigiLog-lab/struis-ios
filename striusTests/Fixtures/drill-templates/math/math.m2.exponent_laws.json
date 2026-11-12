@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.exponent_laws",
+  "title": "指数法則",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        5
+      ]
+    },
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": -4,
+      "max": 6,
+      "exclude": [
+        0,
+        1
+      ]
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": -4,
+      "max": 6,
+      "exclude": [
+        0,
+        1
+      ]
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": -3,
+      "max": 5,
+      "exclude": [
+        0,
+        1
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "a^(m + n - k)"
+    }
+  ],
+  "constraints": [
+    "m + n - k >= -3",
+    "m + n - k <= 4"
+  ],
+  "prompt": "次の計算をしなさい。",
+  "math": "{a}^{{m}} \\times {a}^{{n}} \\div {a}^{{k}}",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{a}^{{m}} \\times {a}^{{n}} \\div {a}^{{k}}",
+      "equals": "ans"
+    }
+  ]
+}

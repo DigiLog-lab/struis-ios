@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.set_count",
+  "title": "和集合の要素の個数",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "na",
+      "kind": "integer",
+      "min": 10,
+      "max": 40
+    },
+    {
+      "name": "nb",
+      "kind": "integer",
+      "min": 10,
+      "max": 40
+    },
+    {
+      "name": "both",
+      "kind": "integer",
+      "min": 1,
+      "max": 15
+    }
+  ],
+  "lets": [
+    {
+      "name": "union",
+      "expr": "na + nb - both"
+    }
+  ],
+  "constraints": [
+    "both < na",
+    "both < nb"
+  ],
+  "prompt": "$n(A) = {na}$、$n(B) = {nb}$、$n(A \\cap B) = {both}$ のとき、$n(A \\cup B)$ を求めなさい。",
+  "answer": "$n(A \\cup B) = {union}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "(na - both) + (nb - both) + both == union"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.average_speed_kmh",
+  "title": "平均の速さと単位の換算(km/h と m/s)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": 20,
+      "max": 180,
+      "step": 10,
+      "unit": "km"
+    },
+    {
+      "name": "t",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 3.0,
+      "step": 0.5,
+      "unit": "h"
+    }
+  ],
+  "lets": [
+    {
+      "name": "vk",
+      "expr": "d/t",
+      "unit": "km/h",
+      "sig": 2
+    },
+    {
+      "name": "vm",
+      "expr": "d/t",
+      "unit": "m/s",
+      "sig": 2
+    }
+  ],
+  "prompt": "${d|q}$ の道のりを ${t|q}$ かけて走った自動車の平均の速さは何 km/h か。また、それは何 m/s か。",
+  "answer": "${vk|q}$、${vm|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(vm,'m/s')*3.6, value(vk,'km/h'))",
+        "approx(vk*t, d)"
+      ]
+    }
+  ]
+}

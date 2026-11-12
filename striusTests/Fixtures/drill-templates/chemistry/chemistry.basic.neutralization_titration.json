@@ -1,0 +1,77 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.neutralization_titration",
+  "title": "中和滴定(濃度を求める)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "acid",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "塩酸",
+          "a": 1
+        },
+        {
+          "name": "酢酸水溶液",
+          "a": 1
+        },
+        {
+          "name": "硫酸",
+          "a": 2
+        },
+        {
+          "name": "シュウ酸水溶液",
+          "a": 2
+        }
+      ]
+    },
+    {
+      "name": "va",
+      "kind": "choice",
+      "options": [
+        10.0,
+        20.0,
+        25.0
+      ],
+      "unit": "mL",
+      "sig": 3
+    },
+    {
+      "name": "cb",
+      "kind": "decimal",
+      "min": 0.05,
+      "max": 0.2,
+      "step": 0.01,
+      "unit": "mol/L",
+      "sig": 3
+    },
+    {
+      "name": "vb",
+      "kind": "decimal",
+      "min": 8.0,
+      "max": 25.0,
+      "step": 0.5,
+      "unit": "mL",
+      "sig": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "ca",
+      "expr": "cb*vb/(acid.a*va)",
+      "unit": "mol/L",
+      "sig": 3
+    }
+  ],
+  "prompt": "濃度のわからない{acid.name} ${va|q}$ を、${cb|q}$ の水酸化ナトリウム水溶液で滴定したところ、中和点までに ${vb|q}$ を要した。この{acid.name}のモル濃度を求めなさい。",
+  "answer": "${ca|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(acid.a*ca*va, cb*vb)"
+      ]
+    }
+  ]
+}

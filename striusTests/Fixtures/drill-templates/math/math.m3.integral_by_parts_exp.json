@@ -1,0 +1,68 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.integral_by_parts_exp",
+  "title": "部分積分(x e^{ax})",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 5
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k",
+          "body": "xe^{{a|coef}x}"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k/a",
+          "body": "xe^{{a|coef}x}"
+        },
+        {
+          "coef": "-k/a^2",
+          "body": "e^{{a|coef}x}"
+        },
+        {
+          "coef": "1",
+          "body": "C"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の不定積分を求めなさい。",
+  "math": "\\int {f}\\,dx",
+  "answer": "${g}$($C$ は積分定数)",
+  "checks": [
+    {
+      "kind": "antiderivative",
+      "integrand": "{f}",
+      "answer": "{g}",
+      "variable": "x",
+      "range": [
+        -0.5,
+        0.5
+      ]
+    }
+  ]
+}

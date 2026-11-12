@@ -50,6 +50,7 @@
 		77301C7898B12DA4933CCD4E /* ios_system-native.xcframework in Embed Native Frameworks */ = {isa = PBXBuildFile; fileRef = C708FB4913FA457422391CCA /* ios_system-native.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		7A3F0A112F9A010000000001 /* Auth0 in Frameworks */ = {isa = PBXBuildFile; productRef = 7A3F0A102F9A010000000001 /* Auth0 */; };
 		7C0228653C0B8ED1900F5689 /* StruisClipApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6AAEB72747591EB42D00CEE /* StruisClipApp.swift */; };
+		7E60711E72D30FB4454272E3 /* drill-templates in Resources */ = {isa = PBXBuildFile; fileRef = 933404BB12B6420EDC3E345E /* drill-templates */; };
 		7F2137BB93FD6387FE8AC370 /* TimelineTurns.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9BAEF74E6FF625CB4C478F3 /* TimelineTurns.swift */; };
 		8F589A0181345DE327C0CB89 /* RuntimeProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45A75C48B8CAA19EDCFFF70F /* RuntimeProtocol.swift */; };
 		9300634436D74C4BBE35699D /* TimelineExpression.swift in Sources */ = {isa = PBXBuildFile; fileRef = 807F62CB64FE8239B5C8353B /* TimelineExpression.swift */; };
@@ -187,7 +188,9 @@
 		E82BEFBF3FE16B01A5EF0906 /* TimeAttackAppTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E80AF6A6E5760F6D426A3E57 /* TimeAttackAppTransport.swift */; };
 		E82CC1EB3ECDEEB585D9592A /* ConversationExpressions.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8848ADC574BC51C75EB8656 /* ConversationExpressions.swift */; };
 		E83488A5F3830E11EADB547C /* AssetCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8A20E6A7FB243BC622BEBC6 /* AssetCache.swift */; };
+		E834EBB22CB50EF75FAEFFF0 /* DrillExpression.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8206D9840C022A329ABAF49 /* DrillExpression.swift */; };
 		E8356B09201A4A696D71665E /* ClaudeUpstream.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8CF22BD1D8575067561B0FA /* ClaudeUpstream.swift */; };
+		E835DD30AFD2D6960EE3D545 /* OfflineDrillLabSamples.swift in Sources */ = {isa = PBXBuildFile; fileRef = E821C1816C56388DA71229E3 /* OfflineDrillLabSamples.swift */; };
 		E837F5E38D91BB1EE0732E8B /* TimeAttackViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8DC11EE73DDA0FAC7904D20 /* TimeAttackViews.swift */; };
 		E83DE12925DA4E73EFCE225C /* TimeAttackParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F858E89B11D83819034AD4 /* TimeAttackParts.swift */; };
 		E83E41A0ACA5B39B13A8FA80 /* LedgerSyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8299B8F304D2107A4417907 /* LedgerSyncEngine.swift */; };
@@ -198,6 +201,7 @@
 		E8528AF8130871D3C792CB40 /* ClaudeUsageLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = E855AAC0242A645E161DCF54 /* ClaudeUsageLog.swift */; };
 		E853BBC599FD898D22AF2921 /* TimeAttackSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C5DD61BE5277E7358E1D8E /* TimeAttackSession.swift */; };
 		E854708352E9A1467E9EF218 /* TurnClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8B7FF94CFF996F3B424C12C /* TurnClock.swift */; };
+		E856CCBB96503C0A4CD5F15A /* DrillGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E863C09A9155F94A47AB1847 /* DrillGenerator.swift */; };
 		E856F3111FF48E9E253FE4CA /* LedgerRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8DE42321A7D3F680E6B8B27 /* LedgerRows.swift */; };
 		E85821A9466B206B2D9AFCEA /* MockTurnRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = E814CCB551BDE754864052CA /* MockTurnRunner.swift */; };
 		E8596D4BFFA43F9816AABF79 /* ModelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83CEAD0EE22F09C5AE734AD /* ModelProvider.swift */; };
@@ -205,10 +209,18 @@
 		E85EF2492E67344CAB6B963A /* CloudKitSyncTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81DA59C5430F12181F11ED0 /* CloudKitSyncTransport.swift */; };
 		E8631F1427CC4F2F9B02AFF0 /* ClaudeConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F04EA037886E401DD829E7 /* ClaudeConversationStore.swift */; };
 		E86AA1D6DEB46031D7AFB5EB /* OnboardingProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8DC9C4E264B5A82DC7601DB /* OnboardingProfile.swift */; };
+		E8740A5DE35F396B50411D7F /* DrillTemplateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F5B87F20BE30FD61E393BC /* DrillTemplateStore.swift */; };
 		E87542C6658A8F71FB08E31B /* DelegationWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E82295A416B575E96234977A /* DelegationWatcher.swift */; };
+		E8755431858BA56FA534BD2F /* OfflineDrillLabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E804138CDC5186501C4BC2E6 /* OfflineDrillLabView.swift */; };
+		E87824F253585D19960E8317 /* DrillUnit.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89C7A97F3A2B89E41B44159 /* DrillUnit.swift */; };
 		E87ABECC414E69C935E94562 /* UnitPrefetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = E827BBC3DC33CD7D7EB730FB /* UnitPrefetch.swift */; };
+		E87AE1716C4A031CF5DF3BAD /* DrillFunctions.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83A2B74B1B680E5CD103107 /* DrillFunctions.swift */; };
+		E87D8F0788615842FE7E7241 /* DrillNumber.swift in Sources */ = {isa = PBXBuildFile; fileRef = E881A6712A2339125FC0E5A1 /* DrillNumber.swift */; };
 		E87F8B02BD6E54CF7A621D26 /* NativeToolRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E84B65065F3AD0607CB8744C /* NativeToolRouter.swift */; };
 		E883181BF8A8F4221D23DACF /* TurnActivityLabels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E80D75EDD06056FC3A419A48 /* TurnActivityLabels.swift */; };
+		E884D59E500B328B6517E8E4 /* DrillFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8FBF9216A5252EED10B2BCE /* DrillFormat.swift */; };
+		E886F6EC5B0CBB609888569C /* DrillValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E866E00A6F9AB01E0A0F672A /* DrillValidator.swift */; };
+		E8879888104052C959F567B6 /* DrillAuthoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8BA633DDDA6B0D7F34DD6C1 /* DrillAuthoring.swift */; };
 		E887AF2632F868EFDAFF6BF2 /* LedgerFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8D692CE4E10B309FE9264FD /* LedgerFixtures.swift */; };
 		E88D21F06058C0F0EC1CF5B2 /* LedgerArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = E835D58E1FDDF3C6520FE58D /* LedgerArchive.swift */; };
 		E88F48579BE39E20D3E2E387 /* LegalTerms.swift in Sources */ = {isa = PBXBuildFile; fileRef = E877B97ADDC449610D6FF24E /* LegalTerms.swift */; };
@@ -218,6 +230,7 @@
 		E897AE9C22D5DC2F775B0338 /* SyncTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E80B4021D680A05C2471893A /* SyncTransport.swift */; };
 		E897C0AA72E3A8BE52626856 /* LedgerID.swift in Sources */ = {isa = PBXBuildFile; fileRef = E841779F967FE6357A8ABC9B /* LedgerID.swift */; };
 		E89B468DA3281DB0A31598F3 /* NativeMathText.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8EC9663890942100FABAE20 /* NativeMathText.swift */; };
+		E89B933D7C1B5BBEEAFA8771 /* DrillTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E84C3228D07BE161F46987CE /* DrillTemplate.swift */; };
 		E89F3B74CAE126F4930D4622 /* RootfsInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = E80E40FFA2BBDE73B8F29D32 /* RootfsInstaller.swift */; };
 		E8A05E31759FF8B671100EF1 /* ClaudeMessageReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = E809FECB70422360A2C0E640 /* ClaudeMessageReader.swift */; };
 		E8A1D99CFB4895D11B20EF7A /* TurnComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8FC5D4CD361FA4ADE1F41AA /* TurnComposer.swift */; };
@@ -231,6 +244,8 @@
 		E8B16BEEE878BC8359B90A2B /* WorkspaceStager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E84B9E4A212B2A53E8699532 /* WorkspaceStager.swift */; };
 		E8B231E5B019E2366775B590 /* EngineJSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8142AA1A6A4E8CC68342E91 /* EngineJSON.swift */; };
 		E8B28D79EF20C1E36737CA56 /* OnboardingPlanViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD271CC56E601499F0AB077 /* OnboardingPlanViews.swift */; };
+		E8B6AFFFB48B32BD0FB88B98 /* DrillRenderProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = E86647D6F950C6033BAEDD99 /* DrillRenderProbe.swift */; };
+		E8B9150978FE2B286F375C3B /* DrillArithmetic.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8E33A283D2FFAB28B3579D3 /* DrillArithmetic.swift */; };
 		E8B9DBEF44017C4E4E1259F2 /* TurnCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8ED5D379356781B6AC48333 /* TurnCoordinator.swift */; };
 		E8BBF0A9795164EF1A50F92E /* ChatTurnRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8362B167631600E4A89F2AD /* ChatTurnRecovery.swift */; };
 		E8C5A1BEED873CCA78E3C0D0 /* TimeAttackClaude.swift in Sources */ = {isa = PBXBuildFile; fileRef = E86C22E8E9AD8E6C3B59FD3C /* TimeAttackClaude.swift */; };
@@ -246,8 +261,12 @@
 		E8E6CC9F33CA23A16F1D9B5B /* AppAttestClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C0D3E206D0D0B0702ADFCE /* AppAttestClient.swift */; };
 		E8E79E73E4019313F168888D /* HyotanBoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = E888BABFF345109EB4061AD9 /* HyotanBoot.swift */; };
 		E8F0895598AC156B5026A5A8 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = E8F39C7AF57EA0CBACE63F1D /* GRDB */; };
+		E8F48ADBBBB311CB9F57BF7E /* DrillCompiled.swift in Sources */ = {isa = PBXBuildFile; fileRef = E848204EF68DC216A295F1DB /* DrillCompiled.swift */; };
+		E8F757384E4A6C88201EC1D1 /* DrillChecks.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8E111FC6090088E7720A1B1 /* DrillChecks.swift */; };
 		E8FA7ED68DEDF2BB69CB2B6F /* LedgerEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8AE201EA0D519FE16B607CA /* LedgerEvents.swift */; };
+		E8FB239B08F81806F3F696A3 /* DrillLint.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8ECBC3EB3E34513241E89A4 /* DrillLint.swift */; };
 		E8FC9D413D588D253C10BAF0 /* NativeRuntimeHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83B6F4E6822450D9CAFE155 /* NativeRuntimeHost.swift */; };
+		E8FE73CCB1BE7E7B501B1DDF /* DrillTeX.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8AEC8AFCF2045AABA5A2B12 /* DrillTeX.swift */; };
 		E9AFDCF5385C1EF91C35ACD9 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000E /* Theme.swift */; };
 		EF55AF6D8620EE4ECF28C485 /* TimelineStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E65AE9A79C0EBE31438EA058 /* TimelineStore.swift */; };
 		F03517B172B6667FD19A5E0F /* Python.xcframework in Embed Native Frameworks */ = {isa = PBXBuildFile; fileRef = 59F3E85D7A45B73661243CC0 /* Python.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -366,6 +385,7 @@
 		8C57A3F8C8034E1E707EC6BB /* OnboardingTrialViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTrialViews.swift; sourceTree = "<group>"; };
 		8D497C7C0F92716D8145D543 /* VirtualPythonProviderAdapter.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; name = VirtualPythonProviderAdapter.m; path = Worker/VirtualPythonProviderAdapter.m; sourceTree = "<group>"; };
 		8FFF45B5DBAD571F7C0B8A5D /* CompoundDashPreparation.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; name = CompoundDashPreparation.m; path = Worker/CompoundDashPreparation.m; sourceTree = "<group>"; };
+		933404BB12B6420EDC3E345E /* drill-templates */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = "drill-templates"; path = "striusTests/Fixtures/drill-templates"; sourceTree = SOURCE_ROOT; };
 		96ED82BACEF618A3D3793EE1 /* learning-feed */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = "learning-feed"; path = "striusTests/Fixtures/learning-feed"; sourceTree = SOURCE_ROOT; };
 		992C09AD2F927BB8009FF690 /* strius.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = strius.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		992C09BC2F927BB9009FF690 /* striusTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = striusTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -472,6 +492,7 @@
 		E720000000000000000000015 /* WorkbookEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkbookEndpoints.swift; sourceTree = "<group>"; };
 		E720000000000000000000016 /* SimulatorFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorFixtures.swift; sourceTree = "<group>"; };
 		E720000000000000000000017 /* WorkbookSubunitHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkbookSubunitHeader.swift; sourceTree = "<group>"; };
+		E804138CDC5186501C4BC2E6 /* OfflineDrillLabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineDrillLabView.swift; sourceTree = "<group>"; };
 		E8081A91E57E1C458F7533C3 /* MathTextLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathTextLayout.swift; sourceTree = "<group>"; };
 		E809FECB70422360A2C0E640 /* ClaudeMessageReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeMessageReader.swift; sourceTree = "<group>"; };
 		E80AE3819EE636AC63BFA77A /* WorkspaceOperationBroker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceOperationBroker.swift; sourceTree = "<group>"; };
@@ -486,6 +507,8 @@
 		E81A6DA88837524D4B9F383A /* ChatRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatRepository.swift; sourceTree = "<group>"; };
 		E81DA59C5430F12181F11ED0 /* CloudKitSyncTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSyncTransport.swift; sourceTree = "<group>"; };
 		E81DC6F9D6F51FC07EA463C6 /* ChatKickoff.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatKickoff.swift; sourceTree = "<group>"; };
+		E8206D9840C022A329ABAF49 /* DrillExpression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillExpression.swift; sourceTree = "<group>"; };
+		E821C1816C56388DA71229E3 /* OfflineDrillLabSamples.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineDrillLabSamples.swift; sourceTree = "<group>"; };
 		E82295A416B575E96234977A /* DelegationWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DelegationWatcher.swift; sourceTree = "<group>"; };
 		E823A92C87043B90267739DE /* TurnRuntimeError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnRuntimeError.swift; sourceTree = "<group>"; };
 		E827BBC3DC33CD7D7EB730FB /* UnitPrefetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitPrefetch.swift; sourceTree = "<group>"; };
@@ -493,6 +516,7 @@
 		E835D58E1FDDF3C6520FE58D /* LedgerArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerArchive.swift; sourceTree = "<group>"; };
 		E835D809DD03ECD5383736AB /* TurnActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnActivity.swift; sourceTree = "<group>"; };
 		E8362B167631600E4A89F2AD /* ChatTurnRecovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTurnRecovery.swift; sourceTree = "<group>"; };
+		E83A2B74B1B680E5CD103107 /* DrillFunctions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillFunctions.swift; sourceTree = "<group>"; };
 		E83B6F4E6822450D9CAFE155 /* NativeRuntimeHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeRuntimeHost.swift; sourceTree = "<group>"; };
 		E83B70B43E73E7971A64CD24 /* ChatTurns.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTurns.swift; sourceTree = "<group>"; };
 		E83CEAD0EE22F09C5AE734AD /* ModelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelProvider.swift; sourceTree = "<group>"; };
@@ -500,16 +524,22 @@
 		E841779F967FE6357A8ABC9B /* LedgerID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerID.swift; sourceTree = "<group>"; };
 		E84246BD256600C1B8FA5CB8 /* ChatTurnCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTurnCoordinator.swift; sourceTree = "<group>"; };
 		E84280DB6567A43EB6D2591F /* TutorMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TutorMemory.swift; sourceTree = "<group>"; };
+		E848204EF68DC216A295F1DB /* DrillCompiled.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillCompiled.swift; sourceTree = "<group>"; };
 		E84B65065F3AD0607CB8744C /* NativeToolRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeToolRouter.swift; sourceTree = "<group>"; };
 		E84B9E4A212B2A53E8699532 /* WorkspaceStager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceStager.swift; sourceTree = "<group>"; };
+		E84C3228D07BE161F46987CE /* DrillTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillTemplate.swift; sourceTree = "<group>"; };
 		E855AAC0242A645E161DCF54 /* ClaudeUsageLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageLog.swift; sourceTree = "<group>"; };
+		E863C09A9155F94A47AB1847 /* DrillGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillGenerator.swift; sourceTree = "<group>"; };
 		E8663698679A6278F7E9AE37 /* GuardianConsentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuardianConsentView.swift; sourceTree = "<group>"; };
+		E86647D6F950C6033BAEDD99 /* DrillRenderProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillRenderProbe.swift; sourceTree = "<group>"; };
+		E866E00A6F9AB01E0A0F672A /* DrillValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillValidator.swift; sourceTree = "<group>"; };
 		E8688833EB661495070B90F8 /* ClaudeStreamStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeStreamStatus.swift; sourceTree = "<group>"; };
 		E86C22E8E9AD8E6C3B59FD3C /* TimeAttackClaude.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeAttackClaude.swift; sourceTree = "<group>"; };
 		E874460EB6F9E603DE0AA7AF /* TokenUsageSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenUsageSummary.swift; sourceTree = "<group>"; };
 		E877B97ADDC449610D6FF24E /* LegalTerms.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegalTerms.swift; sourceTree = "<group>"; };
 		E8791B9E20A98CCD3A11EA76 /* LedgerSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerSync.swift; sourceTree = "<group>"; };
 		E87E3CB209BEDA7A2C1FACE0 /* GuardianConsent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuardianConsent.swift; sourceTree = "<group>"; };
+		E881A6712A2339125FC0E5A1 /* DrillNumber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillNumber.swift; sourceTree = "<group>"; };
 		E881F9F1746DE99882742C39 /* MainThreadWatchdog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainThreadWatchdog.swift; sourceTree = "<group>"; };
 		E8848ADC574BC51C75EB8656 /* ConversationExpressions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationExpressions.swift; sourceTree = "<group>"; };
 		E886438606454527D4DD463C /* Ledger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ledger.swift; sourceTree = "<group>"; };
@@ -519,13 +549,16 @@
 		E8915C459B984FB12D695D8E /* LearnerText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearnerText.swift; sourceTree = "<group>"; };
 		E895B82C00753CAA1293F7A8 /* TimeAttack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeAttack.swift; sourceTree = "<group>"; };
 		E89AF7149097D0A60471D315 /* ThreadedPythonCommandTestOverlay */ = {isa = PBXFileReference; lastKnownFileType = folder; path = NativeRuntime/ThreadedPythonCommandTestOverlay; sourceTree = SOURCE_ROOT; };
+		E89C7A97F3A2B89E41B44159 /* DrillUnit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillUnit.swift; sourceTree = "<group>"; };
 		E8A0C5341F9E4E7CFA074C48 /* UnitMaterialAttacher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitMaterialAttacher.swift; sourceTree = "<group>"; };
 		E8A20E6A7FB243BC622BEBC6 /* AssetCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetCache.swift; sourceTree = "<group>"; };
 		E8A3FCA6E5B68436AB96B042 /* MathPlainText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathPlainText.swift; sourceTree = "<group>"; };
 		E8A5AACF31F9E17EDD90AF4C /* DeviceRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceRuntime.swift; sourceTree = "<group>"; };
 		E8AE201EA0D519FE16B607CA /* LedgerEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerEvents.swift; sourceTree = "<group>"; };
+		E8AEC8AFCF2045AABA5A2B12 /* DrillTeX.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillTeX.swift; sourceTree = "<group>"; };
 		E8B38629B54E9F836AA83DEB /* LearningProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningProgress.swift; sourceTree = "<group>"; };
 		E8B7FF94CFF996F3B424C12C /* TurnClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnClock.swift; sourceTree = "<group>"; };
+		E8BA633DDDA6B0D7F34DD6C1 /* DrillAuthoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillAuthoring.swift; sourceTree = "<group>"; };
 		E8BB5119C2757CE7D4E17A5E /* MathSourceNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathSourceNormalizer.swift; sourceTree = "<group>"; };
 		E8C0801F731258F0E1518FFC /* ThreadContextStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadContextStore.swift; sourceTree = "<group>"; };
 		E8C0D3E206D0D0B0702ADFCE /* AppAttestClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAttestClient.swift; sourceTree = "<group>"; };
@@ -540,13 +573,18 @@
 		E8DDE18C0534231C468CB2A7 /* threaded-foundation-policy.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "NativeRuntime/threaded-foundation-policy.json"; sourceTree = SOURCE_ROOT; };
 		E8DE42321A7D3F680E6B8B27 /* LedgerRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerRows.swift; sourceTree = "<group>"; };
 		E8E0CE049A0DDF2A245A9F7E /* TimeAttackFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeAttackFlowView.swift; sourceTree = "<group>"; };
+		E8E111FC6090088E7720A1B1 /* DrillChecks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillChecks.swift; sourceTree = "<group>"; };
+		E8E33A283D2FFAB28B3579D3 /* DrillArithmetic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillArithmetic.swift; sourceTree = "<group>"; };
 		E8E459EBD35886C255F2E0AF /* UsageReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageReporter.swift; sourceTree = "<group>"; };
 		E8EB52472FDFFAB6DEE6656E /* ClaudeTurnRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeTurnRunner.swift; sourceTree = "<group>"; };
 		E8EC9663890942100FABAE20 /* NativeMathText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeMathText.swift; sourceTree = "<group>"; };
+		E8ECBC3EB3E34513241E89A4 /* DrillLint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillLint.swift; sourceTree = "<group>"; };
 		E8ED5D379356781B6AC48333 /* TurnCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnCoordinator.swift; sourceTree = "<group>"; };
 		E8F04EA037886E401DD829E7 /* ClaudeConversationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeConversationStore.swift; sourceTree = "<group>"; };
 		E8F0DA45DFE793A59C0A3867 /* LearnerData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearnerData.swift; sourceTree = "<group>"; };
+		E8F5B87F20BE30FD61E393BC /* DrillTemplateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillTemplateStore.swift; sourceTree = "<group>"; };
 		E8F858E89B11D83819034AD4 /* TimeAttackParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeAttackParts.swift; sourceTree = "<group>"; };
+		E8FBF9216A5252EED10B2BCE /* DrillFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillFormat.swift; sourceTree = "<group>"; };
 		E8FC5D4CD361FA4ADE1F41AA /* TurnComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnComposer.swift; sourceTree = "<group>"; };
 		E8FE4D21E8A4E2C19EF22E19 /* LedgerSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerSchema.swift; sourceTree = "<group>"; };
 		EB37DFAA98F75CEEDF9B91BA /* WorkerSupport.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; name = WorkerSupport.m; path = Worker/WorkerSupport.m; sourceTree = "<group>"; };
@@ -1015,6 +1053,7 @@
 				E835D58E1FDDF3C6520FE58D /* LedgerArchive.swift */,
 				E81327548E7FFD263698CB52 /* UnitDeletion.swift */,
 				F51E3ADEFFEC463598C12543 /* LearningErasure.swift */,
+				E8F5B87F20BE30FD61E393BC /* DrillTemplateStore.swift */,
 			);
 			path = Ledger;
 			sourceTree = "<group>";
@@ -1062,6 +1101,7 @@
 				E8F4F42FAB909E1A9453E682 /* Workspace */,
 				E85CF7AF0619E79733B68454 /* Timeline */,
 				E80F116E35EA6C1019EC11DA /* TimeAttack */,
+				E89570A20F97565E0238A0BD /* OfflineDrill */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -1138,6 +1178,7 @@
 				96ED82BACEF618A3D3793EE1 /* learning-feed */,
 				4E78FB100E0C357B23E4CA01 /* handwritten_eigenvalue.jpeg */,
 				8AF46D7EECDE4B5EB431D081 /* math */,
+				933404BB12B6420EDC3E345E /* drill-templates */,
 			);
 			name = TestResources;
 			sourceTree = "<group>";
@@ -1183,8 +1224,19 @@
 				E8848ADC574BC51C75EB8656 /* ConversationExpressions.swift */,
 				C3B0000000000000000000A4 /* AttachmentStaging.swift */,
 				E80D75EDD06056FC3A419A48 /* TurnActivityLabels.swift */,
+				E8D2F613BDD30DF07DF84F69 /* Drill */,
 			);
 			path = Engine;
+			sourceTree = "<group>";
+		};
+		E89570A20F97565E0238A0BD /* OfflineDrill */ = {
+			isa = PBXGroup;
+			children = (
+				E86647D6F950C6033BAEDD99 /* DrillRenderProbe.swift */,
+				E821C1816C56388DA71229E3 /* OfflineDrillLabSamples.swift */,
+				E804138CDC5186501C4BC2E6 /* OfflineDrillLabView.swift */,
+			);
+			path = OfflineDrill;
 			sourceTree = "<group>";
 		};
 		E8A0BF193A8F8EBB5BE2D556 /* Runtime */ = {
@@ -1242,6 +1294,27 @@
 				E877B97ADDC449610D6FF24E /* LegalTerms.swift */,
 			);
 			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		E8D2F613BDD30DF07DF84F69 /* Drill */ = {
+			isa = PBXGroup;
+			children = (
+				E8E33A283D2FFAB28B3579D3 /* DrillArithmetic.swift */,
+				E8BA633DDDA6B0D7F34DD6C1 /* DrillAuthoring.swift */,
+				E8E111FC6090088E7720A1B1 /* DrillChecks.swift */,
+				E848204EF68DC216A295F1DB /* DrillCompiled.swift */,
+				E8206D9840C022A329ABAF49 /* DrillExpression.swift */,
+				E8FBF9216A5252EED10B2BCE /* DrillFormat.swift */,
+				E83A2B74B1B680E5CD103107 /* DrillFunctions.swift */,
+				E863C09A9155F94A47AB1847 /* DrillGenerator.swift */,
+				E8ECBC3EB3E34513241E89A4 /* DrillLint.swift */,
+				E881A6712A2339125FC0E5A1 /* DrillNumber.swift */,
+				E8AEC8AFCF2045AABA5A2B12 /* DrillTeX.swift */,
+				E84C3228D07BE161F46987CE /* DrillTemplate.swift */,
+				E89C7A97F3A2B89E41B44159 /* DrillUnit.swift */,
+				E866E00A6F9AB01E0A0F672A /* DrillValidator.swift */,
+			);
+			path = Drill;
 			sourceTree = "<group>";
 		};
 		E8ED7590C63824C6600A76B3 /* rootfs */ = {
@@ -1464,6 +1537,7 @@
 				F8A1C0E00000000000000002 /* engine-vectors in Resources */,
 				E4E1A096E92156CE1BC9FF29 /* learning-feed in Resources */,
 				213F481E905465B5962C6FB5 /* math in Resources */,
+				7E60711E72D30FB4454272E3 /* drill-templates in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1753,6 +1827,24 @@
 				E837F5E38D91BB1EE0732E8B /* TimeAttackViews.swift in Sources */,
 				E82BEFBF3FE16B01A5EF0906 /* TimeAttackAppTransport.swift in Sources */,
 				E806029CC6232BC72325960C /* TimeAttackFlowView.swift in Sources */,
+				E8B9150978FE2B286F375C3B /* DrillArithmetic.swift in Sources */,
+				E8879888104052C959F567B6 /* DrillAuthoring.swift in Sources */,
+				E8F757384E4A6C88201EC1D1 /* DrillChecks.swift in Sources */,
+				E8F48ADBBBB311CB9F57BF7E /* DrillCompiled.swift in Sources */,
+				E834EBB22CB50EF75FAEFFF0 /* DrillExpression.swift in Sources */,
+				E884D59E500B328B6517E8E4 /* DrillFormat.swift in Sources */,
+				E87AE1716C4A031CF5DF3BAD /* DrillFunctions.swift in Sources */,
+				E856CCBB96503C0A4CD5F15A /* DrillGenerator.swift in Sources */,
+				E8FB239B08F81806F3F696A3 /* DrillLint.swift in Sources */,
+				E87D8F0788615842FE7E7241 /* DrillNumber.swift in Sources */,
+				E8FE73CCB1BE7E7B501B1DDF /* DrillTeX.swift in Sources */,
+				E89B933D7C1B5BBEEAFA8771 /* DrillTemplate.swift in Sources */,
+				E87824F253585D19960E8317 /* DrillUnit.swift in Sources */,
+				E886F6EC5B0CBB609888569C /* DrillValidator.swift in Sources */,
+				E8B6AFFFB48B32BD0FB88B98 /* DrillRenderProbe.swift in Sources */,
+				E835DD30AFD2D6960EE3D545 /* OfflineDrillLabSamples.swift in Sources */,
+				E8755431858BA56FA534BD2F /* OfflineDrillLabView.swift in Sources */,
+				E8740A5DE35F396B50411D7F /* DrillTemplateStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

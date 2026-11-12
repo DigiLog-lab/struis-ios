@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.univ.nernst",
+  "title": "ネルンストの式",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "cell",
+      "kind": "choice",
+      "options": [
+        {
+          "e0": 1.1,
+          "n": 2,
+          "name": "ダニエル電池"
+        },
+        {
+          "e0": 0.46,
+          "n": 2,
+          "name": "銅と銀の電池"
+        },
+        {
+          "e0": 0.78,
+          "n": 2,
+          "name": "鉄と銅の電池"
+        },
+        {
+          "e0": 1.56,
+          "n": 2,
+          "name": "亜鉛と銀の電池"
+        }
+      ]
+    },
+    {
+      "name": "lq",
+      "kind": "choice",
+      "options": [
+        -4,
+        -3,
+        -2,
+        2,
+        3,
+        4
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "emf",
+      "expr": "cell.e0 - 0.0592/cell.n*lq"
+    }
+  ],
+  "prompt": "標準起電力が ${cell.e0|dec:2}\\,\\mathrm{V}$ の{cell.name}(反応にかかわる電子は ${cell.n}$ 個)で、反応商が $Q = 10^{{lq}}$ のときの起電力を、$E = E^{\\circ} - \\frac{0.0592}{n}\\log_{10} Q$ を用いて求めなさい。",
+  "answer": "$E = {emf|dec:2}\\,\\mathrm{V}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx((cell.e0 - emf)*cell.n, 0.0592*lq)"
+      ]
+    }
+  ]
+}

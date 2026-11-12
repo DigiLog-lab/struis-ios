@@ -1,0 +1,80 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.lorentz_force",
+  "title": "ローレンツ力と円運動の半径",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "qe",
+      "kind": "constant",
+      "value": 1.6e-19,
+      "unit": "C",
+      "sig": 2
+    },
+    {
+      "name": "me",
+      "kind": "constant",
+      "value": 9.1e-31,
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "v",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 1.0
+    },
+    {
+      "name": "b",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 1.0
+    },
+    {
+      "name": "ex",
+      "kind": "choice",
+      "options": [
+        6,
+        7
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "speed",
+      "expr": "q(v*10^ex,'m/s')",
+      "unit": "m/s",
+      "sig": 2
+    },
+    {
+      "name": "field",
+      "expr": "q(b*0.001,'T')",
+      "unit": "T",
+      "sig": 2
+    },
+    {
+      "name": "f",
+      "expr": "qe*speed*field",
+      "unit": "N",
+      "sig": 2
+    },
+    {
+      "name": "r",
+      "expr": "me*speed/(qe*field)",
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "prompt": "磁束密度 ${field|q}$ の一様な磁場に垂直に、電子が速さ ${speed|q}$ で入射した。電子が受けるローレンツ力の大きさと、円運動の半径を求めなさい。電気素量を ${qe|q}$、電子の質量を ${me|q}$ とする。",
+  "answer": "ローレンツ力 ${f|q}$、半径 ${r|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(f,'N')*value(r,'m'), 9.1e-31*value(speed,'m/s')^2)"
+      ]
+    }
+  ]
+}

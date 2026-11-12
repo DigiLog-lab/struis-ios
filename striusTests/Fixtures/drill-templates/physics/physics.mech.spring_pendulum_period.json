@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.spring_pendulum_period",
+  "title": "ばね振り子の周期(T = 2π√(m/k))",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "m",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 2.0,
+      "step": 0.1,
+      "unit": "kg",
+      "sig": 2
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 10,
+      "max": 200,
+      "step": 10,
+      "unit": "N/m",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "period",
+      "expr": "2*pi*sqrt(m/k)",
+      "unit": "s",
+      "sig": 2
+    }
+  ],
+  "prompt": "ばね定数 ${k|q}$ の軽いばねに質量 ${m|q}$ のおもりをつけて単振動させた。周期を求めなさい。",
+  "answer": "${period|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx((2*pi/period)^2*m, k)"
+      ]
+    }
+  ]
+}

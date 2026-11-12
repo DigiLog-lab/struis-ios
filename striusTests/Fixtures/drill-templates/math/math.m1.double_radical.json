@@ -1,0 +1,75 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.double_radical",
+  "title": "二重根号をはずす",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        5,
+        6,
+        7,
+        10,
+        11
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "choice",
+      "options": [
+        1,
+        2,
+        3,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "name": "op",
+      "kind": "choice",
+      "options": [
+        {
+          "tex": "+",
+          "s": 1
+        },
+        {
+          "tex": "-",
+          "s": -1
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "s",
+      "expr": "a + b"
+    },
+    {
+      "name": "p",
+      "expr": "a*b"
+    },
+    {
+      "name": "ans",
+      "expr": "sqrt(a) + op.s*sqrt(b)"
+    }
+  ],
+  "constraints": [
+    "a > b",
+    "not is_square(a*b)"
+  ],
+  "prompt": "次の式の二重根号をはずしなさい。",
+  "math": "\\sqrt{{s} {op.tex} 2\\sqrt{{p}}}",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "\\sqrt{{s} {op.tex} 2\\sqrt{{p}}}",
+      "right": "{ans}"
+    }
+  ]
+}

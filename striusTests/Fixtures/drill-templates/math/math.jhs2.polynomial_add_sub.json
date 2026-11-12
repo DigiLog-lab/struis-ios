@@ -1,0 +1,115 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs2.polynomial_add_sub",
+  "title": "多項式の加法・減法",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "op",
+      "kind": "choice",
+      "options": [
+        {
+          "tex": "+",
+          "s": 1
+        },
+        {
+          "tex": "-",
+          "s": -1
+        }
+      ]
+    }
+  ],
+  "constraints": [
+    "a + op.s*c != 0 or b + op.s*d != 0"
+  ],
+  "parts": [
+    {
+      "name": "p",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b",
+          "body": "y"
+        }
+      ]
+    },
+    {
+      "name": "q",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "c",
+          "body": "x"
+        },
+        {
+          "coef": "d",
+          "body": "y"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a + op.s*c",
+          "body": "x"
+        },
+        {
+          "coef": "b + op.s*d",
+          "body": "y"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の式を計算しなさい。",
+  "math": "({p}) {op.tex} ({q})",
+  "answer": "${g}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({p}) {op.tex} ({q})",
+      "right": "{g}"
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "format": 1,
+  "skill_id": "physics.univ.isothermal_work",
+  "title": "等温変化で理想気体がする仕事(W = nRT ln(V₂/V₁))",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "R",
+      "kind": "constant",
+      "value": 8.31,
+      "unit": "J/(mol*K)",
+      "sig": 3
+    },
+    {
+      "name": "n",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 3.0,
+      "step": 0.5,
+      "unit": "mol",
+      "sig": 2
+    },
+    {
+      "name": "temp",
+      "kind": "integer",
+      "min": 250,
+      "max": 500,
+      "step": 50,
+      "unit": "K",
+      "sig": 3
+    },
+    {
+      "name": "ratio",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        4,
+        5
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "w",
+      "expr": "n*R*temp*ln(ratio)",
+      "unit": "J",
+      "sig": 2
+    },
+    {
+      "name": "nrt",
+      "expr": "value(n*R*temp,'J')"
+    },
+    {
+      "name": "wj",
+      "expr": "value(w,'J')"
+    }
+  ],
+  "prompt": "${n|q}$ の理想気体を、温度 ${temp|q}$ に保ったまま体積を ${ratio}$ 倍に膨張させた。気体が外部にした仕事を求めなさい。気体定数を ${R|q}$ とする。",
+  "answer": "${w|q}$",
+  "checks": [
+    {
+      "kind": "definite_integral",
+      "integrand": "\\frac{{nrt|dec:3}}{x}",
+      "variable": "x",
+      "from": "1",
+      "to": "ratio",
+      "answer": "{wj|dec:6}"
+    }
+  ]
+}

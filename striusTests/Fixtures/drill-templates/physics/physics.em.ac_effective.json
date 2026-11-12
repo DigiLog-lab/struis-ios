@@ -1,0 +1,57 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.ac_effective",
+  "title": "交流の実効値と最大値",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "ve",
+      "kind": "integer",
+      "min": 50,
+      "max": 240,
+      "step": 10,
+      "unit": "V",
+      "sig": 3
+    },
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 10,
+      "max": 200,
+      "step": 10,
+      "unit": "ohm",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "v0",
+      "expr": "ve*sqrt(2)",
+      "unit": "V",
+      "sig": 3
+    },
+    {
+      "name": "ie",
+      "expr": "ve/r",
+      "unit": "A",
+      "sig": 2
+    },
+    {
+      "name": "p",
+      "expr": "ve^2/r",
+      "unit": "W",
+      "sig": 2
+    }
+  ],
+  "prompt": "実効値 ${ve|q}$ の交流電圧を、抵抗値 ${r|q}$ の抵抗に加えた。電圧の最大値、電流の実効値、平均の消費電力を求めなさい。",
+  "answer": "電圧の最大値 ${v0|q}$、電流の実効値 ${ie|q}$、消費電力 ${p|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(v0^2, 2*ve^2)",
+        "approx(p, ve*ie)"
+      ]
+    }
+  ]
+}

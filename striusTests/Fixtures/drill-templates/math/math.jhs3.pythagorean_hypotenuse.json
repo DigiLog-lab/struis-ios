@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.pythagorean_hypotenuse",
+  "title": "三平方の定理(斜辺を求める)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 12
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 1,
+      "max": 12
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "sqrt(a^2 + b^2)"
+    }
+  ],
+  "constraints": [
+    "a <= b"
+  ],
+  "prompt": "直角をはさむ 2 辺の長さが ${a}\\,\\mathrm{cm}$、${b}\\,\\mathrm{cm}$ の直角三角形の斜辺の長さを求めなさい。",
+  "answer": "${c}\\,\\mathrm{cm}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({c})^{2}",
+      "right": "{a}^{2} + {b}^{2}"
+    }
+  ]
+}

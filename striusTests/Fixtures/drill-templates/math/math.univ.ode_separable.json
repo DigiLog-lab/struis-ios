@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.ode_separable",
+  "title": "変数分離形(y' = ay、初期条件つき)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "y0",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "rhs",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "y"
+        }
+      ]
+    },
+    {
+      "name": "sol",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "y0",
+          "body": "e^{{a|coef}x}"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の微分方程式を、初期条件 $y(0) = {y0}$ のもとで解きなさい。",
+  "math": "\\frac{dy}{dx} = {rhs}",
+  "answer": "$y = {sol}$",
+  "checks": [
+    {
+      "kind": "ode",
+      "function": "{sol}",
+      "variable": "x",
+      "left": "y'",
+      "right": "{rhs}",
+      "range": [
+        -0.5,
+        0.5
+      ]
+    },
+    {
+      "kind": "value",
+      "tex": "{sol}",
+      "at": {
+        "x": "0"
+      },
+      "equals": "y0"
+    }
+  ]
+}

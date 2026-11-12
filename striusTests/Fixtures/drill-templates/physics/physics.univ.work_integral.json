@@ -1,0 +1,69 @@
+{
+  "format": 1,
+  "skill_id": "physics.univ.work_integral",
+  "title": "位置によって変わる力がする仕事(積分)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 0,
+      "max": 9
+    },
+    {
+      "name": "x1",
+      "kind": "integer",
+      "min": 0,
+      "max": 3
+    },
+    {
+      "name": "w",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    }
+  ],
+  "lets": [
+    {
+      "name": "x2",
+      "expr": "x1 + w"
+    },
+    {
+      "name": "work",
+      "expr": "a*(x2^3 - x1^3)/3 + b*(x2 - x1)"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    }
+  ],
+  "prompt": "$x$ 軸上を運動する物体に、力 $F(x) = {f}$($F$ の単位は N、$x$ の単位は m)がはたらいている。物体が $x = {x1}\\,\\mathrm{m}$ から $x = {x2}\\,\\mathrm{m}$ まで動く間に、この力がする仕事を求めなさい。",
+  "answer": "${work}\\,\\mathrm{J}$",
+  "checks": [
+    {
+      "kind": "definite_integral",
+      "integrand": "{f}",
+      "variable": "x",
+      "from": "x1",
+      "to": "x2",
+      "answer": "{work}"
+    }
+  ]
+}

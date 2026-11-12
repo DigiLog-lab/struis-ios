@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.area_between_curves_trig",
+  "title": "曲線と x 軸で囲まれた部分の面積(三角関数)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 9
+    },
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "area",
+      "expr": "2*k/a"
+    },
+    {
+      "name": "upper",
+      "expr": "1/a"
+    }
+  ],
+  "prompt": "曲線 $y = {k|coef}\\sin {a|coef}x$($0 \\le x \\le {upper|pi}$)と $x$ 軸で囲まれた部分の面積を求めなさい。",
+  "answer": "${area}$",
+  "checks": [
+    {
+      "kind": "definite_integral",
+      "integrand": "{k}\\sin {a}x",
+      "variable": "x",
+      "from": "0",
+      "to": "pi/a",
+      "answer": "{area}"
+    }
+  ]
+}

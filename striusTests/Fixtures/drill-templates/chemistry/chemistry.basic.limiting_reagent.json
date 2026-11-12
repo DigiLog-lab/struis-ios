@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.limiting_reagent",
+  "title": "過不足のある反応(どちらが残るか)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "nh",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 2.0,
+      "step": 0.1,
+      "unit": "mol",
+      "sig": 2
+    },
+    {
+      "name": "no",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 1.5,
+      "step": 0.1,
+      "unit": "mol",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "water",
+      "expr": "min(nh, 2*no)",
+      "unit": "mol",
+      "sig": 2
+    },
+    {
+      "name": "left",
+      "expr": "abs(nh - 2*no)/if(nh > 2*no, 1, 2)",
+      "unit": "mol",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "nh != 2*no"
+  ],
+  "parts": [
+    {
+      "name": "which",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "nh > 2*no",
+          "tex": "水素"
+        }
+      ],
+      "otherwise": "酸素"
+    }
+  ],
+  "prompt": "水素 ${nh|q}$ と酸素 ${no|q}$ を混ぜて点火し、完全に反応させた。生じた水の物質量と、反応せずに残った気体の種類と物質量を求めなさい。",
+  "math": "2\\mathrm{H_2} + \\mathrm{O_2} \\longrightarrow 2\\mathrm{H_2O}",
+  "answer": "水 ${water|q}$、残った気体は{which} ${left|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "if(nh > 2*no, approx(nh - water, left) and approx(water, 2*no), approx(no - water/2, left) and approx(water, nh))"
+      ]
+    }
+  ]
+}

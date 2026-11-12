@@ -1,0 +1,92 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.univ.buffer_ph",
+  "title": "緩衝液の pH(ヘンダーソン・ハッセルバルヒの式)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "acid",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "酢酸",
+          "pka": 4.76
+        },
+        {
+          "name": "リン酸二水素イオン",
+          "pka": 7.21
+        },
+        {
+          "name": "アンモニウムイオン",
+          "pka": 9.25
+        },
+        {
+          "name": "ギ酸",
+          "pka": 3.75
+        }
+      ]
+    },
+    {
+      "name": "ratio",
+      "kind": "choice",
+      "options": [
+        {
+          "a": 1,
+          "b": 10,
+          "lg": -1
+        },
+        {
+          "a": 1,
+          "b": 1,
+          "lg": 0
+        },
+        {
+          "a": 10,
+          "b": 1,
+          "lg": 1
+        },
+        {
+          "a": 100,
+          "b": 1,
+          "lg": 2
+        },
+        {
+          "a": 1,
+          "b": 100,
+          "lg": -2
+        }
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "decimal",
+      "min": 0.01,
+      "max": 0.1,
+      "step": 0.01
+    }
+  ],
+  "lets": [
+    {
+      "name": "ca",
+      "expr": "c*ratio.b"
+    },
+    {
+      "name": "cb",
+      "expr": "c*ratio.a"
+    },
+    {
+      "name": "ph",
+      "expr": "acid.pka + ratio.lg"
+    }
+  ],
+  "prompt": "{acid.name}(p$K_{a}$ = ${acid.pka|dec:2}$)が ${ca|sig:2}\\,\\mathrm{mol/L}$、その共役塩基が ${cb|sig:2}\\,\\mathrm{mol/L}$ ふくまれる緩衝液の pH を求めなさい。",
+  "answer": "$\\mathrm{pH} = {ph|dec:2}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(ph - acid.pka, log10(cb/ca))"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.angle_bisector_ratio",
+  "title": "角の二等分線と線分の比",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "ab",
+      "kind": "integer",
+      "min": 2,
+      "max": 12
+    },
+    {
+      "name": "ac",
+      "kind": "integer",
+      "min": 2,
+      "max": 12
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    }
+  ],
+  "lets": [
+    {
+      "name": "bc",
+      "expr": "k*(ab + ac)"
+    },
+    {
+      "name": "bd",
+      "expr": "k*ab"
+    },
+    {
+      "name": "dc",
+      "expr": "k*ac"
+    }
+  ],
+  "constraints": [
+    "ab != ac"
+  ],
+  "prompt": "$\\triangle \\mathrm{ABC}$ で $\\mathrm{AB} = {ab}$、$\\mathrm{AC} = {ac}$、$\\mathrm{BC} = {bc}$ とする。$\\angle \\mathrm{A}$ の二等分線と辺 $\\mathrm{BC}$ の交点を $\\mathrm{D}$ とするとき、$\\mathrm{BD}$ の長さを求めなさい。",
+  "answer": "$\\mathrm{BD} = {bd}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "bd * ac == dc * ab",
+        "bd + dc == bc"
+      ]
+    }
+  ]
+}

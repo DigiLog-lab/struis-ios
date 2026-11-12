@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "skill_id": "math.mb.arithmetic_sum",
+  "title": "等差数列の和",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a1",
+      "kind": "integer",
+      "min": -12,
+      "max": 12
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "n0",
+      "kind": "integer",
+      "min": 6,
+      "max": 30
+    }
+  ],
+  "lets": [
+    {
+      "name": "sum",
+      "expr": "n0*(2*a1 + (n0 - 1)*d)/2"
+    }
+  ],
+  "parts": [
+    {
+      "name": "term",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "d",
+          "body": "k"
+        },
+        {
+          "coef": "a1 - d"
+        }
+      ]
+    }
+  ],
+  "prompt": "初項 ${a1}$、公差 ${d}$ の等差数列の、初項から第 ${n0}$ 項までの和を求めなさい。",
+  "answer": "${sum}$",
+  "checks": [
+    {
+      "kind": "series",
+      "term": "{term}",
+      "index": "k",
+      "from": "1",
+      "to": "n0",
+      "answer": "{sum}"
+    }
+  ]
+}

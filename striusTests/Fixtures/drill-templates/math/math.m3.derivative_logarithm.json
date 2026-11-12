@@ -1,0 +1,76 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.derivative_logarithm",
+  "title": "対数関数の微分",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 1,
+      "max": 9
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 5
+    }
+  ],
+  "lets": [
+    {
+      "name": "ka",
+      "expr": "k*a"
+    }
+  ],
+  "constraints": [
+    "gcd(a, b) == 1"
+  ],
+  "parts": [
+    {
+      "name": "u",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "ktex",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "k == 1",
+          "tex": ""
+        }
+      ],
+      "otherwise": "{k}"
+    }
+  ],
+  "prompt": "次の関数を微分しなさい。",
+  "math": "y = {ktex}\\log ({u})",
+  "answer": "$y' = \\frac{{ka}}{{u}}$",
+  "checks": [
+    {
+      "kind": "derivative",
+      "function": "{k}\\log ({u})",
+      "answer": "\\frac{{ka}}{{u}}",
+      "variable": "x",
+      "range": [
+        0.5,
+        3
+      ]
+    }
+  ]
+}

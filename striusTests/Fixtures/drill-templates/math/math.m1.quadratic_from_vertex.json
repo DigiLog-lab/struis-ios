@@ -1,0 +1,103 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.quadratic_from_vertex",
+  "title": "頂点と 1 点から二次関数を決める",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -3,
+      "max": 3,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "q",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -2,
+      "max": 2,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "x1",
+      "expr": "p + d"
+    },
+    {
+      "name": "y1",
+      "expr": "a*d^2 + q"
+    }
+  ],
+  "parts": [
+    {
+      "name": "inner",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "-p"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "({inner})^{2}"
+        },
+        {
+          "coef": "q"
+        }
+      ]
+    }
+  ],
+  "prompt": "頂点が点 $({p},\\ {q})$ で、点 $({x1},\\ {y1})$ を通る放物線をグラフとする二次関数を求めなさい。",
+  "answer": "$y = {g}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{g}",
+      "at": {
+        "x": "x1"
+      },
+      "equals": "y1"
+    },
+    {
+      "kind": "value",
+      "tex": "{g}",
+      "at": {
+        "x": "p"
+      },
+      "equals": "q"
+    },
+    {
+      "kind": "derivative",
+      "function": "{g}",
+      "variable": "x",
+      "point": "p",
+      "answer": "0"
+    }
+  ]
+}

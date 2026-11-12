@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.arrangement_people",
+  "title": "順列(並べ方の総数)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 5,
+      "max": 12
+    },
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 2,
+      "max": 4
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "perm(n, r)"
+    }
+  ],
+  "constraints": [
+    "r < n"
+  ],
+  "prompt": "${n}$ 人の中から ${r}$ 人を選んで 1 列に並べる方法は何通りあるか。",
+  "answer": "${ans}$ 通り",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "ans * factorial(n - r) == factorial(n)"
+      ]
+    }
+  ]
+}

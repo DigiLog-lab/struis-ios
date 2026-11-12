@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.remainder",
+  "title": "余りの計算(合同式)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": 3,
+      "max": 9
+    },
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 2,
+      "max": 8
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 2,
+      "max": 8
+    },
+    {
+      "name": "ka",
+      "kind": "integer",
+      "min": 1,
+      "max": 9
+    },
+    {
+      "name": "kb",
+      "kind": "integer",
+      "min": 1,
+      "max": 9
+    }
+  ],
+  "lets": [
+    {
+      "name": "x",
+      "expr": "m*ka + a"
+    },
+    {
+      "name": "y",
+      "expr": "m*kb + b"
+    },
+    {
+      "name": "r1",
+      "expr": "mod(a + b, m)"
+    },
+    {
+      "name": "r2",
+      "expr": "mod(a*b, m)"
+    }
+  ],
+  "constraints": [
+    "a < m",
+    "b < m",
+    "a != b"
+  ],
+  "prompt": "整数 $a$、$b$ を ${m}$ で割った余りがそれぞれ ${a}$、${b}$ であるとき、$a + b$ と $ab$ を ${m}$ で割った余りを求めなさい。",
+  "answer": "$a + b$ の余りは ${r1}$、$ab$ の余りは ${r2}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "mod(x + y, m) == r1",
+        "mod(x*y, m) == r2"
+      ]
+    }
+  ]
+}

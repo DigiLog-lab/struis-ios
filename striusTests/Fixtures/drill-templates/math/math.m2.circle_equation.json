@@ -1,0 +1,107 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.circle_equation",
+  "title": "中心と半径から円の方程式を求める",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "q",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 1,
+      "max": 9
+    }
+  ],
+  "lets": [
+    {
+      "name": "r2",
+      "expr": "r^2"
+    }
+  ],
+  "constraints": [
+    "p != 0 or q != 0"
+  ],
+  "parts": [
+    {
+      "name": "ix",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "-p"
+        }
+      ]
+    },
+    {
+      "name": "iy",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "y"
+        },
+        {
+          "coef": "-q"
+        }
+      ]
+    },
+    {
+      "name": "tx",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "p == 0",
+          "tex": "x^{2}"
+        }
+      ],
+      "otherwise": "({ix})^{2}"
+    },
+    {
+      "name": "ty",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "q == 0",
+          "tex": "y^{2}"
+        }
+      ],
+      "otherwise": "({iy})^{2}"
+    }
+  ],
+  "prompt": "中心が点 $({p},\\ {q})$、半径が ${r}$ の円の方程式を求めなさい。",
+  "answer": "${tx} + {ty} = {r2}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{tx} + {ty}",
+      "at": {
+        "x": "p + r",
+        "y": "q"
+      },
+      "equals": "r2"
+    },
+    {
+      "kind": "value",
+      "tex": "{tx} + {ty}",
+      "at": {
+        "x": "p",
+        "y": "q - r"
+      },
+      "equals": "r2"
+    }
+  ]
+}

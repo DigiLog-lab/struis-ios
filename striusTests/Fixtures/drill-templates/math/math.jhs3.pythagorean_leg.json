@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.pythagorean_leg",
+  "title": "三平方の定理(斜辺以外の辺を求める)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 12
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": 2,
+      "max": 15
+    }
+  ],
+  "lets": [
+    {
+      "name": "b",
+      "expr": "sqrt(c^2 - a^2)"
+    }
+  ],
+  "constraints": [
+    "a < c"
+  ],
+  "prompt": "斜辺の長さが ${c}\\,\\mathrm{cm}$、他の 1 辺の長さが ${a}\\,\\mathrm{cm}$ の直角三角形の、残りの辺の長さを求めなさい。",
+  "answer": "${b}\\,\\mathrm{cm}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({b})^{2} + {a}^{2}",
+      "right": "{c}^{2}"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.univ.entropy_phase_change",
+  "title": "相転移のエントロピー変化(ΔS = ΔH/T)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "dh",
+      "kind": "decimal",
+      "min": 5.0,
+      "max": 45.0,
+      "step": 2.5
+    },
+    {
+      "name": "temp",
+      "kind": "integer",
+      "min": 200,
+      "max": 400,
+      "step": 25
+    }
+  ],
+  "lets": [
+    {
+      "name": "ds",
+      "expr": "dh*1000/temp"
+    }
+  ],
+  "prompt": "ある物質の蒸発エンタルピーは ${dh|dec:1}\\,\\mathrm{kJ/mol}$、沸点は ${temp}\\,\\mathrm{K}$ である。沸点における蒸発のエントロピー変化を求めなさい。",
+  "answer": "${ds|sig:3}\\,\\mathrm{J/(mol \\cdot K)}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(ds*temp, dh*1000)"
+      ]
+    }
+  ]
+}

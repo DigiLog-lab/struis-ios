@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.rate_law",
+  "title": "反応速度式から速度定数を求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "v0",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 0.5
+    },
+    {
+      "name": "c",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 1.0,
+      "step": 0.1,
+      "unit": "mol/L",
+      "sig": 2
+    },
+    {
+      "name": "order",
+      "kind": "choice",
+      "options": [
+        {
+          "n": 1,
+          "unit": "/s"
+        },
+        {
+          "n": 2,
+          "unit": "L/(mol \\cdot s)"
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "k",
+      "expr": "v0*0.001/value(c,'mol/L')^order.n"
+    }
+  ],
+  "parts": [
+    {
+      "name": "law",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "order.n == 1",
+          "tex": "v = k[\\mathrm{A}]"
+        }
+      ],
+      "otherwise": "v = k[\\mathrm{A}]^{2}"
+    }
+  ],
+  "prompt": "反応速度式が ${law}$ で表される反応がある。$[\\mathrm{A}] = {c|q}$ のとき、反応速度は ${v0|dec:1} \\times 10^{-3}\\,\\mathrm{mol/(L \\cdot s)}$ であった。速度定数 $k$ を求めなさい。",
+  "answer": "$k = {k|sig:2}\\,\\mathrm{{order.unit}}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(k*value(c,'mol/L')^order.n, v0*0.001)"
+      ]
+    }
+  ]
+}

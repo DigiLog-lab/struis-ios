@@ -1,0 +1,74 @@
+{
+  "format": 1,
+  "skill_id": "physics.mech.incline_acceleration",
+  "title": "斜面をすべり下りる物体の加速度",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "g",
+      "kind": "constant",
+      "value": 9.8,
+      "unit": "m/s^2",
+      "sig": 2
+    },
+    {
+      "name": "deg",
+      "kind": "choice",
+      "options": [
+        30,
+        45,
+        60
+      ]
+    },
+    {
+      "name": "mud",
+      "kind": "decimal",
+      "min": 0.0,
+      "max": 0.5,
+      "step": 0.05
+    },
+    {
+      "name": "m",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 5.0,
+      "step": 0.5,
+      "unit": "kg",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "a",
+      "expr": "g*(sind(deg) - mud*cosd(deg))",
+      "unit": "m/s^2",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "sind(deg) > mud*cosd(deg)"
+  ],
+  "parts": [
+    {
+      "name": "surface",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "mud == 0",
+          "tex": "なめらかな斜面"
+        }
+      ],
+      "otherwise": "あらい斜面(動摩擦係数 ${mud|dec:2}$)"
+    }
+  ],
+  "prompt": "水平面と ${deg}^{\\circ}$ の角をなす{surface}を、質量 ${m|q}$ の物体がすべり下りている。物体の加速度の大きさを求めなさい。重力加速度の大きさを ${g|q}$ とする。",
+  "answer": "${a|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(m*a, m*g*sind(deg) - mud*m*g*cosd(deg))"
+      ]
+    }
+  ]
+}

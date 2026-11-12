@@ -1,0 +1,104 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.polynomial_division",
+  "title": "多項式の割り算(商と余り)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -4,
+      "max": 4,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    }
+  ],
+  "parts": [
+    {
+      "name": "divisor",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "d"
+        }
+      ]
+    },
+    {
+      "name": "quot",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "b",
+          "body": "x"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    },
+    {
+      "name": "dividend",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{3}"
+        },
+        {
+          "coef": "b + a*d",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "c + b*d",
+          "body": "x"
+        },
+        {
+          "coef": "c*d + r"
+        }
+      ]
+    }
+  ],
+  "prompt": "多項式 $A$ を多項式 $B$ で割った商と余りを求めなさい。",
+  "math": "A = {dividend},\\quad B = {divisor}",
+  "answer": "商 ${quot}$、余り ${r}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{dividend}",
+      "right": "({divisor})({quot}) + {r|paren}"
+    }
+  ]
+}

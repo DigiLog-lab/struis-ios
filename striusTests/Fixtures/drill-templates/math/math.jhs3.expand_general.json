@@ -1,0 +1,96 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.expand_general",
+  "title": "(ax + b)(cx + d) の展開",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 2,
+      "max": 5
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -7,
+      "max": 7,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": 1,
+      "max": 5
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -7,
+      "max": 7,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "constraints": [
+    "a*d + b*c != 0"
+  ],
+  "parts": [
+    {
+      "name": "p",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "q",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "c",
+          "body": "x"
+        },
+        {
+          "coef": "d"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a*c",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "a*d + b*c",
+          "body": "x"
+        },
+        {
+          "coef": "b*d"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の式を展開しなさい。",
+  "math": "({p})({q})",
+  "answer": "${g}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({p})({q})",
+      "right": "{g}"
+    }
+  ]
+}

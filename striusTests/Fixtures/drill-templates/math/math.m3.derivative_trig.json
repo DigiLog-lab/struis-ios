@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.derivative_trig",
+  "title": "三角関数の微分",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 2,
+      "max": 7
+    },
+    {
+      "name": "fn",
+      "kind": "choice",
+      "options": [
+        {
+          "f": "\\sin",
+          "d": "\\cos",
+          "s": 1
+        },
+        {
+          "f": "\\cos",
+          "d": "\\sin",
+          "s": -1
+        }
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k",
+          "body": "{fn.f} {a}x"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k*a*fn.s",
+          "body": "{fn.d} {a}x"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の関数を微分しなさい。",
+  "math": "y = {f}",
+  "answer": "$y' = {g}$",
+  "checks": [
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "answer": "{g}",
+      "variable": "x"
+    }
+  ]
+}

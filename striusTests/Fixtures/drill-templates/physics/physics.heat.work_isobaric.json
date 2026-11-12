@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "skill_id": "physics.heat.work_isobaric",
+  "title": "定圧変化で気体がする仕事(W = pΔV)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "p",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 5.0,
+      "step": 0.5
+    },
+    {
+      "name": "v1",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 5.0,
+      "step": 0.5,
+      "unit": "L",
+      "sig": 2
+    },
+    {
+      "name": "dv",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 4.0,
+      "step": 0.5,
+      "unit": "L",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "v2",
+      "expr": "v1 + dv",
+      "unit": "L",
+      "sig": 2
+    },
+    {
+      "name": "press",
+      "expr": "q(p*100000,'Pa')",
+      "unit": "Pa"
+    },
+    {
+      "name": "w",
+      "expr": "press*dv",
+      "unit": "J",
+      "sig": 2
+    }
+  ],
+  "prompt": "圧力を ${p|dec:1} \\times 10^{5}\\,\\mathrm{Pa}$ に保ったまま、気体の体積を ${v1|q}$ から ${v2|q}$ に膨張させた。気体が外部にした仕事を求めなさい。",
+  "answer": "${w|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(w,'J'), p*100000*value(v2 - v1,'m^3'))"
+      ]
+    }
+  ]
+}

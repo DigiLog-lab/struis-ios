@@ -1,0 +1,112 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.rational_expression_reduce",
+  "title": "分数式の約分",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -7,
+      "max": 7,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -7,
+      "max": 7,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -7,
+      "max": 7,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "constraints": [
+    "a != b",
+    "a != c",
+    "b < c"
+  ],
+  "parts": [
+    {
+      "name": "pb",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "pc",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    },
+    {
+      "name": "num",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "a+b",
+          "body": "x"
+        },
+        {
+          "coef": "a*b"
+        }
+      ]
+    },
+    {
+      "name": "den",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "a+c",
+          "body": "x"
+        },
+        {
+          "coef": "a*c"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の分数式を約分しなさい。",
+  "math": "\\frac{{num}}{{den}}",
+  "answer": "$\\frac{{pb}}{{pc}}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "\\frac{{num}}{{den}}",
+      "right": "\\frac{{pb}}{{pc}}"
+    }
+  ]
+}

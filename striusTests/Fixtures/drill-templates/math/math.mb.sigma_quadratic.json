@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "skill_id": "math.mb.sigma_quadratic",
+  "title": "Σ の計算(二次式)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "n0",
+      "kind": "integer",
+      "min": 4,
+      "max": 20
+    }
+  ],
+  "lets": [
+    {
+      "name": "sum",
+      "expr": "a*n0*(n0 + 1)*(2*n0 + 1)/6 + b*n0*(n0 + 1)/2"
+    }
+  ],
+  "parts": [
+    {
+      "name": "t",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "k^{2}"
+        },
+        {
+          "coef": "b",
+          "body": "k"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の和を求めなさい。",
+  "math": "\\sum_{k=1}^{{n0}} ({t})",
+  "answer": "${sum}$",
+  "checks": [
+    {
+      "kind": "series",
+      "term": "{t}",
+      "index": "k",
+      "from": "1",
+      "to": "n0",
+      "answer": "{sum}"
+    }
+  ]
+}

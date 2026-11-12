@@ -1,0 +1,81 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.weak_acid_ka",
+  "title": "電離定数から弱酸の水素イオン濃度を求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "ka",
+      "kind": "choice",
+      "options": [
+        {
+          "m": 1.0,
+          "e": 5
+        },
+        {
+          "m": 4.0,
+          "e": 5
+        },
+        {
+          "m": 9.0,
+          "e": 5
+        },
+        {
+          "m": 1.6,
+          "e": 5
+        },
+        {
+          "m": 2.5,
+          "e": 5
+        },
+        {
+          "m": 1.0,
+          "e": 4
+        },
+        {
+          "m": 4.0,
+          "e": 4
+        },
+        {
+          "m": 6.4,
+          "e": 5
+        }
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "choice",
+      "options": [
+        0.1,
+        0.4,
+        0.9,
+        0.01,
+        0.04,
+        1.0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "kav",
+      "expr": "ka.m*10^(-ka.e)"
+    },
+    {
+      "name": "h",
+      "expr": "sqrt(c*kav)"
+    }
+  ],
+  "constraints": [
+    "h < 0.05*c"
+  ],
+  "prompt": "電離定数が $K_{a} = {ka.m|dec:1} \\times 10^{-{ka.e}}\\,\\mathrm{mol/L}$ の弱酸の ${c|sig:2}\\,\\mathrm{mol/L}$ 水溶液の水素イオン濃度を求めなさい。電離度は 1 に比べて十分小さいものとする。",
+  "answer": "$[\\mathrm{H^{+}}] = {h|sig:2}\\,\\mathrm{mol/L}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(h*h, c*kav)"
+      ]
+    }
+  ]
+}

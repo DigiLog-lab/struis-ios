@@ -1,0 +1,59 @@
+{
+  "format": 1,
+  "skill_id": "physics.heat.latent_heat",
+  "title": "融解熱・蒸発熱",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "ch",
+      "kind": "choice",
+      "options": [
+        {
+          "text": "0℃ の氷",
+          "to": "0℃ の水",
+          "L": 334,
+          "name": "融解熱"
+        },
+        {
+          "text": "100℃ の水",
+          "to": "100℃ の水蒸気",
+          "L": 2260,
+          "name": "蒸発熱"
+        }
+      ]
+    },
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": 10,
+      "max": 200,
+      "step": 10,
+      "unit": "g",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "lat",
+      "expr": "q(ch.L,'J/g')",
+      "unit": "J/g",
+      "sig": 3
+    },
+    {
+      "name": "heat",
+      "expr": "m*lat",
+      "unit": "J",
+      "sig": 2
+    }
+  ],
+  "prompt": "質量 ${m|q}$ の {ch.text}を、すべて {ch.to}にするのに必要な熱量を求めなさい。{ch.name}を ${lat|q}$ とする。",
+  "answer": "${heat|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(heat/m, lat)"
+      ]
+    }
+  ]
+}

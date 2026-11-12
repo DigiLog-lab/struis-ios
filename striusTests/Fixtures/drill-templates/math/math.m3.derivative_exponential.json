@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.derivative_exponential",
+  "title": "指数関数の微分",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0,
+        1
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k",
+          "body": "e^{{a|coef}x}"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k*a",
+          "body": "e^{{a|coef}x}"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の関数を微分しなさい。",
+  "math": "y = {f}",
+  "answer": "$y' = {g}$",
+  "checks": [
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "answer": "{g}",
+      "variable": "x",
+      "range": [
+        -0.5,
+        0.5
+      ]
+    }
+  ]
+}

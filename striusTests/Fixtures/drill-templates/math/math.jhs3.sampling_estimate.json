@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.sampling_estimate",
+  "title": "標本調査から全体の数を推定する",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "total",
+      "kind": "integer",
+      "min": 20,
+      "max": 90,
+      "step": 10
+    },
+    {
+      "name": "sample",
+      "kind": "integer",
+      "min": 20,
+      "max": 60,
+      "step": 10
+    },
+    {
+      "name": "marked",
+      "kind": "integer",
+      "min": 2,
+      "max": 12
+    }
+  ],
+  "lets": [
+    {
+      "name": "n",
+      "expr": "total*100"
+    },
+    {
+      "name": "est",
+      "expr": "n*marked/sample"
+    }
+  ],
+  "constraints": [
+    "marked < sample",
+    "is_integer(est)"
+  ],
+  "prompt": "箱の中に同じ大きさの玉が ${n}$ 個入っている。よくかき混ぜて ${sample}$ 個を取り出したところ、赤玉が ${marked}$ 個ふくまれていた。箱の中の赤玉はおよそ何個と推定できるか。",
+  "answer": "およそ ${est}$ 個",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "est * sample == n * marked"
+      ]
+    }
+  ]
+}

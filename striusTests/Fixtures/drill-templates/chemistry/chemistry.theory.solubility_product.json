@@ -1,0 +1,94 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.solubility_product",
+  "title": "溶解度積から溶解度を求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "s",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "塩化銀",
+          "tex": "\\mathrm{AgCl}",
+          "m": 1.8,
+          "e": 10
+        },
+        {
+          "name": "臭化銀",
+          "tex": "\\mathrm{AgBr}",
+          "m": 5.2,
+          "e": 13
+        },
+        {
+          "name": "硫酸バリウム",
+          "tex": "\\mathrm{BaSO_4}",
+          "m": 1.0,
+          "e": 10
+        },
+        {
+          "name": "炭酸カルシウム",
+          "tex": "\\mathrm{CaCO_3}",
+          "m": 6.7,
+          "e": 9
+        },
+        {
+          "name": "ヨウ化銀",
+          "tex": "\\mathrm{AgI}",
+          "m": 2.1,
+          "e": 14
+        },
+        {
+          "name": "硫化銅(II)",
+          "tex": "\\mathrm{CuS}",
+          "m": 6.5,
+          "e": 30
+        },
+        {
+          "name": "硫化亜鉛",
+          "tex": "\\mathrm{ZnS}",
+          "m": 2.2,
+          "e": 18
+        }
+      ]
+    },
+    {
+      "name": "scale",
+      "kind": "choice",
+      "options": [
+        1.0,
+        1.5,
+        2.0,
+        2.5,
+        4.0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "mant",
+      "expr": "s.m*scale"
+    },
+    {
+      "name": "ksp",
+      "expr": "mant*10^(-s.e)"
+    },
+    {
+      "name": "sol",
+      "expr": "sqrt(ksp)"
+    }
+  ],
+  "constraints": [
+    "mant == sig(mant, 2)"
+  ],
+  "prompt": "{s.name} ${s.tex}$ の溶解度積を $K_{sp} = {ksp|sig:2}\\,(\\mathrm{mol/L})^{2}$ とする。{s.name}の飽和水溶液のモル濃度を求めなさい。",
+  "answer": "${sol|sig:2}\\,\\mathrm{mol/L}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(sol*sol, ksp)"
+      ]
+    }
+  ]
+}

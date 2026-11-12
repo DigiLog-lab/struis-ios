@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "skill_id": "physics.heat.heat_quantity",
+  "title": "熱量(Q = mcΔT)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "sub",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "水",
+          "c": 4.2
+        },
+        {
+          "name": "アルミニウム",
+          "c": 0.9
+        },
+        {
+          "name": "鉄",
+          "c": 0.45
+        },
+        {
+          "name": "銅",
+          "c": 0.38
+        }
+      ]
+    },
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": 50,
+      "max": 500,
+      "step": 50,
+      "unit": "g",
+      "sig": 2
+    },
+    {
+      "name": "dT",
+      "kind": "integer",
+      "min": 5,
+      "max": 60,
+      "step": 5,
+      "unit": "K",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "q(sub.c,'J/(g*K)')",
+      "unit": "J/(g*K)",
+      "sig": 2
+    },
+    {
+      "name": "heat",
+      "expr": "m*c*dT",
+      "unit": "J",
+      "sig": 2
+    }
+  ],
+  "prompt": "質量 ${m|q}$ の{sub.name}の温度を ${dT|q}$ だけ上げるのに必要な熱量を求めなさい。{sub.name}の比熱を ${c|q}$ とする。",
+  "answer": "${heat|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(heat/(m*dT), c)"
+      ]
+    }
+  ]
+}

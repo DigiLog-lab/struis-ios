@@ -1,0 +1,83 @@
+{
+  "format": 1,
+  "skill_id": "math.mb.random_variable_mean_variance",
+  "title": "確率変数の期待値と分散",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "x1",
+      "kind": "integer",
+      "min": 0,
+      "max": 3
+    },
+    {
+      "name": "dx",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    },
+    {
+      "name": "w1",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "w2",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "w3",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    }
+  ],
+  "lets": [
+    {
+      "name": "x2",
+      "expr": "x1 + dx"
+    },
+    {
+      "name": "x3",
+      "expr": "x2 + dx"
+    },
+    {
+      "name": "total",
+      "expr": "w1 + w2 + w3"
+    },
+    {
+      "name": "p1",
+      "expr": "w1/total"
+    },
+    {
+      "name": "p2",
+      "expr": "w2/total"
+    },
+    {
+      "name": "p3",
+      "expr": "w3/total"
+    },
+    {
+      "name": "ex",
+      "expr": "x1*p1 + x2*p2 + x3*p3"
+    },
+    {
+      "name": "vx",
+      "expr": "x1^2*p1 + x2^2*p2 + x3^2*p3 - ex^2"
+    }
+  ],
+  "prompt": "確率変数 $X$ のとる値が ${x1}$、${x2}$、${x3}$ で、それぞれの確率が ${p1}$、${p2}$、${p3}$ であるとき、$X$ の期待値 $E(X)$ と分散 $V(X)$ を求めなさい。",
+  "answer": "$E(X) = {ex}$、$V(X) = {vx}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "p1 + p2 + p3 == 1",
+        "vx == (x1 - ex)^2*p1 + (x2 - ex)^2*p2 + (x3 - ex)^2*p3"
+      ]
+    }
+  ]
+}

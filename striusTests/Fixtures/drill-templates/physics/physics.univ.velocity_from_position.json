@@ -1,0 +1,133 @@
+{
+  "format": 1,
+  "skill_id": "physics.univ.velocity_from_position",
+  "title": "位置の式から速度・加速度を求める",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -4,
+      "max": 4,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "t0",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    }
+  ],
+  "lets": [
+    {
+      "name": "v0",
+      "expr": "3*a*t0^2 + 2*b*t0 + c"
+    },
+    {
+      "name": "a0",
+      "expr": "6*a*t0 + 2*b"
+    }
+  ],
+  "parts": [
+    {
+      "name": "x",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "t^{3}"
+        },
+        {
+          "coef": "b",
+          "body": "t^{2}"
+        },
+        {
+          "coef": "c",
+          "body": "t"
+        },
+        {
+          "coef": "0"
+        }
+      ]
+    },
+    {
+      "name": "v",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "3*a",
+          "body": "t^{2}"
+        },
+        {
+          "coef": "2*b",
+          "body": "t"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    },
+    {
+      "name": "acc",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "6*a",
+          "body": "t"
+        },
+        {
+          "coef": "2*b"
+        }
+      ]
+    }
+  ],
+  "prompt": "$x$ 軸上を運動する質点の位置が $x(t) = {x}$($x$ の単位は m、$t$ の単位は s)で表される。速度 $v(t)$ と加速度 $a(t)$ を求め、$t = {t0}\\,\\mathrm{s}$ での値も答えなさい。",
+  "answer": "$v(t) = {v}$、$a(t) = {acc}$。$t = {t0}\\,\\mathrm{s}$ で $v = {v0}\\,\\mathrm{m/s}$、$a = {a0}\\,\\mathrm{m/s^{2}}$",
+  "checks": [
+    {
+      "kind": "derivative",
+      "function": "{x}",
+      "answer": "{v}",
+      "variable": "t"
+    },
+    {
+      "kind": "derivative",
+      "function": "{v}",
+      "answer": "{acc}",
+      "variable": "t"
+    },
+    {
+      "kind": "value",
+      "tex": "{v}",
+      "at": {
+        "t": "t0"
+      },
+      "equals": "v0"
+    },
+    {
+      "kind": "value",
+      "tex": "{acc}",
+      "at": {
+        "t": "t0"
+      },
+      "equals": "a0"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.ode_second_order_repeated",
+  "title": "2 階定数係数同次形(重解)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    }
+  ],
+  "parts": [
+    {
+      "name": "lhs",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k",
+          "body": "y''"
+        },
+        {
+          "coef": "-2*k*r",
+          "body": "y'"
+        },
+        {
+          "coef": "k*r^2",
+          "body": "y"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の微分方程式の一般解を求めなさい。",
+  "math": "{lhs} = 0",
+  "answer": "$y = (C_{1} + C_{2}x)e^{{r|coef}x}$($C_{1}$、$C_{2}$ は任意定数)",
+  "checks": [
+    {
+      "kind": "ode",
+      "function": "(C_{1} + C_{2}x)e^{{r|coef}x}",
+      "variable": "x",
+      "left": "{lhs}",
+      "right": "0",
+      "range": [
+        -0.4,
+        0.4
+      ]
+    }
+  ]
+}

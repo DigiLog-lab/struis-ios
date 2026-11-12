@@ -1,0 +1,59 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.combustion_alkane_coefficients",
+  "title": "炭化水素の完全燃焼の係数(一般式)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "x",
+      "kind": "integer",
+      "min": 1,
+      "max": 10
+    },
+    {
+      "name": "y",
+      "kind": "integer",
+      "min": 2,
+      "max": 22,
+      "step": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "o2",
+      "expr": "x + y/4"
+    },
+    {
+      "name": "h2o",
+      "expr": "y/2"
+    }
+  ],
+  "constraints": [
+    "y <= 2*x + 2",
+    "y >= x"
+  ],
+  "parts": [
+    {
+      "name": "formula",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "x == 1",
+          "tex": "\\mathrm{CH}_{{y}}"
+        }
+      ],
+      "otherwise": "\\mathrm{C}_{{x}}\\mathrm{H}_{{y}}"
+    }
+  ],
+  "prompt": "炭化水素 ${formula}$ 1 mol を完全燃焼させたとき、必要な酸素の物質量と、生じる二酸化炭素と水の物質量を求めなさい。",
+  "answer": "酸素 ${o2}\\,\\mathrm{mol}$、二酸化炭素 ${x}\\,\\mathrm{mol}$、水 ${h2o}\\,\\mathrm{mol}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "2*o2 == 2*x + h2o",
+        "2*h2o == y"
+      ]
+    }
+  ]
+}

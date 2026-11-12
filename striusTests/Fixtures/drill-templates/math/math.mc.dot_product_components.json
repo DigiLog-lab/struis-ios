@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "skill_id": "math.mc.dot_product_components",
+  "title": "内積(成分)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a1",
+      "kind": "integer",
+      "min": -7,
+      "max": 7
+    },
+    {
+      "name": "a2",
+      "kind": "integer",
+      "min": -7,
+      "max": 7
+    },
+    {
+      "name": "b1",
+      "kind": "integer",
+      "min": -7,
+      "max": 7
+    },
+    {
+      "name": "b2",
+      "kind": "integer",
+      "min": -7,
+      "max": 7
+    }
+  ],
+  "lets": [
+    {
+      "name": "dot",
+      "expr": "a1*b1 + a2*b2"
+    }
+  ],
+  "constraints": [
+    "a1 != 0 or a2 != 0",
+    "b1 != 0 or b2 != 0"
+  ],
+  "prompt": "$\\vec{a} = ({a1},\\ {a2})$、$\\vec{b} = ({b1},\\ {b2})$ のとき、内積 $\\vec{a} \\cdot \\vec{b}$ を求めなさい。",
+  "answer": "$\\vec{a} \\cdot \\vec{b} = {dot}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{a1|paren} \\times {b1|paren} + {a2|paren} \\times {b2|paren}",
+      "equals": "dot"
+    }
+  ]
+}

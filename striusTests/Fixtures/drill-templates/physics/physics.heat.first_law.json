@@ -1,0 +1,74 @@
+{
+  "format": 1,
+  "skill_id": "physics.heat.first_law",
+  "title": "熱力学第 1 法則(ΔU = Q + W)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "heat",
+      "kind": "integer",
+      "min": 100,
+      "max": 900,
+      "step": 50,
+      "unit": "J",
+      "sig": 2
+    },
+    {
+      "name": "work",
+      "kind": "integer",
+      "min": 50,
+      "max": 600,
+      "step": 50,
+      "unit": "J",
+      "sig": 2
+    },
+    {
+      "name": "dir",
+      "kind": "choice",
+      "options": [
+        {
+          "text": "外部から仕事をされた",
+          "s": 1
+        },
+        {
+          "text": "外部に仕事をした",
+          "s": -1
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "du",
+      "expr": "heat + dir.s*work",
+      "unit": "J",
+      "sig": 2
+    }
+  ],
+  "constraints": [
+    "heat != work"
+  ],
+  "parts": [
+    {
+      "name": "change",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "du > 0",
+          "tex": "増加"
+        }
+      ],
+      "otherwise": "減少"
+    }
+  ],
+  "prompt": "気体が ${heat|q}$ の熱量を吸収し、同時に ${work|q}$ の{dir.text}。気体の内部エネルギーの変化を求めなさい。",
+  "answer": "${du|abs|q}$ {change}した",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "du - heat == dir.s*work"
+      ]
+    }
+  ]
+}

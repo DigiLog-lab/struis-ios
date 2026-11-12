@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "skill_id": "physics.univ.carnot_efficiency",
+  "title": "カルノーサイクルの熱効率",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "th",
+      "kind": "integer",
+      "min": 400,
+      "max": 900,
+      "step": 50,
+      "unit": "K",
+      "sig": 3
+    },
+    {
+      "name": "tl",
+      "kind": "integer",
+      "min": 250,
+      "max": 400,
+      "step": 25,
+      "unit": "K",
+      "sig": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "eff",
+      "expr": "1 - tl/th"
+    }
+  ],
+  "constraints": [
+    "tl < th"
+  ],
+  "prompt": "高温の熱源の温度が ${th|q}$、低温の熱源の温度が ${tl|q}$ のカルノーサイクルの熱効率を求めなさい。",
+  "answer": "${eff|sig:2}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx((1 - eff)*th, tl)"
+      ]
+    }
+  ]
+}

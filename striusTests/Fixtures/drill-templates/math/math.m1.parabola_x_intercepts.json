@@ -1,0 +1,73 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.parabola_x_intercepts",
+  "title": "放物線と x 軸の共有点の座標",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    }
+  ],
+  "lets": [
+    {
+      "name": "disc",
+      "expr": "b^2 - 4*a*c"
+    }
+  ],
+  "constraints": [
+    "disc > 0"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "b",
+          "body": "x"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    },
+    {
+      "name": "roots",
+      "kind": "pm",
+      "center": "-b/(2*a)",
+      "radicand": "disc",
+      "scale": "1/(2*a)"
+    }
+  ],
+  "prompt": "放物線 $y = {f}$ と $x$ 軸の共有点の $x$ 座標を求めなさい。",
+  "answer": "$x = {roots}$",
+  "checks": [
+    {
+      "kind": "root",
+      "left": "{f}",
+      "variable": "x",
+      "solutions": [
+        "{roots}"
+      ]
+    }
+  ]
+}

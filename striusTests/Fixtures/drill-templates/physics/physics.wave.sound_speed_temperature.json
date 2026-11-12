@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "skill_id": "physics.wave.sound_speed_temperature",
+  "title": "気温と音速(V = 331.5 + 0.6t)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "t",
+      "kind": "integer",
+      "min": -10,
+      "max": 35
+    },
+    {
+      "name": "time",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 6.0,
+      "step": 0.5,
+      "unit": "s",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "v",
+      "expr": "331.5 + 0.6*t"
+    },
+    {
+      "name": "d",
+      "expr": "q(v,'m/s')*time",
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "prompt": "気温 ${t}^{\\circ}\\mathrm{C}$ のとき、空気中を伝わる音の速さは何 m/s か。$V = 331.5 + 0.6t$ を用いて求めなさい。また、この音が ${time|q}$ の間に進む距離を求めなさい。",
+  "answer": "音の速さ ${v|dec:1}\\,\\mathrm{m/s}$、距離 ${d|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx((v - 331.5)/0.6, t)",
+        "approx(value(d,'m')/value(time,'s'), v)"
+      ]
+    }
+  ]
+}

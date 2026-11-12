@@ -1,0 +1,4135 @@
+{
+ "entries": [
+  {
+   "id": "math.jhs1.signed_add_sub",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "正負の数",
+   "name": "正負の数の加法・減法",
+   "template": "math/math.jhs1.signed_add_sub.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.signed_mul_div",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "正負の数",
+   "name": "正負の数の乗法・除法",
+   "template": "math/math.jhs1.signed_mul_div.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.signed_power",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "正負の数",
+   "name": "累乗の計算",
+   "template": "math/math.jhs1.signed_power.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.signed_mixed",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "正負の数",
+   "name": "四則の混じった計算",
+   "template": "math/math.jhs1.signed_mixed.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.fraction_add_sub",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "正負の数",
+   "name": "分数の加法・減法",
+   "template": "math/math.jhs1.fraction_add_sub.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.fraction_mul_div",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "正負の数",
+   "name": "分数の乗法・除法",
+   "template": "math/math.jhs1.fraction_mul_div.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.decimal_arithmetic",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "正負の数",
+   "name": "小数をふくむ計算",
+   "template": "math/math.jhs1.decimal_arithmetic.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.prime_factorization",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "正負の数",
+   "name": "素因数分解",
+   "template": "math/math.jhs1.prime_factorization.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.like_terms",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "文字と式",
+   "name": "同類項をまとめる",
+   "template": "math/math.jhs1.like_terms.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.distribute",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "文字と式",
+   "name": "分配法則でかっこをはずす",
+   "template": "math/math.jhs1.distribute.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.linear_expr_combine",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "文字と式",
+   "name": "かっこのある一次式の加減",
+   "template": "math/math.jhs1.linear_expr_combine.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.expression_value",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "文字と式",
+   "name": "式の値(代入)",
+   "template": "math/math.jhs1.expression_value.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.linear_eq_basic",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "一次方程式",
+   "name": "一次方程式(ax + b = c)",
+   "template": "math/math.jhs1.linear_eq_basic.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.linear_eq_both_sides",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "一次方程式",
+   "name": "一次方程式(両辺に x がある)",
+   "template": "math/math.jhs1.linear_eq_both_sides.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.linear_eq_parentheses",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "一次方程式",
+   "name": "かっこのある一次方程式",
+   "template": "math/math.jhs1.linear_eq_parentheses.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.linear_eq_fraction",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "一次方程式",
+   "name": "分数をふくむ一次方程式",
+   "template": "math/math.jhs1.linear_eq_fraction.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.proportion_eq",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "一次方程式",
+   "name": "比例式を解く",
+   "template": "math/math.jhs1.proportion_eq.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.proportional_formula",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "比例と反比例",
+   "name": "比例の式を求める",
+   "template": "math/math.jhs1.proportional_formula.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.inverse_proportional_formula",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "比例と反比例",
+   "name": "反比例の式を求める",
+   "template": "math/math.jhs1.inverse_proportional_formula.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.sector",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "平面図形",
+   "name": "おうぎ形の弧の長さと面積",
+   "template": "math/math.jhs1.sector.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.cylinder_cone_volume",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "空間図形",
+   "name": "円柱・円錐の体積",
+   "template": "math/math.jhs1.cylinder_cone_volume.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.sphere",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "空間図形",
+   "name": "球の表面積と体積",
+   "template": "math/math.jhs1.sphere.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.mean_median_range",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "データの活用",
+   "name": "平均値・中央値・範囲",
+   "template": "math/math.jhs1.mean_median_range.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs1.construction",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "平面図形",
+   "name": "基本の作図(垂直二等分線・角の二等分線)",
+   "example": "線分 AB の垂直二等分線を作図しなさい。",
+   "unrepresentable": "答えが図で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "math.jhs1.projection",
+   "subject": "math",
+   "level": "中学1年",
+   "field": "空間図形",
+   "name": "投影図・展開図を読む",
+   "example": "投影図で表された立体の名前を答えなさい。",
+   "unrepresentable": "問題文に図が要る。書式は文と式だけを作る"
+  },
+  {
+   "id": "math.jhs2.polynomial_add_sub",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "式の計算",
+   "name": "多項式の加法・減法",
+   "template": "math/math.jhs2.polynomial_add_sub.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.polynomial_scalar_combine",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "式の計算",
+   "name": "数と多項式の乗法をふくむ計算",
+   "template": "math/math.jhs2.polynomial_scalar_combine.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.monomial_mul",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "式の計算",
+   "name": "単項式の乗法",
+   "template": "math/math.jhs2.monomial_mul.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.monomial_div",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "式の計算",
+   "name": "単項式の除法",
+   "template": "math/math.jhs2.monomial_div.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.expression_value_two",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "式の計算",
+   "name": "式の値(2 つの文字)",
+   "template": "math/math.jhs2.expression_value_two.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.solve_for_letter",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "式の計算",
+   "name": "等式の変形(ある文字について解く)",
+   "template": "math/math.jhs2.solve_for_letter.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.simultaneous_elimination",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "連立方程式",
+   "name": "連立方程式(加減法)",
+   "template": "math/math.jhs2.simultaneous_elimination.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.simultaneous_substitution",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "連立方程式",
+   "name": "連立方程式(代入法)",
+   "template": "math/math.jhs2.simultaneous_substitution.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.linear_function_slope_point",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "一次関数",
+   "name": "傾きと 1 点から一次関数の式を求める",
+   "template": "math/math.jhs2.linear_function_slope_point.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.linear_function_two_points",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "一次関数",
+   "name": "2 点を通る直線の式を求める",
+   "template": "math/math.jhs2.linear_function_two_points.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.linear_function_rate",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "一次関数",
+   "name": "一次関数の変化の割合と y の増加量",
+   "template": "math/math.jhs2.linear_function_rate.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.lines_intersection",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "一次関数",
+   "name": "2 直線の交点の座標",
+   "template": "math/math.jhs2.lines_intersection.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.polygon_angle_sum",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "図形の性質",
+   "name": "多角形の内角の和",
+   "template": "math/math.jhs2.polygon_angle_sum.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.regular_polygon_angle",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "図形の性質",
+   "name": "正多角形の 1 つの内角・外角",
+   "template": "math/math.jhs2.regular_polygon_angle.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.probability_two_dice",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "確率",
+   "name": "2 つのさいころの目の和の確率",
+   "template": "math/math.jhs2.probability_two_dice.json",
+   "numeric_check": false
+  },
+  {
+   "id": "math.jhs2.probability_balls",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "確率",
+   "name": "玉を 2 個取り出す確率",
+   "template": "math/math.jhs2.probability_balls.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.quartiles",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "データの活用",
+   "name": "四分位数と四分位範囲",
+   "template": "math/math.jhs2.quartiles.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs2.parallel_lines_angles",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "図形の性質",
+   "name": "平行線と角(同位角・錯角)から角度を求める",
+   "example": "ℓ ∥ m のとき、∠x の大きさを求めなさい。(図)",
+   "unrepresentable": "問題文に図が要る。書式は文と式だけを作る"
+  },
+  {
+   "id": "math.jhs2.congruence_proof",
+   "subject": "math",
+   "level": "中学2年",
+   "field": "図形の性質",
+   "name": "三角形の合同の証明",
+   "example": "△ABC ≡ △DEF を証明しなさい。",
+   "unrepresentable": "証明は計算操作ではない(対象外)"
+  },
+  {
+   "id": "math.jhs3.expand_xa_xb",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "式の展開と因数分解",
+   "name": "(x + a)(x + b) の展開",
+   "template": "math/math.jhs3.expand_xa_xb.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.expand_square",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "式の展開と因数分解",
+   "name": "(ax + b)² の展開",
+   "template": "math/math.jhs3.expand_square.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.expand_sum_difference",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "式の展開と因数分解",
+   "name": "(ax + b)(ax − b) の展開",
+   "template": "math/math.jhs3.expand_sum_difference.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.expand_general",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "式の展開と因数分解",
+   "name": "(ax + b)(cx + d) の展開",
+   "template": "math/math.jhs3.expand_general.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.factor_common",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "式の展開と因数分解",
+   "name": "共通因数をくくり出す",
+   "template": "math/math.jhs3.factor_common.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.factor_xa_xb",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "式の展開と因数分解",
+   "name": "x² + (a + b)x + ab の因数分解",
+   "template": "math/math.jhs3.factor_xa_xb.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.factor_square",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "式の展開と因数分解",
+   "name": "x² ± 2ax + a² の因数分解",
+   "template": "math/math.jhs3.factor_square.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.factor_difference_of_squares",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "式の展開と因数分解",
+   "name": "x² − a² の因数分解",
+   "template": "math/math.jhs3.factor_difference_of_squares.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.sqrt_simplify",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "平方根",
+   "name": "根号の中を簡単にする(a√b の形)",
+   "template": "math/math.jhs3.sqrt_simplify.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.sqrt_mul_div",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "平方根",
+   "name": "平方根の乗法・除法",
+   "template": "math/math.jhs3.sqrt_mul_div.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.sqrt_add_sub",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "平方根",
+   "name": "平方根の加法・減法",
+   "template": "math/math.jhs3.sqrt_add_sub.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.rationalize",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "平方根",
+   "name": "分母の有理化",
+   "template": "math/math.jhs3.rationalize.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.sqrt_expand",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "平方根",
+   "name": "平方根をふくむ式の展開",
+   "template": "math/math.jhs3.sqrt_expand.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.quadratic_square_root",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "二次方程式",
+   "name": "二次方程式(平方根の考えを使う)",
+   "template": "math/math.jhs3.quadratic_square_root.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.quadratic_factoring",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "二次方程式",
+   "name": "二次方程式(因数分解を使う)",
+   "template": "math/math.jhs3.quadratic_factoring.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.quadratic_formula",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "二次方程式",
+   "name": "二次方程式(解の公式)",
+   "template": "math/math.jhs3.quadratic_formula.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.parabola_value",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "関数 y = ax²",
+   "name": "y = ax² の式を求める",
+   "template": "math/math.jhs3.parabola_value.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.parabola_rate_of_change",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "関数 y = ax²",
+   "name": "y = ax² の変化の割合",
+   "template": "math/math.jhs3.parabola_rate_of_change.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.parabola_range",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "関数 y = ax²",
+   "name": "y = ax² の y の変域",
+   "template": "math/math.jhs3.parabola_range.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.similarity_ratio",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "相似",
+   "name": "相似比から面積比・体積比を求める",
+   "template": "math/math.jhs3.similarity_ratio.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.pythagorean_hypotenuse",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "三平方の定理",
+   "name": "三平方の定理(斜辺を求める)",
+   "template": "math/math.jhs3.pythagorean_hypotenuse.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.pythagorean_leg",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "三平方の定理",
+   "name": "三平方の定理(斜辺以外の辺を求める)",
+   "template": "math/math.jhs3.pythagorean_leg.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.distance_two_points",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "三平方の定理",
+   "name": "2 点間の距離",
+   "template": "math/math.jhs3.distance_two_points.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.special_right_triangles",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "三平方の定理",
+   "name": "特別な直角三角形の辺の比",
+   "template": "math/math.jhs3.special_right_triangles.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.inscribed_angle",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "円",
+   "name": "円周角と中心角",
+   "template": "math/math.jhs3.inscribed_angle.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.sampling_estimate",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "標本調査",
+   "name": "標本調査から全体の数を推定する",
+   "template": "math/math.jhs3.sampling_estimate.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.jhs3.similarity_proof",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "相似",
+   "name": "三角形の相似の証明",
+   "example": "△ABC ∽ △DEF を証明しなさい。",
+   "unrepresentable": "証明は計算操作ではない(対象外)"
+  },
+  {
+   "id": "math.jhs3.parallel_lines_ratio",
+   "subject": "math",
+   "level": "中学3年",
+   "field": "相似",
+   "name": "平行線と線分の比から長さを求める",
+   "example": "ℓ ∥ m ∥ n のとき、x の値を求めなさい。(図)",
+   "unrepresentable": "問題文に図が要る。書式は文と式だけを作る"
+  },
+  {
+   "id": "math.m1.expand_three_terms",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "(a + b + c)² の展開",
+   "template": "math/math.m1.expand_three_terms.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.factor_cross",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "たすき掛けによる因数分解",
+   "template": "math/math.m1.factor_cross.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.factor_two_variables",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "2 文字の二次式の因数分解",
+   "template": "math/math.m1.factor_two_variables.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.rationalize_binomial",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "分母の有理化(分母が 2 項)",
+   "template": "math/math.m1.rationalize_binomial.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.double_radical",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "二重根号をはずす",
+   "template": "math/math.m1.double_radical.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.symmetric_value",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "対称式の値",
+   "template": "math/math.m1.symmetric_value.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.absolute_value_calc",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "絶対値の計算",
+   "template": "math/math.m1.absolute_value_calc.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.linear_inequality",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "一次不等式",
+   "template": "math/math.m1.linear_inequality.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.simultaneous_inequalities",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "連立不等式",
+   "template": "math/math.m1.simultaneous_inequalities.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.absolute_equation",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "絶対値をふくむ方程式",
+   "template": "math/math.m1.absolute_equation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.absolute_inequality",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "数と式",
+   "name": "絶対値をふくむ不等式",
+   "template": "math/math.m1.absolute_inequality.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.set_count",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "集合と命題",
+   "name": "和集合の要素の個数",
+   "template": "math/math.m1.set_count.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.complete_square_vertex",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "平方完成して頂点を求める",
+   "template": "math/math.m1.complete_square_vertex.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.complete_square_fraction",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "平方完成(頂点が分数になる)",
+   "template": "math/math.m1.complete_square_fraction.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.quadratic_max_min_domain",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "定義域のある二次関数の最大値・最小値",
+   "template": "math/math.m1.quadratic_max_min_domain.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.parabola_translation",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "放物線の平行移動",
+   "template": "math/math.m1.parabola_translation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.quadratic_from_vertex",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "頂点と 1 点から二次関数を決める",
+   "template": "math/math.m1.quadratic_from_vertex.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.discriminant_count",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "判別式で実数解の個数を調べる",
+   "template": "math/math.m1.discriminant_count.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.parabola_x_intercepts",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "放物線と x 軸の共有点の座標",
+   "template": "math/math.m1.parabola_x_intercepts.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.quadratic_inequality",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "二次不等式",
+   "template": "math/math.m1.quadratic_inequality.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.trig_ratio_values",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "図形と計量",
+   "name": "三角比の値(0° から 180°)",
+   "template": "math/math.m1.trig_ratio_values.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.trig_mutual_relations",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "図形と計量",
+   "name": "三角比の相互関係(sin から cos・tan)",
+   "template": "math/math.m1.trig_mutual_relations.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.sine_rule",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "図形と計量",
+   "name": "正弦定理(辺と外接円の半径)",
+   "template": "math/math.m1.sine_rule.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.cosine_rule_side",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "図形と計量",
+   "name": "余弦定理(辺を求める)",
+   "template": "math/math.m1.cosine_rule_side.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.cosine_rule_angle",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "図形と計量",
+   "name": "余弦定理(角を求める)",
+   "template": "math/math.m1.cosine_rule_angle.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.triangle_area_sine",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "図形と計量",
+   "name": "三角形の面積(2 辺とその間の角)",
+   "template": "math/math.m1.triangle_area_sine.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.variance_sd",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "データの分析",
+   "name": "分散と標準偏差",
+   "template": "math/math.m1.variance_sd.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m1.proposition_proof",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "集合と命題",
+   "name": "命題の真偽と証明(対偶・背理法)",
+   "example": "√2 が無理数であることを証明しなさい。",
+   "unrepresentable": "証明は計算操作ではない(対象外)"
+  },
+  {
+   "id": "math.m1.quadratic_graph",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "二次関数",
+   "name": "二次関数のグラフをかく",
+   "example": "y = x² − 4x + 3 のグラフをかきなさい。",
+   "unrepresentable": "答えが図で、数字を入れ替える計算ではない(頂点・軸・共有点を求める所までは型にしてある)"
+  },
+  {
+   "id": "math.m1.scatter_plot",
+   "subject": "math",
+   "level": "高校 数学I",
+   "field": "データの分析",
+   "name": "散布図・箱ひげ図を読み取る",
+   "example": "散布図から相関の正負を答えなさい。(図)",
+   "unrepresentable": "問題文に図が要る。書式は文と式だけを作る"
+  },
+  {
+   "id": "math.ma.permutation",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "順列 nPr の計算",
+   "template": "math/math.ma.permutation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.combination",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "組合せ nCr の計算",
+   "template": "math/math.ma.combination.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.arrangement_people",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "順列(並べ方の総数)",
+   "template": "math/math.ma.arrangement_people.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.circular_permutation",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "円順列",
+   "template": "math/math.ma.circular_permutation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.permutation_with_repeats",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "同じものをふくむ順列",
+   "template": "math/math.ma.permutation_with_repeats.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.repeated_permutation",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "重複順列",
+   "template": "math/math.ma.repeated_permutation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.combination_groups",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "組合せ(男女から選ぶ)",
+   "template": "math/math.ma.combination_groups.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.probability_complement",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "余事象の確率(少なくとも 1 つ)",
+   "template": "math/math.ma.probability_complement.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.repeated_trials",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "反復試行の確率",
+   "template": "math/math.ma.repeated_trials.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.conditional_probability",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "条件付き確率",
+   "template": "math/math.ma.conditional_probability.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.expected_value",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "期待値",
+   "template": "math/math.ma.expected_value.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.divisor_count",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "数学と人間の活動(整数)",
+   "name": "正の約数の個数",
+   "template": "math/math.ma.divisor_count.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.gcd_lcm",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "数学と人間の活動(整数)",
+   "name": "最大公約数と最小公倍数",
+   "template": "math/math.ma.gcd_lcm.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.euclidean_algorithm",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "数学と人間の活動(整数)",
+   "name": "ユークリッドの互除法",
+   "template": "math/math.ma.euclidean_algorithm.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.linear_diophantine",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "数学と人間の活動(整数)",
+   "name": "一次不定方程式の整数解",
+   "template": "math/math.ma.linear_diophantine.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.base_to_decimal",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "数学と人間の活動(整数)",
+   "name": "n 進法から 10 進法へ",
+   "template": "math/math.ma.base_to_decimal.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.decimal_to_base",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "数学と人間の活動(整数)",
+   "name": "10 進法から n 進法へ",
+   "template": "math/math.ma.decimal_to_base.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.remainder",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "数学と人間の活動(整数)",
+   "name": "余りの計算(合同式)",
+   "template": "math/math.ma.remainder.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.angle_bisector_ratio",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "図形の性質",
+   "name": "角の二等分線と線分の比",
+   "template": "math/math.ma.angle_bisector_ratio.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.power_of_a_point",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "図形の性質",
+   "name": "方べきの定理",
+   "template": "math/math.ma.power_of_a_point.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.ceva_menelaus",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "図形の性質",
+   "name": "チェバの定理・メネラウスの定理で線分の比を求める",
+   "example": "△ABC の辺上の点 P、Q、R について、BP : PC を求めなさい。(図)",
+   "unrepresentable": "点の位置関係を図で示す必要がある。書式は文と式だけを作る"
+  },
+  {
+   "id": "math.ma.tree_diagram",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "樹形図・辞書式配列で数え上げる",
+   "example": "a、b、c、d の 4 文字を辞書式に並べるとき、bdca は何番目か。",
+   "unrepresentable": "数字を入れ替えると数え上げの手順そのものが変わり、答えを式で書けない"
+  },
+  {
+   "id": "math.m2.expand_cube",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "式と証明",
+   "name": "(a + b)³ の展開",
+   "template": "math/math.m2.expand_cube.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.factor_sum_of_cubes",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "式と証明",
+   "name": "x³ ± a³ の因数分解",
+   "template": "math/math.m2.factor_sum_of_cubes.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.binomial_coefficient",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "式と証明",
+   "name": "二項定理(指定された項の係数)",
+   "template": "math/math.m2.binomial_coefficient.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.polynomial_division",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "式と証明",
+   "name": "多項式の割り算(商と余り)",
+   "template": "math/math.m2.polynomial_division.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.rational_expression_add",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "式と証明",
+   "name": "分数式の加法・減法",
+   "template": "math/math.m2.rational_expression_add.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.rational_expression_reduce",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "式と証明",
+   "name": "分数式の約分",
+   "template": "math/math.m2.rational_expression_reduce.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.complex_mul",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "複素数と方程式",
+   "name": "複素数の乗法",
+   "template": "math/math.m2.complex_mul.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.complex_div",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "複素数と方程式",
+   "name": "複素数の除法",
+   "template": "math/math.m2.complex_div.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.quadratic_complex_roots",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "複素数と方程式",
+   "name": "二次方程式の虚数解",
+   "template": "math/math.m2.quadratic_complex_roots.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.vieta",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "複素数と方程式",
+   "name": "解と係数の関係",
+   "template": "math/math.m2.vieta.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.remainder_theorem",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "複素数と方程式",
+   "name": "剰余の定理",
+   "template": "math/math.m2.remainder_theorem.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.cubic_equation",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "複素数と方程式",
+   "name": "因数定理を使って三次方程式を解く",
+   "template": "math/math.m2.cubic_equation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.internal_division_point",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "内分点・外分点の座標",
+   "template": "math/math.m2.internal_division_point.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.line_through_point_slope",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "点と傾きから直線の方程式を求める",
+   "template": "math/math.m2.line_through_point_slope.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.parallel_perpendicular_line",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "平行・垂直な直線の方程式",
+   "template": "math/math.m2.parallel_perpendicular_line.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.point_line_distance",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "点と直線の距離",
+   "template": "math/math.m2.point_line_distance.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.circle_equation",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "中心と半径から円の方程式を求める",
+   "template": "math/math.m2.circle_equation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.circle_center_radius",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "円の方程式から中心と半径を求める",
+   "template": "math/math.m2.circle_center_radius.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.circle_tangent",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "円周上の点における接線の方程式",
+   "template": "math/math.m2.circle_tangent.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.degree_to_radian",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "三角関数",
+   "name": "度数法と弧度法の変換",
+   "template": "math/math.m2.degree_to_radian.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.trig_general_angle",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "三角関数",
+   "name": "一般角の三角関数の値(弧度法)",
+   "template": "math/math.m2.trig_general_angle.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.addition_theorem",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "三角関数",
+   "name": "加法定理で値を求める",
+   "template": "math/math.m2.addition_theorem.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.double_angle",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "三角関数",
+   "name": "2 倍角の公式",
+   "template": "math/math.m2.double_angle.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.trig_composition",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "三角関数",
+   "name": "三角関数の合成",
+   "template": "math/math.m2.trig_composition.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.trig_equation",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "三角関数",
+   "name": "三角方程式",
+   "template": "math/math.m2.trig_equation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.exponent_laws",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "指数関数と対数関数",
+   "name": "指数法則",
+   "template": "math/math.m2.exponent_laws.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.rational_exponent",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "指数関数と対数関数",
+   "name": "累乗根と有理数の指数",
+   "template": "math/math.m2.rational_exponent.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.exponential_equation",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "指数関数と対数関数",
+   "name": "指数方程式",
+   "template": "math/math.m2.exponential_equation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.logarithm_value",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "指数関数と対数関数",
+   "name": "対数の値",
+   "template": "math/math.m2.logarithm_value.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.logarithm_properties",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "指数関数と対数関数",
+   "name": "対数の性質を使った計算",
+   "template": "math/math.m2.logarithm_properties.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.change_of_base",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "指数関数と対数関数",
+   "name": "底の変換公式",
+   "template": "math/math.m2.change_of_base.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.logarithmic_equation",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "指数関数と対数関数",
+   "name": "対数方程式",
+   "template": "math/math.m2.logarithmic_equation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.digits_by_common_log",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "指数関数と対数関数",
+   "name": "常用対数で桁数を求める",
+   "template": "math/math.m2.digits_by_common_log.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.average_rate_of_change",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "平均変化率",
+   "template": "math/math.m2.average_rate_of_change.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.derivative_polynomial",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "多項式の導関数",
+   "template": "math/math.m2.derivative_polynomial.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.derivative_at_point",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "微分係数",
+   "template": "math/math.m2.derivative_at_point.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.tangent_line",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "接線の方程式",
+   "template": "math/math.m2.tangent_line.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.cubic_extrema",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "三次関数の極値",
+   "template": "math/math.m2.cubic_extrema.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.indefinite_integral_polynomial",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "多項式の不定積分",
+   "template": "math/math.m2.indefinite_integral_polynomial.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.definite_integral_polynomial",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "多項式の定積分",
+   "template": "math/math.m2.definite_integral_polynomial.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.area_parabola_x_axis",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "放物線と x 軸で囲まれた部分の面積",
+   "template": "math/math.m2.area_parabola_x_axis.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.area_parabola_line",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "放物線と直線で囲まれた部分の面積",
+   "template": "math/math.m2.area_parabola_line.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.locus",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "軌跡の方程式を求める",
+   "example": "2 点 A、B からの距離の比が 2 : 1 である点 P の軌跡を求めなさい。",
+   "unrepresentable": "条件の式を立てて整理する過程が答えで、数字を入れ替えても式の変形が要る(数式処理は作らない)"
+  },
+  {
+   "id": "math.m2.inequality_region",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "不等式の表す領域を図示する",
+   "example": "不等式 y > x² − 1 の表す領域を図示しなさい。",
+   "unrepresentable": "答えが図で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "math.m2.identity_proof",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "式と証明",
+   "name": "等式・不等式の証明",
+   "example": "a + b = 1 のとき、a² + b = b² + a を証明しなさい。",
+   "unrepresentable": "証明は計算操作ではない(対象外)"
+  },
+  {
+   "id": "math.mb.arithmetic_general_term",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "等差数列の一般項",
+   "template": "math/math.mb.arithmetic_general_term.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.arithmetic_sum",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "等差数列の和",
+   "template": "math/math.mb.arithmetic_sum.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.geometric_general_term",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "等比数列の一般項",
+   "template": "math/math.mb.geometric_general_term.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.geometric_sum",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "等比数列の和",
+   "template": "math/math.mb.geometric_sum.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.sigma_linear",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "Σ の計算(一次式)",
+   "template": "math/math.mb.sigma_linear.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.sigma_quadratic",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "Σ の計算(二次式)",
+   "template": "math/math.mb.sigma_quadratic.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.sigma_general_n",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "Σ の計算(n の式で表す)",
+   "template": "math/math.mb.sigma_general_n.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.difference_sequence",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "階差数列から一般項を求める",
+   "template": "math/math.mb.difference_sequence.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.recurrence_linear",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "漸化式 a_{n+1} = p a_n + q",
+   "template": "math/math.mb.recurrence_linear.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.random_variable_mean_variance",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "統計的な推測",
+   "name": "確率変数の期待値と分散",
+   "template": "math/math.mb.random_variable_mean_variance.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.linear_transform_mean_variance",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "統計的な推測",
+   "name": "aX + b の期待値と分散",
+   "template": "math/math.mb.linear_transform_mean_variance.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.binomial_distribution",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "統計的な推測",
+   "name": "二項分布の期待値と標準偏差",
+   "template": "math/math.mb.binomial_distribution.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.standardize",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "統計的な推測",
+   "name": "正規分布の標準化",
+   "template": "math/math.mb.standardize.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.confidence_interval",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "統計的な推測",
+   "name": "母平均の信頼区間(信頼度 95%)",
+   "template": "math/math.mb.confidence_interval.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.induction",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "数学的帰納法による証明",
+   "example": "1 + 3 + 5 + … + (2n − 1) = n² を数学的帰納法で証明しなさい。",
+   "unrepresentable": "証明は計算操作ではない(対象外)"
+  },
+  {
+   "id": "math.mb.normal_table_lookup",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "統計的な推測",
+   "name": "正規分布表から確率を読む",
+   "example": "Z が標準正規分布に従うとき、P(0 ≤ Z ≤ 1.25) を正規分布表から求めなさい。",
+   "unrepresentable": "正規分布表(数表)を引く操作で、表を端末に持たせていない。書式の関数に正規分布の累積確率が無い"
+  },
+  {
+   "id": "math.mc.vector_linear_combination",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "ベクトルの成分の計算",
+   "template": "math/math.mc.vector_linear_combination.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.vector_magnitude",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "ベクトルの大きさ",
+   "template": "math/math.mc.vector_magnitude.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.dot_product_components",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "内積(成分)",
+   "template": "math/math.mc.dot_product_components.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.dot_product_angle_form",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "内積(大きさとなす角)",
+   "template": "math/math.mc.dot_product_angle_form.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.vector_angle",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "2 つのベクトルのなす角",
+   "template": "math/math.mc.vector_angle.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.vector_perpendicular",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "ベクトルが垂直になる条件",
+   "template": "math/math.mc.vector_perpendicular.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.position_vector_division",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "内分点の位置ベクトル",
+   "template": "math/math.mc.position_vector_division.json",
+   "numeric_check": false
+  },
+  {
+   "id": "math.mc.space_vector_magnitude_dot",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "空間ベクトルの大きさと内積",
+   "template": "math/math.mc.space_vector_magnitude_dot.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.complex_modulus",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "複素数平面",
+   "name": "複素数の絶対値",
+   "template": "math/math.mc.complex_modulus.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.polar_form",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "複素数平面",
+   "name": "極形式で表す",
+   "template": "math/math.mc.polar_form.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.polar_product_quotient",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "複素数平面",
+   "name": "極形式の積と商",
+   "template": "math/math.mc.polar_product_quotient.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.de_moivre",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "複素数平面",
+   "name": "ド・モアブルの定理",
+   "template": "math/math.mc.de_moivre.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.de_moivre_sqrt3",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "複素数平面",
+   "name": "ド・モアブルの定理(1 + √3 i など)",
+   "template": "math/math.mc.de_moivre_sqrt3.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.ellipse_foci",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "式と曲線",
+   "name": "楕円の焦点と長軸・短軸の長さ",
+   "template": "math/math.mc.ellipse_foci.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.hyperbola_asymptotes",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "式と曲線",
+   "name": "双曲線の焦点と漸近線",
+   "template": "math/math.mc.hyperbola_asymptotes.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.parabola_focus",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "式と曲線",
+   "name": "放物線の焦点と準線",
+   "template": "math/math.mc.parabola_focus.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.polar_to_cartesian",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "式と曲線",
+   "name": "極座標を直交座標に直す",
+   "template": "math/math.mc.polar_to_cartesian.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.vector_figure_proof",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "ベクトルを使った図形の証明",
+   "example": "△ABC の重心 G について、GA + GB + GC = 0 を証明しなさい。",
+   "unrepresentable": "証明は計算操作ではない(対象外)"
+  },
+  {
+   "id": "math.mc.parametric_curve_sketch",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "式と曲線",
+   "name": "媒介変数表示された曲線の概形をかく",
+   "example": "x = cos θ、y = sin 2θ で表される曲線の概形をかきなさい。",
+   "unrepresentable": "答えが図で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "math.m3.sequence_limit_rational",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "極限",
+   "name": "数列の極限(分数式)",
+   "template": "math/math.m3.sequence_limit_rational.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.infinite_geometric_series",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "極限",
+   "name": "無限等比級数の和",
+   "template": "math/math.m3.infinite_geometric_series.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.function_limit_factor",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "極限",
+   "name": "関数の極限(約分する 0/0 の形)",
+   "template": "math/math.m3.function_limit_factor.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.trig_limit",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "極限",
+   "name": "三角関数の極限(sin x / x の利用)",
+   "template": "math/math.m3.trig_limit.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_product",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "積の微分",
+   "template": "math/math.m3.derivative_product.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_quotient",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "商の微分",
+   "template": "math/math.m3.derivative_quotient.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_chain_power",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "合成関数の微分((ax + b)ⁿ)",
+   "template": "math/math.m3.derivative_chain_power.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_trig",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "三角関数の微分",
+   "template": "math/math.m3.derivative_trig.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_tan",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "tan の微分",
+   "template": "math/math.m3.derivative_tan.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_exponential",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "指数関数の微分",
+   "template": "math/math.m3.derivative_exponential.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_logarithm",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "対数関数の微分",
+   "template": "math/math.m3.derivative_logarithm.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_x_exp",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "積の微分(xⁿ e^{ax})",
+   "template": "math/math.m3.derivative_x_exp.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_x_log",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "積の微分(xⁿ log x)",
+   "template": "math/math.m3.derivative_x_log.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.second_derivative",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "第 2 次導関数",
+   "template": "math/math.m3.second_derivative.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.tangent_line_exp_log",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "接線の方程式(指数・対数)",
+   "template": "math/math.m3.tangent_line_exp_log.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.integral_power_rational",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "不定積分(x の有理数乗)",
+   "template": "math/math.m3.integral_power_rational.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.integral_exp_trig",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "不定積分(e^{ax}、sin ax、cos ax)",
+   "template": "math/math.m3.integral_exp_trig.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.integral_reciprocal_linear",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "不定積分(1/(ax + b))",
+   "template": "math/math.m3.integral_reciprocal_linear.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.integral_substitution_power",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "置換積分((ax + b)ⁿ)",
+   "template": "math/math.m3.integral_substitution_power.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.integral_substitution_log",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "置換積分(f'(x)/f(x) の形)",
+   "template": "math/math.m3.integral_substitution_log.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.integral_by_parts_exp",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "部分積分(x e^{ax})",
+   "template": "math/math.m3.integral_by_parts_exp.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.integral_by_parts_trig",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "部分積分(x sin ax、x cos ax)",
+   "template": "math/math.m3.integral_by_parts_trig.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.integral_by_parts_log",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "部分積分(xⁿ log x)",
+   "template": "math/math.m3.integral_by_parts_log.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.definite_integral_trig",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "定積分(三角関数)",
+   "template": "math/math.m3.definite_integral_trig.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.definite_integral_exp",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "定積分(指数関数)",
+   "template": "math/math.m3.definite_integral_exp.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.definite_integral_log",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "定積分(1/x)",
+   "template": "math/math.m3.definite_integral_log.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.volume_of_revolution",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "回転体の体積",
+   "template": "math/math.m3.volume_of_revolution.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.area_between_curves_trig",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "曲線と x 軸で囲まれた部分の面積(三角関数)",
+   "template": "math/math.m3.area_between_curves_trig.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.curve_sketch",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "増減・凹凸を調べてグラフの概形をかく",
+   "example": "y = x e^{−x} の増減、凹凸を調べてグラフの概形をかきなさい。",
+   "unrepresentable": "答えが増減表と図で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "math.m3.substitution_general",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "置換のしかたを自分で選ぶ置換積分",
+   "example": "∫ x√(1 − x²) dx を求めなさい。",
+   "unrepresentable": "被積分関数の形ごとに置き方と答えの式の形が変わる。形を決めた置換積分((ax + b)ⁿ、f'/f)は型にしてある。形を選ぶ所は数式処理が要る"
+  },
+  {
+   "id": "math.univ.partial_derivative_polynomial",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "偏微分",
+   "name": "多項式の偏導関数",
+   "template": "math/math.univ.partial_derivative_polynomial.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.partial_derivative_exp",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "偏微分",
+   "name": "指数関数・三角関数の偏導関数",
+   "template": "math/math.univ.partial_derivative_exp.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.second_partial_derivatives",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "偏微分",
+   "name": "2 階の偏導関数",
+   "template": "math/math.univ.second_partial_derivatives.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.total_differential_value",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "偏微分",
+   "name": "接平面の方程式",
+   "template": "math/math.univ.total_differential_value.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.double_integral_rectangle",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "重積分",
+   "name": "長方形領域での重積分",
+   "template": "math/math.univ.double_integral_rectangle.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.taylor_coefficients",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "テイラー展開",
+   "name": "マクローリン展開の係数(e^{ax})",
+   "template": "math/math.univ.taylor_coefficients.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.lhopital",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "微分の応用",
+   "name": "ロピタルの定理による極限",
+   "template": "math/math.univ.lhopital.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.inverse_trig_derivative",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "微分の応用",
+   "name": "逆三角関数の微分",
+   "template": "math/math.univ.inverse_trig_derivative.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.matrix_linear_combination",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "行列の和とスカラー倍",
+   "template": "math/math.univ.matrix_linear_combination.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.matrix_product",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "行列の積(2 × 2)",
+   "template": "math/math.univ.matrix_product.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.determinant_2x2",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "行列式(2 × 2)",
+   "template": "math/math.univ.determinant_2x2.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.determinant_3x3",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "行列式(3 × 3、サラスの方法)",
+   "template": "math/math.univ.determinant_3x3.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.inverse_2x2",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "逆行列(2 × 2)",
+   "template": "math/math.univ.inverse_2x2.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.cramer_2x2",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "連立一次方程式(クラメルの公式)",
+   "template": "math/math.univ.cramer_2x2.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.linear_system_3x3",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "連立一次方程式(3 元、掃き出し法)",
+   "template": "math/math.univ.linear_system_3x3.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.eigenvalues_2x2",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "固有値(2 × 2)",
+   "template": "math/math.univ.eigenvalues_2x2.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.cross_product",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "ベクトル",
+   "name": "外積(ベクトル積)",
+   "template": "math/math.univ.cross_product.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.ode_separable",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "微分方程式",
+   "name": "変数分離形(y' = ay、初期条件つき)",
+   "template": "math/math.univ.ode_separable.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.ode_first_order_linear",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "微分方程式",
+   "name": "1 階線形微分方程式(y' + ay = b)",
+   "template": "math/math.univ.ode_first_order_linear.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.ode_second_order_real",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "微分方程式",
+   "name": "2 階定数係数同次形(異なる 2 つの実数解)",
+   "template": "math/math.univ.ode_second_order_real.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.ode_second_order_repeated",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "微分方程式",
+   "name": "2 階定数係数同次形(重解)",
+   "template": "math/math.univ.ode_second_order_repeated.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.ode_second_order_complex",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "微分方程式",
+   "name": "2 階定数係数同次形(複素数解)",
+   "template": "math/math.univ.ode_second_order_complex.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.fourier_sine_coefficient_x",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "フーリエ級数",
+   "name": "フーリエ係数 b_n(f(x) = kx)",
+   "template": "math/math.univ.fourier_sine_coefficient_x.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.fourier_cosine_coefficient_x2",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "フーリエ級数",
+   "name": "フーリエ係数 a_n(f(x) = kx²)",
+   "template": "math/math.univ.fourier_cosine_coefficient_x2.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.fourier_square_wave",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "フーリエ級数",
+   "name": "フーリエ係数 b_n(矩形波)",
+   "template": "math/math.univ.fourier_square_wave.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.fourier_a0",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "フーリエ級数",
+   "name": "フーリエ係数 a_0",
+   "template": "math/math.univ.fourier_a0.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.matrix_rank",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "行列の階数を行基本変形で求める",
+   "example": "行列 A の階数を求めなさい。",
+   "unrepresentable": "数字を入れ替えると基本変形の手順と階数そのものが変わる。答えを決まった式で書けない"
+  },
+  {
+   "id": "math.univ.epsilon_delta",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "極限",
+   "name": "ε-δ 論法による極限の証明",
+   "example": "lim_{x→1} (2x + 1) = 3 を ε-δ 論法で証明しなさい。",
+   "unrepresentable": "証明は計算操作ではない(対象外)"
+  },
+  {
+   "id": "math.univ.diagonalization",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "行列の対角化(固有ベクトルを求めて P を作る)",
+   "example": "行列 A を対角化しなさい。",
+   "unrepresentable": "固有ベクトルは定数倍の取り方が決まらず、答えが 1 つに定まらない。固有値を求める所までは型にしてある"
+  },
+  {
+   "id": "physics.mech.uniform_motion",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の表し方",
+   "name": "等速直線運動(距離・速さ・時間)",
+   "template": "physics/physics.mech.uniform_motion.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.average_speed_kmh",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の表し方",
+   "name": "平均の速さと単位の換算(km/h と m/s)",
+   "template": "physics/physics.mech.average_speed_kmh.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.relative_velocity",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の表し方",
+   "name": "相対速度(一直線上)",
+   "template": "physics/physics.mech.relative_velocity.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.velocity_time",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "等加速度直線運動",
+   "name": "等加速度直線運動(v = v₀ + at)",
+   "template": "physics/physics.mech.velocity_time.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.displacement_time",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "等加速度直線運動",
+   "name": "等加速度直線運動(x = v₀t + ½at²)",
+   "template": "physics/physics.mech.displacement_time.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.velocity_displacement",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "等加速度直線運動",
+   "name": "等加速度直線運動(v² − v₀² = 2ax)",
+   "template": "physics/physics.mech.velocity_displacement.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.free_fall",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "落体の運動",
+   "name": "自由落下(速さと落下距離)",
+   "template": "physics/physics.mech.free_fall.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.throw_up_max_height",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "落体の運動",
+   "name": "鉛直投げ上げ(最高点の高さと時間)",
+   "template": "physics/physics.mech.throw_up_max_height.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.horizontal_projection",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "落体の運動",
+   "name": "水平投射(落下時間と水平距離)",
+   "template": "physics/physics.mech.horizontal_projection.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.projectile_range",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "落体の運動",
+   "name": "斜方投射(最高点の高さと水平到達距離)",
+   "template": "physics/physics.mech.projectile_range.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.weight",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "重力の大きさ(W = mg)",
+   "template": "physics/physics.mech.weight.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.hooke",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "フックの法則(F = kx)",
+   "template": "physics/physics.mech.hooke.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.spring_hanging",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "ばねにつるしたおもりのつり合い",
+   "template": "physics/physics.mech.spring_hanging.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.incline_components",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "斜面上の物体にはたらく重力の分力",
+   "template": "physics/physics.mech.incline_components.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.two_strings_tension",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "2 本の糸でつるした物体の張力",
+   "template": "physics/physics.mech.two_strings_tension.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.friction_max_static",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "最大摩擦力と動摩擦力",
+   "template": "physics/physics.mech.friction_max_static.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.pressure",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "圧力(p = F/S)",
+   "template": "physics/physics.mech.pressure.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.water_pressure",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "水圧(p = ρgh)",
+   "template": "physics/physics.mech.water_pressure.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.buoyancy",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "浮力(F = ρVg)",
+   "template": "physics/physics.mech.buoyancy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.newton_second",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の法則",
+   "name": "運動方程式(ma = F)",
+   "template": "physics/physics.mech.newton_second.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.friction_acceleration",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の法則",
+   "name": "動摩擦力がはたらく物体の加速度",
+   "template": "physics/physics.mech.friction_acceleration.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.two_blocks_string",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の法則",
+   "name": "糸でつながれた 2 物体の運動",
+   "template": "physics/physics.mech.two_blocks_string.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.atwood",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の法則",
+   "name": "定滑車にかけた 2 物体の運動",
+   "template": "physics/physics.mech.atwood.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.incline_acceleration",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の法則",
+   "name": "斜面をすべり下りる物体の加速度",
+   "template": "physics/physics.mech.incline_acceleration.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.work",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "仕事と力学的エネルギー",
+   "name": "仕事(W = Fx cos θ)",
+   "template": "physics/physics.mech.work.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.power",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "仕事と力学的エネルギー",
+   "name": "仕事率(P = W/t)",
+   "template": "physics/physics.mech.power.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.kinetic_energy",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "仕事と力学的エネルギー",
+   "name": "運動エネルギー(½mv²)",
+   "template": "physics/physics.mech.kinetic_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.potential_energy_gravity",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "仕事と力学的エネルギー",
+   "name": "重力による位置エネルギー(mgh)",
+   "template": "physics/physics.mech.potential_energy_gravity.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.potential_energy_spring",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "仕事と力学的エネルギー",
+   "name": "弾性力による位置エネルギー(½kx²)",
+   "template": "physics/physics.mech.potential_energy_spring.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.energy_conservation_fall",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "仕事と力学的エネルギー",
+   "name": "力学的エネルギーの保存(落下する物体の速さ)",
+   "template": "physics/physics.mech.energy_conservation_fall.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.energy_conservation_spring",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "仕事と力学的エネルギー",
+   "name": "力学的エネルギーの保存(ばねから離れる物体の速さ)",
+   "template": "physics/physics.mech.energy_conservation_spring.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.momentum_impulse",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動量の保存",
+   "name": "運動量と力積",
+   "template": "physics/physics.mech.momentum_impulse.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.momentum_conservation_merge",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動量の保存",
+   "name": "運動量保存(衝突して一体になる)",
+   "template": "physics/physics.mech.momentum_conservation_merge.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.restitution",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動量の保存",
+   "name": "反発係数(床ではね返る小球)",
+   "template": "physics/physics.mech.restitution.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.collision_1d",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動量の保存",
+   "name": "一直線上の衝突(運動量保存と反発係数)",
+   "template": "physics/physics.mech.collision_1d.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.circular_motion",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "円運動と単振動",
+   "name": "等速円運動(周期・角速度・向心加速度)",
+   "template": "physics/physics.mech.circular_motion.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.centripetal_force",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "円運動と単振動",
+   "name": "向心力(F = mv²/r)",
+   "template": "physics/physics.mech.centripetal_force.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.spring_pendulum_period",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "円運動と単振動",
+   "name": "ばね振り子の周期(T = 2π√(m/k))",
+   "template": "physics/physics.mech.spring_pendulum_period.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.simple_pendulum_period",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "円運動と単振動",
+   "name": "単振り子の周期(T = 2π√(L/g))",
+   "template": "physics/physics.mech.simple_pendulum_period.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.shm_max_speed",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "円運動と単振動",
+   "name": "単振動の最大の速さと加速度",
+   "template": "physics/physics.mech.shm_max_speed.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.gravitation",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "万有引力",
+   "name": "万有引力の法則",
+   "template": "physics/physics.mech.gravitation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.orbital_speed",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "万有引力",
+   "name": "第一宇宙速度(v = √(gR))",
+   "template": "physics/physics.mech.orbital_speed.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.kepler_third",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "万有引力",
+   "name": "ケプラーの第 3 法則",
+   "template": "physics/physics.mech.kepler_third.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.torque",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "剛体のつり合い",
+   "name": "力のモーメント(M = Fl)",
+   "template": "physics/physics.mech.torque.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.lever_balance",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "剛体のつり合い",
+   "name": "てこのつり合い(力のモーメントのつり合い)",
+   "template": "physics/physics.mech.lever_balance.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.center_of_mass",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "剛体のつり合い",
+   "name": "2 物体の重心の位置",
+   "template": "physics/physics.mech.center_of_mass.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.mech.vt_graph_reading",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "運動の表し方",
+   "name": "v-t グラフから加速度と移動距離を読み取る",
+   "example": "v-t グラフから、0 s から 4 s までの加速度と移動距離を求めなさい。(図)",
+   "unrepresentable": "問題文にグラフが要る。書式は文と式だけを作る"
+  },
+  {
+   "id": "physics.mech.free_body_diagram",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "力のつり合い",
+   "name": "物体にはたらく力を図示する",
+   "example": "斜面上で静止している物体にはたらく力をすべて図示しなさい。",
+   "unrepresentable": "答えが図で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "physics.heat.heat_quantity",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "熱と温度",
+   "name": "熱量(Q = mcΔT)",
+   "template": "physics/physics.heat.heat_quantity.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.heat_capacity",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "熱と温度",
+   "name": "熱容量(C = mc)",
+   "template": "physics/physics.heat.heat_capacity.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.calorimetry_mixing",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "熱と温度",
+   "name": "熱量の保存(混ぜた後の温度)",
+   "template": "physics/physics.heat.calorimetry_mixing.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.specific_heat_measurement",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "熱と温度",
+   "name": "熱量の保存から比熱を求める",
+   "template": "physics/physics.heat.specific_heat_measurement.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.latent_heat",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "熱と温度",
+   "name": "融解熱・蒸発熱",
+   "template": "physics/physics.heat.latent_heat.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.boyle_charles",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "気体の法則",
+   "name": "ボイル・シャルルの法則",
+   "template": "physics/physics.heat.boyle_charles.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.ideal_gas_law",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "気体の法則",
+   "name": "理想気体の状態方程式(PV = nRT)",
+   "template": "physics/physics.heat.ideal_gas_law.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.internal_energy",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "気体の内部エネルギー",
+   "name": "単原子分子理想気体の内部エネルギー",
+   "template": "physics/physics.heat.internal_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.first_law",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "気体の内部エネルギー",
+   "name": "熱力学第 1 法則(ΔU = Q + W)",
+   "template": "physics/physics.heat.first_law.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.work_isobaric",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "気体の内部エネルギー",
+   "name": "定圧変化で気体がする仕事(W = pΔV)",
+   "template": "physics/physics.heat.work_isobaric.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.heat.thermal_efficiency",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "気体の内部エネルギー",
+   "name": "熱機関の熱効率",
+   "template": "physics/physics.heat.thermal_efficiency.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.wave_speed",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "波の性質",
+   "name": "波の基本式(v = fλ)",
+   "template": "physics/physics.wave.wave_speed.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.sine_wave_reading",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "波の性質",
+   "name": "正弦波の式から振幅・周期・波長・速さを読み取る",
+   "template": "physics/physics.wave.sine_wave_reading.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.sound_speed_temperature",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "音",
+   "name": "気温と音速(V = 331.5 + 0.6t)",
+   "template": "physics/physics.wave.sound_speed_temperature.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.beats",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "音",
+   "name": "うなりの回数",
+   "template": "physics/physics.wave.beats.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.string_harmonics",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "音",
+   "name": "弦の固有振動",
+   "template": "physics/physics.wave.string_harmonics.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.closed_pipe",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "音",
+   "name": "気柱の固有振動(閉管・開管)",
+   "template": "physics/physics.wave.closed_pipe.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.doppler",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "音",
+   "name": "ドップラー効果",
+   "template": "physics/physics.wave.doppler.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.refraction_index",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "光",
+   "name": "屈折の法則(屈折率と屈折角)",
+   "template": "physics/physics.wave.refraction_index.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.critical_angle",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "光",
+   "name": "全反射の臨界角(sin θ₀ = 1/n)",
+   "template": "physics/physics.wave.critical_angle.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.lens_formula",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "光",
+   "name": "レンズの式と倍率(凸レンズ)",
+   "template": "physics/physics.wave.lens_formula.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.young_double_slit",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "光",
+   "name": "ヤングの実験(明線の間隔)",
+   "template": "physics/physics.wave.young_double_slit.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.diffraction_grating",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "光",
+   "name": "回折格子(d sin θ = mλ)",
+   "template": "physics/physics.wave.diffraction_grating.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.wave.wave_graph_reading",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "波の性質",
+   "name": "y-x グラフ・y-t グラフから波長・周期を読み取る",
+   "example": "図の正弦波の波長と振幅を読み取りなさい。(図)",
+   "unrepresentable": "問題文にグラフが要る。書式は文と式だけを作る"
+  },
+  {
+   "id": "physics.wave.ray_diagram",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "光",
+   "name": "レンズによる像を作図する",
+   "example": "凸レンズによる物体の像を作図しなさい。",
+   "unrepresentable": "答えが図で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "physics.em.coulomb_law",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電場と電位",
+   "name": "クーロンの法則",
+   "template": "physics/physics.em.coulomb_law.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.electric_field_force",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電場と電位",
+   "name": "電場から受ける力(F = qE)",
+   "template": "physics/physics.em.electric_field_force.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.point_charge_field_potential",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電場と電位",
+   "name": "点電荷がつくる電場と電位",
+   "template": "physics/physics.em.point_charge_field_potential.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.uniform_field_potential",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電場と電位",
+   "name": "一様な電場と電位差(V = Ed)",
+   "template": "physics/physics.em.uniform_field_potential.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.work_by_field",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電場と電位",
+   "name": "電場がする仕事(W = qV)",
+   "template": "physics/physics.em.work_by_field.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.capacitor_charge",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "コンデンサー",
+   "name": "コンデンサーの電気量(Q = CV)",
+   "template": "physics/physics.em.capacitor_charge.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.capacitor_combined",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "コンデンサー",
+   "name": "コンデンサーの合成容量",
+   "template": "physics/physics.em.capacitor_combined.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.parallel_plate_capacitance",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "コンデンサー",
+   "name": "平行板コンデンサーの電気容量の変化",
+   "template": "physics/physics.em.parallel_plate_capacitance.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.current_definition",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "電流と電気量(I = Q/t)",
+   "template": "physics/physics.em.current_definition.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.ohm_law",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "オームの法則(V = RI)",
+   "template": "physics/physics.em.ohm_law.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.resistivity",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "抵抗率と抵抗(R = ρL/S)",
+   "template": "physics/physics.em.resistivity.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.resistors_combined",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "合成抵抗(直列・並列)",
+   "template": "physics/physics.em.resistors_combined.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.series_circuit_voltage",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "直列回路の電流と各抵抗の電圧",
+   "template": "physics/physics.em.series_circuit_voltage.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.electric_power",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "電力とジュール熱",
+   "template": "physics/physics.em.electric_power.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.energy_kwh",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "電力量(kWh と J)",
+   "template": "physics/physics.em.energy_kwh.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.internal_resistance",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "電池の起電力と内部抵抗",
+   "template": "physics/physics.em.internal_resistance.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.magnetic_field_wire",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流と磁場",
+   "name": "直線電流がつくる磁場(H = I/2πr)",
+   "template": "physics/physics.em.magnetic_field_wire.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.force_on_current",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流と磁場",
+   "name": "電流が磁場から受ける力(F = IBL sin θ)",
+   "template": "physics/physics.em.force_on_current.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.lorentz_force",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流と磁場",
+   "name": "ローレンツ力と円運動の半径",
+   "template": "physics/physics.em.lorentz_force.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.faraday_law",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電磁誘導",
+   "name": "ファラデーの電磁誘導の法則",
+   "template": "physics/physics.em.faraday_law.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.motional_emf",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電磁誘導",
+   "name": "磁場を横切る導体棒の誘導起電力(V = vBL)",
+   "template": "physics/physics.em.motional_emf.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.self_induction",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電磁誘導",
+   "name": "自己誘導(V = L ΔI/Δt)",
+   "template": "physics/physics.em.self_induction.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.ac_effective",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "交流",
+   "name": "交流の実効値と最大値",
+   "template": "physics/physics.em.ac_effective.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.transformer",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "交流",
+   "name": "変圧器(電圧と巻数の比)",
+   "template": "physics/physics.em.transformer.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.reactance",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "交流",
+   "name": "コイルとコンデンサーのリアクタンス",
+   "template": "physics/physics.em.reactance.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.resonance_frequency",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "交流",
+   "name": "共振周波数(f = 1/2π√(LC))",
+   "template": "physics/physics.em.resonance_frequency.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.electromagnetic_wave",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "交流",
+   "name": "電磁波の波長と周波数(c = fλ)",
+   "template": "physics/physics.em.electromagnetic_wave.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.atom.photon_energy",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "原子",
+   "name": "光子のエネルギー(E = hc/λ)",
+   "template": "physics/physics.atom.photon_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.atom.photoelectric_effect",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "原子",
+   "name": "光電効果(K = hν − W)",
+   "template": "physics/physics.atom.photoelectric_effect.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.atom.de_broglie",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "原子",
+   "name": "ド・ブロイ波長(λ = h/mv)",
+   "template": "physics/physics.atom.de_broglie.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.atom.half_life",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "原子",
+   "name": "半減期",
+   "template": "physics/physics.atom.half_life.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.atom.mass_energy",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "原子",
+   "name": "質量とエネルギーの等価性(E = mc²)",
+   "template": "physics/physics.atom.mass_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.em.field_lines",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電場と電位",
+   "name": "電気力線・等電位線を図示する",
+   "example": "正負の点電荷のまわりの電気力線の概形をかきなさい。",
+   "unrepresentable": "答えが図で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "physics.em.kirchhoff_network",
+   "subject": "physics",
+   "level": "高校 物理",
+   "field": "電流",
+   "name": "キルヒホッフの法則で複雑な回路の電流を求める",
+   "example": "図の回路で、各抵抗を流れる電流を求めなさい。(図)",
+   "unrepresentable": "回路のつながりを図で示す必要がある。直列・並列と内部抵抗までは、文だけで書ける型にしてある"
+  },
+  {
+   "id": "physics.univ.velocity_from_position",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "力学(微積分を使う)",
+   "name": "位置の式から速度・加速度を求める",
+   "template": "physics/physics.univ.velocity_from_position.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.work_integral",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "力学(微積分を使う)",
+   "name": "位置によって変わる力がする仕事(積分)",
+   "template": "physics/physics.univ.work_integral.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.terminal_velocity",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "力学(微積分を使う)",
+   "name": "空気抵抗を受ける落下の終端速度",
+   "template": "physics/physics.univ.terminal_velocity.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.moment_of_inertia_energy",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "剛体の回転",
+   "name": "回転の運動エネルギー(½Iω²)",
+   "template": "physics/physics.univ.moment_of_inertia_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.angular_momentum",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "剛体の回転",
+   "name": "角運動量(L = Iω)と角運動量保存",
+   "template": "physics/physics.univ.angular_momentum.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.shm_angular_frequency",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "振動",
+   "name": "単振動の微分方程式から角振動数と周期を求める",
+   "template": "physics/physics.univ.shm_angular_frequency.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.carnot_efficiency",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "熱力学",
+   "name": "カルノーサイクルの熱効率",
+   "template": "physics/physics.univ.carnot_efficiency.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.entropy_change",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "熱力学",
+   "name": "エントロピーの変化(ΔS = Q/T)",
+   "template": "physics/physics.univ.entropy_change.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.isothermal_work",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "熱力学",
+   "name": "等温変化で理想気体がする仕事(W = nRT ln(V₂/V₁))",
+   "template": "physics/physics.univ.isothermal_work.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.rc_time_constant",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "電気回路",
+   "name": "RC 回路の時定数",
+   "template": "physics/physics.univ.rc_time_constant.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.lc_oscillation_period",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "電気回路",
+   "name": "LC 回路の電気振動の周期",
+   "template": "physics/physics.univ.lc_oscillation_period.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.univ.gauss_sphere_field",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "電磁気学",
+   "name": "ガウスの法則(一様に帯電した球の外側の電場)",
+   "template": "physics/physics.univ.gauss_sphere_field.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.unit.speed_conversion",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "単位と次元",
+   "name": "速さの単位換算(km/h と m/s)",
+   "template": "physics/physics.unit.speed_conversion.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.unit.density_conversion",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "単位と次元",
+   "name": "密度の単位換算(g/cm³ と kg/m³)",
+   "template": "physics/physics.unit.density_conversion.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.unit.energy_conversion",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "単位と次元",
+   "name": "エネルギーの単位換算(kWh・J)",
+   "template": "physics/physics.unit.energy_conversion.json",
+   "numeric_check": true
+  },
+  {
+   "id": "physics.unit.prefix_conversion",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "単位と次元",
+   "name": "接頭語のついた単位の換算",
+   "template": "physics/physics.unit.prefix_conversion.json",
+   "numeric_check": false
+  },
+  {
+   "id": "physics.unit.si_base_units",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "単位と次元",
+   "name": "組立単位を SI 基本単位で表す(次元の確認)",
+   "template": "physics/physics.unit.si_base_units.json",
+   "numeric_check": false
+  },
+  {
+   "id": "physics.unit.dimensional_analysis",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "単位と次元",
+   "name": "次元解析で公式の指数を決める",
+   "example": "単振り子の周期 T が長さ L と重力加速度 g だけで決まるとして、T ∝ L^a g^b の a、b を次元解析で求めなさい。",
+   "unrepresentable": "数字を入れ替える所が無く、型にすると毎回同じ問題になる(関係する量の組を選ぶ所が問題の本体)"
+  },
+  {
+   "id": "physics.univ.lagrangian",
+   "subject": "physics",
+   "level": "大学初年 物理",
+   "field": "力学(微積分を使う)",
+   "name": "運動方程式を立てて解く(束縛のある系)",
+   "example": "斜面上を転がる円柱の加速度を、並進と回転の運動方程式から求めなさい。",
+   "unrepresentable": "式を立てて連立して整理する過程が答えで、数字を入れ替えても式の変形が要る(数式処理は作らない)。結果の公式に数を入れる所は、円運動や回転のエネルギーの型にしてある"
+  },
+  {
+   "id": "chemistry.basic.average_atomic_mass",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質の構成",
+   "name": "同位体の存在比から原子量を求める",
+   "template": "chemistry/chemistry.basic.average_atomic_mass.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.formula_weight",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "分子量・式量の計算",
+   "template": "chemistry/chemistry.basic.formula_weight.json",
+   "numeric_check": false
+  },
+  {
+   "id": "chemistry.basic.mass_to_moles",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "質量から物質量を求める",
+   "template": "chemistry/chemistry.basic.mass_to_moles.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.moles_to_mass",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "物質量から質量を求める",
+   "template": "chemistry/chemistry.basic.moles_to_mass.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.particles",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "物質量と粒子の数(アボガドロ定数)",
+   "template": "chemistry/chemistry.basic.particles.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.gas_volume_stp",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "標準状態の気体の体積と物質量",
+   "template": "chemistry/chemistry.basic.gas_volume_stp.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.mass_percent",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "質量パーセント濃度",
+   "template": "chemistry/chemistry.basic.mass_percent.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.molarity",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "モル濃度(溶質の質量と溶液の体積から)",
+   "template": "chemistry/chemistry.basic.molarity.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.solution_preparation",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "決まったモル濃度の水溶液をつくるのに必要な溶質の質量",
+   "template": "chemistry/chemistry.basic.solution_preparation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.dilution",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "水溶液の希釈",
+   "template": "chemistry/chemistry.basic.dilution.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.percent_to_molarity",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "質量パーセント濃度からモル濃度への換算",
+   "template": "chemistry/chemistry.basic.percent_to_molarity.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.balance_equation",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "化学反応式の係数を合わせる",
+   "template": "chemistry/chemistry.basic.balance_equation.json",
+   "numeric_check": false
+  },
+  {
+   "id": "chemistry.basic.combustion_alkane_coefficients",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "炭化水素の完全燃焼の係数(一般式)",
+   "template": "chemistry/chemistry.basic.combustion_alkane_coefficients.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.stoichiometry_mass_mass",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "化学反応の量的関係(質量から質量)",
+   "template": "chemistry/chemistry.basic.stoichiometry_mass_mass.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.stoichiometry_mass_gas",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "化学反応の量的関係(質量から気体の体積)",
+   "template": "chemistry/chemistry.basic.stoichiometry_mass_gas.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.limiting_reagent",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "過不足のある反応(どちらが残るか)",
+   "template": "chemistry/chemistry.basic.limiting_reagent.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.ph_strong_acid",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "酸と塩基",
+   "name": "強酸の水溶液の pH",
+   "template": "chemistry/chemistry.basic.ph_strong_acid.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.ph_strong_base",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "酸と塩基",
+   "name": "強塩基の水溶液の pH",
+   "template": "chemistry/chemistry.basic.ph_strong_base.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.ph_from_concentration",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "酸と塩基",
+   "name": "水素イオン濃度から pH を求める(log を使う)",
+   "template": "chemistry/chemistry.basic.ph_from_concentration.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.neutralization_titration",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "酸と塩基",
+   "name": "中和滴定(濃度を求める)",
+   "template": "chemistry/chemistry.basic.neutralization_titration.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.oxidation_number",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "酸化還元反応",
+   "name": "酸化数を求める",
+   "template": "chemistry/chemistry.basic.oxidation_number.json",
+   "numeric_check": false
+  },
+  {
+   "id": "chemistry.basic.redox_titration",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "酸化還元反応",
+   "name": "酸化還元滴定(過マンガン酸カリウム)",
+   "template": "chemistry/chemistry.basic.redox_titration.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.faraday_electrolysis",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "酸化還元反応",
+   "name": "電気分解の量的関係(ファラデーの法則)",
+   "template": "chemistry/chemistry.basic.faraday_electrolysis.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.basic.electron_configuration",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質の構成",
+   "name": "電子配置・電子式を書く",
+   "example": "塩素原子の電子配置と、塩化水素の電子式を書きなさい。",
+   "unrepresentable": "答えが図(電子式)や決まった配置の暗記で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "chemistry.basic.write_equation",
+   "subject": "chemistry",
+   "level": "高校 化学基礎",
+   "field": "物質量と化学反応式",
+   "name": "反応物と生成物から化学反応式を自分で書く",
+   "example": "アルミニウムと希硫酸の反応を化学反応式で表しなさい。",
+   "unrepresentable": "生成物を化学の知識から決める所が答えで、数字を入れ替える計算ではない(係数を合わせる所は、反応の表から出す型にしてある)"
+  },
+  {
+   "id": "chemistry.theory.ideal_gas_moles",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "気体の状態方程式(物質量を求める)",
+   "template": "chemistry/chemistry.theory.ideal_gas_moles.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.molar_mass_from_gas",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "気体の密度・質量から分子量を求める",
+   "template": "chemistry/chemistry.theory.molar_mass_from_gas.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.partial_pressure",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "混合気体の分圧(ドルトンの分圧の法則)",
+   "template": "chemistry/chemistry.theory.partial_pressure.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.boiling_point_elevation",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "沸点上昇・凝固点降下(Δt = K m)",
+   "template": "chemistry/chemistry.theory.boiling_point_elevation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.osmotic_pressure",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "浸透圧(Π = cRT)",
+   "template": "chemistry/chemistry.theory.osmotic_pressure.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.solubility_crystallization",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "溶解度と析出量",
+   "template": "chemistry/chemistry.theory.solubility_crystallization.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.henry_law",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "ヘンリーの法則",
+   "template": "chemistry/chemistry.theory.henry_law.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.hess_formation",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応とエネルギー",
+   "name": "ヘスの法則(生成エンタルピーから反応エンタルピーを求める)",
+   "template": "chemistry/chemistry.theory.hess_formation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.calorimetry_reaction",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応とエネルギー",
+   "name": "温度変化から反応で出入りした熱量を求める",
+   "template": "chemistry/chemistry.theory.calorimetry_reaction.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.bond_energy",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応とエネルギー",
+   "name": "結合エネルギーから反応エンタルピーを求める",
+   "template": "chemistry/chemistry.theory.bond_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.battery_charge",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応とエネルギー",
+   "name": "電池から取り出せる電気量と反応する物質の量",
+   "template": "chemistry/chemistry.theory.battery_charge.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.reaction_rate_average",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "平均の反応速度",
+   "template": "chemistry/chemistry.theory.reaction_rate_average.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.rate_law",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "反応速度式から速度定数を求める",
+   "template": "chemistry/chemistry.theory.rate_law.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.equilibrium_constant",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "平衡定数を求める",
+   "template": "chemistry/chemistry.theory.equilibrium_constant.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.equilibrium_amounts",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "平衡定数から平衡時の物質量を求める",
+   "template": "chemistry/chemistry.theory.equilibrium_amounts.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.weak_acid_ph",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "弱酸の電離度と pH",
+   "template": "chemistry/chemistry.theory.weak_acid_ph.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.weak_acid_ka",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "電離定数から弱酸の水素イオン濃度を求める",
+   "template": "chemistry/chemistry.theory.weak_acid_ka.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.solubility_product",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "溶解度積から溶解度を求める",
+   "template": "chemistry/chemistry.theory.solubility_product.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.elemental_analysis",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "有機化合物",
+   "name": "元素分析から組成式を求める",
+   "template": "chemistry/chemistry.theory.elemental_analysis.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.molecular_formula",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "有機化合物",
+   "name": "組成式と分子量から分子式を求める",
+   "template": "chemistry/chemistry.theory.molecular_formula.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.combined_gas_law",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "ボイル・シャルルの法則",
+   "template": "chemistry/chemistry.theory.combined_gas_law.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.gas_over_water",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "水上置換で集めた気体の分圧と物質量",
+   "template": "chemistry/chemistry.theory.gas_over_water.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.unit_cell_density",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "物質の状態",
+   "name": "単位格子から結晶の密度を求める",
+   "template": "chemistry/chemistry.theory.unit_cell_density.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.degree_of_ionization",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "電離定数から弱酸の電離度を求める",
+   "template": "chemistry/chemistry.theory.degree_of_ionization.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.lead_storage_battery",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応とエネルギー",
+   "name": "鉛蓄電池の放電による電極の質量変化",
+   "template": "chemistry/chemistry.theory.lead_storage_battery.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.degree_of_polymerization",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "高分子化合物",
+   "name": "平均分子量から重合度を求める",
+   "template": "chemistry/chemistry.theory.degree_of_polymerization.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.theory.structural_formula",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "有機化合物",
+   "name": "構造式を書く・異性体を数え上げる",
+   "example": "分子式 C₄H₁₀O の構造異性体をすべて構造式で書きなさい。",
+   "unrepresentable": "答えが構造式(図)で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "chemistry.theory.titration_curve",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "滴定曲線から中和点や指示薬を読み取る",
+   "example": "滴定曲線から、適切な指示薬を選びなさい。(図)",
+   "unrepresentable": "問題文にグラフが要る。書式は文と式だけを作る"
+  },
+  {
+   "id": "chemistry.theory.le_chatelier",
+   "subject": "chemistry",
+   "level": "高校 化学",
+   "field": "化学反応の速さと平衡",
+   "name": "ルシャトリエの原理で平衡の移動の向きを判断する",
+   "example": "N₂ + 3H₂ ⇄ 2NH₃ の平衡で、圧力を上げると平衡はどちらに移動するか。",
+   "unrepresentable": "計算ではなく、原理を当てはめて向きを判断する問題(概念の理解は対象外)"
+  },
+  {
+   "id": "chemistry.univ.first_order_half_life",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "反応速度論",
+   "name": "1 次反応の半減期(t½ = ln 2 / k)",
+   "template": "chemistry/chemistry.univ.first_order_half_life.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.first_order_remaining",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "反応速度論",
+   "name": "1 次反応の濃度の時間変化",
+   "template": "chemistry/chemistry.univ.first_order_remaining.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.arrhenius_activation_energy",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "反応速度論",
+   "name": "アレニウスの式から活性化エネルギーを求める",
+   "template": "chemistry/chemistry.univ.arrhenius_activation_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.gibbs_energy",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "化学熱力学",
+   "name": "ギブズエネルギー変化(ΔG = ΔH − TΔS)",
+   "template": "chemistry/chemistry.univ.gibbs_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.equilibrium_from_gibbs",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "化学熱力学",
+   "name": "標準ギブズエネルギー変化から平衡定数を求める",
+   "template": "chemistry/chemistry.univ.equilibrium_from_gibbs.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.nernst",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "電気化学",
+   "name": "ネルンストの式",
+   "template": "chemistry/chemistry.univ.nernst.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.buffer_ph",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "酸と塩基の平衡",
+   "name": "緩衝液の pH(ヘンダーソン・ハッセルバルヒの式)",
+   "template": "chemistry/chemistry.univ.buffer_ph.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.photon_energy_per_mole",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "量子化学の基礎",
+   "name": "光の波長から 1 mol あたりのエネルギーを求める",
+   "template": "chemistry/chemistry.univ.photon_energy_per_mole.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.compression_factor",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "気体",
+   "name": "実在気体の圧縮因子(Z = PV/nRT)",
+   "template": "chemistry/chemistry.univ.compression_factor.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.entropy_phase_change",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "化学熱力学",
+   "name": "相転移のエントロピー変化(ΔS = ΔH/T)",
+   "template": "chemistry/chemistry.univ.entropy_phase_change.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.enthalpy_from_internal_energy",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "化学熱力学",
+   "name": "内部エネルギー変化から反応エンタルピーを求める(ΔH = ΔU + ΔnRT)",
+   "template": "chemistry/chemistry.univ.enthalpy_from_internal_energy.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.clausius_clapeyron",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "化学熱力学",
+   "name": "クラウジウス・クラペイロンの式から蒸発エンタルピーを求める",
+   "template": "chemistry/chemistry.univ.clausius_clapeyron.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.beer_lambert",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "分析化学の基礎",
+   "name": "ランベルト・ベールの法則(A = εcl)",
+   "template": "chemistry/chemistry.univ.beer_lambert.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.molality",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "溶液",
+   "name": "質量モル濃度とモル分率",
+   "template": "chemistry/chemistry.univ.molality.json",
+   "numeric_check": true
+  },
+  {
+   "id": "chemistry.univ.orbital_diagram",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "量子化学の基礎",
+   "name": "電子配置と軌道図を書く",
+   "example": "鉄原子の電子配置を書きなさい。",
+   "unrepresentable": "決まった配置を書く問題で、数字を入れ替える計算ではない(暗記事項は対象外)"
+  },
+  {
+   "id": "chemistry.univ.reaction_mechanism",
+   "subject": "chemistry",
+   "level": "大学初年 化学",
+   "field": "有機化学",
+   "name": "反応機構を矢印で書く",
+   "example": "SN2 反応の機構を、電子の動きを示す矢印を使って書きなさい。",
+   "unrepresentable": "答えが図で、数字を入れ替える計算ではない"
+  }
+ ]
+}

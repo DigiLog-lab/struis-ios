@@ -1,0 +1,94 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.rational_expression_add",
+  "title": "分数式の加法・減法",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "op",
+      "kind": "choice",
+      "options": [
+        {
+          "tex": "+",
+          "s": 1
+        },
+        {
+          "tex": "-",
+          "s": -1
+        }
+      ]
+    }
+  ],
+  "constraints": [
+    "a < b"
+  ],
+  "parts": [
+    {
+      "name": "p",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "a"
+        }
+      ]
+    },
+    {
+      "name": "q",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "num",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1 + op.s",
+          "body": "x"
+        },
+        {
+          "coef": "b + op.s*a"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の計算をしなさい。",
+  "math": "\\frac{1}{{p}} {op.tex} \\frac{1}{{q}}",
+  "answer": "$\\frac{{num}}{({p})({q})}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "\\frac{1}{{p}} {op.tex} \\frac{1}{{q}}",
+      "right": "\\frac{{num}}{({p})({q})}"
+    }
+  ]
+}

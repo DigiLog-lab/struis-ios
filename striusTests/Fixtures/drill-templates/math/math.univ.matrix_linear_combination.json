@@ -1,0 +1,120 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.matrix_linear_combination",
+  "title": "行列の和とスカラー倍",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "q",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "s",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 2,
+      "max": 4
+    },
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": -3,
+      "max": 3,
+      "exclude": [
+        0,
+        1
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "m11",
+      "expr": "k*a + m*p"
+    },
+    {
+      "name": "m12",
+      "expr": "k*b + m*q"
+    },
+    {
+      "name": "m21",
+      "expr": "k*c + m*r"
+    },
+    {
+      "name": "m22",
+      "expr": "k*d + m*s"
+    }
+  ],
+  "parts": [
+    {
+      "name": "expr",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k",
+          "body": "A"
+        },
+        {
+          "coef": "m",
+          "body": "B"
+        }
+      ]
+    }
+  ],
+  "prompt": "$A = \\begin{pmatrix} {a} & {b} \\\\ {c} & {d} \\end{pmatrix}$、$B = \\begin{pmatrix} {p} & {q} \\\\ {r} & {s} \\end{pmatrix}$ のとき、${expr}$ を求めなさい。",
+  "answer": "$\\begin{pmatrix} {m11} & {m12} \\\\ {m21} & {m22} \\end{pmatrix}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "m11 + m12 + m21 + m22 == k*(a + b + c + d) + m*(p + q + r + s)",
+        "m11 - m*p == k*a",
+        "m22 - k*d == m*s",
+        "m12 - m*q == k*b",
+        "m21 - k*c == m*r"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.discriminant_count",
+  "title": "判別式で実数解の個数を調べる",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -8,
+      "max": 8
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -8,
+      "max": 8
+    }
+  ],
+  "lets": [
+    {
+      "name": "disc",
+      "expr": "b^2 - 4*a*c"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "b",
+          "body": "x"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    },
+    {
+      "name": "n",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "disc > 0",
+          "tex": "2"
+        },
+        {
+          "when": "disc == 0",
+          "tex": "1"
+        }
+      ],
+      "otherwise": "0"
+    }
+  ],
+  "prompt": "二次方程式 ${f} = 0$ の判別式 $D$ の値と、実数解の個数を求めなさい。",
+  "answer": "$D = {disc}$、実数解は ${n}$ 個",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{disc}",
+      "right": "({b|paren})^{2} - 4 \\cdot {a} \\cdot ({c|paren})"
+    }
+  ]
+}

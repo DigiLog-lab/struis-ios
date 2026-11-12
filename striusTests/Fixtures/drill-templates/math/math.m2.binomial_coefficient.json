@@ -1,0 +1,89 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.binomial_coefficient",
+  "title": "二項定理(指定された項の係数)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -3,
+      "max": 3,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 4,
+      "max": 7
+    },
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 1,
+      "max": 5
+    }
+  ],
+  "lets": [
+    {
+      "name": "k",
+      "expr": "n - r"
+    },
+    {
+      "name": "coef",
+      "expr": "comb(n, r) * a^(n - r) * b^r"
+    }
+  ],
+  "constraints": [
+    "r < n",
+    "gcd(a, abs(b)) == 1"
+  ],
+  "parts": [
+    {
+      "name": "p",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "t",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "powers": [
+            {
+              "base": "x",
+              "exp": "k"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "prompt": "$({p})^{{n}}$ の展開式における ${t}$ の係数を求めなさい。",
+  "answer": "${coef}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "coef * factorial(r) * factorial(n - r) == factorial(n) * a^(n - r) * b^r"
+      ]
+    }
+  ]
+}

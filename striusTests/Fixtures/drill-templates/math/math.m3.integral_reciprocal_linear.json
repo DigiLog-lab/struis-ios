@@ -1,0 +1,76 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.integral_reciprocal_linear",
+  "title": "不定積分(1/(ax + b))",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    }
+  ],
+  "constraints": [
+    "gcd(a, abs(b)) == 1"
+  ],
+  "parts": [
+    {
+      "name": "u",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k/a",
+          "body": "\\log |{u}|"
+        },
+        {
+          "coef": "1",
+          "body": "C"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の不定積分を求めなさい。",
+  "math": "\\int \\frac{{k}}{{u}}\\,dx",
+  "answer": "${g}$($C$ は積分定数)",
+  "checks": [
+    {
+      "kind": "antiderivative",
+      "integrand": "\\frac{{k}}{{u}}",
+      "answer": "{g}",
+      "variable": "x",
+      "range": [
+        2,
+        5
+      ]
+    }
+  ]
+}

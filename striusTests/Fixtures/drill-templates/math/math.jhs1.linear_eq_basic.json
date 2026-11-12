@@ -1,0 +1,68 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs1.linear_eq_basic",
+  "title": "一次方程式(ax + b = c)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0,
+        1
+      ]
+    },
+    {
+      "name": "x0",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -12,
+      "max": 12,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "a*x0 + b"
+    }
+  ],
+  "parts": [
+    {
+      "name": "lhs",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の方程式を解きなさい。",
+  "math": "{lhs} = {c}",
+  "answer": "$x = {x0}$",
+  "checks": [
+    {
+      "kind": "root",
+      "left": "{lhs}",
+      "right": "{c}",
+      "variable": "x",
+      "solutions": [
+        "{x0}"
+      ]
+    }
+  ]
+}

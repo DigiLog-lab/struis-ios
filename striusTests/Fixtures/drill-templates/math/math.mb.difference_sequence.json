@@ -1,0 +1,100 @@
+{
+  "format": 1,
+  "skill_id": "math.mb.difference_sequence",
+  "title": "階差数列から一般項を求める",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a1",
+      "kind": "integer",
+      "min": -6,
+      "max": 9
+    },
+    {
+      "name": "b1",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    }
+  ],
+  "lets": [
+    {
+      "name": "a2",
+      "expr": "a1 + b1"
+    },
+    {
+      "name": "a3",
+      "expr": "a2 + b1 + d"
+    },
+    {
+      "name": "a4",
+      "expr": "a3 + b1 + 2*d"
+    },
+    {
+      "name": "a5",
+      "expr": "a4 + b1 + 3*d"
+    }
+  ],
+  "parts": [
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "d/2",
+          "body": "n^{2}"
+        },
+        {
+          "coef": "b1 - 3*d/2",
+          "body": "n"
+        },
+        {
+          "coef": "a1 - b1 + d"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の数列 $\\{a_{n}\\}$ の一般項を、階差数列を利用して求めなさい。",
+  "math": "{a1},\\ {a2},\\ {a3},\\ {a4},\\ {a5},\\ \\cdots",
+  "answer": "$a_{n} = {g}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{g}",
+      "at": {
+        "n": "1"
+      },
+      "equals": "a1"
+    },
+    {
+      "kind": "value",
+      "tex": "{g}",
+      "at": {
+        "n": "3"
+      },
+      "equals": "a3"
+    },
+    {
+      "kind": "value",
+      "tex": "{g}",
+      "at": {
+        "n": "5"
+      },
+      "equals": "a5"
+    },
+    {
+      "kind": "value",
+      "tex": "{g}",
+      "at": {
+        "n": "4"
+      },
+      "equals": "a4"
+    }
+  ]
+}

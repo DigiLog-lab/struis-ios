@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.coulomb_law",
+  "title": "クーロンの法則",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "k0",
+      "kind": "constant",
+      "value": 9000000000.0,
+      "unit": "N*m^2/C^2",
+      "sig": 2
+    },
+    {
+      "name": "q1",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 1.0,
+      "unit": "uC",
+      "sig": 2
+    },
+    {
+      "name": "q2",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 1.0,
+      "unit": "uC",
+      "sig": 2
+    },
+    {
+      "name": "r",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 0.9,
+      "step": 0.1,
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "f",
+      "expr": "k0*q1*q2/r^2",
+      "unit": "N",
+      "sig": 2
+    }
+  ],
+  "prompt": "${q1|q}$ と ${q2|q}$ の 2 つの点電荷が、${r|q}$ 離れて置かれている。2 つの点電荷の間にはたらく静電気力の大きさを求めなさい。クーロンの法則の比例定数を ${k0|q}$ とする。",
+  "answer": "${f|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(f,'N')*value(r,'m')^2, 9.0e9*value(q1,'C')*value(q2,'C'))"
+      ]
+    }
+  ]
+}

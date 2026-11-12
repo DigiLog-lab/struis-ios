@@ -1,0 +1,89 @@
+{
+  "format": 1,
+  "skill_id": "math.mc.vector_linear_combination",
+  "title": "ベクトルの成分の計算",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a1",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "a2",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "b1",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "b2",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 2,
+      "max": 4
+    },
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": -4,
+      "max": 4,
+      "exclude": [
+        0,
+        1
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "c1",
+      "expr": "k*a1 + m*b1"
+    },
+    {
+      "name": "c2",
+      "expr": "k*a2 + m*b2"
+    }
+  ],
+  "constraints": [
+    "a1 != 0 or a2 != 0",
+    "b1 != 0 or b2 != 0"
+  ],
+  "parts": [
+    {
+      "name": "expr",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k",
+          "body": "\\vec{a}"
+        },
+        {
+          "coef": "m",
+          "body": "\\vec{b}"
+        }
+      ]
+    }
+  ],
+  "prompt": "$\\vec{a} = ({a1},\\ {a2})$、$\\vec{b} = ({b1},\\ {b2})$ のとき、${expr}$ を成分で表しなさい。",
+  "answer": "$({c1},\\ {c2})$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "c1 - m*b1 == k*a1",
+        "c2 - k*a2 == m*b2"
+      ]
+    }
+  ]
+}

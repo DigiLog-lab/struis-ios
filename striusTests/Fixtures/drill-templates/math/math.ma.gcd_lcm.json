@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.gcd_lcm",
+  "title": "最大公約数と最小公倍数",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "g",
+      "kind": "integer",
+      "min": 2,
+      "max": 18
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": 2,
+      "max": 9
+    },
+    {
+      "name": "q",
+      "kind": "integer",
+      "min": 2,
+      "max": 9
+    }
+  ],
+  "lets": [
+    {
+      "name": "a",
+      "expr": "g*p"
+    },
+    {
+      "name": "b",
+      "expr": "g*q"
+    },
+    {
+      "name": "l",
+      "expr": "g*p*q"
+    }
+  ],
+  "constraints": [
+    "p < q",
+    "gcd(p, q) == 1"
+  ],
+  "prompt": "${a}$ と ${b}$ の最大公約数と最小公倍数を求めなさい。",
+  "answer": "最大公約数 ${g}$、最小公倍数 ${l}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "g == gcd(a, b)",
+        "l == lcm(a, b)",
+        "g * l == a * b"
+      ]
+    }
+  ]
+}

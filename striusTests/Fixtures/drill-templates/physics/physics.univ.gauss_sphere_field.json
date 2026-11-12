@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "skill_id": "physics.univ.gauss_sphere_field",
+  "title": "ガウスの法則(一様に帯電した球の外側の電場)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "eps",
+      "kind": "constant",
+      "value": 8.85e-12,
+      "unit": "C^2/(N*m^2)",
+      "sig": 3
+    },
+    {
+      "name": "charge",
+      "kind": "decimal",
+      "min": 1.0,
+      "max": 9.0,
+      "step": 1.0,
+      "unit": "nC",
+      "sig": 2
+    },
+    {
+      "name": "r",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 1.0,
+      "step": 0.1,
+      "unit": "m",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "e0",
+      "expr": "charge/(4*pi*eps*r^2)",
+      "unit": "N/C",
+      "sig": 2
+    }
+  ],
+  "prompt": "全電荷 ${charge|q}$ が一様に分布した球がある。球の中心から ${r|q}$ 離れた、球の外側の点の電場の強さを求めなさい。真空の誘電率を ${eps|q}$ とする。",
+  "answer": "${e0|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(e0*4*pi*r^2*eps, charge)"
+      ]
+    }
+  ]
+}

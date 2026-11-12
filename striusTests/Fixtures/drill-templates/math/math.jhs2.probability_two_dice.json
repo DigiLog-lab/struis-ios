@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs2.probability_two_dice",
+  "title": "2 つのさいころの目の和の確率",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 2,
+      "max": 12
+    },
+    {
+      "name": "kind",
+      "kind": "choice",
+      "options": [
+        {
+          "text": "になる",
+          "t": 1
+        },
+        {
+          "text": "以上になる",
+          "t": 2
+        },
+        {
+          "text": "以下になる",
+          "t": 3
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ways",
+      "expr": "6 - abs(k - 7)"
+    },
+    {
+      "name": "upto",
+      "expr": "if(k <= 7, (k-1)*k/2, 36 - (13-k)*(12-k)/2)"
+    },
+    {
+      "name": "count",
+      "expr": "if(kind.t == 1, ways, if(kind.t == 2, 36 - upto + ways, upto))"
+    },
+    {
+      "name": "p",
+      "expr": "count/36"
+    }
+  ],
+  "constraints": [
+    "p != 1"
+  ],
+  "prompt": "大小 2 つのさいころを同時に投げるとき、出た目の数の和が ${k}$ {kind.text}確率を求めなさい。",
+  "answer": "${p}$",
+  "no_numeric_check": "場合の数を数え上げた結果で、式の代入や差分では確かめられない"
+}

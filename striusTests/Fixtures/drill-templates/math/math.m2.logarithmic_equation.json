@@ -1,0 +1,71 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.logarithmic_equation",
+  "title": "対数方程式",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "b",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        5,
+        10
+      ]
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    },
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "x0",
+      "expr": "b^k - a"
+    }
+  ],
+  "constraints": [
+    "b^k <= 125"
+  ],
+  "parts": [
+    {
+      "name": "inner",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "a"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の方程式を解きなさい。",
+  "math": "\\log_{{b}} ({inner}) = {k}",
+  "answer": "$x = {x0}$",
+  "checks": [
+    {
+      "kind": "root",
+      "left": "\\log_{{b}} ({inner})",
+      "right": "{k}",
+      "variable": "x",
+      "solutions": [
+        "{x0}"
+      ]
+    }
+  ]
+}

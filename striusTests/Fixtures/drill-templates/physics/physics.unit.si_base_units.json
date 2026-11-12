@@ -1,0 +1,127 @@
+{
+  "format": 1,
+  "skill_id": "physics.unit.si_base_units",
+  "title": "組立単位を SI 基本単位で表す(次元の確認)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "u",
+      "kind": "choice",
+      "options": [
+        {
+          "name": "力",
+          "sym": "N",
+          "base": "kg \\cdot m/s^{2}"
+        },
+        {
+          "name": "仕事・エネルギー",
+          "sym": "J",
+          "base": "kg \\cdot m^{2}/s^{2}"
+        },
+        {
+          "name": "仕事率",
+          "sym": "W",
+          "base": "kg \\cdot m^{2}/s^{3}"
+        },
+        {
+          "name": "圧力",
+          "sym": "Pa",
+          "base": "kg/(m \\cdot s^{2})"
+        },
+        {
+          "name": "振動数",
+          "sym": "Hz",
+          "base": "1/s"
+        },
+        {
+          "name": "電気量",
+          "sym": "C",
+          "base": "A \\cdot s"
+        },
+        {
+          "name": "電位差",
+          "sym": "V",
+          "base": "kg \\cdot m^{2}/(A \\cdot s^{3})"
+        },
+        {
+          "name": "電気抵抗",
+          "sym": "\\Omega",
+          "base": "kg \\cdot m^{2}/(A^{2} \\cdot s^{3})"
+        },
+        {
+          "name": "電気容量",
+          "sym": "F",
+          "base": "A^{2} \\cdot s^{4}/(kg \\cdot m^{2})"
+        },
+        {
+          "name": "磁束密度",
+          "sym": "T",
+          "base": "kg/(A \\cdot s^{2})"
+        },
+        {
+          "name": "磁束",
+          "sym": "Wb",
+          "base": "kg \\cdot m^{2}/(A \\cdot s^{2})"
+        },
+        {
+          "name": "インダクタンス",
+          "sym": "H",
+          "base": "kg \\cdot m^{2}/(A^{2} \\cdot s^{2})"
+        },
+        {
+          "name": "力積",
+          "sym": "N \\cdot s",
+          "base": "kg \\cdot m/s"
+        },
+        {
+          "name": "力のモーメント",
+          "sym": "N \\cdot m",
+          "base": "kg \\cdot m^{2}/s^{2}"
+        },
+        {
+          "name": "ばね定数",
+          "sym": "N/m",
+          "base": "kg/s^{2}"
+        },
+        {
+          "name": "電場の強さ",
+          "sym": "N/C",
+          "base": "kg \\cdot m/(A \\cdot s^{3})"
+        },
+        {
+          "name": "比熱",
+          "sym": "J/(kg \\cdot K)",
+          "base": "m^{2}/(s^{2} \\cdot K)"
+        },
+        {
+          "name": "熱容量",
+          "sym": "J/K",
+          "base": "kg \\cdot m^{2}/(s^{2} \\cdot K)"
+        },
+        {
+          "name": "気体定数",
+          "sym": "J/(mol \\cdot K)",
+          "base": "kg \\cdot m^{2}/(s^{2} \\cdot mol \\cdot K)"
+        },
+        {
+          "name": "抵抗率",
+          "sym": "\\Omega \\cdot m",
+          "base": "kg \\cdot m^{3}/(A^{2} \\cdot s^{3})"
+        },
+        {
+          "name": "万有引力定数",
+          "sym": "N \\cdot m^{2}/kg^{2}",
+          "base": "m^{3}/(kg \\cdot s^{2})"
+        },
+        {
+          "name": "プランク定数",
+          "sym": "J \\cdot s",
+          "base": "kg \\cdot m^{2}/s"
+        }
+      ]
+    }
+  ],
+  "prompt": "{u.name}の単位 $\\mathrm{{u.sym}}$ を、SI 基本単位(m、kg、s、A、K、mol)だけで表しなさい。",
+  "answer": "$\\mathrm{{u.base}}$",
+  "no_numeric_check": "答えが単位の式で、数値が無い"
+}

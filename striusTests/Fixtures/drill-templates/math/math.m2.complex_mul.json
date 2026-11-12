@@ -1,0 +1,88 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.complex_mul",
+  "title": "複素数の乗法",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "z",
+      "expr": "(a + b*i)*(c + d*i)"
+    }
+  ],
+  "parts": [
+    {
+      "name": "u",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a"
+        },
+        {
+          "coef": "b",
+          "body": "i"
+        }
+      ]
+    },
+    {
+      "name": "v",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "c"
+        },
+        {
+          "coef": "d",
+          "body": "i"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の計算をしなさい。",
+  "math": "({u})({v})",
+  "answer": "${z}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({u})({v})",
+      "right": "{z}"
+    }
+  ]
+}

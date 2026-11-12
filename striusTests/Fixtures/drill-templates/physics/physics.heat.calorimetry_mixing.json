@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "skill_id": "physics.heat.calorimetry_mixing",
+  "title": "熱量の保存(混ぜた後の温度)",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "m1",
+      "kind": "integer",
+      "min": 100,
+      "max": 400,
+      "step": 50,
+      "unit": "g",
+      "sig": 3
+    },
+    {
+      "name": "t1",
+      "kind": "integer",
+      "min": 10,
+      "max": 30,
+      "step": 5
+    },
+    {
+      "name": "m2",
+      "kind": "integer",
+      "min": 100,
+      "max": 400,
+      "step": 50,
+      "unit": "g",
+      "sig": 3
+    },
+    {
+      "name": "t2",
+      "kind": "integer",
+      "min": 50,
+      "max": 90,
+      "step": 10
+    }
+  ],
+  "lets": [
+    {
+      "name": "tf",
+      "expr": "(value(m1,'g')*t1 + value(m2,'g')*t2)/value(m1 + m2,'g')"
+    }
+  ],
+  "prompt": "${t1}^{\\circ}\\mathrm{C}$ の水 ${m1|q}$ と ${t2}^{\\circ}\\mathrm{C}$ の水 ${m2|q}$ を混ぜた。熱は外に逃げないものとして、全体の温度が一様になったときの温度を求めなさい。",
+  "answer": "${tf|sig:2}^{\\circ}\\mathrm{C}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(value(m1,'g')*(tf - t1), value(m2,'g')*(t2 - tf))"
+      ]
+    }
+  ]
+}

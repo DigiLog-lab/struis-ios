@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.digits_by_common_log",
+  "title": "常用対数で桁数を求める",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "b",
+      "kind": "choice",
+      "options": [
+        {
+          "n": 2,
+          "lg": 0.301
+        },
+        {
+          "n": 3,
+          "lg": 0.4771
+        }
+      ]
+    },
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": 12,
+      "max": 60
+    }
+  ],
+  "lets": [
+    {
+      "name": "val",
+      "expr": "m*b.lg"
+    },
+    {
+      "name": "digits",
+      "expr": "floor(val) + 1"
+    }
+  ],
+  "prompt": "$\\log_{10} {b.n} = {b.lg|dec:4}$ とする。${b.n}^{{m}}$ は何桁の整数か。",
+  "answer": "$\\log_{10} {b.n}^{{m}} = {val|dec:4}$ より、${digits}$ 桁",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "digits - 1 <= m*log10(b.n) and m*log10(b.n) < digits"
+      ]
+    }
+  ]
+}

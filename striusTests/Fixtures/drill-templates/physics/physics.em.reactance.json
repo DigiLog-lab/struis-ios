@@ -1,0 +1,59 @@
+{
+  "format": 1,
+  "skill_id": "physics.em.reactance",
+  "title": "コイルとコンデンサーのリアクタンス",
+  "subject": "physics",
+  "variables": [
+    {
+      "name": "f",
+      "kind": "integer",
+      "min": 50,
+      "max": 60,
+      "step": 10,
+      "unit": "Hz",
+      "sig": 2
+    },
+    {
+      "name": "ind",
+      "kind": "decimal",
+      "min": 0.1,
+      "max": 1.0,
+      "step": 0.1,
+      "unit": "H",
+      "sig": 2
+    },
+    {
+      "name": "cap",
+      "kind": "decimal",
+      "min": 10,
+      "max": 100,
+      "step": 10.0,
+      "unit": "uF",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "xl",
+      "expr": "2*pi*f*ind",
+      "unit": "ohm",
+      "sig": 2
+    },
+    {
+      "name": "xc",
+      "expr": "1/(2*pi*f*cap)",
+      "unit": "ohm",
+      "sig": 2
+    }
+  ],
+  "prompt": "周波数 ${f|q}$ の交流に対する、自己インダクタンス ${ind|q}$ のコイルのリアクタンスと、電気容量 ${cap|q}$ のコンデンサーのリアクタンスを求めなさい。",
+  "answer": "コイル ${xl|q}$、コンデンサー ${xc|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(xl*xc, ind/cap)"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.theory.equilibrium_amounts",
+  "title": "平衡定数から平衡時の物質量を求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "ksq",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        4,
+        6,
+        8
+      ]
+    },
+    {
+      "name": "a",
+      "kind": "decimal",
+      "min": 0.5,
+      "max": 3.0,
+      "step": 0.5,
+      "unit": "mol",
+      "sig": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "kc",
+      "expr": "ksq^2"
+    },
+    {
+      "name": "x",
+      "expr": "ksq*a/(ksq + 2)",
+      "unit": "mol",
+      "sig": 2
+    },
+    {
+      "name": "hi",
+      "expr": "2*ksq*a/(ksq + 2)",
+      "unit": "mol",
+      "sig": 2
+    }
+  ],
+  "prompt": "体積一定の容器に水素とヨウ素を ${a|q}$ ずつ入れ、ある温度に保ったところ、$\\mathrm{H_2} + \\mathrm{I_2}$ ⇄ $2\\mathrm{HI}$ の反応が平衡状態になった。この温度での平衡定数が ${kc}$ であるとき、平衡時のヨウ化水素の物質量を求めなさい。",
+  "answer": "${hi|q}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(hi^2, kc*(a - x)^2)",
+        "approx(hi, 2*x)"
+      ]
+    }
+  ]
+}

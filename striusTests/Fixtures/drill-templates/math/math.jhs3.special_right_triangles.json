@@ -1,0 +1,49 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.special_right_triangles",
+  "title": "特別な直角三角形の辺の比",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 12
+    },
+    {
+      "name": "kind",
+      "kind": "choice",
+      "options": [
+        {
+          "angles": "45^{\\circ}、45^{\\circ}、90^{\\circ}",
+          "given": "等しい 2 辺の 1 つ",
+          "t": 1
+        },
+        {
+          "angles": "30^{\\circ}、60^{\\circ}、90^{\\circ}",
+          "given": "最も短い辺",
+          "t": 2
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "hyp",
+      "expr": "if(kind.t == 1, a*sqrt(2), 2*a)"
+    },
+    {
+      "name": "other",
+      "expr": "if(kind.t == 1, a, a*sqrt(3))"
+    }
+  ],
+  "prompt": "3 つの角が ${kind.angles}$ の直角三角形で、{kind.given}の長さが ${a}\\,\\mathrm{cm}$ のとき、斜辺と残りの辺の長さを求めなさい。",
+  "answer": "斜辺 ${hyp}\\,\\mathrm{cm}$、残りの辺 ${other}\\,\\mathrm{cm}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({hyp})^{2}",
+      "right": "{a}^{2} + ({other})^{2}"
+    }
+  ]
+}

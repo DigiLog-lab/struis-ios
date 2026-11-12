@@ -1,0 +1,77 @@
+{
+  "format": 1,
+  "skill_id": "math.mb.geometric_general_term",
+  "title": "等比数列の一般項",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a1",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "r",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        -2,
+        -3,
+        4,
+        5
+      ]
+    },
+    {
+      "name": "n0",
+      "kind": "integer",
+      "min": 3,
+      "max": 7
+    }
+  ],
+  "lets": [
+    {
+      "name": "an",
+      "expr": "a1 * r^(n0 - 1)"
+    }
+  ],
+  "constraints": [
+    "abs(an) <= 20000"
+  ],
+  "parts": [
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a1",
+          "body": "{r|paren}^{n-1}",
+          "times": true
+        }
+      ]
+    }
+  ],
+  "prompt": "初項 ${a1}$、公比 ${r}$ の等比数列 $\\{a_{n}\\}$ の一般項と、第 ${n0}$ 項を求めなさい。",
+  "answer": "$a_{n} = {g}$、$a_{{n0}} = {an}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{g}",
+      "at": {
+        "n": "n0"
+      },
+      "equals": "an"
+    },
+    {
+      "kind": "value",
+      "tex": "{g}",
+      "at": {
+        "n": "1"
+      },
+      "equals": "a1"
+    }
+  ]
+}

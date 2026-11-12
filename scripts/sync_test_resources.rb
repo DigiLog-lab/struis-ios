@@ -18,6 +18,7 @@ resources = [
   ['striusTests/Fixtures/engine-vectors', 'folder', unit, true],
   ['striusTests/Fixtures/learning-feed', 'folder', unit, true],
   ['striusTests/Fixtures/math', 'folder', unit, true],
+  ['striusTests/Fixtures/drill-templates', 'folder', unit, true],
   ['striusUITests/Fixtures/handwritten_eigenvalue.jpeg', 'image.jpeg', ui, true],
   ['striusTests/Fixtures/DeliveredScripts/struis_tutor_memory.py', 'text.script.python', unit, false],
   ['striusTests/Fixtures/DeliveredScripts/struis_reply_lint.py', 'text.script.python', unit, false],

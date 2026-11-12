@@ -1,0 +1,100 @@
+{
+  "format": 1,
+  "skill_id": "math.m1.factor_cross",
+  "title": "たすき掛けによる因数分解",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -7,
+      "max": 7,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": 2,
+      "max": 5
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -7,
+      "max": 7,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "constraints": [
+    "gcd(a, abs(b)) == 1",
+    "gcd(c, abs(d)) == 1",
+    "a*d + b*c != 0",
+    "a <= c",
+    "a != c or b < d"
+  ],
+  "parts": [
+    {
+      "name": "p",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "q",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "c",
+          "body": "x"
+        },
+        {
+          "coef": "d"
+        }
+      ]
+    },
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a*c",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "a*d + b*c",
+          "body": "x"
+        },
+        {
+          "coef": "b*d"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の式を因数分解しなさい。",
+  "math": "{f}",
+  "answer": "$({p})({q})$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{f}",
+      "right": "({p})({q})"
+    }
+  ]
+}

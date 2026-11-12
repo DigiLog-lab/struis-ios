@@ -1,0 +1,82 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.inverse_trig_derivative",
+  "title": "逆三角関数の微分",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 2,
+      "max": 9
+    },
+    {
+      "name": "fn",
+      "kind": "choice",
+      "options": [
+        {
+          "t": 1
+        },
+        {
+          "t": 2
+        },
+        {
+          "t": 3
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "a2",
+      "expr": "a^2"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "fn.t == 1",
+          "tex": "\\sin^{-1} \\frac{x}{{a}}"
+        },
+        {
+          "when": "fn.t == 2",
+          "tex": "\\cos^{-1} \\frac{x}{{a}}"
+        }
+      ],
+      "otherwise": "\\tan^{-1} \\frac{x}{{a}}"
+    },
+    {
+      "name": "g",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "fn.t == 1",
+          "tex": "\\frac{1}{\\sqrt{{a2} - x^{2}}}"
+        },
+        {
+          "when": "fn.t == 2",
+          "tex": "-\\frac{1}{\\sqrt{{a2} - x^{2}}}"
+        }
+      ],
+      "otherwise": "\\frac{{a}}{x^{2} + {a2}}"
+    }
+  ],
+  "prompt": "次の関数を微分しなさい。",
+  "math": "y = {f}",
+  "answer": "$y' = {g}$",
+  "checks": [
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "answer": "{g}",
+      "variable": "x",
+      "range": [
+        -1.5,
+        1.5
+      ]
+    }
+  ]
+}

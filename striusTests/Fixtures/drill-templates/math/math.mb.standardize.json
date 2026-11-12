@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "skill_id": "math.mb.standardize",
+  "title": "正規分布の標準化",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": 40,
+      "max": 70,
+      "step": 5
+    },
+    {
+      "name": "s",
+      "kind": "integer",
+      "min": 4,
+      "max": 12,
+      "step": 2
+    },
+    {
+      "name": "z",
+      "kind": "choice",
+      "options": [
+        -2.5,
+        -2.0,
+        -1.5,
+        -1.0,
+        -0.5,
+        0.5,
+        1.0,
+        1.5,
+        2.0,
+        2.5
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "x0",
+      "expr": "m + z*s"
+    }
+  ],
+  "prompt": "確率変数 $X$ が正規分布 $N({m},\\ {s}^{2})$ に従うとき、$X = {x0|dec}$ を標準化した値 $Z = \\frac{X - m}{\\sigma}$ を求めなさい。",
+  "answer": "$Z = {z}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "\\frac{{x0|dec} - {m}}{{s}}",
+      "right": "{z}"
+    }
+  ]
+}

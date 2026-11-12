@@ -1,0 +1,59 @@
+{
+  "format": 1,
+  "skill_id": "math.jhs3.sqrt_mul_div",
+  "title": "平方根の乗法・除法",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        5,
+        6,
+        7,
+        10
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        5,
+        6,
+        8,
+        10,
+        12,
+        15
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": 2,
+      "max": 5
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "c*sqrt(a)*sqrt(b)"
+    }
+  ],
+  "constraints": [
+    "a != b"
+  ],
+  "prompt": "次の計算をしなさい。",
+  "math": "{c}\\sqrt{{a}} \\times \\sqrt{{b}}",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{c}\\sqrt{{a}} \\times \\sqrt{{b}}",
+      "right": "{ans}"
+    }
+  ]
+}

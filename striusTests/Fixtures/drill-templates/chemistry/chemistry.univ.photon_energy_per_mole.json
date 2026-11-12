@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.univ.photon_energy_per_mole",
+  "title": "光の波長から 1 mol あたりのエネルギーを求める",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "lam",
+      "kind": "integer",
+      "min": 200,
+      "max": 700,
+      "step": 20
+    }
+  ],
+  "lets": [
+    {
+      "name": "en",
+      "expr": "6.63e-34*3.00e8/(lam*1e-9)*6.02e23/1000"
+    }
+  ],
+  "prompt": "波長 ${lam}\\,\\mathrm{nm}$ の光の、光子 1 mol あたりのエネルギーを求めなさい。プランク定数を $6.63 \\times 10^{-34}\\,\\mathrm{J \\cdot s}$、光の速さを $3.00 \\times 10^{8}\\,\\mathrm{m/s}$、アボガドロ定数を $6.02 \\times 10^{23}\\,\\mathrm{/mol}$ とする。",
+  "answer": "${en|sig:3}\\,\\mathrm{kJ/mol}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(en*lam, 6.63e-34*3.00e8*6.02e23*1e6)"
+      ]
+    }
+  ]
+}

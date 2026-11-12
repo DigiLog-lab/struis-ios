@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.expand_cube",
+  "title": "(a + b)³ の展開",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "constraints": [
+    "gcd(a, abs(b)) == 1"
+  ],
+  "parts": [
+    {
+      "name": "p",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a^3",
+          "body": "x^{3}"
+        },
+        {
+          "coef": "3*a^2*b",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "3*a*b^2",
+          "body": "x"
+        },
+        {
+          "coef": "b^3"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の式を展開しなさい。",
+  "math": "({p})^{3}",
+  "answer": "${g}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({p})^{3}",
+      "right": "{g}"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "skill_id": "chemistry.basic.ph_from_concentration",
+  "title": "水素イオン濃度から pH を求める(log を使う)",
+  "subject": "chemistry",
+  "variables": [
+    {
+      "name": "m",
+      "kind": "choice",
+      "options": [
+        {
+          "v": 2,
+          "lg": 0.3
+        },
+        {
+          "v": 3,
+          "lg": 0.48
+        },
+        {
+          "v": 5,
+          "lg": 0.7
+        }
+      ]
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 7
+    }
+  ],
+  "lets": [
+    {
+      "name": "ph",
+      "expr": "k - m.lg"
+    }
+  ],
+  "prompt": "水素イオン濃度が $[\\mathrm{H^{+}}] = {m.v|dec:1} \\times 10^{-{k}}\\,\\mathrm{mol/L}$ の水溶液の pH を、小数第 1 位まで求めなさい。$\\log_{10} {m.v} = {m.lg|dec:2}$ とする。",
+  "answer": "$\\mathrm{pH} = {ph|dec:1}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "approx(ph, -log10(m.v*10^(-k)), 0.01)"
+      ]
+    }
+  ]
+}
