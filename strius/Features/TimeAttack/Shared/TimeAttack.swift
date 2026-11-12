@@ -1,3 +1,5 @@
+// タイムアタック(#133)は延期中。Config/Build.xcconfig の STRUIS_TIME_ATTACK が YES の時だけ本体に入る(App Clip は常に入れる)。
+#if STRUIS_TIME_ATTACK
 import CryptoKit
 import Foundation
 
@@ -261,3 +263,4 @@ nonisolated struct TimeAttackLocal: @unchecked Sendable {
         return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
     }
 }
+#endif

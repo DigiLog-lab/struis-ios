@@ -1,7 +1,9 @@
 #!/usr/bin/env ruby
 # The App Clip (#133): StruisClip opens a time attack link, solves the same five problems and sends a record back.
 # It compiles its own sources (StruisClip/) plus a few of the app's files that it shares, and the app embeds it.
-# Idempotent: run by scripts/sync_project.py after the native runtime sync.
+# The switch `STRUIS_TIME_ATTACK` in Config/Build.xcconfig decides whether the app embeds it: while it is NO the target
+# stays in the project (and always compiles the time attack), but the app neither depends on it nor names it in its
+# entitlements. Idempotent: run by scripts/sync_project.py after the native runtime sync.
 require 'xcodeproj'
 
 root = File.expand_path('..', __dir__)
@@ -20,6 +22,11 @@ SHARED = Dir.glob('strius/Features/TimeAttack/Shared/*.swift', base: root).sort 
   strius/Runtime/Claude/AppAttestClient.swift
 ]
 FONTS = %w[ZenKakuGothicNew-Regular.ttf ZenKakuGothicNew-Medium.ttf ZenKakuGothicNew-Bold.ttf].map { |f| "strius/Resources/Fonts/#{f}" }
+
+ENABLED = File.read(File.join(root, 'Config/Build.xcconfig')).match?(/^STRUIS_TIME_ATTACK\s*=\s*YES\s*$/)
+ENTITLEMENTS = File.join(root, 'NativeRuntime/Runtime.entitlements')
+ASSOCIATED = "\t<key>com.apple.developer.associated-appclip-app-identifiers</key>\n\t<array>\n" \
+             "\t\t<string>$(AppIdentifierPrefix)$(STRUIS_BUNDLE_ID_BASE).Clip</string>\n\t</array>\n"
 
 clip = project.targets.find { |t| t.name == NAME } || project.new_target(:application, NAME, :ios, '26.4')
 clip.product_type = PRODUCT_TYPE
@@ -108,16 +115,44 @@ app.build_configurations.each do |host|
     'LD_RUNPATH_SEARCH_PATHS' => ['$(inherited)', '@executable_path/Frameworks'],
     'ENABLE_PREVIEWS' => 'NO',
     'DEAD_CODE_STRIPPING' => 'YES',
+    # The App Clip is the time attack: it compiles it whatever the switch says, so the code keeps building.
+    'SWIFT_ACTIVE_COMPILATION_CONDITIONS' => '$(inherited) STRUIS_TIME_ATTACK',
   }.compact)
 end
 
-# The app builds and embeds the App Clip.
-app.add_dependency(clip) unless app.dependencies.any? { |d| d.target == clip }
-embed = app.copy_files_build_phases.find { |p| p.name == 'Embed App Clips' } || app.new_copy_files_build_phase('Embed App Clips')
-embed.dst_subfolder_spec = '16'
-embed.dst_path = '$(CONTENTS_FOLDER_PATH)/AppClips'
-unless embed.files.any? { |f| f.file_ref == clip.product_reference }
-  embed.add_file_reference(clip.product_reference, true).settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
+# The unit tests read the switch too (striusTests/TimeAttack/ compiles only with the app's time attack).
+tests = project.targets.find { |t| t.name == 'striusTests' } or abort('test target not found')
+xcconfig = app.build_configurations.first.base_configuration_reference
+tests.build_configurations.each { |config| config.base_configuration_reference ||= xcconfig }
+
+if ENABLED
+  # The app builds and embeds the App Clip, and names it in its entitlements.
+  app.add_dependency(clip) unless app.dependencies.any? { |d| d.target == clip }
+  embed = app.copy_files_build_phases.find { |p| p.name == 'Embed App Clips' } || app.new_copy_files_build_phase('Embed App Clips')
+  embed.dst_subfolder_spec = '16'
+  embed.dst_path = '$(CONTENTS_FOLDER_PATH)/AppClips'
+  unless embed.files.any? { |f| f.file_ref == clip.product_reference }
+    embed.add_file_reference(clip.product_reference, true).settings = { 'ATTRIBUTES' => ['RemoveHeadersOnCopy'] }
+  end
+else
+  # Postponed: the app neither builds nor embeds the App Clip (the target and its code stay).
+  app.dependencies.to_a.each do |dependency|
+    next unless dependency.target == clip
+    dependency.target_proxy&.remove_from_project
+    dependency.remove_from_project
+  end
+  app.copy_files_build_phases.select { |phase| phase.name == 'Embed App Clips' }.each do |phase|
+    phase.files.to_a.each(&:remove_from_project)
+    phase.remove_from_project
+  end
 end
 
 project.save
+
+text = File.read(ENTITLEMENTS)
+updated = if ENABLED
+            text.include?(ASSOCIATED) ? text : text.sub("<dict>\n", "<dict>\n#{ASSOCIATED}")
+          else
+            text.sub(ASSOCIATED, '')
+          end
+File.write(ENTITLEMENTS, updated) unless updated == text

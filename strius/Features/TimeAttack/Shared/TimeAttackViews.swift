@@ -1,3 +1,5 @@
+// タイムアタック(#133)は延期中。Config/Build.xcconfig の STRUIS_TIME_ATTACK が YES の時だけ本体に入る(App Clip は常に入れる)。
+#if STRUIS_TIME_ATTACK
 import SwiftUI
 
 // MARK: - 解く
@@ -591,3 +593,4 @@ struct TimeAttackFailedView: View {
         .accessibilityIdentifier("timeattack-failed")
     }
 }
+#endif

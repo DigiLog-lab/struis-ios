@@ -1,3 +1,5 @@
+// タイムアタック(#133)は延期中。Config/Build.xcconfig の STRUIS_TIME_ATTACK が YES の時だけ本体に入る(App Clip は常に入れる)。
+#if STRUIS_TIME_ATTACK
 import Foundation
 
 /// 本体のタイムアタックの送り口: タイムラインと同じ Claude の経路(実機は App Attest、DEBUG の Simulator は API キー)で、
@@ -66,3 +68,4 @@ nonisolated struct AppTimeAttackTransport: TimeAttackTransport {
         return ["estimated_cost_usd": cost.usd, "cost_status": "estimated", "reason": "time_attack"]
     }
 }
+#endif

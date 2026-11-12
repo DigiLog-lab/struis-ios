@@ -61,8 +61,9 @@ class FakeConnect:
         return resource(key)
 
 
-def ensure(connect):
-    return archive.ensure_store_profiles(connect, CERT, 'ABC', lambda data: connect.documents[data.decode()], now=NOW)
+def ensure(connect, app_clip=True):
+    return archive.ensure_store_profiles(connect, CERT, 'ABC', lambda data: connect.documents[data.decode()], now=NOW,
+                                         app_clip=app_clip)
 
 
 class StoreProfileTests(unittest.TestCase):
@@ -139,6 +140,26 @@ class StoreProfileTests(unittest.TestCase):
         connect.find_bundle_id = lambda identifier: None if identifier == clip else {'id': identifier}
         with self.assertRaisesRegex(RuntimeError, 'App Clip ID .* Developer portal'):
             ensure(connect)
+
+    def test_without_the_time_attack_the_app_clip_needs_no_portal_work(self):
+        # While the time attack is off (Config/Build.xcconfig), the app does not embed the App Clip (#133).
+        profiles, documents = self.all_reusable()
+        app = archive.PROFILE_BUNDLES['strius']
+        documents['ok-strius'] = document('strius', clip=False)
+        connect = FakeConnect(profiles, documents)
+        clip = archive.PROFILE_BUNDLES['StruisClip']
+        connect.find_bundle_id = lambda identifier: None if identifier == clip else {'id': identifier}
+        self.assertEqual(set(ensure(connect, app_clip=False)), {'strius', 'StruisExec'})
+        self.assertEqual(connect.created, [], f'the profile for {app} without the App Clip link is reused')
+
+    def test_the_switch_is_read_from_the_xcconfig(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / 'Build.xcconfig'
+            config.write_text('STRUIS_TIME_ATTACK = NO\nSTRUIS_TIME_ATTACK_CONDITION_YES = STRUIS_TIME_ATTACK\n')
+            self.assertFalse(archive.time_attack_enabled(config))
+            config.write_text('STRUIS_TIME_ATTACK = YES\n')
+            self.assertTrue(archive.time_attack_enabled(config))
 
 
 if __name__ == '__main__':

@@ -38,7 +38,6 @@
 		6180E922A049285506DA72DA /* VirtualPythonCommandBridge.c in Sources */ = {isa = PBXBuildFile; fileRef = 61D94DD18103D2F659706E73 /* VirtualPythonCommandBridge.c */; };
 		62CAFF10370C45972ACD7242 /* shell-native.xcframework in Embed Native Frameworks */ = {isa = PBXBuildFile; fileRef = CE2DE0C3EEDB761A308E6FBA /* shell-native.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		675A6DEC0D8991302557873B /* ios_system-native.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C708FB4913FA457422391CCA /* ios_system-native.xcframework */; };
-		67B7E09DBD7AE63C1CE3C6F1 /* StruisClip.app in Embed App Clips */ = {isa = PBXBuildFile; fileRef = 558F5C99C320502421195C6E /* StruisClip.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		6AF37EAB0CA4898F2B9D1C66 /* Python.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 59F3E85D7A45B73661243CC0 /* Python.xcframework */; };
 		6BB2F071861101E6A360BA24 /* UsageGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9CB84C3DA730E199739EC12 /* UsageGate.swift */; };
 		6D5EBE5FEF948C9943F430D2 /* ClipTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17CE05655683100AAF816C37 /* ClipTransport.swift */; };
@@ -282,13 +281,6 @@
 			remoteGlobalIDString = B5735FEDAC15774D51889677;
 			remoteInfo = StruisExec;
 		};
-		5BFE7227D8C34949CB7D953C /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 992C09A52F927BB8009FF690 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = C0162B1ADDC80520DAFAEC0E;
-			remoteInfo = StruisClip;
-		};
 		992C09BD2F927BB9009FF690 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 992C09A52F927BB8009FF690 /* Project object */;
@@ -321,17 +313,6 @@
 				F03517B172B6667FD19A5E0F /* Python.xcframework in Embed Native Frameworks */,
 			);
 			name = "Embed Native Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		3D1C0D19D481A23097540C0A /* Embed App Clips */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "$(CONTENTS_FOLDER_PATH)/AppClips";
-			dstSubfolderSpec = 16;
-			files = (
-				67B7E09DBD7AE63C1CE3C6F1 /* StruisClip.app in Embed App Clips */,
-			);
-			name = "Embed App Clips";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		9F72E8FF90A1881331D4588E /* Embed Runtime Extension */ = {
@@ -1305,13 +1286,11 @@
 				35FEBB115724553CF3F568C2 /* Embed Native Frameworks */,
 				9F72E8FF90A1881331D4588E /* Embed Runtime Extension */,
 				01802DC2358220C1183C5350 /* Package Python */,
-				3D1C0D19D481A23097540C0A /* Embed App Clips */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				0C8ED59A50676410B74DB9AA /* PBXTargetDependency */,
-				BDFAB1A1A2849987C7A7FB8F /* PBXTargetDependency */,
 			);
 			name = strius;
 			packageProductDependencies = (
@@ -1810,12 +1789,6 @@
 			target = 992C09AC2F927BB8009FF690 /* strius */;
 			targetProxy = 992C09C72F927BB9009FF690 /* PBXContainerItemProxy */;
 		};
-		BDFAB1A1A2849987C7A7FB8F /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = StruisClip;
-			target = C0162B1ADDC80520DAFAEC0E /* StruisClip */;
-			targetProxy = 5BFE7227D8C34949CB7D953C /* PBXContainerItemProxy */;
-		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -1846,6 +1819,7 @@
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) STRUIS_TIME_ATTACK";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
@@ -1881,6 +1855,7 @@
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) STRUIS_TIME_ATTACK";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
@@ -2185,6 +2160,7 @@
 		};
 		992C09D42F927BB9009FF690 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A7F11B76CB73BBD0CA6B9BD7 /* Build.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -2213,6 +2189,7 @@
 		};
 		992C09D52F927BB9009FF690 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A7F11B76CB73BBD0CA6B9BD7 /* Build.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;

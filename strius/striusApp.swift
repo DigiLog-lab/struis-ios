@@ -92,8 +92,10 @@ struct striusApp: App {
                 .environment(subscriptions)
                 // 今の契約を受け取り続ける(#40・#62)。プランは利用枠の判定にも使う。
                 .struisSubscriptionStatus(subscriptions)
+                #if STRUIS_TIME_ATTACK
                 // タイムアタックのリンク(App Clip のリンクが本体で開かれた時)。
                 .timeAttackLinks()
+                #endif
                 .tint(Theme.Palette.accentLight)
                 .preferredColorScheme(themePreference.colorScheme)
                 .progressViewStyle(StruisProgressViewStyle())

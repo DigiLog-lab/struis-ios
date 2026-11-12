@@ -1,3 +1,5 @@
+// タイムアタック(#133)は延期中。Config/Build.xcconfig の STRUIS_TIME_ATTACK が YES の時だけ本体に入る(App Clip は常に入れる)。
+#if STRUIS_TIME_ATTACK
 import UIKit
 import XCTest
 @testable import strius
@@ -79,3 +81,4 @@ final class TimeAttackLiveTests: XCTestCase {
         XCTAssertEqual(correct, [true, true, true, true, false])
     }
 }
+#endif
