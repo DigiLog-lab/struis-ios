@@ -488,16 +488,36 @@ nonisolated enum TimelineCards {
     }
 
     /// 端末の中で採点するカード(選ぶ・仕分ける・組にする)を間違えた時に、結果の画面にそのまま出す解き方。
-    /// 出題の時に作ってある `steps` を使うので、モデルを呼ばない(前は「解説」を押すまで、なぜその答えになるのかが出なかった)。
-    /// 並べ替えは `steps` そのものが「正しい答え」として出るので重ねない。読み取って採点するカードは、採点のコメントが説明になる。
+    /// モデルを呼ばない(前は「解説」を押すまで、なぜその答えになるのかが出なかった)。
+    /// - 間違い探し・次の一手・予想・理由・比べる: 出題の時に作ってある `steps`(その問題の解き方)。
+    /// - 仕分け・グラフと式: アプリが元の問題から作った別の問いなので、元の問題の `steps` では説明にならない。問いに合わせた説明をここで作る。
+    /// - 並べ替え: `steps` そのものが「正しい答え」として出るので重ねない。読み取って採点するカードは、採点のコメントが説明になる。
     static func solutionSteps(_ card: TimelineCardRecord) -> [String] {
         guard let kind: Kind = Kind(rawValue: card.kind), !kind.needsReading else { return [] }
         switch kind {
-        case .order, .guide, .ask, .notice: return []
-        default: break
+        case .order, .guide, .ask, .notice:
+            return []
+        case .sort:
+            guard let axis: Double = card.payload["facts"]?["axis"]?.doubleValue else { return [] }
+            let left: String = card.payload["left_label"]?.stringValue ?? "含まない"
+            let right: String = card.payload["right_label"]?.stringValue ?? "含む"
+            return ["軸 x = \(format(axis)) が、範囲の左端と右端の間(端も入ります)にあれば「\(right)」、なければ「\(left)」です。"]
+        case .graphMatch:
+            let exprs: [String] = card.payload["exprs"]?.arrayValue?.compactMap(\.stringValue) ?? []
+            let lines: [String] = exprs.enumerated().compactMap { item -> String? in
+                guard let vertex: (x: Double, y: Double) = TimelineExpression.vertex(of: item.element),
+                      let f: TimelineExpression = try? TimelineExpression.parse(item.element),
+                      let beside: Double = f.evaluate([f.variables.first ?? "x": vertex.x + 1]) else { return nil }
+                // 頂点は数値で求めるので、小数第 2 位に丸めてから書く(2.0000001 を「2.00」と書かない)。
+                func tidy(_ value: Double) -> String { format((value * 100).rounded() / 100 + 0) }
+                return "式 \(item.offset + 1): 頂点は (\(tidy(vertex.x)), \(tidy(vertex.y)))、" + (beside > vertex.y ? "下に凸(上に開く)" : "上に凸(下に開く)")
+            }
+            guard !lines.isEmpty, lines.count == exprs.count else { return [] }
+            return ["頂点の位置と、グラフが上と下のどちらに開くかで見分けます。"] + lines
+        default:
+            let steps: [String] = card.payload["steps"]?.arrayValue?.compactMap(\.stringValue) ?? []
+            return steps.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         }
-        let steps: [String] = card.payload["steps"]?.arrayValue?.compactMap(\.stringValue) ?? []
-        return steps.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
     }
 
     /// 手書きを読み取った後の正誤(数式で判定する)。04 は隠した行、09 は頂点を計算して判定する(答えは何通りあってもよい)。

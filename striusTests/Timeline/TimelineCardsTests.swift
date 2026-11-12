@@ -67,9 +67,17 @@ final class TimelineCardsTests: XCTestCase {
             copy.payload = .object((card.payload.objectValue ?? [:]).merging(TimelineCards.derive(kind, from: card)!.payload) { _, new in new })
             return copy
         }
-        for kind in [TimelineCards.Kind.findError, .nextStep, .sort, .predict, .reason, .graphMatch] {
+        for kind in [TimelineCards.Kind.findError, .nextStep, .predict, .reason] {
             XCTAssertEqual(TimelineCards.solutionSteps(make(kind)), steps, "\(kind) の結果に解き方が出ない")
         }
+        // 仕分けとグラフは、アプリが元の問題から作った別の問い。元の問題の手順ではなく、その問いの説明を出す。
+        XCTAssertEqual(TimelineCards.solutionSteps(make(.sort)), ["軸 x = 2 が、範囲の左端と右端の間(端も入ります)にあれば「含む」、なければ「含まない」です。"])
+        XCTAssertEqual(TimelineCards.solutionSteps(make(.graphMatch)), [
+            "頂点の位置と、グラフが上と下のどちらに開くかで見分けます。",
+            "式 1: 頂点は (2, -5)、下に凸(上に開く)",
+            "式 2: 頂点は (2, 5)、上に凸(下に開く)",
+            "式 3: 頂点は (2, -2)、下に凸(上に開く)",
+        ])
         // 並べ替えは、手順そのものが「正しい答え」として出るので重ねない。
         XCTAssertTrue(TimelineCards.solutionSteps(make(.order)).isEmpty)
         // 読み取って採点するカードは、採点のコメントが説明になる。
