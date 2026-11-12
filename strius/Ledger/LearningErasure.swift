@@ -158,7 +158,7 @@ extension Ledger {
         try LearningErasure.write(LearningErasure.Journal(marker: marker, remote: remote, localDone: false), at: deletionRoot)
     }
 
-    /// 端末の記録を消す(何度呼んでも同じ結果。続きからでも)。台帳の出来事・射影・同期の控え・Claude との会話の控え、
+    /// 端末の記録を消す(何度呼んでも同じ結果。続きからでも)。台帳の出来事・射影・同期の控え・Claude との会話の控え・オフライン反復の「問題の型」の控え、
     /// 答案・写真・添付・学習メモ・表示の控え・`backups/` の ZIP、実行の作業フォルダ。台帳の端末の ID・作った時刻は残す。
     func eraseLearningRecords() throws {
         guard var journal = pendingErasure() else { return }
@@ -166,7 +166,7 @@ extension Ledger {
         let marker = journal.marker
         try queue.write { db in
             try db.execute(sql: "PRAGMA secure_delete=ON")
-            for table in ["ledger_events", "sync_pending", "sync_files", "sync_tombstones", "claude_conversation_messages", "claude_conversations"] {
+            for table in ["ledger_events", "sync_pending", "sync_files", "sync_tombstones", "claude_conversation_messages", "claude_conversations", "drill_templates"] {
                 try db.execute(sql: "DELETE FROM \(table)")
             }
             try LedgerSchema.dropProjections(db)

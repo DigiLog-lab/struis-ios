@@ -286,6 +286,7 @@
     "strius/Features/ProblemCatalog/**": [],
     "strius/Features/Workspace/**": [],
     "strius/Features/ImmersionLab/**": [],
+    "strius/Features/OfflineDrill/**": [],
     "strius/Engine/**": [
       "reply-tail",
       "workbook-grading"

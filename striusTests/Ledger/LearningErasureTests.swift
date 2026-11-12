@@ -34,6 +34,7 @@ final class LearningErasureTests: XCTestCase {
             try db.execute(sql: "INSERT INTO claude_conversations (thread_id, kind, model, created_at, updated_at) VALUES (?, 'chat', 'claude-sonnet-5-5', '', '')",
                            arguments: [thread.id])
         }
+        try DrillTemplateStore(queue: ledger.queue).save(skillID: "quad.vertex_form", outcome: .excluded(reasons: ["グラフを読む問題"], declined: true))
         let root = ledger.deletionRoot
         try write("jpeg", to: "captures/cap-1.jpg", in: root)
         try write("png", to: "attachments/page.png", in: root)
@@ -62,7 +63,7 @@ final class LearningErasureTests: XCTestCase {
         } catch {}
         try await ledger.eraseLearningRecords()
 
-        for table in ["ledger_events", "threads", "claude_conversations", "sync_pending", "sync_files"] {
+        for table in ["ledger_events", "threads", "claude_conversations", "drill_templates", "sync_pending", "sync_files"] {
             let rows = try await count(table, ledger)
             XCTAssertEqual(rows, 0, "\(table) が残っている")
         }

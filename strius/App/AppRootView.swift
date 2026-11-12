@@ -115,6 +115,9 @@ struct AppRootView: View {
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-problem-catalog-lab") {
             ProblemCatalogLabView()
+        } else if ProcessInfo.processInfo.arguments.contains("-offline-drill-lab") {
+            // オフライン反復の画面のプロトタイプ(検討の材料。本番の画面からは開けない)。
+            OfflineDrillLabView()
         } else {
             standardRootContent
         }
