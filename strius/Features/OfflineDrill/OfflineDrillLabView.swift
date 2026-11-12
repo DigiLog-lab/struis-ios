@@ -18,6 +18,9 @@ struct OfflineDrillLabView: View {
     @State private var ink: TimelineInkController = TimelineInkController()
     @State private var inkPassThrough: [CGRect] = []
     @State private var screen: CGSize = CGSize.zero
+    /// 問題の列の幅(式がはみ出さない大きさを決めるのに使う)。
+    @State private var columnWidth: CGFloat = 0
+    @Environment(\.displayScale) private var displayScale: CGFloat
     @Environment(\.horizontalSizeClass) private var sizeClass: UserInterfaceSizeClass?
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize: DynamicTypeSize
 
@@ -108,10 +111,12 @@ struct OfflineDrillLabView: View {
             if let failure: String = model.failure {
                 Text(failure).font(Typography.sans(size: 15, weight: .medium)).foregroundStyle(Theme.secondaryText)
             } else if let problem: DrillProblem = model.problem {
-                TimelineQuestionText(text: problem.prompt, size: promptSize(problem.prompt))
+                TimelineQuestionText(text: problem.prompt, size: fitted(text: problem.prompt, base: promptSize(problem.prompt), weight: 700))
                     .accessibilityIdentifier("offline-drill-prompt")
                 if !problem.math.isEmpty {
-                    TimelineMath(latex: problem.math, size: 34)
+                    KaTeXMathText(problem.math, display: true, foregroundColor: UIColor(Theme.primaryText),
+                                  fontSize: fitted(maths: [problem.math], display: true, base: mathSize(problem.math), weight: 500), fontWeight: 500)
+                        .accessibilityIdentifier("offline-drill-math")
                 }
                 if model.isAnswerShown {
                     answer(problem.answer)
@@ -122,7 +127,36 @@ struct OfflineDrillLabView: View {
                 .font(Typography.sans(size: 13, weight: .medium))
                 .foregroundStyle(Theme.secondaryText)
         }
+        .frame(maxWidth: CGFloat.infinity, alignment: Alignment.leading)
+        .onGeometryChange(for: CGFloat.self) { (proxy: GeometryProxy) -> CGFloat in proxy.size.width } action: { (width: CGFloat) -> Void in columnWidth = width }
         .animation(.easeInOut(duration: Theme.Duration.standard), value: model.isAnswerShown)
+    }
+
+    /// 大きく出す式の大きさ。タイムラインの問題の式(`TimelineMath`)と同じ決め方: 34pt、長い式は文字数に合わせて小さくする。
+    private func mathSize(_ latex: String) -> CGFloat {
+        let length: Int = TimelineMath.plain(latex).count
+        return length > 14 ? max(18, 34 * 14 / CGFloat(length) * 1.25) : 34
+    }
+
+    /// 文の中の式が列の幅に収まる文字の大きさ。
+    private func fitted(text: String, base: CGFloat, weight: Int) -> CGFloat {
+        fitted(maths: DrillLint.split(text)?.maths ?? [], display: false, base: base, weight: weight)
+    }
+
+    /// 式が列の幅に収まる文字の大きさ。書く面が上に乗っていて式を横にスクロールできないので、はみ出す時は小さくする
+    /// (文字サイズを大きくした時に、式の右側が切れていた)。
+    private func fitted(maths: [String], display: Bool, base: CGFloat, weight: Int) -> CGFloat {
+        guard columnWidth > 0 else { return base }
+        let style: NativeMathStyle = NativeMathStyle(color: UIColor(Theme.primaryText), fontSize: base, fontWeight: weight, scale: displayScale,
+                                                     category: UIContentSizeCategory(dynamicTypeSize))
+        var widest: CGFloat = 0
+        for math: String in maths {
+            if let glyph: NativeMathGlyph = NativeMathRenderer.shared.glyph(latex: math, display: display, style: style, highlighted: false) {
+                widest = max(widest, glyph.size.width)
+            }
+        }
+        guard widest > columnWidth - 4 else { return base }
+        return max(11, floor(base * (columnWidth - 6) / widest * 10) / 10)
     }
 
     /// 物理・化学の問題文は長いので、少し小さくして余白を残す(タイムラインの問題文は 22pt)。
@@ -134,7 +168,7 @@ struct OfflineDrillLabView: View {
         VStack(alignment: HorizontalAlignment.leading, spacing: 8) {
             Rectangle().fill(Theme.hairline).frame(height: 1)
             Text("答え").font(Typography.sans(size: 13, weight: .bold)).foregroundStyle(Theme.accentColor)
-            TimelineRichText(text: text, size: 20, weight: .bold)
+            TimelineRichText(text: text, size: fitted(text: text, base: 20, weight: 700), weight: .bold)
         }
         .padding(.top, 4)
         .accessibilityElement(children: AccessibilityChildBehavior.combine)

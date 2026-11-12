@@ -4,10 +4,10 @@
 
 ## 今の段階
 
-- 2026-11-12 18:00 **段階 4(物理・化学の一覧と型)が終わり、段階 5(型を書かせる指示文と保存場所)に入る所。**
-- 終わったもの: 事前検証、書式の仕様書、JSON Schema、解釈器・生成器・点検器、単体テスト 91 件(Linux の Swift 6.4.2 で全部通過)、一覧 459 行(型 421、うち数値点検あり 414、数値点検なし 7、表せない 38)。
-- まだのもの(この順で進める): 型を書かせる指示文と保存場所 → 画面のプロトタイプ → Dev Box で単体テストとスクショ → Draft PR。
-- Dev Box ではまだ 1 度もビルドしていない(Linux だけで確かめた)。iOS 側のビルドとテストは段階 6 でまとめて確かめる。
+- 2026-11-12 18:20 **段階 5(型を書かせる指示文・保存先)と段階 6 の画面のプロトタイプを書き終え、Dev Box でのビルド・単体テスト・スクショに入る所。**
+- 終わったもの: 事前検証、書式の仕様書、JSON Schema、解釈器・生成器・点検器、一覧 459 行(型 421、うち数値点検あり 414、数値点検なし 7、表せない 38)、型を書かせる指示文と返事の点検(`DrillAuthoring`)、保存先(`DrillTemplateStore`)、画面のプロトタイプ(`OfflineDrillLabView`)。Linux の Swift 6.4.2 で単体テスト 105 件が通過。
+- まだのもの(この順で進める): Dev Box でビルドと単体テスト(追加した分と、台帳の移行・消去・単元の削除のテスト)→ スクショ 5 枚 → Draft PR。
+- Dev Box の 1 回目の立ち上げ(run 43188318664)は、ビルドに失敗した。立ち上げた時点のブランチ(57184bb)では、`strius/Engine/Drill/` を Xcode のプロジェクトに登録していなかったため(`striusTests/Drill/` は自動で入るので、テストだけが型を見つけられなかった)。793a486 で登録して立ち上げ直した。
 
 ## 段階ごとの道具
 
@@ -61,4 +61,18 @@
 - **式の形の答え**(多項式など): 数式処理は作らず、係数を数として計算して `sum` の部品で組み立てる。整形規則(係数 1、+-、x^1、0 の項)は部品の側に持たせ、型を書く AI には係数の式だけを書かせる。
 - **数値の点検の方法**: 画面に出す LaTeX そのものを数値にして、答えと比べる。型の式どうしを比べるだけだと、画面に出る式と答えの食い違いを見つけられないため。
 - **問題の数の下限**: 違う問題が 20 通り以上(指示書の目安どおり)。条件を満たす組の割合は 1% 以上(生成器が 4,000 回まで選び直すので、1% あれば見つからない確率は無視できる)。
-- **開発用の入口**(画面のプロトタイプ): 既存の `-problem-catalog-lab` と同じ、DEBUG の起動引数で `AppRootView` から直接開く形にする予定。本番の画面からは辿れない。
+- **開発用の入口**(画面のプロトタイプ): DEBUG のビルドだけで、起動引数 `-offline-drill-lab` を付けた時に `AppRootView` から直接開く。既存の `-problem-catalog-lab`(`ProblemCatalogLabView`)と同じ仕組み。設定の開発者向けの画面(`DeveloperSettingsView`)に置く案は、内部向けビルドの本番の画面から辿れてしまうので採らなかった。`OfflineDrillLabView.swift` と `OfflineDrillLabSamples.swift` は全体が `#if DEBUG` で、Release のビルドには入らない。
+- **プロトタイプで見せる型**: 型の JSON はテストの資産でアプリに入っていないので、11 個(数学 7、物理 2、化学 2)を `scripts/offline-drill/make_lab_samples.py` で Swift の文字列に写した。写しが正本と同じで、端末の点検(SwiftMath での描画を含む)を通ることを `OfflineDrillLabTests` が確かめる。偽のデータは置いていない。
+- **プロトタイプの画面**: タイムラインの部品をそのまま使った(地の色、`TimelineChip`、`TimelineQuestionText`、`TimelineMath`、`TimelineActionButton`、`TimelineInkCanvas`)。書く面は画面全体を覆い、右下のボタンの上だけ指を通す。2 案は起動引数 `-offline-drill-variant answer`(「答え」を押した時だけ見せる)と `next`(答えを出さず「次へ」だけ)。左上の「オフライン」から、型と案をその場で切り替えられる。問題文が画面より長い時のスクロールは作っていない(本番ではタイムラインの列のスクロールを使う)。
+- **型の保存先**: 台帳(GRDB の同じ SQLite)の中の、端末だけの控えの表 `drill_templates`(移行 `v7-drill-templates`、`strius/Ledger/DrillTemplateStore.swift`)。台帳のイベント(`ledger_events`)には入れない。Claude との会話の控え(`ClaudeConversationStore`、移行 `v6-claude-conversations`)と同じ扱い。理由:
+  - 型は学習の記録ではなく、点から AI に書かせ直せる派生物。消えても学習の記録は欠けない。
+  - 型は端末の点検を通ったものだけを出す。点検器と書式の版はアプリの版ごとに違い得るので、別の端末が通した型を iCloud 同期で受け取ってそのまま出すことはできず、受け取った側でも点検が要る。
+  - 書式の版が上がったら全部を書かせ直す。追記だけのイベントに入れると、古い版の型が履歴と同期に残り続ける(型 1 個は 1〜4 KB)。
+  - イベントの適用・同期・作り直し(`Ledger.rebuild`)のコードに触れずに足せる(オンラインのタイムラインを変えない、という指示書の範囲)。
+  - 代わりに失うもの: 端末ごとに AI への依頼が 1 回ずつ要る(iPhone と iPad を両方使う人は 2 回)。後から同期したくなったら、型をイベントに昇格させる。
+  - 学習記録の消去(`eraseLearningRecords`)ではこの表を空にし、単元の削除(`Ledger.eraseHistory`)では消す点の行を消す。
+  - 対象から外した点(2 回落ちた・AI が「型にできない」と答えた)も行を残す。同じ書式の版の間は頼み直さない。
+- **型を書かせる依頼**: 頼むのは `kind` が `procedure` と `combination` の点だけ(`DrillAuthoring.isCandidate`)。`concept` と `memorized` は、指示書の対象外(概念の理解・暗記)なので AI を呼ばない。返事は `{"template": 型か null, "reason": 文}`。AI が「型にできない」と判断した時に null を返せるようにした(図を読む点などで、落ちると分かっている型を 2 回書かせないため)。
+- **指示文**(`strius/Resources/Prompts/drill_template_instructions.md`): 前半は、型が何に使われるか・よい型・型にできない点・端末の点検で起こる失敗を、理由つきで書いた(条件分岐の規則は積んでいない)。後半の「書式」は仕様書(`format.md`)の同じ範囲の写しで、例の 3 つは実際の型そのもの。写しと例が正本とずれていないこと、解釈器が読める関数・部品・点検の種類が全部書いてあること、JSON Schema のキーが解釈器と同じことを、`DrillAuthoringTests` が確かめる。
+- **AI を呼ぶ所にはつないでいない**(指示書の範囲外)。つなぐ時は、`DrillAuthoring.input(for:)` と指示文・`replySchema` を渡し、返事を `DrillAuthoringSession.receive(reply:)` に入れ、`.retry(message:)` ならその文を返してもう 1 回、`.finished` なら `DrillTemplateStore.save` に渡す。端末では `DrillRenderProbe.validator`(SwiftMath で読めるかも見る)を使う。
+- **マージの時の UI テスト**: この変更は `strius/App/AppRootView.swift`(開発用の入口)と `strius/Resources/Prompts/`(指示文)に触るので、`scripts/ci/ui_test_plan.py` は UI テストを全部(55 本、合計約 52 分)選ぶ(2026-11-12 に `--list` で確認)。Dev Box では UI テストを流していない。
