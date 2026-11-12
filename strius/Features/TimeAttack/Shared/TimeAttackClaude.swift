@@ -149,14 +149,15 @@ nonisolated enum TimeAttackClaude {
         }
     }
 
-    private struct Read: Decodable { var answers: [ReadAnswer]? }
+    /// `answers` が無い返事(形の違う JSON)は読めなかった扱いにする。空の答えで5問とも誤答の記録を作らないため。
+    private struct Read: Decodable { var answers: [ReadAnswer] }
 
     /// 写真から5問の答えを読み、正答と突き合わせた正誤を返す(読めない・無い答えは誤答)。
     static func grade(problems: [TimeAttack.Problem], photo: Data, transport: any TimeAttackTransport) async throws -> [Bool] {
         guard let jpeg = shrunkJPEG(photo) else { throw Failure.unreadable }
         let response = try await transport.send(readBody(problems: problems, jpeg: jpeg), purpose: .read)
         let read: Read = try decode(Read.self, from: response)
-        return judge(problems: problems, answers: (read.answers ?? []).map { ($0.number, $0.readable ?? false, $0.learnerAnswer ?? "") })
+        return judge(problems: problems, answers: read.answers.map { ($0.number, $0.readable ?? false, $0.learnerAnswer ?? "") })
     }
 
     /// 読み取った答えを問題に割り当てて正誤を決める。番号が無い・範囲外の答えは、空いている問題に上から順に入れる。

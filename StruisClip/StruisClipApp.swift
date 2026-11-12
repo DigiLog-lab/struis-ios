@@ -7,6 +7,8 @@ import SwiftUI
 struct StruisClipApp: App {
     @State private var challenge: TimeAttack.Challenge?
     @State private var unreadable = false
+    /// リンクを開くたびに新しくする。同じ記録・記録なしのリンクが続いても、前の挑戦の画面を使い回さないため。
+    @State private var opened = UUID()
 
     var body: some Scene {
         WindowGroup {
@@ -14,7 +16,7 @@ struct StruisClipApp: App {
                 Theme.ground.ignoresSafeArea()
                 if let challenge {
                     ClipChallengeView(session: TimeAttackSession(mode: .challenge(challenge), transport: ClipTransport()))
-                        .id(challenge.latest?.total ?? 0)
+                        .id(opened)
                 } else {
                     ClipWaitingView(unreadable: unreadable)
                 }
@@ -36,6 +38,7 @@ struct StruisClipApp: App {
         guard let url else { return }
         do {
             challenge = try TimeAttackLink.challenge(from: url)
+            opened = UUID()
             unreadable = false
         } catch {
             unreadable = true
@@ -82,7 +85,7 @@ private struct ClipChallengeView: View {
                 } else {
                     header
                     TimeAttackIntroView(field: session.field, rival: session.rival, setsLeft: setsLeft,
-                                        capturesPhoto: local.clipGrading(termsVersion: LegalVersion.terms) != .selfCheck, onStart: begin)
+                                        capturesPhoto: capturesPhoto, onStart: begin)
                 }
             case .running:
                 TimeAttackRunView(field: session.field, problems: session.problems, capturesPhoto: session.grading == .ai,
@@ -116,6 +119,11 @@ private struct ClipChallengeView: View {
     private var setsLeft: Int? {
         let left = local.clipSetsLeft()
         return local.clipGrading(termsVersion: LegalVersion.terms) == .ai && left > 0 ? left : nil
+    }
+
+    /// 最後に紙を撮るか。自分で採点すると決めた人と、今日の AI の分を使い切った人は撮らない。
+    private var capturesPhoto: Bool {
+        local.clipGrading(termsVersion: LegalVersion.terms) != .selfCheck && local.clipSetsLeft() > 0
     }
 
     /// 「始める」: 今の規約の版でまだ決めていなければ同意の画面へ、決めていればそのまま解き始める。

@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 @testable import strius
 
 /// タイムアタック(#133)の決まり: 合計の数え方、リンクの往復、読み取った答えの割り当て。
@@ -109,6 +110,29 @@ final class TimeAttackTests: XCTestCase {
 
     private struct NoTransport: TimeAttackTransport {
         func send(_ body: [String: Any], purpose: TimeAttackClaude.Purpose) async throws -> [String: Any] { [:] }
+    }
+
+    private struct ReplyTransport: TimeAttackTransport {
+        let text: String
+        func send(_ body: [String: Any], purpose: TimeAttackClaude.Purpose) async throws -> [String: Any] {
+            ["content": [["type": "text", "text": text]]]
+        }
+    }
+
+    func testAReplyWithoutAnswersIsAFailureNotFiveWrongAnswers() async throws {
+        let photo = try XCTUnwrap(UIGraphicsImageRenderer(size: CGSize(width: 40, height: 40)).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 40, height: 40))
+        }.jpegData(compressionQuality: 0.8))
+        do {
+            _ = try await TimeAttackClaude.grade(problems: problems, photo: photo, transport: ReplyTransport(text: "{}"))
+            XCTFail("answers の無い返事を採点に使った")
+        } catch let failure as TimeAttackClaude.Failure {
+            guard case .malformed = failure else { return XCTFail("\(failure)") }
+        }
+        let marks = try await TimeAttackClaude.grade(problems: problems, photo: photo,
+                                                     transport: ReplyTransport(text: #"{"answers":[{"number":1,"readable":true,"learner_answer":"1/2"}]}"#))
+        XCTAssertEqual(marks, [true, false, false, false, false])
     }
 
     @MainActor
