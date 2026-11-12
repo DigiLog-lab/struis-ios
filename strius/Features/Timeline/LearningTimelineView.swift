@@ -37,6 +37,10 @@ struct LearningTimelineView: View {
     /// 上の帯と下の帯の間(`TimelineInkSpace.name` の座標)。iPhone の並びの書く面はここに置く。
     @State private var inkArea: CGRect = .zero
     @State private var isCameraPresented = false
+    #if STRUIS_TIME_ATTACK
+    /// タイムアタック(#133)。
+    @State private var timeAttack: TimeAttackSession?
+    #endif
     @State private var dragOffset: CGFloat = 0
     @State private var isResultAskPresented = false
     @State private var isDisputePresented = false
@@ -129,6 +133,11 @@ struct LearningTimelineView: View {
                 Task { await store.submit(image: data) }
             }
         }
+        #if STRUIS_TIME_ATTACK
+        .fullScreenCover(item: $timeAttack) { session in
+            TimeAttackFlowView(session: session) { timeAttack = nil }
+        }
+        #endif
         .sheet(isPresented: Binding(get: { store.isScopeSheetPresented }, set: { store.isScopeSheetPresented = $0 })) {
             TimelineScopeSheet(store: store)
                 .presentationDetents([.medium, .large])
@@ -170,10 +179,16 @@ struct LearningTimelineView: View {
             if layout.isPad {
                 // iPad: 「今日」は「単元」の隣に置き、右上は書く道具にする。
                 todayCount.padding(.leading, 16)
+                #if STRUIS_TIME_ATTACK
+                timeAttackButton.padding(.leading, 8)
+                #endif
                 Spacer()
                 if showsInkTools { inkTools }
             } else {
                 Spacer()
+                #if STRUIS_TIME_ATTACK
+                timeAttackButton
+                #endif
                 todayCount
             }
         }
@@ -185,6 +200,39 @@ struct LearningTimelineView: View {
         .gesture(DragGesture(minimumDistance: 30).onEnded { value in
             if value.translation.height > 80 { store.isStopSheetPresented = true }
         })
+    }
+
+    #if STRUIS_TIME_ATTACK
+    /// タイムアタック(#133): 今の分野のいちばん基礎の5問を、紙に解いて最後に1枚撮るまでの時間で競う。
+    @ViewBuilder
+    private var timeAttackButton: some View {
+        if let unit = TimelineTurns.currentUnit(workbook: store.workbook, timeline: store.machine) {
+            Button {
+                let context = TimelineTurns.sharedContext(workbook: store.workbook, timeline: store.machine)
+                timeAttack = TimeAttackSession(mode: .own(unitTitle: unit.title, context: context), transport: AppTimeAttackTransport())
+            } label: {
+                Image(systemName: "stopwatch")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Theme.primaryText)
+                    .frame(width: 40, height: 40)
+                    .background(Theme.card, in: Circle())
+                    .overlay(Circle().stroke(Theme.hairline, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .timelineInkPassThrough()
+            .accessibilityLabel("タイムアタック")
+            .accessibilityIdentifier("timeline-time-attack")
+        }
+    }
+    #endif
+
+    /// タイムアタックの画面を上に重ねているか(延期中は常に false)。
+    private var isTimeAttackPresented: Bool {
+        #if STRUIS_TIME_ATTACK
+        TimeAttackPresence.shared.isPresented
+        #else
+        false
+        #endif
     }
 
     /// 解く範囲のチップ: 「おまかせ ⌄」、固定中は銅の「微分積分 ✕」(✕ でおまかせに戻す)。
@@ -547,7 +595,9 @@ struct LearningTimelineView: View {
             TimelineInkCanvas(hasInk: $hasInk, isDrawing: $isDrawing, isZoomed: $isInkZoomed, controller: ink,
                               passThrough: inkPassThrough.map { $0.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y) },
                               fingerPassThrough: inkFingerPassThrough.map { $0.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y) },
-                              showsToolPicker: layout.isPad && showsInkTools && !isCovered, isReadOnly: isResult)
+                              // 単元ホームやタイムアタックを上に重ねている間は、iPad の道具パレットを隠す(ウィンドウの一番上に出て操作を塞ぐため)。
+                              showsToolPicker: layout.isPad && showsInkTools && !isCovered && !isTimeAttackPresented,
+                              isReadOnly: isResult)
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 // 結果の画面では、書き足しはできないがスクロールと拡大縮小はできる(採点中は触らせない)。
