@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "skill_id": "math.mc.polar_form",
+  "title": "極形式で表す",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "deg",
+      "kind": "choice",
+      "options": [
+        30,
+        45,
+        60,
+        90,
+        120,
+        135,
+        150,
+        180,
+        210,
+        225,
+        240,
+        270,
+        300,
+        315,
+        330
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "z",
+      "expr": "r*(cosd(deg) + i*sind(deg))"
+    },
+    {
+      "name": "rad",
+      "expr": "deg/180"
+    }
+  ],
+  "prompt": "複素数 $z = {z}$ を極形式で表しなさい。ただし、偏角 $\\theta$ は $0 \\le \\theta < 2\\pi$ とする。",
+  "answer": "$z = {r|coef}\\left(\\cos {rad|pi} + i\\sin {rad|pi}\\right)$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{z}",
+      "right": "{r}(\\cos ({rad|pi}) + i\\sin ({rad|pi}))"
+    }
+  ]
+}

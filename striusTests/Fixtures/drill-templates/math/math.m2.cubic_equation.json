@@ -1,0 +1,77 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.cubic_equation",
+  "title": "因数定理を使って三次方程式を解く",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "r1",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "r2",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "r3",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    }
+  ],
+  "constraints": [
+    "r1 < r2",
+    "r2 < r3"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x^{3}"
+        },
+        {
+          "coef": "-(r1+r2+r3)",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "r1*r2 + r2*r3 + r3*r1",
+          "body": "x"
+        },
+        {
+          "coef": "-r1*r2*r3"
+        }
+      ]
+    },
+    {
+      "name": "roots",
+      "kind": "list",
+      "items": [
+        "r1",
+        "r2",
+        "r3"
+      ],
+      "sort": true,
+      "unique": true
+    }
+  ],
+  "prompt": "次の方程式を解きなさい。",
+  "math": "{f} = 0",
+  "answer": "$x = {roots}$",
+  "checks": [
+    {
+      "kind": "root",
+      "left": "{f}",
+      "variable": "x",
+      "solutions": [
+        "{roots}"
+      ]
+    }
+  ]
+}

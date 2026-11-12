@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.ode_second_order_complex",
+  "title": "2 階定数係数同次形(複素数解)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "w",
+      "kind": "integer",
+      "min": 1,
+      "max": 5
+    }
+  ],
+  "parts": [
+    {
+      "name": "lhs",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "y''"
+        },
+        {
+          "coef": "-2*p",
+          "body": "y'"
+        },
+        {
+          "coef": "p^2 + w^2",
+          "body": "y"
+        }
+      ]
+    },
+    {
+      "name": "env",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "p == 0",
+          "tex": ""
+        }
+      ],
+      "otherwise": "e^{{p|coef}x}"
+    },
+    {
+      "name": "sol",
+      "kind": "text",
+      "tex": "{env}(C_{1}\\cos {w|coef}x + C_{2}\\sin {w|coef}x)"
+    }
+  ],
+  "prompt": "次の微分方程式の一般解を求めなさい。",
+  "math": "{lhs} = 0",
+  "answer": "$y = {sol}$($C_{1}$、$C_{2}$ は任意定数)",
+  "checks": [
+    {
+      "kind": "ode",
+      "function": "{sol}",
+      "variable": "x",
+      "left": "{lhs}",
+      "right": "0",
+      "range": [
+        -0.4,
+        0.4
+      ]
+    }
+  ]
+}

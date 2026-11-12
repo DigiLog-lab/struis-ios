@@ -1,0 +1,88 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.function_limit_factor",
+  "title": "関数の極限(約分する 0/0 の形)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "q",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "(p - q)/(p - r)"
+    }
+  ],
+  "constraints": [
+    "p != q",
+    "p != r",
+    "q != r"
+  ],
+  "parts": [
+    {
+      "name": "num",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "-(p + q)",
+          "body": "x"
+        },
+        {
+          "coef": "p*q"
+        }
+      ]
+    },
+    {
+      "name": "den",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "-(p + r)",
+          "body": "x"
+        },
+        {
+          "coef": "p*r"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の極限を求めなさい。",
+  "math": "\\lim_{x \\to {p}} \\frac{{num}}{{den}}",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "limit",
+      "function": "\\frac{{num}}{{den}}",
+      "variable": "x",
+      "to": "p",
+      "answer": "{ans}"
+    }
+  ]
+}

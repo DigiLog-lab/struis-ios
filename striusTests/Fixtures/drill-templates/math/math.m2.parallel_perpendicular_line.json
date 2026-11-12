@@ -1,0 +1,131 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.parallel_perpendicular_line",
+  "title": "平行・垂直な直線の方程式",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 5
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "x1",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "y1",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "kind",
+      "kind": "choice",
+      "options": [
+        {
+          "text": "平行",
+          "t": 1
+        },
+        {
+          "text": "垂直",
+          "t": 2
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "p",
+      "expr": "if(kind.t == 1, a, b)"
+    },
+    {
+      "name": "q",
+      "expr": "if(kind.t == 1, b, -a)"
+    },
+    {
+      "name": "r",
+      "expr": "-(p*x1 + q*y1)"
+    },
+    {
+      "name": "sgn",
+      "expr": "if(p < 0, -1, 1)"
+    }
+  ],
+  "constraints": [
+    "gcd(a, abs(b)) == 1"
+  ],
+  "parts": [
+    {
+      "name": "given",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b",
+          "body": "y"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    },
+    {
+      "name": "ans",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "sgn*p",
+          "body": "x"
+        },
+        {
+          "coef": "sgn*q",
+          "body": "y"
+        },
+        {
+          "coef": "sgn*r"
+        }
+      ]
+    }
+  ],
+  "prompt": "点 $({x1},\\ {y1})$ を通り、直線 ${given} = 0$ に{kind.text}な直線の方程式を求めなさい。",
+  "answer": "${ans} = 0$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{ans}",
+      "at": {
+        "x": "x1",
+        "y": "y1"
+      },
+      "equals": "0"
+    },
+    {
+      "kind": "assert",
+      "conditions": [
+        "if(kind.t == 1, a*q - b*p == 0, a*p + b*q == 0)"
+      ]
+    }
+  ]
+}

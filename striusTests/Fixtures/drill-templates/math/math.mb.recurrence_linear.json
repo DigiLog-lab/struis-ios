@@ -1,0 +1,108 @@
+{
+  "format": 1,
+  "skill_id": "math.mb.recurrence_linear",
+  "title": "漸化式 a_{n+1} = p a_n + q",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a1",
+      "kind": "integer",
+      "min": -5,
+      "max": 7
+    },
+    {
+      "name": "p",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        4,
+        -2,
+        -3
+      ]
+    },
+    {
+      "name": "alpha",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "q",
+      "expr": "alpha*(1 - p)"
+    },
+    {
+      "name": "a2",
+      "expr": "p*a1 + q"
+    },
+    {
+      "name": "a3",
+      "expr": "p*a2 + q"
+    }
+  ],
+  "constraints": [
+    "a1 != alpha"
+  ],
+  "parts": [
+    {
+      "name": "rhs",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "p",
+          "body": "a_{n}"
+        },
+        {
+          "coef": "q"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a1 - alpha",
+          "body": "{p|paren}^{n-1}",
+          "times": true
+        },
+        {
+          "coef": "alpha"
+        }
+      ]
+    }
+  ],
+  "prompt": "$a_{1} = {a1}$、$a_{n+1} = {rhs}$ で定められる数列 $\\{a_{n}\\}$ の一般項を求めなさい。",
+  "answer": "$a_{n} = {g}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{g}",
+      "at": {
+        "n": "1"
+      },
+      "equals": "a1"
+    },
+    {
+      "kind": "value",
+      "tex": "{g}",
+      "at": {
+        "n": "2"
+      },
+      "equals": "a2"
+    },
+    {
+      "kind": "value",
+      "tex": "{g}",
+      "at": {
+        "n": "3"
+      },
+      "equals": "a3"
+    }
+  ]
+}

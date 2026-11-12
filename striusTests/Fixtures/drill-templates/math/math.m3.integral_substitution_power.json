@@ -1,0 +1,83 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.integral_substitution_power",
+  "title": "置換積分((ax + b)ⁿ)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0,
+        1
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 2,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "np",
+      "expr": "n + 1"
+    }
+  ],
+  "parts": [
+    {
+      "name": "u",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1/(a*(n + 1))",
+          "body": "({u})^{{np}}"
+        },
+        {
+          "coef": "1",
+          "body": "C"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の不定積分を求めなさい。",
+  "math": "\\int ({u})^{{n}}\\,dx",
+  "answer": "${g}$($C$ は積分定数)",
+  "checks": [
+    {
+      "kind": "antiderivative",
+      "integrand": "({u})^{{n}}",
+      "answer": "{g}",
+      "variable": "x",
+      "range": [
+        -1,
+        1
+      ]
+    }
+  ]
+}

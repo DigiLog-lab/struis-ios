@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.definite_integral_log",
+  "title": "定積分(1/x)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "lo",
+      "kind": "choice",
+      "options": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "name": "ratio",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        4,
+        5
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "hi",
+      "expr": "lo*ratio"
+    }
+  ],
+  "parts": [
+    {
+      "name": "ans",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "k",
+          "body": "\\log {ratio}"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の定積分を求めなさい。",
+  "math": "\\int_{{lo}}^{{hi}} \\frac{{k}}{x}\\,dx",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "definite_integral",
+      "integrand": "\\frac{{k}}{x}",
+      "variable": "x",
+      "from": "lo",
+      "to": "hi",
+      "answer": "{ans}"
+    }
+  ]
+}

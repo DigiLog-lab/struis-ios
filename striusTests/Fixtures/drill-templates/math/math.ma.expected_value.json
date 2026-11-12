@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.expected_value",
+  "title": "期待値",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "x1",
+      "kind": "integer",
+      "min": 100,
+      "max": 900,
+      "step": 100
+    },
+    {
+      "name": "x2",
+      "kind": "integer",
+      "min": 10,
+      "max": 90,
+      "step": 10
+    },
+    {
+      "name": "n1",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    },
+    {
+      "name": "n2",
+      "kind": "integer",
+      "min": 2,
+      "max": 6
+    },
+    {
+      "name": "n0",
+      "kind": "integer",
+      "min": 3,
+      "max": 12
+    }
+  ],
+  "lets": [
+    {
+      "name": "total",
+      "expr": "n1 + n2 + n0"
+    },
+    {
+      "name": "ev",
+      "expr": "(x1*n1 + x2*n2)/total"
+    }
+  ],
+  "constraints": [
+    "is_integer(ev)"
+  ],
+  "prompt": "${total}$ 本のくじの中に、${x1}$ 円の当たりが ${n1}$ 本、${x2}$ 円の当たりが ${n2}$ 本あり、残りははずれである。このくじを 1 本引くときの賞金の期待値を求めなさい。",
+  "answer": "${ev}$ 円",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "ev * total == x1*n1 + x2*n2"
+      ]
+    }
+  ]
+}

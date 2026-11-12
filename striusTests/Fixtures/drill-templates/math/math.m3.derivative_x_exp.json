@@ -1,0 +1,85 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.derivative_x_exp",
+  "title": "積の微分(xⁿ e^{ax})",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "powers": [
+            {
+              "base": "x",
+              "exp": "n"
+            }
+          ],
+          "body": "e^{{a|coef}x}"
+        }
+      ]
+    },
+    {
+      "name": "inner",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "powers": [
+            {
+              "base": "x",
+              "exp": "n"
+            }
+          ]
+        },
+        {
+          "coef": "n",
+          "powers": [
+            {
+              "base": "x",
+              "exp": "n - 1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ans",
+      "kind": "text",
+      "tex": "({inner})e^{{a|coef}x}"
+    }
+  ],
+  "prompt": "次の関数を微分しなさい。",
+  "math": "y = {f}",
+  "answer": "$y' = {ans}$",
+  "checks": [
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "answer": "{ans}",
+      "variable": "x",
+      "range": [
+        -0.6,
+        0.6
+      ]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.infinite_geometric_series",
+  "title": "無限等比級数の和",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 9
+    },
+    {
+      "name": "r",
+      "kind": "fraction",
+      "numerator": {
+        "min": -5,
+        "max": 5
+      },
+      "denominator": {
+        "min": 2,
+        "max": 6
+      }
+    }
+  ],
+  "lets": [
+    {
+      "name": "sum",
+      "expr": "a/(1 - r)"
+    }
+  ],
+  "constraints": [
+    "abs(r) < 1"
+  ],
+  "prompt": "初項 ${a}$、公比 ${r}$ の無限等比級数の和を求めなさい。",
+  "answer": "${sum}$",
+  "checks": [
+    {
+      "kind": "series",
+      "term": "{a} \\cdot ({r})^{k-1}",
+      "index": "k",
+      "from": "1",
+      "to": "400",
+      "answer": "{sum}"
+    }
+  ]
+}

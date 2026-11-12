@@ -1,0 +1,90 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.definite_integral_trig",
+  "title": "定積分(三角関数)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "fn",
+      "kind": "choice",
+      "options": [
+        {
+          "f": "\\sin",
+          "t": 1
+        },
+        {
+          "f": "\\cos",
+          "t": 2
+        }
+      ]
+    },
+    {
+      "name": "up",
+      "kind": "choice",
+      "options": [
+        {
+          "d": 30,
+          "n": 1,
+          "m": 6
+        },
+        {
+          "d": 45,
+          "n": 1,
+          "m": 4
+        },
+        {
+          "d": 60,
+          "n": 1,
+          "m": 3
+        },
+        {
+          "d": 90,
+          "n": 1,
+          "m": 2
+        },
+        {
+          "d": 120,
+          "n": 2,
+          "m": 3
+        },
+        {
+          "d": 180,
+          "n": 1,
+          "m": 1
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "if(fn.t == 1, k*(1 - cosd(up.d)), k*sind(up.d))"
+    },
+    {
+      "name": "upper",
+      "expr": "up.n/up.m"
+    }
+  ],
+  "constraints": [
+    "ans != 0"
+  ],
+  "prompt": "次の定積分を求めなさい。",
+  "math": "\\int_{0}^{{upper|pi}} {k|coef}{fn.f} x\\,dx",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "definite_integral",
+      "integrand": "{k}{fn.f} x",
+      "variable": "x",
+      "from": "0",
+      "to": "pi*upper",
+      "answer": "{ans}"
+    }
+  ]
+}

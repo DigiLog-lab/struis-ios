@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "skill_id": "math.mc.ellipse_foci",
+  "title": "楕円の焦点と長軸・短軸の長さ",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 3,
+      "max": 10
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 2,
+      "max": 9
+    }
+  ],
+  "lets": [
+    {
+      "name": "a2",
+      "expr": "a^2"
+    },
+    {
+      "name": "b2",
+      "expr": "b^2"
+    },
+    {
+      "name": "c",
+      "expr": "sqrt(a^2 - b^2)"
+    },
+    {
+      "name": "major",
+      "expr": "2*a"
+    },
+    {
+      "name": "minor",
+      "expr": "2*b"
+    }
+  ],
+  "constraints": [
+    "a > b"
+  ],
+  "prompt": "楕円 $\\frac{x^{2}}{{a2}} + \\frac{y^{2}}{{b2}} = 1$ の焦点の座標と、長軸・短軸の長さを求めなさい。",
+  "answer": "焦点 $({c},\\ 0)$、$(-{c|paren},\\ 0)$、長軸の長さ ${major}$、短軸の長さ ${minor}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({c})^{2}",
+      "right": "{a2} - {b2}"
+    }
+  ]
+}

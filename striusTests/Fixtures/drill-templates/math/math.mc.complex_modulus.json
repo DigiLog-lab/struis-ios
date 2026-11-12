@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "skill_id": "math.mc.complex_modulus",
+  "title": "複素数の絶対値",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "z",
+      "expr": "a + b*i"
+    },
+    {
+      "name": "r",
+      "expr": "abs(z)"
+    }
+  ],
+  "prompt": "複素数 $z = {z}$ の絶対値 $|z|$ を求めなさい。",
+  "answer": "$|z| = {r}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({r})^{2}",
+      "right": "({a})^{2} + ({b})^{2}"
+    },
+    {
+      "kind": "identity",
+      "left": "|{z}|",
+      "right": "{r}"
+    }
+  ]
+}

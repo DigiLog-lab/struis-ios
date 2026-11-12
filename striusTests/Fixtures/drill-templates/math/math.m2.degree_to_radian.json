@@ -1,0 +1,101 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.degree_to_radian",
+  "title": "度数法と弧度法の変換",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "deg",
+      "kind": "choice",
+      "options": [
+        15,
+        30,
+        45,
+        60,
+        75,
+        90,
+        105,
+        120,
+        135,
+        150,
+        180,
+        210,
+        225,
+        240,
+        270,
+        300,
+        315,
+        330,
+        360,
+        -30,
+        -45,
+        -60,
+        -90,
+        -120,
+        -180
+      ]
+    },
+    {
+      "name": "dir",
+      "kind": "choice",
+      "options": [
+        {
+          "t": 1
+        },
+        {
+          "t": 2
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "rad",
+      "expr": "deg/180"
+    }
+  ],
+  "parts": [
+    {
+      "name": "q",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "dir.t == 1",
+          "tex": "{deg}^{\\circ}"
+        }
+      ],
+      "otherwise": "{rad|pi}"
+    },
+    {
+      "name": "ans",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "dir.t == 1",
+          "tex": "{rad|pi}"
+        }
+      ],
+      "otherwise": "{deg}^{\\circ}"
+    },
+    {
+      "name": "unit",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "dir.t == 1",
+          "tex": "弧度法"
+        }
+      ],
+      "otherwise": "度数法"
+    }
+  ],
+  "prompt": "${q}$ を{unit}で表しなさい。",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{deg}^{\\circ}",
+      "right": "{rad|pi}"
+    }
+  ]
+}

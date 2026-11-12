@@ -61,6 +61,10 @@ final class DrillFormatTests: XCTestCase {
         XCTAssertEqual(try S.tex("2 + 3*i"), "2+3i")
         XCTAssertEqual(try S.tex("-i"), "-i")
         XCTAssertEqual(try S.tex("(1 - csqrt(-3))/2"), "\\frac{1}{2}-\\frac{\\sqrt{3}}{2}i")
+        // 実部・虚部がそれぞれ 2 項になる複素数。実部の符号は項ごとに付ける(-√2-√6 を -√2+√6 と書かない)。
+        XCTAssertEqual(try S.tex("(-2 - 2*sqrt(3)*i) * (sqrt(2)/2 - sqrt(2)/2*i)"), "-\\sqrt{2}-\\sqrt{6}+(\\sqrt{2}-\\sqrt{6})i")
+        XCTAssertEqual(try S.tex("(sind(15) + i*sind(75)) * -1"), "\\frac{\\sqrt{2}-\\sqrt{6}}{4}-\\frac{\\sqrt{2}+\\sqrt{6}}{4}i")
+        XCTAssertEqual(try S.tex("-sqrt(2) - sqrt(6) - (sqrt(2) + sqrt(3))*i"), "-\\sqrt{2}-\\sqrt{6}-(\\sqrt{2}+\\sqrt{3})i")
     }
 
     func testSignModes() throws {

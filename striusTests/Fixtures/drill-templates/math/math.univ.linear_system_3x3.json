@@ -1,0 +1,187 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.linear_system_3x3",
+  "title": "連立一次方程式(3 元、掃き出し法)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -2,
+      "max": 2
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -2,
+      "max": 2
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -2,
+      "max": 2
+    },
+    {
+      "name": "g",
+      "kind": "integer",
+      "min": -2,
+      "max": 2
+    },
+    {
+      "name": "h",
+      "kind": "integer",
+      "min": -2,
+      "max": 2
+    },
+    {
+      "name": "j",
+      "kind": "integer",
+      "min": -2,
+      "max": 2
+    },
+    {
+      "name": "x0",
+      "kind": "integer",
+      "min": -3,
+      "max": 3
+    },
+    {
+      "name": "y0",
+      "kind": "integer",
+      "min": -3,
+      "max": 3
+    },
+    {
+      "name": "z0",
+      "kind": "integer",
+      "min": -3,
+      "max": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "a2",
+      "expr": "d"
+    },
+    {
+      "name": "b2",
+      "expr": "1 + d*b"
+    },
+    {
+      "name": "c2",
+      "expr": "g + d*c"
+    },
+    {
+      "name": "a3",
+      "expr": "h"
+    },
+    {
+      "name": "b3",
+      "expr": "j + h*b"
+    },
+    {
+      "name": "c3",
+      "expr": "1 + j*g + h*c"
+    },
+    {
+      "name": "r1",
+      "expr": "x0 + b*y0 + c*z0"
+    },
+    {
+      "name": "r2",
+      "expr": "a2*x0 + b2*y0 + c2*z0"
+    },
+    {
+      "name": "r3",
+      "expr": "a3*x0 + b3*y0 + c3*z0"
+    }
+  ],
+  "constraints": [
+    "a2 != 0 or b2 != 0 or c2 != 0",
+    "a3 != 0 or b3 != 0 or c3 != 0"
+  ],
+  "parts": [
+    {
+      "name": "l1",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "b",
+          "body": "y"
+        },
+        {
+          "coef": "c",
+          "body": "z"
+        }
+      ]
+    },
+    {
+      "name": "l2",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a2",
+          "body": "x"
+        },
+        {
+          "coef": "b2",
+          "body": "y"
+        },
+        {
+          "coef": "c2",
+          "body": "z"
+        }
+      ]
+    },
+    {
+      "name": "l3",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a3",
+          "body": "x"
+        },
+        {
+          "coef": "b3",
+          "body": "y"
+        },
+        {
+          "coef": "c3",
+          "body": "z"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の連立一次方程式を解きなさい。",
+  "math": "\\begin{cases} {l1} = {r1} \\\\ {l2} = {r2} \\\\ {l3} = {r3} \\end{cases}",
+  "answer": "$x = {x0},\\ y = {y0},\\ z = {z0}$",
+  "checks": [
+    {
+      "kind": "system",
+      "equations": [
+        {
+          "left": "{l1}",
+          "right": "{r1}"
+        },
+        {
+          "left": "{l2}",
+          "right": "{r2}"
+        },
+        {
+          "left": "{l3}",
+          "right": "{r3}"
+        }
+      ],
+      "values": {
+        "x": "{x0}",
+        "y": "{y0}",
+        "z": "{z0}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.linear_diophantine",
+  "title": "一次不定方程式の整数解",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 2,
+      "max": 9
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 2,
+      "max": 9
+    },
+    {
+      "name": "x0",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "y0",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "a*x0 + b*y0"
+    }
+  ],
+  "constraints": [
+    "gcd(a, b) == 1",
+    "a != b"
+  ],
+  "parts": [
+    {
+      "name": "lhs",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x"
+        },
+        {
+          "coef": "b",
+          "body": "y"
+        }
+      ]
+    },
+    {
+      "name": "xs",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "b",
+          "body": "k"
+        },
+        {
+          "coef": "x0"
+        }
+      ]
+    },
+    {
+      "name": "ys",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "-a",
+          "body": "k"
+        },
+        {
+          "coef": "y0"
+        }
+      ]
+    }
+  ],
+  "prompt": "方程式 ${lhs} = {c}$ の整数解をすべて求めなさい。",
+  "answer": "$x = {xs},\\ y = {ys}$($k$ は整数)",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{a}({xs}) + {b}({ys})",
+      "right": "{c}",
+      "over": [
+        "k"
+      ]
+    }
+  ]
+}

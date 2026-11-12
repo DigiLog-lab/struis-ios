@@ -1,0 +1,74 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.vieta",
+  "title": "解と係数の関係",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "s",
+      "expr": "-b/a"
+    },
+    {
+      "name": "p",
+      "expr": "c/a"
+    },
+    {
+      "name": "sq",
+      "expr": "s^2 - 2*p"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "b",
+          "body": "x"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    }
+  ],
+  "prompt": "二次方程式 ${f} = 0$ の 2 つの解を $\\alpha$、$\\beta$ とするとき、$\\alpha + \\beta$、$\\alpha\\beta$、$\\alpha^{2} + \\beta^{2}$ の値を求めなさい。",
+  "answer": "$\\alpha + \\beta = {s}$、$\\alpha\\beta = {p}$、$\\alpha^{2} + \\beta^{2} = {sq}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{f}",
+      "right": "{a}(x^{2} - ({s})x + ({p}))"
+    }
+  ]
+}

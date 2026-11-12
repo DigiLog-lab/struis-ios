@@ -1,0 +1,75 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.divisor_count",
+  "title": "正の約数の個数",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "e2",
+      "kind": "integer",
+      "min": 0,
+      "max": 4
+    },
+    {
+      "name": "e3",
+      "kind": "integer",
+      "min": 0,
+      "max": 3
+    },
+    {
+      "name": "e5",
+      "kind": "integer",
+      "min": 0,
+      "max": 2
+    }
+  ],
+  "lets": [
+    {
+      "name": "n",
+      "expr": "2^e2 * 3^e3 * 5^e5"
+    },
+    {
+      "name": "ans",
+      "expr": "(e2 + 1)*(e3 + 1)*(e5 + 1)"
+    }
+  ],
+  "constraints": [
+    "e2 + e3 + e5 >= 2"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "product",
+      "powers": [
+        {
+          "base": "2",
+          "exp": "e2"
+        },
+        {
+          "base": "3",
+          "exp": "e3"
+        },
+        {
+          "base": "5",
+          "exp": "e5"
+        }
+      ],
+      "separator": " \\times "
+    }
+  ],
+  "prompt": "${n}$ の正の約数の個数を求めなさい。",
+  "answer": "${n} = {f}$ より、${ans}$ 個",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{f}",
+      "equals": "n"
+    },
+    {
+      "kind": "assert",
+      "conditions": [
+        "ans == divisors(n)"
+      ]
+    }
+  ]
+}

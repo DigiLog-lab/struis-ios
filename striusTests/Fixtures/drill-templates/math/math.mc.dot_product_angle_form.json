@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "skill_id": "math.mc.dot_product_angle_form",
+  "title": "内積(大きさとなす角)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "la",
+      "kind": "integer",
+      "min": 1,
+      "max": 9
+    },
+    {
+      "name": "lb",
+      "kind": "integer",
+      "min": 1,
+      "max": 9
+    },
+    {
+      "name": "deg",
+      "kind": "choice",
+      "options": [
+        30,
+        45,
+        60,
+        90,
+        120,
+        135,
+        150
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "dot",
+      "expr": "la*lb*cosd(deg)"
+    }
+  ],
+  "prompt": "$|\\vec{a}| = {la}$、$|\\vec{b}| = {lb}$ で、$\\vec{a}$ と $\\vec{b}$ のなす角が ${deg}^{\\circ}$ のとき、内積 $\\vec{a} \\cdot \\vec{b}$ を求めなさい。",
+  "answer": "$\\vec{a} \\cdot \\vec{b} = {dot}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{dot}",
+      "right": "{la} \\cdot {lb} \\cos {deg}^{\\circ}"
+    }
+  ]
+}

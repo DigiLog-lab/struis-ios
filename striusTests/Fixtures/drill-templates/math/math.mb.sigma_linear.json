@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "skill_id": "math.mb.sigma_linear",
+  "title": "Σ の計算(一次式)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "n0",
+      "kind": "integer",
+      "min": 5,
+      "max": 30
+    }
+  ],
+  "lets": [
+    {
+      "name": "sum",
+      "expr": "a*n0*(n0 + 1)/2 + b*n0"
+    }
+  ],
+  "parts": [
+    {
+      "name": "t",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "k"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の和を求めなさい。",
+  "math": "\\sum_{k=1}^{{n0}} ({t})",
+  "answer": "${sum}$",
+  "checks": [
+    {
+      "kind": "series",
+      "term": "{t}",
+      "index": "k",
+      "from": "1",
+      "to": "n0",
+      "answer": "{sum}"
+    }
+  ]
+}

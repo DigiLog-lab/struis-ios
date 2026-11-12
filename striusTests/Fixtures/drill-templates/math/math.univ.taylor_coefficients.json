@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.taylor_coefficients",
+  "title": "マクローリン展開の係数(e^{ax})",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -4,
+      "max": 4,
+      "exclude": [
+        0,
+        1
+      ]
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 2,
+      "max": 5
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "a^n/factorial(n)"
+    }
+  ],
+  "prompt": "$f(x) = e^{{a|coef}x}$ のマクローリン展開における $x^{{n}}$ の係数を求めなさい。",
+  "answer": "${c}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "c * factorial(n) == a^n"
+      ]
+    },
+    {
+      "kind": "limit",
+      "function": "\\frac{e^{{a}x} - 1 - {a}x}{x^{2}}",
+      "variable": "x",
+      "to": "0",
+      "answer": "\\frac{({a})^{2}}{2}"
+    }
+  ]
+}

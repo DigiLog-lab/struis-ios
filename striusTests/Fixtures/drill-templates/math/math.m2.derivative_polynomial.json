@@ -1,0 +1,89 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.derivative_polynomial",
+  "title": "多項式の導関数",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -4,
+      "max": 4,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    }
+  ],
+  "constraints": [
+    "b != 0 or c != 0"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{3}"
+        },
+        {
+          "coef": "b",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "c",
+          "body": "x"
+        },
+        {
+          "coef": "d"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "3*a",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "2*b",
+          "body": "x"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の関数を微分しなさい。",
+  "math": "y = {f}",
+  "answer": "$y' = {g}$",
+  "checks": [
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "answer": "{g}",
+      "variable": "x"
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "format": 1,
+  "skill_id": "math.mb.arithmetic_general_term",
+  "title": "等差数列の一般項",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a1",
+      "kind": "integer",
+      "min": -12,
+      "max": 12
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "n0",
+      "kind": "integer",
+      "min": 8,
+      "max": 30
+    }
+  ],
+  "lets": [
+    {
+      "name": "an",
+      "expr": "a1 + (n0 - 1)*d"
+    }
+  ],
+  "parts": [
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "d",
+          "body": "n"
+        },
+        {
+          "coef": "a1 - d"
+        }
+      ]
+    }
+  ],
+  "prompt": "初項 ${a1}$、公差 ${d}$ の等差数列 $\\{a_{n}\\}$ の一般項と、第 ${n0}$ 項を求めなさい。",
+  "answer": "$a_{n} = {g}$、$a_{{n0}} = {an}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{g}",
+      "at": {
+        "n": "1"
+      },
+      "equals": "a1"
+    },
+    {
+      "kind": "value",
+      "tex": "{g}",
+      "at": {
+        "n": "n0"
+      },
+      "equals": "an"
+    },
+    {
+      "kind": "identity",
+      "left": "({g}) + {d|paren}",
+      "right": "{d|paren}(n + 1) + {a1|paren} - {d|paren}",
+      "over": [
+        "n"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.fourier_square_wave",
+  "title": "フーリエ係数 b_n(矩形波)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "h",
+      "kind": "integer",
+      "min": 1,
+      "max": 9
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 1,
+      "max": 12
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "2*h*(1 - (-1)^n)/n"
+    }
+  ],
+  "prompt": "$f(x) = -{h}$($-\\pi < x < 0$)、$f(x) = {h}$($0 < x < \\pi$)で定められる関数のフーリエ係数 $b_{{n}} = \\frac{1}{\\pi}\\int_{-\\pi}^{\\pi} f(x)\\sin {n|coef}x\\,dx$ を求めなさい。",
+  "answer": "$b_{{n}} = {c|overpi}$",
+  "checks": [
+    {
+      "kind": "definite_integral",
+      "integrand": "\\frac{2}{\\pi} \\cdot {h}\\sin {n}x",
+      "variable": "x",
+      "from": "0",
+      "to": "pi",
+      "answer": "{c|overpi}"
+    }
+  ]
+}

@@ -84,7 +84,7 @@ nonisolated enum DrillFunctions {
         "floor": 1...1, "ceil": 1...1, "round": 1...2, "sig": 2...2,
         "gcd": 2...8, "lcm": 2...8, "mod": 2...2, "quot": 2...2, "factorial": 1...1, "comb": 2...2, "perm": 2...2,
         "num": 1...1, "den": 1...1, "sign": 1...1, "min": 2...12, "max": 2...12, "median": 1...12, "nth": 2...13, "mean": 1...12,
-        "is_integer": 1...1, "is_square": 1...1, "is_prime": 1...1, "to_base": 2...2,
+        "is_integer": 1...1, "is_square": 1...1, "is_prime": 1...1, "to_base": 2...2, "divisors": 1...1,
         "if": 3...3, "approx": 2...3, "q": 2...2, "value": 2...2, "re": 1...1, "im": 1...1, "conj": 1...1, "pow": 2...2,
     ]
 
@@ -323,6 +323,17 @@ nonisolated enum DrillFunctions {
         case "is_prime":
             guard let value: Int = first.number.integer else { return DrillValue.bool(false) }
             return DrillValue.bool(DrillArithmetic.isPrime(value))
+        case "divisors":
+            // 正の約数の個数。
+            let n: Int = try integer()
+            guard n >= 1, n <= 10_000_000 else { throw EvaluationError.undefined("divisors は 1 以上 1000 万以下の整数にしてください") }
+            var count: Int = 0
+            var divisor: Int = 1
+            while divisor * divisor <= n {
+                if n % divisor == 0 { count += divisor * divisor == n ? 1 : 2 }
+                divisor += 1
+            }
+            return DrillValue.integer(count)
         case "to_base":
             // n を b 進法で書いた時の数字の並びを、10 進の整数として返す(to_base(5, 2) = 101)。
             var n: Int = try integer(0)

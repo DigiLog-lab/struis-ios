@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.probability_complement",
+  "title": "余事象の確率(少なくとも 1 つ)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 2,
+      "max": 6
+    },
+    {
+      "name": "w",
+      "kind": "integer",
+      "min": 2,
+      "max": 6
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 2,
+      "max": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "p",
+      "expr": "1 - comb(w, k)/comb(r + w, k)"
+    }
+  ],
+  "constraints": [
+    "k <= w"
+  ],
+  "prompt": "赤玉 ${r}$ 個と白玉 ${w}$ 個が入った袋から、同時に ${k}$ 個の玉を取り出すとき、少なくとも 1 個が赤玉である確率を求めなさい。",
+  "answer": "${p}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "k != 2 or p == 1 - (w/(r+w))*((w-1)/(r+w-1))",
+        "k != 3 or p == 1 - (w/(r+w))*((w-1)/(r+w-1))*((w-2)/(r+w-2))"
+      ]
+    }
+  ]
+}

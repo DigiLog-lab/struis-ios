@@ -1,0 +1,83 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.trig_composition",
+  "title": "三角関数の合成",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "alpha",
+      "kind": "choice",
+      "options": [
+        30,
+        45,
+        60,
+        120,
+        135,
+        150,
+        -30,
+        -45,
+        -60
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "a",
+      "expr": "r*cosd(alpha)"
+    },
+    {
+      "name": "b",
+      "expr": "r*sind(alpha)"
+    },
+    {
+      "name": "arad",
+      "expr": "alpha/180"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "\\sin\\theta"
+        },
+        {
+          "coef": "b",
+          "body": "\\cos\\theta"
+        }
+      ]
+    },
+    {
+      "name": "shift",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "alpha > 0",
+          "tex": "\\theta + {arad|pi}"
+        }
+      ],
+      "otherwise": "\\theta - {arad|abs|pi}"
+    }
+  ],
+  "prompt": "次の式を $r\\sin(\\theta + \\alpha)$ の形に変形しなさい。ただし、$r > 0$、$-\\pi < \\alpha \\le \\pi$ とする。",
+  "math": "{f}",
+  "answer": "${r|coef}\\sin\\left({shift}\\right)$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{f}",
+      "right": "{r}\\sin({shift})",
+      "over": [
+        "theta"
+      ]
+    }
+  ]
+}

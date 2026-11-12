@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.line_through_point_slope",
+  "title": "点と傾きから直線の方程式を求める",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "x1",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "y1",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": -5,
+      "max": 5,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "m",
+          "body": "x"
+        },
+        {
+          "coef": "y1 - m*x1"
+        }
+      ]
+    }
+  ],
+  "prompt": "点 $({x1},\\ {y1})$ を通り、傾きが ${m}$ の直線の方程式を求めなさい。",
+  "answer": "$y = {f}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{f}",
+      "at": {
+        "x": "x1"
+      },
+      "equals": "y1"
+    },
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "variable": "x",
+      "point": "1",
+      "answer": "{m}"
+    }
+  ]
+}

@@ -125,13 +125,13 @@ nonisolated enum DrillFormat {
         return fraction(top, size.denominator) + (radicand < 0 ? "i" : "")
     }
 
-    /// 分母をそろえた和(\frac{1+\sqrt{5}}{2})。
-    private static func compoundText(_ terms: [(radicand: Int, coefficient: DrillRational)]) -> (negative: Bool, text: String) {
+    /// 分母をそろえた和(\frac{1+\sqrt{5}}{2})。全部の項が負の時は符号を外に出す(`factorsSign` が偽なら、分数になる時だけ外に出す)。
+    private static func compoundText(_ terms: [(radicand: Int, coefficient: DrillRational)], factorsSign: Bool = true) -> (negative: Bool, text: String) {
         var common: Int = 1
         for term: (radicand: Int, coefficient: DrillRational) in terms {
             common = common / DrillRational.gcd(common, term.coefficient.denominator) * term.coefficient.denominator
         }
-        let allNegative: Bool = terms.allSatisfy { (term: (radicand: Int, coefficient: DrillRational)) -> Bool in term.coefficient.isNegative }
+        let allNegative: Bool = (factorsSign || common > 1) && terms.allSatisfy { (term: (radicand: Int, coefficient: DrillRational)) -> Bool in term.coefficient.isNegative }
         var top: String = ""
         for (index, term): (Int, (radicand: Int, coefficient: DrillRational)) in terms.enumerated() {
             let scaled: Int = abs(term.coefficient.numerator) * (common / term.coefficient.denominator)
@@ -159,8 +159,10 @@ nonisolated enum DrillFormat {
             func piece(_ group: [(radicand: Int, coefficient: DrillRational)], imaginary: Bool) -> (negative: Bool, text: String) {
                 if group.count == 1 { return (group[0].coefficient.isNegative, termText(coefficient: group[0].coefficient, radicand: group[0].radicand)) }
                 let asReal: [(radicand: Int, coefficient: DrillRational)] = group.map { (term: (radicand: Int, coefficient: DrillRational)) -> (radicand: Int, coefficient: DrillRational) in (abs(term.radicand), term.coefficient) }
-                let joined: (negative: Bool, text: String) = compoundText(asReal)
-                return (joined.negative, imaginary ? "(\(joined.text))i" : joined.text)
+                // 実部は符号を外に出さずに並べる(-√2-√6)。虚部はかっこで囲むので外に出してよい(-(√2+√6)i)。
+                let joined: (negative: Bool, text: String) = compoundText(asReal, factorsSign: imaginary)
+                if !imaginary || joined.text.hasPrefix("\\frac") { return (joined.negative, imaginary ? joined.text + "i" : joined.text) }
+                return (joined.negative, "(\(joined.text))i")
             }
             var text: String = ""
             if !realTerms.isEmpty {

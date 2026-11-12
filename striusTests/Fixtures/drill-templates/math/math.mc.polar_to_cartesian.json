@@ -1,0 +1,68 @@
+{
+  "format": 1,
+  "skill_id": "math.mc.polar_to_cartesian",
+  "title": "極座標を直交座標に直す",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 1,
+      "max": 8
+    },
+    {
+      "name": "deg",
+      "kind": "choice",
+      "options": [
+        30,
+        45,
+        60,
+        90,
+        120,
+        135,
+        150,
+        180,
+        210,
+        225,
+        240,
+        270,
+        300,
+        315,
+        330
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "x0",
+      "expr": "r*cosd(deg)"
+    },
+    {
+      "name": "y0",
+      "expr": "r*sind(deg)"
+    },
+    {
+      "name": "rad",
+      "expr": "deg/180"
+    }
+  ],
+  "prompt": "極座標が $\\left({r},\\ {rad|pi}\\right)$ である点の直交座標を求めなさい。",
+  "answer": "$\\left({x0},\\ {y0}\\right)$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({x0})^{2} + ({y0})^{2}",
+      "right": "{r}^{2}"
+    },
+    {
+      "kind": "identity",
+      "left": "{x0}",
+      "right": "{r}\\cos ({rad|pi})"
+    },
+    {
+      "kind": "identity",
+      "left": "{y0}",
+      "right": "{r}\\sin ({rad|pi})"
+    }
+  ]
+}

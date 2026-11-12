@@ -1,0 +1,84 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.internal_division_point",
+  "title": "内分点・外分点の座標",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "x1",
+      "kind": "integer",
+      "min": -8,
+      "max": 8
+    },
+    {
+      "name": "y1",
+      "kind": "integer",
+      "min": -8,
+      "max": 8
+    },
+    {
+      "name": "x2",
+      "kind": "integer",
+      "min": -8,
+      "max": 8
+    },
+    {
+      "name": "y2",
+      "kind": "integer",
+      "min": -8,
+      "max": 8
+    },
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "kind",
+      "kind": "choice",
+      "options": [
+        {
+          "text": "内分",
+          "s": 1
+        },
+        {
+          "text": "外分",
+          "s": -1
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "px",
+      "expr": "(kind.s*n*x1 + m*x2)/(m + kind.s*n)"
+    },
+    {
+      "name": "py",
+      "expr": "(kind.s*n*y1 + m*y2)/(m + kind.s*n)"
+    }
+  ],
+  "constraints": [
+    "x1 != x2 or y1 != y2",
+    "m != n",
+    "gcd(m, n) == 1"
+  ],
+  "prompt": "2 点 $\\mathrm{A}({x1},\\ {y1})$、$\\mathrm{B}({x2},\\ {y2})$ を結ぶ線分 $\\mathrm{AB}$ を ${m} : {n}$ に{kind.text}する点の座標を求めなさい。",
+  "answer": "$({px},\\ {py})$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "n*(px - x1) == kind.s*m*(x2 - px)",
+        "n*(py - y1) == kind.s*m*(y2 - py)"
+      ]
+    }
+  ]
+}

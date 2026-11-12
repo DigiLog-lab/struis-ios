@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.circular_permutation",
+  "title": "円順列",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": 3,
+      "max": 10
+    },
+    {
+      "name": "kind",
+      "kind": "choice",
+      "options": [
+        {
+          "text": "人が円形のテーブルのまわりに座る"
+        },
+        {
+          "text": "個の異なる玉を円形に並べる"
+        },
+        {
+          "text": "人が手をつないで輪を作る"
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "factorial(m - 1)"
+    }
+  ],
+  "prompt": "${m}$ {kind.text}方法は何通りあるか。",
+  "answer": "${ans}$ 通り",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "ans * m == factorial(m)"
+      ]
+    }
+  ]
+}

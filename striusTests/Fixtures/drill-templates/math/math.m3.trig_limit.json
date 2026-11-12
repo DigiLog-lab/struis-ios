@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.trig_limit",
+  "title": "三角関数の極限(sin x / x の利用)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 9
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 1,
+      "max": 9
+    },
+    {
+      "name": "form",
+      "kind": "choice",
+      "options": [
+        1,
+        2
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "a/b"
+    }
+  ],
+  "constraints": [
+    "a != b"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "form == 1",
+          "tex": "\\frac{\\sin {a|coef}x}{{b|coef}x}"
+        }
+      ],
+      "otherwise": "\\frac{\\sin {a|coef}x}{\\sin {b|coef}x}"
+    }
+  ],
+  "prompt": "次の極限を求めなさい。",
+  "math": "\\lim_{x \\to 0} {f}",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "limit",
+      "function": "{f}",
+      "variable": "x",
+      "to": "0",
+      "answer": "{ans}"
+    }
+  ]
+}

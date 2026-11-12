@@ -1,0 +1,107 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.ode_second_order_real",
+  "title": "2 階定数係数同次形(異なる 2 つの実数解)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "r1",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "r2",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    }
+  ],
+  "constraints": [
+    "r1 < r2"
+  ],
+  "parts": [
+    {
+      "name": "lhs",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "y''"
+        },
+        {
+          "coef": "-(r1 + r2)",
+          "body": "y'"
+        },
+        {
+          "coef": "r1*r2",
+          "body": "y"
+        }
+      ]
+    },
+    {
+      "name": "ch",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "\\lambda^{2}"
+        },
+        {
+          "coef": "-(r1 + r2)",
+          "body": "\\lambda"
+        },
+        {
+          "coef": "r1*r2"
+        }
+      ]
+    },
+    {
+      "name": "t1",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "r1 == 0",
+          "tex": "C_{1}"
+        }
+      ],
+      "otherwise": "C_{1}e^{{r1|coef}x}"
+    },
+    {
+      "name": "t2",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "r2 == 0",
+          "tex": "C_{2}"
+        }
+      ],
+      "otherwise": "C_{2}e^{{r2|coef}x}"
+    }
+  ],
+  "prompt": "次の微分方程式の一般解を求めなさい。",
+  "math": "{lhs} = 0",
+  "answer": "$y = {t1} + {t2}$($C_{1}$、$C_{2}$ は任意定数)",
+  "checks": [
+    {
+      "kind": "ode",
+      "function": "{t1} + {t2}",
+      "variable": "x",
+      "left": "{lhs}",
+      "right": "0",
+      "range": [
+        -0.5,
+        0.5
+      ]
+    },
+    {
+      "kind": "root",
+      "left": "{ch}",
+      "variable": "lambda",
+      "solutions": [
+        "{r1}",
+        "{r2}"
+      ]
+    }
+  ]
+}

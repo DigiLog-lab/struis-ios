@@ -1,0 +1,116 @@
+{
+  "format": 1,
+  "skill_id": "math.mc.polar_product_quotient",
+  "title": "極形式の積と商",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "r1",
+      "kind": "integer",
+      "min": 2,
+      "max": 8
+    },
+    {
+      "name": "r2",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    },
+    {
+      "name": "d1",
+      "kind": "choice",
+      "options": [
+        60,
+        90,
+        120,
+        150,
+        180,
+        210,
+        240
+      ]
+    },
+    {
+      "name": "d2",
+      "kind": "choice",
+      "options": [
+        30,
+        45,
+        60,
+        90
+      ]
+    },
+    {
+      "name": "op",
+      "kind": "choice",
+      "options": [
+        {
+          "t": 1
+        },
+        {
+          "t": 2
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "r",
+      "expr": "if(op.t == 1, r1*r2, r1/r2)"
+    },
+    {
+      "name": "deg",
+      "expr": "if(op.t == 1, d1 + d2, d1 - d2)"
+    },
+    {
+      "name": "t1",
+      "expr": "d1/180"
+    },
+    {
+      "name": "t2",
+      "expr": "d2/180"
+    },
+    {
+      "name": "rad",
+      "expr": "deg/180"
+    },
+    {
+      "name": "z1",
+      "expr": "r1*(cosd(d1) + i*sind(d1))"
+    },
+    {
+      "name": "z2",
+      "expr": "r2*(cosd(d2) + i*sind(d2))"
+    },
+    {
+      "name": "w",
+      "expr": "if(op.t == 1, z1*z2, z1/z2)"
+    }
+  ],
+  "constraints": [
+    "deg > 0",
+    "deg < 360",
+    "r != 1"
+  ],
+  "parts": [
+    {
+      "name": "expr",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "op.t == 1",
+          "tex": "z_{1}z_{2}"
+        }
+      ],
+      "otherwise": "\\frac{z_{1}}{z_{2}}"
+    }
+  ],
+  "prompt": "$z_{1} = {r1}\\left(\\cos {t1|pi} + i\\sin {t1|pi}\\right)$、$z_{2} = {r2|coef}\\left(\\cos {t2|pi} + i\\sin {t2|pi}\\right)$ のとき、${expr}$ を極形式で表しなさい。",
+  "answer": "${expr} = {r}\\left(\\cos {rad|pi} + i\\sin {rad|pi}\\right)$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{r}(\\cos ({rad|pi}) + i\\sin ({rad|pi}))",
+      "right": "{w}"
+    }
+  ]
+}

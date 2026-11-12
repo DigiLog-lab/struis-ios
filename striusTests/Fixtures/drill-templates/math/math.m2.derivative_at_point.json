@@ -1,0 +1,75 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.derivative_at_point",
+  "title": "微分係数",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -3,
+      "max": 3,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    }
+  ],
+  "lets": [
+    {
+      "name": "slope",
+      "expr": "3*a*p^2 + 2*b*p + c"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{3}"
+        },
+        {
+          "coef": "b",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "c",
+          "body": "x"
+        },
+        {
+          "coef": "0"
+        }
+      ]
+    }
+  ],
+  "prompt": "関数 $f(x) = {f}$ について、微分係数 $f'({p})$ を求めなさい。",
+  "answer": "$f'({p}) = {slope}$",
+  "checks": [
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "variable": "x",
+      "point": "p",
+      "answer": "{slope}"
+    }
+  ]
+}

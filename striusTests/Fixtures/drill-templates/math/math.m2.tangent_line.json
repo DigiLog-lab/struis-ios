@@ -1,0 +1,108 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.tangent_line",
+  "title": "接線の方程式",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -3,
+      "max": 3,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -3,
+      "max": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "y0",
+      "expr": "a*p^2 + b*p + c"
+    },
+    {
+      "name": "m",
+      "expr": "2*a*p + b"
+    },
+    {
+      "name": "k",
+      "expr": "y0 - m*p"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "b",
+          "body": "x"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    },
+    {
+      "name": "t",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "m",
+          "body": "x"
+        },
+        {
+          "coef": "k"
+        }
+      ]
+    }
+  ],
+  "prompt": "曲線 $y = {f}$ 上の点 $({p},\\ {y0})$ における接線の方程式を求めなさい。",
+  "answer": "$y = {t}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{t}",
+      "at": {
+        "x": "p"
+      },
+      "equals": "y0"
+    },
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "variable": "x",
+      "point": "p",
+      "answer": "{m}"
+    },
+    {
+      "kind": "value",
+      "tex": "{f}",
+      "at": {
+        "x": "p"
+      },
+      "equals": "y0"
+    }
+  ]
+}

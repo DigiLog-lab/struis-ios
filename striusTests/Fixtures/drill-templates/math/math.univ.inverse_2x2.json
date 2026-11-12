@@ -1,0 +1,71 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.inverse_2x2",
+  "title": "逆行列(2 × 2)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "det",
+      "expr": "a*d - b*c"
+    },
+    {
+      "name": "i11",
+      "expr": "d/det"
+    },
+    {
+      "name": "i12",
+      "expr": "-b/det"
+    },
+    {
+      "name": "i21",
+      "expr": "-c/det"
+    },
+    {
+      "name": "i22",
+      "expr": "a/det"
+    }
+  ],
+  "constraints": [
+    "det != 0"
+  ],
+  "prompt": "次の行列の逆行列を求めなさい。",
+  "math": "A = \\begin{pmatrix} {a} & {b} \\\\ {c} & {d} \\end{pmatrix}",
+  "answer": "$A^{-1} = \\begin{pmatrix} {i11} & {i12} \\\\ {i21} & {i22} \\end{pmatrix}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "a*i11 + b*i21 == 1",
+        "a*i12 + b*i22 == 0",
+        "c*i11 + d*i21 == 0",
+        "c*i12 + d*i22 == 1"
+      ]
+    }
+  ]
+}

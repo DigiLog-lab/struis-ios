@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.combination_groups",
+  "title": "組合せ(男女から選ぶ)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "m",
+      "kind": "integer",
+      "min": 3,
+      "max": 8
+    },
+    {
+      "name": "w",
+      "kind": "integer",
+      "min": 3,
+      "max": 8
+    },
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "comb(m, a) * comb(w, b)"
+    }
+  ],
+  "constraints": [
+    "a < m",
+    "b < w"
+  ],
+  "prompt": "男子 ${m}$ 人、女子 ${w}$ 人の中から、男子 ${a}$ 人、女子 ${b}$ 人を選ぶ方法は何通りあるか。",
+  "answer": "${ans}$ 通り",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "ans == perm(m, a) * perm(w, b) / (factorial(a) * factorial(b))"
+      ]
+    }
+  ]
+}

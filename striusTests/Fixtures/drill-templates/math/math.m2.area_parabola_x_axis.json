@@ -1,0 +1,82 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.area_parabola_x_axis",
+  "title": "放物線と x 軸で囲まれた部分の面積",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "choice",
+      "options": [
+        1,
+        2,
+        3,
+        -1,
+        -2,
+        -3
+      ]
+    },
+    {
+      "name": "r1",
+      "kind": "integer",
+      "min": -5,
+      "max": 4
+    },
+    {
+      "name": "w",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    }
+  ],
+  "lets": [
+    {
+      "name": "r2",
+      "expr": "r1 + w"
+    },
+    {
+      "name": "area",
+      "expr": "abs(a)*w^3/6"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "-a*(r1 + r2)",
+          "body": "x"
+        },
+        {
+          "coef": "a*r1*r2"
+        }
+      ]
+    }
+  ],
+  "prompt": "放物線 $y = {f}$ と $x$ 軸で囲まれた部分の面積を求めなさい。",
+  "answer": "${area}$",
+  "checks": [
+    {
+      "kind": "definite_integral",
+      "integrand": "|{f}|",
+      "variable": "x",
+      "from": "r1",
+      "to": "r2",
+      "answer": "{area}"
+    },
+    {
+      "kind": "root",
+      "left": "{f}",
+      "variable": "x",
+      "solutions": [
+        "{r1}",
+        "{r2}"
+      ]
+    }
+  ]
+}

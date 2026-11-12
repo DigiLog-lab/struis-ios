@@ -1,0 +1,78 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.circle_center_radius",
+  "title": "円の方程式から中心と半径を求める",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "q",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 40
+    }
+  ],
+  "lets": [
+    {
+      "name": "c",
+      "expr": "p^2 + q^2 - k"
+    },
+    {
+      "name": "r",
+      "expr": "sqrt(k)"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "1",
+          "body": "y^{2}"
+        },
+        {
+          "coef": "-2*p",
+          "body": "x"
+        },
+        {
+          "coef": "-2*q",
+          "body": "y"
+        },
+        {
+          "coef": "c"
+        }
+      ]
+    }
+  ],
+  "prompt": "方程式 ${f} = 0$ が表す円の中心の座標と半径を求めなさい。",
+  "answer": "中心 $({p},\\ {q})$、半径 ${r}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "{f}",
+      "right": "(x - {p|paren})^{2} + (y - {q|paren})^{2} - ({r})^{2}"
+    }
+  ]
+}

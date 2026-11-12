@@ -1,0 +1,161 @@
+{
+  "format": 1,
+  "skill_id": "math.mc.vector_angle",
+  "title": "2 つのベクトルのなす角",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "pair",
+      "kind": "choice",
+      "options": [
+        {
+          "a1": 1,
+          "a2": 0,
+          "b1": 1,
+          "b2": 1
+        },
+        {
+          "a1": 1,
+          "a2": 2,
+          "b1": 3,
+          "b2": 1
+        },
+        {
+          "a1": 2,
+          "a2": 1,
+          "b1": 1,
+          "b2": 3
+        },
+        {
+          "a1": 1,
+          "a2": 1,
+          "b1": -1,
+          "b2": 1
+        },
+        {
+          "a1": 3,
+          "a2": 1,
+          "b1": -1,
+          "b2": 3
+        },
+        {
+          "a1": 2,
+          "a2": 0,
+          "b1": -1,
+          "b2": 1
+        },
+        {
+          "a1": 1,
+          "a2": 3,
+          "b1": -2,
+          "b2": -1
+        },
+        {
+          "a1": 1,
+          "a2": 2,
+          "b1": -3,
+          "b2": -1
+        },
+        {
+          "a1": 3,
+          "a2": -1,
+          "b1": 2,
+          "b2": 1
+        },
+        {
+          "a1": 1,
+          "a2": -1,
+          "b1": 0,
+          "b2": 1
+        },
+        {
+          "a1": 2,
+          "a2": 3,
+          "b1": 1,
+          "b2": 5
+        },
+        {
+          "a1": 4,
+          "a2": 1,
+          "b1": 3,
+          "b2": 5
+        },
+        {
+          "a1": 1,
+          "a2": 4,
+          "b1": -3,
+          "b2": 5
+        },
+        {
+          "a1": 5,
+          "a2": 2,
+          "b1": -2,
+          "b2": 5
+        },
+        {
+          "a1": 2,
+          "a2": 1,
+          "b1": -2,
+          "b2": 4
+        }
+      ]
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    },
+    {
+      "name": "sg",
+      "kind": "choice",
+      "options": [
+        1,
+        -1
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "a1",
+      "expr": "k*pair.a1"
+    },
+    {
+      "name": "a2",
+      "expr": "k*sg*pair.a2"
+    },
+    {
+      "name": "b1",
+      "expr": "pair.b1"
+    },
+    {
+      "name": "b2",
+      "expr": "sg*pair.b2"
+    },
+    {
+      "name": "cosv",
+      "expr": "(a1*b1 + a2*b2)/(sqrt(a1^2 + a2^2)*sqrt(b1^2 + b2^2))"
+    },
+    {
+      "name": "deg",
+      "expr": "acosd(cosv)"
+    }
+  ],
+  "constraints": [
+    "is_integer(deg)"
+  ],
+  "prompt": "$\\vec{a} = ({a1},\\ {a2})$、$\\vec{b} = ({b1},\\ {b2})$ のなす角 $\\theta$ を求めなさい。",
+  "answer": "$\\cos\\theta = {cosv}$ より、$\\theta = {deg}^{\\circ}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "\\cos {deg}^{\\circ}",
+      "right": "{cosv}"
+    },
+    {
+      "kind": "identity",
+      "left": "{cosv}",
+      "right": "\\frac{{a1|paren} \\cdot {b1|paren} + {a2|paren} \\cdot {b2|paren}}{\\sqrt{{a1|paren}^{2} + {a2|paren}^{2}} \\sqrt{{b1|paren}^{2} + {b2|paren}^{2}}}"
+    }
+  ]
+}

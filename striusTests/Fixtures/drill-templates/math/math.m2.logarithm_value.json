@@ -1,0 +1,75 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.logarithm_value",
+  "title": "対数の値",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "b",
+      "kind": "choice",
+      "options": [
+        2,
+        3,
+        4,
+        5,
+        8,
+        9,
+        10
+      ]
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": -3,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "root",
+      "kind": "choice",
+      "options": [
+        1,
+        2
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "pw",
+      "expr": "b^k"
+    },
+    {
+      "name": "ans",
+      "expr": "k/root"
+    }
+  ],
+  "constraints": [
+    "b^abs(k) <= 100000",
+    "root == 1 or (k > 0 and not is_square(pw))"
+  ],
+  "parts": [
+    {
+      "name": "argtex",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "root == 1",
+          "tex": "{pw}"
+        }
+      ],
+      "otherwise": "\\sqrt{{pw}}"
+    }
+  ],
+  "prompt": "次の値を求めなさい。",
+  "math": "\\log_{{b}} {argtex}",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "\\log_{{b}} {argtex}",
+      "right": "{ans}"
+    }
+  ]
+}

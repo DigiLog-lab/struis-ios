@@ -40,10 +40,12 @@ func check(_ arguments: [String]) -> Int32 {
             failed += 1
             continue
         }
+        let started: Date = Date()
         let result: (template: DrillTemplate?, inspection: DrillInspection) = validator.inspect(json: text)
         let inspection: DrillInspection = result.inspection
         let status: String = inspection.passed ? "PASS" : "FAIL"
-        print("\(status) \(file.lastPathComponent) 問題 \(inspection.distinct) 通り(\(inspection.exhaustive ? "総当たり" : "抽出") \(inspection.satisfying)/\(inspection.examined)) 数値点検\(inspection.numericallyChecked ? "あり" : "なし")")
+        let elapsed: String = String(format: "%.2f", Date().timeIntervalSince(started))
+        print("\(status) \(file.lastPathComponent) 問題 \(inspection.distinct) 通り(\(inspection.exhaustive ? "総当たり" : "抽出") \(inspection.satisfying)/\(inspection.examined)) 数値点検\(inspection.numericallyChecked ? "あり" : "なし") \(elapsed) 秒")
         if !inspection.passed {
             failed += 1
             print(inspection.feedback)

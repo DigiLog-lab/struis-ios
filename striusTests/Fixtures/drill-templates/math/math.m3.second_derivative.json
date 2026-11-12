@@ -1,0 +1,93 @@
+{
+  "format": 1,
+  "skill_id": "math.m3.second_derivative",
+  "title": "第 2 次導関数",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -4,
+      "max": 4,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -6,
+      "max": 6,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -6,
+      "max": 6
+    },
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 3,
+      "max": 5
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "powers": [
+            {
+              "base": "x",
+              "exp": "n"
+            }
+          ]
+        },
+        {
+          "coef": "b",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "c",
+          "body": "x"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a*n*(n - 1)",
+          "powers": [
+            {
+              "base": "x",
+              "exp": "n - 2"
+            }
+          ]
+        },
+        {
+          "coef": "2*b"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の関数の第 2 次導関数を求めなさい。",
+  "math": "y = {f}",
+  "answer": "$y'' = {g}$",
+  "checks": [
+    {
+      "kind": "derivative",
+      "function": "{f}",
+      "answer": "{g}",
+      "variable": "x",
+      "order": 2
+    }
+  ]
+}

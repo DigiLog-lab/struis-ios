@@ -1,0 +1,79 @@
+{
+  "format": 1,
+  "skill_id": "math.mb.sigma_general_n",
+  "title": "Σ の計算(n の式で表す)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -9,
+      "max": 9,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "name": "t",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "k"
+        },
+        {
+          "coef": "b"
+        }
+      ]
+    },
+    {
+      "name": "g",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a/2",
+          "body": "n^{2}"
+        },
+        {
+          "coef": "a/2 + b",
+          "body": "n"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の和を $n$ の式で表しなさい。",
+  "math": "\\sum_{k=1}^{n} ({t})",
+  "answer": "${g}$",
+  "checks": [
+    {
+      "kind": "series",
+      "term": "{t}",
+      "index": "k",
+      "from": "1",
+      "to": "12",
+      "answer": "{g}",
+      "at": {
+        "n": "12"
+      }
+    },
+    {
+      "kind": "series",
+      "term": "{t}",
+      "index": "k",
+      "from": "1",
+      "to": "7",
+      "answer": "{g}",
+      "at": {
+        "n": "7"
+      }
+    }
+  ]
+}

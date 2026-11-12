@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.euclidean_algorithm",
+  "title": "ユークリッドの互除法",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "g",
+      "kind": "integer",
+      "min": 3,
+      "max": 40
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": 5,
+      "max": 40
+    },
+    {
+      "name": "q",
+      "kind": "integer",
+      "min": 3,
+      "max": 30
+    }
+  ],
+  "lets": [
+    {
+      "name": "a",
+      "expr": "g*p"
+    },
+    {
+      "name": "b",
+      "expr": "g*q"
+    }
+  ],
+  "constraints": [
+    "p > q",
+    "gcd(p, q) == 1",
+    "mod(p, q) > 1"
+  ],
+  "prompt": "ユークリッドの互除法を用いて、${a}$ と ${b}$ の最大公約数を求めなさい。",
+  "answer": "${g}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "g == gcd(a, b)",
+        "mod(a, g) == 0 and mod(b, g) == 0"
+      ]
+    }
+  ]
+}

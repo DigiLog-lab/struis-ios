@@ -1,0 +1,95 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.remainder_theorem",
+  "title": "剰余の定理",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 3
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "c",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "d",
+      "kind": "integer",
+      "min": -9,
+      "max": 9
+    },
+    {
+      "name": "k",
+      "kind": "integer",
+      "min": -3,
+      "max": 3,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "r",
+      "expr": "a*k^3 + b*k^2 + c*k + d"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{3}"
+        },
+        {
+          "coef": "b",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "c",
+          "body": "x"
+        },
+        {
+          "coef": "d"
+        }
+      ]
+    },
+    {
+      "name": "div",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "x"
+        },
+        {
+          "coef": "-k"
+        }
+      ]
+    }
+  ],
+  "prompt": "多項式 $P(x) = {f}$ を ${div}$ で割った余りを求めなさい。",
+  "answer": "$P({k}) = {r}$",
+  "checks": [
+    {
+      "kind": "value",
+      "tex": "{f}",
+      "at": {
+        "x": "k"
+      },
+      "equals": "r"
+    }
+  ]
+}

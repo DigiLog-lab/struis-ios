@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.lhopital",
+  "title": "ロピタルの定理による極限",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 1,
+      "max": 6
+    },
+    {
+      "name": "form",
+      "kind": "choice",
+      "options": [
+        1,
+        2,
+        3
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "ans",
+      "expr": "if(form == 1, a/b, if(form == 2, a^2/(2*b), a - b))"
+    }
+  ],
+  "constraints": [
+    "a != b or form == 3"
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "form == 1",
+          "tex": "\\frac{e^{{a|coef}x} - 1}{\\sin {b|coef}x}"
+        },
+        {
+          "when": "form == 2",
+          "tex": "\\frac{1 - \\cos {a|coef}x}{{b|coef}x^{2}}"
+        }
+      ],
+      "otherwise": "\\frac{e^{{a|coef}x} - e^{{b|coef}x}}{x}"
+    }
+  ],
+  "prompt": "次の極限を求めなさい。",
+  "math": "\\lim_{x \\to 0} {f}",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "limit",
+      "function": "{f}",
+      "variable": "x",
+      "to": "0",
+      "answer": "{ans}"
+    }
+  ]
+}

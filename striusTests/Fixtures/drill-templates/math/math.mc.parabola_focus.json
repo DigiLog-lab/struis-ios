@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "skill_id": "math.mc.parabola_focus",
+  "title": "放物線の焦点と準線",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "p4",
+      "kind": "integer",
+      "min": -40,
+      "max": 40,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "p",
+      "expr": "p4/4"
+    },
+    {
+      "name": "mp",
+      "expr": "-p"
+    }
+  ],
+  "parts": [
+    {
+      "name": "rhs",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "p4",
+          "body": "x"
+        }
+      ]
+    }
+  ],
+  "prompt": "放物線 $y^{2} = {rhs}$ の焦点の座標と準線の方程式を求めなさい。",
+  "answer": "焦点 $({p},\\ 0)$、準線 $x = {mp}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "4*p == p4",
+        "mp == -p"
+      ]
+    }
+  ]
+}

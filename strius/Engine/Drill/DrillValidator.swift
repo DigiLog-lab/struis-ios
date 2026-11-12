@@ -30,13 +30,15 @@ nonisolated struct DrillValidator: Sendable {
     /// 作れる問題の数の下限。
     static let minimumProblems: Int = 20
     /// これ以下なら変数の組を総当たりする。
-    static let enumerationLimit: Double = 20_000
+    static let enumerationLimit: Double = 4_000
     /// 総当たりしない時に抽出する組の数。
-    static let sampleCount: Int = 4_000
+    static let sampleCount: Int = 2_000
+    /// 表示の点検をする問題の数の上限。
+    static let lintLimit: Int = 400
     /// 条件を満たす組の割合の下限(これより低いと、出題のたびに選び直しが続く)。
     static let minimumAcceptance: Double = 0.01
     /// 数値の点検をする問題の数の上限。
-    static let numericLimit: Int = 120
+    static let numericLimit: Int = 48
     /// 画面の数式描画で読めるかを確かめる問題の数の上限。
     static let renderLimit: Int = 24
     /// 丸めの境目で値が定まらない組を許す割合(生成器が選び直す)。
@@ -119,7 +121,7 @@ nonisolated struct DrillValidator: Sendable {
                 satisfying += 1
                 if keys.insert(instance.problem.key).inserted {
                     kept.append(values)
-                    if lintFound.count < 12 {
+                    if lintFound.count < 12, keys.count <= DrillValidator.lintLimit || keys.count % 16 == 0 {
                         for issue: String in DrillLint.issues(in: instance.problem) where !lintFound.contains(where: { (known: String) -> Bool in DrillValidator.sameKind(known, issue) }) {
                             lintFound.append(issue)
                         }

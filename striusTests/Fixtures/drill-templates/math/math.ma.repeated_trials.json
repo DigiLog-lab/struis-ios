@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "skill_id": "math.ma.repeated_trials",
+  "title": "反復試行の確率",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "n",
+      "kind": "integer",
+      "min": 3,
+      "max": 6
+    },
+    {
+      "name": "r",
+      "kind": "integer",
+      "min": 1,
+      "max": 5
+    },
+    {
+      "name": "ev",
+      "kind": "choice",
+      "options": [
+        {
+          "text": "1 個のさいころを",
+          "what": "1 の目",
+          "num": 1,
+          "den": 6
+        },
+        {
+          "text": "1 枚の硬貨を",
+          "what": "表",
+          "num": 1,
+          "den": 2
+        },
+        {
+          "text": "1 個のさいころを",
+          "what": "3 の倍数の目",
+          "num": 1,
+          "den": 3
+        }
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "p0",
+      "expr": "ev.num/ev.den"
+    },
+    {
+      "name": "ans",
+      "expr": "comb(n, r) * p0^r * (1 - p0)^(n - r)"
+    }
+  ],
+  "constraints": [
+    "r < n"
+  ],
+  "prompt": "{ev.text} ${n}$ 回投げるとき、{ev.what}がちょうど ${r}$ 回出る確率を求めなさい。",
+  "answer": "${ans}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "ans * ev.den^n == comb(n, r) * ev.num^r * (ev.den - ev.num)^(n - r)"
+      ]
+    }
+  ]
+}

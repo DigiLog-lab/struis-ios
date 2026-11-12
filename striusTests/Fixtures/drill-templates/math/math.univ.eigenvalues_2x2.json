@@ -1,0 +1,113 @@
+{
+  "format": 1,
+  "skill_id": "math.univ.eigenvalues_2x2",
+  "title": "固有値(2 × 2)",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "l1",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "l2",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -2,
+      "max": 2
+    },
+    {
+      "name": "q",
+      "kind": "integer",
+      "min": -2,
+      "max": 2,
+      "exclude": [
+        0
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "a",
+      "expr": "l1 + p*q*(l1 - l2)"
+    },
+    {
+      "name": "b",
+      "expr": "p*(l2 - l1) + p*p*q*(l2 - l1)"
+    },
+    {
+      "name": "c",
+      "expr": "q*(l1 - l2)"
+    },
+    {
+      "name": "d",
+      "expr": "l2 + p*q*(l2 - l1)"
+    },
+    {
+      "name": "tr",
+      "expr": "a + d"
+    },
+    {
+      "name": "det",
+      "expr": "a*d - b*c"
+    }
+  ],
+  "constraints": [
+    "l1 < l2"
+  ],
+  "parts": [
+    {
+      "name": "vals",
+      "kind": "list",
+      "items": [
+        "l1",
+        "l2"
+      ],
+      "sort": true,
+      "unique": true
+    },
+    {
+      "name": "ch",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "1",
+          "body": "\\lambda^{2}"
+        },
+        {
+          "coef": "-tr",
+          "body": "\\lambda"
+        },
+        {
+          "coef": "det"
+        }
+      ]
+    }
+  ],
+  "prompt": "次の行列の固有値を求めなさい。",
+  "math": "A = \\begin{pmatrix} {a} & {b} \\\\ {c} & {d} \\end{pmatrix}",
+  "answer": "固有方程式 ${ch} = 0$ より、$\\lambda = {vals}$",
+  "checks": [
+    {
+      "kind": "root",
+      "left": "{ch}",
+      "variable": "lambda",
+      "solutions": [
+        "{vals}"
+      ]
+    },
+    {
+      "kind": "assert",
+      "conditions": [
+        "l1 + l2 == a + d",
+        "l1*l2 == a*d - b*c"
+      ]
+    }
+  ]
+}

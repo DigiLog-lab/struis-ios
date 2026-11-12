@@ -917,6 +917,1455 @@
    "name": "散布図・箱ひげ図を読み取る",
    "example": "散布図から相関の正負を答えなさい。(図)",
    "unrepresentable": "問題文に図が要る。書式は文と式だけを作る"
+  },
+  {
+   "id": "math.ma.permutation",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "順列 nPr の計算",
+   "template": "math/math.ma.permutation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.combination",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "組合せ nCr の計算",
+   "template": "math/math.ma.combination.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.arrangement_people",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "順列(並べ方の総数)",
+   "template": "math/math.ma.arrangement_people.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.circular_permutation",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "円順列",
+   "template": "math/math.ma.circular_permutation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.permutation_with_repeats",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "同じものをふくむ順列",
+   "template": "math/math.ma.permutation_with_repeats.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.repeated_permutation",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "重複順列",
+   "template": "math/math.ma.repeated_permutation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.combination_groups",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "組合せ(男女から選ぶ)",
+   "template": "math/math.ma.combination_groups.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.probability_complement",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "余事象の確率(少なくとも 1 つ)",
+   "template": "math/math.ma.probability_complement.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.repeated_trials",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "反復試行の確率",
+   "template": "math/math.ma.repeated_trials.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.conditional_probability",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "条件付き確率",
+   "template": "math/math.ma.conditional_probability.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.expected_value",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "期待値",
+   "template": "math/math.ma.expected_value.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.divisor_count",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "数学と人間の活動(整数)",
+   "name": "正の約数の個数",
+   "template": "math/math.ma.divisor_count.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.gcd_lcm",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "数学と人間の活動(整数)",
+   "name": "最大公約数と最小公倍数",
+   "template": "math/math.ma.gcd_lcm.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.euclidean_algorithm",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "数学と人間の活動(整数)",
+   "name": "ユークリッドの互除法",
+   "template": "math/math.ma.euclidean_algorithm.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.linear_diophantine",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "数学と人間の活動(整数)",
+   "name": "一次不定方程式の整数解",
+   "template": "math/math.ma.linear_diophantine.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.base_to_decimal",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "数学と人間の活動(整数)",
+   "name": "n 進法から 10 進法へ",
+   "template": "math/math.ma.base_to_decimal.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.decimal_to_base",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "数学と人間の活動(整数)",
+   "name": "10 進法から n 進法へ",
+   "template": "math/math.ma.decimal_to_base.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.remainder",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "数学と人間の活動(整数)",
+   "name": "余りの計算(合同式)",
+   "template": "math/math.ma.remainder.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.angle_bisector_ratio",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "図形の性質",
+   "name": "角の二等分線と線分の比",
+   "template": "math/math.ma.angle_bisector_ratio.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.power_of_a_point",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "図形の性質",
+   "name": "方べきの定理",
+   "template": "math/math.ma.power_of_a_point.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.ma.ceva_menelaus",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "図形の性質",
+   "name": "チェバの定理・メネラウスの定理で線分の比を求める",
+   "example": "△ABC の辺上の点 P、Q、R について、BP : PC を求めなさい。(図)",
+   "unrepresentable": "点の位置関係を図で示す必要がある。書式は文と式だけを作る"
+  },
+  {
+   "id": "math.ma.tree_diagram",
+   "subject": "math",
+   "level": "高校 数学A",
+   "field": "場合の数と確率",
+   "name": "樹形図・辞書式配列で数え上げる",
+   "example": "a、b、c、d の 4 文字を辞書式に並べるとき、bdca は何番目か。",
+   "unrepresentable": "数字を入れ替えると数え上げの手順そのものが変わり、答えを式で書けない"
+  },
+  {
+   "id": "math.m2.expand_cube",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "式と証明",
+   "name": "(a + b)³ の展開",
+   "template": "math/math.m2.expand_cube.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.factor_sum_of_cubes",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "式と証明",
+   "name": "x³ ± a³ の因数分解",
+   "template": "math/math.m2.factor_sum_of_cubes.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.binomial_coefficient",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "式と証明",
+   "name": "二項定理(指定された項の係数)",
+   "template": "math/math.m2.binomial_coefficient.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.polynomial_division",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "式と証明",
+   "name": "多項式の割り算(商と余り)",
+   "template": "math/math.m2.polynomial_division.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.rational_expression_add",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "式と証明",
+   "name": "分数式の加法・減法",
+   "template": "math/math.m2.rational_expression_add.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.rational_expression_reduce",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "式と証明",
+   "name": "分数式の約分",
+   "template": "math/math.m2.rational_expression_reduce.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.complex_mul",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "複素数と方程式",
+   "name": "複素数の乗法",
+   "template": "math/math.m2.complex_mul.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.complex_div",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "複素数と方程式",
+   "name": "複素数の除法",
+   "template": "math/math.m2.complex_div.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.quadratic_complex_roots",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "複素数と方程式",
+   "name": "二次方程式の虚数解",
+   "template": "math/math.m2.quadratic_complex_roots.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.vieta",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "複素数と方程式",
+   "name": "解と係数の関係",
+   "template": "math/math.m2.vieta.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.remainder_theorem",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "複素数と方程式",
+   "name": "剰余の定理",
+   "template": "math/math.m2.remainder_theorem.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.cubic_equation",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "複素数と方程式",
+   "name": "因数定理を使って三次方程式を解く",
+   "template": "math/math.m2.cubic_equation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.internal_division_point",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "内分点・外分点の座標",
+   "template": "math/math.m2.internal_division_point.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.line_through_point_slope",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "点と傾きから直線の方程式を求める",
+   "template": "math/math.m2.line_through_point_slope.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.parallel_perpendicular_line",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "平行・垂直な直線の方程式",
+   "template": "math/math.m2.parallel_perpendicular_line.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.point_line_distance",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "点と直線の距離",
+   "template": "math/math.m2.point_line_distance.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.circle_equation",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "中心と半径から円の方程式を求める",
+   "template": "math/math.m2.circle_equation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.circle_center_radius",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "円の方程式から中心と半径を求める",
+   "template": "math/math.m2.circle_center_radius.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.circle_tangent",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "円周上の点における接線の方程式",
+   "template": "math/math.m2.circle_tangent.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.degree_to_radian",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "三角関数",
+   "name": "度数法と弧度法の変換",
+   "template": "math/math.m2.degree_to_radian.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.trig_general_angle",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "三角関数",
+   "name": "一般角の三角関数の値(弧度法)",
+   "template": "math/math.m2.trig_general_angle.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.addition_theorem",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "三角関数",
+   "name": "加法定理で値を求める",
+   "template": "math/math.m2.addition_theorem.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.double_angle",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "三角関数",
+   "name": "2 倍角の公式",
+   "template": "math/math.m2.double_angle.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.trig_composition",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "三角関数",
+   "name": "三角関数の合成",
+   "template": "math/math.m2.trig_composition.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.trig_equation",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "三角関数",
+   "name": "三角方程式",
+   "template": "math/math.m2.trig_equation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.exponent_laws",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "指数関数と対数関数",
+   "name": "指数法則",
+   "template": "math/math.m2.exponent_laws.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.rational_exponent",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "指数関数と対数関数",
+   "name": "累乗根と有理数の指数",
+   "template": "math/math.m2.rational_exponent.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.exponential_equation",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "指数関数と対数関数",
+   "name": "指数方程式",
+   "template": "math/math.m2.exponential_equation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.logarithm_value",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "指数関数と対数関数",
+   "name": "対数の値",
+   "template": "math/math.m2.logarithm_value.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.logarithm_properties",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "指数関数と対数関数",
+   "name": "対数の性質を使った計算",
+   "template": "math/math.m2.logarithm_properties.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.change_of_base",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "指数関数と対数関数",
+   "name": "底の変換公式",
+   "template": "math/math.m2.change_of_base.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.logarithmic_equation",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "指数関数と対数関数",
+   "name": "対数方程式",
+   "template": "math/math.m2.logarithmic_equation.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.digits_by_common_log",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "指数関数と対数関数",
+   "name": "常用対数で桁数を求める",
+   "template": "math/math.m2.digits_by_common_log.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.average_rate_of_change",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "平均変化率",
+   "template": "math/math.m2.average_rate_of_change.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.derivative_polynomial",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "多項式の導関数",
+   "template": "math/math.m2.derivative_polynomial.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.derivative_at_point",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "微分係数",
+   "template": "math/math.m2.derivative_at_point.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.tangent_line",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "接線の方程式",
+   "template": "math/math.m2.tangent_line.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.cubic_extrema",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "三次関数の極値",
+   "template": "math/math.m2.cubic_extrema.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.indefinite_integral_polynomial",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "多項式の不定積分",
+   "template": "math/math.m2.indefinite_integral_polynomial.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.definite_integral_polynomial",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "多項式の定積分",
+   "template": "math/math.m2.definite_integral_polynomial.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.area_parabola_x_axis",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "放物線と x 軸で囲まれた部分の面積",
+   "template": "math/math.m2.area_parabola_x_axis.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.area_parabola_line",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "微分と積分",
+   "name": "放物線と直線で囲まれた部分の面積",
+   "template": "math/math.m2.area_parabola_line.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m2.locus",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "軌跡の方程式を求める",
+   "example": "2 点 A、B からの距離の比が 2 : 1 である点 P の軌跡を求めなさい。",
+   "unrepresentable": "条件の式を立てて整理する過程が答えで、数字を入れ替えても式の変形が要る(数式処理は作らない)"
+  },
+  {
+   "id": "math.m2.inequality_region",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "図形と方程式",
+   "name": "不等式の表す領域を図示する",
+   "example": "不等式 y > x² − 1 の表す領域を図示しなさい。",
+   "unrepresentable": "答えが図で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "math.m2.identity_proof",
+   "subject": "math",
+   "level": "高校 数学II",
+   "field": "式と証明",
+   "name": "等式・不等式の証明",
+   "example": "a + b = 1 のとき、a² + b = b² + a を証明しなさい。",
+   "unrepresentable": "証明は計算操作ではない(対象外)"
+  },
+  {
+   "id": "math.mb.arithmetic_general_term",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "等差数列の一般項",
+   "template": "math/math.mb.arithmetic_general_term.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.arithmetic_sum",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "等差数列の和",
+   "template": "math/math.mb.arithmetic_sum.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.geometric_general_term",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "等比数列の一般項",
+   "template": "math/math.mb.geometric_general_term.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.geometric_sum",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "等比数列の和",
+   "template": "math/math.mb.geometric_sum.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.sigma_linear",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "Σ の計算(一次式)",
+   "template": "math/math.mb.sigma_linear.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.sigma_quadratic",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "Σ の計算(二次式)",
+   "template": "math/math.mb.sigma_quadratic.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.sigma_general_n",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "Σ の計算(n の式で表す)",
+   "template": "math/math.mb.sigma_general_n.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.difference_sequence",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "階差数列から一般項を求める",
+   "template": "math/math.mb.difference_sequence.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.recurrence_linear",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "漸化式 a_{n+1} = p a_n + q",
+   "template": "math/math.mb.recurrence_linear.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.random_variable_mean_variance",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "統計的な推測",
+   "name": "確率変数の期待値と分散",
+   "template": "math/math.mb.random_variable_mean_variance.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.linear_transform_mean_variance",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "統計的な推測",
+   "name": "aX + b の期待値と分散",
+   "template": "math/math.mb.linear_transform_mean_variance.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.binomial_distribution",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "統計的な推測",
+   "name": "二項分布の期待値と標準偏差",
+   "template": "math/math.mb.binomial_distribution.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.standardize",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "統計的な推測",
+   "name": "正規分布の標準化",
+   "template": "math/math.mb.standardize.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.confidence_interval",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "統計的な推測",
+   "name": "母平均の信頼区間(信頼度 95%)",
+   "template": "math/math.mb.confidence_interval.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mb.induction",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "数列",
+   "name": "数学的帰納法による証明",
+   "example": "1 + 3 + 5 + … + (2n − 1) = n² を数学的帰納法で証明しなさい。",
+   "unrepresentable": "証明は計算操作ではない(対象外)"
+  },
+  {
+   "id": "math.mb.normal_table_lookup",
+   "subject": "math",
+   "level": "高校 数学B",
+   "field": "統計的な推測",
+   "name": "正規分布表から確率を読む",
+   "example": "Z が標準正規分布に従うとき、P(0 ≤ Z ≤ 1.25) を正規分布表から求めなさい。",
+   "unrepresentable": "正規分布表(数表)を引く操作で、表を端末に持たせていない。書式の関数に正規分布の累積確率が無い"
+  },
+  {
+   "id": "math.mc.vector_linear_combination",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "ベクトルの成分の計算",
+   "template": "math/math.mc.vector_linear_combination.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.vector_magnitude",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "ベクトルの大きさ",
+   "template": "math/math.mc.vector_magnitude.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.dot_product_components",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "内積(成分)",
+   "template": "math/math.mc.dot_product_components.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.dot_product_angle_form",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "内積(大きさとなす角)",
+   "template": "math/math.mc.dot_product_angle_form.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.vector_angle",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "2 つのベクトルのなす角",
+   "template": "math/math.mc.vector_angle.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.vector_perpendicular",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "ベクトルが垂直になる条件",
+   "template": "math/math.mc.vector_perpendicular.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.position_vector_division",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "内分点の位置ベクトル",
+   "template": "math/math.mc.position_vector_division.json",
+   "numeric_check": false
+  },
+  {
+   "id": "math.mc.space_vector_magnitude_dot",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "空間ベクトルの大きさと内積",
+   "template": "math/math.mc.space_vector_magnitude_dot.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.complex_modulus",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "複素数平面",
+   "name": "複素数の絶対値",
+   "template": "math/math.mc.complex_modulus.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.polar_form",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "複素数平面",
+   "name": "極形式で表す",
+   "template": "math/math.mc.polar_form.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.polar_product_quotient",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "複素数平面",
+   "name": "極形式の積と商",
+   "template": "math/math.mc.polar_product_quotient.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.de_moivre",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "複素数平面",
+   "name": "ド・モアブルの定理",
+   "template": "math/math.mc.de_moivre.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.de_moivre_sqrt3",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "複素数平面",
+   "name": "ド・モアブルの定理(1 + √3 i など)",
+   "template": "math/math.mc.de_moivre_sqrt3.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.ellipse_foci",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "式と曲線",
+   "name": "楕円の焦点と長軸・短軸の長さ",
+   "template": "math/math.mc.ellipse_foci.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.hyperbola_asymptotes",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "式と曲線",
+   "name": "双曲線の焦点と漸近線",
+   "template": "math/math.mc.hyperbola_asymptotes.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.parabola_focus",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "式と曲線",
+   "name": "放物線の焦点と準線",
+   "template": "math/math.mc.parabola_focus.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.polar_to_cartesian",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "式と曲線",
+   "name": "極座標を直交座標に直す",
+   "template": "math/math.mc.polar_to_cartesian.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.mc.vector_figure_proof",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "ベクトル",
+   "name": "ベクトルを使った図形の証明",
+   "example": "△ABC の重心 G について、GA + GB + GC = 0 を証明しなさい。",
+   "unrepresentable": "証明は計算操作ではない(対象外)"
+  },
+  {
+   "id": "math.mc.parametric_curve_sketch",
+   "subject": "math",
+   "level": "高校 数学C",
+   "field": "式と曲線",
+   "name": "媒介変数表示された曲線の概形をかく",
+   "example": "x = cos θ、y = sin 2θ で表される曲線の概形をかきなさい。",
+   "unrepresentable": "答えが図で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "math.m3.sequence_limit_rational",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "極限",
+   "name": "数列の極限(分数式)",
+   "template": "math/math.m3.sequence_limit_rational.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.infinite_geometric_series",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "極限",
+   "name": "無限等比級数の和",
+   "template": "math/math.m3.infinite_geometric_series.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.function_limit_factor",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "極限",
+   "name": "関数の極限(約分する 0/0 の形)",
+   "template": "math/math.m3.function_limit_factor.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.trig_limit",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "極限",
+   "name": "三角関数の極限(sin x / x の利用)",
+   "template": "math/math.m3.trig_limit.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_product",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "積の微分",
+   "template": "math/math.m3.derivative_product.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_quotient",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "商の微分",
+   "template": "math/math.m3.derivative_quotient.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_chain_power",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "合成関数の微分((ax + b)ⁿ)",
+   "template": "math/math.m3.derivative_chain_power.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_trig",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "三角関数の微分",
+   "template": "math/math.m3.derivative_trig.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_tan",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "tan の微分",
+   "template": "math/math.m3.derivative_tan.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_exponential",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "指数関数の微分",
+   "template": "math/math.m3.derivative_exponential.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_logarithm",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "対数関数の微分",
+   "template": "math/math.m3.derivative_logarithm.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_x_exp",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "積の微分(xⁿ e^{ax})",
+   "template": "math/math.m3.derivative_x_exp.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.derivative_x_log",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "積の微分(xⁿ log x)",
+   "template": "math/math.m3.derivative_x_log.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.second_derivative",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "第 2 次導関数",
+   "template": "math/math.m3.second_derivative.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.tangent_line_exp_log",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "接線の方程式(指数・対数)",
+   "template": "math/math.m3.tangent_line_exp_log.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.integral_power_rational",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "不定積分(x の有理数乗)",
+   "template": "math/math.m3.integral_power_rational.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.integral_exp_trig",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "不定積分(e^{ax}、sin ax、cos ax)",
+   "template": "math/math.m3.integral_exp_trig.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.integral_reciprocal_linear",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "不定積分(1/(ax + b))",
+   "template": "math/math.m3.integral_reciprocal_linear.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.integral_substitution_power",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "置換積分((ax + b)ⁿ)",
+   "template": "math/math.m3.integral_substitution_power.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.integral_substitution_log",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "置換積分(f'(x)/f(x) の形)",
+   "template": "math/math.m3.integral_substitution_log.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.integral_by_parts_exp",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "部分積分(x e^{ax})",
+   "template": "math/math.m3.integral_by_parts_exp.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.integral_by_parts_trig",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "部分積分(x sin ax、x cos ax)",
+   "template": "math/math.m3.integral_by_parts_trig.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.integral_by_parts_log",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "部分積分(xⁿ log x)",
+   "template": "math/math.m3.integral_by_parts_log.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.definite_integral_trig",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "定積分(三角関数)",
+   "template": "math/math.m3.definite_integral_trig.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.definite_integral_exp",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "定積分(指数関数)",
+   "template": "math/math.m3.definite_integral_exp.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.definite_integral_log",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "定積分(1/x)",
+   "template": "math/math.m3.definite_integral_log.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.volume_of_revolution",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "回転体の体積",
+   "template": "math/math.m3.volume_of_revolution.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.area_between_curves_trig",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "曲線と x 軸で囲まれた部分の面積(三角関数)",
+   "template": "math/math.m3.area_between_curves_trig.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.m3.curve_sketch",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "微分法",
+   "name": "増減・凹凸を調べてグラフの概形をかく",
+   "example": "y = x e^{−x} の増減、凹凸を調べてグラフの概形をかきなさい。",
+   "unrepresentable": "答えが増減表と図で、数字を入れ替える計算ではない"
+  },
+  {
+   "id": "math.m3.substitution_general",
+   "subject": "math",
+   "level": "高校 数学III",
+   "field": "積分法",
+   "name": "置換のしかたを自分で選ぶ置換積分",
+   "example": "∫ x√(1 − x²) dx を求めなさい。",
+   "unrepresentable": "被積分関数の形ごとに置き方と答えの式の形が変わる。形を決めた置換積分((ax + b)ⁿ、f'/f)は型にしてある。形を選ぶ所は数式処理が要る"
+  },
+  {
+   "id": "math.univ.partial_derivative_polynomial",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "偏微分",
+   "name": "多項式の偏導関数",
+   "template": "math/math.univ.partial_derivative_polynomial.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.partial_derivative_exp",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "偏微分",
+   "name": "指数関数・三角関数の偏導関数",
+   "template": "math/math.univ.partial_derivative_exp.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.second_partial_derivatives",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "偏微分",
+   "name": "2 階の偏導関数",
+   "template": "math/math.univ.second_partial_derivatives.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.total_differential_value",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "偏微分",
+   "name": "接平面の方程式",
+   "template": "math/math.univ.total_differential_value.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.double_integral_rectangle",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "重積分",
+   "name": "長方形領域での重積分",
+   "template": "math/math.univ.double_integral_rectangle.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.taylor_coefficients",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "テイラー展開",
+   "name": "マクローリン展開の係数(e^{ax})",
+   "template": "math/math.univ.taylor_coefficients.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.lhopital",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "微分の応用",
+   "name": "ロピタルの定理による極限",
+   "template": "math/math.univ.lhopital.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.inverse_trig_derivative",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "微分の応用",
+   "name": "逆三角関数の微分",
+   "template": "math/math.univ.inverse_trig_derivative.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.matrix_linear_combination",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "行列の和とスカラー倍",
+   "template": "math/math.univ.matrix_linear_combination.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.matrix_product",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "行列の積(2 × 2)",
+   "template": "math/math.univ.matrix_product.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.determinant_2x2",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "行列式(2 × 2)",
+   "template": "math/math.univ.determinant_2x2.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.determinant_3x3",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "行列式(3 × 3、サラスの方法)",
+   "template": "math/math.univ.determinant_3x3.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.inverse_2x2",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "逆行列(2 × 2)",
+   "template": "math/math.univ.inverse_2x2.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.cramer_2x2",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "連立一次方程式(クラメルの公式)",
+   "template": "math/math.univ.cramer_2x2.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.linear_system_3x3",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "連立一次方程式(3 元、掃き出し法)",
+   "template": "math/math.univ.linear_system_3x3.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.eigenvalues_2x2",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "固有値(2 × 2)",
+   "template": "math/math.univ.eigenvalues_2x2.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.cross_product",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "ベクトル",
+   "name": "外積(ベクトル積)",
+   "template": "math/math.univ.cross_product.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.ode_separable",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "微分方程式",
+   "name": "変数分離形(y' = ay、初期条件つき)",
+   "template": "math/math.univ.ode_separable.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.ode_first_order_linear",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "微分方程式",
+   "name": "1 階線形微分方程式(y' + ay = b)",
+   "template": "math/math.univ.ode_first_order_linear.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.ode_second_order_real",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "微分方程式",
+   "name": "2 階定数係数同次形(異なる 2 つの実数解)",
+   "template": "math/math.univ.ode_second_order_real.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.ode_second_order_repeated",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "微分方程式",
+   "name": "2 階定数係数同次形(重解)",
+   "template": "math/math.univ.ode_second_order_repeated.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.ode_second_order_complex",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "微分方程式",
+   "name": "2 階定数係数同次形(複素数解)",
+   "template": "math/math.univ.ode_second_order_complex.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.fourier_sine_coefficient_x",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "フーリエ級数",
+   "name": "フーリエ係数 b_n(f(x) = kx)",
+   "template": "math/math.univ.fourier_sine_coefficient_x.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.fourier_cosine_coefficient_x2",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "フーリエ級数",
+   "name": "フーリエ係数 a_n(f(x) = kx²)",
+   "template": "math/math.univ.fourier_cosine_coefficient_x2.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.fourier_square_wave",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "フーリエ級数",
+   "name": "フーリエ係数 b_n(矩形波)",
+   "template": "math/math.univ.fourier_square_wave.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.fourier_a0",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "フーリエ級数",
+   "name": "フーリエ係数 a_0",
+   "template": "math/math.univ.fourier_a0.json",
+   "numeric_check": true
+  },
+  {
+   "id": "math.univ.matrix_rank",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "行列の階数を行基本変形で求める",
+   "example": "行列 A の階数を求めなさい。",
+   "unrepresentable": "数字を入れ替えると基本変形の手順と階数そのものが変わる。答えを決まった式で書けない"
+  },
+  {
+   "id": "math.univ.epsilon_delta",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "極限",
+   "name": "ε-δ 論法による極限の証明",
+   "example": "lim_{x→1} (2x + 1) = 3 を ε-δ 論法で証明しなさい。",
+   "unrepresentable": "証明は計算操作ではない(対象外)"
+  },
+  {
+   "id": "math.univ.diagonalization",
+   "subject": "math",
+   "level": "大学初年",
+   "field": "行列",
+   "name": "行列の対角化(固有ベクトルを求めて P を作る)",
+   "example": "行列 A を対角化しなさい。",
+   "unrepresentable": "固有ベクトルは定数倍の取り方が決まらず、答えが 1 つに定まらない。固有値を求める所までは型にしてある"
   }
  ]
 }

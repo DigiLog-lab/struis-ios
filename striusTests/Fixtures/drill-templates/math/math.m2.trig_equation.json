@@ -1,0 +1,179 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.trig_equation",
+  "title": "三角方程式",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "eq",
+      "kind": "choice",
+      "options": [
+        {
+          "fn": "\\sin",
+          "k": 1,
+          "d1": 30,
+          "d2": 150
+        },
+        {
+          "fn": "\\sin",
+          "k": 1,
+          "d1": 45,
+          "d2": 135
+        },
+        {
+          "fn": "\\sin",
+          "k": 1,
+          "d1": 60,
+          "d2": 120
+        },
+        {
+          "fn": "\\sin",
+          "k": 1,
+          "d1": 210,
+          "d2": 330
+        },
+        {
+          "fn": "\\sin",
+          "k": 1,
+          "d1": 225,
+          "d2": 315
+        },
+        {
+          "fn": "\\sin",
+          "k": 1,
+          "d1": 240,
+          "d2": 300
+        },
+        {
+          "fn": "\\cos",
+          "k": 2,
+          "d1": 30,
+          "d2": 330
+        },
+        {
+          "fn": "\\cos",
+          "k": 2,
+          "d1": 45,
+          "d2": 315
+        },
+        {
+          "fn": "\\cos",
+          "k": 2,
+          "d1": 60,
+          "d2": 300
+        },
+        {
+          "fn": "\\cos",
+          "k": 2,
+          "d1": 120,
+          "d2": 240
+        },
+        {
+          "fn": "\\cos",
+          "k": 2,
+          "d1": 135,
+          "d2": 225
+        },
+        {
+          "fn": "\\cos",
+          "k": 2,
+          "d1": 150,
+          "d2": 210
+        },
+        {
+          "fn": "\\tan",
+          "k": 3,
+          "d1": 30,
+          "d2": 210
+        },
+        {
+          "fn": "\\tan",
+          "k": 3,
+          "d1": 45,
+          "d2": 225
+        },
+        {
+          "fn": "\\tan",
+          "k": 3,
+          "d1": 60,
+          "d2": 240
+        },
+        {
+          "fn": "\\tan",
+          "k": 3,
+          "d1": 120,
+          "d2": 300
+        },
+        {
+          "fn": "\\tan",
+          "k": 3,
+          "d1": 135,
+          "d2": 315
+        },
+        {
+          "fn": "\\tan",
+          "k": 3,
+          "d1": 150,
+          "d2": 330
+        }
+      ]
+    },
+    {
+      "name": "mult",
+      "kind": "choice",
+      "options": [
+        1,
+        2
+      ]
+    }
+  ],
+  "lets": [
+    {
+      "name": "v",
+      "expr": "if(eq.k == 1, sind(eq.d1), if(eq.k == 2, cosd(eq.d1), tand(eq.d1)))"
+    },
+    {
+      "name": "rhs",
+      "expr": "mult*v"
+    },
+    {
+      "name": "t1",
+      "expr": "eq.d1/180"
+    },
+    {
+      "name": "t2",
+      "expr": "eq.d2/180"
+    }
+  ],
+  "constraints": [
+    "mult == 1 or eq.k != 3"
+  ],
+  "parts": [
+    {
+      "name": "lhs",
+      "kind": "select",
+      "cases": [
+        {
+          "when": "mult == 1",
+          "tex": "{eq.fn}\\theta"
+        }
+      ],
+      "otherwise": "{mult}{eq.fn}\\theta"
+    }
+  ],
+  "prompt": "$0 \\le \\theta < 2\\pi$ のとき、次の方程式を解きなさい。",
+  "math": "{lhs} = {rhs}",
+  "answer": "$\\theta = {t1|pi},\\ {t2|pi}$",
+  "checks": [
+    {
+      "kind": "root",
+      "left": "{lhs}",
+      "right": "{rhs}",
+      "variable": "theta",
+      "solutions": [
+        "{t1|pi}",
+        "{t2|pi}"
+      ]
+    }
+  ]
+}

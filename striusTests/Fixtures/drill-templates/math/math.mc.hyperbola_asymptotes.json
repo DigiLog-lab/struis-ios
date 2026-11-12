@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "skill_id": "math.mc.hyperbola_asymptotes",
+  "title": "双曲線の焦点と漸近線",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": 2,
+      "max": 8
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": 2,
+      "max": 8
+    }
+  ],
+  "lets": [
+    {
+      "name": "a2",
+      "expr": "a^2"
+    },
+    {
+      "name": "b2",
+      "expr": "b^2"
+    },
+    {
+      "name": "c",
+      "expr": "sqrt(a^2 + b^2)"
+    },
+    {
+      "name": "slope",
+      "expr": "b/a"
+    }
+  ],
+  "prompt": "双曲線 $\\frac{x^{2}}{{a2}} - \\frac{y^{2}}{{b2}} = 1$ の焦点の座標と漸近線の方程式を求めなさい。",
+  "answer": "焦点 $({c},\\ 0)$、$(-{c|paren},\\ 0)$、漸近線 $y = \\pm {slope|coef}x$",
+  "checks": [
+    {
+      "kind": "identity",
+      "left": "({c})^{2}",
+      "right": "{a2} + {b2}"
+    },
+    {
+      "kind": "limit",
+      "function": "\\frac{\\sqrt{{b2}(\\frac{x^{2}}{{a2}} - 1)}}{x}",
+      "variable": "x",
+      "to": "inf",
+      "answer": "{slope}"
+    }
+  ]
+}

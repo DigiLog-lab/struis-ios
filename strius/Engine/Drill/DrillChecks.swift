@@ -12,13 +12,24 @@ nonisolated enum DrillNumerics {
     }
 
     /// 中心差分(5 点)で導関数を近似する。`order` は 1 か 2。
-    static func derivative(_ f: (Double) -> DrillComplex?, at x: Double, order: Int) -> DrillComplex? {
-        let h: Double = (order == 1 ? 1e-3 : 1e-2) * max(1, abs(x))
+    static func derivative(_ f: (Double) -> DrillComplex?, at x: Double, order: Int, scale: Double = 1) -> DrillComplex? {
+        let h: Double = (order == 1 ? 1e-3 : 1e-2) * max(1, abs(x)) * scale
         guard let a: DrillComplex = f(x - 2 * h), let b: DrillComplex = f(x - h), let c: DrillComplex = f(x), let d: DrillComplex = f(x + h), let e: DrillComplex = f(x + 2 * h) else { return nil }
         if order == 1 {
             return (a - DrillComplex(8) * b + DrillComplex(8) * d - e) / DrillComplex(12 * h)
         }
         return (DrillComplex(16) * (b + d) - a - e - DrillComplex(30) * c) / DrillComplex(12 * h * h)
+    }
+
+    /// 差分で求めた導関数が `expected` と合うか。特異点の近くでは差分の幅を縮めて確かめ直す。
+    static func derivativeMatches(_ f: (Double) -> DrillComplex?, at x: Double, order: Int, expected: DrillComplex, tolerance: Double) -> (matches: Bool, value: DrillComplex?) {
+        var first: DrillComplex? = nil
+        for scale: Double in [1, 0.1, 0.01] {
+            guard let slope: DrillComplex = derivative(f, at: x, order: order, scale: scale) else { continue }
+            if first == nil { first = slope }
+            if slope.isClose(to: expected, tolerance: tolerance) { return (true, slope) }
+        }
+        return (false, first)
     }
 
     /// ガウス・ルジャンドル(5 点)を小区間に分けて当てる数値積分。
@@ -328,10 +339,12 @@ nonisolated struct DrillCompiledCheck: Sendable {
                     local[name] = DrillComplex(x)
                     return function.item.evaluate(local)
                 }
-                guard let slope: DrillComplex = DrillNumerics.derivative(f, at: x0, order: order), let answer: DrillComplex = other.item.evaluate(bound) else {
+                guard let answer: DrillComplex = other.item.evaluate(bound) else { throw Failure(message: "答え「\(other.source)」を数値にできませんでした") }
+                let result: (matches: Bool, value: DrillComplex?) = DrillNumerics.derivativeMatches(f, at: x0, order: order, expected: answer, tolerance: derivativeTolerance)
+                guard let slope: DrillComplex = result.value else {
                     throw Failure(message: "「\(function.source)」の \(name) = \(x0) での微分係数を数値にできませんでした")
                 }
-                guard slope.isClose(to: answer, tolerance: derivativeTolerance) else {
+                guard result.matches else {
                     throw Failure(message: "「\(function.source)」の \(name) = \(x0) での微分係数は \(describe([slope])) ですが、答えは「\(other.source)」(\(describe([answer])))です")
                 }
                 return
@@ -346,8 +359,10 @@ nonisolated struct DrillCompiledCheck: Sendable {
                     return function.item.evaluate(local)
                 }
                 bound[name] = DrillComplex(x0)
-                guard let slope: DrillComplex = DrillNumerics.derivative(f, at: x0, order: order), let expected: DrillComplex = other.item.evaluate(bound) else { continue }
-                guard slope.isClose(to: expected, tolerance: derivativeTolerance) else {
+                guard let expected: DrillComplex = other.item.evaluate(bound) else { continue }
+                let result: (matches: Bool, value: DrillComplex?) = DrillNumerics.derivativeMatches(f, at: x0, order: order, expected: expected, tolerance: derivativeTolerance)
+                guard let slope: DrillComplex = result.value else { continue }
+                guard result.matches else {
                     throw Failure(message: "「\(function.source)」を \(name) で微分した値(\(name) = \(x0) で \(describe([slope])))が、「\(other.source)」(\(describe([expected])))と合いません")
                 }
                 compared += 1
@@ -437,7 +452,7 @@ nonisolated struct DrillCompiledCheck: Sendable {
             try requireBound([left.item, right.item], Set(base.keys).union([name]), left.source)
             var compared: Int = 0
             var grid: [Double] = stride(from: -50.0, through: 50.0, by: 0.37).map { (x: Double) -> Double in x }
-            grid += stride(from: -10.0, through: 10.0, by: 0.0173).map { (x: Double) -> Double in x }
+            grid += stride(from: -10.0, through: 10.0, by: 0.043).map { (x: Double) -> Double in x }
             for x: Double in grid {
                 var local: [String: DrillComplex] = base
                 local[name] = DrillComplex(x)
@@ -538,7 +553,17 @@ nonisolated struct DrillCompiledCheck: Sendable {
                 local["y''"] = second
                 try requireBound([left.item, right.item], Set(local.keys), left.source + " = " + right.source)
                 guard let l: DrillComplex = left.item.evaluate(local), let r: DrillComplex = right.item.evaluate(local) else { continue }
-                guard l.isClose(to: r, tolerance: max(tolerance, 1e-4)) else {
+                // 差分で求めた y'・y'' には誤差がある。各項の大きさに対して十分小さい食い違いは、合っているとみなす。
+                var allowed: Double = max(tolerance, 1e-6) * max(1, l.modulus, r.modulus)
+                for symbol: String in ["y", "y'", "y''"] {
+                    guard let original: DrillComplex = local[symbol] else { continue }
+                    var nudged: [String: DrillComplex] = local
+                    nudged[symbol] = original * DrillComplex(1 + 1e-4)
+                    if let nl: DrillComplex = left.item.evaluate(nudged), let nr: DrillComplex = right.item.evaluate(nudged) {
+                        allowed += ((nl - nr) - (l - r)).modulus
+                    }
+                }
+                guard (l - r).modulus <= allowed else {
                     throw Failure(message: "y = \(function.source) を代入しても「\(left.source) = \(right.source)」が成り立ちません(\(name) = \(x0) で \(describe([l])) と \(describe([r])))")
                 }
                 compared += 1

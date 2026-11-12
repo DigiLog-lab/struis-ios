@@ -1,0 +1,74 @@
+{
+  "format": 1,
+  "skill_id": "math.m2.average_rate_of_change",
+  "title": "平均変化率",
+  "subject": "math",
+  "variables": [
+    {
+      "name": "a",
+      "kind": "integer",
+      "min": -3,
+      "max": 3,
+      "exclude": [
+        0
+      ]
+    },
+    {
+      "name": "b",
+      "kind": "integer",
+      "min": -5,
+      "max": 5
+    },
+    {
+      "name": "p",
+      "kind": "integer",
+      "min": -4,
+      "max": 4
+    },
+    {
+      "name": "h",
+      "kind": "integer",
+      "min": 1,
+      "max": 4
+    }
+  ],
+  "lets": [
+    {
+      "name": "q",
+      "expr": "p + h"
+    },
+    {
+      "name": "rate",
+      "expr": "a*(p + q) + b"
+    }
+  ],
+  "parts": [
+    {
+      "name": "f",
+      "kind": "sum",
+      "terms": [
+        {
+          "coef": "a",
+          "body": "x^{2}"
+        },
+        {
+          "coef": "b",
+          "body": "x"
+        },
+        {
+          "coef": "0"
+        }
+      ]
+    }
+  ],
+  "prompt": "関数 $f(x) = {f}$ について、$x$ が ${p}$ から ${q}$ まで変化するときの平均変化率を求めなさい。",
+  "answer": "${rate}$",
+  "checks": [
+    {
+      "kind": "assert",
+      "conditions": [
+        "rate * (q - p) == (a*q^2 + b*q) - (a*p^2 + b*p)"
+      ]
+    }
+  ]
+}
