@@ -5,6 +5,9 @@ struct WorkbookUnitView: View {
     @Environment(WorkbookStore.self) private var store
     @Environment(WorkbookCoordinator.self) private var coordinator
     @Environment(\.solveUnitInTimeline) private var solveInTimeline
+    @Environment(LearnerData.self) private var learnerData
+    @State private var attacher = UnitMaterialAttacher()
+    @State private var isMaterialCameraPresented = false
     let unitID: String
 
     var body: some View {
@@ -24,8 +27,16 @@ struct WorkbookUnitView: View {
                                 .foregroundStyle(Theme.ground)
                         }
                         Spacer()
+                        materialButton(unit)
                     }
                     .padding(.horizontal, 20)
+                    if let error = attacher.error(unitID) {
+                        Text(error)
+                            .font(Typography.caption)
+                            .foregroundStyle(Theme.regressColor)
+                            .padding(.horizontal, 20)
+                            .accessibilityIdentifier("workbook-unit-material-error")
+                    }
                     if let solveInTimeline {
                         Button { solveInTimeline(unitID) } label: {
                             Label("タイムラインで解く", systemImage: "rectangle.stack")
@@ -66,8 +77,42 @@ struct WorkbookUnitView: View {
             }
         }
         .workbookCaptureInset(context: nil) { coordinator.capture(context: $0) }
+        .background {
+            ChatCameraPresentation(isPresented: $isMaterialCameraPresented, batch: ChatCameraBatch(limit: 8, doneTitle: "終える") { photos in
+                attacher.attach(unitID: unitID, photos: photos, learnerData: learnerData) { _ = await store.loadUnit(id: unitID) }
+            })
+        }
         .task(id: unitID) { _ = await store.loadUnit(id: unitID) }
         .struisRefreshable { _ = await store.loadUnit(id: unitID) }
+    }
+
+    /// 進みの右の「教科書を撮る」(大学の授業は「資料を撮る」、ページや回が付いた後は「撮り足す」)。#132
+    @ViewBuilder
+    private func materialButton(_ unit: WorkbookUnitDTO) -> some View {
+        if attacher.isRunning(unitID) {
+            HStack(spacing: 8) {
+                StruisLoadingIndicator().controlSize(.small)
+                Text("読み取り中").font(Typography.caption.weight(.semibold)).foregroundStyle(Theme.secondaryText)
+            }
+            .frame(minHeight: 44)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("workbook-unit-material-reading")
+        } else {
+            let hasRefs = unit.subunits.contains { (store.subunits[$0.id] ?? $0).ref != nil }
+            let course = OnboardingProfile.load()?.isUniversity ?? false
+            Button { isMaterialCameraPresented = true } label: {
+                Label(hasRefs ? "撮り足す" : (course ? "資料を撮る" : "教科書を撮る"), systemImage: "camera")
+                    .font(Typography.caption.weight(.semibold))
+                    .foregroundStyle(Theme.primaryText)
+                    .padding(.horizontal, 14)
+                    .frame(height: 36)
+                    .glassEffect(.regular.interactive(), in: Capsule())
+                    .frame(minHeight: 44)
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("workbook-unit-add-material")
+        }
     }
 }
 

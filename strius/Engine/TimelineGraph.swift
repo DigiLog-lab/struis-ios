@@ -561,6 +561,22 @@ nonisolated enum TimelineGraphSchedule {
         timeline.batches.values.filter { $0.purpose == "graph_build" || $0.purpose == "graph_extend" }.reduce(into: Set<String>()) { $0.formUnion(unitIDs(in: $1.request)) }
     }
 
+    /// 単元の分を頼んだ後に足された小単元(撮り足した授業の回。#132)がある単元。まだグラフに目標の点が無いものだけ。
+    /// 頼んだ後に足されたものだけを数えるので、構築や単元の分が失敗した単元を何度も頼み直すことはない。
+    static func unitsWithAppendedSubunits(_ timeline: TimelineMachine, workbook: WorkbookMachine) -> Set<String> {
+        var requestedAt: [String: Date] = [:]
+        for batch in timeline.batches.values where batch.purpose == "graph_build" || batch.purpose == "graph_extend" {
+            guard let at = LedgerClock.parse(batch.createdAt) else { continue }
+            for id in unitIDs(in: batch.request) where requestedAt[id].map({ $0 < at }) ?? true { requestedAt[id] = at }
+        }
+        guard !requestedAt.isEmpty else { return [] }
+        let graphed = Set(timeline.skills.values.compactMap(\.unitId))
+        return Set(workbook.subunits.values.filter { subunit in
+            guard let at = requestedAt[subunit.unitId], let created = LedgerClock.parse(subunit.createdAt), created > at else { return false }
+            return !graphed.contains(subunit.id) && !WorkbookMachine.passedByCheck(subunit)
+        }.map(\.unitId))
+    }
+
     static func changeIDs(in request: LedgerJSON) -> [String] {
         (request["change_ids"]?.arrayValue ?? []).compactMap(\.stringValue).sorted()
     }
@@ -576,11 +592,14 @@ nonisolated enum TimelineGraphSchedule {
     }
 
     /// その依頼をもう出したか、グラフの依頼が走っている最中か(行を書く書き込みの中で確かめ直す)。
-    static func isBlocked(_ request: Request, timeline: TimelineMachine) -> Bool {
+    static func isBlocked(_ request: Request, timeline: TimelineMachine, workbook: WorkbookMachine? = nil) -> Bool {
         if timeline.batches.values.contains(where: { $0.purpose.hasPrefix("graph") && $0.status == "requested" }) { return true }
         switch request {
         case .build: return timeline.batches.values.contains { $0.purpose == "graph_build" }
-        case .extend(let unitID): return requestedUnits(timeline).contains(unitID)
+        case .extend(let unitID):
+            // 頼んだ単元でも、その後に小単元が足されていれば、その分を頼める。
+            return requestedUnits(timeline).contains(unitID)
+                && !(workbook.map { unitsWithAppendedSubunits(timeline, workbook: $0).contains(unitID) } ?? false)
         case .review(let ids): return timeline.batches.values.contains { $0.purpose == "graph_review" && changeIDs(in: $0.request) == ids }
         }
     }
@@ -601,6 +620,10 @@ nonisolated enum TimelineGraphSchedule {
         let requested = requestedUnits(timeline)
         let covered = Set(graphSkills.compactMap { unitID(of: $0, workbook: workbook) })
         if let unit = units.first(where: { !requested.contains($0.id) && !covered.contains($0.id) && allowed?.contains($0.id) != false }) {
+            return .extend(unitID: unit.id)
+        }
+        let appended = unitsWithAppendedSubunits(timeline, workbook: workbook)
+        if let unit = units.first(where: { appended.contains($0.id) && allowed?.contains($0.id) != false }) {
             return .extend(unitID: unit.id)
         }
         if timeline.needsReview {

@@ -14,6 +14,7 @@ struct LearningTimelineView: View {
     var isCovered = false
     @Environment(WorkbookCoordinator.self) private var coordinator
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var hasInk = false
     @State private var ink = TimelineInkController()
     @State private var inkGeneration = 0
@@ -62,7 +63,7 @@ struct LearningTimelineView: View {
                 ZStack(alignment: .bottomTrailing) {
                     content
                         .padding(.leading, layout.isPad ? TimelineLayout.columnLeading : 24)
-                        .padding(.trailing, layout == .padLandscape ? 0 : 24)
+                        .padding(.trailing, layout == .padLandscape ? 0 : contentTrailing)
                         .padding(.top, 16)
                         // 横向きは下の帯が問題の列の下に重なるので、その分を空ける。
                         .padding(.bottom, layout == .padLandscape ? 132 : 0)
@@ -145,6 +146,13 @@ struct LearningTimelineView: View {
         }
     }
 
+    /// 問題の列の右の余白。文字サイズが「さらに大きな文字」の時は、問題文が長くなって右下のボタン(質問・飛ばす・撮る)の
+    /// 下まで伸びるので、ボタンの列の幅を空けて重ならないようにする(文字は縮めない。入らない分はスクロールで読む)。
+    private var contentTrailing: CGFloat {
+        guard dynamicTypeSize.isAccessibilitySize else { return 24 }
+        return layout.isPad ? 116 : 104
+    }
+
     // MARK: 上端
 
     private var topBar: some View {
@@ -152,6 +160,9 @@ struct LearningTimelineView: View {
             Button(action: onOpenUnits) {
                 Label("単元", systemImage: TimelineSymbol.units)
                     .font(Typography.sans(size: 16, weight: .bold))
+                    // 文字サイズを大きくしても「単」「元」で折らない(隣の「解く範囲」が縮む)。
+                    .lineLimit(1)
+                    .fixedSize()
                     .padding(.horizontal, 16).padding(.vertical, 9)
                     .foregroundStyle(Theme.primaryText)
                     .background(Theme.card, in: Capsule())
@@ -819,7 +830,9 @@ struct LearningTimelineView: View {
     }
 
     private func problemText(_ card: TimelineCardRecord) -> String {
-        [card.payload["problem"]?.stringValue ?? card.prompt, card.math, card.question].filter { !$0.isEmpty }.joined(separator: "\n")
+        // `problem` が空の文字で入っているカード(仕分けなど)は、問いかけの文を使う(空のまま渡すと、下書きに問題が入らない)。
+        let problem: String = card.payload["problem"]?.stringValue ?? ""
+        return [problem.isEmpty ? card.prompt : problem, card.math, card.question].filter { !$0.isEmpty }.joined(separator: "\n")
     }
 
     private func ask(_ card: TimelineCardRecord) {

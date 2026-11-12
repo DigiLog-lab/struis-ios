@@ -1,0 +1,32 @@
+{
+  "type": "object",
+  "properties": {
+    "readable": {"type": "boolean"},
+    "assignments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {"subunit_id": {"type": "string"}, "ref": {"type": "string"}},
+        "required": ["subunit_id", "ref"],
+        "additionalProperties": false
+      }
+    },
+    "new_subunits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {"type": "string"},
+          "outcome": {"type": "string"},
+          "n": {"type": "integer"},
+          "scoring_unit": {"type": "string"},
+          "ref": {"type": "string"}
+        },
+        "required": ["title", "outcome", "n", "scoring_unit", "ref"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["readable", "assignments", "new_subunits"],
+  "additionalProperties": false
+}

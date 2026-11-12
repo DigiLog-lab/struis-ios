@@ -80,6 +80,7 @@ struct WorkbookChatQuestionScreen: View {
                 embedded: false,
                 onClose: { close() },
                 threadBootstrap: unitCreationBootstrap,
+                initialDraft: context.initialDraft,
                 onProposalStarted: { started in openFirstSubunit(started) }
             )
         }

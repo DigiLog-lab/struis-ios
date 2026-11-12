@@ -55,6 +55,17 @@ final class UnitCreationUITests: XCTestCase {
         let closed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: app.descendants(matching: .any)["unit-creation"].firstMatch)
         XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 10), .completed, "単元を作る画面が閉じない")
         UITestSupport.saveProbe(app, name: "unit-creation-5-unit")
+
+        // 計画の後に教科書を撮り足すと、小単元にページが付く(確認の画面は挟まない)。
+        let add = app.buttons["workbook-unit-add-material"].firstMatch
+        XCTAssertTrue(add.appears(timeout: 5), "「教科書を撮る」が無い")
+        XCTAssertTrue(add.label.contains("教科書を撮る"), add.label)
+        shootOnePage(app, camera: "workbook-unit-add-material")
+        let ref = app.staticTexts["workbook-subunit-ref"].firstMatch
+        XCTAssertTrue(ref.appears(timeout: 30), "小単元にページが付かない")
+        XCTAssertTrue(ref.label.hasPrefix("p."), ref.label)
+        XCTAssertTrue(app.buttons["workbook-unit-add-material"].firstMatch.label.contains("撮り足す"))
+        UITestSupport.saveProbe(app, name: "unit-creation-6-pages")
     }
 
     /// 本物の Claude で、単元を作る時の計画づくり(期限の日付・すでにある単元を渡す)が計画を返すか。
@@ -85,5 +96,153 @@ final class UnitCreationUITests: XCTestCase {
         start.tap()
         XCTAssertTrue(app.navigationBars.element(boundBy: 0).appears(timeout: 20))
         UITestSupport.saveProbe(app, name: "unit-creation-real-unit")
+    }
+
+    /// カメラで1枚撮って「完了」を押す(写真はシミュレータの差し替えの紙)。
+    @MainActor
+    private func shootOnePage(_ app: XCUIApplication, camera: String = "onboarding-material-camera") {
+        addUIInterruptionMonitor(withDescription: "カメラの許可") { alert in
+            let allow = alert.buttons.matching(NSPredicate(format: "label IN %@", ["許可", "OK", "Allow"])).firstMatch
+            guard allow.exists else { return false }
+            allow.tap()
+            return true
+        }
+        app.buttons[camera].firstMatch.tap()
+        let shutter = app.buttons["chat-camera-shutter"]
+        if !shutter.appears(timeout: 10) { app.tap() }
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: NSPredicate(format: "enabled == true"), object: shutter)], timeout: 15), .completed)
+        shutter.tap()
+        let done = app.buttons["chat-camera-done"]
+        XCTAssertTrue(done.appears(timeout: 10), "カメラの「完了」が無い")
+        done.tap()
+    }
+
+    /// 中高生: 範囲表を撮って読み取り、読み取った範囲で計画を作る(#132)。
+    @MainActor
+    func testShootingARangeSheetReadsTheRangeAndMakesThePlan() throws {
+        let app = app()
+        app.launch()
+        let create = app.buttons["workbook-create-unit"].firstMatch
+        XCTAssertTrue(create.appears(timeout: 30))
+        create.tap()
+        app.buttons["onboarding-intent-range"].firstMatch.tap()
+        let capture = app.buttons["unit-creation-capture"].firstMatch
+        XCTAssertTrue(capture.appears(timeout: 10), "「範囲表・教科書を撮って選ぶ」が無い")
+        capture.tap()
+        UITestSupport.saveProbe(app, name: "capture-1-school")
+        shootOnePage(app)
+        let read = app.buttons["unit-creation-read"].firstMatch
+        XCTAssertTrue(read.appears(timeout: 10), "撮った後に「読み取る」が無い")
+        read.tap()
+        let confirm = app.buttons["unit-creation-read-confirm"].firstMatch
+        XCTAssertTrue(confirm.appears(timeout: 30), "読み取った範囲が出ない")
+        XCTAssertTrue(app.staticTexts["p.62〜p.96"].exists, "範囲のページが無い")
+        UITestSupport.saveProbe(app, name: "capture-2-school-result")
+        confirm.tap()
+        let start = app.buttons["onboarding-plan-start"].firstMatch
+        XCTAssertTrue(start.appears(timeout: 60), "計画が出ない")
+        XCTAssertTrue(app.buttons["onboarding-plan-deadline"].exists, "テストの日付が期限にならない")
+        UITestSupport.saveProbe(app, name: "capture-3-school-plan")
+    }
+
+    /// 大学生: 最初にカメラ、シラバスを読み取り、授業がどこまで進んだかを選んで計画を作る(#132)。
+    @MainActor
+    func testUniversityShootsTheSyllabusAndChoosesHowFarTheLecturesWent() throws {
+        let app = app()
+        app.launchEnvironment["STRUIS_UNIT_CREATION_GRADE"] = "大学生・それ以外"
+        app.launch()
+        let create = app.buttons["workbook-create-unit"].firstMatch
+        XCTAssertTrue(create.appears(timeout: 30))
+        create.tap()
+        XCTAssertTrue(app.buttons["unit-creation-no-material"].firstMatch.appears(timeout: 10), "大学生が撮る画面から始まらない")
+        UITestSupport.saveProbe(app, name: "capture-4-university")
+        shootOnePage(app)
+        app.buttons["unit-creation-read"].firstMatch.tap()
+        let lecture = app.buttons["unit-creation-lecture-7"].firstMatch
+        XCTAssertTrue(lecture.appears(timeout: 30), "授業の回が出ない")
+        let confirm = app.buttons["unit-creation-read-confirm"].firstMatch
+        XCTAssertFalse(confirm.isEnabled, "回を選ぶ前に作れてしまう")
+        lecture.tap()
+        XCTAssertTrue(confirm.isEnabled)
+        UITestSupport.saveProbe(app, name: "capture-5-university-result")
+        confirm.tap()
+        XCTAssertTrue(app.buttons["onboarding-plan-start"].firstMatch.appears(timeout: 60), "計画が出ない")
+        UITestSupport.saveProbe(app, name: "capture-6-university-plan")
+    }
+
+    /// 大学生で資料が無い時: 科目・何のために・いつまでにをタップで選んで計画を作る(#132)。
+    @MainActor
+    func testUniversityWithoutMaterialChoosesEverythingByTapping() throws {
+        let app = app()
+        app.launchEnvironment["STRUIS_UNIT_CREATION_GRADE"] = "大学生・それ以外"
+        app.launch()
+        let create = app.buttons["workbook-create-unit"].firstMatch
+        XCTAssertTrue(create.appears(timeout: 30))
+        create.tap()
+        let none = app.buttons["unit-creation-no-material"].firstMatch
+        XCTAssertTrue(none.appears(timeout: 10))
+        none.tap()
+        let topic = app.buttons["unit-creation-topic-線形代数"].firstMatch
+        XCTAssertTrue(topic.appears(timeout: 10), "科目の候補が無い")
+        topic.tap()
+        app.buttons["unit-creation-purpose-次の学期の予習"].firstMatch.tap()
+        app.buttons["unit-creation-until-休みが終わるまで"].firstMatch.tap()
+        XCTAssertFalse(app.textFields["unit-creation-topic-field"].exists, "候補を選んだのに文字の欄が出ている")
+        UITestSupport.saveProbe(app, name: "capture-7-university-choices")
+        app.buttons["unit-creation-plan"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["onboarding-plan-start"].firstMatch.appears(timeout: 60), "計画が出ない")
+        UITestSupport.saveProbe(app, name: "capture-8-university-choices-plan")
+    }
+
+    /// 本物の Claude で、撮った写真の読み取りから計画まで(手動、Dev Box)。写真は `TEST_RUNNER_STRUIS_CAPTURE_IMAGE`。
+    @MainActor
+    private func realClaudeCaptureApp(grade: String) throws -> XCUIApplication {
+        let key = ProcessInfo.processInfo.environment["STRUIS_REAL_CLAUDE_KEY_FILE"] ?? ""
+        let image = ProcessInfo.processInfo.environment["STRUIS_CAPTURE_IMAGE"] ?? ""
+        try XCTSkipIf(key.isEmpty || image.isEmpty, "TEST_RUNNER_STRUIS_REAL_CLAUDE_KEY_FILE と TEST_RUNNER_STRUIS_CAPTURE_IMAGE が無い (実 Claude 検証は手動)")
+        let app = app()
+        app.launchEnvironment["STRUIS_DEVICE_TURNS"] = nil
+        app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "1"
+        app.launchEnvironment["STRUIS_DEBUG_ANTHROPIC_KEY_FILE"] = key
+        app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = image
+        app.launchEnvironment["STRUIS_UNIT_CREATION_GRADE"] = grade
+        app.launch()
+        let create = app.buttons["workbook-create-unit"].firstMatch
+        XCTAssertTrue(create.appears(timeout: 30))
+        create.tap()
+        return app
+    }
+
+    @MainActor
+    func testRealClaudeReadsARangeSheetAndPlansByPage() throws {
+        let app = try realClaudeCaptureApp(grade: "高2")
+        app.buttons["onboarding-intent-range"].firstMatch.tap()
+        app.buttons["unit-creation-capture"].firstMatch.tap()
+        shootOnePage(app)
+        app.buttons["unit-creation-read"].firstMatch.tap()
+        let confirm = app.buttons["unit-creation-read-confirm"].firstMatch
+        if !confirm.appears(timeout: 120) { UITestSupport.saveProbe(app, name: "real-range-missing") }
+        UITestSupport.saveProbe(app, name: "real-range-result")
+        confirm.tap()
+        let start = app.buttons["onboarding-plan-start"].firstMatch
+        if !start.appears(timeout: 300) { UITestSupport.saveProbe(app, name: "real-range-plan-missing") }
+        XCTAssertTrue(start.exists, "本物の Claude の計画が出ない")
+        UITestSupport.saveProbe(app, name: "real-range-plan")
+    }
+
+    @MainActor
+    func testRealClaudeReadsASyllabusAndPlansByLecture() throws {
+        let app = try realClaudeCaptureApp(grade: "大学生・それ以外")
+        shootOnePage(app)
+        app.buttons["unit-creation-read"].firstMatch.tap()
+        let lecture = app.buttons["unit-creation-lecture-7"].firstMatch
+        if !lecture.appears(timeout: 120) { UITestSupport.saveProbe(app, name: "real-syllabus-missing") }
+        lecture.tap()
+        UITestSupport.saveProbe(app, name: "real-syllabus-result")
+        app.buttons["unit-creation-read-confirm"].firstMatch.tap()
+        let start = app.buttons["onboarding-plan-start"].firstMatch
+        if !start.appears(timeout: 300) { UITestSupport.saveProbe(app, name: "real-syllabus-plan-missing") }
+        XCTAssertTrue(start.exists, "本物の Claude の計画が出ない")
+        UITestSupport.saveProbe(app, name: "real-syllabus-plan")
     }
 }

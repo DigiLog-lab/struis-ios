@@ -15,6 +15,7 @@
           "n": {"type": "integer"},
           "scoring_unit": {"type": "string"},
           "note": {"type": "string"},
+          "ref": {"type": "string"},
           "check": {
             "type": "object",
             "properties": {
@@ -26,7 +27,7 @@
             "additionalProperties": false
           }
         },
-        "required": ["title", "outcome", "n", "scoring_unit", "note", "check"],
+        "required": ["title", "outcome", "n", "scoring_unit", "note", "ref", "check"],
         "additionalProperties": false
       }
     },

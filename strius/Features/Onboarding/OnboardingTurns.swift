@@ -75,11 +75,13 @@ nonisolated struct OnboardingPlanDraft: Codable, Hashable, Sendable {
         var n: Int
         var scoringUnit: String
         var note: String
+        /// 小単元の名前の横に出すページや授業の回(「p.66〜69」「第4回」。#132。前の版の下書きには無い)。
+        var ref: String?
         /// 「確認の1問だけ」にした時に出す、この小単元が分かっているかを確かめる1問(前の版の下書きには無い)。
         var check: FirstProblem?
 
         enum CodingKeys: String, CodingKey {
-            case title, outcome, n, note, check
+            case title, outcome, n, note, ref, check
             case scoringUnit = "scoring_unit"
         }
     }
@@ -117,6 +119,74 @@ nonisolated struct OnboardingPlanDraft: Codable, Hashable, Sendable {
     /// お試しの結果をどう反映したかが、どこにも書かれていない(モデルが書き落とした)。
     var mentionsTrial: Bool {
         lead.contains("お試し") || subunits.contains { $0.note.contains("お試し") }
+    }
+}
+
+/// 撮った範囲表・教科書・シラバス・スライドから読み取った範囲(#132)。書いていない値は空。
+nonisolated struct MaterialReading: Codable, Hashable, Sendable {
+    nonisolated struct Lecture: Codable, Hashable, Sendable {
+        var number: Int
+        var title: String
+    }
+
+    var readable: Bool
+    /// range_sheet | textbook | syllabus | slides | quiz | other
+    var kind: String
+    var subject: String
+    var unit: String
+    var course: String
+    var pages: String
+    var workbookPages: String
+    /// 「2026-11-27」。
+    var testDate: String
+    var lectures: [Lecture]
+    /// スライド・小テストにある回のうち一番大きいもの(シラバスだけなら 0)。
+    var latestLecture: Int
+    var words: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case readable, kind, subject, unit, course, pages, lectures, words
+        case workbookPages = "workbook_pages"
+        case testDate = "test_date"
+        case latestLecture = "latest_lecture"
+    }
+
+    /// 大学の授業として読めたか(授業名か回の一覧がある)。
+    var isCourse: Bool { !course.isEmpty || !lectures.isEmpty }
+}
+
+/// 単元を作った後に撮り足した資料の割り当て(#132)。ページや回を今の小単元に付け、大学の授業なら進んだ回の小単元を足す。
+nonisolated struct MaterialAttachment: Codable, Hashable, Sendable {
+    nonisolated struct Assignment: Codable, Hashable, Sendable {
+        var subunitID: String
+        var ref: String
+
+        enum CodingKeys: String, CodingKey {
+            case ref
+            case subunitID = "subunit_id"
+        }
+    }
+
+    nonisolated struct NewSubunit: Codable, Hashable, Sendable {
+        var title: String
+        var outcome: String
+        var n: Int
+        var scoringUnit: String
+        var ref: String
+
+        enum CodingKeys: String, CodingKey {
+            case title, outcome, n, ref
+            case scoringUnit = "scoring_unit"
+        }
+    }
+
+    var readable: Bool
+    var assignments: [Assignment]
+    var newSubunits: [NewSubunit]
+
+    enum CodingKeys: String, CodingKey {
+        case readable, assignments
+        case newSubunits = "new_subunits"
     }
 }
 
@@ -191,6 +261,62 @@ nonisolated enum OnboardingTurns {
         return plan
     }
 
+    /// 範囲の読み取り(#132)。`imagePaths` は `StruisPaths.captures` の中の撮った写真(8 枚まで)。採点と同じ役(Sonnet 5.5)の 1 回の構造化ターン。
+    /// 利用枠では計画づくりと同じ新しい作業として数える(`UsageRequest.of`)。
+    static func readingPlan(assets: AssetCache, planID: String, request: LedgerJSON, imagePaths: [String]) async throws -> TurnPlan {
+        let images = imagePaths.prefix(8).enumerated().map { index, path in
+            let ext = (path as NSString).pathExtension.isEmpty ? "jpg" : (path as NSString).pathExtension
+            return TurnPlan.ImageRef(path: "tutor_desk/inbox/materials/read-\(index + 1).\(ext)", hostPath: StruisPaths.captures.appendingPathComponent(path).path,
+                                     maxDimension: 2048)
+        }
+        return TurnPlan(
+            // 種類は計画づくりと同じ「新しい作業」(採点の続きとして利用枠の猶予を使わない)。モデルは採点と同じ役。
+            id: planID, kind: .onboardingPlan, round: 1,
+            thread: try await thread(assets: assets, planID: planID, instructions: "prompt:material_read_instructions", role: TimelineModels.role),
+            turn: TurnPlan.TurnSpec(text: turnText(materials: request), images: Array(images),
+                                    outputSchema: try await assets.json("schema:material_read"), sandboxPolicy: "dangerFullAccess"),
+            workspace: TimelineTurns.workspace, delegation: nil, collect: [], limits: .structured
+        )
+    }
+
+    /// 撮り足した資料の割り当て(#132)。読み取りと同じ役のモデルで、新しい作業として数える。
+    static func attachPlan(assets: AssetCache, planID: String, request: LedgerJSON, imagePaths: [String]) async throws -> TurnPlan {
+        let images = imagePaths.prefix(8).enumerated().map { index, path in
+            let ext = (path as NSString).pathExtension.isEmpty ? "jpg" : (path as NSString).pathExtension
+            return TurnPlan.ImageRef(path: "tutor_desk/inbox/materials/attach-\(index + 1).\(ext)", hostPath: StruisPaths.captures.appendingPathComponent(path).path,
+                                     maxDimension: 2048)
+        }
+        return TurnPlan(
+            id: planID, kind: .onboardingPlan, round: 1,
+            thread: try await thread(assets: assets, planID: planID, instructions: "prompt:material_attach_instructions", role: TimelineModels.role),
+            turn: TurnPlan.TurnSpec(text: turnText(materials: request), images: Array(images),
+                                    outputSchema: try await assets.json("schema:material_attach"), sandboxPolicy: "dangerFullAccess"),
+            workspace: TimelineTurns.workspace, delegation: nil, collect: [], limits: .structured
+        )
+    }
+
+    /// 割り当ての返事を読む。知らない小単元への割り当てと、中高の単元に足そうとした小単元は捨てる。
+    static func parseAttachment(_ text: String, subunitIDs: Set<String>, isCourse: Bool) -> MaterialAttachment? {
+        guard let data = JSONExtraction.object(in: text), var attachment = try? JSONDecoder().decode(MaterialAttachment.self, from: data) else { return nil }
+        attachment.assignments = attachment.assignments.compactMap { assignment in
+            let ref = assignment.ref.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard subunitIDs.contains(assignment.subunitID), !ref.isEmpty else { return nil }
+            return MaterialAttachment.Assignment(subunitID: assignment.subunitID, ref: ref)
+        }
+        attachment.newSubunits = isCourse ? attachment.newSubunits.filter { !$0.title.trimmingCharacters(in: .whitespaces).isEmpty }.prefix(6).map { subunit in
+            var subunit = subunit
+            subunit.n = min(10, max(3, subunit.n))
+            return subunit
+        } : []
+        return attachment
+    }
+
+    static func parseReading(_ text: String) -> MaterialReading? {
+        guard let data = JSONExtraction.object(in: text), var reading = try? JSONDecoder().decode(MaterialReading.self, from: data) else { return nil }
+        reading.lectures = reading.lectures.filter { $0.number > 0 }.sorted { $0.number < $1.number }
+        return reading
+    }
+
     static func parseVerdict(_ text: String) -> TrialVerdict? {
         guard let data = JSONExtraction.object(in: text) else { return nil }
         return try? JSONDecoder().decode(TrialVerdict.self, from: data)
@@ -201,6 +327,7 @@ nonisolated enum OnboardingTurns {
         draft.subunits = draft.subunits.filter { !$0.title.trimmingCharacters(in: .whitespaces).isEmpty }.prefix(6).map { subunit in
             var subunit = subunit
             subunit.n = min(10, max(3, subunit.n))
+            subunit.ref = subunit.ref.map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(20)) }.flatMap { $0.isEmpty ? nil : $0 }
             return subunit
         }
         guard !draft.unitTitle.isEmpty, !draft.subunits.isEmpty else { return nil }
