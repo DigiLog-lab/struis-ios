@@ -16,6 +16,7 @@ export TEST_RUNNER_STRUIS_E2E_APP_ENV_STRUIS_DEVICE_RUNTIME=1
 export TEST_RUNNER_STRUIS_E2E_APP_ENV_STRUIS_LEDGER=persistent
 export TEST_RUNNER_STRUIS_E2E_APP_ENV_STRUIS_DEBUG_ANTHROPIC_KEY_FILE="$DEVBOX_ANTHROPIC_KEY_FILE"
 export TEST_RUNNER_STRUIS_E2E_APP_ENV_STRUIS_TEST_CAMERA_IMAGE="$RU/camera.jpg"
+[[ -n "${RU_API_BASE:-}" ]] && export TEST_RUNNER_STRUIS_E2E_APP_ENV_STRUIS_ANTHROPIC_BASE_URL="$RU_API_BASE"
 [[ -n "${RU_STORE_KEEP:-}" ]] && export TEST_RUNNER_STRUIS_E2E_STORE_KEEP=1
 nohup xcodebuild test-without-building -project strius.xcodeproj -scheme strius -destination "id=$UDID" \
   -derivedDataPath "$DERIVED_DATA" -parallel-testing-enabled NO \
