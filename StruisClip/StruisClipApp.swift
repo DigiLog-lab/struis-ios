@@ -41,6 +41,8 @@ struct StruisClipApp: App {
             opened = UUID()
             unreadable = false
         } catch {
+            // 前の挑戦を残すと、新しいリンクが読めなかったことに気づかず前の問題を解いてしまうので消す。
+            challenge = nil
             unreadable = true
         }
     }
