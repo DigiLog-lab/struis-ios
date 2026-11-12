@@ -1,0 +1,511 @@
+{
+  "type": "object",
+  "properties": {
+    "format": {
+      "type": "integer",
+      "enum": [
+        1
+      ],
+      "description": "書式の版。"
+    },
+    "skill_id": {
+      "type": "string",
+      "description": "対応する知識グラフの点の ID。"
+    },
+    "title": {
+      "type": "string",
+      "description": "点の名前。"
+    },
+    "subject": {
+      "type": "string",
+      "enum": [
+        "math",
+        "physics",
+        "chemistry",
+        "other"
+      ]
+    },
+    "variables": {
+      "type": "array",
+      "minItems": 1,
+      "description": "問題ごとに乱数で値を選ぶ変数。",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "英字で始まる英数字と _。pi・e・i・true・false・and・or・not は使えない。"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "integer",
+              "decimal",
+              "fraction",
+              "choice",
+              "constant"
+            ]
+          },
+          "min": {
+            "type": "number",
+            "description": "integer・decimal の下限(含む)。"
+          },
+          "max": {
+            "type": "number",
+            "description": "integer・decimal の上限(含む)。"
+          },
+          "step": {
+            "type": "number",
+            "description": "きざみ。integer は省くと 1、decimal は必須。"
+          },
+          "exclude": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "description": "範囲から除く値。"
+          },
+          "numerator": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "integer"
+              },
+              "max": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "min",
+              "max"
+            ],
+            "additionalProperties": false,
+            "description": "fraction の分子の範囲。"
+          },
+          "denominator": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "integer"
+              },
+              "max": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "min",
+              "max"
+            ],
+            "additionalProperties": false,
+            "description": "fraction の分母の範囲。"
+          },
+          "options": {
+            "type": "array",
+            "minItems": 1,
+            "description": "choice の選択肢。数・文字列か、名前つきの値の組。",
+            "items": {
+              "anyOf": [
+                {
+                  "type": [
+                    "number",
+                    "string"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": [
+                      "number",
+                      "string"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "value": {
+            "type": "number",
+            "description": "constant の値。"
+          },
+          "unit": {
+            "type": "string",
+            "description": "単位(m/s^2、kg*m/s^2、J/(mol*K) など)。値はこの単位で書く。"
+          },
+          "sig": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 15,
+            "description": "画面に出す時の有効数字。"
+          }
+        },
+        "required": [
+          "name",
+          "kind"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "lets": {
+      "type": "array",
+      "description": "変数から計算する値。上から順に計算する。",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "expr": {
+            "type": "string",
+            "description": "式。掛け算の * は省けない。"
+          },
+          "unit": {
+            "type": "string",
+            "description": "画面に出す時の単位。式の次元と合うこと。"
+          },
+          "sig": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 15
+          }
+        },
+        "required": [
+          "name",
+          "expr"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "description": "真偽の式。"
+      },
+      "description": "変数の組が満たす条件。"
+    },
+    "parts": {
+      "type": "array",
+      "description": "表示の部品。",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "sum",
+              "text",
+              "select",
+              "list",
+              "pm"
+            ]
+          },
+          "terms": {
+            "type": "array",
+            "minItems": 1,
+            "description": "sum の項。",
+            "items": {
+              "type": "object",
+              "properties": {
+                "coef": {
+                  "type": "string",
+                  "description": "係数の式。0 ならこの項は書かない。1 は書かない。"
+                },
+                "powers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "base": {
+                        "type": "string",
+                        "description": "底の LaTeX。"
+                      },
+                      "exp": {
+                        "type": "string",
+                        "description": "指数の式。0 なら書かず、1 なら指数を書かない。"
+                      }
+                    },
+                    "required": [
+                      "base",
+                      "exp"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "body": {
+                  "type": "string",
+                  "description": "係数の後ろに置く LaTeX。"
+                },
+                "times": {
+                  "type": "boolean",
+                  "description": "係数と本体の間に \\cdot を置く。"
+                }
+              },
+              "required": [
+                "coef"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "tex": {
+            "type": "string",
+            "description": "text の中身。"
+          },
+          "cases": {
+            "type": "array",
+            "minItems": 1,
+            "description": "select の場合分け。上から順に見る。",
+            "items": {
+              "type": "object",
+              "properties": {
+                "when": {
+                  "type": "string",
+                  "description": "真偽の式。"
+                },
+                "tex": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "when",
+                "tex"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "otherwise": {
+            "type": "string",
+            "description": "select でどれも成り立たない時の LaTeX。"
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "description": "式。"
+            },
+            "description": "list の中身。"
+          },
+          "sort": {
+            "type": "boolean",
+            "description": "list を小さい順に並べる。"
+          },
+          "unique": {
+            "type": "boolean",
+            "description": "list から同じ値を除く。"
+          },
+          "separator": {
+            "type": "string",
+            "description": "list の区切り。省くと ,\\ 。"
+          },
+          "format": {
+            "type": "string",
+            "description": "sum の係数・list の値の書き方(dec:1、sig:2 など)。"
+          },
+          "center": {
+            "type": "string",
+            "description": "pm: center ± scale × √radicand の center(式)。"
+          },
+          "radicand": {
+            "type": "string",
+            "description": "pm の根号の中(式)。"
+          },
+          "scale": {
+            "type": "string",
+            "description": "pm の根号に掛ける数(式)。省くと 1。"
+          }
+        },
+        "required": [
+          "name",
+          "kind"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "prompt": {
+      "type": "string",
+      "description": "問題文。日本語の文で、文の中の式は $…$ で囲む。{名前} で値を差し込む。"
+    },
+    "math": {
+      "type": "string",
+      "description": "問題文の下に大きく出す式。LaTeX だけ($ は書かない)。"
+    },
+    "answer": {
+      "type": "string",
+      "description": "答え。文の中の式は $…$ で囲む。"
+    },
+    "checks": {
+      "type": "array",
+      "description": "数値で確かめる点検。",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "identity",
+              "value",
+              "derivative",
+              "antiderivative",
+              "definite_integral",
+              "root",
+              "system",
+              "inequality",
+              "assert",
+              "series",
+              "limit",
+              "ode"
+            ]
+          },
+          "left": {
+            "type": "string"
+          },
+          "right": {
+            "type": "string"
+          },
+          "over": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "値を入れて比べる文字。"
+          },
+          "range": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "文字に入れる値の範囲。"
+          },
+          "tex": {
+            "type": "string"
+          },
+          "equals": {
+            "type": "string",
+            "description": "型の式。"
+          },
+          "at": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "LaTeX の中の文字に入れる値(文字 → 式)。"
+          },
+          "function": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          },
+          "variable": {
+            "type": "string"
+          },
+          "order": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ]
+          },
+          "point": {
+            "type": "string",
+            "description": "微分係数を求める点(式)。"
+          },
+          "integrand": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string",
+            "description": "式。"
+          },
+          "to": {
+            "type": "string",
+            "description": "式。limit では inf・-inf も書ける。"
+          },
+          "solutions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "equations": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "left": {
+                  "type": "string"
+                },
+                "right": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "left",
+                "right"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "連立方程式の解(文字 → LaTeX)。"
+          },
+          "solution": {
+            "type": "string",
+            "description": "不等式の解。変数を使った真偽の式。"
+          },
+          "relation": {
+            "type": "string",
+            "description": "不等号。<・<=・>・>=(差し込みも書ける)。"
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "真偽の式。"
+            },
+            "minItems": 1
+          },
+          "term": {
+            "type": "string"
+          },
+          "index": {
+            "type": "string"
+          },
+          "tolerance": {
+            "type": "number",
+            "description": "比べる時の相対誤差。省くと 1e-6。"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "no_numeric_check": {
+      "type": "string",
+      "description": "数値で確かめられない時の理由。checks が空の時に書く。"
+    }
+  },
+  "required": [
+    "format",
+    "skill_id",
+    "title",
+    "subject",
+    "variables",
+    "prompt",
+    "answer"
+  ],
+  "additionalProperties": false
+}
