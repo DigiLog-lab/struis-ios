@@ -270,6 +270,22 @@ final class ClaudeTurnRunnerTests: XCTestCase {
         XCTAssertEqual(try conversations.conversation(forked)?.agentsPath, try conversations.conversation(thread)?.agentsPath)
     }
 
+    /// 版 2 の system: ふつうは 1 ブロック。`fixedEnd` があれば、そこまで(どの依頼でも同じ部分)だけに 1 時間の印を置く。
+    func testSystemSplitsAtTheFixedEndSoOnlyTheSharedPartIsCachedForAnHour() {
+        let whole: [[String: Any]] = ClaudeTranslation.system("BASE\n\nDEVELOPER")
+        XCTAssertEqual(whole.count, 1)
+        XCTAssertEqual(whole[0]["text"] as? String, "BASE\n\nDEVELOPER")
+        XCTAssertEqual(whole[0]["cache_control"] as? [String: String], ["type": "ephemeral", "ttl": "1h"])
+        let split: [[String: Any]] = ClaudeTranslation.system("BASE\n\nSHARED" + ClaudeTranslation.fixedEnd + "UNIT AND SKILLS\n\nTASK")
+        XCTAssertEqual(split.map { $0["text"] as? String }, ["BASE\n\nSHARED", "UNIT AND SKILLS\n\nTASK"])
+        XCTAssertEqual(split[0]["cache_control"] as? [String: String], ["type": "ephemeral", "ttl": "1h"])
+        XCTAssertNil(split[1]["cache_control"])
+        // 変わる部分が空(単元がまだ無い)でも、空のブロックは作らない。
+        let empty: [[String: Any]] = ClaudeTranslation.system("BASE\n\nSHARED" + ClaudeTranslation.fixedEnd + "\n\nTASK")
+        XCTAssertEqual(empty.map { $0["text"] as? String }, ["BASE\n\nSHARED", "TASK"])
+        XCTAssertEqual(ClaudeTranslation.system("BASE" + ClaudeTranslation.fixedEnd).count, 1)
+    }
+
     func testStoppedTurnLeavesTheAbortMarkAndClosesOpenToolCalls() async throws {
         let runner: ClaudeTurnRunner = runner([Self.answer("一つ目")])
         let first: TurnOutcome = try await runner.run(try await chatPlan(thread: nil, mode: .start, text: "質問 1")) { _ in }

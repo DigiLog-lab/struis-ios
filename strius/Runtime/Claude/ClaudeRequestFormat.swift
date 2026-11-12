@@ -128,6 +128,8 @@ nonisolated enum ClaudeTranslation {
     static let blockSeparator = "\n\n<!-- struis:block -->\n\n"
     /// 今日の記録の終わり(この後ろに足す注記は記録のブロックに混ぜない)。
     static let logEnd = "\n\n<!-- struis:log-end -->"
+    /// 基本指示の中の、どの依頼でも同じ部分の終わり(知識グラフの依頼。この後ろは学習者の単元とスキルの一覧で、依頼ごとに変わる)。
+    static let fixedEnd = "\n\n<!-- struis:fixed-end -->\n\n"
     static let tutorKinds: Set<String> = ["timeline_batch", "timeline_grading", "timeline_review"]
 
     /// スレッドを始める時の版。
@@ -169,6 +171,20 @@ nonisolated enum ClaudeTranslation {
         }
         if let logMark { blocks[logMark]["cache_control"] = cacheControl(ttl: "1h") }
         if let schema { blocks.append(["type": "text", "text": schema]) }
+        return blocks
+    }
+
+    /// 版 2 の system。ふつうは 1 つのブロックで、最後に 1 時間の印を置く(固定の指示。処理をまたいで共有される)。
+    /// `fixedEnd` がある時は、そこまでを 1 つ目のブロックにして 1 時間の印を置き、後ろ(依頼ごとに変わる部分)は印の無い
+    /// 2 つ目のブロックにする。変わる部分まで 1 つのブロックにすると、毎回違う文面になって前の分を読めず、全部を
+    /// 1 時間の料金(入力の 2 倍)で書き直すだけになる。後ろの部分は末尾の印が受け持つ。
+    static func system(_ text: String) -> [[String: Any]] {
+        guard let end = text.range(of: fixedEnd) else {
+            return [["type": "text", "text": text, "cache_control": cacheControl(ttl: "1h")]]
+        }
+        var blocks: [[String: Any]] = [["type": "text", "text": String(text[..<end.lowerBound]), "cache_control": cacheControl(ttl: "1h")]]
+        let rest: String = text[end.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+        if !rest.isEmpty { blocks.append(["type": "text", "text": rest]) }
         return blocks
     }
 

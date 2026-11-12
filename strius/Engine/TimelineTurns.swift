@@ -143,10 +143,12 @@ nonisolated enum TimelineTurns {
     }
 
     /// 知識グラフの依頼のスレッド(上位モデル。採点・出題とは先頭を共有しない)。
+    /// 基本指示は、どの依頼でも同じ部分(`prompt:base`・`timeline_shared`)と、学習者の単元とスキルの一覧(スキルが増えるたびに
+    /// 変わる)を `ClaudeTranslation.fixedEnd` で分ける。同じ部分だけが 1 時間のキャッシュに入り、続けて送る依頼がそれを読む。
     static func thread(composer: TurnComposer, planID: String, instructions: String, role: String, workbook: WorkbookMachine, timeline: TimelineMachine) async throws -> TurnPlan.ThreadSpec {
         let model = await composer.assets.model(role)
         let shared = try await composer.assets.text("prompt:timeline_shared")
-        let base = try await composer.assets.ref("prompt:base", append: shared + "\n\n" + sharedContext(workbook: workbook, timeline: timeline))
+        let base = try await composer.assets.ref("prompt:base", append: shared + ClaudeTranslation.fixedEnd + sharedContext(workbook: workbook, timeline: timeline))
         return TurnPlan.ThreadSpec(
             codexThreadID: nil, mode: .start, cwd: TurnPlan.guestWorkspace(id: planID), model: model.model, effort: model.effort,
             ephemeral: true, baseInstructions: base, developerInstructions: try await composer.assets.ref(instructions),

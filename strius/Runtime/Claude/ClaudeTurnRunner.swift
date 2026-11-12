@@ -589,7 +589,7 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
         if tutor { return ClaudeTranslation.tutorSystem(parts: tutorParts, schema: schemaText) }
         let text: String = (systemParts + (schemaText.map { [$0] } ?? [])).joined(separator: "\n\n")
         // 固定の指示(tools と system)に独立した breakpoint を置く。処理をまたいで共有されるので 1 時間。
-        return [["type": "text", "text": text, "cache_control": ClaudeTranslation.cacheControl(ttl: "1h")]]
+        return ClaudeTranslation.system(text)
     }
 
     private func body(previousResponseID: String?) -> [String: Any] {
@@ -602,11 +602,11 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
                 return message
             })
         }
+        sent = ClaudeTranslation.markingAgents(sent)
         var body: [String: Any] = [
             "model": model, "max_tokens": ClaudeRequestFormat.maxTokens, "stream": true, "messages": sent,
             "system": system, "thinking": ["type": "adaptive", "display": "summarized"],
         ]
-        sent = ClaudeTranslation.markingAgents(sent)
         if ClaudeTranslation.marksTail(translation: translation, messages: sent) {
             body["cache_control"] = ClaudeTranslation.cacheControl(ttl: translation >= 2 && !tutor ? tailTTL : nil)
         }
