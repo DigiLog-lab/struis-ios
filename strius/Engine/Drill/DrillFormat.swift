@@ -331,8 +331,9 @@ nonisolated enum DrillFormat {
             }
             return "(\(body.negative ? "-" : "+")\(body.text))"
         case DrillFormatSpec.Sign.magnitude:
-            // 値の絶対値を取ってあるので、そのまま書く(-1+√2 は正の数)。a × 10^n もかっこで囲まない。
-            return body.text
+            // 値の絶対値は、書く前に取ってある。項が 2 つ以上の数は、式の中に置いても意味が変わらないようにかっこで囲む
+            // (3 \times {u|abs} が 3 \times 1+\sqrt{2} にならないように)。a × 10^n はかっこで囲まない。
+            return text
         }
     }
 

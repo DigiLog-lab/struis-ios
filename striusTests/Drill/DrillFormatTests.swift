@@ -230,8 +230,11 @@ final class DrillFormatTests: XCTestCase {
     /// abs は、値の絶対値を取ってから書く(前は符号を外すだけで、1-√2 が (1-√2) のまま、3+4i が (3+4i) のままだった)。
     func testAbsoluteValueIsTakenFromTheValue() throws {
         XCTAssertEqual(try S.tex("-3", ["abs"]), "3")
-        XCTAssertEqual(try S.tex("1 - sqrt(2)", ["abs"]), "-1+\\sqrt{2}")
-        XCTAssertEqual(try S.tex("-1 - sqrt(2)", ["abs"]), "1+\\sqrt{2}")
+        // 項が 2 つ以上の絶対値は、式の中に置いても意味が変わらないように、かっこで囲む。
+        XCTAssertEqual(try S.tex("1 - sqrt(2)", ["abs"]), "(-1+\\sqrt{2})")
+        XCTAssertEqual(try S.tex("-1 - sqrt(2)", ["abs"]), "(1+\\sqrt{2})")
+        XCTAssertEqual(try S.tex("(1 - sqrt(5))/2", ["abs"]), "\\frac{-1+\\sqrt{5}}{2}")
+        XCTAssertEqual(try S.tex("-1200000", ["abs", "sig:2"]), "1.2 \\times 10^{6}")
         XCTAssertEqual(try S.tex("3 + 4*i", ["abs"]), "5")
         XCTAssertEqual(try S.tex("-3/4", ["abs"]), "\\frac{3}{4}")
         XCTAssertEqual(try S.evaluate("abs(1 - sqrt(2)) == sqrt(2) - 1"), DrillValue.bool(true))
