@@ -85,7 +85,9 @@ final class OfflineDrillLabTests: XCTestCase {
     /// 余白は指で書ける状態で画面を覆い、ボタンの上だけ指をボタンに通す(画面を実際に組んで、指が届く先を確かめる)。
     @MainActor
     func testMarginIsWritableWithAFingerAndTheButtonsStayTappable() throws {
-        let window: UIWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 402, height: 874))
+        let scene: UIWindowScene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { (scene: UIScene) -> UIWindowScene? in scene as? UIWindowScene }.first)
+        let window: UIWindow = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
         let host: UIHostingController<OfflineDrillLabView> = UIHostingController(rootView: OfflineDrillLabView())
         window.rootViewController = host
         window.makeKeyAndVisible()
