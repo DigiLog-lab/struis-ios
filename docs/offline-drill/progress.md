@@ -4,10 +4,25 @@
 
 ## 今の段階
 
-- 2026-11-12 18:20 **段階 5(型を書かせる指示文・保存先)と段階 6 の画面のプロトタイプを書き終え、Dev Box でのビルド・単体テスト・スクショに入る所。**
-- 終わったもの: 事前検証、書式の仕様書、JSON Schema、解釈器・生成器・点検器、一覧 459 行(型 421、うち数値点検あり 414、数値点検なし 7、表せない 38)、型を書かせる指示文と返事の点検(`DrillAuthoring`)、保存先(`DrillTemplateStore`)、画面のプロトタイプ(`OfflineDrillLabView`)。Linux の Swift 6.4.2 で単体テスト 105 件が通過。
-- まだのもの(この順で進める): Dev Box でビルドと単体テスト(追加した分と、台帳の移行・消去・単元の削除のテスト)→ スクショ 5 枚 → Draft PR。
+- 2026-11-12 19:15 **指示書の完了条件の 5 つを満たし、Draft PR を 1 本出す所(出した後は、持ち主のレビュー待ち)。**
+- 終わったもの:
+  1. 書式の仕様書(`docs/offline-drill/format.md`)と JSON Schema(`strius/Resources/Prompts/drill_template.json`)。
+  2. 解釈器・生成器・点検器(`strius/Engine/Drill/`)と単体テスト。
+  3. 一覧 459 行(型 421、うち数値点検あり 414、数値点検なし 7、書式で表せない 38)。全部の型が点検を通ることを `DrillCatalogTests` が固定している。
+  4. 型を書かせる指示文(`strius/Resources/Prompts/drill_template_instructions.md`)、返事の点検(`DrillAuthoring`)、保存先(`DrillTemplateStore`)。
+  5. 画面のプロトタイプ(`OfflineDrillLabView`)とスクショ(`docs/offline-drill/screenshots/`)。
+- Dev Box(run 43189677517、Xcode 27.1、iPhone 17 のシミュレータ)で確かめたこと(コードは caef00a):
+  - `xcodebuild build-for-testing` が通る。
+  - 追加した単体テストと、台帳まわりの既存の単体テスト(`LedgerTests`・`LedgerMigrationTests`・`LearningErasureTests`・`UnitDeletionTests`)の計 158 件: 157 件が合格、1 件は前からある飛ばし(`UnitDeletionTests.testLateGradingGenerationChatAndPrefetchNeverRestoreDeletedUnit` は環境変数を付けた時だけ動く)。
+  - 一覧の全部の型について、作った問題文・式・答えの数式を SwiftMath が読める(`OfflineDrillLabTests.testEveryTemplateRendersWithSwiftMath`)。
+  - プロトタイプの画面を実際に組み、余白と問題文の上の指は書く面に届き、ボタンの上の指はボタンに届く(`OfflineDrillLabTests.testMarginIsWritableWithAFingerAndTheButtonsStayTappable`)。
+  - Linux(Swift 6.4.2)でも `striusTests/Drill/` の 105 件が合格。種を決めた生成の結果は Linux と iOS で同じ(`DrillGeneratorTests` の固定の期待値が両方で通る)。
+- 確かめていないこと:
+  - **指示文を実際の AI に渡して型を書かせること。** 指示書の範囲は「指示文と、その返事を点検できることまで」で、AI を呼ぶ所にはつないでいない。試すには持ち主の API の鍵で呼ぶことになるので、頼まれていない呼び出しはしていない。
+  - シミュレータの画面に指で実際に線を書くこと。Dev Box には画面に触る道具が無く(`idb`・`cliclick` は入っていない、`simctl` に触る命令は無い)、UI テストは書かない決まりなので、指が届く先を単体テストで確かめる所までにした。書く面はタイムラインと同じ `TimelineInkCanvas`。
+  - iPad の横向きのスクショ(`simctl` では向きを変えられない)。iPad は縦向きだけ撮った。横向きの並び(問題を左の列に置く)はタイムラインと同じ式で書いてあるが、画面では見ていない。
 - Dev Box の 1 回目の立ち上げ(run 43188318664)は、ビルドに失敗した。立ち上げた時点のブランチ(57184bb)では、`strius/Engine/Drill/` を Xcode のプロジェクトに登録していなかったため(`striusTests/Drill/` は自動で入るので、テストだけが型を見つけられなかった)。793a486 で登録して立ち上げ直した。
+- プロトタイプで直したこと: 文字サイズを大きくすると、問題の式と答えの式の右側が切れていた(書く面が上に乗っていて、式を横にスクロールできない)。式が列の幅に収まる大きさまで小さくするようにした(dafd137)。
 
 ## 段階ごとの道具
 
