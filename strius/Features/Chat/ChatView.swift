@@ -269,6 +269,10 @@ struct ChatView: View {
         // iPad の右の欄は開いたまま、別の問題の「解説」を押すと依頼だけが替わる。新しい問題の解説を送る。
         .onChange(of: autoSendKey) { _, _ in autoSendIfNeeded() }
         .onChange(of: chat.loadState) { _, _ in autoSendIfNeeded() }
+        // 前の返事を書いている間に来た依頼(iPad で質問の欄を開いたまま、別の問題の「解説」を押した時)は、返事が終わってから送る。
+        // 送信中かどうかは `loadState` を変えないので、ここで見ないと依頼が落ちる。
+        .onChange(of: chat.isSending) { _, sending in if !sending { autoSendIfNeeded() } }
+        .onChange(of: isSubmitting) { _, submitting in if !submitting { autoSendIfNeeded() } }
         .onDisappear { chat.stop() }
         .onChange(of: isHistoryPresented) { _, presented in
             if presented {

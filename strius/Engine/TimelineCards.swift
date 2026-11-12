@@ -435,6 +435,18 @@ nonisolated enum TimelineCards {
             let steps: [String] = strings("steps")
             guard !steps.isEmpty else { return nil }
             return (nil, steps.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"))
+        case .graphMatch:
+            // グラフは `graph_order` の順に左から並ぶ。答えは、グラフごとに選んだ式の番号。
+            // (前は nil で、解説には元の問題の答えが「正しい答え」として渡っていた。)
+            let exprs: [String] = strings("exprs")
+            let order: [Int] = card.payload["graph_order"]?.arrayValue?.compactMap(\.intValue) ?? []
+            guard !exprs.isEmpty, order.count == exprs.count, order.allSatisfy({ exprs.indices.contains($0) }) else { return nil }
+            func pairs(_ chosenExprs: [Int]) -> String {
+                chosenExprs.enumerated().map { "左から\($0.offset + 1)番目のグラフ: " + (exprs.indices.contains($0.element) ? "式 \($0.element + 1)" : "選んでいない") }
+                    .joined(separator: "\n")
+            }
+            let chosenExprs: [Int]? = chosen?.arrayValue?.compactMap(\.intValue)
+            return (chosenExprs.flatMap { $0.count == order.count ? pairs($0) : nil }, pairs(order))
         case .sort:
             let items: [LedgerJSON] = card.payload["items"]?.arrayValue ?? []
             guard !items.isEmpty else { return nil }
@@ -444,6 +456,23 @@ nonisolated enum TimelineCards {
         default:
             return nil
         }
+    }
+
+    /// 質問・解説に添える、カードの選ぶもの(番号付き)。読み取って採点するカードには無い。
+    /// グラフと式を組にするカードは図を送れないので、式の一覧と、グラフが左から並んでいることを文で書く。
+    static func optionLines(_ card: TimelineCardRecord) -> [String] {
+        guard let kind: Kind = Kind(rawValue: card.kind), !kind.needsReading else { return [] }
+        func strings(_ key: String) -> [String] { card.payload[key]?.arrayValue?.compactMap(\.stringValue) ?? [] }
+        if kind == .graphMatch {
+            let exprs: [String] = strings("exprs")
+            guard !exprs.isEmpty else { return [] }
+            let lines: [String] = exprs.enumerated().map { item in
+                "式 \(item.offset + 1): " + (TimelinePlainMath.latex(item.element).map { "$y = " + $0 + "$" } ?? "y = " + item.element)
+            }
+            return ["グラフが\(exprs.count)つ、左から並んでいます(図は送れません)。それぞれのグラフに合う式を選ぶ問題です。"] + lines
+        }
+        let options: [String] = (card.payload["options"] ?? card.payload["lines"])?.arrayValue?.compactMap(\.stringValue) ?? []
+        return options.isEmpty ? [] : ["選択肢:"] + options.enumerated().map { "\($0.offset + 1). \($0.element)" }
     }
 
     /// 端末の中で採点するカード(選ぶ・仕分ける・組にする)を間違えた時に、結果の画面にそのまま出す解き方。

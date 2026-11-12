@@ -82,6 +82,31 @@ final class TimelineCardsTests: XCTestCase {
         XCTAssertTrue(TimelineCards.solutionSteps(bare).isEmpty)
     }
 
+    /// グラフと式を組にするカード: 結果と解説には、元の問題の答えではなく、グラフごとの正しい式を出す。質問・解説には式の一覧を添える。
+    func testGraphMatchShowsThePairingAndListsTheExpressions() throws {
+        let card: TimelineCardRecord = try base()
+        var graph: TimelineCardRecord = card
+        graph.kind = TimelineCards.Kind.graphMatch.rawValue
+        graph.payload = .object((card.payload.objectValue ?? [:]).merging(TimelineCards.derive(.graphMatch, from: card)!.payload) { _, new in new })
+        let order: [Int] = graph.payload["graph_order"]!.arrayValue!.compactMap(\.intValue)
+        let right = try XCTUnwrap(TimelineCards.shownAnswers(graph, chosen: graph.payload["graph_order"]))
+        XCTAssertEqual(right.correct, order.enumerated().map { "左から\($0.offset + 1)番目のグラフ: 式 \($0.element + 1)" }.joined(separator: "\n"))
+        XCTAssertEqual(right.learner, right.correct)
+        let wrong = try XCTUnwrap(TimelineCards.shownAnswers(graph, chosen: .array([0, 0, 0].map { .number($0) })))
+        XCTAssertEqual(wrong.learner, "左から1番目のグラフ: 式 1\n左から2番目のグラフ: 式 1\n左から3番目のグラフ: 式 1")
+        XCTAssertNotEqual(wrong.learner, wrong.correct)
+        let lines: [String] = TimelineCards.optionLines(graph)
+        XCTAssertEqual(lines.count, 4)
+        XCTAssertTrue(lines[0].contains("グラフが3つ"))
+        XCTAssertTrue(lines[1].hasPrefix("式 1: "))
+        // 選ぶカードは番号付きの選択肢。読み取って採点するカードには付けない。
+        var reason: TimelineCardRecord = card
+        reason.kind = TimelineCards.Kind.reason.rawValue
+        reason.payload = .object((card.payload.objectValue ?? [:]).merging(TimelineCards.derive(.reason, from: card)!.payload) { _, new in new })
+        XCTAssertEqual(TimelineCards.optionLines(reason), ["選択肢:", "1. a", "2. b", "3. c"])
+        XCTAssertTrue(TimelineCards.optionLines(card).isEmpty)
+    }
+
     func testWrittenAnswersAreCheckedWithMath() throws {
         let card = try base()
         var inverse = card

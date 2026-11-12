@@ -877,11 +877,7 @@ struct LearningTimelineView: View {
         // 「理由を選ぶ」「比べる」は、問いの文が `prompt` に入っている(`question` は同じ問いの言い換え)。
         let asksInPrompt: Bool = card.kind == TimelineCards.Kind.reason.rawValue || card.kind == TimelineCards.Kind.compare.rawValue
         var lines: [String] = [problem, problem.isEmpty || asksInPrompt ? card.prompt : "", math, asksInPrompt ? "" : card.question].filter { !$0.isEmpty }
-        let options: [String] = (card.payload["options"] ?? card.payload["lines"])?.arrayValue?.compactMap(\.stringValue) ?? []
-        if !(TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true), !options.isEmpty {
-            lines.append("選択肢:")
-            lines += options.enumerated().map { "\($0.offset + 1). \($0.element)" }
-        }
+        lines += TimelineCards.optionLines(card)
         return lines.joined(separator: "\n")
     }
 
