@@ -132,6 +132,8 @@ final class TimelineLiquid {
     @ObservationIgnored private var guideTask: Task<Void, Never>?
     @ObservationIgnored private var sequence: Task<Void, Never>?
     @ObservationIgnored private var correct = true
+    /// しずくが ○ へ向かっている(結果の画面が入ってくる間に ○ の場所が動くので、描くたびに向け直す)。
+    @ObservationIgnored private var flowsToMark = false
 
     private struct Blob {
         var x = LiquidSpring(0)
@@ -288,6 +290,7 @@ final class TimelineLiquid {
         self.correct = correct
         stage = .emerging
         hasLanded = false
+        flowsToMark = false
         let start = CGPoint(x: a.x.value - a.w.value + 10, y: a.y.value)
         b.hold(start, 8, 8)
         mix.hold(0); ring.hold(0)
@@ -318,6 +321,7 @@ final class TimelineLiquid {
                 return
             }
             let radius = self.markRadius
+            self.flowsToMark = true
             self.b.x.aim(mark.x, stiffness: 95, dampingRatio: self.z(0.78))
             self.b.y.aim(mark.y, stiffness: 95, dampingRatio: self.z(0.78))
             self.b.w.aim(radius, stiffness: 200, dampingRatio: self.z(0.6))
@@ -337,6 +341,7 @@ final class TimelineLiquid {
             }
             self.hasLanded = true
             guard await wait(260) else { return }
+            self.flowsToMark = false
             self.stage = .idle
         }
     }
@@ -344,6 +349,7 @@ final class TimelineLiquid {
     /// 次の問題に移った・画面を離れた: 普段の見た目に戻す。
     func reset() {
         sequence?.cancel()
+        flowsToMark = false
         hideGuide()
         stage = .idle
         needsPlacement = false
@@ -403,6 +409,10 @@ final class TimelineLiquid {
 
     /// `date` の時刻まで進めた形。
     func frame(at date: Date) -> Frame {
+        if flowsToMark, let mark = markCenter {
+            b.x.target = mark.x
+            b.y.target = mark.y
+        }
         if let last = lastDate {
             let dt = min(1.0 / 30, max(0, date.timeIntervalSince(last)))
             // 小さく刻んで進める(硬いバネでも発散しないように)。
