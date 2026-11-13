@@ -267,6 +267,10 @@ struct TimelineActionButton: View {
     var isEnabled = true
     /// 大きいボタンの直径(iPad の「送る」は 64pt)。
     var diameter: CGFloat? = nil
+    /// 液体の層のボタンの場所として知らせる(採点中のカプセルが戻って、この円になる)。
+    var liquidSlot = false
+    /// 円は液体の層が描いている(印と文字だけ出す)。
+    var hidesDisc = false
     var identifier: String
     let action: () -> Void
 
@@ -279,9 +283,14 @@ struct TimelineActionButton: View {
                     .font(.system(size: prominent ? 26 : 20, weight: .semibold))
                     .foregroundStyle(prominent ? (isEnabled ? Theme.onAccent : Theme.accentColor) : Theme.primaryText)
                     .frame(width: size, height: size)
-                    .background(prominent ? AnyShapeStyle(isEnabled ? Theme.accentColor : Theme.accentColor.opacity(0.16)) : AnyShapeStyle(Theme.card), in: Circle())
-                    .overlay { if !prominent { Circle().stroke(Theme.hairline, lineWidth: 1) } }
-                    .shadow(color: .black.opacity(raised ? 0.18 : 0.06), radius: raised ? 10 : 4, y: 3)
+                    .background {
+                        Circle()
+                            .fill(prominent ? AnyShapeStyle(isEnabled ? Theme.accentColor : Theme.accentColor.opacity(0.16)) : AnyShapeStyle(Theme.card))
+                            .overlay { if !prominent { Circle().stroke(Theme.hairline, lineWidth: 1) } }
+                            .shadow(color: .black.opacity(raised ? 0.18 : 0.06), radius: raised ? 10 : 4, y: 3)
+                            .opacity(hidesDisc ? 0 : 1)
+                    }
+                    .background { if liquidSlot { Color.clear.timelineLiquidSlot() } }
                 Text(label).font(Typography.sans(size: 12, weight: .bold)).foregroundStyle(Theme.secondaryText)
             }
         }

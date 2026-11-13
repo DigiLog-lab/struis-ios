@@ -19,6 +19,7 @@
 		25D9388D6B8072AD70EB5F78 /* OnboardingRecords.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F92DDD645A904120FA57750 /* OnboardingRecords.swift */; };
 		27938BC2DDDC4A75B40FF2C5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B4D776509AEF42EEB3A59D7A /* PrivacyInfo.xcprivacy */; };
 		28A97A05E707E328626BB54C /* TimelineParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 833CCE513E78354E7FE8CB3E /* TimelineParts.swift */; };
+		A0DD4F3BDC6788094E06774F /* TimelineLiquid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 242192CEB35A0505A904A391 /* TimelineLiquid.swift */; };
 		2B7ECE02890F0AF50AA91B1A /* TimelineCardContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34208B315DFCB1CD386D3343 /* TimelineCardContent.swift */; };
 		2D19466C5A8012FDF3370A2F /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000F /* Typography.swift */; };
 		34C933191A515C5D688D2D3A /* ZenKakuGothicNew-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000025 /* ZenKakuGothicNew-Medium.ttf */; };
@@ -379,6 +380,7 @@
 		804E6CA24FAD8D46755DF731 /* TimelineCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineCards.swift; sourceTree = "<group>"; };
 		807F62CB64FE8239B5C8353B /* TimelineExpression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineExpression.swift; sourceTree = "<group>"; };
 		833CCE513E78354E7FE8CB3E /* TimelineParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineParts.swift; sourceTree = "<group>"; };
+		242192CEB35A0505A904A391 /* TimelineLiquid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineLiquid.swift; sourceTree = "<group>"; };
 		84586C66B08BCD849F2783CE /* Prompts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Prompts; sourceTree = "<group>"; };
 		87DAEEE7FAEBD47B016FABBC /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		8AF46D7EECDE4B5EB431D081 /* math */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = math; path = striusTests/Fixtures/math; sourceTree = SOURCE_ROOT; };
@@ -734,6 +736,7 @@
 				A3F0CE00FDFB0E6441B2DC5E /* TimelineDipViews.swift */,
 				34208B315DFCB1CD386D3343 /* TimelineCardContent.swift */,
 				833CCE513E78354E7FE8CB3E /* TimelineParts.swift */,
+				242192CEB35A0505A904A391 /* TimelineLiquid.swift */,
 				E65AE9A79C0EBE31438EA058 /* TimelineStore.swift */,
 			);
 			path = Timeline;
@@ -1644,6 +1647,7 @@
 				DF7417F7B2FBE312887DEABA /* TimelineDipViews.swift in Sources */,
 				2B7ECE02890F0AF50AA91B1A /* TimelineCardContent.swift in Sources */,
 				28A97A05E707E328626BB54C /* TimelineParts.swift in Sources */,
+				A0DD4F3BDC6788094E06774F /* TimelineLiquid.swift in Sources */,
 				EF55AF6D8620EE4ECF28C485 /* TimelineStore.swift in Sources */,
 				7F2137BB93FD6387FE8AC370 /* TimelineTurns.swift in Sources */,
 				17C8266FA86E6432F1F0C8C5 /* TimelineMachine.swift in Sources */,

@@ -211,6 +211,7 @@ struct TimelineResultView: View {
     let attempt: TimelineAttemptRecord
     let store: TimelineStore
 
+    @Environment(\.timelineHidesResultMark) private var hidesMark
     private var correct: Bool { attempt.verdict == "correct" }
     /// 答えは合うが途中に誤り。
     private var partial: Bool { attempt.grade == "partial" }
@@ -222,7 +223,12 @@ struct TimelineResultView: View {
             TimelineProblemView(card: card, store: store, compact: true)
             Divider()
             HStack(spacing: 10) {
+                // 送った後は、採点中のカプセルから出たしずくがここへ流れて ○ になる(× はしずくが沈んでから描く)。着くまでは隠す。
                 TimelineMark(correct: correct, size: 22)
+                    .timelineLiquidMark()
+                    .opacity(hidesMark ? 0 : 1)
+                    .scaleEffect(hidesMark && !correct ? 0.5 : 1)
+                    .animation(correct ? nil : .spring(duration: 0.3, bounce: 0.35), value: hidesMark)
                 Text(title).font(Typography.sans(size: 24, weight: .bold))
                 Text("\(Int(attempt.seconds.rounded()))秒").font(Typography.sans(size: 15, weight: .medium)).foregroundStyle(Theme.secondaryText)
             }

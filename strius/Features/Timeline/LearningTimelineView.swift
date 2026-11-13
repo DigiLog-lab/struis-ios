@@ -15,7 +15,10 @@ struct LearningTimelineView: View {
     @Environment(WorkbookCoordinator.self) private var coordinator
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hasInk = false
+    /// 送る → 採点中 → 結果の ○ を1つの液体の形の変化でつなぐ。
+    @State private var liquid = TimelineLiquid()
     @State private var ink = TimelineInkController()
     @State private var inkGeneration = 0
     @State private var isDrawing = false
@@ -71,13 +74,25 @@ struct LearningTimelineView: View {
                         .padding(.bottom, layout == .padLandscape ? 132 : 0)
                         .frame(width: layout == .padLandscape ? TimelineLayout.columnLeading + TimelineLayout.columnWidth : nil)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .environment(\.timelineHidesResultMark, !liquid.hasLanded)
                     if showsInkHint { inkHint }
+                    // 送るボタン・採点中のカプセル・しずく(ボタンの文字と印は、この上の `actions` に描く)。
+                    TimelineLiquidLayer(liquid: liquid, correct: store.lastAttempt?.verdict == "correct")
                     actions
                         .timelineInkPassThrough()
                         .padding(.trailing, layout.isPad ? 28 : 20)
                         .padding(.bottom, layout == .padLandscape ? 32 : 16)
                         // 書いている間はボタンを薄くして、下に書いた字を透かす。
                         .opacity(isDrawing ? 0.35 : 1)
+                }
+                .coordinateSpace(name: TimelineLiquidSpace.name)
+                .onPreferenceChange(TimelineLiquidSlotKey.self) { frame in
+                    guard let frame else { return }
+                    liquid.setSlot(center: CGPoint(x: frame.midX, y: frame.midY), radius: frame.width / 2)
+                }
+                .onPreferenceChange(TimelineLiquidMarkKey.self) { frame in
+                    liquid.markCenter = frame.map { CGPoint(x: $0.midX, y: $0.midY) }
+                    if let frame { liquid.markRadius = frame.width / 2 }
                 }
                 .offset(y: min(0, dragOffset) * 0.35)
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(TimelineInkSpace.name)) } action: { inkArea = $0 }
@@ -125,6 +140,17 @@ struct LearningTimelineView: View {
         .onChange(of: scenePhase) { _, phase in
             guard !needsGuardianConsent else { return }
             Task { await store.scenePhaseChanged(phase) }
+        }
+        .onChange(of: reduceMotion, initial: true) { _, reduce in liquid.reduceMotion = reduce }
+        .onChange(of: store.phase, initial: true) { old, phase in
+            switch phase {
+            case .grading:
+                liquid.startGrading()
+            case .result:
+                if case .grading = old { liquid.emerge(correct: store.lastAttempt?.verdict == "correct") } else if liquid.stage != .emerging { liquid.reset() }
+            default:
+                if liquid.stage != .idle { liquid.reset() }
+            }
         }
         .onChange(of: store.currentID) { _, _ in
             clearInk()
@@ -674,13 +700,12 @@ struct LearningTimelineView: View {
                             TimelineActionButton(symbol: TimelineSymbol.skip, label: "飛ばす", identifier: "timeline-skip") { Task { await store.skip() } }
                         }
                         TimelineActionButton(symbol: TimelineSymbol.camera, label: "撮る", identifier: "timeline-capture") { isCameraPresented = true }
-                        TimelineActionButton(symbol: TimelineSymbol.send, label: "送る", prominent: true, isEnabled: hasInk,
-                                             diameter: TimelineLayout.sendDiameter, identifier: "timeline-send") { sendInk() }
+                        TimelineSendButton(liquid: liquid, diameter: TimelineLayout.sendDiameter, isEnabled: hasInk) { sendInk() }
                     } else if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true {
                         TimelineActionButton(symbol: TimelineSymbol.ask, label: "質問", identifier: "timeline-ask") { ask(card) }
                         if hasInk {
                             TimelineActionButton(symbol: TimelineSymbol.camera, label: "撮る", identifier: "timeline-capture") { isCameraPresented = true }
-                            TimelineActionButton(symbol: TimelineSymbol.send, label: "送る", prominent: true, identifier: "timeline-send") { sendInk() }
+                            TimelineSendButton(liquid: liquid) { sendInk() }
                         } else {
                             TimelineActionButton(symbol: TimelineSymbol.skip, label: "飛ばす", identifier: "timeline-skip") { Task { await store.skip() } }
                             TimelineActionButton(symbol: TimelineSymbol.camera, label: "撮る", prominent: true, identifier: "timeline-capture") { isCameraPresented = true }
@@ -698,16 +723,27 @@ struct LearningTimelineView: View {
                     TimelineActionButton(symbol: TimelineSymbol.send, label: "送る", prominent: true, identifier: "timeline-send") { sendRapid() }
                 }
             case .grading:
-                VStack(alignment: .trailing, spacing: 6) {
-                    ProgressView().controlSize(.large).frame(width: 72, height: 72)
-                    Text("採点中").font(Typography.sans(size: 12, weight: .bold)).foregroundStyle(Theme.secondaryText).frame(width: 72)
-                    // AI が今考えていることの見出し(チャットと同じ仕組み)。高さを決めておき、見出しの長さで上の印が動かないようにする。
+                VStack(alignment: .trailing, spacing: 14) {
+                    // AI が今考えていることの見出し(チャットと同じ仕組み)。高さを決めておき、見出しの長さでカプセルが動かないようにする。
                     if let attemptID = store.lastAttemptID {
                         TurnLiveLine(keys: [TurnActivityKey.target(attemptID)], font: Typography.micro)
                             .multilineTextAlignment(.trailing)
-                            .frame(width: 168, height: 44, alignment: .topTrailing)
+                            .frame(width: 168, height: 44, alignment: .bottomTrailing)
+                    }
+                    // 送るボタンが横に伸びた「採点中」のカプセル(形は液体の層が描く)。場所は送るボタンと同じにする
+                    // (下に「送る」の文字の分を空ける)。押すとぷるんと揺れる。
+                    VStack(spacing: 6) {
+                        Text("採点中")
+                            .font(Typography.sans(size: 13, weight: .bold))
+                            .foregroundStyle(Theme.onAccent)
+                            .frame(width: slotDiameter, height: slotDiameter)
+                            .timelineLiquidSlot()
+                            .contentShape(Circle())
+                            .onTapGesture { liquid.poke() }
+                        Text("送る").font(Typography.sans(size: 12, weight: .bold)).hidden()
                     }
                 }
+                .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("timeline-grading")
             case .result:
                 if let card = store.current {
@@ -731,7 +767,9 @@ struct LearningTimelineView: View {
                     if showsExplain(card) {
                         TimelineActionButton(symbol: TimelineSymbol.explain, label: "解説", identifier: "timeline-explain") { explain(card) }
                     }
-                    TimelineActionButton(symbol: TimelineSymbol.next, label: "次へ", prominent: true, identifier: "timeline-next") { Task { await store.goNext() } }
+                    // 採点中のカプセルが丸く戻って「次へ」になる(戻りきるまでは、円は液体の層が描く)。
+                    TimelineActionButton(symbol: TimelineSymbol.next, label: "次へ", prominent: true, liquidSlot: true,
+                                         hidesDisc: liquid.isActive, identifier: "timeline-next") { Task { await store.goNext() } }
                 }
             case .rapidDone:
                 TimelineActionButton(symbol: TimelineSymbol.next, label: "次へ", prominent: true, identifier: "timeline-next") { store.finishRapid() }
@@ -841,9 +879,14 @@ struct LearningTimelineView: View {
         }
     }
 
-    private func sendInk() {
-        guard let answer = ink.answer() else { return }
+    /// 送るボタン・採点中・次へ の円の直径(iPad の「送る」は 64pt)。
+    private var slotDiameter: CGFloat { layout.isPad ? TimelineLayout.sendDiameter : 72 }
+
+    @discardableResult
+    private func sendInk() -> Bool {
+        guard let answer = ink.answer() else { return false }
         Task { await store.submit(image: answer.data, ink: answer) }
+        return true
     }
 
     private func sendRapid() {

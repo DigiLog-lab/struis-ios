@@ -110,8 +110,12 @@ final class TimelineUITests: XCTestCase {
         start.press(forDuration: 0.05, thenDragTo: ink.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5)))
         XCTAssertTrue(app.buttons["timeline-send"].appears(timeout: 5), "書いたのに「送る」にならない")
         XCTAssertTrue(app.buttons["timeline-ink-undo"].exists)
+        // 誤って送らないように、押しただけでは送らない(上に引くと送る)。
         app.buttons["timeline-send"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["timeline-result-correct"].firstMatch.appears(timeout: 30))
+        let result = app.descendants(matching: .any)["timeline-result-correct"].firstMatch
+        XCTAssertFalse(result.waitForExistence(timeout: 2), "押しただけで送った")
+        app.buttons["timeline-send"].pullUp()
+        XCTAssertTrue(result.appears(timeout: 30))
     }
 
     /// 書く面に書いた誤答: 結果の画面に出た時点で、判定と一緒に赤ペンがもう入っている(後から別に入れない)。
@@ -125,7 +129,7 @@ final class TimelineUITests: XCTestCase {
         ink.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.45))
             .press(forDuration: 0.05, thenDragTo: ink.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.5)))
         XCTAssertTrue(app.buttons["timeline-send"].appears(timeout: 5))
-        app.buttons["timeline-send"].tap()
+        app.buttons["timeline-send"].pullUp()
         XCTAssertTrue(app.descendants(matching: .any)["timeline-result-wrong"].firstMatch.appears(timeout: 30), "誤答の結果が出ない")
         let redPen = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "赤ペン: ")).firstMatch
         XCTAssertTrue(redPen.appears(timeout: 2), "結果と一緒に赤ペンが出ていない")
@@ -167,7 +171,7 @@ final class TimelineUITests: XCTestCase {
         ink.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.45))
             .press(forDuration: 0.05, thenDragTo: ink.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
         if app.buttons["timeline-send"].appears(timeout: 5) {
-            app.buttons["timeline-send"].tap()
+            app.buttons["timeline-send"].pullUp()
         } else {
             app.buttons["timeline-capture"].tap()
         }
