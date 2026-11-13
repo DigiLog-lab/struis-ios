@@ -21,8 +21,6 @@ struct LearningTimelineView: View {
     @State private var liquid = TimelineLiquid()
     /// 採点中のカプセルをつまんで引っぱっている。
     @State private var isTugging = false
-    /// 質問・撮る・単元のチップを、引っぱって開く。
-    @State private var pullOut = TimelinePullOut()
     @State private var isScopeDragging = false
     @State private var ink = TimelineInkController()
     @State private var inkGeneration = 0
@@ -115,8 +113,12 @@ struct LearningTimelineView: View {
             // iPad の縦向きの結果の画面では、書く面を見えなくする(結果の列が全幅なので、書いた線が講評の文に重なって読めなくなる)。
             // 書いた答案は結果の列の中に出す。木からは外さない(外すと書く面が作り直され、横向きに回した時に線が消える)。
             if showsInk { placedInkLayer.opacity(hidesInkInResult ? 0 : 1).allowsHitTesting(!hidesInkInResult) }
-            // 引っぱって開く質問・撮る・単元の一覧の形(書いた線や下の帯の上にも重ねる)。
-            TimelinePullOutLayer(pullOut: pullOut, cameraIsProminent: !layout.isPad && !hasInk)
+            // 撮るを引いている間の形と、単元のチップから伸びる一覧(書いた線や下の帯の上にも重ねる)。
+            // 質問の画面は、iPad で右の欄になるので、タイムラインの外(AppRootView)で出す。
+            TimelinePullGlassLayer(pullOut: pullOut, cameraIsProminent: !layout.isPad && !hasInk)
+            TimelinePullPanel(pullOut: pullOut, kind: .scope, closesOnOutsideTap: true) {
+                TimelineScopeSheet(store: store, asDropdown: true)
+            }
             if store.skipBannerAttemptID != nil { skipBanner.transition(.move(edge: .top).combined(with: .opacity)) }
             if let error = store.actionError {
                 Text(error)
@@ -154,20 +156,30 @@ struct LearningTimelineView: View {
         }
         .onPreferenceChange(TimelinePullOriginKey.self) { origins in
             pullOut.origins = origins
-            pullOut.targets = TimelinePullTargets.current(isPad: layout.isPad)
+            pullOut.targets = TimelinePullTargets.current(isPad: layout.isPad, chip: origins[.scope])
         }
-        // 形が画面の大きさまで伸びたら、本物の画面に入れ替える(画面自体の出てくる動きは止める)。
+        // 質問は、引き始めた時に画面を作って読み込みを始める(開ききった時に中身が出そろっているように)。
+        .onChange(of: pullOut.fingerProgress) { _, progress in
+            if progress > 0, pullOut.active == .ask, pullOut.question == nil, let card = store.current { pullOut.question = questionContext(card) }
+        }
+        // カメラは、形が枠の大きさまで伸びたら本物のカメラに入れ替える(カメラ自体の出てくる動きは止める)。
         .onChange(of: pullOut.openRequest) { _, _ in
-            guard let kind = pullOut.openedKind else { return }
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                switch kind {
-                case .ask: if let card = store.current { ask(card) }
-                case .camera: isCameraPresented = true
-                case .scope: store.isScopeSheetPresented = true
-                }
+            switch pullOut.openedKind {
+            case .camera?:
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { isCameraPresented = true }
+            case .scope?: store.isScopeSheetPresented = true
+            default: break
             }
+        }
+        // 単元の一覧: 選んだら(店の側で閉じたら)縮んで閉じる。外側を押して閉じたら、店の側も閉じる。
+        .onChange(of: store.isScopeSheetPresented) { _, presented in
+            if presented, pullOut.active == nil { pullOut.open(.scope) }
+            if !presented, pullOut.active == .scope { pullOut.close(.scope) }
+        }
+        .onChange(of: pullOut.isOpen) { _, open in
+            if !open, store.isScopeSheetPresented { store.isScopeSheetPresented = false }
         }
         .sensoryFeedback(.impact(weight: .light), trigger: pullOut.commitFeedback)
         .onChange(of: store.phase, initial: true) { old, phase in
@@ -194,11 +206,6 @@ struct LearningTimelineView: View {
             TimeAttackFlowView(session: session) { timeAttack = nil }
         }
         #endif
-        .sheet(isPresented: Binding(get: { store.isScopeSheetPresented }, set: { store.isScopeSheetPresented = $0 })) {
-            TimelineScopeSheet(store: store)
-                .presentationDetents([.medium, .large])
-                .presentationBackground(Theme.card)
-        }
         .sheet(isPresented: Binding(get: { store.isStopSheetPresented }, set: { store.isStopSheetPresented = $0 })) {
             TimelineStopSheet(store: store)
                 .presentationDetents([.medium])
@@ -1002,9 +1009,16 @@ struct LearningTimelineView: View {
     }
 
     private func ask(_ card: TimelineCardRecord) {
-        coordinator.ask(WorkbookQuestionContext(subunitId: card.subunitId, setId: nil, title: "タイムライン", stageLabel: nil,
-                                                initialDraft: nil, attachedProblem: problemText(card)))
+        coordinator.ask(questionContext(card))
     }
+
+    private func questionContext(_ card: TimelineCardRecord) -> WorkbookQuestionContext {
+        WorkbookQuestionContext(subunitId: card.subunitId, setId: nil, title: "タイムライン", stageLabel: nil,
+                                initialDraft: nil, attachedProblem: problemText(card))
+    }
+
+    /// 質問・撮る・単元のチップを、引っぱって開く(質問の画面は AppRootView も使うので、店に置く)。
+    private var pullOut: TimelinePullOut { store.pullOut }
 
     private func askWithHistory(_ card: TimelineCardRecord) {
         coordinator.ask(WorkbookQuestionContext(subunitId: card.subunitId, setId: nil, title: "タイムライン", stageLabel: nil,

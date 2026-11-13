@@ -1509,11 +1509,26 @@ struct TimelineScopeMarks: View {
 /// 解く範囲のシート: 先頭に「おまかせ」、その下に科目ごとの単元(単元ホームと同じ順)。選ぶとその単元に固定する。
 struct TimelineScopeSheet: View {
     let store: TimelineStore
+    /// チップから下へ伸びるプルダウンの中身として出す(見出しを省き、余白を詰める)。
+    var asDropdown = false
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                Text("解く範囲").font(Typography.heading2).foregroundStyle(Theme.primaryText)
+            VStack(alignment: .leading, spacing: asDropdown ? 16 : 24) {
+                if asDropdown {
+                    // チップと同じ場所・大きさの見出し(チップがそのまま伸びて一覧になったように見せる)。
+                    HStack(spacing: 4) {
+                        Text(store.pinnedUnit?.title ?? "おまかせ").lineLimit(1)
+                        Image(systemName: "chevron.up").font(.system(size: 11, weight: .bold))
+                    }
+                    .font(Typography.sans(size: 15, weight: .medium))
+                    .foregroundStyle(Theme.secondaryText)
+                    .frame(height: 40)
+                    .padding(.leading, 2)
+                    .accessibilityLabel("解く範囲")
+                } else {
+                    Text("解く範囲").font(Typography.heading2).foregroundStyle(Theme.primaryText)
+                }
                 Button { Task { await store.setScope(nil) } } label: {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -1547,9 +1562,9 @@ struct TimelineScopeSheet: View {
                     }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 24)
-            .padding(.bottom, 32)
+            .padding(.horizontal, asDropdown ? 12 : 20)
+            .padding(.top, asDropdown ? 0 : 24)
+            .padding(.bottom, asDropdown ? 16 : 32)
         }
         .accessibilityIdentifier("timeline-scope-sheet")
     }

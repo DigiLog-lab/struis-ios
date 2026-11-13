@@ -56,8 +56,10 @@ final class TimelineStore {
     /// 飛ばした直後の帯(理由の2択)。押さなくても消える。
     private(set) var skipBannerAttemptID: String?
     var isStopSheetPresented = false
-    /// 解く範囲のシート(上の帯のチップ)。
+    /// 解く範囲の一覧(上の帯のチップから下へ伸びるプルダウン)。
     var isScopeSheetPresented = false
+    /// 質問・撮る・単元のチップを、引っぱって開く動き(タイムラインと、質問の画面を出す AppRootView が使う)。
+    let pullOut = TimelinePullOut()
     /// 解く範囲: 固定した単元の ID(nil は「おまかせ」)。端末ごとに `TimelineScope` に残す。
     private(set) var scopeUnitID: String? = TimelineScope.unitID
     private(set) var rapidIDs: [String] = []

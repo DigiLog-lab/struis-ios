@@ -60,17 +60,25 @@ final class TimelineUITests: XCTestCase {
         waitForProblem(app)
         let close = app.buttons["question-close"]
         app.buttons["timeline-ask"].tap()
-        XCTAssertFalse(close.waitForExistence(timeout: 2), "押しただけで質問が開いた")
+        Thread.sleep(forTimeInterval: 1.5)
+        XCTAssertFalse(close.exists, "押しただけで質問が開いた")
         app.buttons["timeline-ask"].drag(by: CGVector(dx: -240, dy: 0))
         XCTAssertTrue(close.appears(timeout: 6), "引いても質問が開かない")
         close.tap()
-        let scopeTitle = app.staticTexts["解く範囲"]
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertFalse(close.exists, "閉じても質問が残っている")
+        let auto = app.buttons["timeline-scope-auto"]
         XCTAssertTrue(app.buttons["timeline-scope-chip"].appears(timeout: 5))
         app.buttons["timeline-scope-chip"].tap()
-        XCTAssertFalse(scopeTitle.waitForExistence(timeout: 2), "押しただけで単元の一覧が開いた")
+        Thread.sleep(forTimeInterval: 1.5)
+        XCTAssertFalse(auto.exists, "押しただけで単元の一覧が開いた")
         app.buttons["timeline-scope-chip"].drag(by: CGVector(dx: 0, dy: 380))
-        XCTAssertTrue(scopeTitle.appears(timeout: 6), "引いても単元の一覧が開かない")
+        XCTAssertTrue(auto.appears(timeout: 6), "引いても単元の一覧が開かない")
+        auto.tap()
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertFalse(auto.exists, "選んでも単元の一覧が閉じない")
     }
+
 
     /// 撮って採点されたら、すぐ次へ。結果の画面の右下は 質問・解説・次へ。
     @MainActor

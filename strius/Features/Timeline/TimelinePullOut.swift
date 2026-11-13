@@ -10,7 +10,7 @@ import SwiftUI
 // - 形は2つのバネで動かす。先を行く形(指についていく)と、少し遅れてついてくる形をガラスで溶け合わせると、
 //   伸びる時に液体のように先がふくらむ。
 
-enum TimelinePullKind: Hashable {
+nonisolated enum TimelinePullKind: Hashable {
     /// 質問の画面(iPhone は下からのシート、iPad は右の欄)。
     case ask
     /// カメラ(画面いっぱい)。
@@ -22,7 +22,16 @@ enum TimelinePullKind: Hashable {
 /// 開く画面の形(画面全体の座標)。
 nonisolated struct TimelinePullTarget: Equatable {
     var rect: CGRect
+    /// 上の角の丸み。
     var cornerRadius: Double
+    /// 下の角の丸み(ディスプレイの角に沿う時は大きくする)。
+    var bottomRadius: Double
+
+    init(rect: CGRect, cornerRadius: Double, bottomRadius: Double? = nil) {
+        self.rect = rect
+        self.cornerRadius = cornerRadius
+        self.bottomRadius = bottomRadius ?? cornerRadius
+    }
 }
 
 /// 引いた量・速さ → 開くかどうか。
@@ -48,27 +57,29 @@ nonisolated enum TimelinePullRule {
 @MainActor
 @Observable
 final class TimelinePullOut {
-    /// 今動いているもの(無ければ描かない)。
+    /// 今動いているもの、開いているもの(無ければ何も描かない)。
     private(set) var active: TimelinePullKind?
-    /// 開いてよい(数が変わったら、呼んだ側が `openedKind` の画面を出す)。
+    /// `active` が開ききって止まっている(中身を触れる)。
+    private(set) var isOpen = false
+    /// 開くと決まった・開ききった(数が変わったら、呼んだ側が `openedKind` に合わせて状態を変える)。
     private(set) var openRequest = 0
     private(set) var openedKind: TimelinePullKind?
     /// 触覚の合図(開くと決まった時)。
     private(set) var commitFeedback = 0
     /// 指で引いた割合(ボタンの印を消していくのに使う。描く形の動きとは別に、指が動いた時だけ変わる)。
     private(set) var fingerProgress = 0.0
+    /// 質問の画面の中身。引き始めた時に作って読み込みを始め(開ききった時に読み込み済みにするため)、閉じきったら外す。
+    var question: WorkbookQuestionContext?
 
     var reduceMotion = false
 
-    /// ボタンの場所と、開く画面の場所(どちらも画面全体の座標)。
+    /// ボタンの場所と、開いた時の場所(どちらも画面全体の座標)。
     @ObservationIgnored var origins: [TimelinePullKind: CGRect] = [:]
     @ObservationIgnored var targets: [TimelinePullKind: TimelinePullTarget] = [:]
-    /// 描く層の左上(画面全体の座標)。
-    @ObservationIgnored var layerOrigin: CGPoint = .zero
 
     @ObservationIgnored private var lead = LiquidSpring(0)
     @ObservationIgnored private var trail = LiquidSpring(0)
-    /// 画面に入れ替えた後、ガラスを消していく割合(1 = 見えている)。
+    /// カメラに入れ替えた後、ガラスを消していく割合(1 = 見えている)。
     @ObservationIgnored private var visibility = LiquidSpring(1)
     @ObservationIgnored private var lastDate: Date?
     @ObservationIgnored private var committing = false
@@ -76,35 +87,49 @@ final class TimelinePullOut {
 
     // MARK: 指
 
-    /// 開く方向(ボタンの中心 → 画面の中心)と、開ききるまでの距離。
-    func direction(_ kind: TimelinePullKind) -> (x: Double, y: Double, span: Double)? {
+    /// 指の動き → 開く向きの進み。質問は左へ、単元の一覧は下へ、カメラは枠の方へ。
+    func progress(_ kind: TimelinePullKind, translation: CGSize) -> Double? {
         guard let origin = origins[kind], let target = targets[kind] else { return nil }
-        let dx = target.rect.midX - origin.midX, dy = target.rect.midY - origin.midY
-        let length = (dx * dx + dy * dy).squareRoot()
-        guard length > 1 else { return nil }
-        return (dx / length, dy / length, max(TimelinePullRule.minimumSpan, length))
+        switch kind {
+        case .ask:
+            let span = max(TimelinePullRule.minimumSpan, origin.midX - target.rect.minX)
+            return TimelinePullRule.progress(distance: -translation.width, span: span)
+        case .scope:
+            let span = max(120, target.rect.height - origin.height)
+            return TimelinePullRule.progress(distance: translation.height, span: span)
+        case .camera:
+            let dx = target.rect.midX - origin.midX, dy = target.rect.midY - origin.midY
+            let length = (dx * dx + dy * dy).squareRoot()
+            guard length > 1 else { return nil }
+            let along = (translation.width * dx + translation.height * dy) / length
+            return TimelinePullRule.progress(distance: along, span: max(TimelinePullRule.minimumSpan, length))
+        }
+    }
+
+    private func canMove(_ kind: TimelinePullKind) -> Bool {
+        (active == nil || active == kind) && !isOpen && !committing
     }
 
     /// `kind` を `translation` だけ引いている。
     func pull(_ kind: TimelinePullKind, translation: CGSize) {
-        guard let d = direction(kind), active == nil || active == kind, !committing else { return }
+        guard canMove(kind), let p = progress(kind, translation: translation) else { return }
         sequence?.cancel()
         active = kind
         visibility.hold(1)
-        let along = translation.width * d.x + translation.height * d.y
-        let progress = max(0, TimelinePullRule.progress(distance: along, span: d.span))
-        lead.hold(progress)
-        fingerProgress = progress
+        let value = max(0, p)
+        lead.hold(value)
+        fingerProgress = value
     }
 
-    /// 指を離した。開くなら true(形が画面の大きさになったら `openRequest` が増える)。
+    /// 指を離した。開くなら true。
     @discardableResult
     func release(_ kind: TimelinePullKind, translation: CGSize, velocity: CGSize) -> Bool {
-        guard active == kind, let d = direction(kind), !committing else { return false }
-        let along = translation.width * d.x + translation.height * d.y
-        let progress = TimelinePullRule.progress(distance: along, span: d.span)
-        let speed = (velocity.width * d.x + velocity.height * d.y) / d.span
-        if TimelinePullRule.opens(progress: progress, velocity: speed) {
+        guard active == kind, canMove(kind), let p = progress(kind, translation: translation),
+              let ahead = progress(kind, translation: CGSize(width: translation.width + velocity.width, height: translation.height + velocity.height))
+        else { return false }
+        // 1秒あたりの進み(速さを、開く向きの進みに直す)。
+        let speed = ahead - p
+        if TimelinePullRule.opens(progress: p, velocity: speed) {
             open(kind, velocity: speed)
             return true
         }
@@ -117,7 +142,7 @@ final class TimelinePullOut {
 
     /// タップした: 開く方へ少し顔を出して戻る。
     func peek(_ kind: TimelinePullKind) {
-        guard direction(kind) != nil, active == nil || active == kind, !committing, !reduceMotion else { return }
+        guard canMove(kind), origins[kind] != nil, targets[kind] != nil, !reduceMotion else { return }
         sequence?.cancel()
         active = kind
         visibility.hold(1)
@@ -128,10 +153,12 @@ final class TimelinePullOut {
 
     /// 開く(VoiceOver でボタンとして実行した時も、ここから)。
     func open(_ kind: TimelinePullKind, velocity: Double = 0) {
-        guard direction(kind) != nil, !committing else {
-            // 形を描けない時(場所がまだ分からない)は、すぐ画面を出す。
-            openedKind = kind
-            openRequest += 1
+        guard active == nil || active == kind, !isOpen, !committing else { return }
+        guard origins[kind] != nil, targets[kind] != nil else {
+            // 形を描けない時(場所がまだ分からない)は、すぐ開いた扱いにする。
+            active = kind
+            lead.hold(1); trail.hold(1)
+            arrive(kind)
             return
         }
         sequence?.cancel()
@@ -140,21 +167,51 @@ final class TimelinePullOut {
         commitFeedback += 1
         fingerProgress = 1
         visibility.hold(1)
-        lead.aim(1, stiffness: reduceMotion ? 400 : 190, dampingRatio: z(0.85))
+        lead.aim(1, stiffness: reduceMotion ? 400 : 190, dampingRatio: z(0.82))
         lead.velocity = max(lead.velocity, velocity)
         sequence = Task { [weak self] in
-            // 形が画面の大きさに届いたら、本物の画面に入れ替える。
             while let self, !Task.isCancelled {
                 if self.trail.value > 0.96 || self.reduceMotion { break }
                 try? await Task.sleep(for: .milliseconds(16))
             }
             guard let self, !Task.isCancelled else { return }
-            self.openedKind = kind
-            self.openRequest += 1
+            self.arrive(kind)
+        }
+    }
+
+    /// 開ききった。カメラは本物のカメラの枠に入れ替えてガラスを消す。単元の一覧と質問は、そのまま開いて止まる。
+    private func arrive(_ kind: TimelinePullKind) {
+        committing = false
+        openedKind = kind
+        openRequest += 1
+        guard kind == .camera else {
+            isOpen = true
+            return
+        }
+        sequence = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(60))
+            guard let self, !Task.isCancelled else { return }
             self.visibility.aim(0, stiffness: 300, dampingRatio: 1)
             try? await Task.sleep(for: .milliseconds(260))
             guard !Task.isCancelled else { return }
+            self.finish()
+        }
+    }
+
+    /// 開いている単元の一覧・質問を閉じる: 元のボタン(チップ)へ縮んで戻る。
+    func close(_ kind: TimelinePullKind) {
+        guard active == kind, isOpen else { return }
+        sequence?.cancel()
+        isOpen = false
+        committing = true
+        fingerProgress = 0
+        lead.aim(0, stiffness: reduceMotion ? 400 : 220, dampingRatio: z(0.9))
+        sequence = Task { [weak self] in
+            while let self, !Task.isCancelled {
+                if (self.trail.value < 0.02 && self.lead.value < 0.02) || self.reduceMotion { break }
+                try? await Task.sleep(for: .milliseconds(16))
+            }
+            guard let self, !Task.isCancelled else { return }
             self.finish()
         }
     }
@@ -163,7 +220,9 @@ final class TimelinePullOut {
     func finish() {
         sequence?.cancel()
         committing = false
+        isOpen = false
         active = nil
+        question = nil
         fingerProgress = 0
         lead.hold(0); trail.hold(0); visibility.hold(1)
         lastDate = nil
@@ -174,7 +233,7 @@ final class TimelinePullOut {
             while let self, !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(100))
                 if self.lead.isSettled, abs(self.trail.value) < 0.01, self.lead.value < 0.01 {
-                    self.active = nil
+                    self.finish()
                     return
                 }
             }
@@ -185,74 +244,99 @@ final class TimelinePullOut {
 
     // MARK: 描く
 
+    /// 角の丸い四角(上と下で丸みを変えられる)。画面全体の座標。
     nonisolated struct Shape: Equatable {
         var rect: CGRect
-        var cornerRadius: Double
+        var topRadius: Double
+        var bottomRadius: Double
+
+        var swiftUIShape: UnevenRoundedRectangle {
+            UnevenRoundedRectangle(topLeadingRadius: topRadius, bottomLeadingRadius: bottomRadius,
+                                   bottomTrailingRadius: bottomRadius, topTrailingRadius: topRadius, style: .continuous)
+        }
     }
 
     struct Frame {
         var kind: TimelinePullKind
-        /// 遅れてついてくる形(ボタンの本体)と、先を行く形。
+        /// 遅れてついてくる形(中身はこの形に切り抜く)と、先を行く形(液体のふくらみ)。
         var body: Shape
         var tip: Shape?
-        /// どこまで開いたか(0 = ボタン、1 = 画面)。
+        /// どこまで開いたか(0 = ボタン、1 = 開いた形)。
         var progress: Double
-        /// ガラスの見え方(画面に入れ替えた後に消える)。
+        /// ガラスの見え方(カメラに入れ替えた後に消える)。
         var opacity: Double
     }
+
+    /// 開ききって止まっていて、毎フレーム描き直さなくてよい。
+    var isResting: Bool { isOpen && !committing }
 
     func frame(at date: Date) -> Frame? {
         guard let kind = active, let origin = origins[kind], let target = targets[kind] else { return nil }
         if let last = lastDate {
             let dt = min(1.0 / 30, max(0, date.timeIntervalSince(last)))
             for _ in 0..<3 {
-                trail.aim(lead.value, stiffness: reduceMotion ? 600 : 170, dampingRatio: z(0.55))
+                trail.aim(lead.value, stiffness: reduceMotion ? 600 : 170, dampingRatio: z(0.6))
                 lead.step(dt / 3); trail.step(dt / 3); visibility.step(dt / 3)
             }
         }
         lastDate = date
-        let local = origin.offsetBy(dx: -layerOrigin.x, dy: -layerOrigin.y)
-        var to = target
-        to.rect = target.rect.offsetBy(dx: -layerOrigin.x, dy: -layerOrigin.y)
-        let body = Self.shape(origin: local, target: to, t: trail.value, scale: 1)
-        let tip = abs(lead.value - trail.value) > 0.01 ? Self.shape(origin: local, target: to, t: lead.value, scale: 0.9) : nil
+        let body = Self.shape(kind, origin: origin, target: target, t: trail.value)
+        let tip = kind != .camera && abs(lead.value - trail.value) > 0.01 ? Self.shape(kind, origin: origin, target: target, t: lead.value) : nil
         return Frame(kind: kind, body: body, tip: tip, progress: max(0, min(1, trail.value)), opacity: max(0, min(1, visibility.value)))
     }
 
-    /// ボタンの形(円・カプセル)から画面の形へ、`t` の割合だけ近づけた形。`scale` は大きさだけを縮める。
-    nonisolated static func shape(origin: CGRect, target: TimelinePullTarget, t: Double, scale: Double) -> Shape {
-        func lerp(_ a: Double, _ b: Double) -> Double { a + (b - a) * t }
-        let originRadius = min(origin.width, origin.height) / 2
+    /// ボタンの形(円・カプセル)から開いた形へ、`t` の割合だけ近づけた形。
+    /// - 単元の一覧: チップの左上を留めたまま、下と右へ伸びる(プルダウン)。
+    /// - 質問: ボタンから、開いた形へ伸びながら移る。
+    /// - カメラ: 引き始めてすぐに下端がディスプレイの下端に付き、下端を付けたまま横に広がって上へ伸びる。
+    nonisolated static func shape(_ kind: TimelinePullKind, origin: CGRect, target: TimelinePullTarget, t: Double) -> Shape {
+        func lerp(_ a: Double, _ b: Double, _ t: Double) -> Double { a + (b - a) * t }
+        let r0 = min(origin.width, origin.height) / 2
         let grow = max(0, t)
-        let width = (origin.width + (target.rect.width - origin.width) * grow) * (grow > 0 ? scale : 1)
-        let height = (origin.height + (target.rect.height - origin.height) * grow) * (grow > 0 ? scale : 1)
-        let cx = lerp(origin.midX, target.rect.midX), cy = lerp(origin.midY, target.rect.midY)
-        let radius = originRadius + (target.cornerRadius - originRadius) * min(1, grow)
-        return Shape(rect: CGRect(x: cx - width / 2, y: cy - height / 2, width: max(0, width), height: max(0, height)),
-                     cornerRadius: max(0, min(radius, min(width, height) / 2)))
+        let g = min(1, grow)
+        switch kind {
+        case .camera:
+            let down = min(1, grow * 4)
+            let minX = lerp(origin.minX, target.rect.minX, grow), maxX = lerp(origin.maxX, target.rect.maxX, grow)
+            let maxY = lerp(origin.maxY, target.rect.maxY, down)
+            let height = lerp(origin.height, target.rect.height, grow)
+            let rect = CGRect(x: minX, y: maxY - height, width: max(0, maxX - minX), height: max(0, height))
+            let limit = min(rect.width, rect.height) / 2
+            return Shape(rect: rect, topRadius: min(limit, lerp(r0, target.cornerRadius, g)),
+                         bottomRadius: min(limit, lerp(r0, target.bottomRadius, down)))
+        case .ask, .scope:
+            let w = lerp(origin.width, target.rect.width, grow), h = lerp(origin.height, target.rect.height, grow)
+            let minX = lerp(origin.minX, target.rect.minX, grow), minY = lerp(origin.minY, target.rect.minY, grow)
+            let rect = CGRect(x: minX, y: minY, width: max(0, w), height: max(0, h))
+            let limit = min(rect.width, rect.height) / 2
+            return Shape(rect: rect, topRadius: min(limit, lerp(r0, target.cornerRadius, g)),
+                         bottomRadius: min(limit, lerp(r0, target.bottomRadius, g)))
+        }
     }
 }
 
-/// 引っぱって開く形を描く層(タイムラインの画面全体に重ねる)。指は通す。
-struct TimelinePullOutLayer: View {
+/// 撮るを引いている間のガラスの形(タイムラインの画面全体に重ねる)。指は通す。
+struct TimelinePullGlassLayer: View {
     let pullOut: TimelinePullOut
     /// 撮るボタンが銅色の大きいボタンの時(iPhone で書く前)。
     let cameraIsProminent: Bool
+    @State private var layerOrigin: CGPoint = .zero
 
     var body: some View {
-        TimelineView(.animation(paused: pullOut.active == nil)) { context in
-            if let frame = pullOut.frame(at: context.date) {
-                let style = style(frame)
+        TimelineView(.animation(paused: pullOut.active != .camera)) { context in
+            if pullOut.active == .camera, let frame = pullOut.frame(at: context.date) {
+                let t = frame.progress
+                // ボタンの色から、カメラの枠の黒へ(銅色の大きいボタンは、銅から黒へ混ぜていく)。
+                let dark = min(1, max(0, t) * 1.6)
+                let tint: Color = cameraIsProminent ? Theme.accentColor.mix(with: .black, by: dark * 0.9) : Color.black.opacity(0.85 * dark)
+                let late = max(0, min(1, (t - 0.55) / 0.45))
+                let rect = frame.body.rect.offsetBy(dx: -layerOrigin.x, dy: -layerOrigin.y)
                 ZStack(alignment: .topLeading) {
-                    GlassEffectContainer(spacing: 30) {
-                        ZStack(alignment: .topLeading) {
-                            glass(frame.body, style.glass)
-                            if let tip = frame.tip { glass(tip, style.glass) }
-                        }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    }
-                    // 開ききる手前から、入れ替わる画面の地の色に寄せる(入れ替わった時に色が跳ねないように)。
-                    fill(frame.body, style.ground.opacity(style.groundAmount))
+                    Color.clear
+                        .frame(width: rect.width, height: rect.height)
+                        .glassEffect(.regular.tint(tint), in: frame.body.swiftUIShape)
+                        .overlay { frame.body.swiftUIShape.fill(Color.black.opacity(late * late)) }
+                        .offset(x: rect.minX, y: rect.minY)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .opacity(frame.opacity)
@@ -260,37 +344,72 @@ struct TimelinePullOutLayer: View {
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
-        .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: { pullOut.layerOrigin = $0 }
+        .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: { layerOrigin = $0 }
     }
+}
 
-    private func style(_ frame: TimelinePullOut.Frame) -> (glass: Glass, ground: Color, groundAmount: Double) {
-        let t = frame.progress
-        let late = max(0, min(1, (t - 0.55) / 0.45))
-        switch frame.kind {
-        case .ask:
-            return (.regular, Theme.ground, late * late)
-        case .scope:
-            return (.regular, Theme.card, late * late)
-        case .camera:
-            // ボタンの色から、カメラの枠の黒へ(銅色の大きいボタンは、銅から黒へ混ぜていく)。
-            let dark = min(1, max(0, t) * 1.6)
-            let tint: Color = cameraIsProminent ? Theme.accentColor.mix(with: .black, by: dark * 0.9) : Color.black.opacity(0.85 * dark)
-            return (.regular.tint(tint), .black, late * late)
+/// 引っぱって開く中身(単元の一覧・質問の画面)を、指に合わせてボタンから出す。
+/// 中身は開いた時の大きさで組んでおき、伸びていく形で切り抜く(文字が縮んだり組み替わったりしない)。
+/// 中身は形の左上について動くので、ボタンから出てくるように見える。開ききるまでは触れない。
+struct TimelinePullPanel<Content: View>: View {
+    let pullOut: TimelinePullOut
+    let kind: TimelinePullKind
+    /// 開いている間、後ろを暗くする(iPhone の質問)。
+    var dims = false
+    /// 開いている間、外側を押したら閉じる(単元の一覧)。
+    var closesOnOutsideTap = false
+    @ViewBuilder let content: () -> Content
+    @State private var layerOrigin: CGPoint = .zero
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            if pullOut.active == kind, let target = pullOut.targets[kind] {
+                if closesOnOutsideTap && pullOut.isOpen {
+                    Color.clear.contentShape(Rectangle()).onTapGesture { pullOut.close(kind) }
+                }
+                TimelineView(.animation(paused: pullOut.isResting)) { context in
+                    if let frame = pullOut.frame(at: context.date) {
+                        let body = frame.body.rect.offsetBy(dx: -layerOrigin.x, dy: -layerOrigin.y)
+                        ZStack(alignment: .topLeading) {
+                            if dims {
+                                Color.black.opacity(0.22 * frame.progress)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .ignoresSafeArea()
+                                    .allowsHitTesting(pullOut.isOpen)
+                            }
+                            GlassEffectContainer(spacing: 24) {
+                                ZStack(alignment: .topLeading) {
+                                    glass(frame.body)
+                                    if let tip = frame.tip { glass(tip) }
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                            }
+                            .allowsHitTesting(false)
+                            content()
+                                .frame(width: target.rect.width, height: target.rect.height, alignment: .topLeading)
+                                .mask(alignment: .topLeading) {
+                                    frame.body.swiftUIShape.frame(width: body.width, height: body.height)
+                                }
+                                // 開く途中は、形が小さいうちは中身を薄くする(ボタンの大きさで中身の端だけが見えないように)。
+                                .opacity(min(1, max(0, (frame.progress - 0.08) / 0.3)))
+                                .offset(x: body.minX, y: body.minY)
+                                .allowsHitTesting(pullOut.isOpen)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    }
+                }
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: { layerOrigin = $0 }
     }
 
-    private func glass(_ shape: TimelinePullOut.Shape, _ glass: Glass) -> some View {
-        Color.clear
-            .frame(width: shape.rect.width, height: shape.rect.height)
-            .glassEffect(glass, in: RoundedRectangle(cornerRadius: shape.cornerRadius, style: .continuous))
-            .position(x: shape.rect.midX, y: shape.rect.midY)
-    }
-
-    private func fill(_ shape: TimelinePullOut.Shape, _ color: Color) -> some View {
-        RoundedRectangle(cornerRadius: shape.cornerRadius, style: .continuous)
-            .fill(color)
-            .frame(width: shape.rect.width, height: shape.rect.height)
-            .position(x: shape.rect.midX, y: shape.rect.midY)
+    private func glass(_ shape: TimelinePullOut.Shape) -> some View {
+        let rect = shape.rect.offsetBy(dx: -layerOrigin.x, dy: -layerOrigin.y)
+        return Color.clear
+            .frame(width: rect.width, height: rect.height)
+            .glassEffect(.regular.tint(Theme.card.opacity(0.6)), in: shape.swiftUIShape)
+            .offset(x: rect.minX, y: rect.minY)
     }
 }
 
@@ -350,6 +469,9 @@ enum TimelinePullGesture {
                 defer { isDragging.wrappedValue = false }
                 if isDragging.wrappedValue {
                     pullOut.release(kind, translation: value.translation, velocity: value.velocity)
+                } else if pullOut.active == kind, pullOut.isOpen {
+                    // 開いている時に押したら閉じる(単元のチップ)。
+                    pullOut.close(kind)
                 } else {
                     pullOut.peek(kind)
                 }
@@ -380,34 +502,58 @@ extension View {
 /// (2026-11-13 に Dev Box のシミュレータで、開いた画面の要素の位置と画面写真から測った値)。
 enum TimelinePullTargets {
     @MainActor
-    static func current(isPad: Bool) -> [TimelinePullKind: TimelinePullTarget] {
+    static func current(isPad: Bool, chip: CGRect?) -> [TimelinePullKind: TimelinePullTarget] {
         let window = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
             .first { $0.isKeyWindow }
         guard let window else { return [:] }
         return targets(bounds: window.bounds, safeTop: window.safeAreaInsets.top, isPad: isPad,
-                       displayCorner: isPad ? 21 : 55)
+                       displayCorner: isPad ? 21 : 55, chip: chip)
     }
 
-    static func targets(bounds: CGRect, safeTop: Double, isPad: Bool, displayCorner: Double) -> [TimelinePullKind: TimelinePullTarget] {
+    static func targets(bounds: CGRect, safeTop: Double, isPad: Bool, displayCorner: Double, chip: CGRect?) -> [TimelinePullKind: TimelinePullTarget] {
         let w = bounds.width, h = bounds.height
-        // カメラ: 下の 65% に、縁から 8pt 浮いて出る枠(底辺は画面の底辺)。
+        var result: [TimelinePullKind: TimelinePullTarget] = [:]
+        // カメラ: 下の 65% に、縁から 8pt 浮いて出る枠。下端はディスプレイの下端で、下の角はディスプレイの角に沿う。
         // 測った値: iPhone 17 は (8, 306, 386, 568)、iPad mini は (8, 396.5, 728, 736.5)。
-        let camera = TimelinePullTarget(rect: CGRect(x: 8, y: h * 0.35, width: w - 16, height: h * 0.65), cornerRadius: displayCorner - 8)
+        result[.camera] = TimelinePullTarget(rect: CGRect(x: 8, y: h * 0.35, width: w - 16, height: h * 0.65),
+                                             cornerRadius: 34, bottomRadius: displayCorner - 8)
         if isPad {
             // 質問: 右の欄(測った値: iPad mini で (364, 0, 380, 1133))。
-            let ask = TimelinePullTarget(rect: CGRect(x: w - TimelineLayout.questionPanelWidth, y: 0, width: TimelineLayout.questionPanelWidth, height: h),
-                                         cornerRadius: 0)
-            // 単元の一覧: 下から出る、幅を絞ったシート(測った値: iPad mini で x 83〜656、y 510〜1115)。
-            let sheetW = min(w - 80, 573.0)
-            let scope = TimelinePullTarget(rect: CGRect(x: (w - sheetW) / 2, y: h * 0.45, width: sheetW, height: h * 0.55 - 18), cornerRadius: 34)
-            return [.ask: ask, .camera: camera, .scope: scope]
+            result[.ask] = TimelinePullTarget(rect: CGRect(x: w - TimelineLayout.questionPanelWidth, y: 0,
+                                                           width: TimelineLayout.questionPanelWidth, height: h), cornerRadius: 0)
+        } else {
+            // 質問: 安全領域の上端から下まで(下の角はディスプレイの角に沿う)。
+            result[.ask] = TimelinePullTarget(rect: CGRect(x: 0, y: safeTop, width: w, height: h - safeTop),
+                                              cornerRadius: 38, bottomRadius: displayCorner)
         }
-        // 質問: 下からの大きいシート(上端は安全領域の上端)。
-        let ask = TimelinePullTarget(rect: CGRect(x: 0, y: safeTop, width: w, height: h - safeTop), cornerRadius: 38)
-        // 単元の一覧: 高さが半分の、縁から 8pt 浮いたシート(測った値: iPhone 17 で y 416〜866)。
-        let scope = TimelinePullTarget(rect: CGRect(x: 8, y: h * 0.476, width: w - 16, height: h * 0.524 - 8), cornerRadius: 40)
-        return [.ask: ask, .camera: camera, .scope: scope]
+        // 単元の一覧: チップの左上から下へ伸びるプルダウン。
+        if let chip {
+            let width = isPad ? min(440, w - chip.minX * 2) : w - chip.minX * 2
+            let height = min(h * (isPad ? 0.5 : 0.6), 560)
+            result[.scope] = TimelinePullTarget(rect: CGRect(x: chip.minX, y: chip.minY, width: width, height: height), cornerRadius: 24)
+        }
+        return result
+    }
+}
+
+/// 引っぱって開く質問の画面の中身。形が伸びる間は毎フレーム組み直すので、同じ質問なら中身は組み直さない。
+struct TimelineQuestionDrawerContent: View, Equatable {
+    let context: WorkbookQuestionContext
+    let onClose: () -> Void
+    private let key: String
+
+    init(context: WorkbookQuestionContext, onClose: @escaping () -> Void) {
+        self.context = context
+        self.onClose = onClose
+        key = context.id
+    }
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool { lhs.key == rhs.key }
+
+    var body: some View {
+        WorkbookQuestionScreen(context: context, onClose: onClose)
+            .background(Theme.ground)
     }
 }

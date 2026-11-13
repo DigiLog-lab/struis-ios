@@ -149,24 +149,45 @@ final class TimelinePullOutTests: XCTestCase {
         XCTAssertFalse(TimelinePullRule.opens(progress: 0.15, velocity: -2.5), "戻す方へはじいたら開かない")
     }
 
-    func testShapeGoesFromButtonToScreen() {
+    func testQuestionGoesFromButtonToScreen() {
         let button = CGRect(x: 320, y: 600, width: 52, height: 52)
-        let screen = TimelinePullTarget(rect: CGRect(x: 0, y: 62, width: 402, height: 812), cornerRadius: 38)
-        let start = TimelinePullOut.shape(origin: button, target: screen, t: 0, scale: 1)
+        let screen = TimelinePullTarget(rect: CGRect(x: 0, y: 62, width: 402, height: 812), cornerRadius: 38, bottomRadius: 55)
+        let start = TimelinePullOut.shape(.ask, origin: button, target: screen, t: 0)
         XCTAssertEqual(start.rect, button)
-        XCTAssertEqual(start.cornerRadius, 26, accuracy: 0.001, "始まりはボタンの円")
-        let end = TimelinePullOut.shape(origin: button, target: screen, t: 1, scale: 1)
+        XCTAssertEqual(start.topRadius, 26, accuracy: 0.001, "始まりはボタンの円")
+        let end = TimelinePullOut.shape(.ask, origin: button, target: screen, t: 1)
         XCTAssertEqual(end.rect.minY, 62, accuracy: 0.001)
         XCTAssertEqual(end.rect.width, 402, accuracy: 0.001)
-        XCTAssertEqual(end.cornerRadius, 38, accuracy: 0.001)
+        XCTAssertEqual(end.bottomRadius, 55, accuracy: 0.001)
+    }
+
+    func testScopeListDropsDownFromTheChip() {
+        let chip = CGRect(x: 20, y: 70, width: 110, height: 40)
+        let list = TimelinePullTarget(rect: CGRect(x: 20, y: 70, width: 362, height: 500), cornerRadius: 24)
+        for t in [0.2, 0.5, 0.9] {
+            let shape = TimelinePullOut.shape(.scope, origin: chip, target: list, t: t)
+            XCTAssertEqual(shape.rect.minX, 20, accuracy: 0.001, "左上はチップに留まる")
+            XCTAssertEqual(shape.rect.minY, 70, accuracy: 0.001, "左上はチップに留まる")
+        }
+    }
+
+    func testCameraRunsAlongTheDisplayBottom() {
+        let button = CGRect(x: 310, y: 640, width: 72, height: 72)
+        let frame = TimelinePullTarget(rect: CGRect(x: 8, y: 306, width: 386, height: 568), cornerRadius: 34, bottomRadius: 47)
+        for t in [0.3, 0.6, 1.0] {
+            let shape = TimelinePullOut.shape(.camera, origin: button, target: frame, t: t)
+            XCTAssertEqual(shape.rect.maxY, 874, accuracy: 0.001, "引き始めてすぐ、下端はディスプレイの下端に付く")
+        }
     }
 
     @MainActor
-    func testPhoneTargetsMatchMeasuredSheets() {
-        let t = TimelinePullTargets.targets(bounds: CGRect(x: 0, y: 0, width: 402, height: 874), safeTop: 62, isPad: false, displayCorner: 55)
+    func testPhoneTargetsMatchMeasuredScreens() {
+        let t = TimelinePullTargets.targets(bounds: CGRect(x: 0, y: 0, width: 402, height: 874), safeTop: 62, isPad: false, displayCorner: 55,
+                                            chip: CGRect(x: 96, y: 70, width: 110, height: 40))
         XCTAssertEqual(t[.camera]?.rect.minY ?? 0, 306, accuracy: 1)
         XCTAssertEqual(t[.camera]?.rect.maxY ?? 0, 874, accuracy: 1)
-        XCTAssertEqual(t[.scope]?.rect.minY ?? 0, 416, accuracy: 1)
         XCTAssertEqual(t[.ask]?.rect.minY ?? 0, 62, accuracy: 1)
+        XCTAssertEqual(t[.scope]?.rect.minX ?? 0, 96, accuracy: 1)
+        XCTAssertEqual(t[.scope]?.rect.minY ?? 0, 70, accuracy: 1)
     }
 }
