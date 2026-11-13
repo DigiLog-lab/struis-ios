@@ -290,6 +290,8 @@ struct TimelineActionButton: View {
                             .shadow(color: .black.opacity(raised ? 0.18 : 0.06), radius: raised ? 10 : 4, y: 3)
                             .opacity(hidesDisc ? 0 : 1)
                     }
+                    // 押せる範囲は円の形で決める(液体の層が円を描いている間は、この円が見えず、押せなくなるため)。
+                    .contentShape(Circle())
                     .background { if liquidSlot { Color.clear.timelineLiquidSlot() } }
                 Text(label).font(Typography.sans(size: 12, weight: .bold)).foregroundStyle(Theme.secondaryText)
             }
