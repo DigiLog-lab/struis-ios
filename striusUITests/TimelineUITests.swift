@@ -53,6 +53,25 @@ final class TimelineUITests: XCTestCase {
         XCTAssertTrue(app.buttons["timeline-units-button"].appears(timeout: 10), "タイムラインに戻らない")
     }
 
+    /// 質問と単元のチップは、押しただけでは開かず、引っぱると開く。
+    @MainActor
+    func testAskAndScopeOpenOnlyWhenPulled() throws {
+        let app = launchTimeline()
+        waitForProblem(app)
+        let close = app.buttons["question-close"]
+        app.buttons["timeline-ask"].tap()
+        XCTAssertFalse(close.waitForExistence(timeout: 2), "押しただけで質問が開いた")
+        app.buttons["timeline-ask"].drag(by: CGVector(dx: -240, dy: 0))
+        XCTAssertTrue(close.appears(timeout: 6), "引いても質問が開かない")
+        close.tap()
+        let scopeTitle = app.staticTexts["解く範囲"]
+        XCTAssertTrue(app.buttons["timeline-scope-chip"].appears(timeout: 5))
+        app.buttons["timeline-scope-chip"].tap()
+        XCTAssertFalse(scopeTitle.waitForExistence(timeout: 2), "押しただけで単元の一覧が開いた")
+        app.buttons["timeline-scope-chip"].drag(by: CGVector(dx: 0, dy: 380))
+        XCTAssertTrue(scopeTitle.appears(timeout: 6), "引いても単元の一覧が開かない")
+    }
+
     /// 撮って採点されたら、すぐ次へ。結果の画面の右下は 質問・解説・次へ。
     @MainActor
     func testCaptureGradesAndMovesToTheNextProblem() throws {
