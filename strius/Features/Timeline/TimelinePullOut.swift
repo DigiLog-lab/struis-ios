@@ -20,7 +20,7 @@ enum TimelinePullKind: Hashable {
 }
 
 /// 開く画面の形(画面全体の座標)。
-struct TimelinePullTarget: Equatable {
+nonisolated struct TimelinePullTarget: Equatable {
     var rect: CGRect
     var cornerRadius: Double
 }
@@ -178,7 +178,7 @@ final class TimelinePullOut {
 
     // MARK: 描く
 
-    struct Shape: Equatable {
+    nonisolated struct Shape: Equatable {
         var rect: CGRect
         var cornerRadius: Double
     }
@@ -265,7 +265,7 @@ struct TimelinePullOutLayer: View {
         case .scope:
             return (.regular, Theme.card, late * late)
         case .camera:
-            // ボタンの色から、カメラの黒へ。
+            // ボタンの色から、カメラの枠の黒へ。
             let dark = min(1, t * 1.6)
             let tint: Color = cameraIsProminent && dark < 0.5 ? Theme.accentColor.opacity(1 - dark * 2) : Color.black.opacity(0.85 * dark)
             return (.regular.tint(tint), .black, late * late)
@@ -368,7 +368,8 @@ extension View {
     }
 }
 
-/// 開く画面が実際に出る場所(画面全体の座標)。システムのシートの大きさに合わせる(Dev Box のシミュレータで測った値)。
+/// 開く画面が実際に出る場所(画面全体の座標)。システムのシートとカメラの枠の大きさに合わせる
+/// (2026-11-13 に Dev Box のシミュレータで、開いた画面の要素の位置と画面写真から測った値)。
 enum TimelinePullTargets {
     @MainActor
     static func current(isPad: Bool) -> [TimelinePullKind: TimelinePullTarget] {
@@ -383,21 +384,22 @@ enum TimelinePullTargets {
 
     static func targets(bounds: CGRect, safeTop: Double, isPad: Bool, displayCorner: Double) -> [TimelinePullKind: TimelinePullTarget] {
         let w = bounds.width, h = bounds.height
-        // カメラ: 画面いっぱい(枠の底辺は画面の底辺)。
-        let camera = TimelinePullTarget(rect: bounds, cornerRadius: displayCorner)
+        // カメラ: 下の 65% に、縁から 8pt 浮いて出る枠(底辺は画面の底辺)。
+        // 測った値: iPhone 17 は (8, 306, 386, 568)、iPad mini は (8, 396.5, 728, 736.5)。
+        let camera = TimelinePullTarget(rect: CGRect(x: 8, y: h * 0.35, width: w - 16, height: h * 0.65), cornerRadius: displayCorner - 8)
         if isPad {
-            // 質問: 右の欄。単元の一覧: 真ん中に浮かぶシート。
+            // 質問: 右の欄(測った値: iPad mini で (364, 0, 380, 1133))。
             let ask = TimelinePullTarget(rect: CGRect(x: w - TimelineLayout.questionPanelWidth, y: 0, width: TimelineLayout.questionPanelWidth, height: h),
                                          cornerRadius: 0)
-            let sheetW = min(w - 80, 580.0), sheetH = min(h - 160, 620.0)
-            let scope = TimelinePullTarget(rect: CGRect(x: (w - sheetW) / 2, y: (h - sheetH) / 2, width: sheetW, height: sheetH), cornerRadius: 34)
+            // 単元の一覧: 下から出る、幅を絞ったシート(測った値: iPad mini で x 83〜656、y 510〜1115)。
+            let sheetW = min(w - 80, 573.0)
+            let scope = TimelinePullTarget(rect: CGRect(x: (w - sheetW) / 2, y: h * 0.45, width: sheetW, height: h * 0.55 - 18), cornerRadius: 34)
             return [.ask: ask, .camera: camera, .scope: scope]
         }
-        // 質問: 下からの大きいシート。単元の一覧: 画面の半分の高さの、縁から浮いたシート。
-        let top = safeTop + 10
-        let ask = TimelinePullTarget(rect: CGRect(x: 0, y: top, width: w, height: h - top), cornerRadius: 38)
-        let inset = 8.0
-        let scope = TimelinePullTarget(rect: CGRect(x: inset, y: h / 2, width: w - inset * 2, height: h / 2 - inset), cornerRadius: displayCorner - inset)
+        // 質問: 下からの大きいシート(上端は安全領域の上端)。
+        let ask = TimelinePullTarget(rect: CGRect(x: 0, y: safeTop, width: w, height: h - safeTop), cornerRadius: 38)
+        // 単元の一覧: 高さが半分の、縁から 8pt 浮いたシート(測った値: iPhone 17 で y 416〜866)。
+        let scope = TimelinePullTarget(rect: CGRect(x: 8, y: h * 0.476, width: w - 16, height: h * 0.524 - 8), cornerRadius: 40)
         return [.ask: ask, .camera: camera, .scope: scope]
     }
 }

@@ -135,3 +135,38 @@ final class TimelineLiquidTearTests: XCTestCase {
         XCTAssertLessThanOrEqual(liquid.livePieceCount, TimelineLiquid.maxPieces + 1)
     }
 }
+
+/// 質問・撮る・単元のチップを引っぱって開く決まり。
+final class TimelinePullOutTests: XCTestCase {
+    func testShortSlowPullDoesNotOpen() {
+        XCTAssertFalse(TimelinePullRule.opens(progress: 0.2, velocity: 0.5))
+        XCTAssertFalse(TimelinePullRule.opens(progress: 0.03, velocity: 5), "触れただけではじいても開かない")
+    }
+
+    func testFarOrFastPullOpens() {
+        XCTAssertTrue(TimelinePullRule.opens(progress: 0.5, velocity: 0))
+        XCTAssertTrue(TimelinePullRule.opens(progress: 0.15, velocity: 2.5))
+        XCTAssertFalse(TimelinePullRule.opens(progress: 0.15, velocity: -2.5), "戻す方へはじいたら開かない")
+    }
+
+    func testShapeGoesFromButtonToScreen() {
+        let button = CGRect(x: 320, y: 600, width: 52, height: 52)
+        let screen = TimelinePullTarget(rect: CGRect(x: 0, y: 62, width: 402, height: 812), cornerRadius: 38)
+        let start = TimelinePullOut.shape(origin: button, target: screen, t: 0, scale: 1)
+        XCTAssertEqual(start.rect, button)
+        XCTAssertEqual(start.cornerRadius, 26, accuracy: 0.001, "始まりはボタンの円")
+        let end = TimelinePullOut.shape(origin: button, target: screen, t: 1, scale: 1)
+        XCTAssertEqual(end.rect.minY, 62, accuracy: 0.001)
+        XCTAssertEqual(end.rect.width, 402, accuracy: 0.001)
+        XCTAssertEqual(end.cornerRadius, 38, accuracy: 0.001)
+    }
+
+    @MainActor
+    func testPhoneTargetsMatchMeasuredSheets() {
+        let t = TimelinePullTargets.targets(bounds: CGRect(x: 0, y: 0, width: 402, height: 874), safeTop: 62, isPad: false, displayCorner: 55)
+        XCTAssertEqual(t[.camera]?.rect.minY ?? 0, 306, accuracy: 1)
+        XCTAssertEqual(t[.camera]?.rect.maxY ?? 0, 874, accuracy: 1)
+        XCTAssertEqual(t[.scope]?.rect.minY ?? 0, 416, accuracy: 1)
+        XCTAssertEqual(t[.ask]?.rect.minY ?? 0, 62, accuracy: 1)
+    }
+}
