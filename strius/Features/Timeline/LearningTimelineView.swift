@@ -784,9 +784,7 @@ struct LearningTimelineView: View {
     private var nextStrip: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                if hasInk, store.phase == .solving || isRapid {
-                    Label("ここを上へ", systemImage: "arrow.up").font(Typography.sans(size: 13, weight: .bold))
-                } else if let next = store.upcoming {
+                if let next = store.upcoming {
                     Label(stripLabel(next), systemImage: stripSymbol(next)).font(Typography.sans(size: 13, weight: .bold))
                 }
                 Spacer()
@@ -812,12 +810,15 @@ struct LearningTimelineView: View {
         }
         .shadow(color: .black.opacity(0.06), radius: 8, y: -2)
         .contentShape(Rectangle())
-        .gesture(swipeUp)
+        // 帯を上に送るのは「次へ」だけ(答えは送るボタンを上に引いて送る。帯で送ると、送る方法が2つになり誤って送りやすい)。
+        .gesture(swipeUp, isEnabled: canAdvance)
         // iPad は書く面が帯の上にも重なるので、帯(ホームインジケータの下の面まで)には指を通す。
         .timelineInkPassThrough(toScreenBottom: true)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("timeline-next-strip")
-        .accessibilityAction(named: "次へ") { Task { await advance() } }
+        .accessibilityActions {
+            if canAdvance { Button("次へ") { Task { await advance() } } }
+        }
     }
 
     private var isRapid: Bool { if case .rapid = store.phase { true } else { false } }
@@ -863,15 +864,18 @@ struct LearningTimelineView: View {
 
     // MARK: 動作
 
+    /// 帯を上に送って次の問題へ進める時(結果の後だけ)。
+    private var canAdvance: Bool {
+        switch store.phase {
+        case .result, .rapidDone: true
+        default: false
+        }
+    }
+
     private func advance() async {
         switch store.phase {
-        case .solving:
-            // 書いている間は、下の帯を上に送ったら書いたものを送る(紙に切り替えた人は飛ばす)。
-            if hasInk { sendInk() } else { await store.skip() }
         case .result:
             await store.goNext()
-        case .rapid:
-            if hasInk { sendRapid() }
         case .rapidDone:
             store.finishRapid()
         default:
