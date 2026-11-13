@@ -274,6 +274,130 @@ final class TimelineLiquid {
         a.y.aim(slotCenter.y, stiffness: 300, dampingRatio: z(0.5))
     }
 
+    // MARK: 採点中にちぎる(遊び)
+
+    /// カプセルから引きちぎったかけら。結果が出たら消える。
+    private struct Piece {
+        var blob: Blob
+        /// 消えている途中(小さくなりきったら外す)。
+        var fading = false
+    }
+
+    @ObservationIgnored private var pieces: [Piece] = []
+    /// 指で持っているかけら(ちぎった後も、離すまでは指についてくる)。
+    @ObservationIgnored private var heldPiece: Int?
+    /// 液体の層の大きさ(投げたかけらを画面の中に留める)。
+    @ObservationIgnored var bounds: CGRect = .zero
+    /// 触覚の合図(ちぎれるたびに鳴らす)。
+    private(set) var tearFeedback = 0
+
+    /// 画面に出ているかけら(消えている途中のものを除く)。
+    var livePieceCount: Int { pieces.filter { !$0.fading }.count }
+
+    /// これだけ離れるとちぎれる(カプセルの縁からの距離)。
+    nonisolated static let tearDistance: Double = 64
+    /// 画面に残すかけらの数(超えたら古いものから消える)。
+    static let maxPieces = 16
+
+    /// 採点中のカプセルを指でつまんで引っぱっている(`location` は液体の層の座標)。
+    func tug(at location: CGPoint) {
+        guard stage == .grading else { return }
+        if let held = heldPiece, pieces.indices.contains(held) {
+            let r = pieces[held].blob.w.target
+            pieces[held].blob.x.hold(location.x)
+            pieces[held].blob.y.hold(location.y)
+            pieces[held].blob.w.aim(r, stiffness: 300, dampingRatio: 0.6)
+            pieces[held].blob.h.aim(r, stiffness: 300, dampingRatio: 0.6)
+            return
+        }
+        let edge = Self.edge(of: a.shape, toward: location)
+        let gap = max(0, edge.gap)
+        // 指より少し遅れてついてくる(カプセルに引き戻される重さ)。
+        let follow = 0.8
+        let center = CGPoint(x: edge.point.x + (location.x - edge.point.x) * follow,
+                             y: edge.point.y + (location.y - edge.point.y) * follow)
+        let r = 9 + 6 * min(1, gap / Self.tearDistance)
+        b.hold(center, r, r)
+        mix.hold(0); ring.hold(0)
+        guard gap > Self.tearDistance else { return }
+        // ちぎれた: かけらにして、離すまで指につける。カプセルは反動で揺れる。
+        var blob = b
+        blob.w.aim(r + 2, stiffness: 260, dampingRatio: 0.45)
+        blob.h.aim(r + 2, stiffness: 260, dampingRatio: 0.45)
+        pieces.append(Piece(blob: blob))
+        heldPiece = pieces.count - 1
+        b.hold(edge.point, 0, 0)
+        tearFeedback += 1
+        if !reduceMotion {
+            a.w.velocity += 90
+            a.h.velocity -= 70
+        }
+        trimPieces()
+    }
+
+    /// つまんでいた指を離した。`velocity` は pt/秒。
+    func letGo(velocity: CGSize) {
+        defer { heldPiece = nil }
+        guard let held = heldPiece, pieces.indices.contains(held) else {
+            // ちぎれる前に離した: しずくはカプセルに戻る。
+            b.x.aim(slotCenter.x, stiffness: 220, dampingRatio: z(0.7))
+            b.y.aim(slotCenter.y, stiffness: 220, dampingRatio: z(0.7))
+            b.w.aim(0, stiffness: 200, dampingRatio: 1)
+            b.h.aim(0, stiffness: 200, dampingRatio: 1)
+            return
+        }
+        let here = CGPoint(x: pieces[held].blob.x.value, y: pieces[held].blob.y.value)
+        if Self.edge(of: a.shape, toward: here).gap < 14 {
+            // カプセルに戻して離した: 吸いこまれて消える。
+            pieces[held].blob.x.aim(slotCenter.x, stiffness: 160, dampingRatio: 0.8)
+            pieces[held].blob.y.aim(slotCenter.y, stiffness: 160, dampingRatio: 0.8)
+            fade(held, stiffness: 180)
+            return
+        }
+        // 投げた方へ滑って止まる(画面の外には出さない)。
+        let r = pieces[held].blob.w.target
+        var target = CGPoint(x: here.x + velocity.width * 0.18, y: here.y + velocity.height * 0.18)
+        if bounds.width > 0 {
+            target.x = min(max(target.x, bounds.minX + r + 8), bounds.maxX - r - 8)
+            target.y = min(max(target.y, bounds.minY + r + 8), bounds.maxY - r - 8)
+        }
+        pieces[held].blob.x.aim(target.x, stiffness: 36, dampingRatio: z(0.85))
+        pieces[held].blob.y.aim(target.y, stiffness: 36, dampingRatio: z(0.85))
+        pieces[held].blob.x.velocity = velocity.width
+        pieces[held].blob.y.velocity = velocity.height
+    }
+
+    /// かけらを全部消す(結果が出た時)。少しずつずらして、ぷちぷちと消える。
+    private func fadeAllPieces() {
+        heldPiece = nil
+        for i in pieces.indices where !pieces[i].fading {
+            fade(i, stiffness: Double.random(in: 120...320))
+        }
+    }
+
+    private func fade(_ index: Int, stiffness: Double) {
+        pieces[index].fading = true
+        pieces[index].blob.w.aim(0, stiffness: stiffness, dampingRatio: 1)
+        pieces[index].blob.h.aim(0, stiffness: stiffness, dampingRatio: 1)
+        if !reduceMotion { pieces[index].blob.w.velocity += 30; pieces[index].blob.h.velocity += 30 }
+    }
+
+    private func trimPieces() {
+        let alive = pieces.indices.filter { !pieces[$0].fading }
+        guard alive.count > Self.maxPieces, let oldest = alive.first, oldest != heldPiece else { return }
+        fade(oldest, stiffness: 200)
+    }
+
+    /// 形の縁のうち `point` の方向にある点と、そこから `point` までの距離(縁は楕円で近似)。
+    nonisolated static func edge(of shape: LiquidShape, toward point: CGPoint) -> (gap: Double, point: CGPoint) {
+        let dx = point.x - shape.center.x, dy = point.y - shape.center.y
+        let length = (dx * dx + dy * dy).squareRoot()
+        guard length > 0.5, shape.isVisible else { return (0, shape.center) }
+        let ux = dx / length, uy = dy / length
+        let reach = 1 / ((ux / shape.halfWidth) * (ux / shape.halfWidth) + (uy / shape.halfHeight) * (uy / shape.halfHeight)).squareRoot()
+        return (length - reach, CGPoint(x: shape.center.x + ux * reach, y: shape.center.y + uy * reach))
+    }
+
     /// 採点中のカプセルを押した: ぷるんと揺れる。
     func poke() {
         guard stage == .grading, !reduceMotion else { return }
@@ -288,6 +412,7 @@ final class TimelineLiquid {
         guard stage == .grading else { return }
         sequence?.cancel()
         self.correct = correct
+        fadeAllPieces()
         stage = .emerging
         hasLanded = false
         flowsToMark = false
@@ -350,6 +475,8 @@ final class TimelineLiquid {
     func reset() {
         sequence?.cancel()
         flowsToMark = false
+        pieces.removeAll()
+        heldPiece = nil
         hideGuide()
         stage = .idle
         needsPlacement = false
@@ -402,6 +529,8 @@ final class TimelineLiquid {
         /// 輪の線の太さと、線の中心の半径(線の太さが 0 なら塗りつぶし)。
         var ringWidth: Double
         var ringRadius: Double
+        /// 採点中にちぎったかけら。
+        var pieces: [LiquidShape] = []
     }
 
     /// くびれが切れる、しずくとボタンの縁の間の距離。
@@ -419,10 +548,19 @@ final class TimelineLiquid {
             let steps = 3
             for _ in 0..<steps {
                 a.step(dt / Double(steps)); b.step(dt / Double(steps))
+                for i in pieces.indices { pieces[i].blob.step(dt / Double(steps)) }
                 mix.step(dt / Double(steps)); ring.step(dt / Double(steps))
             }
         }
         lastDate = date
+        // 小さくなりきったかけらは外す(持っているかけらの番号もずらす)。
+        let gone = pieces.indices.filter { i in
+            i != heldPiece && pieces[i].fading && !pieces[i].blob.shape.isVisible && pieces[i].blob.w.isSettled
+        }
+        if !gone.isEmpty {
+            if let held = heldPiece { heldPiece = held - gone.filter { $0 < held }.count }
+            for i in gone.reversed() { pieces.remove(at: i) }
+        }
         let drop = b.shape
         let button = a.shape
         let r = min(drop.halfWidth, drop.halfHeight)
@@ -435,7 +573,8 @@ final class TimelineLiquid {
         return Frame(button: button, drop: drop,
                      neck: mixValue < 0.01 ? Self.neck(from: button, to: drop) : nil,
                      markMix: mixValue,
-                     ringWidth: t > 0.01 ? outer - inner : 0, ringRadius: (outer + inner) / 2)
+                     ringWidth: t > 0.01 ? outer - inner : 0, ringRadius: (outer + inner) / 2,
+                     pieces: pieces.map(\.blob.shape))
     }
 
     /// ボタンの縁からしずくへ伸びる、真ん中のすぼまった帯。離れるほど細くなり、`neckReach` で消える。
@@ -493,6 +632,7 @@ struct TimelineLiquidLayer: View {
                     GlassEffectContainer(spacing: 24) {
                         ZStack(alignment: .topLeading) {
                             glass(frame.button)
+                            ForEach(frame.pieces.indices, id: \.self) { i in glass(frame.pieces[i]) }
                             if let neck = frame.neck {
                                 Color.clear
                                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -512,6 +652,7 @@ struct TimelineLiquidLayer: View {
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { liquid.bounds = CGRect(origin: .zero, size: $0) }
     }
 
     private func glass(_ shape: LiquidShape) -> some View {

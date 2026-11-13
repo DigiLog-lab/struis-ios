@@ -19,6 +19,8 @@ struct LearningTimelineView: View {
     @State private var hasInk = false
     /// 送る → 採点中 → 結果の ○ を1つの液体の形の変化でつなぐ。
     @State private var liquid = TimelineLiquid()
+    /// 採点中のカプセルをつまんで引っぱっている。
+    @State private var isTugging = false
     @State private var ink = TimelineInkController()
     @State private var inkGeneration = 0
     @State private var isDrawing = false
@@ -738,8 +740,10 @@ struct LearningTimelineView: View {
                             .foregroundStyle(Theme.onAccent)
                             .frame(width: slotDiameter, height: slotDiameter)
                             .timelineLiquidSlot()
-                            .contentShape(Circle())
-                            .onTapGesture { liquid.poke() }
+                            // カプセルは円より横に広いので、押せる範囲を広げる。
+                            .contentShape(Rectangle().inset(by: -18))
+                            .gesture(tearGesture)
+                            .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: liquid.tearFeedback)
                         Text("送る").font(Typography.sans(size: 12, weight: .bold)).hidden()
                     }
                 }
@@ -881,6 +885,21 @@ struct LearningTimelineView: View {
         default:
             break
         }
+    }
+
+    /// 採点中のカプセルの遊び: つまんで引っぱると、しずくが伸びてちぎれる(何度でも)。ちぎったかけらは投げられ、
+    /// 結果が出たら消える。押すだけならぷるんと揺れる。
+    private var tearGesture: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(TimelineLiquidSpace.name))
+            .onChanged { value in
+                guard isTugging || hypot(value.translation.width, value.translation.height) > 6 else { return }
+                isTugging = true
+                liquid.tug(at: value.location)
+            }
+            .onEnded { value in
+                if isTugging { liquid.letGo(velocity: value.velocity) } else { liquid.poke() }
+                isTugging = false
+            }
     }
 
     /// 送るボタン・採点中・次へ の円の直径(iPad の「送る」は 64pt)。

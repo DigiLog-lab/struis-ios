@@ -88,3 +88,50 @@ final class TimelineLiquidTests: XCTestCase {
         XCTAssertTrue(liquid.hasLanded)
     }
 }
+
+/// 採点中のカプセルをちぎる遊び。
+final class TimelineLiquidTearTests: XCTestCase {
+    @MainActor
+    func testPullingFarTearsOffAPieceAndResultClearsThem() {
+        let liquid = TimelineLiquid()
+        liquid.setSlot(center: CGPoint(x: 300, y: 600), radius: 36)
+        liquid.startGrading()
+        // 近くで引いている間は、まだちぎれない。
+        liquid.tug(at: CGPoint(x: 300, y: 560))
+        XCTAssertEqual(liquid.livePieceCount, 0)
+        // 遠くまで引くとちぎれる。離した後も、もう一度引けばまたちぎれる。
+        liquid.tug(at: CGPoint(x: 300, y: 400))
+        liquid.letGo(velocity: .zero)
+        liquid.tug(at: CGPoint(x: 300, y: 560))
+        liquid.tug(at: CGPoint(x: 200, y: 420))
+        liquid.letGo(velocity: CGSize(width: -300, height: 0))
+        XCTAssertEqual(liquid.livePieceCount, 2)
+        XCTAssertEqual(liquid.tearFeedback, 2)
+
+        liquid.markCenter = CGPoint(x: 60, y: 200)
+        liquid.emerge(correct: true)
+        XCTAssertEqual(liquid.livePieceCount, 0, "結果が出たら、かけらは消える")
+    }
+
+    @MainActor
+    func testTuggingOutsideGradingDoesNothing() {
+        let liquid = TimelineLiquid()
+        liquid.setSlot(center: CGPoint(x: 300, y: 600), radius: 36)
+        liquid.tug(at: CGPoint(x: 300, y: 300))
+        XCTAssertEqual(liquid.livePieceCount, 0)
+        XCTAssertEqual(liquid.stage, .idle)
+    }
+
+    @MainActor
+    func testOldPiecesFadeBeyondTheLimit() {
+        let liquid = TimelineLiquid()
+        liquid.setSlot(center: CGPoint(x: 300, y: 600), radius: 36)
+        liquid.startGrading()
+        for i in 0..<(TimelineLiquid.maxPieces + 3) {
+            liquid.tug(at: CGPoint(x: 300, y: 560))
+            liquid.tug(at: CGPoint(x: 100 + Double(i), y: 300))
+            liquid.letGo(velocity: .zero)
+        }
+        XCTAssertLessThanOrEqual(liquid.livePieceCount, TimelineLiquid.maxPieces + 1)
+    }
+}
