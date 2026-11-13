@@ -113,6 +113,10 @@ final class TimelineLiquid {
     /// 送るボタン(と、その後の採点中・次へ)の円の中心と半径。液体の層の座標で受け取る(`setSlot`)。
     @ObservationIgnored private(set) var slotCenter: CGPoint = .zero
     @ObservationIgnored private(set) var slotRadius: Double = 36
+    /// ボタンの場所をまだ知らない(写真で送った時など、送るボタンを出さずに採点に入った最初の時)。
+    /// 知らないまま置くと、画面の左上から流れてくる。場所が分かった時に置く。
+    @ObservationIgnored private var slotKnown = false
+    @ObservationIgnored private var needsPlacement = false
     /// 結果の ○ の中心と半径。
     @ObservationIgnored var markCenter: CGPoint?
     @ObservationIgnored var markRadius: Double = 11
@@ -159,6 +163,13 @@ final class TimelineLiquid {
     func setSlot(center: CGPoint, radius: Double) {
         slotCenter = center
         slotRadius = radius
+        slotKnown = true
+        if needsPlacement {
+            needsPlacement = false
+            a.hold(center, radius, radius)
+            if stage == .grading { startGrading() }
+            return
+        }
         switch stage {
         case .idle:
             a.hold(center, radius, radius)
@@ -241,12 +252,18 @@ final class TimelineLiquid {
     /// ボタンが横に伸びて「採点中」のカプセルになる(幅と高さの落ち着く速さが違うので、液体のように揺れる)。
     func startGrading() {
         if stage == .idle {
-            a.hold(slotCenter, slotRadius, slotRadius)
+            if slotKnown {
+                a.hold(slotCenter, slotRadius, slotRadius)
+            } else {
+                a.hold(slotCenter, 0, 0)
+                needsPlacement = true
+            }
             b.hold(slotCenter, 0, 0)
             mix.hold(0); ring.hold(0)
         }
         sequence?.cancel()
         stage = .grading
+        guard !needsPlacement else { return }
         hasLanded = true
         hideGuide()
         a.x.aim(slotCenter.x, stiffness: 260, dampingRatio: 1)
@@ -329,6 +346,7 @@ final class TimelineLiquid {
         sequence?.cancel()
         hideGuide()
         stage = .idle
+        needsPlacement = false
         hasLanded = true
         wasPinched = false
         a.hold(slotCenter, slotRadius, slotRadius)
