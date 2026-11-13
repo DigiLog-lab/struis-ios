@@ -530,7 +530,8 @@ enum TimelinePullTargets {
         }
         // 単元の一覧: チップの左上から下へ伸びるプルダウン。
         if let chip {
-            let width = isPad ? min(440, w - chip.minX * 2) : w - chip.minX * 2
+            // 幅はチップの左端から画面の右の余白まで(iPhone)。iPad は広げすぎない。
+            let width = isPad ? min(440, w - chip.minX - 24) : w - chip.minX - 20
             let height = min(h * (isPad ? 0.5 : 0.6), 560)
             result[.scope] = TimelinePullTarget(rect: CGRect(x: chip.minX, y: chip.minY, width: width, height: height), cornerRadius: 24)
         }
