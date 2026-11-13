@@ -381,7 +381,7 @@ final class TimelineLiquid {
     }
 
     /// くびれが切れる、しずくとボタンの縁の間の距離。
-    static let neckReach: Double = 75
+    nonisolated static let neckReach: Double = 75
 
     /// `date` の時刻まで進めた形。
     func frame(at date: Date) -> Frame {
@@ -411,7 +411,7 @@ final class TimelineLiquid {
     }
 
     /// ボタンの縁からしずくへ伸びる、真ん中のすぼまった帯。離れるほど細くなり、`neckReach` で消える。
-    static func neck(from button: LiquidShape, to drop: LiquidShape) -> Path? {
+    nonisolated static func neck(from button: LiquidShape, to drop: LiquidShape) -> Path? {
         guard button.isVisible, drop.isVisible else { return nil }
         let dx = drop.center.x - button.center.x, dy = drop.center.y - button.center.y
         let length = (dx * dx + dy * dy).squareRoot()
