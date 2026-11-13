@@ -166,8 +166,15 @@ final class TimelineStore {
         let unitID = card.unitId ?? card.subunitId.flatMap { workbook.subunits[$0]?.unitId } ?? card.skills.compactMap { machine.skills[$0].flatMap { TimelineGraphSchedule.unitID(of: $0, workbook: workbook) } }.first
         let unit = unitID.flatMap { workbook.units[$0]?.title } ?? card.payload["unit_title"]?.stringValue
         let skill = card.skills.first.flatMap { machine.skills[$0]?.name }
-        let parts = [unit, skill].compactMap { $0 }.filter { !$0.isEmpty }
-        return parts.isEmpty ? (card.typeName.isEmpty ? nil : card.typeName) : parts.joined(separator: "・")
+        return Self.chipLabel(unit: unit, skill: skill, typeName: card.typeName)
+    }
+
+    /// 札に出す文字。単元名とスキル名を「・」でつなぎ、どちらも無ければ型の名前を使う。
+    /// スキル名や型の名前には `$y=a(x-p)^2+q$` のような式が入る。札は 1 行の文字なので、読める文字に直す(`$` や `^` をそのまま出さない)。
+    nonisolated static func chipLabel(unit: String?, skill: String?, typeName: String) -> String? {
+        let parts: [String] = [unit, skill].compactMap { $0 }.filter { !$0.isEmpty }
+        let label: String = parts.isEmpty ? typeName : parts.joined(separator: "・")
+        return label.isEmpty ? nil : MathPlainText.preview(label)
     }
 
     // MARK: - 解く範囲
@@ -264,7 +271,8 @@ final class TimelineStore {
         await commit { machine in machine.discard(ids: outside) }
     }
 
-    func skillName(_ id: String) -> String { machine.skills[id]?.name ?? (id.split(separator: ".").last.map(String.init) ?? id) }
+    /// 画面に出すスキル名。名前に入っている式は、読める文字に直す。
+    func skillName(_ id: String) -> String { MathPlainText.preview(machine.skills[id]?.name ?? (id.split(separator: ".").last.map(String.init) ?? id)) }
     func solvedToday(_ id: String) -> Int { machine.solvedToday(skill: id) }
     func isNewSkill(_ id: String) -> Bool { machine.isNewSkill(id) }
 

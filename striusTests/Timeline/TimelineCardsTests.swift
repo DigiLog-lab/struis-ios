@@ -125,6 +125,30 @@ final class TimelineCardsTests: XCTestCase {
         ])
     }
 
+    /// 質問・解説に添える問題文: 選ぶカードは「何を答える問いか」の文を落とさない。次の一手は、そこまでの手順も添える。
+    func testProblemLinesKeepTheInstructionAndTheShownSteps() throws {
+        var machine = F.machine()
+        let nextID: String = machine.insertCard(from: try draft(F.draftJSON(kind: "next_step")), batchID: "b", position: 1, chain: nil)
+        let next: TimelineCardRecord = machine.cards[nextID]!
+        let shown: [String] = next.payload["shown"]!.arrayValue!.compactMap(\.stringValue)
+        XCTAssertFalse(shown.isEmpty)
+        let lines: [String] = TimelineCards.problemLines(next)
+        XCTAssertTrue(lines.contains("次の一手を選びなさい。"), "何を答える問いかが渡っていない: \(lines)")
+        let start: Int = try XCTUnwrap(lines.firstIndex(of: "ここまでの手順:"))
+        XCTAssertEqual(Array(lines[(start + 1)...(start + shown.count)]), shown)
+        XCTAssertEqual(lines[start + shown.count + 1], "選択肢:")
+        // 正負を予想するカードも、問いの文が入る。
+        let predictID: String = machine.insertCard(from: try draft(F.draftJSON(kind: "predict")), batchID: "b", position: 2, chain: nil)
+        let predict: TimelineCardRecord = machine.cards[predictID]!
+        XCTAssertTrue(TimelineCards.problemLines(predict).contains(predict.prompt))
+        // 解いて書くカードは今までどおり(問いかけを重ねない、手順も選択肢も付けない)。
+        let solve: TimelineCardRecord = try base()
+        let solveLines: [String] = TimelineCards.problemLines(solve)
+        XCTAssertFalse(solveLines.contains("ここまでの手順:"))
+        XCTAssertFalse(solveLines.contains("選択肢:"))
+        XCTAssertEqual(solveLines.filter { $0 == solve.prompt }.count, (solve.payload["problem"]?.stringValue ?? "").isEmpty ? 1 : 0)
+    }
+
     func testWrittenAnswersAreCheckedWithMath() throws {
         let card = try base()
         var inverse = card

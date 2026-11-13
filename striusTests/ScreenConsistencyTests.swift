@@ -33,6 +33,15 @@ final class ScreenConsistencyTests: XCTestCase {
         XCTAssertFalse(MathPlainText.preview("$$x^{2}$$\n\n**重要**").contains("$"))
     }
 
+    /// 問題の上の札: スキル名に入っている式は、`$` や `^` をそのまま出さず、読める文字にする。
+    func testTheUnitChipShowsMathInSkillNamesAsReadableText() {
+        XCTAssertEqual(TimelineStore.chipLabel(unit: "二次関数", skill: "$y=a(x-p)^2+q$ から頂点と軸を読む", typeName: ""), "二次関数・y = a(x−p)²+q から頂点と軸を読む")
+        XCTAssertEqual(TimelineStore.chipLabel(unit: "二次関数", skill: "$x^2+bx$ の平方完成", typeName: ""), "二次関数・x²+bx の平方完成")
+        XCTAssertEqual(TimelineStore.chipLabel(unit: nil, skill: "", typeName: "最大最小"), "最大最小")
+        XCTAssertEqual(TimelineStore.chipLabel(unit: "図形", skill: nil, typeName: "合同"), "図形")
+        XCTAssertNil(TimelineStore.chipLabel(unit: nil, skill: nil, typeName: ""))
+    }
+
     // MARK: D15 止まった返事を畳む
 
     private func message(_ role: MessageRole, _ status: MessageStatus) -> ChatMessage {

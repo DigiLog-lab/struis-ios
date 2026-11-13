@@ -871,14 +871,7 @@ struct LearningTimelineView: View {
 
     /// 質問・解説に添える問題。式は `$…$` で囲む(送った後の吹き出しで数式として組まれる)。選ぶカードは選択肢も付ける。
     private func problemText(_ card: TimelineCardRecord) -> String {
-        // `problem` が空の文字で入っているカード(仕分けなど)は、問いかけの文を使う(空のまま渡すと、問題が入らない)。
-        let problem: String = card.payload["problem"]?.stringValue ?? ""
-        let math: String = card.math.isEmpty || card.math.contains("$") ? card.math : "$" + card.math + "$"
-        // 「理由を選ぶ」「比べる」は、問いの文が `prompt` に入っている(`question` は同じ問いの言い換え)。
-        let asksInPrompt: Bool = card.kind == TimelineCards.Kind.reason.rawValue || card.kind == TimelineCards.Kind.compare.rawValue
-        var lines: [String] = [problem, problem.isEmpty || asksInPrompt ? card.prompt : "", math, asksInPrompt ? "" : card.question].filter { !$0.isEmpty }
-        lines += TimelineCards.optionLines(card)
-        return lines.joined(separator: "\n")
+        TimelineCards.problemLines(card).joined(separator: "\n")
     }
 
     /// 解説に添える答え。正しい答え(撮る・書くカードは答えの式、選ぶ・並べる・仕分けるカードは正しい選択肢)と、
