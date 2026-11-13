@@ -6,8 +6,8 @@ import SwiftUI
 //   くびれが切れる所まで引いて離すか、速くはじくと送る。タップでは送らず、しずくが少し顔を出して「上にスワイプで送る」を出す。
 // - 送ると、ボタンが横に伸びて「採点中」のカプセルになる。
 // - 採点が終わると、カプセルからしずくが出て、結果の ○(×)の位置まで流れ、真ん中が開いて ○ になる。カプセルは「次へ」に戻る。
-// 形はどれもバネで動かす(止まる位置を決めるのはバネ、時間で決めない)。液体のくびれは、ぼかしてからしきい値で切る
-// (SwiftUI の Canvas の alphaThreshold)。
+// 形はどれもバネで動かす(止まる位置を決めるのはバネ、時間で決めない)。液体は銅色の Liquid Glass で描き、
+// 近いガラス同士は `GlassEffectContainer` が溶け合わせる。ボタンからしずくを引き出す間は、細くなっていくくびれのガラスも足す。
 
 /// 1つの値を目標へ寄せるバネ(減衰振動)。`dampingRatio` が 1 未満だと行き過ぎて揺れる。
 nonisolated struct LiquidSpring: Equatable {
@@ -469,58 +469,68 @@ final class TimelineLiquid {
 }
 
 /// 液体を描く層。画面の座標で、ボタンの円・カプセル・しずく・○ を描く。指は通す。
+/// 液体は銅色の Liquid Glass で描く。1つの `GlassEffectContainer` に入れたガラス同士は、近づくと溶け合ってくびれでつながり、
+/// 離れると切れる。
 struct TimelineLiquidLayer: View {
     let liquid: TimelineLiquid
     let correct: Bool
 
     var body: some View {
         TimelineView(.animation(paused: !liquid.isActive)) { context in
-            Canvas { canvas, _ in
-                guard liquid.isActive else { return }
+            if liquid.isActive {
                 let frame = liquid.frame(at: context.date)
-                let accent = Theme.accentColor
-                let markColor = correct ? Theme.growthColor : Theme.regressColor
-                // ボタンと、そこから出たしずく: ぼかしてからしきい値で切ると、近い形同士がくびれでつながる。
-                // (フィルタは後に足したものから先にかかる: ぼかす → しきい値で切る → 縁を少しなめらかに → 影)
-                canvas.drawLayer { layer in
-                    layer.addFilter(.shadow(color: .black.opacity(0.16), radius: 8, y: 3))
-                    layer.addFilter(.blur(radius: 0.5))
-                    layer.addFilter(.alphaThreshold(min: 0.5, color: accent))
-                    layer.addFilter(.blur(radius: 5))
-                    layer.drawLayer { shapes in
-                        if frame.button.isVisible { shapes.fill(frame.button.path, with: .color(.black)) }
-                        if let neck = frame.neck { shapes.fill(neck, with: .color(.black)) }
-                        if frame.drop.isVisible, frame.markMix < 0.01 { shapes.fill(frame.drop.path, with: .color(.black)) }
+                ZStack(alignment: .topLeading) {
+                    GlassEffectContainer(spacing: 24) {
+                        ZStack(alignment: .topLeading) {
+                            glass(frame.button)
+                            if let neck = frame.neck {
+                                Color.clear
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                    .glassEffect(.regular.tint(Theme.accentColor), in: LiquidPathShape(path: neck))
+                            }
+                            // ○ の色に変わり始めたら、ガラスは薄くして、下の ○ の色の形に入れ替える。
+                            if frame.drop.isVisible, frame.markMix < 0.99 { glass(frame.drop).opacity(1 - frame.markMix) }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    }
+                    if frame.drop.isVisible, frame.markMix >= 0.01 {
+                        Canvas { canvas, _ in mark(frame, in: &canvas) }
                     }
                 }
-                // ○ の色に変わっていくしずくと、真ん中が開いて輪になったしずく(ここからは切れているので、しきい値を通さずに描く)。
-                if frame.drop.isVisible, frame.markMix >= 0.01 {
-                    let shading: GraphicsContext.Shading = .color(markColor)
-                    let base: GraphicsContext.Shading = .color(accent)
-                    if frame.ringWidth > 0 {
-                        let c = frame.drop.center, rr = frame.ringRadius
-                        let circle = Path(ellipseIn: CGRect(x: c.x - rr, y: c.y - rr, width: rr * 2, height: rr * 2))
-                        var under = canvas
-                        under.opacity = 1 - frame.markMix
-                        under.stroke(circle, with: base, lineWidth: frame.ringWidth)
-                        var over = canvas
-                        over.opacity = frame.markMix
-                        over.stroke(circle, with: shading, lineWidth: frame.ringWidth)
-                    } else {
-                        var under = canvas
-                        under.opacity = 1 - frame.markMix
-                        under.fill(frame.drop.path, with: base)
-                        var over = canvas
-                        over.opacity = frame.markMix
-                        over.fill(frame.drop.path, with: shading)
-                    }
-                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
         }
-        .drawingGroup()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
+
+    private func glass(_ shape: LiquidShape) -> some View {
+        Color.clear
+            .frame(width: max(0, shape.halfWidth * 2), height: max(0, shape.halfHeight * 2))
+            .glassEffect(.regular.tint(Theme.accentColor),
+                         in: RoundedRectangle(cornerRadius: min(shape.halfWidth, shape.halfHeight), style: .continuous))
+            .position(shape.center)
+            .opacity(shape.isVisible ? 1 : 0)
+    }
+
+    /// ○ の色に変わっていくしずくと、真ん中が開いて輪になったしずく。
+    private func mark(_ frame: TimelineLiquid.Frame, in canvas: inout GraphicsContext) {
+        var context = canvas
+        context.opacity = frame.markMix
+        let color: GraphicsContext.Shading = .color(correct ? Theme.growthColor : Theme.regressColor)
+        if frame.ringWidth > 0 {
+            let c = frame.drop.center, r = frame.ringRadius
+            context.stroke(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)), with: color, lineWidth: frame.ringWidth)
+        } else {
+            context.fill(frame.drop.path, with: color)
+        }
+    }
+}
+
+/// 決まった形(液体の層の座標で作ったくびれ)をそのまま返す形。
+struct LiquidPathShape: Shape {
+    let path: Path
+    func path(in rect: CGRect) -> Path { path }
 }
 
 /// 送るボタン。上に引いた時だけ送る(誤って送らないように)。タップでは、しずくが少し顔を出して「上にスワイプで送る」を出す。
@@ -542,9 +552,8 @@ struct TimelineSendButton: View {
                 .frame(width: diameter, height: diameter)
                 .background {
                     // 引いている間は、液体の層が円を描く(円はしずくとくびれでつながる)。
-                    Circle()
-                        .fill(isEnabled ? Theme.accentColor : Theme.accentColor.opacity(0.16))
-                        .shadow(color: .black.opacity(isEnabled ? 0.18 : 0.06), radius: isEnabled ? 10 : 4, y: 3)
+                    Color.clear
+                        .glassEffect(.regular.tint(isEnabled ? Theme.accentColor : Theme.accentColor.opacity(0.16)).interactive(), in: Circle())
                         .opacity(liquid.isActive ? 0 : 1)
                 }
                 .timelineLiquidSlot()
@@ -556,8 +565,7 @@ struct TimelineSendButton: View {
                             .fixedSize()
                             .padding(.horizontal, 12)
                             .padding(.vertical, 7)
-                            .background(Theme.card, in: Capsule())
-                            .shadow(color: .black.opacity(0.08), radius: 6, y: 2)
+                            .glassEffect(.regular, in: Capsule())
                             .offset(x: -(diameter + 10))
                             .transition(.opacity.combined(with: .offset(x: 6)))
                             .allowsHitTesting(false)

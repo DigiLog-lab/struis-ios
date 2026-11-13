@@ -276,7 +276,6 @@ struct TimelineActionButton: View {
 
     var body: some View {
         let size = diameter ?? (prominent ? 72 : 52)
-        let raised = prominent && isEnabled
         Button(action: action) {
             VStack(spacing: 6) {
                 Image(systemName: symbol)
@@ -284,10 +283,10 @@ struct TimelineActionButton: View {
                     .foregroundStyle(prominent ? (isEnabled ? Theme.onAccent : Theme.accentColor) : Theme.primaryText)
                     .frame(width: size, height: size)
                     .background {
-                        Circle()
-                            .fill(prominent ? AnyShapeStyle(isEnabled ? Theme.accentColor : Theme.accentColor.opacity(0.16)) : AnyShapeStyle(Theme.card))
-                            .overlay { if !prominent { Circle().stroke(Theme.hairline, lineWidth: 1) } }
-                            .shadow(color: .black.opacity(raised ? 0.18 : 0.06), radius: raised ? 10 : 4, y: 3)
+                        // Liquid Glass の円(大きいボタンは銅色に色を付ける。送るボタンから出る液体と同じガラス)。
+                        Color.clear
+                            .glassEffect(prominent ? .regular.tint(isEnabled ? Theme.accentColor : Theme.accentColor.opacity(0.16)).interactive()
+                                                   : .regular.interactive(), in: Circle())
                             .opacity(hidesDisc ? 0 : 1)
                     }
                     // 押せる範囲は円の形で決める(液体の層が円を描いている間は、この円が見えず、押せなくなるため)。

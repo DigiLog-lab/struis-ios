@@ -150,7 +150,9 @@ extension XCUIElement {
     @MainActor
     func pullUp(by distance: CGFloat = 220) {
         let start = coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
-        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -distance)))
+        // ゆっくり引いて少し止めてから離す(はじく速さではなく、引いた長さで送る。録画に途中の形も残る)。
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -distance)),
+                    withVelocity: 320, thenHoldForDuration: 0.4)
     }
 
     /// 画面の切り替えで動いている要素を、止まってから押す。押す位置は要素の木を取った時の枠の中央なので、
