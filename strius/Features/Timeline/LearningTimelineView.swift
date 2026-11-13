@@ -770,6 +770,7 @@ struct LearningTimelineView: View {
                     // 採点中のカプセルが丸く戻って「次へ」になる(戻りきるまでは、円は液体の層が描く)。
                     TimelineActionButton(symbol: TimelineSymbol.next, label: "次へ", prominent: true, liquidSlot: true,
                                          hidesDisc: liquid.isActive, identifier: "timeline-next") { Task { await store.goNext() } }
+                        .accessibilityValue("DEBUG \(String(describing: liquid.stage)) landed=\(liquid.hasLanded)")
                 }
             case .rapidDone:
                 TimelineActionButton(symbol: TimelineSymbol.next, label: "次へ", prominent: true, identifier: "timeline-next") { store.finishRapid() }
