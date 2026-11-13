@@ -64,13 +64,7 @@ final class TimelineUITests: XCTestCase {
         XCTAssertTrue(app.buttons["timeline-explain"].exists)
         XCTAssertTrue(app.buttons["timeline-ask"].exists)
         XCTAssertTrue(app.buttons["timeline-today-count"].label.contains("1"), "今日の問題数が増えない")
-        print("DEBUGNEXT before", app.buttons["timeline-next"].value ?? "nil", app.buttons["timeline-next"].isHittable)
-        Thread.sleep(forTimeInterval: 3)
-        print("DEBUGNEXT after3s", app.buttons["timeline-next"].value ?? "nil", app.buttons["timeline-next"].isHittable)
         app.buttons["timeline-next"].tap()
-        Thread.sleep(forTimeInterval: 2)
-        print("DEBUGNEXT aftertap", app.buttons["timeline-next"].exists, app.buttons["timeline-capture"].exists)
-        if app.buttons["timeline-next"].exists { app.buttons["timeline-next"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3)).tap() }
         XCTAssertTrue(app.buttons["timeline-capture"].appears(timeout: 10))
         XCTAssertNotEqual(app.descendants(matching: .any)["timeline-question"].firstMatch.label, first, "次の問題に進まない")
         XCTAssertTrue(app.descendants(matching: .any)["timeline-chain-bar"].firstMatch.label.contains("2"), "さっきの続きの2問目ではない")
