@@ -10,7 +10,7 @@ import SwiftUI
 // (SwiftUI の Canvas の alphaThreshold)。
 
 /// 1つの値を目標へ寄せるバネ(減衰振動)。`dampingRatio` が 1 未満だと行き過ぎて揺れる。
-struct LiquidSpring: Equatable {
+nonisolated struct LiquidSpring: Equatable {
     var value: Double
     var velocity: Double = 0
     var target: Double
@@ -45,7 +45,7 @@ struct LiquidSpring: Equatable {
 }
 
 /// 角の丸い四角(円もこれで表す)。中心と半分の幅・高さ。
-struct LiquidShape: Equatable {
+nonisolated struct LiquidShape: Equatable {
     var center: CGPoint
     var halfWidth: Double
     var halfHeight: Double
@@ -63,7 +63,7 @@ struct LiquidShape: Equatable {
 }
 
 /// 送るを引いた時の決まり(引いた距離・速さ → 形と、送るかどうか)。
-enum LiquidPull {
+nonisolated enum LiquidPull {
     /// 指の移動のうち、しずくが 1:1 でついてくる長さ。これを超えると重くなる。
     static let follow: Double = 150
     /// ここまで引いて離したら送る(くびれが切れるあたり)。
