@@ -9,6 +9,9 @@ final class TimelineUITests: XCTestCase {
 
     /// タイムラインから始める起動(単元ホームを重ねない)。
     @MainActor
+    /// 撮るは、カメラの方(画面の真ん中)へ引いて開く(タップでは開かない)。
+    static let toCamera = CGVector(dx: -150, dy: -260)
+
     private func launchTimeline(wrong: Bool = false, longComment: Bool = false,
                                 orientation: UIDeviceOrientation = .portrait) -> XCUIApplication {
         XCUIDevice.shared.orientation = orientation
@@ -56,7 +59,7 @@ final class TimelineUITests: XCTestCase {
         let app = launchTimeline()
         waitForProblem(app)
         let first = app.descendants(matching: .any)["timeline-question"].firstMatch.label
-        app.buttons["timeline-capture"].tap()
+        app.buttons["timeline-capture"].drag(by: Self.toCamera)
         let shutter = app.buttons["chat-camera-shutter"]
         XCTAssertTrue(shutter.appears(timeout: 10))
         shutter.tap()
@@ -75,7 +78,7 @@ final class TimelineUITests: XCTestCase {
     func testWrongAnswerShowsBothAnswersAndOffersADisputeFromAsk() throws {
         let app = launchTimeline(wrong: true)
         waitForProblem(app)
-        app.buttons["timeline-capture"].tap()
+        app.buttons["timeline-capture"].drag(by: Self.toCamera)
         let shutter = app.buttons["chat-camera-shutter"]
         XCTAssertTrue(shutter.appears(timeout: 10))
         shutter.tap()
@@ -173,7 +176,7 @@ final class TimelineUITests: XCTestCase {
         if app.buttons["timeline-send"].appears(timeout: 5) {
             app.buttons["timeline-send"].pullUp()
         } else {
-            app.buttons["timeline-capture"].tap()
+            app.buttons["timeline-capture"].drag(by: Self.toCamera)
         }
         let verdict = app.descendants(matching: .any)["timeline-result-wrong"].firstMatch
         XCTAssertTrue(verdict.appears(timeout: 30), "誤答の結果が出ない")

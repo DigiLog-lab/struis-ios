@@ -21,6 +21,9 @@ struct LearningTimelineView: View {
     @State private var liquid = TimelineLiquid()
     /// 採点中のカプセルをつまんで引っぱっている。
     @State private var isTugging = false
+    /// 質問・撮る・単元のチップを、引っぱって開く。
+    @State private var pullOut = TimelinePullOut()
+    @State private var isScopeDragging = false
     @State private var ink = TimelineInkController()
     @State private var inkGeneration = 0
     @State private var isDrawing = false
@@ -112,6 +115,8 @@ struct LearningTimelineView: View {
             // iPad の縦向きの結果の画面では、書く面を見えなくする(結果の列が全幅なので、書いた線が講評の文に重なって読めなくなる)。
             // 書いた答案は結果の列の中に出す。木からは外さない(外すと書く面が作り直され、横向きに回した時に線が消える)。
             if showsInk { placedInkLayer.opacity(hidesInkInResult ? 0 : 1).allowsHitTesting(!hidesInkInResult) }
+            // 引っぱって開く質問・撮る・単元の一覧の形(書いた線や下の帯の上にも重ねる)。
+            TimelinePullOutLayer(pullOut: pullOut, cameraIsProminent: !layout.isPad && !hasInk)
             if store.skipBannerAttemptID != nil { skipBanner.transition(.move(edge: .top).combined(with: .opacity)) }
             if let error = store.actionError {
                 Text(error)
@@ -143,7 +148,28 @@ struct LearningTimelineView: View {
             guard !needsGuardianConsent else { return }
             Task { await store.scenePhaseChanged(phase) }
         }
-        .onChange(of: reduceMotion, initial: true) { _, reduce in liquid.reduceMotion = reduce }
+        .onChange(of: reduceMotion, initial: true) { _, reduce in
+            liquid.reduceMotion = reduce
+            pullOut.reduceMotion = reduce
+        }
+        .onPreferenceChange(TimelinePullOriginKey.self) { origins in
+            pullOut.origins = origins
+            pullOut.targets = TimelinePullTargets.current(isPad: layout.isPad)
+        }
+        // 形が画面の大きさまで伸びたら、本物の画面に入れ替える(画面自体の出てくる動きは止める)。
+        .onChange(of: pullOut.openRequest) { _, _ in
+            guard let kind = pullOut.openedKind else { return }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                switch kind {
+                case .ask: if let card = store.current { ask(card) }
+                case .camera: isCameraPresented = true
+                case .scope: store.isScopeSheetPresented = true
+                }
+            }
+        }
+        .sensoryFeedback(.impact(weight: .light), trigger: pullOut.commitFeedback)
         .onChange(of: store.phase, initial: true) { old, phase in
             switch phase {
             case .grading:
@@ -270,16 +296,20 @@ struct LearningTimelineView: View {
     private var scopeChip: some View {
         if let unit = store.pinnedUnit {
             HStack(spacing: 0) {
-                Button { store.isScopeSheetPresented = true } label: {
-                    Text(unit.title)
-                        .font(Typography.sans(size: 15, weight: .bold))
-                        .lineLimit(1)
-                        .foregroundStyle(Theme.primaryText)
-                        .padding(.leading, 14).padding(.trailing, 4)
-                        .frame(height: 40)
-                }
-                .accessibilityLabel("解く範囲: \(unit.title)")
-                .accessibilityIdentifier("timeline-scope-chip")
+                Text(unit.title)
+                    .font(Typography.sans(size: 15, weight: .bold))
+                    .lineLimit(1)
+                    .foregroundStyle(Theme.primaryText)
+                    .padding(.leading, 14).padding(.trailing, 4)
+                    .frame(height: 40)
+                    .contentShape(Rectangle())
+                    .gesture(TimelinePullGesture.make(pullOut: pullOut, kind: .scope, isDragging: $isScopeDragging))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("解く範囲: \(unit.title)")
+                    .accessibilityHint("引っぱって開く")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { pullOut.open(.scope) }
+                    .accessibilityIdentifier("timeline-scope-chip")
                 Button { Task { await store.setScope(nil) } } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .bold))
@@ -290,24 +320,31 @@ struct LearningTimelineView: View {
                 .accessibilityIdentifier("timeline-scope-clear")
             }
             .buttonStyle(.plain)
-            .background(Theme.accentColor.opacity(0.16), in: Capsule())
-            .overlay(Capsule().stroke(Theme.accentColor.opacity(0.35), lineWidth: 1))
+            // 下に引くと、このチップが単元の一覧の形まで伸びる(タップでは少し顔を出すだけ)。
+            .glassEffect(.regular.tint(Theme.accentColor.opacity(0.22)).interactive(), in: Capsule())
+            .timelinePullOrigin(.scope)
+            .opacity(pullOut.active == .scope ? 0 : 1)
             .timelineInkPassThrough()
         } else {
-            Button { store.isScopeSheetPresented = true } label: {
-                HStack(spacing: 4) {
-                    Text("おまかせ")
-                    Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
-                }
-                .font(Typography.sans(size: 15, weight: .medium))
-                .foregroundStyle(Theme.secondaryText)
-                .padding(.horizontal, 14)
-                .frame(height: 40)
-                .overlay(Capsule().stroke(Theme.hairline, lineWidth: 1))
+            HStack(spacing: 4) {
+                Text("おまかせ")
+                Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
             }
-            .buttonStyle(.plain)
+            .font(Typography.sans(size: 15, weight: .medium))
+            .foregroundStyle(Theme.secondaryText)
+            .padding(.horizontal, 14)
+            .frame(height: 40)
+            .glassEffect(.regular.interactive(), in: Capsule())
+            .timelinePullOrigin(.scope)
+            .opacity(pullOut.active == .scope ? 0 : 1)
+            .contentShape(Capsule())
+            .gesture(TimelinePullGesture.make(pullOut: pullOut, kind: .scope, isDragging: $isScopeDragging))
             .timelineInkPassThrough()
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("解く範囲: おまかせ")
+            .accessibilityHint("引っぱって開く")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { pullOut.open(.scope) }
             .accessibilityIdentifier("timeline-scope-chip")
         }
     }
@@ -698,22 +735,22 @@ struct LearningTimelineView: View {
                     if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true, layout.isPad {
                         // iPad は書くのが先: 「送る」を同じ場所に置いておき、書くまでは押せない。書いた後は 撮る・送る。
                         if !hasInk {
-                            TimelineActionButton(symbol: TimelineSymbol.ask, label: "質問", identifier: "timeline-ask") { ask(card) }
+                            askPullButton
                             TimelineActionButton(symbol: TimelineSymbol.skip, label: "飛ばす", identifier: "timeline-skip") { Task { await store.skip() } }
                         }
-                        TimelineActionButton(symbol: TimelineSymbol.camera, label: "撮る", identifier: "timeline-capture") { isCameraPresented = true }
+                        cameraPullButton(prominent: false)
                         TimelineSendButton(liquid: liquid, diameter: TimelineLayout.sendDiameter, isEnabled: hasInk) { sendInk() }
                     } else if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true {
-                        TimelineActionButton(symbol: TimelineSymbol.ask, label: "質問", identifier: "timeline-ask") { ask(card) }
+                        askPullButton
                         if hasInk {
-                            TimelineActionButton(symbol: TimelineSymbol.camera, label: "撮る", identifier: "timeline-capture") { isCameraPresented = true }
+                            cameraPullButton(prominent: false)
                             TimelineSendButton(liquid: liquid) { sendInk() }
                         } else {
                             TimelineActionButton(symbol: TimelineSymbol.skip, label: "飛ばす", identifier: "timeline-skip") { Task { await store.skip() } }
-                            TimelineActionButton(symbol: TimelineSymbol.camera, label: "撮る", prominent: true, identifier: "timeline-capture") { isCameraPresented = true }
+                            cameraPullButton(prominent: true)
                         }
                     } else {
-                        TimelineActionButton(symbol: TimelineSymbol.ask, label: "質問", identifier: "timeline-ask") { ask(card) }
+                        askPullButton
                         TimelineActionButton(symbol: TimelineSymbol.skip, label: "飛ばす", identifier: "timeline-skip") { Task { await store.skip() } }
                     }
                 }
@@ -885,6 +922,15 @@ struct LearningTimelineView: View {
         default:
             break
         }
+    }
+
+    private var askPullButton: some View {
+        TimelinePullButton(pullOut: pullOut, kind: .ask, symbol: TimelineSymbol.ask, label: "質問", identifier: "timeline-ask")
+    }
+
+    private func cameraPullButton(prominent: Bool) -> some View {
+        TimelinePullButton(pullOut: pullOut, kind: .camera, symbol: TimelineSymbol.camera, label: "撮る", prominent: prominent,
+                           identifier: "timeline-capture")
     }
 
     /// 採点中のカプセルの遊び: つまんで引っぱると、しずくが伸びてちぎれる(何度でも)。ちぎったかけらは投げられ、

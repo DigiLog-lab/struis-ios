@@ -146,6 +146,13 @@ extension XCUIElement {
         exists || waitForExistence(timeout: timeout)
     }
 
+    /// 質問・撮る・単元のチップのように、引っぱって開くものを引く(タップでは開かない)。
+    @MainActor
+    func drag(by vector: CGVector) {
+        let start = coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(vector), withVelocity: 600, thenHoldForDuration: 0.1)
+    }
+
     /// 「送る」のように、上に引いた時だけ動くボタンを引く(タップでは送らない)。
     @MainActor
     func pullUp(by distance: CGFloat = 220) {
