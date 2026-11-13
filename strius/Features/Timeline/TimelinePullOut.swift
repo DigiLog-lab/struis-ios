@@ -55,6 +55,8 @@ final class TimelinePullOut {
     private(set) var openedKind: TimelinePullKind?
     /// 触覚の合図(開くと決まった時)。
     private(set) var commitFeedback = 0
+    /// 指で引いた割合(ボタンの印を消していくのに使う。描く形の動きとは別に、指が動いた時だけ変わる)。
+    private(set) var fingerProgress = 0.0
 
     var reduceMotion = false
 
@@ -90,7 +92,9 @@ final class TimelinePullOut {
         active = kind
         visibility.hold(1)
         let along = translation.width * d.x + translation.height * d.y
-        lead.hold(max(0, TimelinePullRule.progress(distance: along, span: d.span)))
+        let progress = max(0, TimelinePullRule.progress(distance: along, span: d.span))
+        lead.hold(progress)
+        fingerProgress = progress
     }
 
     /// 指を離した。開くなら true(形が画面の大きさになったら `openRequest` が増える)。
@@ -106,6 +110,7 @@ final class TimelinePullOut {
         }
         lead.aim(0, stiffness: 240, dampingRatio: z(0.7))
         lead.velocity = min(0, speed)
+        fingerProgress = 0
         settleThenIdle()
         return false
     }
@@ -133,6 +138,7 @@ final class TimelinePullOut {
         active = kind
         committing = true
         commitFeedback += 1
+        fingerProgress = 1
         visibility.hold(1)
         lead.aim(1, stiffness: reduceMotion ? 400 : 190, dampingRatio: z(0.85))
         lead.velocity = max(lead.velocity, velocity)
@@ -158,6 +164,7 @@ final class TimelinePullOut {
         sequence?.cancel()
         committing = false
         active = nil
+        fingerProgress = 0
         lead.hold(0); trail.hold(0); visibility.hold(1)
         lastDate = nil
     }
@@ -265,9 +272,9 @@ struct TimelinePullOutLayer: View {
         case .scope:
             return (.regular, Theme.card, late * late)
         case .camera:
-            // ボタンの色から、カメラの枠の黒へ。
-            let dark = min(1, t * 1.6)
-            let tint: Color = cameraIsProminent && dark < 0.5 ? Theme.accentColor.opacity(1 - dark * 2) : Color.black.opacity(0.85 * dark)
+            // ボタンの色から、カメラの枠の黒へ(銅色の大きいボタンは、銅から黒へ混ぜていく)。
+            let dark = min(1, max(0, t) * 1.6)
+            let tint: Color = cameraIsProminent ? Theme.accentColor.mix(with: .black, by: dark * 0.9) : Color.black.opacity(0.85 * dark)
             return (.regular.tint(tint), .black, late * late)
         }
     }
@@ -312,7 +319,8 @@ struct TimelinePullButton: View {
                         .opacity(pullOut.active == kind ? 0 : 1)
                 }
                 .timelinePullOrigin(kind)
-                .opacity(pullOut.active == kind ? 0.0 : 1)
+                // 引くにつれて印を消す(形は描く層が引き継ぐ)。タップで顔を出すだけの時は消さない。
+                .opacity(pullOut.active == kind ? max(0, 1 - pullOut.fingerProgress * 3) : 1)
             Text(label).font(Typography.sans(size: 12, weight: .bold)).foregroundStyle(Theme.secondaryText)
         }
         .contentShape(Rectangle())
