@@ -1,0 +1,65 @@
+Command line invocation:
+    /Applications/Xcode_27.1.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project strius.xcodeproj -scheme strius -destination id=4AD2086B-7B8F-4608-A742-AA422A0B8D74 -derivedDataPath /Users/runner/work/_temp/DerivedData "-only-testing:striusTests" -resultBundlePath /Users/runner/work/_temp/all.xcresult
+
+Build settings from configuration file '/Users/runner/work/_temp/devbox/cas.xcconfig':
+    COMPILATION_CACHE_ENABLE_CACHING = YES
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  Yams: https://github.com/jpsim/Yams.git @ 5.4.0
+  GRDB: https://github.com/groue/GRDB.swift @ 7.11.1
+  Auth0: https://github.com/auth0/Auth0.swift @ 2.25.0
+  SwiftMath: https://github.com/mgriebling/SwiftMath @ 1d2c908
+  JWTDecode: https://github.com/auth0/JWTDecode.swift.git @ 3.3.0
+  SimpleKeychain: https://github.com/auth0/SimpleKeychain.git @ 1.3.0
+
+Writing result bundle at path:
+	/Users/runner/work/_temp/all.xcresult
+
+2026-11-14 16:15:30.783 xcodebuild[52315:143027] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+KICKOFF_STAGE2 phase=read_initial_summary
+KICKOFF_STAGE2 phase=send_learner_answer
+KICKOFF_STAGE2 phase=wait_learner_reply
+KICKOFF_STAGE2 phase=read_ready_summary
+KICKOFF_STAGE2 phase=advance_and_return
+KICKOFF_STAGE2 phase=restart_example
+NATIVE_MIGRATION retry=ok originals=retained existing_native=retained codex_copied=false
+NATIVE_RETIRED_CODEX_DATA removed=true missing_skipped=true siblings_kept=true
+NATIVE_PLAN_PATHS captures=current_container memory=current_container traversal=rejected
+NATIVE_PDF_PIXEL_LIMIT input=800x600 scale=1.0 output=800x600
+NATIVE_PDF_PIXEL_LIMIT input=1600x1200 scale=2.0 output=1600x1200
+NATIVE_PDF_PIXEL_LIMIT input=2400x1800 scale=3.0 output=1600x1200
+NATIVE_PDF_PIXEL_LIMIT input=600x800 scale=1.0 output=600x800
+NATIVE_PDF_PIXEL_LIMIT input=1200x1600 scale=2.0 output=1200x1600
+NATIVE_PDF_PIXEL_LIMIT input=1800x2400 scale=3.0 output=1200x1600
+NATIVE_TOOL_POLICY_RESULT denied=true audit_failed=true path_disclosed=false same_turn_lookup=true
+UPLOAD_BEGIN bytes=306 time=1794673144.3730102
+UPLOAD_METRICS protocol=unknown reused=false cellular=false sent=0 received=0 status=0 duration=0.0011439323425292969
+UPLOAD_BEGIN bytes=314 time=1794673144.376474
+UPLOAD_METRICS protocol=unknown reused=false cellular=false sent=0 received=0 status=0 duration=0.000661015510559082
+UPLOAD_BEGIN bytes=314 time=1794673144.377822
+UPLOAD_METRICS protocol=unknown reused=false cellular=false sent=0 received=0 status=0 duration=0.0006380081176757812
+UPLOAD_BEGIN bytes=201 time=1794673144.3797588
+UPLOAD_METRICS protocol=unknown reused=false cellular=false sent=0 received=0 status=0 duration=0.00027692317962646484
+ASSET_CACHE: concurrent+repeat=1 request; session reset=2 requests, new bytes
+ASSET_RESET: in-flight result rejected; next session fetched new bytes
+CHAT_LEDGER: thread switch reads ledger rows; new rows visible; reset clears
+BOOTSTRAP: 2 waiters, 1 request, both return after data is ready
+MATH_CACHE: width/font separated; clear removes measurements
+IMAGE_CACHE: same decoded instance; 120x80 thumbnail; 600x400 original; 1 HTTP request
+ROTATION: 3 second cycle; disabled and detached animations removed
+2026-11-14 16:19:09.238 xcodebuild[52315:143027] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:19:09.295 xcodebuild[52315:143027] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:19:09.405 xcodebuild[52315:143027] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:20:02.944 xcodebuild[52315:143027] [MT] IDETestOperationsObserverDebug: 272.634 elapsed -- Testing started completed.
+2026-11-14 16:20:02.944 xcodebuild[52315:143027] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-14 16:20:02.944 xcodebuild[52315:143027] [MT] IDETestOperationsObserverDebug: 272.634 sec, +272.634 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/work/_temp/all.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started
