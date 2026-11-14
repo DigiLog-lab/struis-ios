@@ -1,0 +1,1647 @@
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 (in target 'strius' from project 'strius')
+Cache miss
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:8:20: warning: conformance of 'TimelineSkillRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineSkillRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:8:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineSkillRecord: LedgerRow {
+                   ^
+                                        @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:8:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineSkillRecord: LedgerRow {
+                   ^
+                                        @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:8:20: warning: conformance of 'TimelineSkillRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineSkillRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:8:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineSkillRecord: LedgerRow {
+                   ^
+                                        @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:8:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineSkillRecord: LedgerRow {
+                   ^
+                                        @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:8:20: warning: conformance of 'TimelineSkillRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineSkillRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:8:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineSkillRecord: LedgerRow {
+                   ^
+                                        @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:8:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineSkillRecord: LedgerRow {
+                   ^
+                                        @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:38:20: warning: conformance of 'TimelineSkillEdgeRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineSkillEdgeRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:38:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineSkillEdgeRecord: LedgerRow {
+                   ^
+                                            @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:38:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineSkillEdgeRecord: LedgerRow {
+                   ^
+                                            @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:38:20: warning: conformance of 'TimelineSkillEdgeRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineSkillEdgeRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:38:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineSkillEdgeRecord: LedgerRow {
+                   ^
+                                            @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:38:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineSkillEdgeRecord: LedgerRow {
+                   ^
+                                            @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:38:20: warning: conformance of 'TimelineSkillEdgeRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineSkillEdgeRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:38:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineSkillEdgeRecord: LedgerRow {
+                   ^
+                                            @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:38:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineSkillEdgeRecord: LedgerRow {
+                   ^
+                                            @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:53:20: warning: conformance of 'TimelineMapChangeRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineMapChangeRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:53:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineMapChangeRecord: LedgerRow {
+                   ^
+                                            @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:53:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineMapChangeRecord: LedgerRow {
+                   ^
+                                            @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:53:20: warning: conformance of 'TimelineMapChangeRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineMapChangeRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:53:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineMapChangeRecord: LedgerRow {
+                   ^
+                                            @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:53:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineMapChangeRecord: LedgerRow {
+                   ^
+                                            @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:53:20: warning: conformance of 'TimelineMapChangeRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineMapChangeRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:53:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineMapChangeRecord: LedgerRow {
+                   ^
+                                            @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:53:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineMapChangeRecord: LedgerRow {
+                   ^
+                                            @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:68:20: warning: conformance of 'TimelineBatchRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineBatchRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:68:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineBatchRecord: LedgerRow {
+                   ^
+                                        @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:68:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineBatchRecord: LedgerRow {
+                   ^
+                                        @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:68:20: warning: conformance of 'TimelineBatchRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineBatchRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:68:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineBatchRecord: LedgerRow {
+                   ^
+                                        @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:68:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineBatchRecord: LedgerRow {
+                   ^
+                                        @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:68:20: warning: conformance of 'TimelineBatchRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineBatchRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:68:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineBatchRecord: LedgerRow {
+                   ^
+                                        @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:68:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineBatchRecord: LedgerRow {
+                   ^
+                                        @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:93:20: warning: conformance of 'TimelineCardRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineCardRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:93:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineCardRecord: LedgerRow {
+                   ^
+                                       @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:93:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineCardRecord: LedgerRow {
+                   ^
+                                       @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:93:20: warning: conformance of 'TimelineCardRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineCardRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:93:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineCardRecord: LedgerRow {
+                   ^
+                                       @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:93:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineCardRecord: LedgerRow {
+                   ^
+                                       @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:93:20: warning: conformance of 'TimelineCardRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineCardRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:93:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineCardRecord: LedgerRow {
+                   ^
+                                       @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:93:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineCardRecord: LedgerRow {
+                   ^
+                                       @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:127:20: warning: conformance of 'TimelineAttemptRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineAttemptRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:127:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineAttemptRecord: LedgerRow {
+                   ^
+                                          @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:127:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineAttemptRecord: LedgerRow {
+                   ^
+                                          @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:127:20: warning: conformance of 'TimelineAttemptRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineAttemptRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:127:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineAttemptRecord: LedgerRow {
+                   ^
+                                          @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:127:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineAttemptRecord: LedgerRow {
+                   ^
+                                          @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:127:20: warning: conformance of 'TimelineAttemptRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineAttemptRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:127:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineAttemptRecord: LedgerRow {
+                   ^
+                                          @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:127:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineAttemptRecord: LedgerRow {
+                   ^
+                                          @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:178:20: warning: conformance of 'TimelineLogRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineLogRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:178:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineLogRecord: LedgerRow {
+                   ^
+                                      @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:178:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineLogRecord: LedgerRow {
+                   ^
+                                      @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:178:20: warning: conformance of 'TimelineLogRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineLogRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:178:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineLogRecord: LedgerRow {
+                   ^
+                                      @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:178:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineLogRecord: LedgerRow {
+                   ^
+                                      @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:178:20: warning: conformance of 'TimelineLogRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineLogRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:178:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineLogRecord: LedgerRow {
+                   ^
+                                      @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:178:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineLogRecord: LedgerRow {
+                   ^
+                                      @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:196:20: warning: conformance of 'TimelineDipRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineDipRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:196:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineDipRecord: LedgerRow {
+                   ^
+                                      @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:196:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineDipRecord: LedgerRow {
+                   ^
+                                      @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:196:20: warning: conformance of 'TimelineDipRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineDipRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:196:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineDipRecord: LedgerRow {
+                   ^
+                                      @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:196:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineDipRecord: LedgerRow {
+                   ^
+                                      @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:196:20: warning: conformance of 'TimelineDipRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TimelineDipRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:196:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TimelineDipRecord: LedgerRow {
+                   ^
+                                      @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/TimelineRows.swift:196:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TimelineDipRecord: LedgerRow {
+                   ^
+                                      @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Features/Workbook/WorkbookHomeView.swift:68:52: warning: main actor-isolated static property 'free' can not be referenced from a nonisolated context
+    func ask(_ context: WorkbookQuestionContext = .free) {
+                                                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Features/Workbook/WorkbookHomeView.swift:41:16: note: static property declared here
+    static let free = WorkbookQuestionContext(subunitId: nil, setId: nil, title: nil, stageLabel: nil, initialDraft: nil)
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Features/Workbook/WorkbookUnitView.swift:121:37: warning: Storing a closure in '@Entry var solveUnitInTimeline' may invalidate dependents on every update because closures may not be comparable. (from macro 'Entry ')
+    @Entry var solveUnitInTimeline: (@MainActor (String) -> Void)? = nil
+                                    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/struis-ios/struis-ios/strius/Design/StruisWaiting.swift:233:38: warning: Storing a closure in '@Entry var turnLiveRevealChoice' may invalidate dependents on every update because closures may not be comparable. (from macro 'Entry ')
+    @Entry var turnLiveRevealChoice: (@MainActor () -> Void)? = nil
+                                     ^~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/struis-ios/struis-ios/strius/Features/Chat/ChatStore.swift:70:5: warning: 'nonisolated(unsafe)' has no effect on property 'sessionEndObserver', consider using 'nonisolated'
+    nonisolated(unsafe) private var sessionEndObserver: NSObjectProtocol?
+    ^~~~~~~~~~~~~~~~~~~
+    nonisolated
+/Users/runner/work/struis-ios/struis-ios/strius/State/SubscriptionStore.swift:62:129: warning: main actor-isolated property 'purchaseOptions' can not be referenced from a nonisolated context
+    init(meter: UsageMeter = .shared, purchaseOptions: @escaping () -> Set<Product.PurchaseOption> = { OnboardingRecords.shared.purchaseOptions },
+                                                                                                                                ^
+/Users/runner/work/struis-ios/struis-ios/strius/Features/Onboarding/GuardianConsent.swift:162:9: note: property declared here
+    var purchaseOptions: Set<Product.PurchaseOption> {
+        ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:47:20: warning: conformance of 'WorkbookUnitRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookUnitRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:47:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookUnitRecord: LedgerRow {
+                   ^
+                                       @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:47:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookUnitRecord: LedgerRow {
+                   ^
+                                       @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:47:20: warning: conformance of 'WorkbookUnitRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookUnitRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:47:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookUnitRecord: LedgerRow {
+                   ^
+                                       @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:47:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookUnitRecord: LedgerRow {
+                   ^
+                                       @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:47:20: warning: conformance of 'WorkbookUnitRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookUnitRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:47:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookUnitRecord: LedgerRow {
+                   ^
+                                       @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:47:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookUnitRecord: LedgerRow {
+                   ^
+                                       @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:62:20: warning: conformance of 'WorkbookSubunitRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookSubunitRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:62:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookSubunitRecord: LedgerRow {
+                   ^
+                                          @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:62:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookSubunitRecord: LedgerRow {
+                   ^
+                                          @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:62:20: warning: conformance of 'WorkbookSubunitRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookSubunitRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:62:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookSubunitRecord: LedgerRow {
+                   ^
+                                          @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:62:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookSubunitRecord: LedgerRow {
+                   ^
+                                          @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:62:20: warning: conformance of 'WorkbookSubunitRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookSubunitRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:62:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookSubunitRecord: LedgerRow {
+                   ^
+                                          @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:62:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookSubunitRecord: LedgerRow {
+                   ^
+                                          @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:82:20: warning: conformance of 'WorkbookProblemRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookProblemRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:82:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookProblemRecord: LedgerRow {
+                   ^
+                                          @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:82:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookProblemRecord: LedgerRow {
+                   ^
+                                          @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:82:20: warning: conformance of 'WorkbookProblemRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookProblemRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:82:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookProblemRecord: LedgerRow {
+                   ^
+                                          @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:82:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookProblemRecord: LedgerRow {
+                   ^
+                                          @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:82:20: warning: conformance of 'WorkbookProblemRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookProblemRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:82:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookProblemRecord: LedgerRow {
+                   ^
+                                          @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:82:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookProblemRecord: LedgerRow {
+                   ^
+                                          @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:96:20: warning: conformance of 'WorkbookSetRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookSetRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:96:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookSetRecord: LedgerRow {
+                   ^
+                                      @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:96:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookSetRecord: LedgerRow {
+                   ^
+                                      @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:96:20: warning: conformance of 'WorkbookSetRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookSetRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:96:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookSetRecord: LedgerRow {
+                   ^
+                                      @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:96:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookSetRecord: LedgerRow {
+                   ^
+                                      @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:96:20: warning: conformance of 'WorkbookSetRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookSetRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:96:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookSetRecord: LedgerRow {
+                   ^
+                                      @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:96:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookSetRecord: LedgerRow {
+                   ^
+                                      @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:113:20: warning: conformance of 'WorkbookCaptureRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookCaptureRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:113:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookCaptureRecord: LedgerRow {
+                   ^
+                                          @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:113:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookCaptureRecord: LedgerRow {
+                   ^
+                                          @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:113:20: warning: conformance of 'WorkbookCaptureRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookCaptureRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:113:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookCaptureRecord: LedgerRow {
+                   ^
+                                          @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:113:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookCaptureRecord: LedgerRow {
+                   ^
+                                          @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:113:20: warning: conformance of 'WorkbookCaptureRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookCaptureRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:113:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookCaptureRecord: LedgerRow {
+                   ^
+                                          @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:113:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookCaptureRecord: LedgerRow {
+                   ^
+                                          @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:134:20: warning: conformance of 'WorkbookAttemptRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookAttemptRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:134:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookAttemptRecord: LedgerRow {
+                   ^
+                                          @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:134:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookAttemptRecord: LedgerRow {
+                   ^
+                                          @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:134:20: warning: conformance of 'WorkbookAttemptRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookAttemptRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:134:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookAttemptRecord: LedgerRow {
+                   ^
+                                          @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:134:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookAttemptRecord: LedgerRow {
+                   ^
+                                          @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:134:20: warning: conformance of 'WorkbookAttemptRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookAttemptRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:134:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookAttemptRecord: LedgerRow {
+                   ^
+                                          @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:134:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookAttemptRecord: LedgerRow {
+                   ^
+                                          @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:151:20: warning: conformance of 'WorkbookProposalRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookProposalRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:151:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookProposalRecord: LedgerRow {
+                   ^
+                                           @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:151:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookProposalRecord: LedgerRow {
+                   ^
+                                           @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:151:20: warning: conformance of 'WorkbookProposalRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookProposalRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:151:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookProposalRecord: LedgerRow {
+                   ^
+                                           @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:151:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookProposalRecord: LedgerRow {
+                   ^
+                                           @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:151:20: warning: conformance of 'WorkbookProposalRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct WorkbookProposalRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:151:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct WorkbookProposalRecord: LedgerRow {
+                   ^
+                                           @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:151:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct WorkbookProposalRecord: LedgerRow {
+                   ^
+                                           @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:168:20: warning: conformance of 'ThreadRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct ThreadRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:168:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct ThreadRecord: LedgerRow {
+                   ^
+                                 @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:168:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct ThreadRecord: LedgerRow {
+                   ^
+                                 @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:168:20: warning: conformance of 'ThreadRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct ThreadRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:168:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct ThreadRecord: LedgerRow {
+                   ^
+                                 @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:168:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct ThreadRecord: LedgerRow {
+                   ^
+                                 @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:168:20: warning: conformance of 'ThreadRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct ThreadRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:168:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct ThreadRecord: LedgerRow {
+                   ^
+                                 @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:168:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct ThreadRecord: LedgerRow {
+                   ^
+                                 @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:180:20: warning: conformance of 'MessageRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct MessageRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:180:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct MessageRecord: LedgerRow {
+                   ^
+                                  @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:180:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct MessageRecord: LedgerRow {
+                   ^
+                                  @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:180:20: warning: conformance of 'MessageRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct MessageRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:180:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct MessageRecord: LedgerRow {
+                   ^
+                                  @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:180:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct MessageRecord: LedgerRow {
+                   ^
+                                  @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:180:20: warning: conformance of 'MessageRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct MessageRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:180:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct MessageRecord: LedgerRow {
+                   ^
+                                  @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:180:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct MessageRecord: LedgerRow {
+                   ^
+                                  @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:194:20: warning: conformance of 'ProgressRevisionRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct ProgressRevisionRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:194:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct ProgressRevisionRecord: LedgerRow {
+                   ^
+                                           @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:194:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct ProgressRevisionRecord: LedgerRow {
+                   ^
+                                           @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:194:20: warning: conformance of 'ProgressRevisionRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct ProgressRevisionRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:194:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct ProgressRevisionRecord: LedgerRow {
+                   ^
+                                           @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:194:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct ProgressRevisionRecord: LedgerRow {
+                   ^
+                                           @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:194:20: warning: conformance of 'ProgressRevisionRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct ProgressRevisionRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:194:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct ProgressRevisionRecord: LedgerRow {
+                   ^
+                                           @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:194:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct ProgressRevisionRecord: LedgerRow {
+                   ^
+                                           @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:206:20: warning: conformance of 'TurnRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TurnRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:206:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TurnRecord: LedgerRow {
+                   ^
+                               @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:206:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TurnRecord: LedgerRow {
+                   ^
+                               @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:206:20: warning: conformance of 'TurnRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TurnRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:206:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TurnRecord: LedgerRow {
+                   ^
+                               @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:206:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TurnRecord: LedgerRow {
+                   ^
+                               @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:206:20: warning: conformance of 'TurnRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct TurnRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:206:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct TurnRecord: LedgerRow {
+                   ^
+                               @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:206:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct TurnRecord: LedgerRow {
+                   ^
+                               @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:226:20: warning: conformance of 'CodexThreadRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct CodexThreadRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:226:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct CodexThreadRecord: LedgerRow {
+                   ^
+                                      @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:226:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct CodexThreadRecord: LedgerRow {
+                   ^
+                                      @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:226:20: warning: conformance of 'CodexThreadRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct CodexThreadRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:226:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct CodexThreadRecord: LedgerRow {
+                   ^
+                                      @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:226:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct CodexThreadRecord: LedgerRow {
+                   ^
+                                      @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:226:20: warning: conformance of 'CodexThreadRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct CodexThreadRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:226:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct CodexThreadRecord: LedgerRow {
+                   ^
+                                      @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:226:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct CodexThreadRecord: LedgerRow {
+                   ^
+                                      @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:236:20: warning: conformance of 'CodexAccountRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct CodexAccountRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:236:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct CodexAccountRecord: LedgerRow {
+                   ^
+                                       @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:236:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct CodexAccountRecord: LedgerRow {
+                   ^
+                                       @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:236:20: warning: conformance of 'CodexAccountRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct CodexAccountRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:236:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct CodexAccountRecord: LedgerRow {
+                   ^
+                                       @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:236:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct CodexAccountRecord: LedgerRow {
+                   ^
+                                       @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:236:20: warning: conformance of 'CodexAccountRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct CodexAccountRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:236:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct CodexAccountRecord: LedgerRow {
+                   ^
+                                       @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:236:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct CodexAccountRecord: LedgerRow {
+                   ^
+                                       @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:250:20: warning: conformance of 'ThreadBranchRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct ThreadBranchRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:250:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct ThreadBranchRecord: LedgerRow {
+                   ^
+                                       @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:250:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct ThreadBranchRecord: LedgerRow {
+                   ^
+                                       @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:250:20: warning: conformance of 'ThreadBranchRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct ThreadBranchRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:250:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct ThreadBranchRecord: LedgerRow {
+                   ^
+                                       @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:250:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct ThreadBranchRecord: LedgerRow {
+                   ^
+                                       @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:250:20: warning: conformance of 'ThreadBranchRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct ThreadBranchRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:250:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct ThreadBranchRecord: LedgerRow {
+                   ^
+                                       @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:250:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct ThreadBranchRecord: LedgerRow {
+                   ^
+                                       @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:267:20: warning: conformance of 'BranchForkAttemptRecord' to protocol 'FetchableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct BranchForkAttemptRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:267:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct BranchForkAttemptRecord: LedgerRow {
+                   ^
+                                            @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:267:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct BranchForkAttemptRecord: LedgerRow {
+                   ^
+                                            @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: main actor-isolated static property 'databaseColumnDecodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:14:16: note: mark static property 'databaseColumnDecodingStrategy' 'nonisolated'
+    static var databaseColumnDecodingStrategy: DatabaseColumnDecodingStrategy { .convertFromSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:267:20: warning: conformance of 'BranchForkAttemptRecord' to protocol 'EncodableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct BranchForkAttemptRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:267:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct BranchForkAttemptRecord: LedgerRow {
+                   ^
+                                            @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:267:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct BranchForkAttemptRecord: LedgerRow {
+                   ^
+                                            @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: main actor-isolated static property 'databaseColumnEncodingStrategy' cannot satisfy nonisolated requirement
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:15:16: note: mark static property 'databaseColumnEncodingStrategy' 'nonisolated'
+    static var databaseColumnEncodingStrategy: DatabaseColumnEncodingStrategy { .convertToSnakeCase }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:267:20: warning: conformance of 'BranchForkAttemptRecord' to protocol 'TableRecord' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct BranchForkAttemptRecord: LedgerRow {
+                   ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:267:20: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct BranchForkAttemptRecord: LedgerRow {
+                   ^
+                                            @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:267:20: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct BranchForkAttemptRecord: LedgerRow {
+                   ^
+                                            @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: main actor-isolated static property 'databaseTableName' cannot satisfy nonisolated requirement
+    static var databaseTableName: String { entity.rawValue }
+               ^
+/Users/runner/work/struis-ios/struis-ios/strius/Ledger/LedgerRows.swift:16:16: note: mark static property 'databaseTableName' 'nonisolated'
+    static var databaseTableName: String { entity.rawValue }
+               ^
+    nonisolated 
+/Users/runner/work/struis-ios/struis-ios/strius/Features/Onboarding/OnboardingComponents.swift:355:33: warning: Storing a closure in '@Entry var onboardingClose' may invalidate dependents on every update because closures may not be comparable. (from macro 'Entry ')
+    @Entry var onboardingClose: (() -> Void)? = nil
+                                ^~~~~~~~~~~~~
+/Users/runner/work/struis-ios/struis-ios/strius/Runtime/UsageGate.swift:674:40: warning: conformance of 'UnlimitedUsageGate' to protocol 'UsageGate' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct UnlimitedUsageGate: UsageGate {
+                                       ^
+/Users/runner/work/struis-ios/struis-ios/strius/Runtime/UsageGate.swift:674:40: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct UnlimitedUsageGate: UsageGate {
+                                       ^
+                                       @MainActor 
+/Users/runner/work/struis-ios/struis-ios/strius/Runtime/UsageGate.swift:674:40: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct UnlimitedUsageGate: UsageGate {
+                                       ^
+                                       @preconcurrency 
+/Users/runner/work/struis-ios/struis-ios/strius/Runtime/UsageGate.swift:634:10: note: main actor-isolated instance method 'record(_:requestBytes:setup:turnID:)' cannot satisfy nonisolated requirement
+    func record(_ attempt: [String: Any], requestBytes: Int, setup: UsageSetup?, turnID: String) {
+         ^
+/Users/runner/work/struis-ios/struis-ios/strius/Runtime/UsageGate.swift:634:10: note: mark instance method 'record(_:requestBytes:setup:turnID:)' 'nonisolated'
+    func record(_ attempt: [String: Any], requestBytes: Int, setup: UsageSetup?, turnID: String) {
+         ^
+    nonisolated 
+Cache miss
+/Users/runner/work/struis-ios/struis-ios/strius/State/SubscriptionStore.swift:62:129: warning: main actor-isolated property 'purchaseOptions' can not be referenced from a nonisolated context
+    init(meter: UsageMeter = .shared, purchaseOptions: @escaping () -> Set<Product.PurchaseOption> = { OnboardingRecords.shared.purchaseOptions },
+                                                                                                                                ^
+/Users/runner/work/struis-ios/struis-ios/strius/Features/Onboarding/GuardianConsent.swift:162:9: note: property declared here
+    var purchaseOptions: Set<Product.PurchaseOption> {
+        ^
+Cache miss
+/Users/runner/work/struis-ios/struis-ios/strius/State/SubscriptionStore.swift:62:129: warning: main actor-isolated property 'purchaseOptions' can not be referenced from a nonisolated context
+    init(meter: UsageMeter = .shared, purchaseOptions: @escaping () -> Set<Product.PurchaseOption> = { OnboardingRecords.shared.purchaseOptions },
+                                                                                                                                ^
+/Users/runner/work/struis-ios/struis-ios/strius/Features/Onboarding/GuardianConsent.swift:162:9: note: property declared here
+    var purchaseOptions: Set<Product.PurchaseOption> {
+        ^
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 (in target 'striusTests' from project 'strius')
+Cache miss
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/ClaudeTurnRunnerTests.swift:437:35: warning: conformance of 'OpenUsageGate' to protocol 'UsageGate' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct OpenUsageGate: UsageGate {
+                                  ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/ClaudeTurnRunnerTests.swift:437:35: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct OpenUsageGate: UsageGate {
+                                  ^
+                                  @MainActor 
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/ClaudeTurnRunnerTests.swift:437:35: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct OpenUsageGate: UsageGate {
+                                  ^
+                                  @preconcurrency 
+strius.UsageGate.record:2:26: note: main actor-isolated instance method 'record(_:requestBytes:setup:turnID:)' cannot satisfy nonisolated requirement
+@MainActor internal func record(_ attempt: [String : Any], requestBytes: Int, setup: strius.UsageSetup?, turnID: String)}
+                         ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/UsageGateTests.swift:494:45: warning: conformance of 'ClosedGate' to protocol 'UsageGate' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated private final class ClosedGate: UsageGate, @unchecked Sendable {
+                                            ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/UsageGateTests.swift:494:45: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated private final class ClosedGate: UsageGate, @unchecked Sendable {
+                                            ^
+                                            @MainActor 
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/UsageGateTests.swift:494:45: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated private final class ClosedGate: UsageGate, @unchecked Sendable {
+                                            ^
+                                            @preconcurrency 
+strius.UsageGate.record:2:26: note: main actor-isolated instance method 'record(_:requestBytes:setup:turnID:)' cannot satisfy nonisolated requirement
+@MainActor internal func record(_ attempt: [String : Any], requestBytes: Int, setup: strius.UsageSetup?, turnID: String)}
+                         ^
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/SubscriptionStoreTests.swift (in target 'striusTests' from project 'strius')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/UsageGateTests.swift (in target 'striusTests' from project 'strius')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/VirtualPythonPlatformTests.swift (in target 'striusTests' from project 'strius')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/WKProviderTransportTests.swift (in target 'striusTests' from project 'strius')
+Cache miss
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/SubscriptionStoreTests.swift:37:17: warning: 'failTransactionsEnabled' was deprecated in iOS 17.0: No longer supported. Use simulatedError(forAPI:). [#DeprecatedDeclaration]
+        session.failTransactionsEnabled = false
+                ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/SubscriptionStoreTests.swift:63:24: warning: 'failTransactionsEnabled' was deprecated in iOS 17.0: No longer supported. Use simulatedError(forAPI:). [#DeprecatedDeclaration]
+            if session.failTransactionsEnabled { throw StoreKitError.unknown }
+                       ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/SubscriptionStoreTests.swift:443:17: warning: 'failTransactionsEnabled' was deprecated in iOS 17.0: No longer supported. Use simulatedError(forAPI:). [#DeprecatedDeclaration]
+        session.failTransactionsEnabled = true
+                ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/SubscriptionStoreTests.swift:458:17: warning: 'failTransactionsEnabled' was deprecated in iOS 17.0: No longer supported. Use simulatedError(forAPI:). [#DeprecatedDeclaration]
+        session.failTransactionsEnabled = false
+                ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/SubscriptionStoreTests.swift:468:17: warning: 'failTransactionsEnabled' was deprecated in iOS 17.0: No longer supported. Use simulatedError(forAPI:). [#DeprecatedDeclaration]
+        session.failTransactionsEnabled = true
+                ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/UsageGateTests.swift:494:45: warning: conformance of 'ClosedGate' to protocol 'UsageGate' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated private final class ClosedGate: UsageGate, @unchecked Sendable {
+                                            ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/UsageGateTests.swift:494:45: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated private final class ClosedGate: UsageGate, @unchecked Sendable {
+                                            ^
+                                            @MainActor 
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/UsageGateTests.swift:494:45: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated private final class ClosedGate: UsageGate, @unchecked Sendable {
+                                            ^
+                                            @preconcurrency 
+strius.UsageGate.record:2:26: note: main actor-isolated instance method 'record(_:requestBytes:setup:turnID:)' cannot satisfy nonisolated requirement
+@MainActor internal func record(_ attempt: [String : Any], requestBytes: Int, setup: strius.UsageSetup?, turnID: String)}
+                         ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/VirtualPythonPlatformTests.swift:230:22: warning: 'init(frame:)' was deprecated in iOS 26.0: Use init(windowScene:) instead. [#DeprecatedDeclaration]
+            window = UIWindow(frame: CGRect(x: 0, y: 0, width: 320, height: 240))
+                     ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/WKProviderTransportTests.swift:173:162: warning: 'init(frame:)' was deprecated in iOS 26.0: Use init(windowScene:) instead. [#DeprecatedDeclaration]
+        if let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first { window = UIWindow(windowScene: scene) } else { window = UIWindow(frame: view.frame) }
+                                                                                                                                                                 ^
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/Timeline/TimelineTurnSafetyTests.swift (in target 'striusTests' from project 'strius')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/Timeline/TimelineTurnsTests.swift (in target 'striusTests' from project 'strius')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/Timeline/TimelineUsageLimitTests.swift (in target 'striusTests' from project 'strius')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/LoadingPerformanceTests.swift (in target 'striusTests' from project 'strius')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/VirtualPythonFilesystemTests.swift (in target 'striusTests' from project 'strius')
+Cache miss
+/Users/runner/work/struis-ios/struis-ios/striusTests/Timeline/TimelineTurnSafetyTests.swift:59:83: warning: main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: MockTurnRunner())
+                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~
+                    await 
+/Users/runner/work/struis-ios/struis-ios/striusTests/Timeline/TimelineTurnSafetyTests.swift:97:27: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+        let interrupted = await runner.interrupted
+                          ^~~~~~
+                          
+/Users/runner/work/struis-ios/struis-ios/striusTests/Timeline/TimelineTurnsTests.swift:125:83: warning: main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: MockTurnRunner())
+                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~
+                    await 
+/Users/runner/work/struis-ios/struis-ios/striusTests/LoadingPerformanceTests.swift:126:22: warning: 'init(frame:)' was deprecated in iOS 26.0: Use init(windowScene:) instead. [#DeprecatedDeclaration]
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+                     ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/VirtualPythonFilesystemTests.swift:62:25: warning: 'init(frame:)' was deprecated in iOS 26.0: Use init(windowScene:) instead. [#DeprecatedDeclaration]
+        else { window = UIWindow(frame: CGRect(x: 0, y: 0, width: 320, height: 240)) }
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Timeline/TimelineUsageLimitTests.swift:70:16: warning: 'denial' mutated after capture by sendable closure
+        denial = nil
+               ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Timeline/TimelineUsageLimitTests.swift:47:13: note: variable defined here
+        var denial: UsageDenial? = .limitReached
+            ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Timeline/TimelineUsageLimitTests.swift:48:31: note: variable captured by sendable closure
+        store.newWorkDenial = { denial }
+                              ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Timeline/TimelineUsageLimitTests.swift:48:33: note: capturing use
+        store.newWorkDenial = { denial }
+                                ^
+Cache miss
+/Users/runner/work/struis-ios/struis-ios/striusTests/Timeline/TimelineDecompositionTests.swift:165:83: warning: main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+        let turns = TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: MockTurnRunner())
+                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~
+                    await 
+/Users/runner/work/struis-ios/struis-ios/striusTests/Timeline/TimelineReviewTests.swift:400:14: warning: concurrently-executed local function 'outcome' must be marked as '@Sendable'; this is an error in the Swift 6 language mode
+        func outcome(_ round: Int, _ text: String) -> TurnOutcome {
+             ^
+        @Sendable 
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/Engine/LearnerIDTests.swift (in target 'striusTests' from project 'strius')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/Engine/TurnActivityTests.swift (in target 'striusTests' from project 'strius')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/ChatKickoffTests.swift (in target 'striusTests' from project 'strius')
+Cache miss
+/Users/runner/work/struis-ios/struis-ios/striusTests/Engine/LearnerIDTests.swift:31:41: warning: main actor-isolated property 'plans' can not be referenced from a nonisolated autoclosure
+        let plan = try XCTUnwrap(runner.plans.first)
+                                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Engine/LearnerIDTests.swift:13:13: note: property declared here
+        var plans: [TurnPlan] { lock.withLock { seen } }
+            ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Engine/LearnerIDTests.swift:23:22: warning: main actor-isolated initializer 'init()' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+        let runner = CapturingRunner()
+                     ^~~~~~~~~~~~~~~~~
+                     await 
+/Users/runner/work/struis-ios/struis-ios/striusTests/Engine/LearnerIDTests.swift:30:22: warning: main actor-isolated property 'plans' cannot be accessed from outside of the actor; this is an error in the Swift 6 language mode
+        while runner.plans.isEmpty, clock.now < deadline { try await Task.sleep(for: .milliseconds(25)) }
+              ~~~~~~~^~~~~~~~~~~~~
+              await 
+/Users/runner/work/struis-ios/struis-ios/striusTests/Engine/TurnActivityTests.swift:155:57: warning: '#require(_:_:)' is redundant because 'SkillWaiting.parse(skillMarkdown: text)' never equals 'nil' (from macro 'require')
+        skills.labels["struis-document"] = try #require(SkillWaiting.parse(skillMarkdown: text))
+                                                        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/ChatKickoffTests.swift:155:36: warning: main actor-isolated property 'exampleProblem' can not be referenced from a nonisolated autoclosure
+            XCTAssertEqual(summary.exampleProblem, "y = x^2 - 4x + 3 の頂点の座標を求めよ")
+strius.WorkbookSubunitDTO.exampleProblem:2:25: note: property declared here
+@MainActor internal var exampleProblem: String?}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/ChatKickoffTests.swift:156:36: warning: main actor-isolated property 'exampleReady' can not be referenced from a nonisolated autoclosure
+            XCTAssertEqual(summary.exampleReady, false, "例題を出しただけでは「先に進む」を出さない")
+strius.WorkbookSubunitDTO.exampleReady:2:25: note: property declared here
+@MainActor internal var exampleReady: Bool?}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/ChatKickoffTests.swift:170:36: warning: main actor-isolated property 'exampleReady' can not be referenced from a nonisolated autoclosure
+            XCTAssertEqual(summary.exampleReady, true)
+                                   ^
+strius.WorkbookSubunitDTO.exampleReady:2:25: note: property declared here
+@MainActor internal var exampleReady: Bool?}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/ChatKickoffTests.swift:182:34: warning: main actor-isolated property 'exampleProblem' can not be referenced from a nonisolated autoclosure
+            XCTAssertNil(summary.exampleProblem, "前の回の例題は出さない")
+strius.WorkbookSubunitDTO.exampleProblem:2:25: note: property declared here
+@MainActor internal var exampleProblem: String?}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/ChatKickoffTests.swift:183:36: warning: main actor-isolated property 'kickoffKey' can not be referenced from a nonisolated autoclosure
+            XCTAssertEqual(summary.kickoffKey, "2:1")
+                                   ^
+strius.WorkbookSubunitDTO.kickoffKey:2:25: note: property declared here
+@MainActor internal var kickoffKey: String?}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/ChatKickoffTests.swift:184:34: warning: main actor-isolated property 'kickoffMessageId' can not be referenced from a nonisolated autoclosure
+            XCTAssertNil(summary.kickoffMessageId)
+                                 ^
+strius.WorkbookSubunitDTO.kickoffMessageId:2:25: note: property declared here
+@MainActor internal var kickoffMessageId: String?}
+                        ^
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/UnitDeletionTests.swift (in target 'striusTests' from project 'strius')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/UnitMaterialAttachTests.swift (in target 'striusTests' from project 'strius')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WaitingExperienceTests.swift (in target 'striusTests' from project 'strius')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WorkbookRulesTests.swift (in target 'striusTests' from project 'strius')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WorkbookStoreRefreshTests.swift (in target 'striusTests' from project 'strius')
+error: the following command failed with exit code 0 but produced no further output
+SwiftCompile normal arm64 /Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/ClaudeTurnRunnerTests.swift (in target 'striusTests' from project 'strius')
+Cache miss
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/UnitDeletionTests.swift:111:26: warning: reference to captured var 'journal' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+            for event in journal.events { try db.execute(sql: "DELETE FROM ledger_events WHERE entity=? AND entity_id=?", arguments: [event.entity.rawValue, event.entityID]) }
+                         ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/UnitDeletionTests.swift:112:31: warning: reference to captured var 'journal' in concurrently-executing code; this is an error in the Swift 6 language mode [#SendableClosureCaptures]
+            try Ledger.append(journal.events, deviceID: ledger.deviceID, to: db)
+                              ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/UnitDeletionTests.swift:160:14: warning: concurrently-executed local function 'content' must be marked as '@Sendable'; this is an error in the Swift 6 language mode
+        func content(_ names: [String]) -> String {
+             ^
+        @Sendable 
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/UnitDeletionTests.swift:448:19: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+            while await held.held == nil && Date() < deadline { try await Task.sleep(for: .milliseconds(200)) }
+                  ^~~~~~
+                  
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/UnitDeletionTests.swift:449:28: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+            let received = await held.held
+                           ^~~~~~
+                           
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/UnitDeletionTests.swift:452:17: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+                await held.release()
+                ^~~~~~
+                
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/UnitDeletionTests.swift:459:21: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+            while !(await held.interrupted) && Date() < stopDeadline { try await Task.sleep(for: .milliseconds(100)) }
+                    ^~~~~
+                    
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/UnitDeletionTests.swift:460:27: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+            let stopped = await held.interrupted
+                          ^~~~~~
+                          
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/UnitDeletionTests.swift:464:13: warning: no 'async' operations occur within 'await' expression [#UnnecessaryEffectMarker]
+            await held.release()
+            ^~~~~~
+            
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/UnitMaterialAttachTests.swift:26:35: warning: cannot form key path to main actor-isolated property 'ref'; this is an error in the Swift 6 language mode
+        XCTAssertEqual(rows.map(\.ref), ["p.62〜65", nil, "第4回"])
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/UnitMaterialAttachTests.swift:39:70: warning: main actor-isolated property 'ref' can not be referenced from a nonisolated context
+        XCTAssertEqual(rows.prefix(2).map { after.subunitSummary($0).ref }, ["p.62〜65", "p.66〜69"])
+strius.WorkbookSubunitDTO.ref:2:25: note: property declared here
+@MainActor internal var ref: String?}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/UnitMaterialAttachTests.swift:67:93: warning: main actor-isolated property 'ref' can not be referenced from a nonisolated context
+        XCTAssertEqual(after.orderedSubunits(unitID: unitID).map { after.subunitSummary($0).ref }, ["p.62〜65", "p.74〜79", nil])
+strius.WorkbookSubunitDTO.ref:2:25: note: property declared here
+@MainActor internal var ref: String?}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/UnitMaterialAttachTests.swift:96:54: warning: main actor-isolated property 'ref' can not be referenced from a nonisolated autoclosure
+        XCTAssertEqual(after.subunitSummary(rows[3]).ref, "第9回")
+strius.WorkbookSubunitDTO.ref:2:25: note: property declared here
+@MainActor internal var ref: String?}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WaitingExperienceTests.swift:181:28: warning: main actor-isolated property 'problems' can not be referenced from a nonisolated autoclosure
+        XCTAssertEqual(set.problems.count, 5)
+                           ^
+strius.WorkbookSetDTO.problems:2:25: note: property declared here
+@MainActor internal let problems: [strius.WorkbookProblemTileDTO]}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WaitingExperienceTests.swift:182:32: warning: main actor-isolated property 'problems' can not be referenced from a nonisolated autoclosure
+        XCTAssertEqual(Set(set.problems.map(\.prompt)).count, 5, "残りは 1 問目と違う問題")
+strius.WorkbookSetDTO.problems:2:25: note: property declared here
+@MainActor internal let problems: [strius.WorkbookProblemTileDTO]}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WaitingExperienceTests.swift:182:47: warning: cannot form key path to main actor-isolated property 'prompt'; this is an error in the Swift 6 language mode
+        XCTAssertEqual(Set(set.problems.map(\.prompt)).count, 5, "残りは 1 問目と違う問題")
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WaitingExperienceTests.swift:197:30: warning: main actor-isolated property 'openSetId' can not be referenced from a nonisolated autoclosure
+        XCTAssertNil(summary.openSetId, "例題の段では類題の一枚を出さない")
+strius.WorkbookSubunitDTO.openSetId:2:25: note: property declared here
+@MainActor internal let openSetId: String?}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WaitingExperienceTests.swift:206:32: warning: main actor-isolated property 'openSetId' can not be referenced from a nonisolated autoclosure
+        XCTAssertEqual(summary.openSetId, setID, "類題に来たら、先回りで組んだ一枚がそのまま一枚になる")
+strius.WorkbookSubunitDTO.openSetId:2:25: note: property declared here
+@MainActor internal let openSetId: String?}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WaitingExperienceTests.swift:226:32: warning: main actor-isolated property 'stage' can not be referenced from a nonisolated autoclosure
+        XCTAssertEqual(summary.stage, 2)
+                               ^
+strius.WorkbookSubunitDTO.stage:2:25: note: property declared here
+@MainActor internal let stage: Int}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WaitingExperienceTests.swift:227:32: warning: main actor-isolated property 'exampleProblem' can not be referenced from a nonisolated autoclosure
+        XCTAssertEqual(summary.exampleProblem, "y = x^2 - 4x + 3 の頂点の座標を求めよ", "進むのと同時に例題が出る(待ちが無い)")
+strius.WorkbookSubunitDTO.exampleProblem:2:25: note: property declared here
+@MainActor internal var exampleProblem: String?}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WaitingExperienceTests.swift:228:33: warning: main actor-isolated property 'kickoffMessageId' can not be referenced from a nonisolated autoclosure
+        XCTAssertNotNil(summary.kickoffMessageId, "起動を記録して二重に起こさない")
+strius.WorkbookSubunitDTO.kickoffMessageId:2:25: note: property declared here
+@MainActor internal var kickoffMessageId: String?}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WaitingExperienceTests.swift:276:29: warning: main actor-isolated property 'answersLearner' can not be referenced from a nonisolated autoclosure
+        XCTAssertTrue(reply.answersLearner)
+                            ^
+strius.ChatMessage.answersLearner:2:25: note: property declared here
+@MainActor internal var answersLearner: Bool}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WaitingExperienceTests.swift:277:30: warning: main actor-isolated property 'thinkingSeconds' can not be referenced from a nonisolated autoclosure
+        XCTAssertEqual(reply.thinkingSeconds, 23, "送った時点(ターンの created_at)から出来上がりまで")
+strius.ChatMessage.thinkingSeconds:2:25: note: property declared here
+@MainActor internal var thinkingSeconds: Int?}
+                        ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WaitingExperienceTests.swift:278:40: warning: call to main actor-isolated static method 'visibleSeconds' in a synchronous nonisolated context [#ActorIsolatedCall]
+        XCTAssertEqual(ChatThinkingRow.visibleSeconds(3), nil, "3 秒までは秒数を出さない")
+strius.ChatThinkingRow.visibleSeconds:2:33: note: calls to static method 'visibleSeconds' from outside of its actor context are implicitly asynchronous
+@MainActor internal static func visibleSeconds(_ elapsed: Int) -> Int?}
+                                ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WaitingExperienceTests.swift:279:40: warning: call to main actor-isolated static method 'visibleSeconds' in a synchronous nonisolated context [#ActorIsolatedCall]
+        XCTAssertEqual(ChatThinkingRow.visibleSeconds(12), 12)
+                                       ^
+strius.ChatThinkingRow.visibleSeconds:2:33: note: calls to static method 'visibleSeconds' from outside of its actor context are implicitly asynchronous
+@MainActor internal static func visibleSeconds(_ elapsed: Int) -> Int?}
+                                ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WorkbookRulesTests.swift:363:42: warning: main actor-isolated conformance of 'WorkbookSetDTO.Kind' to 'Decodable' cannot be used in nonisolated context; this is an error in the Swift 6 language mode [#IsolatedConformances]
+        XCTAssertEqual(try JSONDecoder().decode(WorkbookSetDTO.Kind.self, from: Data("\"remedial\"".utf8)), .practice)
+                                         ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WorkbookRulesTests.swift:478:21: warning: result of call to 'set(machine:setID:outcome:avoidExpressions:)' is unused [#NoUsage]
+        TurnApplier.set(machine: &machine, setID: setID, outcome: failed)
+                    ^  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/runner/work/struis-ios/struis-ios/striusTests/Ledger/WorkbookStoreRefreshTests.swift:34:20: warning: expression of type 'WorkbookProposalDTO?' is unused [#NoUsage]
+        await load.value
+              ~~~~~^~~~~
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/ClaudeTurnRunnerTests.swift:437:35: warning: conformance of 'OpenUsageGate' to protocol 'UsageGate' crosses into main actor-isolated code and can cause data races; this is an error in the Swift 6 language mode [#ConformanceIsolation]
+nonisolated struct OpenUsageGate: UsageGate {
+                                  ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/ClaudeTurnRunnerTests.swift:437:35: note: isolate this conformance to the main actor with '@MainActor'
+nonisolated struct OpenUsageGate: UsageGate {
+                                  ^
+                                  @MainActor 
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/ClaudeTurnRunnerTests.swift:437:35: note: turn data races into runtime errors with '@preconcurrency'
+nonisolated struct OpenUsageGate: UsageGate {
+                                  ^
+                                  @preconcurrency 
+strius.UsageGate.record:2:26: note: main actor-isolated instance method 'record(_:requestBytes:setup:turnID:)' cannot satisfy nonisolated requirement
+@MainActor internal func record(_ attempt: [String : Any], requestBytes: Int, setup: strius.UsageSetup?, turnID: String)}
+                         ^
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/ClaudeTurnRunnerTests.swift:139:40: warning: main actor-isolated initializer 'init(assets:conversations:upstream:tools:timeouts:contextStore:prepareCommands:)' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+        let runner: ClaudeTurnRunner = ClaudeTurnRunner(assets: assets, conversations: conversations, upstream: upstream, contextStore: context, prepareCommands: {})
+                                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                                       await 
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/ClaudeTurnRunnerTests.swift:319:40: warning: main actor-isolated initializer 'init(assets:conversations:upstream:tools:timeouts:contextStore:prepareCommands:)' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+        let runner: ClaudeTurnRunner = ClaudeTurnRunner(assets: assets, conversations: conversations, upstream: upstream, contextStore: context, prepareCommands: {})
+                                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                                       await 
+/Users/runner/work/struis-ios/struis-ios/striusTests/Runtime/ClaudeTurnRunnerTests.swift:363:40: warning: main actor-isolated initializer 'init(assets:conversations:upstream:tools:timeouts:contextStore:prepareCommands:)' cannot be called from outside of the actor; this is an error in the Swift 6 language mode
+        let runner: ClaudeTurnRunner = ClaudeTurnRunner(assets: assets, conversations: conversations, upstream: upstream, timeouts: timeouts,
+                                       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                                       await 
+note: Disabling hardened runtime with ad-hoc codesigning. (in target 'strius' from project 'strius')
+note: Run script build phase 'Package Python' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'strius' from project 'strius')
+warning: Skipping duplicate build file in Copy Bundle Resources build phase: /Users/runner/work/struis-ios/struis-ios/striusUITests/Fixtures/handwritten_eigenvalue.jpeg (in target 'striusUITests' from project 'strius')

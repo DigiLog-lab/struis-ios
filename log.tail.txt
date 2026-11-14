@@ -1,0 +1,8 @@
+d7f9a41 課金画面: ライトの1週間無料体験を出す
+applied
+ 2 files changed, 80 insertions(+), 49 deletions(-)
+build exit 0
+run 1 exit 0
+Passed 26 0 0
+run 2 exit 0
+Passed 26 0 0
