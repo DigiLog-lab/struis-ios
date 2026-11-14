@@ -32,11 +32,15 @@ final class SubscriptionStore {
     /// 無料体験の対象か(App Store の `isEligibleForIntroOffer`。以前に無料体験を使った人・今契約している人は対象外)。
     /// App Store に確かめられるまでは false にして、対象外の人に無料の文言を出さない。
     private(set) var isEligibleForFreeTrial: Bool = false
-    /// App Store の答えを待たずに、無料体験を出さないと分かっているか。今どれかのプランを契約している(上げる・下げる・
-    /// 乗り換えは対象外)か、届いた契約が無料体験(導入オファー)を使ったものの時。購入の直後は、App Store の「対象か」が
-    /// まだ前のままのことがあるため(StoreKit の設定ファイルの iPad のシミュレータで、スタンダードを買った後も対象のままだった。
+    /// 今どれかのプランを契約しているか(上げる・下げる・乗り換えは導入オファーの対象外)。
+    private(set) var isSubscribedInGroup: Bool = false
+    /// このグループで無料体験(導入オファー)を使った取引を見たか。一度見たら、このアプリの間は戻さない。
+    private(set) var hasUsedFreeTrial: Bool = false
+    /// App Store の答えを待たずに、無料体験を出さないと分かっているか(今の契約か、無料体験を使った取引がある)。
+    /// App Store の「対象か」は、購入の後や入れ直した直後に前のまま(対象)で返ることがあるため、アプリの側でも外す
+    /// (StoreKit の設定ファイルのシミュレータで、購入の後も対象のまま返った。iPad の Dev Box と、マージキューの検証で。
     /// 2026-11-14)。プランが切れた人がもう一度対象になるか(導入オファーを使っていない人は対象)は App Store の答えに任せる。
-    private(set) var isFreeTrialRuledOut: Bool = false
+    var isFreeTrialRuledOut: Bool { isSubscribedInGroup || hasUsedFreeTrial }
     /// 今のプランが無料体験中なら、無料の期間が終わる日時(その時刻に最初の請求がある)。無料体験中でなければ nil。
     private(set) var freeTrialEndsAt: Date?
     /// 今の契約を受け取るグループ。商品を読んだら、その商品のグループにする
@@ -45,17 +49,23 @@ final class SubscriptionStore {
     var errorMessage: String?
     /// 商品を買う 1 か所。本番は `product.purchase(options:)`。単体テストは `SKTestSession.buyProduct` に差し替える。
     typealias Purchase = @MainActor (Product, Set<Product.PurchaseOption>) async throws -> Product.PurchaseResult
+    /// 無料体験の対象かを App Store に聞く 1 か所。本番は `isEligibleForIntroOffer`。単体テストは答えを差し替え、
+    /// App Store が古い答え(対象)を返し続ける場合でも、アプリの側で外せることを確かめる。
+    typealias IntroEligibility = @MainActor (Product.SubscriptionInfo) async -> Bool
     private let meter: UsageMeter
     private let purchaseProduct: Purchase
+    private let introEligibility: IntroEligibility
     /// 購入に付ける項目(16 歳未満は保護者の同意番号を `appAccountToken` にする。#76)。
     private let purchaseOptions: () -> Set<Product.PurchaseOption>
     private var updates: Task<Void, Never>?
 
     init(meter: UsageMeter = .shared, purchaseOptions: @escaping () -> Set<Product.PurchaseOption> = { OnboardingRecords.shared.purchaseOptions },
-         purchase: @escaping Purchase = { try await $0.purchase(options: $1) }) {
+         purchase: @escaping Purchase = { try await $0.purchase(options: $1) },
+         introEligibility: @escaping IntroEligibility = { await $0.isEligibleForIntroOffer }) {
         self.meter = meter
         self.purchaseOptions = purchaseOptions
         purchaseProduct = purchase
+        self.introEligibility = introEligibility
         plan = meter.plan
     }
 
@@ -78,11 +88,20 @@ final class SubscriptionStore {
     }
 
     /// 無料体験の対象かを App Store に聞き直す(商品を読んだ時・購入の後・購入の画面を開いた時)。
+    /// あわせて端末の取引の記録を見て、無料体験を使った取引があれば、App Store の答えを待たずに外す
+    /// (入れ直した直後は、契約の状態が届く前に購入の画面が開くことがある)。
     func refreshFreeTrialEligibility() async {
+        for await result in Transaction.all {
+            if case .verified(let transaction) = result, UsagePlan(productID: transaction.productID) != nil,
+               transaction.offer?.type == .introductory {
+                hasUsedFreeTrial = true
+                break
+            }
+        }
         var eligible: Bool = false
         for plan in UsagePlan.allCases where freeTrialOffers[plan] != nil {
             guard let subscription: Product.SubscriptionInfo = products[plan]?.subscription else { continue }
-            let planEligible: Bool = await subscription.isEligibleForIntroOffer
+            let planEligible: Bool = await introEligibility(subscription)
             if planEligible { eligible = true }
         }
         isEligibleForFreeTrial = eligible
@@ -134,7 +153,8 @@ final class SubscriptionStore {
                 }
                 await transaction.finish()
                 // 契約している間は、グループのどのプランでも無料体験の対象外。
-                isFreeTrialRuledOut = true
+                isSubscribedInGroup = true
+                if transaction.offer?.type == .introductory { hasUsedFreeTrial = true }
                 await refreshFreeTrialEligibility()
                 // 押されたプランをそのまま使わず、契約の状態を読み直す(下げた時は次の更新日まで今のプランのまま)。
                 if let statuses = try? await product.subscription?.status, !statuses.isEmpty {
@@ -183,11 +203,12 @@ final class SubscriptionStore {
                 if let status, case .verified(let renewal) = status.renewalInfo { renews = renewal.willAutoRenew }
                 charges[plan] = Charge(transaction, renews: renews)
                 if let ends: Date = Self.freeTrialEnd(of: transaction) { trialEnds[plan] = ends }
+                if transaction.offer?.type == .introductory { hasUsedFreeTrial = true }
             }
         }
         apply(plans: plans, charges: charges)
         if let best: UsagePlan = UsagePlan.best(of: plans) { freeTrialEndsAt = trialEnds[best] }
-        if !plans.isEmpty { isFreeTrialRuledOut = true }
+        if !plans.isEmpty { isSubscribedInGroup = true }
         await refreshFreeTrialEligibility()
         if plans.isEmpty { errorMessage = "復元できる購入が見つかりませんでした。" }
     }
@@ -230,7 +251,8 @@ final class SubscriptionStore {
         let best: UsagePlan? = UsagePlan.best(of: plans)
         cancelsAt = best.flatMap { endDates[$0] }
         freeTrialEndsAt = best.flatMap { trialEnds[$0] }
-        isFreeTrialRuledOut = best != nil || usedIntroOffer
+        isSubscribedInGroup = best != nil
+        if usedIntroOffer { hasUsedFreeTrial = true }
     }
 
     /// 取引から読む、課金の時刻と次の更新の予定日時。利用枠の 7 日はこの課金の時刻から数える(購入・上げた時・更新で 0 から始まる)。
