@@ -1,0 +1,17 @@
+BUILD_DONE
+U=D03256B1-4569-435F-8D92-E2BDD4ED7058
+started
+ok
+ok
+exists
+ok 3 strokes 0.2s orientation 3
+P1.png
+ok
+ok
+exists
+1794674065
+ok 94 strokes 9.7s orientation 3
+1794674086
+K2.png
+ok
+K3.png
