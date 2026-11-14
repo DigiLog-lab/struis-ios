@@ -192,11 +192,15 @@ struct AppRootView: View {
         return question
     }
 
+    /// タイムラインの「質問」を引っぱって開いた画面(開ききって止まっている)。iPad では右の欄の分、タイムラインを空ける。
+    private var pulledQuestionIsOpen: Bool { timeline.pullOut.active == .ask && timeline.pullOut.isOpen }
+
     private var timelineWithQuestionPanel: some View {
         HStack(spacing: 0) {
             LearningTimelineView(store: timeline, onOpenUnits: { isUnitsPresented = true }, layout: timelineLayout, isCovered: isUnitsPresented)
                 // 欄の入力でキーボードが出ても、タイムライン(書いた答案)の大きさは変えない。
                 .ignoresSafeArea(.keyboard)
+                .padding(.trailing, timelineLayout.isPad && pulledQuestionIsOpen && sideQuestion == nil ? TimelineLayout.questionPanelWidth : 0)
             if let context = sideQuestion {
                 WorkbookQuestionScreen(context: context, onClose: { coordinator.question = nil })
                     .id(context.id)
@@ -209,6 +213,22 @@ struct AppRootView: View {
             }
         }
         .animation(.easeInOut(duration: Theme.Duration.standard), value: sideQuestion?.id)
+        .animation(.easeInOut(duration: Theme.Duration.standard), value: pulledQuestionIsOpen)
+        // タイムラインの「質問」を左へ引くと、質問の画面がボタンから出てくる(iPhone は画面全体、iPad は右の欄)。
+        // 画面は引き始めた時に作るので、開ききった時には読み込みが済んでいる。
+        .overlay {
+            // タップで顔を出すだけの時(中身はまだ作らない)も、形は描く。
+            if timeline.pullOut.active == .ask {
+                TimelinePullPanel(pullOut: timeline.pullOut, kind: .ask, dims: !timelineLayout.isPad) {
+                    if let question = timeline.pullOut.question {
+                        TimelineQuestionDrawerContent(context: question) { timeline.pullOut.close(.ask) }
+                            .equatable()
+                    }
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("timeline-question-drawer")
+            }
+        }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { screenSize = $0 }
     }
 

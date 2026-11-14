@@ -29,7 +29,7 @@ final class TimelineScopeDemoUITests: XCTestCase {
         mark("auto-problem")
 
         // チップ → 解く範囲のシート。
-        app.buttons["timeline-scope-chip"].tap()
+        app.buttons["timeline-scope-chip"].drag(by: CGVector(dx: 0, dy: 380))
         XCTAssertTrue(app.descendants(matching: .any)["timeline-scope-sheet"].firstMatch.appears(timeout: 10), "範囲のシートが出ない")
         sleep(1)
         shot(app, "02-scope-sheet")

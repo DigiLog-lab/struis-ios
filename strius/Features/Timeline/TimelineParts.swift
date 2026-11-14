@@ -267,21 +267,31 @@ struct TimelineActionButton: View {
     var isEnabled = true
     /// 大きいボタンの直径(iPad の「送る」は 64pt)。
     var diameter: CGFloat? = nil
+    /// 液体の層のボタンの場所として知らせる(採点中のカプセルが戻って、この円になる)。
+    var liquidSlot = false
+    /// 円は液体の層が描いている(印と文字だけ出す)。
+    var hidesDisc = false
     var identifier: String
     let action: () -> Void
 
     var body: some View {
         let size = diameter ?? (prominent ? 72 : 52)
-        let raised = prominent && isEnabled
         Button(action: action) {
             VStack(spacing: 6) {
                 Image(systemName: symbol)
                     .font(.system(size: prominent ? 26 : 20, weight: .semibold))
                     .foregroundStyle(prominent ? (isEnabled ? Theme.onAccent : Theme.accentColor) : Theme.primaryText)
                     .frame(width: size, height: size)
-                    .background(prominent ? AnyShapeStyle(isEnabled ? Theme.accentColor : Theme.accentColor.opacity(0.16)) : AnyShapeStyle(Theme.card), in: Circle())
-                    .overlay { if !prominent { Circle().stroke(Theme.hairline, lineWidth: 1) } }
-                    .shadow(color: .black.opacity(raised ? 0.18 : 0.06), radius: raised ? 10 : 4, y: 3)
+                    .background {
+                        // Liquid Glass の円(大きいボタンは銅色に色を付ける。送るボタンから出る液体と同じガラス)。
+                        Color.clear
+                            .glassEffect(prominent ? .regular.tint(isEnabled ? Theme.accentColor : Theme.accentColor.opacity(0.16)).interactive()
+                                                   : .regular.interactive(), in: Circle())
+                            .opacity(hidesDisc ? 0 : 1)
+                    }
+                    // 押せる範囲は円の形で決める(液体の層が円を描いている間は、この円が見えず、押せなくなるため)。
+                    .contentShape(Circle())
+                    .background { if liquidSlot { Color.clear.timelineLiquidSlot() } }
                 Text(label).font(Typography.sans(size: 12, weight: .bold)).foregroundStyle(Theme.secondaryText)
             }
         }
@@ -1499,11 +1509,26 @@ struct TimelineScopeMarks: View {
 /// 解く範囲のシート: 先頭に「おまかせ」、その下に科目ごとの単元(単元ホームと同じ順)。選ぶとその単元に固定する。
 struct TimelineScopeSheet: View {
     let store: TimelineStore
+    /// チップから下へ伸びるプルダウンの中身として出す(見出しを省き、余白を詰める)。
+    var asDropdown = false
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                Text("解く範囲").font(Typography.heading2).foregroundStyle(Theme.primaryText)
+            VStack(alignment: .leading, spacing: asDropdown ? 16 : 24) {
+                if asDropdown {
+                    // チップと同じ場所・大きさの見出し(チップがそのまま伸びて一覧になったように見せる)。
+                    HStack(spacing: 4) {
+                        Text(store.pinnedUnit?.title ?? "おまかせ").lineLimit(1)
+                        Image(systemName: "chevron.up").font(.system(size: 11, weight: .bold))
+                    }
+                    .font(Typography.sans(size: 15, weight: .medium))
+                    .foregroundStyle(Theme.secondaryText)
+                    .frame(height: 40)
+                    .padding(.leading, 2)
+                    .accessibilityLabel("解く範囲")
+                } else {
+                    Text("解く範囲").font(Typography.heading2).foregroundStyle(Theme.primaryText)
+                }
                 Button { Task { await store.setScope(nil) } } label: {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -1537,9 +1562,9 @@ struct TimelineScopeSheet: View {
                     }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 24)
-            .padding(.bottom, 32)
+            .padding(.horizontal, asDropdown ? 12 : 20)
+            .padding(.top, asDropdown ? 0 : 24)
+            .padding(.bottom, asDropdown ? 16 : 32)
         }
         .accessibilityIdentifier("timeline-scope-sheet")
     }

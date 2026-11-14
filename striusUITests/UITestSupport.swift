@@ -146,6 +146,22 @@ extension XCUIElement {
         exists || waitForExistence(timeout: timeout)
     }
 
+    /// 質問・撮る・単元のチップのように、引っぱって開くものを引く(タップでは開かない)。
+    @MainActor
+    func drag(by vector: CGVector) {
+        let start = coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(vector), withVelocity: 600, thenHoldForDuration: 0.1)
+    }
+
+    /// 「送る」のように、上に引いた時だけ動くボタンを引く(タップでは送らない)。
+    @MainActor
+    func pullUp(by distance: CGFloat = 220) {
+        let start = coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+        // ゆっくり引いて少し止めてから離す(はじく速さではなく、引いた長さで送る。録画に途中の形も残る)。
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -distance)),
+                    withVelocity: 320, thenHoldForDuration: 0.4)
+    }
+
     /// 画面の切り替えで動いている要素を、止まってから押す。押す位置は要素の木を取った時の枠の中央なので、
     /// 切り替えの途中の枠で押すと、押す前に要素が動いて外れることがある(Xcode Cloud の PR Gate 160 で、
     /// 出た直後の「今日はここまで」を押しても画面が変わらなかった)。枠が 0.25 秒あけて 2 回同じになり、

@@ -7,10 +7,13 @@ final class TimelineUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// タイムラインから始める起動(単元ホームを重ねない)。
+    /// 撮るは、カメラの方(画面の真ん中)へ引いて開く(タップでは開かない)。
+    static let toCamera = CGVector(dx: -150, dy: -260)
+
+    /// タイムラインから始める起動(単元ホームを重ねない)。`realCamera` なら、撮る画面は試験用の写真ではなく本物のカメラを使う。
     @MainActor
     private func launchTimeline(wrong: Bool = false, longComment: Bool = false,
-                                orientation: UIDeviceOrientation = .portrait) -> XCUIApplication {
+                                orientation: UIDeviceOrientation = .portrait, realCamera: Bool = false) -> XCUIApplication {
         XCUIDevice.shared.orientation = orientation
         let app = XCUIApplication()
         app.launchArguments = ["-skip-onboarding"]
@@ -18,8 +21,9 @@ final class TimelineUITests: XCTestCase {
         if longComment { app.launchEnvironment["STRUIS_MOCK_TIMELINE_LONG_COMMENT"] = "1" }
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
-        app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = UITestSupport.paperImagePath
+        if !realCamera { app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = UITestSupport.paperImagePath }
         app.launchEnvironment["STRUIS_TEST_CAPTURE_FINISH_SECONDS"] = UITestSupport.captureFinishSecondsWithoutRace
+        if realCamera { app.resetAuthorizationStatus(for: .camera) }
         app.launch()
         return app
     }
@@ -50,13 +54,59 @@ final class TimelineUITests: XCTestCase {
         XCTAssertTrue(app.buttons["timeline-units-button"].appears(timeout: 10), "タイムラインに戻らない")
     }
 
+    /// 初めて撮る時は、撮るを引いている途中ではカメラの許可を聞かず、カメラの枠が開いてから聞く。
+    @MainActor
+    func testCameraAsksPermissionOnlyAfterTheFrameOpens() throws {
+        let app = launchTimeline(realCamera: true)
+        waitForProblem(app)
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let capture = app.buttons["timeline-capture"]
+        // 途中まで引いて戻す: 許可は聞かない。
+        let start = capture.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: -30, dy: -50)), withVelocity: 200, thenHoldForDuration: 0.5)
+        XCTAssertFalse(springboard.alerts.firstMatch.waitForExistence(timeout: 3), "引いている途中でカメラの許可を聞いた")
+        // 引いて開く: 枠が開いてから許可を聞く。
+        capture.drag(by: Self.toCamera)
+        let alert = springboard.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: 10), "枠が開いてもカメラの許可を聞かない")
+        XCTAssertTrue(app.descendants(matching: .any)["chat-camera-panel"].firstMatch.exists, "カメラの枠が開く前に許可を聞いた")
+        alert.buttons.element(boundBy: alert.buttons.count - 1).tap()
+    }
+
+    /// 質問と単元のチップは、押しただけでは開かず、引っぱると開く。
+    @MainActor
+    func testAskAndScopeOpenOnlyWhenPulled() throws {
+        let app = launchTimeline()
+        waitForProblem(app)
+        let close = app.buttons["question-close"]
+        app.buttons["timeline-ask"].tap()
+        Thread.sleep(forTimeInterval: 1.5)
+        XCTAssertFalse(close.exists, "押しただけで質問が開いた")
+        app.buttons["timeline-ask"].drag(by: CGVector(dx: -240, dy: 0))
+        XCTAssertTrue(close.appears(timeout: 6), "引いても質問が開かない")
+        close.tap()
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertFalse(close.exists, "閉じても質問が残っている")
+        let auto = app.buttons["timeline-scope-auto"]
+        XCTAssertTrue(app.buttons["timeline-scope-chip"].appears(timeout: 5))
+        app.buttons["timeline-scope-chip"].tap()
+        Thread.sleep(forTimeInterval: 1.5)
+        XCTAssertFalse(auto.exists, "押しただけで単元の一覧が開いた")
+        app.buttons["timeline-scope-chip"].drag(by: CGVector(dx: 0, dy: 380))
+        XCTAssertTrue(auto.appears(timeout: 6), "引いても単元の一覧が開かない")
+        auto.tap()
+        Thread.sleep(forTimeInterval: 1)
+        XCTAssertFalse(auto.exists, "選んでも単元の一覧が閉じない")
+    }
+
+
     /// 撮って採点されたら、すぐ次へ。結果の画面の右下は 質問・解説・次へ。
     @MainActor
     func testCaptureGradesAndMovesToTheNextProblem() throws {
         let app = launchTimeline()
         waitForProblem(app)
         let first = app.descendants(matching: .any)["timeline-question"].firstMatch.label
-        app.buttons["timeline-capture"].tap()
+        app.buttons["timeline-capture"].drag(by: Self.toCamera)
         let shutter = app.buttons["chat-camera-shutter"]
         XCTAssertTrue(shutter.appears(timeout: 10))
         shutter.tap()
@@ -75,7 +125,7 @@ final class TimelineUITests: XCTestCase {
     func testWrongAnswerShowsBothAnswersAndOffersADisputeFromAsk() throws {
         let app = launchTimeline(wrong: true)
         waitForProblem(app)
-        app.buttons["timeline-capture"].tap()
+        app.buttons["timeline-capture"].drag(by: Self.toCamera)
         let shutter = app.buttons["chat-camera-shutter"]
         XCTAssertTrue(shutter.appears(timeout: 10))
         shutter.tap()
@@ -110,8 +160,12 @@ final class TimelineUITests: XCTestCase {
         start.press(forDuration: 0.05, thenDragTo: ink.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5)))
         XCTAssertTrue(app.buttons["timeline-send"].appears(timeout: 5), "書いたのに「送る」にならない")
         XCTAssertTrue(app.buttons["timeline-ink-undo"].exists)
+        // 誤って送らないように、押しただけでは送らない(上に引くと送る)。
         app.buttons["timeline-send"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["timeline-result-correct"].firstMatch.appears(timeout: 30))
+        let result = app.descendants(matching: .any)["timeline-result-correct"].firstMatch
+        XCTAssertFalse(result.waitForExistence(timeout: 2), "押しただけで送った")
+        app.buttons["timeline-send"].pullUp()
+        XCTAssertTrue(result.appears(timeout: 30))
     }
 
     /// 書く面に書いた誤答: 結果の画面に出た時点で、判定と一緒に赤ペンがもう入っている(後から別に入れない)。
@@ -125,7 +179,7 @@ final class TimelineUITests: XCTestCase {
         ink.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.45))
             .press(forDuration: 0.05, thenDragTo: ink.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.5)))
         XCTAssertTrue(app.buttons["timeline-send"].appears(timeout: 5))
-        app.buttons["timeline-send"].tap()
+        app.buttons["timeline-send"].pullUp()
         XCTAssertTrue(app.descendants(matching: .any)["timeline-result-wrong"].firstMatch.appears(timeout: 30), "誤答の結果が出ない")
         let redPen = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "赤ペン: ")).firstMatch
         XCTAssertTrue(redPen.appears(timeout: 2), "結果と一緒に赤ペンが出ていない")
@@ -167,9 +221,9 @@ final class TimelineUITests: XCTestCase {
         ink.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.45))
             .press(forDuration: 0.05, thenDragTo: ink.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
         if app.buttons["timeline-send"].appears(timeout: 5) {
-            app.buttons["timeline-send"].tap()
+            app.buttons["timeline-send"].pullUp()
         } else {
-            app.buttons["timeline-capture"].tap()
+            app.buttons["timeline-capture"].drag(by: Self.toCamera)
         }
         let verdict = app.descendants(matching: .any)["timeline-result-wrong"].firstMatch
         XCTAssertTrue(verdict.appears(timeout: 30), "誤答の結果が出ない")

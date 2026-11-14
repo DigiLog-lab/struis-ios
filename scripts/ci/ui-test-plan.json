@@ -231,7 +231,7 @@
       ]
     },
     "timeline": {
-      "property": "学習タイムライン: 起動したらタイムラインが出る、単元ホームを重ねて戻る、撮る・指で書く・飛ばす・2択カード・やめどき、誤答の画面の2つの答えと判定への申し出、書く面の誤答で判定と一緒に出る赤ペンと結果の画面のスクロール、入りきらない結果の列のスクロール",
+      "property": "学習タイムライン: 起動したらタイムラインが出る、単元ホームを重ねて戻る、撮る・指で書く・飛ばす・2択カード・やめどき、誤答の画面の2つの答えと判定への申し出、書く面の誤答で判定と一緒に出る赤ペンと結果の画面のスクロール、入りきらない結果の列のスクロール、質問と単元のチップは押しただけでは開かず引くと開く、初回のカメラの許可は枠が開いてから",
       "tests": [
         "TimelineUITests/testLaunchShowsTimelineAndUnitsHomeCoversIt",
         "TimelineUITests/testCaptureGradesAndMovesToTheNextProblem",
@@ -241,7 +241,9 @@
         "TimelineUITests/testStopSheetOffersOneMoreOrStop",
         "TimelineUITests/testWrongAnswerShowsBothAnswersAndOffersADisputeFromAsk",
         "TimelineUITests/testWrongInkAnswerShowsTheRedPenWithTheVerdictAndTheInkStillScrolls",
-        "TimelineUITests/testLongResultScrollsUnderTheFingerEvenWithTheInkOnTop"
+        "TimelineUITests/testLongResultScrollsUnderTheFingerEvenWithTheInkOnTop",
+        "TimelineUITests/testAskAndScopeOpenOnlyWhenPulled",
+        "TimelineUITests/testCameraAsksPermissionOnlyAfterTheFrameOpens"
       ],
       "paths": [
         "strius/Features/Timeline/**",
@@ -427,6 +429,8 @@
     "TimelineUITests/testWrongAnswerShowsBothAnswersAndOffersADisputeFromAsk": 40,
     "TimelineUITests/testWrongInkAnswerShowsTheRedPenWithTheVerdictAndTheInkStillScrolls": 40,
     "TimelineUITests/testLongResultScrollsUnderTheFingerEvenWithTheInkOnTop": 40,
+    "TimelineUITests/testAskAndScopeOpenOnlyWhenPulled": 50,
+    "TimelineUITests/testCameraAsksPermissionOnlyAfterTheFrameOpens": 35,
     "OnboardingFlowUITests/testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain": 55,
     "OnboardingScreenshotUITests/testIPhoneScreens": 0,
     "OnboardingScreenshotUITests/testIPadLandscapeScreens": 0,

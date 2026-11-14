@@ -15,7 +15,13 @@ struct LearningTimelineView: View {
     @Environment(WorkbookCoordinator.self) private var coordinator
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hasInk = false
+    /// 送る → 採点中 → 結果の ○ を1つの液体の形の変化でつなぐ。
+    @State private var liquid = TimelineLiquid()
+    /// 採点中のカプセルをつまんで引っぱっている。
+    @State private var isTugging = false
+    @State private var isScopeDragging = false
     @State private var ink = TimelineInkController()
     @State private var inkGeneration = 0
     @State private var isDrawing = false
@@ -71,13 +77,25 @@ struct LearningTimelineView: View {
                         .padding(.bottom, layout == .padLandscape ? 132 : 0)
                         .frame(width: layout == .padLandscape ? TimelineLayout.columnLeading + TimelineLayout.columnWidth : nil)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .environment(\.timelineHidesResultMark, !liquid.hasLanded)
                     if showsInkHint { inkHint }
+                    // 送るボタン・採点中のカプセル・しずく(ボタンの文字と印は、この上の `actions` に描く)。
+                    TimelineLiquidLayer(liquid: liquid, correct: store.lastAttempt?.verdict == "correct")
                     actions
                         .timelineInkPassThrough()
                         .padding(.trailing, layout.isPad ? 28 : 20)
                         .padding(.bottom, layout == .padLandscape ? 32 : 16)
                         // 書いている間はボタンを薄くして、下に書いた字を透かす。
                         .opacity(isDrawing ? 0.35 : 1)
+                }
+                .coordinateSpace(name: TimelineLiquidSpace.name)
+                .onPreferenceChange(TimelineLiquidSlotKey.self) { frame in
+                    guard let frame else { return }
+                    liquid.setSlot(center: CGPoint(x: frame.midX, y: frame.midY), radius: frame.width / 2)
+                }
+                .onPreferenceChange(TimelineLiquidMarkKey.self) { frame in
+                    liquid.markCenter = frame.map { CGPoint(x: $0.midX, y: $0.midY) }
+                    if let frame { liquid.markRadius = frame.width / 2 }
                 }
                 .offset(y: min(0, dragOffset) * 0.35)
                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(TimelineInkSpace.name)) } action: { inkArea = $0 }
@@ -95,6 +113,12 @@ struct LearningTimelineView: View {
             // iPad の縦向きの結果の画面では、書く面を見えなくする(結果の列が全幅なので、書いた線が講評の文に重なって読めなくなる)。
             // 書いた答案は結果の列の中に出す。木からは外さない(外すと書く面が作り直され、横向きに回した時に線が消える)。
             if showsInk { placedInkLayer.opacity(hidesInkInResult ? 0 : 1).allowsHitTesting(!hidesInkInResult) }
+            // 撮るを引いている間の形と、単元のチップから伸びる一覧(書いた線や下の帯の上にも重ねる)。
+            // 質問の画面は、iPad で右の欄になるので、タイムラインの外(AppRootView)で出す。
+            TimelinePullGlassLayer(pullOut: pullOut, cameraIsProminent: !layout.isPad && !hasInk)
+            TimelinePullPanel(pullOut: pullOut, kind: .scope, closesOnOutsideTap: true) {
+                TimelineScopeSheet(store: store, asDropdown: true)
+            }
             if store.skipBannerAttemptID != nil { skipBanner.transition(.move(edge: .top).combined(with: .opacity)) }
             if let error = store.actionError {
                 Text(error)
@@ -126,6 +150,60 @@ struct LearningTimelineView: View {
             guard !needsGuardianConsent else { return }
             Task { await store.scenePhaseChanged(phase) }
         }
+        .onChange(of: reduceMotion, initial: true) { _, reduce in
+            liquid.reduceMotion = reduce
+            pullOut.reduceMotion = reduce
+        }
+        .onPreferenceChange(TimelinePullOriginKey.self) { origins in
+            // 開いている(閉じている途中の)ものは、ボタンが消えても(iPad で書き始めると質問のボタンが消える)、
+            // 最後の場所へ縮んで戻れるように場所を残す。
+            var origins = origins
+            if let kind = pullOut.active, origins[kind] == nil, let last = pullOut.origins[kind] { origins[kind] = last }
+            pullOut.origins = origins
+            pullOut.targets = TimelinePullTargets.current(isPad: layout.isPad, chip: origins[.scope])
+        }
+        // 質問は、引き始めた時に画面を作って読み込みを始める(開ききった時に中身が出そろっているように)。
+        .onChange(of: pullOut.fingerProgress) { _, progress in
+            guard progress > 0 else { return }
+            if pullOut.active == .ask, pullOut.question == nil, let card = store.current { pullOut.question = questionContext(card) }
+            // カメラも、引き始めた時に起こしておく(枠が開いた時には、もう映っているように)。
+            // 初回(許可をまだ聞いていない)は起こさず、許可のダイアログは枠が開いてから出す。
+            if pullOut.active == .camera { ChatCameraWarmup.shared.prepare() }
+        }
+        .onChange(of: pullOut.active) { old, new in
+            // 撮るを引いたけれど開かなかった: しばらくしたらカメラを止める。
+            if old == .camera, new == nil, !isCameraPresented { ChatCameraWarmup.shared.cancelSoon() }
+        }
+        // カメラは、形が枠の大きさまで伸びたら本物のカメラに入れ替える(カメラ自体の出てくる動きは止める)。
+        .onChange(of: pullOut.openRequest) { _, _ in
+            switch pullOut.openedKind {
+            case .camera?:
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { isCameraPresented = true }
+            case .scope?: store.isScopeSheetPresented = true
+            default: break
+            }
+        }
+        // 単元の一覧: 選んだら(店の側で閉じたら)縮んで閉じる。外側を押して閉じたら、店の側も閉じる。
+        .onChange(of: store.isScopeSheetPresented) { _, presented in
+            if presented, pullOut.active == nil { pullOut.open(.scope) }
+            if !presented, pullOut.active == .scope { pullOut.close(.scope) }
+        }
+        .onChange(of: pullOut.isOpen) { _, open in
+            if !open, store.isScopeSheetPresented { store.isScopeSheetPresented = false }
+        }
+        .sensoryFeedback(.impact(weight: .light), trigger: pullOut.commitFeedback)
+        .onChange(of: store.phase, initial: true) { old, phase in
+            switch phase {
+            case .grading:
+                liquid.startGrading()
+            case .result:
+                if case .grading = old { liquid.emerge(correct: store.lastAttempt?.verdict == "correct") } else if liquid.stage != .emerging { liquid.reset() }
+            default:
+                if liquid.stage != .idle { liquid.reset() }
+            }
+        }
         .onChange(of: store.currentID) { _, _ in
             clearInk()
             problemScroll.scrollTo(edge: .top)
@@ -140,11 +218,6 @@ struct LearningTimelineView: View {
             TimeAttackFlowView(session: session) { timeAttack = nil }
         }
         #endif
-        .sheet(isPresented: Binding(get: { store.isScopeSheetPresented }, set: { store.isScopeSheetPresented = $0 })) {
-            TimelineScopeSheet(store: store)
-                .presentationDetents([.medium, .large])
-                .presentationBackground(Theme.card)
-        }
         .sheet(isPresented: Binding(get: { store.isStopSheetPresented }, set: { store.isStopSheetPresented = $0 })) {
             TimelineStopSheet(store: store)
                 .presentationDetents([.medium])
@@ -242,16 +315,20 @@ struct LearningTimelineView: View {
     private var scopeChip: some View {
         if let unit = store.pinnedUnit {
             HStack(spacing: 0) {
-                Button { store.isScopeSheetPresented = true } label: {
-                    Text(unit.title)
-                        .font(Typography.sans(size: 15, weight: .bold))
-                        .lineLimit(1)
-                        .foregroundStyle(Theme.primaryText)
-                        .padding(.leading, 14).padding(.trailing, 4)
-                        .frame(height: 40)
-                }
-                .accessibilityLabel("解く範囲: \(unit.title)")
-                .accessibilityIdentifier("timeline-scope-chip")
+                Text(unit.title)
+                    .font(Typography.sans(size: 15, weight: .bold))
+                    .lineLimit(1)
+                    .foregroundStyle(Theme.primaryText)
+                    .padding(.leading, 14).padding(.trailing, 4)
+                    .frame(height: 40)
+                    .contentShape(Rectangle())
+                    .gesture(TimelinePullGesture.make(pullOut: pullOut, kind: .scope, isDragging: $isScopeDragging))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("解く範囲: \(unit.title)")
+                    .accessibilityHint("引っぱって開く")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { pullOut.open(.scope) }
+                    .accessibilityIdentifier("timeline-scope-chip")
                 Button { Task { await store.setScope(nil) } } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .bold))
@@ -262,24 +339,31 @@ struct LearningTimelineView: View {
                 .accessibilityIdentifier("timeline-scope-clear")
             }
             .buttonStyle(.plain)
-            .background(Theme.accentColor.opacity(0.16), in: Capsule())
-            .overlay(Capsule().stroke(Theme.accentColor.opacity(0.35), lineWidth: 1))
+            // 下に引くと、このチップが単元の一覧の形まで伸びる(タップでは少し顔を出すだけ)。
+            .glassEffect(.regular.tint(Theme.accentColor.opacity(0.22)).interactive(), in: Capsule())
+            .timelinePullOrigin(.scope)
+            .opacity(pullOut.active == .scope ? 0 : 1)
             .timelineInkPassThrough()
         } else {
-            Button { store.isScopeSheetPresented = true } label: {
-                HStack(spacing: 4) {
-                    Text("おまかせ")
-                    Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
-                }
-                .font(Typography.sans(size: 15, weight: .medium))
-                .foregroundStyle(Theme.secondaryText)
-                .padding(.horizontal, 14)
-                .frame(height: 40)
-                .overlay(Capsule().stroke(Theme.hairline, lineWidth: 1))
+            HStack(spacing: 4) {
+                Text("おまかせ")
+                Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
             }
-            .buttonStyle(.plain)
+            .font(Typography.sans(size: 15, weight: .medium))
+            .foregroundStyle(Theme.secondaryText)
+            .padding(.horizontal, 14)
+            .frame(height: 40)
+            .glassEffect(.regular.interactive(), in: Capsule())
+            .timelinePullOrigin(.scope)
+            .opacity(pullOut.active == .scope ? 0 : 1)
+            .contentShape(Capsule())
+            .gesture(TimelinePullGesture.make(pullOut: pullOut, kind: .scope, isDragging: $isScopeDragging))
             .timelineInkPassThrough()
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("解く範囲: おまかせ")
+            .accessibilityHint("引っぱって開く")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { pullOut.open(.scope) }
             .accessibilityIdentifier("timeline-scope-chip")
         }
     }
@@ -670,23 +754,22 @@ struct LearningTimelineView: View {
                     if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true, layout.isPad {
                         // iPad は書くのが先: 「送る」を同じ場所に置いておき、書くまでは押せない。書いた後は 撮る・送る。
                         if !hasInk {
-                            TimelineActionButton(symbol: TimelineSymbol.ask, label: "質問", identifier: "timeline-ask") { ask(card) }
+                            askPullButton
                             TimelineActionButton(symbol: TimelineSymbol.skip, label: "飛ばす", identifier: "timeline-skip") { Task { await store.skip() } }
                         }
-                        TimelineActionButton(symbol: TimelineSymbol.camera, label: "撮る", identifier: "timeline-capture") { isCameraPresented = true }
-                        TimelineActionButton(symbol: TimelineSymbol.send, label: "送る", prominent: true, isEnabled: hasInk,
-                                             diameter: TimelineLayout.sendDiameter, identifier: "timeline-send") { sendInk() }
+                        cameraPullButton(prominent: false)
+                        TimelineSendButton(liquid: liquid, diameter: TimelineLayout.sendDiameter, isEnabled: hasInk) { sendInk() }
                     } else if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true {
-                        TimelineActionButton(symbol: TimelineSymbol.ask, label: "質問", identifier: "timeline-ask") { ask(card) }
+                        askPullButton
                         if hasInk {
-                            TimelineActionButton(symbol: TimelineSymbol.camera, label: "撮る", identifier: "timeline-capture") { isCameraPresented = true }
-                            TimelineActionButton(symbol: TimelineSymbol.send, label: "送る", prominent: true, identifier: "timeline-send") { sendInk() }
+                            cameraPullButton(prominent: false)
+                            TimelineSendButton(liquid: liquid) { sendInk() }
                         } else {
                             TimelineActionButton(symbol: TimelineSymbol.skip, label: "飛ばす", identifier: "timeline-skip") { Task { await store.skip() } }
-                            TimelineActionButton(symbol: TimelineSymbol.camera, label: "撮る", prominent: true, identifier: "timeline-capture") { isCameraPresented = true }
+                            cameraPullButton(prominent: true)
                         }
                     } else {
-                        TimelineActionButton(symbol: TimelineSymbol.ask, label: "質問", identifier: "timeline-ask") { ask(card) }
+                        askPullButton
                         TimelineActionButton(symbol: TimelineSymbol.skip, label: "飛ばす", identifier: "timeline-skip") { Task { await store.skip() } }
                     }
                 }
@@ -698,16 +781,29 @@ struct LearningTimelineView: View {
                     TimelineActionButton(symbol: TimelineSymbol.send, label: "送る", prominent: true, identifier: "timeline-send") { sendRapid() }
                 }
             case .grading:
-                VStack(alignment: .trailing, spacing: 6) {
-                    ProgressView().controlSize(.large).frame(width: 72, height: 72)
-                    Text("採点中").font(Typography.sans(size: 12, weight: .bold)).foregroundStyle(Theme.secondaryText).frame(width: 72)
-                    // AI が今考えていることの見出し(チャットと同じ仕組み)。高さを決めておき、見出しの長さで上の印が動かないようにする。
+                VStack(alignment: .trailing, spacing: 14) {
+                    // AI が今考えていることの見出し(チャットと同じ仕組み)。高さを決めておき、見出しの長さでカプセルが動かないようにする。
                     if let attemptID = store.lastAttemptID {
                         TurnLiveLine(keys: [TurnActivityKey.target(attemptID)], font: Typography.micro)
                             .multilineTextAlignment(.trailing)
-                            .frame(width: 168, height: 44, alignment: .topTrailing)
+                            .frame(width: 168, height: 44, alignment: .bottomTrailing)
+                    }
+                    // 送るボタンが横に伸びた「採点中」のカプセル(形は液体の層が描く)。場所は送るボタンと同じにする
+                    // (下に「送る」の文字の分を空ける)。押すとぷるんと揺れる。
+                    VStack(spacing: 6) {
+                        Text("採点中")
+                            .font(Typography.sans(size: 13, weight: .bold))
+                            .foregroundStyle(Theme.onAccent)
+                            .frame(width: slotDiameter, height: slotDiameter)
+                            .timelineLiquidSlot()
+                            // カプセルは円より横に広いので、押せる範囲を広げる。
+                            .contentShape(Rectangle().inset(by: -18))
+                            .gesture(tearGesture)
+                            .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: liquid.tearFeedback)
+                        Text("送る").font(Typography.sans(size: 12, weight: .bold)).hidden()
                     }
                 }
+                .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("timeline-grading")
             case .result:
                 if let card = store.current {
@@ -731,7 +827,9 @@ struct LearningTimelineView: View {
                     if showsExplain(card) {
                         TimelineActionButton(symbol: TimelineSymbol.explain, label: "解説", identifier: "timeline-explain") { explain(card) }
                     }
-                    TimelineActionButton(symbol: TimelineSymbol.next, label: "次へ", prominent: true, identifier: "timeline-next") { Task { await store.goNext() } }
+                    // 採点中のカプセルが丸く戻って「次へ」になる(戻りきるまでは、円は液体の層が描く)。
+                    TimelineActionButton(symbol: TimelineSymbol.next, label: "次へ", prominent: true, liquidSlot: true,
+                                         hidesDisc: liquid.isActive, identifier: "timeline-next") { Task { await store.goNext() } }
                 }
             case .rapidDone:
                 TimelineActionButton(symbol: TimelineSymbol.next, label: "次へ", prominent: true, identifier: "timeline-next") { store.finishRapid() }
@@ -746,9 +844,7 @@ struct LearningTimelineView: View {
     private var nextStrip: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                if hasInk, store.phase == .solving || isRapid {
-                    Label("ここを上へ", systemImage: "arrow.up").font(Typography.sans(size: 13, weight: .bold))
-                } else if let next = store.upcoming {
+                if let next = store.upcoming {
                     Label(stripLabel(next), systemImage: stripSymbol(next)).font(Typography.sans(size: 13, weight: .bold))
                 }
                 Spacer()
@@ -774,12 +870,15 @@ struct LearningTimelineView: View {
         }
         .shadow(color: .black.opacity(0.06), radius: 8, y: -2)
         .contentShape(Rectangle())
-        .gesture(swipeUp)
+        // 帯を上に送るのは「次へ」だけ(答えは送るボタンを上に引いて送る。帯で送ると、送る方法が2つになり誤って送りやすい)。
+        .gesture(swipeUp, isEnabled: canAdvance)
         // iPad は書く面が帯の上にも重なるので、帯(ホームインジケータの下の面まで)には指を通す。
         .timelineInkPassThrough(toScreenBottom: true)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("timeline-next-strip")
-        .accessibilityAction(named: "次へ") { Task { await advance() } }
+        .accessibilityActions {
+            if canAdvance { Button("次へ") { Task { await advance() } } }
+        }
     }
 
     private var isRapid: Bool { if case .rapid = store.phase { true } else { false } }
@@ -825,15 +924,18 @@ struct LearningTimelineView: View {
 
     // MARK: 動作
 
+    /// 帯を上に送って次の問題へ進める時(結果の後だけ)。
+    private var canAdvance: Bool {
+        switch store.phase {
+        case .result, .rapidDone: true
+        default: false
+        }
+    }
+
     private func advance() async {
         switch store.phase {
-        case .solving:
-            // 書いている間は、下の帯を上に送ったら書いたものを送る(紙に切り替えた人は飛ばす)。
-            if hasInk { sendInk() } else { await store.skip() }
         case .result:
             await store.goNext()
-        case .rapid:
-            if hasInk { sendRapid() }
         case .rapidDone:
             store.finishRapid()
         default:
@@ -841,9 +943,38 @@ struct LearningTimelineView: View {
         }
     }
 
-    private func sendInk() {
-        guard let answer = ink.answer() else { return }
+    private var askPullButton: some View {
+        TimelinePullButton(pullOut: pullOut, kind: .ask, symbol: TimelineSymbol.ask, label: "質問", identifier: "timeline-ask")
+    }
+
+    private func cameraPullButton(prominent: Bool) -> some View {
+        TimelinePullButton(pullOut: pullOut, kind: .camera, symbol: TimelineSymbol.camera, label: "撮る", prominent: prominent,
+                           identifier: "timeline-capture")
+    }
+
+    /// 採点中のカプセルの遊び: つまんで引っぱると、しずくが伸びてちぎれる(何度でも)。ちぎったかけらは投げられ、
+    /// 結果が出たら消える。押すだけならぷるんと揺れる。
+    private var tearGesture: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(TimelineLiquidSpace.name))
+            .onChanged { value in
+                guard isTugging || hypot(value.translation.width, value.translation.height) > 6 else { return }
+                isTugging = true
+                liquid.tug(at: value.location)
+            }
+            .onEnded { value in
+                if isTugging { liquid.letGo(velocity: value.velocity) } else { liquid.poke() }
+                isTugging = false
+            }
+    }
+
+    /// 送るボタン・採点中・次へ の円の直径(iPad の「送る」は 64pt)。
+    private var slotDiameter: CGFloat { layout.isPad ? TimelineLayout.sendDiameter : 72 }
+
+    @discardableResult
+    private func sendInk() -> Bool {
+        guard let answer = ink.answer() else { return false }
         Task { await store.submit(image: answer.data, ink: answer) }
+        return true
     }
 
     private func sendRapid() {
@@ -890,9 +1021,16 @@ struct LearningTimelineView: View {
     }
 
     private func ask(_ card: TimelineCardRecord) {
-        coordinator.ask(WorkbookQuestionContext(subunitId: card.subunitId, setId: nil, title: "タイムライン", stageLabel: nil,
-                                                initialDraft: nil, attachedProblem: problemText(card)))
+        coordinator.ask(questionContext(card))
     }
+
+    private func questionContext(_ card: TimelineCardRecord) -> WorkbookQuestionContext {
+        WorkbookQuestionContext(subunitId: card.subunitId, setId: nil, title: "タイムライン", stageLabel: nil,
+                                initialDraft: nil, attachedProblem: problemText(card))
+    }
+
+    /// 質問・撮る・単元のチップを、引っぱって開く(質問の画面は AppRootView も使うので、店に置く)。
+    private var pullOut: TimelinePullOut { store.pullOut }
 
     private func askWithHistory(_ card: TimelineCardRecord) {
         coordinator.ask(WorkbookQuestionContext(subunitId: card.subunitId, setId: nil, title: "タイムライン", stageLabel: nil,
