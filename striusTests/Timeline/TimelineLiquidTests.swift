@@ -226,3 +226,32 @@ final class TimelinePullOutSettleTests: XCTestCase {
         XCTAssertNil(pullOut.active, "ボタンが消えると、閉じきらずに残った")
     }
 }
+
+/// 開ききった単元の一覧・質問は、途中の大きさで止まらない(Codex のレビューの指摘)。
+final class TimelinePullOutRestTests: XCTestCase {
+    @MainActor
+    private func openedFrame(reduceMotion: Bool) async throws -> TimelinePullOut.Frame? {
+        let pullOut = TimelinePullOut()
+        pullOut.reduceMotion = reduceMotion
+        pullOut.origins = [.ask: CGRect(x: 320, y: 600, width: 52, height: 52)]
+        pullOut.targets = TimelinePullTargets.targets(bounds: CGRect(x: 0, y: 0, width: 402, height: 874), safeTop: 62, isPad: false,
+                                                      displayCorner: 55, chip: nil)
+        pullOut.open(.ask)
+        for _ in 0..<150 where !pullOut.isOpen { try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertTrue(pullOut.isOpen)
+        return pullOut.frame(at: Date())
+    }
+
+    @MainActor
+    func testOpenRestsAtFullSize() async throws {
+        let frame = try await openedFrame(reduceMotion: false)
+        XCTAssertEqual(frame?.progress ?? 0, 1, accuracy: 0.001)
+        XCTAssertEqual(frame?.body.rect.minY ?? 0, 62, accuracy: 0.5)
+    }
+
+    @MainActor
+    func testOpenWithReduceMotionRestsAtFullSize() async throws {
+        let frame = try await openedFrame(reduceMotion: true)
+        XCTAssertEqual(frame?.progress ?? 0, 1, accuracy: 0.001)
+    }
+}

@@ -186,6 +186,9 @@ final class TimelinePullOut {
         openedKind = kind
         openRequest += 1
         guard kind == .camera else {
+            // 開ききった形で止める(待つのは 96% までなので、残りをここで埋める。動きを減らす設定では待たずにここへ来る)。
+            // 止まっている間は描き直さないので、止める前に最後の形にしておく。
+            lead.hold(1); trail.hold(1)
             isOpen = true
             return
         }
