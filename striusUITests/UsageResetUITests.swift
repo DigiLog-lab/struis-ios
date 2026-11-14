@@ -50,6 +50,12 @@ final class UsageResetUITests: XCTestCase {
         app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", "今週の使用量 \(percent)%。")).firstMatch
     }
 
+    /// 「プラン」の欄のプラン名(買う前は「プランなし」、無料体験中は「ライト（無料体験中・M月d日まで）」)。
+    @MainActor
+    private func planName(_ app: XCUIApplication, _ label: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "identifier == %@ AND label BEGINSWITH %@", "usage-plan-name", label)).firstMatch
+    }
+
     @MainActor
     private func tap(_ app: XCUIApplication, _ identifier: String, timeout: TimeInterval = 15) {
         let element = app.descendants(matching: .any)[identifier].firstMatch
@@ -84,7 +90,7 @@ final class UsageResetUITests: XCTestCase {
         // お試しの枠($0.25)とカード 1 枚分を超えた $0.40 を、課金前の週(月曜 0:00 区切り)に使った状態。
         let app = launchUsageScreen(seedPrefix: "usage.week.", seedUSD: 0.40)
         XCTAssertTrue(gauge(app, percent: 100).appears(timeout: 15), "お試しの枠を使い切った状態から始まらない")
-        XCTAssertTrue(app.staticTexts["お試し"].firstMatch.exists)
+        XCTAssertTrue(planName(app, "プランなし").exists, "買う前のプラン名が「プランなし」でない")
         attach(app, "trial-exhausted")
 
         tap(app, "usage-change-plan")
@@ -93,7 +99,8 @@ final class UsageResetUITests: XCTestCase {
 
         XCTAssertTrue(app.descendants(matching: .any)["paywall"].firstMatch.waitForNonExistence(timeout: 30), "購入画面が閉じない")
         XCTAssertTrue(gauge(app, percent: 0).appears(timeout: 30), "購入しても 0% に戻らない")
-        XCTAssertTrue(app.staticTexts["ライト"].firstMatch.appears(timeout: 10), "プランがライトにならない")
+        // 初めての購入なので、ライトの無料体験(1週間)から始まる。
+        XCTAssertTrue(planName(app, "ライト（無料体験中・").appears(timeout: 10), "プランがライトの無料体験にならない")
         attach(app, "after-purchase")
     }
 
@@ -104,7 +111,7 @@ final class UsageResetUITests: XCTestCase {
         // ライトの期間(取引 ID の期間)に、ライトの上限 $0.80 とカード 1 枚分を超えた $0.90 を使った状態。
         let app = launchUsageScreen(seedPrefix: "usage.period.\(light.id).", seedUSD: 0.90)
         XCTAssertTrue(gauge(app, percent: 100).appears(timeout: 30), "ライトを使い切った状態から始まらない")
-        XCTAssertTrue(app.staticTexts["ライト"].firstMatch.exists)
+        XCTAssertTrue(planName(app, "ライト（無料体験中・").appears(timeout: 10), "プランがライトの無料体験にならない")
         attach(app, "light-exhausted")
 
         tap(app, "usage-change-plan")
@@ -114,7 +121,8 @@ final class UsageResetUITests: XCTestCase {
 
         XCTAssertTrue(app.descendants(matching: .any)["paywall"].firstMatch.waitForNonExistence(timeout: 30), "購入画面が閉じない")
         XCTAssertTrue(gauge(app, percent: 0).appears(timeout: 30), "上げても 0% に戻らない")
-        XCTAssertTrue(app.staticTexts["スタンダード"].firstMatch.appears(timeout: 10), "プランがスタンダードにならない")
+        XCTAssertTrue(planName(app, "スタンダード").appears(timeout: 10), "プランがスタンダードにならない")
+        XCTAssertEqual(planName(app, "スタンダード").label, "スタンダード", "上げた後は無料体験ではない")
         attach(app, "after-upgrade")
     }
 }

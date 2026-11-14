@@ -2,6 +2,8 @@ import SwiftUI
 
 /// プランの購入(#40 の 7、#62)。3 プランは機能の差がなく、1 週間に使える量だけが違う。iPad は 3 プランを横に並べる。
 /// オンボーディング(お試しの後・計画の前)と、設定の「プランを変える」・使い切った時のシートから開く。
+/// 無料体験(ライトだけ・1 週間)の対象の人には、ライトのカードの値段の下と、ライトを選んでいる時の購入ボタンの下に出す。
+/// 無料は値段より目立たせない(App Review 3.1.2(c))。購入ボタンの文言は無料体験があっても変えない。
 struct OnboardingPaywallView: View {
     let store: SubscriptionStore
     let isPad: Bool
@@ -35,6 +37,13 @@ struct OnboardingPaywallView: View {
             OnboardingPrimaryButton(title: store.purchasing == nil ? "\(selection.displayName)\(onClose == nil ? "で始める" : "にする")" : "購入しています",
                                     isEnabled: store.purchasing == nil && !(onClose != nil && store.plan == selection), identifier: "paywall-purchase") {
                 Task { if await store.purchase(selection) { onPurchased() } }
+            }
+            if let trial: FreeTrialOffer = store.freeTrial(for: selection) {
+                Text(trial.noticeText)
+                    .font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.primaryText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("paywall-free-trial-notice")
             }
             Text("毎月自動で更新されます。解約は設定の「利用枠」からできます。更新日の24時間前までに解約すると次の請求はなく、今の期間の終わりまで使えます。")
                 .font(Typography.sans(size: 11, weight: .medium)).foregroundStyle(Theme.secondaryText)
@@ -75,6 +84,8 @@ struct OnboardingPaywallView: View {
         .task {
             selection = initial ?? store.plan?.upgrade ?? store.plan ?? .light
             await store.loadProducts()
+            // 別の端末で無料体験を使った後などに、対象外の人へ無料の文言を出さないよう、開くたびに確かめ直す。
+            await store.refreshFreeTrialEligibility()
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("paywall")
@@ -92,7 +103,10 @@ struct OnboardingPaywallView: View {
                 if isPad {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(plan.displayName).font(Typography.sans(size: 16, weight: .bold)).foregroundStyle(Theme.primaryText)
-                        price(plan, size: 24)
+                        VStack(alignment: .leading, spacing: 2) {
+                            price(plan, size: 24)
+                            freeTrialBadge(plan)
+                        }
                         Text(subtitle(plan)).font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 0)
@@ -110,7 +124,10 @@ struct OnboardingPaywallView: View {
                                 .lineLimit(1).minimumScaleFactor(0.8)
                         }
                         Spacer(minLength: 2)
-                        price(plan, size: 17)
+                        VStack(alignment: .trailing, spacing: 2) {
+                            price(plan, size: 17)
+                            freeTrialBadge(plan)
+                        }
                     }
                 }
             }
@@ -125,6 +142,17 @@ struct OnboardingPaywallView: View {
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
         .accessibilityIdentifier("paywall-plan-\(plan.rawValue)")
+    }
+
+    /// 無料体験の対象の人だけ、値段の下に小さく「最初の1週間は無料」。値段より小さく、色も控えめにする。
+    @ViewBuilder
+    private func freeTrialBadge(_ plan: UsagePlan) -> some View {
+        if let trial: FreeTrialOffer = store.freeTrial(for: plan) {
+            Text(trial.badgeText)
+                .font(Typography.sans(size: 11, weight: .medium)).foregroundStyle(Theme.secondaryText)
+                .lineLimit(1)
+                .accessibilityIdentifier("paywall-free-trial-\(plan.rawValue)")
+        }
     }
 
     private func price(_ plan: UsagePlan, size: CGFloat) -> some View {
