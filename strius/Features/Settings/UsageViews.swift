@@ -34,6 +34,17 @@ final class UsageStatus {
         formatter.dateFormat = "M月d日（E）"
         return formatter.string(from: date)
     }
+
+    /// 設定の「利用枠」のプラン名。買う前は「プランなし」、無料体験中は「ライト（無料体験中・11月21日まで）」。
+    /// オンボーディングの「お試しの3問」はプランではないので、ここでは「お試し」と呼ばない。
+    nonisolated static func planTitle(_ plan: UsagePlan?, freeTrialEndsAt: Date?) -> String {
+        guard let plan else { return "プランなし" }
+        guard let freeTrialEndsAt else { return plan.displayName }
+        let formatter: DateFormatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ja_JP")
+        formatter.dateFormat = "M月d日"
+        return "\(plan.displayName)（無料体験中・\(formatter.string(from: freeTrialEndsAt))まで）"
+    }
 }
 
 /// 使用率のバー。
@@ -128,9 +139,11 @@ struct UsageSettingsView: View {
         return SettingsSection(header: "プラン") {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(plan?.displayName ?? "お試し")
+                    Text(UsageStatus.planTitle(plan, freeTrialEndsAt: subscriptions.freeTrialEndsAt))
                         .font(Typography.title)
                         .foregroundStyle(Theme.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("usage-plan-name")
                     if isCancelled {
                         Text("解約済み・次の請求はありません")
                             .font(Typography.caption)

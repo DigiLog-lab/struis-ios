@@ -47,13 +47,19 @@ final class SubscriptionStoreTests: XCTestCase {
     }
 
     /// アプリを入れた直後の状態(UserDefaults は空。Keychain と iCloud は `local`・`cloud` を引き継ぐ)。
-    private func install() -> (store: SubscriptionStore, meter: UsageMeter) {
+    /// `appStoreSaysEligible`: App Store の「無料体験の対象か」の答えを差し替える(nil なら StoreKit Testing の答え)。
+    /// StoreKit Testing の答えは、購入の後もすぐには変わらないことがある(マージキューの検証で、購入の後も対象のまま返った)。
+    private func install(appStoreSaysEligible: Bool? = nil) -> (store: SubscriptionStore, meter: UsageMeter) {
         let defaults = UserDefaults(suiteName: "subscription-tests-\(UUID().uuidString)")!
         let clock = clock!
         let meter = UsageMeter(values: MirroredValues(local: local, cloud: cloud), defaults: defaults, now: { clock.date })
         let session = session!
         let options = purchaseOptions
-        let store = SubscriptionStore(meter: meter, purchaseOptions: { options }) { product, options in
+        let eligibility: SubscriptionStore.IntroEligibility = { (subscription: Product.SubscriptionInfo) async -> Bool in
+            if let appStoreSaysEligible { return appStoreSaysEligible }
+            return await subscription.isEligibleForIntroOffer
+        }
+        let store = SubscriptionStore(meter: meter, purchaseOptions: { options }, purchase: { product, options in
             if session.failTransactionsEnabled { throw StoreKitError.unknown }
             let transaction = try await session.buyProduct(identifier: product.id, options: options)
             // `product.purchase()` は契約の状態に出てから返る。`buyProduct` は少し遅れて出るので、出るまで待つ
@@ -68,7 +74,7 @@ final class SubscriptionStoreTests: XCTestCase {
                 try await Task.sleep(for: .milliseconds(200))
             }
             return .success(.verified(transaction))
-        }
+        }, introEligibility: eligibility)
         return (store, meter)
     }
 
@@ -120,9 +126,90 @@ final class SubscriptionStoreTests: XCTestCase {
         for plan in UsagePlan.allCases {
             let product = try XCTUnwrap(store.products[plan], plan.displayName)
             XCTAssertEqual(product.subscription?.subscriptionGroupID, Self.groupID)
-            XCTAssertNil(product.subscription?.introductoryOffer, "App Store の無料トライアルは付けない")
             XCTAssertEqual(product.displayPrice, plan.priceText, "購入画面に出す価格")
         }
+    }
+
+    // MARK: - 無料体験(ライトだけ・1週間)
+    //
+    // 「対象か」は App Store(ここでは StoreKit Testing)の答えで、購入の後や `clearTransactions` の後もすぐには変わらない
+    // ことがある(Dev Box の iPad と、マージキューの検証の iPhone で、2026-11-14)。だからここでは答えを差し替え、
+    // 「対象と答えた時に出す」ことと、App Store が古い答え(対象)を返し続けても、今の契約・無料体験を使った取引から
+    // アプリの側で出さないことを確かめる。実際の StoreKit で対象の人に出ることは、`OnboardingScreenshotUITests/testFreeTrialScreens`
+    // が画面で確かめる。
+
+    func testOnlyLightHasAOneWeekFreeTrialBuiltFromTheProductAndShownWhenEligible() async throws {
+        let (store, _) = install(appStoreSaysEligible: true)
+        await store.loadProducts()
+        let light: FreeTrialOffer = try XCTUnwrap(store.freeTrialOffers[.light], "ライトに無料体験が付いている")
+        XCTAssertEqual(light.trial, FreeTrialOffer.Length(value: 1, unit: .week))
+        XCTAssertEqual(light.renewal, FreeTrialOffer.Length(value: 1, unit: .month))
+        XCTAssertNil(store.freeTrialOffers[.standard], "スタンダードには付けない")
+        XCTAssertNil(store.freeTrialOffers[.generous], "たっぷりには付けない")
+        XCTAssertEqual(light.badgeText, "最初の1週間は無料")
+        XCTAssertEqual(light.noticeText, "1週間無料、その後は月額1,480円で自動更新されます。無料期間中に解約すれば請求はありません。",
+                       "期間と金額は App Store の商品から組む(currency=\(light.currencyCode) display=\(light.displayPrice))")
+
+        XCTAssertFalse(store.isFreeTrialRuledOut, "契約も無料体験の取引も無い")
+        XCTAssertEqual(store.freeTrial(for: .light), light, "対象の人には出す")
+        XCTAssertNil(store.freeTrial(for: .standard))
+        XCTAssertNil(store.freeTrial(for: .generous))
+    }
+
+    func testWhenTheAppStoreSaysNotEligibleNothingIsShown() async throws {
+        let (store, _) = install(appStoreSaysEligible: false)
+        await store.loadProducts()
+        XCTAssertNotNil(store.freeTrialOffers[.light], "商品の無料体験はある")
+        XCTAssertNil(store.freeTrial(for: .light), "App Store が対象外と答えたら出さない")
+    }
+
+    /// App Store が「対象」と答え続ける(古い答えが残っている)一番悪い場合でも、無料体験を使った人には出さない。
+    func testAfterUsingTheFreeTrialItIsNotShownEvenIfTheAppStoreStillSaysEligible() async throws {
+        let (store, _) = install(appStoreSaysEligible: true)
+        await store.loadProducts()
+        XCTAssertNotNil(store.freeTrial(for: .light), "買う前は出す")
+        let purchased: Bool = await store.purchase(.light)
+        XCTAssertTrue(purchased)
+        XCTAssertNil(store.freeTrial(for: .light), "買った直後から出さない(契約の状態が届く前)")
+        try await deliverStatuses(to: store)
+        XCTAssertEqual(store.plan, .light)
+        let endsAt: Date = try XCTUnwrap(store.freeTrialEndsAt, "初めてのライトは無料体験から始まる")
+        let bought: Date = try XCTUnwrap(transaction(for: .light)?.purchaseDate)
+        XCTAssertEqual(endsAt.timeIntervalSince(bought), 7 * 24 * 60 * 60, accuracy: 60, "無料の期間は1週間")
+        XCTAssertTrue(UsageStatus.planTitle(store.plan, freeTrialEndsAt: store.freeTrialEndsAt).hasPrefix("ライト（無料体験中・"))
+        XCTAssertTrue(store.isSubscribedInGroup)
+        XCTAssertTrue(store.hasUsedFreeTrial)
+        XCTAssertNil(store.freeTrial(for: .light), "無料体験中は出さない")
+
+        // 無料の期間のうちに終わらせても、もう一度は出さない。
+        try await deliverStatuses(to: store) { try session.expireSubscription(productIdentifier: UsagePlan.light.productID) }
+        XCTAssertNil(store.plan)
+        XCTAssertNil(store.freeTrialEndsAt)
+        XCTAssertFalse(store.isSubscribedInGroup)
+        XCTAssertNil(store.freeTrial(for: .light), "契約が切れても、無料体験を使った人には出さない")
+
+        // 入れ直した直後: 契約の状態が届く前に購入の画面が開いても、端末の取引の記録から出さない。
+        let (reinstalled, _) = install(appStoreSaysEligible: true)
+        await reinstalled.loadProducts()
+        XCTAssertNotNil(reinstalled.freeTrialOffers[.light], "商品の無料体験はある")
+        XCTAssertTrue(reinstalled.hasUsedFreeTrial, "商品を読んだ時に、無料体験を使った取引を見つける")
+        XCTAssertNil(reinstalled.freeTrial(for: .light), "契約の状態が届く前から出さない")
+        try await deliverStatuses(to: reinstalled)
+        XCTAssertNil(reinstalled.freeTrial(for: .light), "契約の状態が届いた後も出さない")
+    }
+
+    /// 契約中の人は、上げる・下げる・乗り換えでも導入オファーの対象外(Apple の「Implementing introductory offers in your app」)。
+    /// App Store が「対象」と答え続けても、アプリの側で出さない。
+    func testWhileSubscribedToAnotherPlanTheLightFreeTrialIsNotShown() async throws {
+        let (store, _) = install(appStoreSaysEligible: true)
+        await store.loadProducts()
+        _ = await store.purchase(.standard)
+        try await deliverStatuses(to: store)
+        XCTAssertEqual(store.plan, .standard)
+        XCTAssertNil(store.freeTrialEndsAt, "スタンダードは無料体験ではない")
+        XCTAssertTrue(store.isSubscribedInGroup)
+        XCTAssertFalse(store.hasUsedFreeTrial)
+        XCTAssertNil(store.freeTrial(for: .light), "契約中の人には無料の文言を出さない")
     }
 
     // MARK: - 上げる・下げる

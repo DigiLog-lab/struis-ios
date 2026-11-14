@@ -37,7 +37,12 @@
           "familyShareable": false,
           "groupNumber": 3,
           "internalID": "6740000003",
-          "introductoryOffer": null,
+          "introductoryOffer": {
+            "internalID": "6740000013",
+            "numberOfPeriods": 1,
+            "paymentMode": "free",
+            "subscriptionPeriod": "P1W"
+          },
           "localizations": [
             {
               "description": "1週間に約12問が目安",

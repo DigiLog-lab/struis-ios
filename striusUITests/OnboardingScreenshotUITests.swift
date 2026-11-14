@@ -1,3 +1,4 @@
+import StoreKit
 import StoreKitTest
 import XCTest
 
@@ -162,6 +163,75 @@ final class OnboardingScreenshotUITests: XCTestCase {
         XCTAssertTrue(finish.descendants(matching: .any)["timeline-screen"].firstMatch.waitForExistence(timeout: 20))
         Thread.sleep(forTimeInterval: 2)
         attach(finish, "iTimeline")
+    }
+
+    // MARK: - ライトの無料体験(iPhone 縦・iPad 横)
+
+    /// 購入画面(無料体験の対象の人・ライトを選んだ時とスタンダードを選んだ時)→ ライトを買って利用枠(無料体験中)→
+    /// 無料体験のうちに終わらせた後の購入画面(対象外の人)。対象外の状態は StoreKit の設定ファイルの取引で作る(アプリに抜け道を足さない)。
+    @MainActor
+    func testFreeTrialScreens() async throws {
+        let isPad: Bool = UIDevice.current.userInterfaceIdiom == .pad
+        XCUIDevice.shared.orientation = isPad ? .landscapeLeft : .portrait
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let prefix: String = isPad ? "iPad" : "iPhone"
+        let session: SKTestSession = try XCTUnwrap(storeSession)
+        session.resetToDefaultState()
+        session.disableDialogs = true
+        session.clearTransactions()
+
+        // 対象の人: ライトのカードの値段の下と、購入ボタンの下に出る。
+        let eligible: XCUIApplication = launchPaywall()
+        XCTAssertTrue(eligible.descendants(matching: .any)["paywall-free-trial-light"].firstMatch.waitForExistence(timeout: 20), "ライトに無料体験が出ない")
+        let notice: XCUIElement = eligible.descendants(matching: .any)["paywall-free-trial-notice"].firstMatch
+        XCTAssertTrue(notice.waitForExistence(timeout: 5), "購入ボタンの下に無料体験の説明が出ない")
+        XCTAssertEqual(notice.label, "1週間無料、その後は月額1,480円で自動更新されます。無料期間中に解約すれば請求はありません。")
+        XCTAssertFalse(eligible.descendants(matching: .any)["paywall-free-trial-standard"].firstMatch.exists, "スタンダードに無料体験が出る")
+        Thread.sleep(forTimeInterval: 1)
+        attach(eligible, "\(prefix)-paywall-eligible-light")
+        eligible.descendants(matching: .any)["paywall-plan-standard"].firstMatch.tap()
+        XCTAssertTrue(notice.waitForNonExistence(timeout: 5), "スタンダードを選んでも無料体験の説明が残る")
+        Thread.sleep(forTimeInterval: 1)
+        attach(eligible, "\(prefix)-paywall-eligible-standard")
+        eligible.terminate()
+
+        // ライトを買う(初めてなので無料体験)→ 設定の利用枠。
+        let light: Transaction = try await session.buyProduct(identifier: "com.digiloglab.strius.plan.light")
+        let usage: XCUIApplication = XCUIApplication()
+        usage.launchArguments = ["-skip-onboarding"]
+        usage.launchEnvironment = ["STRUIS_DEVICE_TURNS": "mock", "STRUIS_DEVICE_RUNTIME": "0", "STRUIS_AGE_RANGE": "adult", "STRUIS_START_SCREEN": "usage"]
+        usage.launch()
+        let trialName: XCUIElement = usage.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == %@ AND label BEGINSWITH %@", "usage-plan-name", "ライト（無料体験中・")).firstMatch
+        XCTAssertTrue(trialName.waitForExistence(timeout: 30), "利用枠のプラン名が無料体験中にならない")
+        Thread.sleep(forTimeInterval: 1)
+        attach(usage, "\(prefix)-usage-free-trial")
+        usage.terminate()
+
+        // 無料体験のうちに終わらせた人(対象外): 無料の文言を一切出さない。
+        try session.expireSubscription(productIdentifier: light.productID)
+        Thread.sleep(forTimeInterval: 2)
+        let ineligible: XCUIApplication = launchPaywall()
+        let price: XCUIElement = ineligible.descendants(matching: .any)["paywall-price-light"].firstMatch
+        let loaded: XCTNSPredicateExpectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "App Store"), object: price)
+        XCTAssertEqual(XCTWaiter().wait(for: [loaded], timeout: 20), .completed, "App Store の商品が読めない")
+        Thread.sleep(forTimeInterval: 2)
+        XCTAssertFalse(ineligible.descendants(matching: .any)["paywall-free-trial-light"].firstMatch.exists, "対象外の人に無料体験が出る")
+        XCTAssertFalse(ineligible.descendants(matching: .any)["paywall-free-trial-notice"].firstMatch.exists, "対象外の人に無料体験の説明が出る")
+        attach(ineligible, "\(prefix)-paywall-ineligible-light")
+        ineligible.terminate()
+    }
+
+    @MainActor
+    private func launchPaywall() -> XCUIApplication {
+        let app: XCUIApplication = XCUIApplication()
+        app.launchEnvironment = ["STRUIS_DEVICE_TURNS": "mock", "STRUIS_DEVICE_RUNTIME": "0", "STRUIS_AGE_RANGE": "adult", "STRUIS_ONBOARDING_START": "paywall"]
+        app.launch()
+        // オンボーディングの中では、購入画面の識別子が `onboarding-paywall` になるので、ライトの値段で待つ。
+        XCTAssertTrue(app.descendants(matching: .any)["paywall-price-light"].firstMatch.waitForExistence(timeout: 20), "購入画面が出ない")
+        // 前のテストの端末の控え(プラン)が残っていると、上のプランが選ばれた状態で開くので、ライトを選び直す。
+        app.descendants(matching: .any)["paywall-plan-light"].firstMatch.tap()
+        return app
     }
 
     // MARK: - 計画の「確認の1問だけ」(iPad 縦向き)
