@@ -217,10 +217,13 @@ struct AppRootView: View {
         // タイムラインの「質問」を左へ引くと、質問の画面がボタンから出てくる(iPhone は画面全体、iPad は右の欄)。
         // 画面は引き始めた時に作るので、開ききった時には読み込みが済んでいる。
         .overlay {
-            if let question = timeline.pullOut.question {
+            // タップで顔を出すだけの時(中身はまだ作らない)も、形は描く。
+            if timeline.pullOut.active == .ask {
                 TimelinePullPanel(pullOut: timeline.pullOut, kind: .ask, dims: !timelineLayout.isPad) {
-                    TimelineQuestionDrawerContent(context: question) { timeline.pullOut.close(.ask) }
-                        .equatable()
+                    if let question = timeline.pullOut.question {
+                        TimelineQuestionDrawerContent(context: question) { timeline.pullOut.close(.ask) }
+                            .equatable()
+                    }
                 }
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("timeline-question-drawer")

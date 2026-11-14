@@ -171,6 +171,7 @@ final class TimelinePullOut {
         lead.velocity = max(lead.velocity, velocity)
         sequence = Task { [weak self] in
             while let self, !Task.isCancelled {
+                self.advanceIfNotDrawn()
                 if self.trail.value > 0.96 || self.reduceMotion { break }
                 try? await Task.sleep(for: .milliseconds(16))
             }
@@ -208,6 +209,7 @@ final class TimelinePullOut {
         lead.aim(0, stiffness: reduceMotion ? 400 : 220, dampingRatio: z(0.9))
         sequence = Task { [weak self] in
             while let self, !Task.isCancelled {
+                self.advanceIfNotDrawn()
                 if (self.trail.value < 0.02 && self.lead.value < 0.02) || self.reduceMotion { break }
                 try? await Task.sleep(for: .milliseconds(16))
             }
@@ -231,7 +233,8 @@ final class TimelinePullOut {
     private func settleThenIdle() {
         sequence = Task { [weak self] in
             while let self, !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(100))
+                try? await Task.sleep(for: .milliseconds(16))
+                self.advanceIfNotDrawn()
                 if self.lead.isSettled, abs(self.trail.value) < 0.01, self.lead.value < 0.01 {
                     self.finish()
                     return
@@ -270,8 +273,9 @@ final class TimelinePullOut {
     /// 開ききって止まっていて、毎フレーム描き直さなくてよい。
     var isResting: Bool { isOpen && !committing }
 
-    func frame(at date: Date) -> Frame? {
-        guard let kind = active, let origin = origins[kind], let target = targets[kind] else { return nil }
+    /// バネを `date` の時刻まで進める。描く層が無い時(ボタンの場所が分からなくなった時など)も止まらないように、
+    /// 開く・閉じる・戻るのを待つ間は、待つ側からも進める。
+    private func advance(to date: Date) {
         if let last = lastDate {
             let dt = min(1.0 / 30, max(0, date.timeIntervalSince(last)))
             for _ in 0..<3 {
@@ -280,6 +284,22 @@ final class TimelinePullOut {
             }
         }
         lastDate = date
+    }
+
+    /// 描く層がしばらく進めていなければ、ここで進める(待つ側から呼ぶ)。
+    private func advanceIfNotDrawn() {
+        let now = Date()
+        guard let last = lastDate else {
+            lastDate = now
+            return
+        }
+        if now.timeIntervalSince(last) > 0.05 { advance(to: now) }
+    }
+
+    func frame(at date: Date) -> Frame? {
+        guard let kind = active else { return nil }
+        advance(to: date)
+        guard let origin = origins[kind], let target = targets[kind] else { return nil }
         let body = Self.shape(kind, origin: origin, target: target, t: trail.value)
         let tip = kind != .camera && abs(lead.value - trail.value) > 0.01 ? Self.shape(kind, origin: origin, target: target, t: lead.value) : nil
         return Frame(kind: kind, body: body, tip: tip, progress: max(0, min(1, trail.value)), opacity: max(0, min(1, visibility.value)))

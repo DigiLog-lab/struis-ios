@@ -191,3 +191,38 @@ final class TimelinePullOutTests: XCTestCase {
         XCTAssertEqual(t[.scope]?.rect.minY ?? 0, 70, accuracy: 1)
     }
 }
+
+/// 引っぱって開く動きが、描く層が無くても止まらないこと(Codex のレビューの指摘)。
+final class TimelinePullOutSettleTests: XCTestCase {
+    @MainActor
+    private func makePullOut() -> TimelinePullOut {
+        let pullOut = TimelinePullOut()
+        pullOut.origins = [.ask: CGRect(x: 320, y: 600, width: 52, height: 52), .camera: CGRect(x: 310, y: 680, width: 72, height: 72)]
+        pullOut.targets = TimelinePullTargets.targets(bounds: CGRect(x: 0, y: 0, width: 402, height: 874), safeTop: 62, isPad: false,
+                                                      displayCorner: 55, chip: nil)
+        return pullOut
+    }
+
+    @MainActor
+    func testPeekSettlesEvenWhenNothingDrawsIt() async throws {
+        let pullOut = makePullOut()
+        pullOut.peek(.ask)
+        XCTAssertEqual(pullOut.active, .ask)
+        for _ in 0..<150 where pullOut.active != nil { try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertNil(pullOut.active, "タップで顔を出した後、戻りきらずに残った")
+        pullOut.pull(.camera, translation: CGSize(width: -20, height: -30))
+        XCTAssertEqual(pullOut.active, .camera, "質問をタップした後に、撮るを引けない")
+    }
+
+    @MainActor
+    func testClosingFinishesEvenIfTheButtonDisappears() async throws {
+        let pullOut = makePullOut()
+        pullOut.open(.ask)
+        for _ in 0..<150 where !pullOut.isOpen { try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertTrue(pullOut.isOpen)
+        pullOut.origins[.ask] = nil
+        pullOut.close(.ask)
+        for _ in 0..<150 where pullOut.active != nil { try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertNil(pullOut.active, "ボタンが消えると、閉じきらずに残った")
+    }
+}

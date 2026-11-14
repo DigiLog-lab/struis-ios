@@ -155,6 +155,10 @@ struct LearningTimelineView: View {
             pullOut.reduceMotion = reduce
         }
         .onPreferenceChange(TimelinePullOriginKey.self) { origins in
+            // 開いている(閉じている途中の)ものは、ボタンが消えても(iPad で書き始めると質問のボタンが消える)、
+            // 最後の場所へ縮んで戻れるように場所を残す。
+            var origins = origins
+            if let kind = pullOut.active, origins[kind] == nil, let last = pullOut.origins[kind] { origins[kind] = last }
             pullOut.origins = origins
             pullOut.targets = TimelinePullTargets.current(isPad: layout.isPad, chip: origins[.scope])
         }
