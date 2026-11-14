@@ -58,6 +58,29 @@ def label_of(text: str, identifier: str) -> str:
     return ""
 
 
+def frame_of(text: str, identifier: str) -> tuple[float, float, float, float] | None:
+    """要素の木から、identifier の付いた要素の枠(x, y, 幅, 高さ。画面の座標)を取る。"""
+    for line in text.splitlines():
+        if f"identifier: '{identifier}'" in line:
+            found = re.search(r"\{\{(-?[\d.]+), (-?[\d.]+)\}, \{([\d.]+), ([\d.]+)\}\}", line)
+            if found:
+                return tuple(float(v) for v in found.groups())  # type: ignore[return-value]
+    return None
+
+
+def pull(identifier: str, dx: float, dy: float, timeout: float = 10) -> bool:
+    """引っぱって開くボタン(撮る・質問)を引く。タップでは開かない(TimelinePullGesture)。
+    UI テストの drag(by:) と同じく、枠の横の中央・縦の 4 割の点から引く。"""
+    if ui("wait", id=identifier, timeout=timeout) != "exists":
+        return False
+    box = frame_of(tree(), identifier)
+    if box is None:
+        return False
+    x, y, w, h = box
+    sx, sy = x + w * 0.5, y + h * 0.4
+    return ui("drag", x=sx, y=sy, x2=sx + dx, y2=sy + dy) == "ok"
+
+
 def problem() -> dict[str, str]:
     text = tree()
     found = {key: label_of(text, key) for key in PROBLEM_IDS}
@@ -98,7 +121,8 @@ def shot(name: str) -> str:
 def answer(image: str, timeout: float = 600) -> str:
     """答案を撮って採点を待つ。結果(correct/partial/wrong)を返す。"""
     shutil.copyfile(image, WORK / "camera.jpg")
-    if ui("tapid", id="timeline-capture", timeout=10) != "ok":
+    # 「撮る」は引っぱって開く(TimelineUITests.toCamera と同じ向き・長さ)。
+    if not pull("timeline-capture", -150, -260):
         raise SystemExit("「撮る」が無い")
     if ui("tapid", id="chat-camera-shutter", timeout=15) != "ok":
         raise SystemExit("シャッターが出ない")
