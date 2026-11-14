@@ -66,7 +66,7 @@ final class E2EDriverUITests: XCTestCase {
             try? FileManager.default.removeItem(at: cmdURL)
             var result = "ok"
             // Querying a terminated app fails the whole run; report instead.
-            if !["launch", "activate", "quit", "sleep", "home", "screenshot", "alert", "stap"].contains(command.op), app.state == .notRunning {
+            if !["launch", "activate", "quit", "sleep", "home", "screenshot", "alert", "stap", "orient"].contains(command.op), app.state == .notRunning {
                 write("\(command.seq) app not running", to: resultURL)
                 continue
             }
@@ -124,6 +124,27 @@ final class E2EDriverUITests: XCTestCase {
                 let url = dir.appendingPathComponent("tree.txt")
                 write(app.debugDescription, to: url)
                 result = url.path
+            case "orient":
+                // スクショ撮影用: text が landscape なら横向き(ホームボタン側が右)、それ以外は縦向きにする。
+                XCUIDevice.shared.orientation = command.text == "landscape" ? .landscapeLeft : .portrait
+                Thread.sleep(forTimeInterval: 1.5)
+            case "segs":
+                // スクショ撮影用: 「x1 y1 x2 y2;...」(アプリの座標、pt)の線分を順に引く(書く面に字を書く)。
+                for part in (command.text ?? "").split(separator: ";") {
+                    let v = part.split(separator: " ").compactMap { Double($0) }
+                    guard v.count == 4 else { continue }
+                    point(v[0], v[1]).press(forDuration: 0.02, thenDragTo: point(v[2], v[3]), withVelocity: 1500, thenHoldForDuration: 0)
+                }
+            case "dragid":
+                // スクショ撮影用: 要素を (x, y) だけ引く(撮る・質問のように引いて開くもの、上に引いて送る「送る」)。
+                let target = element(command.id ?? "")
+                if target.appears(timeout: command.timeout ?? 5) {
+                    let start = target.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+                    start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: command.x ?? 0, dy: command.y ?? 0)),
+                                withVelocity: XCUIGestureVelocity(command.duration ?? 600), thenHoldForDuration: 0.4)
+                } else {
+                    result = "missing \(command.id ?? "")"
+                }
             case "sleep":
                 Thread.sleep(forTimeInterval: command.duration ?? 1)
             case "quit":
