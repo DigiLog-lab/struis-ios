@@ -135,6 +135,10 @@ final class E2EDriverUITests: XCTestCase {
                     guard v.count == 4 else { continue }
                     point(v[0], v[1]).press(forDuration: 0.02, thenDragTo: point(v[2], v[3]), withVelocity: 1500, thenHoldForDuration: 0)
                 }
+            case "ink":
+                // スクショ撮影用: 「x,y x,y ...;x,y ...」(アプリの座標、pt)の線を、1回の合成イベントでまとめて引く。
+                // 1本ずつ XCUICoordinate で引くと1本に1秒以上かかり、結果に出る解答の秒数が人の書く速さと合わなくなるため。
+                result = Self.synthesizeInk(command.text ?? "", step: command.duration ?? 0.012, app: app)
             case "dragid":
                 // スクショ撮影用: 要素を (x, y) だけ引く(撮る・質問のように引いて開くもの、上に引いて送る「送る」)。
                 let target = element(command.id ?? "")
@@ -155,6 +159,59 @@ final class E2EDriverUITests: XCTestCase {
             }
             write("\(command.seq) \(result)", to: resultURL)
         }
+    }
+
+    /// XCTest の非公開の合成イベント(XCPointerEventPath・XCSynthesizedEventRecord)で、線を続けて引く(撮影用)。
+    @MainActor
+    private static func synthesizeInk(_ text: String, step: Double, app: XCUIApplication) -> String {
+        guard let pathClass = NSClassFromString("XCPointerEventPath"),
+              let recordClass = NSClassFromString("XCSynthesizedEventRecord") else { return "no event classes" }
+        let strokes: [[CGPoint]] = text.split(separator: ";").map { stroke in
+            stroke.split(separator: " ").compactMap { pair -> CGPoint? in
+                let v = pair.split(separator: ",").compactMap { Double($0) }
+                return v.count == 2 ? CGPoint(x: v[0], y: v[1]) : nil
+            }
+        }.filter { $0.count >= 2 }
+        guard !strokes.isEmpty else { return "no strokes" }
+        func method<T>(_ cls: AnyClass, _ name: String, _ type: T.Type) -> (Selector, T)? {
+            let sel = NSSelectorFromString(name)
+            guard let found = class_getInstanceMethod(cls, sel) else { return nil }
+            return (sel, unsafeBitCast(method_getImplementation(found), to: type))
+        }
+        func alloc(_ cls: AnyClass) -> AnyObject? {
+            (cls as AnyObject).perform(NSSelectorFromString("alloc"))?.takeUnretainedValue()
+        }
+        typealias InitTouch = @convention(c) (AnyObject, Selector, CGPoint, Double) -> AnyObject
+        typealias Move = @convention(c) (AnyObject, Selector, CGPoint, Double) -> Void
+        typealias Lift = @convention(c) (AnyObject, Selector, Double) -> Void
+        typealias InitRecord = @convention(c) (AnyObject, Selector, NSString, Int64) -> AnyObject
+        typealias Add = @convention(c) (AnyObject, Selector, AnyObject) -> Void
+        typealias Synth = @convention(c) (AnyObject, Selector, UnsafeMutablePointer<NSError?>?) -> Bool
+        guard let (initTouchSel, initTouch) = method(pathClass, "initForTouchAtPoint:offset:", InitTouch.self),
+              let (moveSel, move) = method(pathClass, "moveToPoint:atOffset:", Move.self),
+              let (liftSel, lift) = method(pathClass, "liftUpAtOffset:", Lift.self),
+              let (initRecordSel, initRecord) = method(recordClass, "initWithName:interfaceOrientation:", InitRecord.self),
+              let (addSel, add) = method(recordClass, "addPointerEventPath:", Add.self),
+              let (synthSel, synth) = method(recordClass, "synthesizeWithError:", Synth.self) else { return "no event methods" }
+        let orientation = (app.value(forKey: "interfaceOrientation") as? Int) ?? 1
+        guard let recordObject = alloc(recordClass) else { return "no record" }
+        let record = initRecord(recordObject, initRecordSel, "ink" as NSString, Int64(orientation))
+        var offset = 0.0
+        for stroke in strokes {
+            guard let pathObject = alloc(pathClass) else { return "no path" }
+            let path = initTouch(pathObject, initTouchSel, stroke[0], offset)
+            for point in stroke.dropFirst() {
+                offset += step
+                move(path, moveSel, point, offset)
+            }
+            offset += step
+            lift(path, liftSel, offset)
+            add(record, addSel, path)
+            offset += step * 3
+        }
+        var error: NSError?
+        let ok = synth(record, synthSel, &error)
+        return ok ? "ok \(strokes.count) strokes \(String(format: "%.1f", offset))s orientation \(orientation)" : "synth failed \(error?.localizedDescription ?? "")"
     }
 
     private func write(_ text: String, to url: URL) {
