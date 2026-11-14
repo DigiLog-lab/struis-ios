@@ -60,4 +60,4 @@ App Store のプレビュー動画は「アプリそのものの画面収録」�
 | `answers/<名前>/` | 答案の写真 |
 | `answer.py` | 手書き風の答案の写真を作る(Claude の環境) |
 | `textbook.py` | 教科書風のページの写真を作る(Claude の環境) |
-| `edit/` | 編集(Claude の環境)。`edit.py` は基本の1本、`variants.py` は4案、`intro.py` は紹介動画(約33秒) |
+| `edit/` | 編集(Claude の環境)。`edit.py` は基本の1本、`variants.py` は4案、`intro.py` は紹介動画(約33秒)、`styles.py` はその編集のテイスト違い4案(A テンポ・B 等身大・C 明るい・D ノート) |
