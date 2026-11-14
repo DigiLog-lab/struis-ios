@@ -563,13 +563,13 @@ struct LearningTimelineView: View {
                 // 使う(Apple Pencil はそのまま書ける。`TimelinePassThroughCanvas.fingerPassThrough`)。
                 // 選んで答えるカード(間違い探し・次の一手 など)も同じ列に置く。前は列をスクロールにせず、問題文が長い時や文字サイズの
                 // 設定が大きい時に、選ぶ行が下の帯の下に隠れて選べなかった(2026-11-14、元の問題文を太字にして高くなったのに合わせて直した)。
-                // 入りきる時はスクロールを止める(仕分けのカードの横に払う指を、列のスクロールが取らないように)。
+                // `scrollDisabled` は使わない。中の並べ替えのカードの List(高さを決めてあり、行が折り返すと中でスクロールする)まで
+                // 止まり、下の手順を並べ替えられなくなる(Codex のレビューの指摘)。入りきる時は `.basedOnSize` で動かない。
                 GeometryReader { proxy in
                     ScrollView {
                         solvingCard(card).frame(minHeight: proxy.size.height, alignment: .top)
                     }
                     .scrollBounceBehavior(.basedOnSize)
-                    .scrollDisabled(!isProblemScrolling)
                     .scrollIndicators(isProblemScrolling ? .visible : .hidden)
                     .scrollPosition($problemScroll)
                     .onScrollGeometryChange(for: Bool.self) { $0.contentSize.height > $0.containerSize.height + 1 } action: { _, value in
