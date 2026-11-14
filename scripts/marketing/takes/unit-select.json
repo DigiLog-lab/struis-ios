@@ -1,0 +1,25 @@
+{
+ "tape": "unit-select",
+ "launch": "-skip-onboarding -workbook-empty",
+ "wait_first": "timeline-guide-create-unit",
+ "actions": [
+  {"do": "hold", "seconds": 1.5},
+  {"do": "tap", "id": "timeline-guide-create-unit"},
+  {"do": "hold", "seconds": 1.5},
+  {"do": "tap", "id": "onboarding-intent-range"},
+  {"do": "hold", "seconds": 1.2},
+  {"do": "tap", "id": "unit-creation-grade-高1"},
+  {"do": "hold", "seconds": 0.8},
+  {"do": "tap", "id": "unit-creation-unit-二次関数"},
+  {"do": "hold", "seconds": 0.8},
+  {"do": "tap", "id": "unit-creation-until-2週間くらい"},
+  {"do": "hold", "seconds": 1.0},
+  {"do": "tap", "id": "unit-creation-plan"},
+  {"do": "wait", "id": "onboarding-plan-start", "timeout": 300},
+  {"do": "hold", "seconds": 4},
+  {"do": "tap", "id": "onboarding-plan-start"},
+  {"do": "hold", "seconds": 8}
+ ],
+ "note": "単元づくり(選ぶ): やる範囲が決まっている → 高1・二次関数・2週間くらい → 計画を作る → はじめる。録音しながら録画する(mode: record)。",
+ "mode": "record"
+}
