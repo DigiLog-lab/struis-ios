@@ -1,0 +1,147 @@
+Command line invocation:
+    /Applications/Xcode_27.1.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project strius.xcodeproj -scheme strius -destination id=ABFA6AF8-EFEF-4CD6-8453-AEAB10014F8F -derivedDataPath /Users/runner/work/_temp/DerivedData "-only-testing:striusUITests/OnboardingScreenshotUITests/testFreeTrialScreens" -resultBundlePath /Users/runner/work/_temp/ipad-2.xcresult
+
+Build settings from configuration file '/Users/runner/work/_temp/devbox/cas.xcconfig':
+    COMPILATION_CACHE_ENABLE_CACHING = YES
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  JWTDecode: https://github.com/auth0/JWTDecode.swift.git @ 3.3.0
+  GRDB: https://github.com/groue/GRDB.swift @ 7.11.1
+  Auth0: https://github.com/auth0/Auth0.swift @ 2.25.0
+  Yams: https://github.com/jpsim/Yams.git @ 5.4.0
+  SwiftMath: https://github.com/mgriebling/SwiftMath @ 1d2c908
+  SimpleKeychain: https://github.com/auth0/SimpleKeychain.git @ 1.3.0
+
+Writing result bundle at path:
+	/Users/runner/work/_temp/ipad-2.xcresult
+
+2026-11-14 16:48:05.338 xcodebuild[59889:166752] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:48:11.192153+0000 striusUITests-Runner[60728:168803] [Default] Running tests...
+2026-11-14 16:48:11.502688+0000 striusUITests-Runner[60728:168803] [UIKit App Config] Update the Info.plist: Launch screens will soon be required.
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-11-14 16:48:20.696.
+Test Suite 'striusUITests.xctest' started at 2026-11-14 16:48:20.697.
+Test Suite 'OnboardingScreenshotUITests' started at 2026-11-14 16:48:20.697.
+Test Case '-[striusUITests.OnboardingScreenshotUITests testFreeTrialScreens]' started.
+    t =     0.03s Start Test at 2026-11-14 16:48:20.723
+    t =     0.17s Set Up
+    t =     1.20s Setting device orientation to Landscape Left
+    t =     1.22s     Device orientation changed to Landscape Left
+    t =     1.49s     Interface orientation changed to Landscape Right
+    t =     2.12s     Wait for com.apple.springboard to idle
+    t =     2.47s Open com.digiloglab.strius
+    t =     2.47s     Launch com.digiloglab.strius
+2026-11-14 16:48:26.289 xcodebuild[59889:166752] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-14 16:48:26.290 xcodebuild[59889:166752] [MT] IDELaunchParametersSnapshot: no debugger version
+objc[60728]: Class UIAccessibilityLoaderWebShared is implemented in both /private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.jEHmyR/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x107d1c398) and /private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.jEHmyR/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x107e54310). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+2026-11-14 16:48:27.196 xcodebuild[59889:166752] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =    28.05s         Setting up automation session
+    t =    37.93s         Wait for com.digiloglab.strius to idle
+    t =    40.84s Waiting 20.0s for "paywall-price-light" Any to exist
+    t =    41.89s     Checking `Expect predicate `existsNoRetry == 1` for object "paywall-price-light" Any`
+    t =    41.89s         Checking existence of `"paywall-price-light" Any`
+    t =    42.54s Tap "paywall-plan-light" Any
+    t =    42.54s     Wait for com.digiloglab.strius to idle
+    t =    42.58s     Find the "paywall-plan-light" Any
+    t =    42.73s     Check for interrupting elements affecting "paywall-plan-light" Button
+    t =    42.88s         Wait for com.apple.springboard to idle
+    t =    42.99s     Synthesize event
+    t =    43.66s     Wait for com.digiloglab.strius to idle
+    t =    43.68s Waiting 20.0s for "paywall-free-trial-light" Any to exist
+    t =    44.70s     Checking `Expect predicate `existsNoRetry == 1` for object "paywall-free-trial-light" Any`
+    t =    44.70s         Checking existence of `"paywall-free-trial-light" Any`
+    t =    44.82s Waiting 5.0s for "paywall-free-trial-notice" Any to exist
+    t =    45.88s     Checking `Expect predicate `existsNoRetry == 1` for object "paywall-free-trial-notice" Any`
+    t =    45.88s         Checking existence of `"paywall-free-trial-notice" Any`
+    t =    45.93s Find the "paywall-free-trial-notice" Any
+    t =    45.97s Checking existence of `"paywall-free-trial-standard" Any`
+    t =    47.47s Added attachment named 'iPad-paywall-eligible-light'
+    t =    47.47s Tap "paywall-plan-standard" Any
+    t =    47.47s     Wait for com.digiloglab.strius to idle
+    t =    47.48s     Find the "paywall-plan-standard" Any
+    t =    47.57s     Check for interrupting elements affecting "paywall-plan-standard" Button
+    t =    47.63s         Wait for com.apple.springboard to idle
+    t =    47.78s     Synthesize event
+    t =    48.12s     Wait for com.digiloglab.strius to idle
+    t =    48.13s Waiting 5.0s for "paywall-free-trial-notice" StaticText to not exist
+    t =    49.22s     Checking `Expect predicate `existsNoRetry == 0` for object "paywall-free-trial-notice" StaticText`
+    t =    49.23s         Checking existence of `"paywall-free-trial-notice" StaticText`
+    t =    50.64s Added attachment named 'iPad-paywall-eligible-standard'
+    t =    50.64s Terminate com.digiloglab.strius:61768
+2026-11-14 16:49:11.546 xcodebuild[59889:166752] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:49:11.563 xcodebuild[59889:166752] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:49:12.101 xcodebuild[59889:166752] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =    51.79s Open com.digiloglab.strius
+    t =    51.79s     Launch com.digiloglab.strius
+2026-11-14 16:49:12.612 xcodebuild[59889:166752] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-14 16:49:12.612 xcodebuild[59889:166752] [MT] IDELaunchParametersSnapshot: no debugger version
+2026-11-14 16:49:12.851 xcodebuild[59889:166752] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =    53.12s         Setting up automation session
+    t =    63.19s         Wait for com.digiloglab.strius to idle
+    t =    68.27s Waiting 30.0s for Any (First Match) to exist
+    t =    69.35s     Checking `Expect predicate `existsNoRetry == 1` for object Any (First Match)`
+    t =    69.35s         Checking existence of `Any (First Match)`
+    t =    73.37s Added attachment named 'iPad-usage-free-trial'
+    t =    73.38s Terminate com.digiloglab.strius:62193
+2026-11-14 16:49:34.161 xcodebuild[59889:166752] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:49:34.162 xcodebuild[59889:166752] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:49:34.165 xcodebuild[59889:166752] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =    77.50s Open com.digiloglab.strius
+    t =    77.50s     Launch com.digiloglab.strius
+2026-11-14 16:49:38.269 xcodebuild[59889:166752] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-14 16:49:38.269 xcodebuild[59889:166752] [MT] IDELaunchParametersSnapshot: no debugger version
+2026-11-14 16:49:38.353 xcodebuild[59889:166752] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =    79.15s         Setting up automation session
+    t =    87.34s         Wait for com.digiloglab.strius to idle
+    t =    89.55s Waiting 20.0s for "paywall-price-light" Any to exist
+    t =    90.62s     Checking `Expect predicate `existsNoRetry == 1` for object "paywall-price-light" Any`
+    t =    90.62s         Checking existence of `"paywall-price-light" Any`
+    t =    90.87s Tap "paywall-plan-light" Any
+    t =    90.87s     Wait for com.digiloglab.strius to idle
+    t =    90.90s     Find the "paywall-plan-light" Any
+    t =    90.98s     Check for interrupting elements affecting "paywall-plan-light" Button
+    t =    91.09s         Wait for com.apple.springboard to idle
+    t =    91.17s     Synthesize event
+    t =    91.65s     Wait for com.digiloglab.strius to idle
+    t =    92.72s Checking `Expect predicate `value == "App Store"` for object "paywall-price-light" Any`
+    t =    92.72s     Find the "paywall-price-light" Any
+    t =    94.82s Checking existence of `"paywall-free-trial-light" Any`
+    t =    94.95s Checking existence of `"paywall-free-trial-notice" Any`
+    t =    95.42s Added attachment named 'iPad-paywall-ineligible-light'
+    t =    95.42s Terminate com.digiloglab.strius:62941
+2026-11-14 16:49:56.183 xcodebuild[59889:166752] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:49:56.193 xcodebuild[59889:166752] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:49:56.202 xcodebuild[59889:166752] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =    96.48s Setting device orientation to Portrait
+    t =    96.50s     Device orientation changed to Portrait
+    t =    96.57s     Interface orientation changed to Portrait
+    t =    96.69s     Wait for com.apple.springboard to idle
+    t =    96.70s Tear Down
+UI_DIAGNOSTICS test=OnboardingScreenshotUITests/testFreeTrialScreens max_stall_ms=3870 stalls_over_1s=4 stall_total_ms=12088 launch=init-start@t=36.84s(exec+10279ms),stderr-discarded-null-dt-YES@t=36.84s(exec+10282ms),init-end@t=37.16s(exec+10603ms),root-appear@t=39.14s(exec+12578ms),root-idle@t=39.52s(exec+12954ms),init-start@t=62.19s(exec+10024ms),stderr-discarded-null-dt-YES@t=62.19s(exec+10025ms),init-end@t=62.45s(exec+10281ms),root-appear@t=65.03s(exec+12870ms),root-idle@t=66.21s(exec+14045ms),init-start@t=86.48s(exec+8805ms),stderr-discarded-null-dt-YES@t=86.48s(exec+8806ms),init-end@t=86.63s(exec+8957ms),root-appear@t=88.05s(exec+10378ms),root-idle@t=88.29s(exec+10619ms)
+UI_DIAGNOSTICS_STALL test=OnboardingScreenshotUITests/testFreeTrialScreens t=36.84s ms=2561
+UI_DIAGNOSTICS_STALL test=OnboardingScreenshotUITests/testFreeTrialScreens t=62.19s ms=3870
+UI_DIAGNOSTICS_STALL test=OnboardingScreenshotUITests/testFreeTrialScreens t=68.10s ms=3496
+UI_DIAGNOSTICS_STALL test=OnboardingScreenshotUITests/testFreeTrialScreens t=86.48s ms=1705
+Test Case '-[striusUITests.OnboardingScreenshotUITests testFreeTrialScreens]' passed (97.249 seconds).
+Test Suite 'OnboardingScreenshotUITests' passed at 2026-11-14 16:49:57.977.
+	 Executed 1 test, with 0 failures (0 unexpected) in 97.249 (97.280) seconds
+Test Suite 'striusUITests.xctest' passed at 2026-11-14 16:49:57.978.
+	 Executed 1 test, with 0 failures (0 unexpected) in 97.249 (97.281) seconds
+Test Suite 'Selected tests' passed at 2026-11-14 16:49:57.978.
+	 Executed 1 test, with 0 failures (0 unexpected) in 97.249 (97.282) seconds
+2026-11-14 16:49:58.493 xcodebuild[59889:166752] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:49:58.494 xcodebuild[59889:166752] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:49:58.495 xcodebuild[59889:166752] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:49:58.890 xcodebuild[59889:166752] [MT] IDETestOperationsObserverDebug: 113.846 elapsed -- Testing started completed.
+2026-11-14 16:49:58.890 xcodebuild[59889:166752] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-14 16:49:58.892 xcodebuild[59889:166752] [MT] IDETestOperationsObserverDebug: 113.846 sec, +113.846 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/work/_temp/ipad-2.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started

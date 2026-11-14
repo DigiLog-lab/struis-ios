@@ -1,0 +1,12 @@
+2ab2c6f 無料体験: App Store の「対象か」の答えに頼らず、使った人・契約中の人に出さない
+flow exit 0
+0
+Passed 1 0
+ipad booted
+ipad run 1 exit 65
+7
+Failed 0 1
+XCTAssertEqual failed: ("1週間無料、その後は月額$9.99で自動更新されます。無料期間中に解約すれば請求はありません。") is not equal to ("1週間無料、その後は月額1,480円で自動更新されます。無料期間中に解約すれば請求はありません。")
+ipad run 2 exit 0
+0
+Passed 1 0

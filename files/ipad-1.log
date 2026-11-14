@@ -1,0 +1,119 @@
+Command line invocation:
+    /Applications/Xcode_27.1.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project strius.xcodeproj -scheme strius -destination id=ABFA6AF8-EFEF-4CD6-8453-AEAB10014F8F -derivedDataPath /Users/runner/work/_temp/DerivedData "-only-testing:striusUITests/OnboardingScreenshotUITests/testFreeTrialScreens" -resultBundlePath /Users/runner/work/_temp/ipad-1.xcresult
+
+Build settings from configuration file '/Users/runner/work/_temp/devbox/cas.xcconfig':
+    COMPILATION_CACHE_ENABLE_CACHING = YES
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  SwiftMath: https://github.com/mgriebling/SwiftMath @ 1d2c908
+  Yams: https://github.com/jpsim/Yams.git @ 5.4.0
+  SimpleKeychain: https://github.com/auth0/SimpleKeychain.git @ 1.3.0
+  Auth0: https://github.com/auth0/Auth0.swift @ 2.25.0
+  JWTDecode: https://github.com/auth0/JWTDecode.swift.git @ 3.3.0
+  GRDB: https://github.com/groue/GRDB.swift @ 7.11.1
+
+Writing result bundle at path:
+	/Users/runner/work/_temp/ipad-1.xcresult
+
+2026-11-14 16:43:52.661 xcodebuild[52659:144279] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:44:20.701812+0000 striusUITests-Runner[55168:153150] [Default] Running tests...
+2026-11-14 16:44:20.908481+0000 striusUITests-Runner[55168:153150] [UIKit App Config] Update the Info.plist: Launch screens will soon be required.
+objc[55168]: Class UIAccessibilityLoaderWebShared is implemented in both /private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.jEHmyR/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x102b84398) and /private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.1.434.0.jEHmyR/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x106238310). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-11-14 16:44:40.062.
+Test Suite 'striusUITests.xctest' started at 2026-11-14 16:44:40.070.
+Test Suite 'OnboardingScreenshotUITests' started at 2026-11-14 16:44:40.070.
+Test Case '-[striusUITests.OnboardingScreenshotUITests testFreeTrialScreens]' started.
+    t =     0.01s Start Test at 2026-11-14 16:44:40.077
+    t =     1.07s Set Up
+2026-11-14 16:44:41.315749+0000 striusUITests-Runner[55168:153150] [SKTestSession] Error saving configuration file: Error Domain=SKServiceErrorDomain Code=2 "(null)" UserInfo={NSUnderlyingError=0x105e66f40 {Error Domain=SKInternalErrorDomain Code=4 "(null)"}}
+2026-11-14 16:44:41.328417+0000 striusUITests-Runner[55168:153150] [SKTestSession] Error setting value to 1 for identifier 2 for com.digiloglab.strius: Error Domain=SKServiceErrorDomain Code=2 "(null)" UserInfo={NSUnderlyingError=0x105e67270 {Error Domain=SKInternalErrorDomain Code=4 "(null)"}}
+2026-11-14 16:44:41.334219+0000 striusUITests-Runner[55168:153150] [SKTestSession] Error deleting all transactions: Error Domain=SKServiceErrorDomain Code=2 "(null)" UserInfo={NSUnderlyingError=0x105e672d0 {Error Domain=SKInternalErrorDomain Code=4 "(null)"}}
+    t =     1.28s Setting device orientation to Landscape Left
+    t =     1.32s     Device orientation changed to Landscape Left
+    t =     1.54s     Interface orientation changed to Landscape Right
+    t =     1.82s     Wait for com.apple.springboard to idle
+2026-11-14 16:44:43.291628+0000 striusUITests-Runner[55168:153150] [SKTestSession] Error clearing overrides: Error Domain=SKServiceErrorDomain Code=2 "(null)" UserInfo={NSUnderlyingError=0x105e95ce0 {Error Domain=SKInternalErrorDomain Code=4 "(null)"}}
+2026-11-14 16:44:43.292560+0000 striusUITests-Runner[55168:153150] [SKTestSession] Error setting value to 1 for identifier 2 for com.digiloglab.strius: Error Domain=SKServiceErrorDomain Code=2 "(null)" UserInfo={NSUnderlyingError=0x105e94090 {Error Domain=SKInternalErrorDomain Code=4 "(null)"}}
+2026-11-14 16:44:43.293529+0000 striusUITests-Runner[55168:153150] [SKTestSession] Error deleting all transactions: Error Domain=SKServiceErrorDomain Code=2 "(null)" UserInfo={NSUnderlyingError=0x105e94c90 {Error Domain=SKInternalErrorDomain Code=4 "(null)"}}
+    t =     3.23s Open com.digiloglab.strius
+    t =     3.23s     Launch com.digiloglab.strius
+2026-11-14 16:44:45.732 xcodebuild[52659:144279] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-14 16:44:45.732 xcodebuild[52659:144279] [MT] IDELaunchParametersSnapshot: no debugger version
+2026-11-14 16:44:46.014 xcodebuild[52659:144279] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =    15.60s         Setting up automation session
+    t =    26.35s         Wait for com.digiloglab.strius to idle
+    t =    29.27s Waiting 20.0s for "paywall-price-light" Any to exist
+    t =    30.34s     Checking `Expect predicate `existsNoRetry == 1` for object "paywall-price-light" Any`
+    t =    30.34s         Checking existence of `"paywall-price-light" Any`
+    t =    30.74s Tap "paywall-plan-light" Any
+    t =    30.74s     Wait for com.digiloglab.strius to idle
+    t =    30.88s     Find the "paywall-plan-light" Any
+    t =    30.99s     Check for interrupting elements affecting "paywall-plan-light" Button
+    t =    31.16s         Wait for com.apple.springboard to idle
+    t =    31.27s     Synthesize event
+    t =    31.90s     Wait for com.digiloglab.strius to idle
+    t =    31.93s Waiting 20.0s for "paywall-free-trial-light" Any to exist
+    t =    32.98s     Checking `Expect predicate `existsNoRetry == 1` for object "paywall-free-trial-light" Any`
+    t =    32.98s         Checking existence of `"paywall-free-trial-light" Any`
+    t =    33.08s Waiting 5.0s for "paywall-free-trial-notice" Any to exist
+    t =    34.12s     Checking `Expect predicate `existsNoRetry == 1` for object "paywall-free-trial-notice" Any`
+    t =    34.12s         Checking existence of `"paywall-free-trial-notice" Any`
+    t =    34.16s Find the "paywall-free-trial-notice" Any
+/Users/runner/work/struis-ios/struis-ios/striusUITests/OnboardingScreenshotUITests.swift:188: error: -[striusUITests.OnboardingScreenshotUITests testFreeTrialScreens] : XCTAssertEqual failed: ("1週間無料、その後は月額$9.99で自動更新されます。無料期間中に解約すれば請求はありません。") is not equal to ("1週間無料、その後は月額1,480円で自動更新されます。無料期間中に解約すれば請求はありません。")
+    t =    34.92s Checking existence of `"paywall-free-trial-standard" Any`
+    t =    36.48s Added attachment named 'iPad-paywall-eligible-light'
+    t =    36.48s Tap "paywall-plan-standard" Any
+    t =    36.48s     Wait for com.digiloglab.strius to idle
+    t =    36.49s     Find the "paywall-plan-standard" Any
+    t =    36.55s     Check for interrupting elements affecting "paywall-plan-standard" Button
+    t =    36.60s         Wait for com.apple.springboard to idle
+    t =    36.66s     Synthesize event
+    t =    36.98s     Wait for com.digiloglab.strius to idle
+    t =    37.00s Waiting 5.0s for "paywall-free-trial-notice" StaticText to not exist
+    t =    38.05s     Checking `Expect predicate `existsNoRetry == 0` for object "paywall-free-trial-notice" StaticText`
+    t =    38.05s         Checking existence of `"paywall-free-trial-notice" StaticText`
+    t =    39.61s Added attachment named 'iPad-paywall-eligible-standard'
+    t =    39.61s Terminate com.digiloglab.strius:56374
+2026-11-14 16:45:19.876 xcodebuild[52659:144279] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:45:19.878 xcodebuild[52659:144279] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:45:20.237 xcodebuild[52659:144279] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:45:20.860047+0000 striusUITests-Runner[55168:157666] [Default] Received error that does not have a corresponding StoreKit Error: Error Domain=SKInternalErrorDomain Code=1 "(null)"
+2026-11-14 16:45:20.860655+0000 striusUITests-Runner[55168:157666] [Default] Received error that does not have a corresponding StoreKit Error: Error Domain=SKServiceErrorDomain Code=2 "(null)" UserInfo={NSUnderlyingError=0x102ff3030 {Error Domain=SKInternalErrorDomain Code=1 "(null)"}}
+2026-11-14 16:45:20.879578+0000 striusUITests-Runner[55168:157666] Off-device purchase of com.digiloglab.strius.plan.light failed: Unable to Complete Request
+    t =    40.81s Setting device orientation to Portrait
+    t =    40.83s     Device orientation changed to Portrait
+    t =    40.93s     Interface orientation changed to Portrait
+    t =    41.04s     Wait for com.apple.springboard to idle
+/Users/runner/work/struis-ios/struis-ios/striusUITests/OnboardingScreenshotUITests.swift:199: error: -[striusUITests.OnboardingScreenshotUITests testFreeTrialScreens] : failed: caught error: "unknown"
+    t =    41.56s Tear Down
+UI_DIAGNOSTICS test=OnboardingScreenshotUITests/testFreeTrialScreens max_stall_ms=2472 stalls_over_1s=1 stall_total_ms=2757 launch=init-start@t=25.40s(exec+10582ms),stderr-discarded-null-dt-YES@t=25.40s(exec+10585ms),init-end@t=25.64s(exec+10827ms),root-appear@t=27.66s(exec+12843ms),root-idle@t=28.00s(exec+13185ms)
+UI_DIAGNOSTICS_STALL test=OnboardingScreenshotUITests/testFreeTrialScreens t=25.40s ms=2472
+UI_DIAGNOSTICS_STALL test=OnboardingScreenshotUITests/testFreeTrialScreens t=30.41s ms=285
+Test Case '-[striusUITests.OnboardingScreenshotUITests testFreeTrialScreens]' failed (41.810 seconds).
+Test Suite 'OnboardingScreenshotUITests' failed at 2026-11-14 16:45:21.889.
+	 Executed 1 test, with 2 failures (1 unexpected) in 41.810 (41.819) seconds
+Test Suite 'striusUITests.xctest' failed at 2026-11-14 16:45:21.889.
+	 Executed 1 test, with 2 failures (1 unexpected) in 41.810 (41.820) seconds
+Test Suite 'Selected tests' failed at 2026-11-14 16:45:21.890.
+	 Executed 1 test, with 2 failures (1 unexpected) in 41.810 (41.827) seconds
+2026-11-14 16:45:22.259 xcodebuild[52659:144279] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:45:22.349 xcodebuild[52659:144279] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:45:22.351 xcodebuild[52659:144279] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:47:44.010 xcodebuild[52659:144279] [MT] IDETestOperationsObserverDebug: 232.923 elapsed -- Testing started completed.
+2026-11-14 16:47:44.014 xcodebuild[52659:144279] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-14 16:47:44.015 xcodebuild[52659:144279] [MT] IDETestOperationsObserverDebug: 232.926 sec, +232.926 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/work/_temp/ipad-1.xcresult
+
+Failing tests:
+	OnboardingScreenshotUITests.testFreeTrialScreens()
+	OnboardingScreenshotUITests.testFreeTrialScreens()
+
+** TEST EXECUTE FAILED **
+
+Testing started

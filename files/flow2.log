@@ -1,0 +1,267 @@
+Command line invocation:
+    /Applications/Xcode_27.1.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project strius.xcodeproj -scheme strius -destination id=4AD2086B-7B8F-4608-A742-AA422A0B8D74 -derivedDataPath /Users/runner/work/_temp/DerivedData "-only-testing:striusUITests/OnboardingFlowUITests/testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain" -resultBundlePath /Users/runner/work/_temp/flow2.xcresult
+
+Build settings from configuration file '/Users/runner/work/_temp/devbox/cas.xcconfig':
+    COMPILATION_CACHE_ENABLE_CACHING = YES
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  GRDB: https://github.com/groue/GRDB.swift @ 7.11.1
+  Yams: https://github.com/jpsim/Yams.git @ 5.4.0
+  SwiftMath: https://github.com/mgriebling/SwiftMath @ 1d2c908
+  Auth0: https://github.com/auth0/Auth0.swift @ 2.25.0
+  JWTDecode: https://github.com/auth0/JWTDecode.swift.git @ 3.3.0
+  SimpleKeychain: https://github.com/auth0/SimpleKeychain.git @ 1.3.0
+
+Writing result bundle at path:
+	/Users/runner/work/_temp/flow2.xcresult
+
+2026-11-14 16:37:55.306 xcodebuild[47435:130257] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:37:59.286164+0000 striusUITests-Runner[48704:133375] [Default] Running tests...
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-11-14 16:38:04.571.
+Test Suite 'striusUITests.xctest' started at 2026-11-14 16:38:04.571.
+Test Suite 'OnboardingFlowUITests' started at 2026-11-14 16:38:04.572.
+2026-11-14 16:38:05.692 xcodebuild[47435:130257] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-14 16:38:05.693 xcodebuild[47435:130257] [MT] IDELaunchParametersSnapshot: no debugger version
+Test Case '-[striusUITests.OnboardingFlowUITests testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain]' started.
+    t =     0.01s Start Test at 2026-11-14 16:38:04.578
+    t =     0.05s Set Up
+    t =     0.05s     Setting device orientation to Portrait
+    t =     0.08s         Wait for com.apple.springboard to idle
+    t =     0.27s Open com.digiloglab.strius
+    t =     0.27s     Launch com.digiloglab.strius
+objc[48704]: Class UIAccessibilityLoaderWebShared is implemented in both /private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.2.8117.0.LocGDD/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.2.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x1066f8310) and /private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.2.8117.0.LocGDD/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.2.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x10672c398). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+2026-11-14 16:38:06.167 xcodebuild[47435:130257] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =    12.03s         Setting up automation session
+    t =    16.40s         Wait for com.digiloglab.strius to idle
+    t =    18.21s Checking existence of `Any (First Match)`
+    t =    18.33s Find the "onboarding-grade-next" Any
+    t =    18.38s Tap "中3" Button
+    t =    18.38s     Wait for com.digiloglab.strius to idle
+    t =    18.39s     Find the "中3" Button
+    t =    18.46s     Check for interrupting elements affecting "中3" Button
+    t =    18.51s     Synthesize event
+    t =    18.89s     Wait for com.digiloglab.strius to idle
+    t =    18.89s Checking existence of `"onboarding-grade-next" Any`
+    t =    19.93s Checking `Expect predicate `enabled == 1 AND hittable == 1` for object "onboarding-grade-next" Any`
+    t =    19.93s     Find the "onboarding-grade-next" Any
+    t =    19.95s     Find the "onboarding-grade-next" Button
+    t =    19.98s Tap "onboarding-grade-next" Button
+    t =    19.98s     Wait for com.digiloglab.strius to idle
+    t =    19.98s     Find the "onboarding-grade-next" Button
+    t =    20.00s     Check for interrupting elements affecting "onboarding-grade-next" Button
+    t =    20.03s     Synthesize event
+    t =    20.32s     Wait for com.digiloglab.strius to idle
+    t =    20.32s Checking existence of `Any (First Match)`
+    t =    20.34s Checking existence of `"onboarding-terms-minor" Any`
+    t =    20.39s Checking existence of `"onboarding-terms-accept" Any`
+    t =    21.42s Checking `Expect predicate `enabled == 1 AND hittable == 1` for object "onboarding-terms-accept" Any`
+    t =    21.42s     Find the "onboarding-terms-accept" Any
+    t =    21.43s     Find the "onboarding-terms-accept" Button
+    t =    21.47s Tap "onboarding-terms-accept" Button
+    t =    21.47s     Wait for com.digiloglab.strius to idle
+    t =    21.47s     Find the "onboarding-terms-accept" Button
+    t =    21.48s     Check for interrupting elements affecting "onboarding-terms-accept" Button
+    t =    21.51s     Synthesize event
+    t =    21.80s     Wait for com.digiloglab.strius to idle
+    t =    21.81s Checking existence of `Any (First Match)`
+    t =    21.83s Checking existence of `Any (First Match)`
+    t =    21.85s Checking existence of `"onboarding-consent-accept" Any`
+    t =    22.90s Checking `Expect predicate `enabled == 1 AND hittable == 1` for object "onboarding-consent-accept" Any`
+    t =    22.90s     Find the "onboarding-consent-accept" Any
+    t =    22.92s     Find the "onboarding-consent-accept" Button
+    t =    22.95s Tap "onboarding-consent-accept" Button
+    t =    22.95s     Wait for com.digiloglab.strius to idle
+    t =    22.95s     Find the "onboarding-consent-accept" Button
+    t =    22.97s     Check for interrupting elements affecting "onboarding-consent-accept" Button
+    t =    23.00s     Synthesize event
+    t =    23.29s     Wait for com.digiloglab.strius to idle
+    t =    23.30s Checking existence of `"onboarding-trial-badge" Any`
+    t =    23.32s Find the "onboarding-trial-badge" Any
+    t =    23.33s Find the Target Application 'com.digiloglab.strius'
+    t =    23.47s Added attachment named 'trial'
+    t =    23.47s Checking existence of `"onboarding-trial-capture" Any`
+    t =    24.53s Checking `Expect predicate `enabled == 1 AND hittable == 1` for object "onboarding-trial-capture" Any`
+    t =    24.54s     Find the "onboarding-trial-capture" Any
+    t =    24.56s     Find the "onboarding-trial-capture" Button
+    t =    24.59s Tap "onboarding-trial-capture" Button
+    t =    24.59s     Wait for com.digiloglab.strius to idle
+    t =    24.60s     Find the "onboarding-trial-capture" Button
+    t =    24.62s     Check for interrupting elements affecting "onboarding-trial-capture" Button
+    t =    24.65s     Synthesize event
+    t =    24.94s     Wait for com.digiloglab.strius to idle
+    t =    25.04s Checking existence of `"chat-camera-shutter" Button`
+    t =    26.08s Checking `Expect predicate `enabled == 1` for object "chat-camera-shutter" Button`
+    t =    26.08s     Find the "chat-camera-shutter" Button
+    t =    26.10s Tap "chat-camera-shutter" Button
+    t =    26.10s     Wait for com.digiloglab.strius to idle
+    t =    26.10s     Find the "chat-camera-shutter" Button
+    t =    26.12s     Check for interrupting elements affecting "chat-camera-shutter" Button
+    t =    26.15s     Synthesize event
+    t =    26.45s     Wait for com.digiloglab.strius to idle
+    t =    26.75s Checking existence of `"onboarding-verdict" Any`
+    t =    26.81s Waiting 30.0s for "onboarding-verdict" Any to exist
+    t =    27.82s     Checking `Expect predicate `existsNoRetry == 1` for object "onboarding-verdict" Any`
+    t =    27.82s         Checking existence of `"onboarding-verdict" Any`
+    t =    27.85s Find the "onboarding-verdict" Any
+    t =    27.87s Checking existence of `Any (First Match)`
+    t =    27.88s Find the Target Application 'com.digiloglab.strius'
+    t =    28.01s Added attachment named 'result'
+    t =    28.01s Checking existence of `"onboarding-continue" Any`
+    t =    29.07s Checking `Expect predicate `enabled == 1 AND hittable == 1` for object "onboarding-continue" Any`
+    t =    29.07s     Find the "onboarding-continue" Any
+    t =    29.09s     Find the "onboarding-continue" Button
+    t =    29.12s Tap "onboarding-continue" Button
+    t =    29.12s     Wait for com.digiloglab.strius to idle
+    t =    29.12s     Find the "onboarding-continue" Button
+    t =    29.14s     Check for interrupting elements affecting "onboarding-continue" Button
+    t =    29.17s     Synthesize event
+    t =    29.48s     Wait for com.digiloglab.strius to idle
+    t =    29.49s Checking existence of `"paywall-price-light" Any`
+    t =    30.60s Checking `Expect predicate `label CONTAINS "1,480" AND value == "App Store"` for object "paywall-price-light" Any`
+    t =    30.60s     Find the "paywall-price-light" Any
+    t =    30.66s     Find the "paywall-price-light" StaticText
+    t =    30.71s Find the Target Application 'com.digiloglab.strius'
+    t =    30.88s Added attachment named 'paywall'
+    t =    30.88s Checking existence of `"paywall-purchase" Any`
+    t =    31.93s Checking `Expect predicate `enabled == 1 AND hittable == 1` for object "paywall-purchase" Any`
+    t =    31.93s     Find the "paywall-purchase" Any
+    t =    31.96s     Find the "paywall-purchase" Button
+    t =    32.01s Tap "paywall-purchase" Button
+    t =    32.01s     Wait for com.digiloglab.strius to idle
+    t =    32.01s     Find the "paywall-purchase" Button
+    t =    32.04s     Check for interrupting elements affecting "paywall-purchase" Button
+    t =    32.12s     Synthesize event
+    t =    32.42s     Wait for com.digiloglab.strius to idle
+    t =    32.52s Checking existence of `"onboarding-intent-range" Any`
+    t =    32.56s Checking existence of `"onboarding-intent-range" Any`
+    t =    33.60s Checking `Expect predicate `enabled == 1 AND hittable == 1` for object "onboarding-intent-range" Any`
+    t =    33.60s     Find the "onboarding-intent-range" Any
+    t =    33.65s     Find the "onboarding-intent-range" Button
+    t =    33.71s Tap "onboarding-intent-range" Button
+    t =    33.71s     Wait for com.digiloglab.strius to idle
+    t =    33.72s     Find the "onboarding-intent-range" Button
+    t =    33.75s     Check for interrupting elements affecting "onboarding-intent-range" Button
+    t =    33.80s     Synthesize event
+    t =    34.12s     Wait for com.digiloglab.strius to idle
+    t =    34.13s Tap "二次方程式" Button
+    t =    34.13s     Wait for com.digiloglab.strius to idle
+    t =    34.14s     Find the "二次方程式" Button
+    t =    34.17s     Check for interrupting elements affecting "二次方程式" Button
+    t =    34.21s     Synthesize event
+    t =    34.52s     Wait for com.digiloglab.strius to idle
+    t =    34.53s Checking existence of `"onboarding-unit-next" Any`
+    t =    35.62s Checking `Expect predicate `enabled == 1 AND hittable == 1` for object "onboarding-unit-next" Any`
+    t =    35.62s     Find the "onboarding-unit-next" Any
+    t =    35.65s     Find the "onboarding-unit-next" Button
+    t =    35.70s Tap "onboarding-unit-next" Button
+    t =    35.70s     Wait for com.digiloglab.strius to idle
+    t =    35.71s     Find the "onboarding-unit-next" Button
+    t =    35.73s     Check for interrupting elements affecting "onboarding-unit-next" Button
+    t =    35.77s     Synthesize event
+    t =    36.09s     Wait for com.digiloglab.strius to idle
+    t =    36.10s Tap "2週間くらい" Button
+    t =    36.10s     Wait for com.digiloglab.strius to idle
+    t =    36.10s     Find the "2週間くらい" Button
+    t =    36.13s     Check for interrupting elements affecting "2週間くらい" Button
+    t =    36.15s     Synthesize event
+    t =    36.47s     Wait for com.digiloglab.strius to idle
+    t =    36.48s Checking existence of `"onboarding-material-skip" Any`
+    t =    36.52s Waiting 15.0s for "onboarding-material-skip" Any to exist
+    t =    37.53s     Checking `Expect predicate `existsNoRetry == 1` for object "onboarding-material-skip" Any`
+    t =    37.53s         Checking existence of `"onboarding-material-skip" Any`
+    t =    38.64s Checking `Expect predicate `enabled == 1 AND hittable == 1` for object "onboarding-material-skip" Any`
+    t =    38.64s     Find the "onboarding-material-skip" Any
+    t =    38.67s     Find the "onboarding-material-skip" Button
+    t =    38.72s Tap "onboarding-material-skip" Button
+    t =    38.72s     Wait for com.digiloglab.strius to idle
+    t =    38.73s     Find the "onboarding-material-skip" Button
+    t =    38.77s     Check for interrupting elements affecting "onboarding-material-skip" Button
+    t =    38.83s     Synthesize event
+    t =    39.14s     Wait for com.digiloglab.strius to idle
+    t =    39.14s Checking existence of `"onboarding-plan-start" Any`
+    t =    39.20s Waiting 30.0s for "onboarding-plan-start" Any to exist
+    t =    40.23s     Checking `Expect predicate `existsNoRetry == 1` for object "onboarding-plan-start" Any`
+    t =    40.23s         Checking existence of `"onboarding-plan-start" Any`
+    t =    40.27s Checking existence of `Any (First Match)`
+    t =    40.31s Checking existence of `"onboarding-plan-deadline" Any`
+    t =    40.35s Find the Target Application 'com.digiloglab.strius'
+    t =    40.60s Added attachment named 'plan'
+    t =    40.61s Tap "onboarding-plan-start" Any
+    t =    40.61s     Wait for com.digiloglab.strius to idle
+    t =    40.61s     Find the "onboarding-plan-start" Any
+    t =    40.65s     Check for interrupting elements affecting "onboarding-plan-start" Button
+    t =    40.71s     Synthesize event
+    t =    41.02s     Wait for com.digiloglab.strius to idle
+    t =    41.04s Checking existence of `Any (First Match)`
+    t =    41.06s Checking existence of `"onboarding-notify-next" Any`
+    t =    42.14s Checking `Expect predicate `enabled == 1 AND hittable == 1` for object "onboarding-notify-next" Any`
+    t =    42.14s     Find the "onboarding-notify-next" Any
+    t =    42.17s     Find the "onboarding-notify-next" Button
+    t =    42.22s Tap "onboarding-notify-next" Button
+    t =    42.22s     Wait for com.digiloglab.strius to idle
+    t =    42.22s     Find the "onboarding-notify-next" Button
+    t =    42.24s     Check for interrupting elements affecting "onboarding-notify-next" Button
+    t =    42.29s     Synthesize event
+    t =    42.60s     Wait for com.digiloglab.strius to idle
+    t =    42.63s Checking existence of `"許可" Button`
+    t =    43.15s Checking existence of `"Allow" Button`
+    t =    43.63s Find the "Allow" Button
+    t =    43.89s Tap "Allow" Button
+    t =    43.89s     Wait for com.apple.springboard to idle
+    t =    43.91s     Find the "Allow" Button
+    t =    44.01s     Check for interrupting elements affecting "Allow" Button
+    t =    44.57s     Synthesize event
+    t =    45.03s     Wait for com.apple.springboard to idle
+    t =    45.27s Checking existence of `"timeline-screen" Any`
+    t =    45.94s Checking existence of `"timeline-unit-chip" Any`
+    t =    46.11s Waiting 15.0s for "timeline-unit-chip" Any to exist
+    t =    47.12s     Checking `Expect predicate `existsNoRetry == 1` for object "timeline-unit-chip" Any`
+    t =    47.12s         Checking existence of `"timeline-unit-chip" Any`
+    t =    47.25s Find the "timeline-unit-chip" Any
+    t =    47.34s Checking existence of `Any (First Match)`
+    t =    47.38s Find the Target Application 'com.digiloglab.strius'
+    t =    47.61s Added attachment named 'timeline'
+    t =    47.62s Terminate com.digiloglab.strius:49649
+2026-11-14 16:38:52.765 xcodebuild[47435:130257] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:38:52.776 xcodebuild[47435:130257] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:38:52.790 xcodebuild[47435:130257] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =    48.64s Open com.digiloglab.strius
+    t =    48.64s     Launch com.digiloglab.strius
+2026-11-14 16:38:53.241 xcodebuild[47435:130257] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-14 16:38:53.241 xcodebuild[47435:130257] [MT] IDELaunchParametersSnapshot: no debugger version
+2026-11-14 16:38:53.739 xcodebuild[47435:130257] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =    49.94s         Setting up automation session
+    t =    57.34s         Wait for com.digiloglab.strius to idle
+    t =    59.33s Checking existence of `"timeline-screen" Any`
+    t =    59.40s Checking existence of `Any (First Match)`
+    t =    59.47s Tear Down
+UI_DIAGNOSTICS test=OnboardingFlowUITests/testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain max_stall_ms=1259 stalls_over_1s=2 stall_total_ms=3741 launch=init-start@t=15.84s(exec+4772ms),stderr-discarded-null-dt-YES@t=15.84s(exec+4775ms),init-end@t=15.98s(exec+4915ms),root-appear@t=16.96s(exec+5892ms),root-idle@t=17.05s(exec+5984ms),init-start@t=56.66s(exec+7463ms),stderr-discarded-null-dt-YES@t=56.66s(exec+7464ms),init-end@t=56.81s(exec+7617ms),root-appear@t=57.90s(exec+8704ms),root-idle@t=58.00s(exec+8801ms)
+UI_DIAGNOSTICS_STALL test=OnboardingFlowUITests/testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain t=15.84s ms=1153
+UI_DIAGNOSTICS_STALL test=OnboardingFlowUITests/testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain t=56.66s ms=1259
+Test Case '-[striusUITests.OnboardingFlowUITests testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain]' passed (60.048 seconds).
+Test Suite 'OnboardingFlowUITests' passed at 2026-11-14 16:39:04.629.
+	 Executed 1 test, with 0 failures (0 unexpected) in 60.048 (60.057) seconds
+Test Suite 'striusUITests.xctest' passed at 2026-11-14 16:39:04.629.
+	 Executed 1 test, with 0 failures (0 unexpected) in 60.048 (60.058) seconds
+Test Suite 'Selected tests' passed at 2026-11-14 16:39:04.630.
+	 Executed 1 test, with 0 failures (0 unexpected) in 60.048 (60.059) seconds
+2026-11-14 16:39:04.676 xcodebuild[47435:130257] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:39:04.685 xcodebuild[47435:130257] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:39:04.693 xcodebuild[47435:130257] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:39:04.766 xcodebuild[47435:130257] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:39:04.766 xcodebuild[47435:130257] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:39:04.766 xcodebuild[47435:130257] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:39:05.097 xcodebuild[47435:130257] [MT] IDETestOperationsObserverDebug: 70.044 elapsed -- Testing started completed.
+2026-11-14 16:39:05.097 xcodebuild[47435:130257] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-14 16:39:05.097 xcodebuild[47435:130257] [MT] IDETestOperationsObserverDebug: 70.044 sec, +70.044 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/work/_temp/flow2.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started
