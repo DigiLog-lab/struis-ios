@@ -1,0 +1,13 @@
+
+U=D03256B1-4569-435F-8D92-E2BDD4ED7058
+started
+ok
+ok
+ok
+exists
+1794673689
+ok 94 strokes 9.7s orientation 3
+1794673692
+K2.png
+ok
+K3.png
