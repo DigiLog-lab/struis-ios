@@ -187,30 +187,33 @@ final class E2EDriverUITests: XCTestCase {
         typealias InitRecord = @convention(c) (AnyObject, Selector, NSString, Int64) -> AnyObject
         typealias Add = @convention(c) (AnyObject, Selector, AnyObject) -> Void
         typealias Synth = @convention(c) (AnyObject, Selector, UnsafeMutablePointer<NSError?>?) -> Bool
-        guard let (initTouchSel, initTouch) = method(pathClass, "initForTouchAtPoint:offset:", InitTouch.self),
-              let (moveSel, move) = method(pathClass, "moveToPoint:atOffset:", Move.self),
-              let (liftSel, lift) = method(pathClass, "liftUpAtOffset:", Lift.self),
-              let (initRecordSel, initRecord) = method(recordClass, "initWithName:interfaceOrientation:", InitRecord.self),
-              let (addSel, add) = method(recordClass, "addPointerEventPath:", Add.self),
-              let (synthSel, synth) = method(recordClass, "synthesizeWithError:", Synth.self) else { return "no event methods" }
-        let orientation = (app.value(forKey: "interfaceOrientation") as? Int) ?? 1
+        guard let initTouch = method(pathClass, "initForTouchAtPoint:offset:", InitTouch.self),
+              let move = method(pathClass, "moveToPoint:atOffset:", Move.self),
+              let lift = method(pathClass, "liftUpAtOffset:", Lift.self),
+              let initRecord = method(recordClass, "initWithName:interfaceOrientation:", InitRecord.self),
+              let add = method(recordClass, "addPointerEventPath:", Add.self),
+              let synth = method(recordClass, "synthesizeWithError:", Synth.self) else { return "no event methods" }
+        var orientation = 1
+        if app.responds(to: NSSelectorFromString("interfaceOrientation")), let value = app.value(forKey: "interfaceOrientation") as? Int {
+            orientation = value
+        }
         guard let recordObject = alloc(recordClass) else { return "no record" }
-        let record = initRecord(recordObject, initRecordSel, "ink" as NSString, Int64(orientation))
+        let record = initRecord.1(recordObject, initRecord.0, "ink" as NSString, Int64(orientation))
         var offset = 0.0
         for stroke in strokes {
             guard let pathObject = alloc(pathClass) else { return "no path" }
-            let path = initTouch(pathObject, initTouchSel, stroke[0], offset)
+            let path = initTouch.1(pathObject, initTouch.0, stroke[0], offset)
             for point in stroke.dropFirst() {
                 offset += step
-                move(path, moveSel, point, offset)
+                move.1(path, move.0, point, offset)
             }
             offset += step
-            lift(path, liftSel, offset)
-            add(record, addSel, path)
+            lift.1(path, lift.0, offset)
+            add.1(record, add.0, path)
             offset += step * 3
         }
         var error: NSError?
-        let ok = synth(record, synthSel, &error)
+        let ok = synth.1(record, synth.0, &error)
         return ok ? "ok \(strokes.count) strokes \(String(format: "%.1f", offset))s orientation \(orientation)" : "synth failed \(error?.localizedDescription ?? "")"
     }
 
