@@ -1,0 +1,27 @@
+U=D03256B1-4569-435F-8D92-E2BDD4ED7058
+started
+ok
+ok
+ok
+exists
+ok 94 strokes 9.7s orientation 3
+A2.png
+ok
+A3.png
+started
+ok
+ok
+ok
+exists
+ok 95 strokes 9.8s orientation 3
+B0.png
+ok
+ok
+B4cam.png
+ok
+ok
+exists
+ok 95 strokes 9.8s orientation 3
+scripts/marketing/store/drv.sh: child setpgid (54751 to 54751): Operation not permitted
+ok
+B4send.png
