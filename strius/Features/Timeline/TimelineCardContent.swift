@@ -8,14 +8,29 @@ struct TimelineProblemView: View {
 
     private var chain: (position: Int, total: Int)? { TimelineRules.chainPosition(card) }
 
+    /// 組み替えたカード(間違い探し・次の一手・理由を選ぶ など)の元の問題。`prompt` には「次の一手を選びなさい。」のような
+    /// どの問題でも同じ指示しか入らないので、具体的な中身はこちらにある。並べ替えのように `prompt` に問題文を含めたカードは nil。
+    private var problem: (text: String, math: String)? {
+        guard card.kind != "solve", card.kind != "predict", let problem = card.payload["problem"]?.stringValue, !problem.isEmpty,
+              !card.prompt.contains(problem) else { return nil }
+        return TimelineProblemView.split(problem)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 8 : 16) {
             if !compact { chips }
-            if let problem = card.payload["problem"]?.stringValue, card.kind != "solve", card.kind != "predict" {
-                TimelineRichText(text: problem, size: 15, color: Theme.secondaryText)
+            // 元の問題と指示は、どちらも太字の本文の色で出す。前は元の問題を小さい灰色にしていて、大きい太字の指示
+            // (「2つの点電荷の間に働く力は、引力と斥力のどちらですか。」)を先に読み、どの電荷の話か一瞬分からなかった(2026-11-14)。
+            if let problem {
+                VStack(alignment: .leading, spacing: compact ? 6 : 10) {
+                    if !problem.text.isEmpty { TimelineQuestionText(text: problem.text, size: compact ? 15 : 20) }
+                    if !problem.math.isEmpty { TimelineMath(latex: problem.math, size: compact ? 18 : 26) }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("timeline-problem")
             }
             if !card.prompt.isEmpty {
-                TimelineQuestionText(text: card.prompt, changed: card.chain?["changed"]?.stringValue, size: compact ? 15 : 22)
+                TimelineQuestionText(text: card.prompt, changed: card.chain?["changed"]?.stringValue, size: compact ? 15 : (problem == nil ? 22 : 20))
                     .accessibilityIdentifier("timeline-prompt")
             }
             if !card.math.isEmpty, card.kind == "solve" || card.kind == "predict" {
@@ -67,6 +82,25 @@ struct TimelineProblemView: View {
             Spacer(minLength: 0)
             if let chain { TimelineChainBar(position: chain.position, total: chain.total) }
         }
+    }
+}
+
+extension TimelineProblemView {
+    /// `TimelineCards.problemLine` が作った「問題文 + 半角空白 + `$式$`」を、問題文と式に分ける。式を文の末尾に埋め込んだままだと
+    /// 小さく窮屈になるので、式は問題文の下に1行で出す。末尾が式でなければ、全部を問題文として返す。
+    nonisolated static func split(_ line: String) -> (text: String, math: String) {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasSuffix("$"), !trimmed.hasSuffix("$$") else { return (trimmed, "") }
+        let body = trimmed.dropLast()
+        guard let open = body.lastIndex(of: "$") else { return (trimmed, "") }
+        let math = String(body[body.index(after: open)...]).trimmingCharacters(in: .whitespaces)
+        let text = String(body[..<open])
+        // 文の途中の式(`$x$ の値を…`)ではなく、文の後ろに空白を挟んで足した式だけを分ける。
+        guard !math.isEmpty, text.isEmpty || text.last == " " else { return (trimmed, "") }
+        let rest = text.trimmingCharacters(in: .whitespaces)
+        // 残りの文に開いたままの `$` があれば、分けると式が壊れる。
+        guard rest.filter({ $0 == "$" }).count % 2 == 0 else { return (trimmed, "") }
+        return (rest, math)
     }
 }
 
@@ -229,6 +263,9 @@ struct TimelineResultView: View {
                     .opacity(hidesMark ? 0 : 1)
                     .scaleEffect(hidesMark && !correct ? 0.5 : 1)
                     .animation(correct ? nil : .spring(duration: 0.3, bounce: 0.35), value: hidesMark)
+                    // ○ の線は円の輪郭の上に描くので、太さの半分が枠の外に出る。結果の列(ScrollView)の左端に接していて、
+                    // はみ出た分が切れていた(2026-11-14)。しずくが着く場所は印の枠で測るので、余白はその外に足す。
+                    .padding(.leading, 2)
                 Text(title).font(Typography.sans(size: 24, weight: .bold))
                 Text("\(Int(attempt.seconds.rounded()))秒").font(Typography.sans(size: 15, weight: .medium)).foregroundStyle(Theme.secondaryText)
             }

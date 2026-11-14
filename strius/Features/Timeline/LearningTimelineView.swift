@@ -561,31 +561,28 @@ struct LearningTimelineView: View {
                 // 上の帯がステータスバーの下へ、下の帯が画面の下へ押し出された。文字サイズの設定(Dynamic Type)を大きくした人の
                 // 文字は縮めず、入らない時は列の中をスクロールにする。スクロールしている間は、列の上の指は書く面に渡さずスクロールに
                 // 使う(Apple Pencil はそのまま書ける。`TimelinePassThroughCanvas.fingerPassThrough`)。
-                // 選んで答えるカードは中に状態を持つので、今までどおりに置く。
-                Group {
-                    if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true {
-                        GeometryReader { proxy in
-                            ScrollView {
-                                solvingCard(card).frame(minHeight: proxy.size.height, alignment: .top)
-                            }
-                            .scrollBounceBehavior(.basedOnSize)
-                            .scrollIndicators(isProblemScrolling ? .visible : .hidden)
-                            .scrollPosition($problemScroll)
-                            .onScrollGeometryChange(for: Bool.self) { $0.contentSize.height > $0.containerSize.height + 1 } action: { _, value in
-                                isProblemScrolling = value
-                            }
-                            .onScrollGeometryChange(for: CGSize.self) { geometry in
-                                CGSize(width: geometry.contentOffset.y, height: max(0, geometry.contentSize.height - geometry.containerSize.height))
-                            } action: { _, value in
-                                problemOffset = value.width
-                                problemMaxOffset = value.height
-                            }
-                        }
-                        .timelineInkFingerPassThrough(isEnabled: isProblemScrolling)
-                    } else {
-                        solvingCard(card)
+                // 選んで答えるカード(間違い探し・次の一手 など)も同じ列に置く。前は列をスクロールにせず、問題文が長い時や文字サイズの
+                // 設定が大きい時に、選ぶ行が下の帯の下に隠れて選べなかった(2026-11-14、元の問題文を太字にして高くなったのに合わせて直した)。
+                // `scrollDisabled` は使わない。中の並べ替えのカードの List(高さを決めてあり、行が折り返すと中でスクロールする)まで
+                // 止まり、下の手順を並べ替えられなくなる(Codex のレビューの指摘)。入りきる時は `.basedOnSize` で動かない。
+                GeometryReader { proxy in
+                    ScrollView {
+                        solvingCard(card).frame(minHeight: proxy.size.height, alignment: .top)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .scrollIndicators(isProblemScrolling ? .visible : .hidden)
+                    .scrollPosition($problemScroll)
+                    .onScrollGeometryChange(for: Bool.self) { $0.contentSize.height > $0.containerSize.height + 1 } action: { _, value in
+                        isProblemScrolling = value
+                    }
+                    .onScrollGeometryChange(for: CGSize.self) { geometry in
+                        CGSize(width: geometry.contentOffset.y, height: max(0, geometry.contentSize.height - geometry.containerSize.height))
+                    } action: { _, value in
+                        problemOffset = value.width
+                        problemMaxOffset = value.height
                     }
                 }
+                .timelineInkFingerPassThrough(isEnabled: isProblemScrolling)
                 .overlay {
                     if case .grading = store.phase {
                         Color.clear.contentShape(Rectangle())
@@ -891,6 +888,12 @@ struct LearningTimelineView: View {
         guard let next = store.upcoming else { return store.phase == .waiting ? "用意しています" : "" }
         // 式は数式として描く(LaTeX を文字のまま出さない)。式がある時は式だけ(問いの文まで並べると 1 行に入らず、2 行目が切れる)。
         if next.kind == "solve", !next.math.isEmpty { return "$" + next.math + "$" }
+        // 組み替えたカードの `prompt` は「誰かの答案です。間違っている行を選びなさい。」のような、どの問題でも同じ指示なので、
+        // 帯には元の問題を出す(指示だけでは、次が何の問題か分からなかった。2026-11-14)。
+        if next.kind != "solve", let problem = next.payload["problem"]?.stringValue, !problem.isEmpty,
+           !next.prompt.contains(problem) {
+            return TimelineRichText.source(problem)
+        }
         let text = next.kind == "solve" && !next.question.isEmpty ? next.question : next.prompt
         return TimelineRichText.source(text)
     }

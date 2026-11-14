@@ -795,7 +795,8 @@ final class TimelineInkController {
         }
         guard let data = composed.jpegData(compressionQuality: 0.85), let pixels = composed.cgImage else { return nil }
         let strokes: [[CGPoint]] = drawing.strokes.map { stroke in stroke.path.map { $0.location.applying(stroke.transform) } }
-        return TimelineInkAnswer(data: data, frame: TimelineRedPen.InkFrame(bounds: bounds, pixelWidth: pixels.width, pixelHeight: pixels.height), strokes: strokes)
+        return TimelineInkAnswer(data: data, frame: TimelineRedPen.InkFrame(bounds: bounds, pixelWidth: pixels.width, pixelHeight: pixels.height), strokes: strokes,
+                                 drawing: drawing.dataRepresentation())
     }
 }
 
@@ -823,6 +824,8 @@ nonisolated struct TimelineInkAnswer: Sendable {
     var frame: TimelineRedPen.InkFrame
     /// 線ごとの点(紙の座標)。
     var strokes: [[CGPoint]]
+    /// 書いた線(`PKDrawing.dataRepresentation()`)。結果の画面で、いまの色の設定で描き直すため(送った画像は白地)。
+    var drawing: Data = Data()
 }
 
 /// 赤ペンの位置の計算(2026-10-29)。モデルは依頼に付いた写真の上のピクセルで範囲を返す。アプリはそれを元の画像の
@@ -1433,38 +1436,64 @@ struct TimelineRedPenMark: View {
     }
 }
 
-/// iPhone の結果の画面: 送った手書き(白地の画像)に赤ペンを重ねて出す(結果の画面では書く面を出さないため)。
+/// iPhone と iPad の縦向きの結果の画面: 送った手書きに赤ペンを重ねて出す(結果の画面では書く面を出さないため)。
+/// AI に送った画像は白地にライトモードの色で描いてあるので、画面にはそれを使わず、書いた線をいまの色の設定で描き直す
+/// (前は送った画像をそのまま出していて、ダークモードでも白い紙が出ていた。2026-11-14)。線が無い時だけ送った画像を出す。
 struct TimelineRedPenPaper: View {
     let answer: TimelineInkAnswer
     let marks: [TimelineRedPen.Placed]
 
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.displayScale) private var displayScale
+    /// いまの色の設定で描いた線(透明な地)。色の設定が変わったら描き直す。
+    @State private var ink: UIImage?
+
+    private var image: UIImage? { ink ?? UIImage(data: answer.data) }
+    /// 描き直した線を出しているか(送った白地の画像のままなら、赤ペンも白地の赤にする)。
+    private var isRedrawn: Bool { ink != nil }
+
     var body: some View {
-        if let image = UIImage(data: answer.data) {
-            let bounds = answer.frame.bounds
-            Image(uiImage: image)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.hairline, lineWidth: 1))
-                .overlay(alignment: .topLeading) {
-                    GeometryReader { proxy in
-                        let scale = bounds.width > 0 ? proxy.size.width / bounds.width : 1
-                        ZStack(alignment: .topLeading) {
-                            ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
-                                let rect = CGRect(x: (mark.rect.minX - bounds.minX) * scale, y: (mark.rect.minY - bounds.minY) * scale,
-                                                  width: mark.rect.width * scale, height: mark.rect.height * scale)
-                                TimelineRedPenMark(rect: rect, correction: mark.correction, scale: max(0.6, scale), color: Theme.redPenOnPaper)
+        Group {
+            if let image {
+                let bounds = answer.frame.bounds
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .background(isRedrawn ? Theme.hairline.opacity(0.35) : Color.clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(Theme.hairline, lineWidth: 1))
+                    .overlay(alignment: .topLeading) {
+                        GeometryReader { proxy in
+                            let scale = bounds.width > 0 ? proxy.size.width / bounds.width : 1
+                            ZStack(alignment: .topLeading) {
+                                ForEach(Array(marks.enumerated()), id: \.offset) { _, mark in
+                                    let rect = CGRect(x: (mark.rect.minX - bounds.minX) * scale, y: (mark.rect.minY - bounds.minY) * scale,
+                                                      width: mark.rect.width * scale, height: mark.rect.height * scale)
+                                    TimelineRedPenMark(rect: rect, correction: mark.correction, scale: max(0.6, scale),
+                                                       color: isRedrawn ? Theme.redPen : Theme.redPenOnPaper)
+                                }
                             }
+                            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
                         }
-                        .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+                        .allowsHitTesting(false)
                     }
-                    .allowsHitTesting(false)
-                }
-                // 下の端の印の訂正が、次の行に重ならないように空ける。
-                .padding(.bottom, 32)
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("timeline-red-pen")
+                    // 下の端の印の訂正が、次の行に重ならないように空ける。
+                    .padding(.bottom, 32)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("timeline-red-pen")
+            }
         }
+        .onChange(of: colorScheme, initial: true) { _, scheme in ink = Self.render(answer, dark: scheme == .dark, scale: displayScale) }
+    }
+
+    /// 書いた線を、送った画像と同じ紙の範囲で、透明な地に描く。ダークモードでは PencilKit が黒い線を明るい色にして描く。
+    static func render(_ answer: TimelineInkAnswer, dark: Bool, scale: CGFloat) -> UIImage? {
+        guard !answer.drawing.isEmpty, let drawing = try? PKDrawing(data: answer.drawing), !drawing.strokes.isEmpty else { return nil }
+        var image: UIImage?
+        UITraitCollection(userInterfaceStyle: dark ? .dark : .light).performAsCurrent {
+            image = drawing.image(from: answer.frame.bounds, scale: max(1, scale))
+        }
+        return image
     }
 }
 
