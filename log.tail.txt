@@ -1,0 +1,5 @@
+2ab2c6f 無料体験: App Store の「対象か」の答えに頼らず、使った人・契約中の人に出さない
+build exit 0
+ui exit 65
+Failed 3 1 0
+OnboardingFlowUITests/testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain() XCTAssertEqual failed: ("XCTWaiterResult(rawValue: 2)") is not equal to ("XCTWaiterResult(rawValue: 1)") - App Store の商品が読めない: $9.99, / 月 App Store

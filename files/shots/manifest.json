@@ -1,0 +1,44 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "4AD2086B-7B8F-4608-A742-AA422A0B8D74",
+        "deviceName" : "iPhone 17",
+        "exportedFileName" : "42870665-55D9-47B1-A5B7-106C68F8F7F0.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "iPhone-paywall-ineligible-light_0_30DCA00C-939F-4D13-AF69-E209DEA98C56.png",
+        "timestamp" : 1794674119.333
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "4AD2086B-7B8F-4608-A742-AA422A0B8D74",
+        "deviceName" : "iPhone 17",
+        "exportedFileName" : "10783028-E2F3-400E-870E-EB031B1DCD44.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "iPhone-usage-free-trial_0_B9E9EB96-E87C-4587-86E4-12B6646BD1E2.png",
+        "timestamp" : 1794674102.237
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "4AD2086B-7B8F-4608-A742-AA422A0B8D74",
+        "deviceName" : "iPhone 17",
+        "exportedFileName" : "62F7FE96-1F17-4B55-9392-9FFF19576754.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "iPhone-paywall-eligible-standard_0_48C15671-42FA-4386-AFA7-5EE4947D0C44.png",
+        "timestamp" : 1794674085.625
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "4AD2086B-7B8F-4608-A742-AA422A0B8D74",
+        "deviceName" : "iPhone 17",
+        "exportedFileName" : "2CA33F52-5D7C-42D9-94F3-60A7F7597C84.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "iPhone-paywall-eligible-light_0_52026751-C5E4-4599-B105-7B5B5EE7B6EC.png",
+        "timestamp" : 1794674082.631
+      }
+    ],
+    "testIdentifier" : "OnboardingScreenshotUITests/testFreeTrialScreens()",
+    "testIdentifierURL" : "test://com.apple.xcode/strius/striusUITests/OnboardingScreenshotUITests/testFreeTrialScreens"
+  }
+]

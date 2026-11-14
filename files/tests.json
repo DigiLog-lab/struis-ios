@@ -1,0 +1,106 @@
+{
+  "devices" : [
+    {
+      "architecture" : "arm64",
+      "deviceId" : "4AD2086B-7B8F-4608-A742-AA422A0B8D74",
+      "deviceName" : "iPhone 17",
+      "modelName" : "iPhone 17",
+      "osBuildNumber" : "24B8117",
+      "osVersion" : "27.2",
+      "platform" : "iOS Simulator"
+    }
+  ],
+  "testNodes" : [
+    {
+      "children" : [
+        {
+          "children" : [
+            {
+              "children" : [
+                {
+                  "children" : [
+                    {
+                      "name" : "XCTAssertEqual failed: (\"XCTWaiterResult(rawValue: 2)\") is not equal to (\"XCTWaiterResult(rawValue: 1)\") - App Store の商品が読めない: $9.99, / 月 App Store",
+                      "nodeType" : "Failure Message",
+                      "sourceLocation" : {
+                        "filePath" : "/Users/runner/work/struis-ios/struis-ios/striusUITests/OnboardingFlowUITests.swift",
+                        "lineNumber" : 122
+                      }
+                    }
+                  ],
+                  "duration" : "53s",
+                  "durationInSeconds" : 53.806281089782715,
+                  "name" : "testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain()",
+                  "nodeIdentifier" : "OnboardingFlowUITests/testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/strius/striusUITests/OnboardingFlowUITests/testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain",
+                  "nodeType" : "Test Case",
+                  "result" : "Failed"
+                }
+              ],
+              "name" : "OnboardingFlowUITests",
+              "nodeIdentifierURL" : "test://com.apple.xcode/strius/striusUITests/OnboardingFlowUITests",
+              "nodeType" : "Test Suite",
+              "result" : "Failed"
+            },
+            {
+              "children" : [
+                {
+                  "duration" : "59s",
+                  "durationInSeconds" : 59.79620397090912,
+                  "name" : "testFreeTrialScreens()",
+                  "nodeIdentifier" : "OnboardingScreenshotUITests/testFreeTrialScreens()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/strius/striusUITests/OnboardingScreenshotUITests/testFreeTrialScreens",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "OnboardingScreenshotUITests",
+              "nodeIdentifierURL" : "test://com.apple.xcode/strius/striusUITests/OnboardingScreenshotUITests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            },
+            {
+              "children" : [
+                {
+                  "duration" : "34s",
+                  "durationInSeconds" : 34.6333589553833,
+                  "name" : "testBuyingAPlanAfterTheTrialRunsOutResetsTheGaugeToZero()",
+                  "nodeIdentifier" : "UsageResetUITests/testBuyingAPlanAfterTheTrialRunsOutResetsTheGaugeToZero()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/strius/striusUITests/UsageResetUITests/testBuyingAPlanAfterTheTrialRunsOutResetsTheGaugeToZero",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                },
+                {
+                  "duration" : "40s",
+                  "durationInSeconds" : 40.253543972969055,
+                  "name" : "testUpgradingAfterThePlanRunsOutResetsTheGaugeToZero()",
+                  "nodeIdentifier" : "UsageResetUITests/testUpgradingAfterThePlanRunsOutResetsTheGaugeToZero()",
+                  "nodeIdentifierURL" : "test://com.apple.xcode/strius/striusUITests/UsageResetUITests/testUpgradingAfterThePlanRunsOutResetsTheGaugeToZero",
+                  "nodeType" : "Test Case",
+                  "result" : "Passed"
+                }
+              ],
+              "name" : "UsageResetUITests",
+              "nodeIdentifierURL" : "test://com.apple.xcode/strius/striusUITests/UsageResetUITests",
+              "nodeType" : "Test Suite",
+              "result" : "Passed"
+            }
+          ],
+          "name" : "striusUITests",
+          "nodeIdentifierURL" : "test://com.apple.xcode/strius/striusUITests",
+          "nodeType" : "UI test bundle",
+          "result" : "Failed"
+        }
+      ],
+      "name" : "strius",
+      "nodeType" : "Test Plan",
+      "result" : "Failed"
+    }
+  ],
+  "testPlanConfigurations" : [
+    {
+      "configurationId" : "1",
+      "configurationName" : "Test Scheme Action"
+    }
+  ]
+}

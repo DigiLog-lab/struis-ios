@@ -1,0 +1,597 @@
+Command line invocation:
+    /Applications/Xcode_27.1.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project strius.xcodeproj -scheme strius -destination id=4AD2086B-7B8F-4608-A742-AA422A0B8D74 -derivedDataPath /Users/runner/work/_temp/DerivedData "-only-testing:striusUITests/UsageResetUITests" "-only-testing:striusUITests/OnboardingFlowUITests/testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain" "-only-testing:striusUITests/OnboardingScreenshotUITests/testFreeTrialScreens" -resultBundlePath /Users/runner/work/_temp/ui-iphone.xcresult
+
+Build settings from configuration file '/Users/runner/work/_temp/devbox/cas.xcconfig':
+    COMPILATION_CACHE_ENABLE_CACHING = YES
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  JWTDecode: https://github.com/auth0/JWTDecode.swift.git @ 3.3.0
+  GRDB: https://github.com/groue/GRDB.swift @ 7.11.1
+  Auth0: https://github.com/auth0/Auth0.swift @ 2.25.0
+  Yams: https://github.com/jpsim/Yams.git @ 5.4.0
+  SimpleKeychain: https://github.com/auth0/SimpleKeychain.git @ 1.3.0
+  SwiftMath: https://github.com/mgriebling/SwiftMath @ 1d2c908
+
+Writing result bundle at path:
+	/Users/runner/work/_temp/ui-iphone.xcresult
+
+2026-11-14 16:32:49.918 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:33:12.200517+0000 striusUITests-Runner[38118:106315] [Default] Running tests...
+objc[38118]: Class UIAccessibilityLoaderWebShared is implemented in both /private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.2.8117.0.LocGDD/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.2.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebCore.axbundle/WebCore (0x105878310) and /private/var/run/com.apple.security.cryptexd/mnt/com.apple.iPhoneOS.SimulatorRuntime-v24.2.8117.0.LocGDD/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.2.simruntime/Contents/Resources/RuntimeRoot/System/Library/AccessibilityBundles/WebKit.axbundle/WebKit (0x10582c398). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed.
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-11-14 16:33:26.919.
+Test Suite 'striusUITests.xctest' started at 2026-11-14 16:33:26.923.
+Test Suite 'OnboardingFlowUITests' started at 2026-11-14 16:33:26.923.
+Test Case '-[striusUITests.OnboardingFlowUITests testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain]' started.
+    t =     0.00s Start Test at 2026-11-14 16:33:26.927
+    t =     0.87s Set Up
+    t =     0.88s     Setting device orientation to Portrait
+    t =     0.95s         Device orientation changed to Portrait
+    t =     1.00s         Wait for com.apple.springboard to idle
+2026-11-14 16:33:29.195 xcodebuild[37832:104976] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-14 16:33:29.195 xcodebuild[37832:104976] [MT] IDELaunchParametersSnapshot: no debugger version
+2026-11-14 16:33:28.157594+0000 striusUITests-Runner[38118:106315] [SKTestSession] Error saving configuration file: Error Domain=SKServiceErrorDomain Code=2 "(null)" UserInfo={NSUnderlyingError=0x1056a8cc0 {Error Domain=SKInternalErrorDomain Code=4 "(null)"}}
+2026-11-14 16:33:28.167463+0000 striusUITests-Runner[38118:106315] [SKTestSession] Error setting value to 1 for identifier 2 for com.digiloglab.strius: Error Domain=SKServiceErrorDomain Code=2 "(null)" UserInfo={NSUnderlyingError=0x1056a98c0 {Error Domain=SKInternalErrorDomain Code=4 "(null)"}}
+2026-11-14 16:33:28.171274+0000 striusUITests-Runner[38118:106315] [SKTestSession] Error deleting all transactions: Error Domain=SKServiceErrorDomain Code=2 "(null)" UserInfo={NSUnderlyingError=0x1056a9500 {Error Domain=SKInternalErrorDomain Code=4 "(null)"}}
+    t =     1.26s Open com.digiloglab.strius
+    t =     1.26s     Launch com.digiloglab.strius
+2026-11-14 16:33:29.522 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =    10.29s         Setting up automation session
+    t =    17.27s         Wait for com.digiloglab.strius to idle
+    t =    20.19s Checking existence of `Any (First Match)`
+    t =    20.37s Find the "onboarding-grade-next" Any
+    t =    20.42s Tap "中3" Button
+    t =    20.42s     Wait for com.digiloglab.strius to idle
+    t =    20.51s     Find the "中3" Button
+    t =    20.55s     Check for interrupting elements affecting "中3" Button
+    t =    20.85s     Synthesize event
+    t =    21.43s     Wait for com.digiloglab.strius to idle
+    t =    21.44s Checking existence of `"onboarding-grade-next" Any`
+    t =    22.50s Checking `Expect predicate `enabled == 1 AND hittable == 1` for object "onboarding-grade-next" Any`
+    t =    22.50s     Find the "onboarding-grade-next" Any
+    t =    22.53s     Find the "onboarding-grade-next" Button
+    t =    22.58s Tap "onboarding-grade-next" Button
+    t =    22.58s     Wait for com.digiloglab.strius to idle
+    t =    22.58s     Find the "onboarding-grade-next" Button
+    t =    22.61s     Check for interrupting elements affecting "onboarding-grade-next" Button
+    t =    22.66s     Synthesize event
+    t =    22.96s     Wait for com.digiloglab.strius to idle
+    t =    23.06s Checking existence of `Any (First Match)`
+    t =    23.11s Checking existence of `"onboarding-terms-minor" Any`
+    t =    23.22s Checking existence of `"onboarding-terms-accept" Any`
+    t =    24.29s Checking `Expect predicate `enabled == 1 AND hittable == 1` for object "onboarding-terms-accept" Any`
+    t =    24.29s     Find the "onboarding-terms-accept" Any
+    t =    24.33s     Find the "onboarding-terms-accept" Button
+    t =    24.40s Tap "onboarding-terms-accept" Button
+    t =    24.40s     Wait for com.digiloglab.strius to idle
+    t =    24.40s     Find the "onboarding-terms-accept" Button
+    t =    24.44s     Check for interrupting elements affecting "onboarding-terms-accept" Button
+    t =    24.53s     Synthesize event
+    t =    24.97s     Wait for com.digiloglab.strius to idle
+    t =    25.06s Checking existence of `Any (First Match)`
+    t =    25.11s Checking existence of `Any (First Match)`
+    t =    25.13s Checking existence of `"onboarding-consent-accept" Any`
+    t =    26.18s Checking `Expect predicate `enabled == 1 AND hittable == 1` for object "onboarding-consent-accept" Any`
+    t =    26.18s     Find the "onboarding-consent-accept" Any
+    t =    26.22s     Find the "onboarding-consent-accept" Button
+    t =    26.26s Tap "onboarding-consent-accept" Button
+    t =    26.26s     Wait for com.digiloglab.strius to idle
+    t =    26.27s     Find the "onboarding-consent-accept" Button
+    t =    26.29s     Check for interrupting elements affecting "onboarding-consent-accept" Button
+    t =    26.35s     Synthesize event
+    t =    26.67s     Wait for com.digiloglab.strius to idle
+    t =    26.75s Checking existence of `"onboarding-trial-badge" Any`
+    t =    26.79s Find the "onboarding-trial-badge" Any
+    t =    26.81s Find the Target Application 'com.digiloglab.strius'
+    t =    27.03s Added attachment named 'trial'
+    t =    27.04s Checking existence of `"onboarding-trial-capture" Any`
+    t =    28.13s Checking `Expect predicate `enabled == 1 AND hittable == 1` for object "onboarding-trial-capture" Any`
+    t =    28.13s     Find the "onboarding-trial-capture" Any
+    t =    28.17s     Find the "onboarding-trial-capture" Button
+    t =    28.23s Tap "onboarding-trial-capture" Button
+    t =    28.23s     Wait for com.digiloglab.strius to idle
+    t =    28.23s     Find the "onboarding-trial-capture" Button
+    t =    28.27s     Check for interrupting elements affecting "onboarding-trial-capture" Button
+    t =    28.33s     Synthesize event
+    t =    28.66s     Wait for com.digiloglab.strius to idle
+    t =    29.01s Checking existence of `"chat-camera-shutter" Button`
+    t =    30.09s Checking `Expect predicate `enabled == 1` for object "chat-camera-shutter" Button`
+    t =    30.09s     Find the "chat-camera-shutter" Button
+    t =    30.13s Tap "chat-camera-shutter" Button
+    t =    30.13s     Wait for com.digiloglab.strius to idle
+    t =    30.14s     Find the "chat-camera-shutter" Button
+    t =    30.18s     Check for interrupting elements affecting "chat-camera-shutter" Button
+    t =    30.25s     Synthesize event
+    t =    30.59s     Wait for com.digiloglab.strius to idle
+    t =    30.94s Checking existence of `"onboarding-verdict" Any`
+    t =    31.09s Waiting 30.0s for "onboarding-verdict" Any to exist
+    t =    32.18s     Checking `Expect predicate `existsNoRetry == 1` for object "onboarding-verdict" Any`
+    t =    32.18s         Checking existence of `"onboarding-verdict" Any`
+    t =    32.25s Find the "onboarding-verdict" Any
+    t =    32.31s Checking existence of `Any (First Match)`
+    t =    32.33s Find the Target Application 'com.digiloglab.strius'
+    t =    32.60s Added attachment named 'result'
+    t =    32.60s Checking existence of `"onboarding-continue" Any`
+    t =    33.65s Checking `Expect predicate `enabled == 1 AND hittable == 1` for object "onboarding-continue" Any`
+    t =    33.65s     Find the "onboarding-continue" Any
+    t =    33.71s     Find the "onboarding-continue" Button
+    t =    33.89s Tap "onboarding-continue" Button
+    t =    33.89s     Wait for com.digiloglab.strius to idle
+    t =    33.90s     Find the "onboarding-continue" Button
+    t =    33.93s     Check for interrupting elements affecting "onboarding-continue" Button
+    t =    34.00s     Synthesize event
+    t =    34.37s     Wait for com.digiloglab.strius to idle
+    t =    34.38s Checking existence of `"paywall-price-light" Any`
+    t =    35.58s Checking `Expect predicate `label CONTAINS "1,480" AND value == "App Store"` for object "paywall-price-light" Any`
+    t =    35.58s     Find the "paywall-price-light" Any
+    t =    35.67s     Capturing element debug description
+    t =    35.81s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    35.92s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    35.97s         Find: Descendants matching type Any
+    t =    35.98s         Find: Elements matching predicate '"paywall-price-light" IN identifiers'
+    t =    35.99s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    36.06s         Find: Descendants matching type Any
+    t =    36.06s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    37.53s Checking `Expect predicate `label CONTAINS "1,480" AND value == "App Store"` for object "paywall-price-light" Any`
+    t =    37.53s     Find the "paywall-price-light" StaticText
+    t =    37.66s     Capturing element debug description
+    t =    37.81s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    37.87s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    37.94s         Find: Descendants matching type Any
+    t =    37.94s         Find: Elements matching predicate '"paywall-price-light" IN identifiers'
+    t =    37.94s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    38.01s         Find: Descendants matching type Any
+    t =    38.01s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    39.60s Checking `Expect predicate `label CONTAINS "1,480" AND value == "App Store"` for object "paywall-price-light" Any`
+    t =    39.60s     Find the "paywall-price-light" StaticText
+    t =    39.71s     Capturing element debug description
+    t =    39.85s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    39.92s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    39.99s         Find: Descendants matching type Any
+    t =    40.00s         Find: Elements matching predicate '"paywall-price-light" IN identifiers'
+    t =    40.00s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    40.09s         Find: Descendants matching type Any
+    t =    40.09s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    41.53s Checking `Expect predicate `label CONTAINS "1,480" AND value == "App Store"` for object "paywall-price-light" Any`
+    t =    41.53s     Find the "paywall-price-light" StaticText
+    t =    41.64s     Capturing element debug description
+    t =    41.74s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    41.80s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    41.85s         Find: Descendants matching type Any
+    t =    41.85s         Find: Elements matching predicate '"paywall-price-light" IN identifiers'
+    t =    41.86s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    41.91s         Find: Descendants matching type Any
+    t =    41.91s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    42.53s Checking `Expect predicate `label CONTAINS "1,480" AND value == "App Store"` for object "paywall-price-light" Any`
+    t =    42.53s     Find the "paywall-price-light" StaticText
+    t =    42.61s     Capturing element debug description
+    t =    42.71s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    42.76s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    42.81s         Find: Descendants matching type Any
+    t =    42.81s         Find: Elements matching predicate '"paywall-price-light" IN identifiers'
+    t =    42.82s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    42.87s         Find: Descendants matching type Any
+    t =    42.87s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    43.61s Checking `Expect predicate `label CONTAINS "1,480" AND value == "App Store"` for object "paywall-price-light" Any`
+    t =    43.61s     Find the "paywall-price-light" StaticText
+    t =    43.71s     Capturing element debug description
+    t =    43.84s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    43.92s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    43.97s         Find: Descendants matching type Any
+    t =    43.98s         Find: Elements matching predicate '"paywall-price-light" IN identifiers'
+    t =    43.98s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    44.03s         Find: Descendants matching type Any
+    t =    44.03s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    44.53s Checking `Expect predicate `label CONTAINS "1,480" AND value == "App Store"` for object "paywall-price-light" Any`
+    t =    44.53s     Find the "paywall-price-light" StaticText
+    t =    44.64s     Capturing element debug description
+    t =    44.83s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    44.88s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    44.93s         Find: Descendants matching type Any
+    t =    44.93s         Find: Elements matching predicate '"paywall-price-light" IN identifiers'
+    t =    44.93s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    44.98s         Find: Descendants matching type Any
+    t =    44.98s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    45.53s Checking `Expect predicate `label CONTAINS "1,480" AND value == "App Store"` for object "paywall-price-light" Any`
+    t =    45.53s     Find the "paywall-price-light" StaticText
+    t =    45.61s     Capturing element debug description
+    t =    45.75s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    45.84s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    45.89s         Find: Descendants matching type Any
+    t =    45.90s         Find: Elements matching predicate '"paywall-price-light" IN identifiers'
+    t =    45.90s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    45.94s         Find: Descendants matching type Any
+    t =    45.95s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    46.53s Checking `Expect predicate `label CONTAINS "1,480" AND value == "App Store"` for object "paywall-price-light" Any`
+    t =    46.53s     Find the "paywall-price-light" StaticText
+    t =    46.62s     Capturing element debug description
+    t =    46.74s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    46.80s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    46.86s         Find: Descendants matching type Any
+    t =    46.86s         Find: Elements matching predicate '"paywall-price-light" IN identifiers'
+    t =    46.86s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    46.92s         Find: Descendants matching type Any
+    t =    46.92s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    47.54s Checking `Expect predicate `label CONTAINS "1,480" AND value == "App Store"` for object "paywall-price-light" Any`
+    t =    47.54s     Find the "paywall-price-light" StaticText
+    t =    47.61s     Capturing element debug description
+    t =    47.72s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    47.79s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    47.84s         Find: Descendants matching type Any
+    t =    47.85s         Find: Elements matching predicate '"paywall-price-light" IN identifiers'
+    t =    47.85s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    47.91s         Find: Descendants matching type Any
+    t =    47.91s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    48.53s Checking `Expect predicate `label CONTAINS "1,480" AND value == "App Store"` for object "paywall-price-light" Any`
+    t =    48.53s     Find the "paywall-price-light" StaticText
+    t =    48.61s     Capturing element debug description
+    t =    48.73s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    48.78s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    48.82s         Find: Descendants matching type Any
+    t =    48.82s         Find: Elements matching predicate '"paywall-price-light" IN identifiers'
+    t =    48.82s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    48.88s         Find: Descendants matching type Any
+    t =    48.88s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    49.53s Checking `Expect predicate `label CONTAINS "1,480" AND value == "App Store"` for object "paywall-price-light" Any`
+    t =    49.53s     Find the "paywall-price-light" StaticText
+    t =    49.66s     Capturing element debug description
+    t =    49.77s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    49.83s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    49.83s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    49.84s         Requesting snapshot of accessibility hierarchy for app with pid 38936
+    t =    49.87s Find the "paywall-price-light" StaticText
+    t =    49.99s Find the "paywall-price-light" StaticText
+/Users/runner/work/struis-ios/struis-ios/striusUITests/OnboardingFlowUITests.swift:122: error: -[striusUITests.OnboardingFlowUITests testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain] : XCTAssertEqual failed: ("XCTWaiterResult(rawValue: 2)") is not equal to ("XCTWaiterResult(rawValue: 1)") - App Store の商品が読めない: $9.99, / 月 App Store
+    t =    50.96s Tear Down
+UI_DIAGNOSTICS test=OnboardingFlowUITests/testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain max_stall_ms=2038 stalls_over_1s=1 stall_total_ms=2038 launch=init-start@t=16.48s(exec+6891ms),stderr-discarded-null-dt-YES@t=16.48s(exec+6897ms),init-end@t=16.76s(exec+7173ms),root-appear@t=18.44s(exec+8848ms),root-idle@t=18.63s(exec+9041ms)
+UI_DIAGNOSTICS_STALL test=OnboardingFlowUITests/testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain t=16.49s ms=2038
+Test Case '-[striusUITests.OnboardingFlowUITests testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain]' failed (53.806 seconds).
+Test Suite 'OnboardingFlowUITests' failed at 2026-11-14 16:34:20.743.
+	 Executed 1 test, with 1 failure (0 unexpected) in 53.806 (53.820) seconds
+Test Suite 'OnboardingScreenshotUITests' started at 2026-11-14 16:34:20.744.
+Test Case '-[striusUITests.OnboardingScreenshotUITests testFreeTrialScreens]' started.
+    t =     0.00s Start Test at 2026-11-14 16:34:20.745
+    t =     0.08s Set Up
+    t =     1.16s Setting device orientation to Portrait
+    t =     1.19s     Wait for com.digiloglab.strius to idle
+    t =     1.22s Open com.digiloglab.strius
+    t =     1.22s     Launch com.digiloglab.strius
+    t =     1.22s         Terminate com.digiloglab.strius:38936
+2026-11-14 16:34:22.225 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:34:22.234 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:34:22.264 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:34:23.049 xcodebuild[37832:104976] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-14 16:34:23.049 xcodebuild[37832:104976] [MT] IDELaunchParametersSnapshot: no debugger version
+2026-11-14 16:34:23.490 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =     4.69s         Setting up automation session
+    t =    13.90s         Wait for com.digiloglab.strius to idle
+    t =    16.22s Waiting 20.0s for "paywall-price-light" Any to exist
+    t =    17.26s     Checking `Expect predicate `existsNoRetry == 1` for object "paywall-price-light" Any`
+    t =    17.26s         Checking existence of `"paywall-price-light" Any`
+    t =    17.53s Tap "paywall-plan-light" Any
+    t =    17.53s     Wait for com.digiloglab.strius to idle
+    t =    17.53s     Find the "paywall-plan-light" Any
+    t =    17.60s     Check for interrupting elements affecting "paywall-plan-light" Button
+    t =    17.72s     Synthesize event
+    t =    18.15s     Wait for com.digiloglab.strius to idle
+    t =    18.16s Waiting 20.0s for "paywall-free-trial-light" Any to exist
+    t =    19.18s     Checking `Expect predicate `existsNoRetry == 1` for object "paywall-free-trial-light" Any`
+    t =    19.20s         Checking existence of `"paywall-free-trial-light" Any`
+    t =    19.38s Waiting 5.0s for "paywall-free-trial-notice" Any to exist
+    t =    20.43s     Checking `Expect predicate `existsNoRetry == 1` for object "paywall-free-trial-notice" Any`
+    t =    20.43s         Checking existence of `"paywall-free-trial-notice" Any`
+    t =    20.50s Find the "paywall-free-trial-notice" Any
+    t =    20.53s Checking existence of `"paywall-free-trial-standard" Any`
+    t =    21.89s Added attachment named 'iPhone-paywall-eligible-light'
+    t =    21.89s Tap "paywall-plan-standard" Any
+    t =    21.89s     Wait for com.digiloglab.strius to idle
+    t =    21.89s     Find the "paywall-plan-standard" Any
+    t =    21.99s     Check for interrupting elements affecting "paywall-plan-standard" Button
+    t =    22.07s     Synthesize event
+    t =    22.41s     Wait for com.digiloglab.strius to idle
+    t =    22.45s Waiting 5.0s for "paywall-free-trial-notice" StaticText to not exist
+    t =    23.47s     Checking `Expect predicate `existsNoRetry == 0` for object "paywall-free-trial-notice" StaticText`
+    t =    23.48s         Checking existence of `"paywall-free-trial-notice" StaticText`
+    t =    24.88s Added attachment named 'iPhone-paywall-eligible-standard'
+    t =    24.88s Terminate com.digiloglab.strius:39798
+2026-11-14 16:34:46.291 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:34:46.326 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:34:46.338 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =    26.07s Open com.digiloglab.strius
+    t =    26.08s     Launch com.digiloglab.strius
+2026-11-14 16:34:46.956 xcodebuild[37832:104976] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-14 16:34:46.956 xcodebuild[37832:104976] [MT] IDELaunchParametersSnapshot: no debugger version
+2026-11-14 16:34:47.160 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =    27.55s         Setting up automation session
+    t =    34.49s         Wait for com.digiloglab.strius to idle
+    t =    38.57s Waiting 30.0s for Any (First Match) to exist
+    t =    39.62s     Checking `Expect predicate `existsNoRetry == 1` for object Any (First Match)`
+    t =    39.62s         Checking existence of `Any (First Match)`
+    t =    41.49s Added attachment named 'iPhone-usage-free-trial'
+    t =    41.49s Terminate com.digiloglab.strius:40347
+2026-11-14 16:35:02.391 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:35:02.398 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:35:02.421 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =    44.55s Open com.digiloglab.strius
+    t =    44.55s     Launch com.digiloglab.strius
+2026-11-14 16:35:05.322 xcodebuild[37832:104976] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-14 16:35:05.322 xcodebuild[37832:104976] [MT] IDELaunchParametersSnapshot: no debugger version
+2026-11-14 16:35:05.443 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =    45.73s         Setting up automation session
+    t =    51.60s         Wait for com.digiloglab.strius to idle
+    t =    53.46s Waiting 20.0s for "paywall-price-light" Any to exist
+    t =    54.47s     Checking `Expect predicate `existsNoRetry == 1` for object "paywall-price-light" Any`
+    t =    54.47s         Checking existence of `"paywall-price-light" Any`
+    t =    54.57s Tap "paywall-plan-light" Any
+    t =    54.57s     Wait for com.digiloglab.strius to idle
+    t =    54.57s     Find the "paywall-plan-light" Any
+    t =    54.61s     Check for interrupting elements affecting "paywall-plan-light" Button
+    t =    54.67s     Synthesize event
+    t =    55.03s     Wait for com.digiloglab.strius to idle
+    t =    56.05s Checking `Expect predicate `value == "App Store"` for object "paywall-price-light" Any`
+    t =    56.05s     Find the "paywall-price-light" Any
+    t =    58.11s Checking existence of `"paywall-free-trial-light" Any`
+    t =    58.23s Checking existence of `"paywall-free-trial-notice" Any`
+    t =    58.59s Added attachment named 'iPhone-paywall-ineligible-light'
+    t =    58.59s Terminate com.digiloglab.strius:41110
+2026-11-14 16:35:19.610 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:35:19.871 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:35:19.878 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =    59.68s Setting device orientation to Portrait
+    t =    59.69s     Wait for com.apple.springboard to idle
+    t =    59.70s Tear Down
+UI_DIAGNOSTICS test=OnboardingScreenshotUITests/testFreeTrialScreens max_stall_ms=2964 stalls_over_1s=4 stall_total_ms=7665 launch=init-start@t=12.92s(exec+10089ms),stderr-discarded-null-dt-YES@t=12.92s(exec+10090ms),init-end@t=13.12s(exec+10290ms),root-appear@t=14.72s(exec+11884ms),root-idle@t=15.02s(exec+12190ms),init-start@t=33.75s(exec+7299ms),stderr-discarded-null-dt-YES@t=33.75s(exec+7301ms),init-end@t=33.90s(exec+7451ms),root-appear@t=35.67s(exec+9220ms),root-idle@t=36.85s(exec+10402ms),init-start@t=51.02s(exec+6277ms),stderr-discarded-null-dt-YES@t=51.02s(exec+6278ms),init-end@t=51.12s(exec+6381ms),root-appear@t=52.15s(exec+7411ms),root-idle@t=52.25s(exec+7513ms)
+UI_DIAGNOSTICS_STALL test=OnboardingScreenshotUITests/testFreeTrialScreens t=12.92s ms=1958
+UI_DIAGNOSTICS_STALL test=OnboardingScreenshotUITests/testFreeTrialScreens t=33.75s ms=2964
+UI_DIAGNOSTICS_STALL test=OnboardingScreenshotUITests/testFreeTrialScreens t=38.68s ms=1583
+UI_DIAGNOSTICS_STALL test=OnboardingScreenshotUITests/testFreeTrialScreens t=51.02s ms=1160
+Test Case '-[striusUITests.OnboardingScreenshotUITests testFreeTrialScreens]' passed (59.796 seconds).
+Test Suite 'OnboardingScreenshotUITests' passed at 2026-11-14 16:35:20.542.
+	 Executed 1 test, with 0 failures (0 unexpected) in 59.796 (59.798) seconds
+Test Suite 'UsageResetUITests' started at 2026-11-14 16:35:20.543.
+Test Case '-[striusUITests.UsageResetUITests testBuyingAPlanAfterTheTrialRunsOutResetsTheGaugeToZero]' started.
+    t =     0.00s Start Test at 2026-11-14 16:35:20.543
+    t =     0.04s Set Up
+    t =     0.04s     Setting device orientation to Portrait
+    t =     0.04s         Wait for com.apple.springboard to idle
+    t =     0.08s Open com.digiloglab.strius
+    t =     0.08s     Launch com.digiloglab.strius
+2026-11-14 16:35:20.783 xcodebuild[37832:104976] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-14 16:35:20.783 xcodebuild[37832:104976] [MT] IDELaunchParametersSnapshot: no debugger version
+2026-11-14 16:35:20.944 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =     0.89s         Setting up automation session
+    t =     5.79s         Wait for com.digiloglab.strius to idle
+    t =     8.40s Checking existence of `"usage-settings" Any`
+    t =     8.77s Checking existence of `Any (First Match)`
+    t =     8.86s Checking existence of `Any (First Match)`
+    t =     8.92s Find the Target Application 'com.digiloglab.strius'
+    t =     9.17s Added attachment named 'trial-exhausted'
+    t =     9.17s Checking existence of `"usage-change-plan" Any`
+    t =     9.26s Find the "usage-change-plan" Any
+    t =     9.60s Find the "usage-change-plan" Button
+    t =     9.72s Find the "usage-change-plan" Button
+    t =     9.87s Tap "usage-change-plan" Button
+    t =     9.87s     Wait for com.digiloglab.strius to idle
+    t =     9.87s     Find the "usage-change-plan" Button
+    t =     9.97s     Check for interrupting elements affecting "usage-change-plan" Button
+    t =    10.02s     Synthesize event
+    t =    10.33s     Wait for com.digiloglab.strius to idle
+    t =    10.79s Checking existence of `"paywall-purchase" Any`
+    t =    10.90s Find the "paywall-purchase" Any
+    t =    11.28s Find the "paywall-purchase" Button
+    t =    11.35s Find the "paywall-purchase" Button
+    t =    11.42s Tap "paywall-purchase" Button
+    t =    11.42s     Wait for com.digiloglab.strius to idle
+    t =    11.43s     Find the "paywall-purchase" Button
+    t =    11.50s     Check for interrupting elements affecting "paywall-purchase" Button
+    t =    11.56s     Synthesize event
+    t =    11.86s     Wait for com.digiloglab.strius to idle
+    t =    12.42s Waiting 2.0s for "Subscribe" Button to exist
+    t =    13.44s     Checking `Expect predicate `existsNoRetry == 1` for object "Subscribe" Button`
+    t =    13.44s         Checking existence of `"Subscribe" Button`
+    t =    13.45s         Capturing element debug description
+    t =    14.44s     Checking `Expect predicate `existsNoRetry == 1` for object "Subscribe" Button`
+    t =    14.44s         Checking existence of `"Subscribe" Button`
+    t =    14.44s         Capturing element debug description
+    t =    14.44s     Checking existence of `"Subscribe" Button`
+    t =    15.45s     Checking existence of `"Subscribe" Button` (retry 1)
+    t =    16.45s     Checking existence of `"Subscribe" Button` (retry 2)
+    t =    16.45s Collecting debug information to assist test failure triage
+    t =    16.46s Waiting 2.0s for "購読" Button to exist
+    t =    17.49s     Checking `Expect predicate `existsNoRetry == 1` for object "購読" Button`
+    t =    17.50s         Checking existence of `"購読" Button`
+    t =    17.50s         Capturing element debug description
+    t =    18.46s     Checking `Expect predicate `existsNoRetry == 1` for object "購読" Button`
+    t =    18.46s         Checking existence of `"購読" Button`
+    t =    18.46s         Capturing element debug description
+    t =    18.46s     Checking existence of `"購読" Button`
+    t =    19.47s     Checking existence of `"購読" Button` (retry 1)
+    t =    20.49s     Checking existence of `"購読" Button` (retry 2)
+    t =    20.49s Collecting debug information to assist test failure triage
+    t =    20.49s Waiting 2.0s for "登録" Button to exist
+    t =    21.56s     Checking `Expect predicate `existsNoRetry == 1` for object "登録" Button`
+    t =    21.56s         Checking existence of `"登録" Button`
+    t =    21.56s         Capturing element debug description
+    t =    22.49s     Checking `Expect predicate `existsNoRetry == 1` for object "登録" Button`
+    t =    22.50s         Checking existence of `"登録" Button`
+    t =    22.50s         Capturing element debug description
+    t =    22.50s     Checking existence of `"登録" Button`
+    t =    23.51s     Checking existence of `"登録" Button` (retry 1)
+    t =    24.51s     Checking existence of `"登録" Button` (retry 2)
+    t =    24.52s Collecting debug information to assist test failure triage
+    t =    24.52s Waiting 2.0s for "Confirm" Button to exist
+    t =    25.53s     Checking `Expect predicate `existsNoRetry == 1` for object "Confirm" Button`
+    t =    25.54s         Checking existence of `"Confirm" Button`
+    t =    25.54s         Capturing element debug description
+    t =    26.52s     Checking `Expect predicate `existsNoRetry == 1` for object "Confirm" Button`
+    t =    26.52s         Checking existence of `"Confirm" Button`
+    t =    26.52s         Capturing element debug description
+    t =    26.52s     Checking existence of `"Confirm" Button`
+    t =    27.54s     Checking existence of `"Confirm" Button` (retry 1)
+    t =    28.55s     Checking existence of `"Confirm" Button` (retry 2)
+    t =    28.56s Collecting debug information to assist test failure triage
+    t =    28.56s Waiting 2.0s for "OK" Button to exist
+    t =    29.61s     Checking `Expect predicate `existsNoRetry == 1` for object "OK" Button`
+    t =    29.61s         Checking existence of `"OK" Button`
+    t =    29.61s         Capturing element debug description
+    t =    30.57s     Checking `Expect predicate `existsNoRetry == 1` for object "OK" Button`
+    t =    30.57s         Checking existence of `"OK" Button`
+    t =    30.57s         Capturing element debug description
+    t =    30.57s     Checking existence of `"OK" Button`
+    t =    31.59s     Checking existence of `"OK" Button` (retry 1)
+    t =    32.59s     Checking existence of `"OK" Button` (retry 2)
+    t =    32.59s Collecting debug information to assist test failure triage
+    t =    32.60s Waiting 30.0s for "paywall" Any to not exist
+    t =    33.63s     Checking `Expect predicate `existsNoRetry == 0` for object "paywall" Any`
+    t =    33.63s         Checking existence of `"paywall" Any`
+    t =    33.84s Checking existence of `Any (First Match)`
+    t =    33.91s Checking existence of `Any (First Match)`
+    t =    33.99s Find the Target Application 'com.digiloglab.strius'
+    t =    34.33s Added attachment named 'after-purchase'
+    t =    34.33s Tear Down
+UI_DIAGNOSTICS test=UsageResetUITests/testBuyingAPlanAfterTheTrialRunsOutResetsTheGaugeToZero max_stall_ms=1535 stalls_over_1s=1 stall_total_ms=2309 launch=init-start@t=5.31s(exec+4868ms),stderr-discarded-null-dt-YES@t=5.31s(exec+4868ms),init-end@t=5.43s(exec+4987ms),root-appear@t=6.49s(exec+6044ms),root-idle@t=7.00s(exec+6556ms)
+UI_DIAGNOSTICS_STALL test=UsageResetUITests/testBuyingAPlanAfterTheTrialRunsOutResetsTheGaugeToZero t=5.31s ms=1535
+Test Case '-[striusUITests.UsageResetUITests testBuyingAPlanAfterTheTrialRunsOutResetsTheGaugeToZero]' passed (34.633 seconds).
+Test Case '-[striusUITests.UsageResetUITests testUpgradingAfterThePlanRunsOutResetsTheGaugeToZero]' started.
+    t =     0.00s Start Test at 2026-11-14 16:35:55.178
+    t =     0.04s Set Up
+    t =     0.04s     Setting device orientation to Portrait
+    t =     0.04s         Wait for com.digiloglab.strius to idle
+    t =     0.09s Open com.digiloglab.strius
+    t =     0.09s     Launch com.digiloglab.strius
+    t =     0.09s         Terminate com.digiloglab.strius:41544
+2026-11-14 16:35:55.498 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:35:55.504 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:35:55.510 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:35:56.378 xcodebuild[37832:104976] [MT] IDELaunchParametersSnapshot: debugger version lookup failed for path '<nil>': noURL
+2026-11-14 16:35:56.379 xcodebuild[37832:104976] [MT] IDELaunchParametersSnapshot: no debugger version
+2026-11-14 16:35:56.495 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+    t =     2.26s         Setting up automation session
+    t =     8.04s         Wait for com.digiloglab.strius to idle
+    t =    10.65s Checking existence of `"usage-settings" Any`
+    t =    10.97s Checking existence of `Any (First Match)`
+    t =    11.34s Checking existence of `Any (First Match)`
+    t =    11.47s Find the Target Application 'com.digiloglab.strius'
+    t =    11.72s Added attachment named 'light-exhausted'
+    t =    11.72s Checking existence of `"usage-change-plan" Any`
+    t =    11.93s Find the "usage-change-plan" Any
+    t =    12.44s Find the "usage-change-plan" Button
+    t =    12.59s Find the "usage-change-plan" Button
+    t =    12.81s Tap "usage-change-plan" Button
+    t =    12.81s     Wait for com.digiloglab.strius to idle
+    t =    12.81s     Find the "usage-change-plan" Button
+    t =    12.94s     Check for interrupting elements affecting "usage-change-plan" Button
+    t =    13.00s     Synthesize event
+    t =    13.33s     Wait for com.digiloglab.strius to idle
+    t =    13.76s Checking existence of `"paywall-plan-standard" Any`
+    t =    13.99s Find the "paywall-plan-standard" Any
+    t =    14.41s Find the "paywall-plan-standard" Button
+    t =    14.64s Find the "paywall-plan-standard" Button
+    t =    15.02s Tap "paywall-plan-standard" Button
+    t =    15.02s     Wait for com.digiloglab.strius to idle
+    t =    15.03s     Find the "paywall-plan-standard" Button
+    t =    15.43s     Check for interrupting elements affecting "paywall-plan-standard" Button
+    t =    15.50s     Synthesize event
+    t =    15.91s     Wait for com.digiloglab.strius to idle
+    t =    15.92s Checking existence of `"paywall-purchase" Any`
+    t =    16.15s Find the "paywall-purchase" Any
+    t =    16.71s Find the "paywall-purchase" Button
+    t =    16.95s Find the "paywall-purchase" Button
+    t =    17.09s Tap "paywall-purchase" Button
+    t =    17.09s     Wait for com.digiloglab.strius to idle
+    t =    17.09s     Find the "paywall-purchase" Button
+    t =    17.26s     Check for interrupting elements affecting "paywall-purchase" Button
+    t =    17.60s     Synthesize event
+    t =    17.97s     Wait for com.digiloglab.strius to idle
+    t =    18.01s Waiting 2.0s for "Subscribe" Button to exist
+    t =    19.06s     Checking `Expect predicate `existsNoRetry == 1` for object "Subscribe" Button`
+    t =    19.06s         Checking existence of `"Subscribe" Button`
+    t =    19.06s         Capturing element debug description
+    t =    20.01s     Checking `Expect predicate `existsNoRetry == 1` for object "Subscribe" Button`
+    t =    20.01s         Checking existence of `"Subscribe" Button`
+    t =    20.01s         Capturing element debug description
+    t =    20.01s     Checking existence of `"Subscribe" Button`
+    t =    21.03s     Checking existence of `"Subscribe" Button` (retry 1)
+    t =    22.03s     Checking existence of `"Subscribe" Button` (retry 2)
+    t =    22.03s Collecting debug information to assist test failure triage
+    t =    22.03s Waiting 2.0s for "購読" Button to exist
+    t =    23.11s     Checking `Expect predicate `existsNoRetry == 1` for object "購読" Button`
+    t =    23.11s         Checking existence of `"購読" Button`
+    t =    23.11s         Capturing element debug description
+    t =    24.05s     Checking `Expect predicate `existsNoRetry == 1` for object "購読" Button`
+    t =    24.05s         Checking existence of `"購読" Button`
+    t =    24.05s         Capturing element debug description
+    t =    24.05s     Checking existence of `"購読" Button`
+    t =    25.06s     Checking existence of `"購読" Button` (retry 1)
+    t =    26.07s     Checking existence of `"購読" Button` (retry 2)
+    t =    26.07s Collecting debug information to assist test failure triage
+    t =    26.08s Waiting 2.0s for "登録" Button to exist
+    t =    27.13s     Checking `Expect predicate `existsNoRetry == 1` for object "登録" Button`
+    t =    27.13s         Checking existence of `"登録" Button`
+    t =    27.13s         Capturing element debug description
+    t =    28.08s     Checking `Expect predicate `existsNoRetry == 1` for object "登録" Button`
+    t =    28.08s         Checking existence of `"登録" Button`
+    t =    28.08s         Capturing element debug description
+    t =    28.08s     Checking existence of `"登録" Button`
+    t =    29.08s     Checking existence of `"登録" Button` (retry 1)
+    t =    30.09s     Checking existence of `"登録" Button` (retry 2)
+    t =    30.09s Collecting debug information to assist test failure triage
+    t =    30.09s Waiting 2.0s for "Confirm" Button to exist
+    t =    31.13s     Checking `Expect predicate `existsNoRetry == 1` for object "Confirm" Button`
+    t =    31.13s         Checking existence of `"Confirm" Button`
+    t =    31.13s         Capturing element debug description
+    t =    32.10s     Checking `Expect predicate `existsNoRetry == 1` for object "Confirm" Button`
+    t =    32.10s         Checking existence of `"Confirm" Button`
+    t =    32.10s         Capturing element debug description
+    t =    32.10s     Checking existence of `"Confirm" Button`
+    t =    33.10s     Checking existence of `"Confirm" Button` (retry 1)
+    t =    34.14s     Checking existence of `"Confirm" Button` (retry 2)
+    t =    34.14s Collecting debug information to assist test failure triage
+    t =    34.14s Waiting 2.0s for "OK" Button to exist
+    t =    35.14s     Checking `Expect predicate `existsNoRetry == 1` for object "OK" Button`
+    t =    35.14s         Checking existence of `"OK" Button`
+    t =    35.14s         Capturing element debug description
+    t =    36.14s     Checking existence of `"OK" Button`
+    t =    37.16s     Checking existence of `"OK" Button` (retry 1)
+    t =    38.17s     Checking existence of `"OK" Button` (retry 2)
+    t =    38.17s Collecting debug information to assist test failure triage
+    t =    38.17s Waiting 30.0s for "paywall" Any to not exist
+    t =    39.19s     Checking `Expect predicate `existsNoRetry == 0` for object "paywall" Any`
+    t =    39.19s         Checking existence of `"paywall" Any`
+    t =    39.48s Checking existence of `Any (First Match)`
+    t =    39.54s Checking existence of `Any (First Match)`
+    t =    39.62s Find the Any (First Match)
+    t =    39.68s Find the Target Application 'com.digiloglab.strius'
+    t =    39.87s Added attachment named 'after-upgrade'
+    t =    39.87s Tear Down
+UI_DIAGNOSTICS test=UsageResetUITests/testUpgradingAfterThePlanRunsOutResetsTheGaugeToZero max_stall_ms=1618 stalls_over_1s=1 stall_total_ms=2060 launch=init-start@t=7.47s(exec+6129ms),stderr-discarded-null-dt-YES@t=7.47s(exec+6131ms),init-end@t=7.58s(exec+6239ms),root-appear@t=8.72s(exec+7386ms),root-idle@t=9.22s(exec+7878ms)
+UI_DIAGNOSTICS_STALL test=UsageResetUITests/testUpgradingAfterThePlanRunsOutResetsTheGaugeToZero t=7.47s ms=1618
+Test Case '-[striusUITests.UsageResetUITests testUpgradingAfterThePlanRunsOutResetsTheGaugeToZero]' passed (40.254 seconds).
+Test Suite 'UsageResetUITests' passed at 2026-11-14 16:36:35.434.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 74.887 (74.891) seconds
+Test Suite 'striusUITests.xctest' failed at 2026-11-14 16:36:35.434.
+	 Executed 4 tests, with 1 failure (0 unexpected) in 188.489 (188.511) seconds
+Test Suite 'Selected tests' failed at 2026-11-14 16:36:35.435.
+	 Executed 4 tests, with 1 failure (0 unexpected) in 188.489 (188.516) seconds
+2026-11-14 16:36:35.651 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:36:36.168 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:36:36.171 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:36:36.355 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:36:36.355 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:36:36.409 xcodebuild[37832:104976] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-14 16:37:05.546 xcodebuild[37832:104976] [MT] IDETestOperationsObserverDebug: 258.187 elapsed -- Testing started completed.
+2026-11-14 16:37:05.546 xcodebuild[37832:104976] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-14 16:37:05.546 xcodebuild[37832:104976] [MT] IDETestOperationsObserverDebug: 258.187 sec, +258.187 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/work/_temp/ui-iphone.xcresult
+
+Failing tests:
+	OnboardingFlowUITests.testOnboardingTrialPurchaseAndPlanLeadToTimelineAndAreNotShownAgain()
+
+** TEST EXECUTE FAILED **
+
+Testing started
