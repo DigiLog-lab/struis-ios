@@ -160,7 +160,15 @@ struct LearningTimelineView: View {
         }
         // 質問は、引き始めた時に画面を作って読み込みを始める(開ききった時に中身が出そろっているように)。
         .onChange(of: pullOut.fingerProgress) { _, progress in
-            if progress > 0, pullOut.active == .ask, pullOut.question == nil, let card = store.current { pullOut.question = questionContext(card) }
+            guard progress > 0 else { return }
+            if pullOut.active == .ask, pullOut.question == nil, let card = store.current { pullOut.question = questionContext(card) }
+            // カメラも、引き始めた時に起こしておく(枠が開いた時には、もう映っているように)。
+            // 初回(許可をまだ聞いていない)は起こさず、許可のダイアログは枠が開いてから出す。
+            if pullOut.active == .camera { ChatCameraWarmup.shared.prepare() }
+        }
+        .onChange(of: pullOut.active) { old, new in
+            // 撮るを引いたけれど開かなかった: しばらくしたらカメラを止める。
+            if old == .camera, new == nil, !isCameraPresented { ChatCameraWarmup.shared.cancelSoon() }
         }
         // カメラは、形が枠の大きさまで伸びたら本物のカメラに入れ替える(カメラ自体の出てくる動きは止める)。
         .onChange(of: pullOut.openRequest) { _, _ in

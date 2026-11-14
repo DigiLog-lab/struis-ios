@@ -202,6 +202,84 @@ private final class ChatCameraPreviewView: UIView {
     var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
 }
 
+/// カメラを先に起こしておく(タイムラインの「撮る」を引き始めた時)。枠が開いた時に、もう映っているように。
+/// カメラは一度に1つしか開かないので、撮る画面はどれもこのセッションを使う。
+/// 許可をまだ聞いていない時(初回)は起こさない。カメラを動かそうとした時点で許可のダイアログが出るため、
+/// ダイアログは枠が開いてから(撮る画面の `authorize` で)出す。
+@MainActor
+final class ChatCameraWarmup {
+    static let shared = ChatCameraWarmup()
+
+    nonisolated(unsafe) let session = AVCaptureSession()
+    nonisolated(unsafe) let output = AVCapturePhotoOutput()
+    let queue = DispatchQueue(label: "com.struis.chat-camera")
+    /// 組み立て済みのカメラ(組み立てに失敗したら nil)。
+    private(set) var device: AVCaptureDevice?
+    private var configured = false
+    /// 撮る画面が開いている(この間は止めない)。
+    var isInUse = false
+    private var idleStop: Task<Void, Never>?
+
+    /// 許可済みなら、カメラを組み立てて動かし始める。
+    func prepare() {
+        idleStop?.cancel()
+        guard AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
+        start { _ in }
+    }
+
+    /// 引いたけれど開かなかった: しばらく待って、撮る画面が開いていなければ止める。
+    func cancelSoon() {
+        idleStop?.cancel()
+        idleStop = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard let self, !Task.isCancelled, !self.isInUse else { return }
+            self.stop {}
+        }
+    }
+
+    /// 組み立てて動かす(許可済みの時だけ呼ぶ)。組み立てたカメラを返す(組み立てられなければ nil)。
+    func start(_ completion: @escaping @MainActor (AVCaptureDevice?) -> Void) {
+        idleStop?.cancel()
+        let needsConfiguration = !configured
+        configured = true
+        let session = session, output = output
+        queue.async {
+            var configuredDevice: AVCaptureDevice?
+            if needsConfiguration {
+                session.beginConfiguration()
+                session.sessionPreset = .photo
+                if let device = ChatCameraController.backCamera(),
+                   let input = try? AVCaptureDeviceInput(device: device),
+                   session.canAddInput(input), session.canAddOutput(output) {
+                    session.addInput(input)
+                    session.addOutput(output)
+                    // 映り始めた時から 1 倍・近距離のピントにしておく(開いた後に画角が跳ねないように)。
+                    ChatCameraController.prepareLens(device)
+                    configuredDevice = device
+                }
+                session.commitConfiguration()
+            }
+            let hasInput = !session.inputs.isEmpty
+            if hasInput, !session.isRunning { session.startRunning() }
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    if needsConfiguration { self.device = configuredDevice }
+                    if !hasInput { self.configured = false }
+                    completion(hasInput ? self.device : nil)
+                }
+            }
+        }
+    }
+
+    func stop(_ completion: @escaping () -> Void) {
+        let session = session
+        queue.async {
+            if session.isRunning { session.stopRunning() }
+            DispatchQueue.main.async(execute: completion)
+        }
+    }
+}
+
 private final class ChatCameraController: UIViewController, AVCapturePhotoCaptureDelegate {
     var onClose: (() -> Void)?
     var onPhoto: ((Data) -> Void)?
@@ -211,9 +289,9 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
     private let strip = UIStackView()
     private let done = UIButton(type: .system)
     private let counter = UILabel()
-    private let session = AVCaptureSession()
-    private let output = AVCapturePhotoOutput()
-    private let queue = DispatchQueue(label: "com.struis.chat-camera")
+    private var session: AVCaptureSession { ChatCameraWarmup.shared.session }
+    private var output: AVCapturePhotoOutput { ChatCameraWarmup.shared.output }
+    private var queue: DispatchQueue { ChatCameraWarmup.shared.queue }
     private let panel = UIView()
     private let previewView = ChatCameraPreviewView()
     private var preview: AVCaptureVideoPreviewLayer { previewView.previewLayer }
@@ -326,6 +404,7 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
             message.trailingAnchor.constraint(equalTo: previewView.trailingAnchor, constant: -12)
         ])
         if batch != nil { layoutBatchControls() }
+        ChatCameraWarmup.shared.isInUse = true
         NotificationCenter.default.addObserver(self, selector: #selector(enteredBackground),
             name: UIApplication.didEnterBackgroundNotification, object: nil)
         Task { await authorize() }
@@ -500,38 +579,41 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
             message.text = "カメラを使うには、設定でStruisのカメラへのアクセスを許可してください。"
             return
         }
-        queue.async { [self] in
-            session.beginConfiguration()
-            session.sessionPreset = .photo
-            guard let device = Self.backCamera(),
-                  let input = try? AVCaptureDeviceInput(device: device),
-                  session.canAddInput(input), session.canAddOutput(output) else {
-                session.commitConfiguration()
-                DispatchQueue.main.async { self.message.text = "カメラを起動できませんでした。" }
+        // 「撮る」を引いている間に起こしてあれば、そのまま使う(もう映っている)。
+        ChatCameraWarmup.shared.start { [weak self] device in
+            guard let self else { return }
+            guard let device else {
+                self.message.text = "カメラを起動できませんでした。"
                 return
             }
-            session.addInput(input)
-            session.addOutput(output)
-            session.commitConfiguration()
-            configureFocus(device)
-            session.startRunning()
-            DispatchQueue.main.async {
-                guard !self.closed else { self.stop(); return }
-                self.device = device
-                self.shutter.isEnabled = true
-                self.updateBatchControls()
-                self.view.setNeedsLayout()
-            }
+            guard !self.closed else { self.stop(); return }
+            self.configureFocus(device)
+            self.device = device
+            self.shutter.isEnabled = true
+            self.updateBatchControls()
+            self.view.setNeedsLayout()
         }
     }
 
     /// Notes are shot close up. On multi-camera iPhones the wide lens alone
     /// cannot focus that near, so prefer a virtual device that switches to the
     /// ultra wide (macro) lens automatically, as the system Camera app does.
-    private static func backCamera() -> AVCaptureDevice? {
+    nonisolated static func backCamera() -> AVCaptureDevice? {
         AVCaptureDevice.DiscoverySession(
             deviceTypes: [.builtInTripleCamera, .builtInDualWideCamera, .builtInDualCamera, .builtInWideAngleCamera],
             mediaType: .video, position: .back).devices.first
+    }
+
+    /// 画角とピントの初期値(ノートを近くで撮る)。カメラを組み立てた時に、映り始める前に決める。
+    nonisolated static func prepareLens(_ device: AVCaptureDevice) {
+        do { try device.lockForConfiguration() } catch { return }
+        defer { device.unlockForConfiguration() }
+        if device.isVirtualDevice, let wide = device.virtualDeviceSwitchOverVideoZoomFactors.first {
+            device.videoZoomFactor = CGFloat(truncating: wide)
+        }
+        if device.isFocusModeSupported(.continuousAutoFocus) { device.focusMode = .continuousAutoFocus }
+        if device.isAutoFocusRangeRestrictionSupported { device.autoFocusRangeRestriction = .near }
+        if device.isExposureModeSupported(.continuousAutoExposure) { device.exposureMode = .continuousAutoExposure }
     }
 
     private func configureFocus(_ device: AVCaptureDevice) {
@@ -739,9 +821,7 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
 
     func stop(completion: @escaping () -> Void = {}) {
         closed = true
-        queue.async { [self] in
-            if session.isRunning { session.stopRunning() }
-            DispatchQueue.main.async(execute: completion)
-        }
+        ChatCameraWarmup.shared.isInUse = false
+        ChatCameraWarmup.shared.stop(completion)
     }
 }
