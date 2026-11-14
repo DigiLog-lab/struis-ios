@@ -138,7 +138,8 @@ final class E2EDriverUITests: XCTestCase {
             case "ink":
                 // スクショ撮影用: 「x,y x,y ...;x,y ...」(アプリの座標、pt)の線を、1回の合成イベントでまとめて引く。
                 // 1本ずつ XCUICoordinate で引くと1本に1秒以上かかり、結果に出る解答の秒数が人の書く速さと合わなくなるため。
-                result = Self.synthesizeInk(command.text ?? "", step: command.duration ?? 0.012, app: app)
+                result = Self.synthesizeInk(command.text ?? "", step: command.duration ?? 0.012, each: command.name == "each",
+                                            orientationOverride: command.x.map { Int($0) }, app: app)
             case "dragid":
                 // スクショ撮影用: 要素を (x, y) だけ引く(撮る・質問のように引いて開くもの、上に引いて送る「送る」)。
                 let target = element(command.id ?? "")
@@ -163,7 +164,7 @@ final class E2EDriverUITests: XCTestCase {
 
     /// XCTest の非公開の合成イベント(XCPointerEventPath・XCSynthesizedEventRecord)で、線を続けて引く(撮影用)。
     @MainActor
-    private static func synthesizeInk(_ text: String, step: Double, app: XCUIApplication) -> String {
+    private static func synthesizeInk(_ text: String, step: Double, each: Bool, orientationOverride: Int?, app: XCUIApplication) -> String {
         guard let pathClass = NSClassFromString("XCPointerEventPath"),
               let recordClass = NSClassFromString("XCSynthesizedEventRecord") else { return "no event classes" }
         let strokes: [[CGPoint]] = text.split(separator: ";").map { stroke in
@@ -197,23 +198,31 @@ final class E2EDriverUITests: XCTestCase {
         if app.responds(to: NSSelectorFromString("interfaceOrientation")), let value = app.value(forKey: "interfaceOrientation") as? Int {
             orientation = value
         }
-        guard let recordObject = alloc(recordClass) else { return "no record" }
-        let record = initRecord.1(recordObject, initRecord.0, "ink" as NSString, Int64(orientation))
+        if let orientationOverride { orientation = orientationOverride }
+        // each: 1本ごとに別の合成イベントにして順に送る(1つのイベントに何本も入れると、同時に触れた指として扱われうる)。
+        let groups: [[[CGPoint]]] = each ? strokes.map { [$0] } : [strokes]
         var offset = 0.0
-        for stroke in strokes {
-            guard let pathObject = alloc(pathClass) else { return "no path" }
-            let path = initTouch.1(pathObject, initTouch.0, stroke[0], offset)
-            for point in stroke.dropFirst() {
-                offset += step
-                move.1(path, move.0, point, offset)
-            }
-            offset += step
-            lift.1(path, lift.0, offset)
-            add.1(record, add.0, path)
-            offset += step * 3
-        }
+        var ok = true
         var error: NSError?
-        let ok = synth.1(record, synth.0, &error)
+        for group in groups {
+            guard let recordObject = alloc(recordClass) else { return "no record" }
+            let record = initRecord.1(recordObject, initRecord.0, "ink" as NSString, Int64(orientation))
+            var local = 0.0
+            for stroke in group {
+                guard let pathObject = alloc(pathClass) else { return "no path" }
+                let path = initTouch.1(pathObject, initTouch.0, stroke[0], local)
+                for point in stroke.dropFirst() {
+                    local += step
+                    move.1(path, move.0, point, local)
+                }
+                local += step
+                lift.1(path, lift.0, local)
+                add.1(record, add.0, path)
+                local += step * 3
+            }
+            offset += local
+            ok = synth.1(record, synth.0, &error) && ok
+        }
         return ok ? "ok \(strokes.count) strokes \(String(format: "%.1f", offset))s orientation \(orientation)" : "synth failed \(error?.localizedDescription ?? "")"
     }
 
