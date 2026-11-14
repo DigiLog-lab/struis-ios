@@ -7,13 +7,13 @@ final class TimelineUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// タイムラインから始める起動(単元ホームを重ねない)。
-    @MainActor
     /// 撮るは、カメラの方(画面の真ん中)へ引いて開く(タップでは開かない)。
     static let toCamera = CGVector(dx: -150, dy: -260)
 
+    /// タイムラインから始める起動(単元ホームを重ねない)。`realCamera` なら、撮る画面は試験用の写真ではなく本物のカメラを使う。
+    @MainActor
     private func launchTimeline(wrong: Bool = false, longComment: Bool = false,
-                                orientation: UIDeviceOrientation = .portrait) -> XCUIApplication {
+                                orientation: UIDeviceOrientation = .portrait, realCamera: Bool = false) -> XCUIApplication {
         XCUIDevice.shared.orientation = orientation
         let app = XCUIApplication()
         app.launchArguments = ["-skip-onboarding"]
@@ -21,8 +21,9 @@ final class TimelineUITests: XCTestCase {
         if longComment { app.launchEnvironment["STRUIS_MOCK_TIMELINE_LONG_COMMENT"] = "1" }
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
-        app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = UITestSupport.paperImagePath
+        if !realCamera { app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = UITestSupport.paperImagePath }
         app.launchEnvironment["STRUIS_TEST_CAPTURE_FINISH_SECONDS"] = UITestSupport.captureFinishSecondsWithoutRace
+        if realCamera { app.resetAuthorizationStatus(for: .camera) }
         app.launch()
         return app
     }
@@ -51,6 +52,25 @@ final class TimelineUITests: XCTestCase {
         XCTAssertTrue(app.buttons["workbook-open-settings"].exists, "単元ホームの設定が無い")
         app.buttons["workbook-close-timeline"].tap()
         XCTAssertTrue(app.buttons["timeline-units-button"].appears(timeout: 10), "タイムラインに戻らない")
+    }
+
+    /// 初めて撮る時は、撮るを引いている途中ではカメラの許可を聞かず、カメラの枠が開いてから聞く。
+    @MainActor
+    func testCameraAsksPermissionOnlyAfterTheFrameOpens() throws {
+        let app = launchTimeline(realCamera: true)
+        waitForProblem(app)
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let capture = app.buttons["timeline-capture"]
+        // 途中まで引いて戻す: 許可は聞かない。
+        let start = capture.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: -30, dy: -50)), withVelocity: 200, thenHoldForDuration: 0.5)
+        XCTAssertFalse(springboard.alerts.firstMatch.waitForExistence(timeout: 3), "引いている途中でカメラの許可を聞いた")
+        // 引いて開く: 枠が開いてから許可を聞く。
+        capture.drag(by: Self.toCamera)
+        let alert = springboard.alerts.firstMatch
+        XCTAssertTrue(alert.waitForExistence(timeout: 10), "枠が開いてもカメラの許可を聞かない")
+        XCTAssertTrue(app.descendants(matching: .any)["chat-camera-panel"].firstMatch.exists, "カメラの枠が開く前に許可を聞いた")
+        alert.buttons.element(boundBy: alert.buttons.count - 1).tap()
     }
 
     /// 質問と単元のチップは、押しただけでは開かず、引っぱると開く。
