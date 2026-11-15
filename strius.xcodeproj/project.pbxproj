@@ -19,8 +19,6 @@
 		25D9388D6B8072AD70EB5F78 /* OnboardingRecords.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F92DDD645A904120FA57750 /* OnboardingRecords.swift */; };
 		27938BC2DDDC4A75B40FF2C5 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B4D776509AEF42EEB3A59D7A /* PrivacyInfo.xcprivacy */; };
 		28A97A05E707E328626BB54C /* TimelineParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 833CCE513E78354E7FE8CB3E /* TimelineParts.swift */; };
-		A0DD4F3BDC6788094E06774F /* TimelineLiquid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 242192CEB35A0505A904A391 /* TimelineLiquid.swift */; };
-		D59382F37739D3A2F0B913D3 /* TimelinePullOut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A908891A4AAB4804615FB6 /* TimelinePullOut.swift */; };
 		2B7ECE02890F0AF50AA91B1A /* TimelineCardContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34208B315DFCB1CD386D3343 /* TimelineCardContent.swift */; };
 		2D19466C5A8012FDF3370A2F /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000F /* Typography.swift */; };
 		34C933191A515C5D688D2D3A /* ZenKakuGothicNew-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000025 /* ZenKakuGothicNew-Medium.ttf */; };
@@ -60,6 +58,7 @@
 		9ADC57BCA8681DFD06DAFB4D /* SubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D3C05E10B1D418B8FDF5E0A /* SubscriptionStore.swift */; };
 		9C2F953713D70E1E97FEA9FC /* NativeSearch.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 17890508CA0B77011C311973 /* NativeSearch.xcframework */; };
 		9E199A67F2C3D34ACA4648E7 /* CompoundDashPreparation.m in Sources */ = {isa = PBXBuildFile; fileRef = 8FFF45B5DBAD571F7C0B8A5D /* CompoundDashPreparation.m */; };
+		A0DD4F3BDC6788094E06774F /* TimelineLiquid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 242192CEB35A0505A904A391 /* TimelineLiquid.swift */; };
 		A10000000000000000000001 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* AppRootView.swift */; };
 		A10000000000000000000002 /* Auth0Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* Auth0Config.swift */; };
 		A10000000000000000000003 /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* AuthStore.swift */; };
@@ -143,6 +142,7 @@
 		D10000000000000000000001 /* WorkspaceBrowserDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000001 /* WorkspaceBrowserDTO.swift */; };
 		D10000000000000000000002 /* WorkspaceBrowserEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000002 /* WorkspaceBrowserEndpoints.swift */; };
 		D10000000000000000000003 /* WorkspaceBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000003 /* WorkspaceBrowserView.swift */; };
+		D59382F37739D3A2F0B913D3 /* TimelinePullOut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69A908891A4AAB4804615FB6 /* TimelinePullOut.swift */; };
 		D68E7DE1E9263BE068C43524 /* TrustedPipeline.c in Sources */ = {isa = PBXBuildFile; fileRef = CFA86B4E3FE06B2C321EF32F /* TrustedPipeline.c */; };
 		D695067BAB723117A2F3BE37 /* NativeMemory.m in Sources */ = {isa = PBXBuildFile; fileRef = 242F872B17DBD44D273A81CD /* NativeMemory.m */; };
 		D894492EC6D44216AE79399D /* LearningErasure.swift in Sources */ = {isa = PBXBuildFile; fileRef = F51E3ADEFFEC463598C12543 /* LearningErasure.swift */; };
@@ -189,6 +189,7 @@
 		E82B18F4716E9DB99196DF03 /* ClaudeStreamStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8688833EB661495070B90F8 /* ClaudeStreamStatus.swift */; };
 		E82BEFBF3FE16B01A5EF0906 /* TimeAttackAppTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E80AF6A6E5760F6D426A3E57 /* TimeAttackAppTransport.swift */; };
 		E82CC1EB3ECDEEB585D9592A /* ConversationExpressions.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8848ADC574BC51C75EB8656 /* ConversationExpressions.swift */; };
+		E82E9F6A43660E5D712F7B10 /* TimelinePlanMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8B4E9093131914FE95E4AD1 /* TimelinePlanMode.swift */; };
 		E83488A5F3830E11EADB547C /* AssetCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8A20E6A7FB243BC622BEBC6 /* AssetCache.swift */; };
 		E834EBB22CB50EF75FAEFFF0 /* DrillExpression.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8206D9840C022A329ABAF49 /* DrillExpression.swift */; };
 		E8356B09201A4A696D71665E /* ClaudeUpstream.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8CF22BD1D8575067561B0FA /* ClaudeUpstream.swift */; };
@@ -357,6 +358,7 @@
 		17890508CA0B77011C311973 /* NativeSearch.xcframework */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = wrapper.xcframework; name = NativeSearch.xcframework; path = Vendor/NativeSearch.xcframework; sourceTree = "<group>"; };
 		17CE05655683100AAF816C37 /* ClipTransport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClipTransport.swift; sourceTree = "<group>"; };
 		210E5BD7415F4D2228F257DA /* dash-native.xcframework */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = wrapper.xcframework; name = "dash-native.xcframework"; path = "Vendor/dash-native.xcframework"; sourceTree = "<group>"; };
+		242192CEB35A0505A904A391 /* TimelineLiquid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineLiquid.swift; sourceTree = "<group>"; };
 		242F872B17DBD44D273A81CD /* NativeMemory.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; name = NativeMemory.m; path = Worker/NativeMemory.m; sourceTree = "<group>"; };
 		296350E7FF574990532EC2A1 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		34208B315DFCB1CD386D3343 /* TimelineCardContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineCardContent.swift; sourceTree = "<group>"; };
@@ -376,13 +378,12 @@
 		61D94DD18103D2F659706E73 /* VirtualPythonCommandBridge.c */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.c; name = VirtualPythonCommandBridge.c; path = Worker/VirtualPythonCommandBridge.c; sourceTree = "<group>"; };
 		63FEBAE568FDA5E20EBE7967 /* TimelineMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineMachine.swift; sourceTree = "<group>"; };
 		6501D2306BFF134780428A95 /* text-native.xcframework */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = wrapper.xcframework; name = "text-native.xcframework"; path = "Vendor/text-native.xcframework"; sourceTree = "<group>"; };
+		69A908891A4AAB4804615FB6 /* TimelinePullOut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelinePullOut.swift; sourceTree = "<group>"; };
 		6E0302BEB4AE02B1638D2E0A /* TimelineRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineRows.swift; sourceTree = "<group>"; };
 		7E8C890FA310BDE40DFF28DE /* LearningTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningTimelineView.swift; sourceTree = "<group>"; };
 		804E6CA24FAD8D46755DF731 /* TimelineCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineCards.swift; sourceTree = "<group>"; };
 		807F62CB64FE8239B5C8353B /* TimelineExpression.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineExpression.swift; sourceTree = "<group>"; };
 		833CCE513E78354E7FE8CB3E /* TimelineParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineParts.swift; sourceTree = "<group>"; };
-		242192CEB35A0505A904A391 /* TimelineLiquid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineLiquid.swift; sourceTree = "<group>"; };
-		69A908891A4AAB4804615FB6 /* TimelinePullOut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelinePullOut.swift; sourceTree = "<group>"; };
 		84586C66B08BCD849F2783CE /* Prompts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Prompts; sourceTree = "<group>"; };
 		87DAEEE7FAEBD47B016FABBC /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
 		8AF46D7EECDE4B5EB431D081 /* math */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder; name = math; path = striusTests/Fixtures/math; sourceTree = SOURCE_ROOT; };
@@ -561,6 +562,7 @@
 		E8AE201EA0D519FE16B607CA /* LedgerEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerEvents.swift; sourceTree = "<group>"; };
 		E8AEC8AFCF2045AABA5A2B12 /* DrillTeX.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillTeX.swift; sourceTree = "<group>"; };
 		E8B38629B54E9F836AA83DEB /* LearningProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningProgress.swift; sourceTree = "<group>"; };
+		E8B4E9093131914FE95E4AD1 /* TimelinePlanMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelinePlanMode.swift; sourceTree = "<group>"; };
 		E8B7FF94CFF996F3B424C12C /* TurnClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnClock.swift; sourceTree = "<group>"; };
 		E8BA633DDDA6B0D7F34DD6C1 /* DrillAuthoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillAuthoring.swift; sourceTree = "<group>"; };
 		E8BB5119C2757CE7D4E17A5E /* MathSourceNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MathSourceNormalizer.swift; sourceTree = "<group>"; };
@@ -1231,6 +1233,7 @@
 				C3B0000000000000000000A4 /* AttachmentStaging.swift */,
 				E80D75EDD06056FC3A419A48 /* TurnActivityLabels.swift */,
 				E8D2F613BDD30DF07DF84F69 /* Drill */,
+				E8B4E9093131914FE95E4AD1 /* TimelinePlanMode.swift */,
 			);
 			path = Engine;
 			sourceTree = "<group>";
@@ -1853,6 +1856,7 @@
 				E835DD30AFD2D6960EE3D545 /* OfflineDrillLabSamples.swift in Sources */,
 				E8755431858BA56FA534BD2F /* OfflineDrillLabView.swift in Sources */,
 				E8740A5DE35F396B50411D7F /* DrillTemplateStore.swift in Sources */,
+				E82E9F6A43660E5D712F7B10 /* TimelinePlanMode.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
