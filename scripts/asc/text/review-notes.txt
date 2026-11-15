@@ -1,0 +1,7 @@
+- No account, by design: Struis has no sign-up or login. Many of our users are minors, and we chose not to hold any of their personal data. Learning records are stored only on the device and in the user's own iCloud private database (synced across their devices); we cannot read them. Subscriptions belong to the user's Apple ID through StoreKit, so they can be restored on any device with "Restore Purchases" on the subscription screen. The weekly usage allowance is counted on the device.
+- Age rating: the questionnaire answers alone would give a lower rating. We raised it to 13+ because our Terms of Use are for junior high school students and older.
+- Age check: during onboarding the app uses the Declared Age Range API. If the user does not share an age range, it asks for a birth date, uses it on the device only to determine the age band, and deletes it immediately. It is never sent to us or to the AI.
+- Users under 18 need a guardian's consent. The guardian confirms by swiping on the same device.
+- AI: answers (photos and text) are sent directly from the device to the Anthropic Messages API. The app proves it is genuine with App Attest. No server of ours sits in between.
+- Subscriptions: the first 3 problems are free. After solving them in onboarding, the subscription screen appears. It can also be opened from Settings > 利用枠. The Light plan has a 1-week free trial.
+- Deleting data: Settings > 学習記録 > すべての学習記録を消す deletes all learning records from the device and iCloud.
