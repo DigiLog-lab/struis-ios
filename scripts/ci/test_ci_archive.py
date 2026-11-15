@@ -162,5 +162,15 @@ class StoreProfileTests(unittest.TestCase):
             self.assertTrue(archive.time_attack_enabled(config))
 
 
+class DistributionTests(unittest.TestCase):
+    def test_only_testflight_compiles_the_developer_settings_in(self):
+        self.assertEqual(archive.distribution_settings('testflight'), ['STRUIS_INTERNAL=YES'])
+        self.assertEqual(archive.distribution_settings('app-store'), ['STRUIS_INTERNAL=NO'])
+
+    def test_an_unknown_distribution_is_refused(self):
+        with self.assertRaises(RuntimeError):
+            archive.distribution_settings('production')
+
+
 if __name__ == '__main__':
     unittest.main()

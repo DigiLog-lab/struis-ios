@@ -1,29 +1,23 @@
-import StoreKit
 import SwiftUI
 
 /// App Store の本番か、内部の配布(Xcode・プロトタイプ・TestFlight)か。
-/// 料金やトークンなどの内部情報は内部の配布にだけ出す。判定できない時は本番として隠す。
+/// 料金やトークンなどの内部情報は内部の配布にだけ出す。
+/// TestFlight かどうかは購入環境(`AppTransaction.environment`)では見分けない: App Review の端末も sandbox なので、
+/// 審査担当者に開発者向けの画面が見えてしまう。代わりに、TestFlight に配るビルドだけを `STRUIS_INTERNAL` 付きで作る
+/// (`Config/Build.xcconfig`、`scripts/ci_archive.py --distribution testflight`)。
 nonisolated enum InternalBuild {
     /// プロトタイプの Bundle ID か(`com.digiloglab.strius.preview.s01` など。`AGENT_BUNDLE_PREFIX`)。
     static func isPrototype(bundleIdentifier: String?) -> Bool {
         bundleIdentifier?.contains(".preview") ?? false
     }
 
-    /// ビルドと Bundle ID だけで内部と分かるか。TestFlight は App Store と同じビルドなのでここでは分からない。
-    static var isKnownInternal: Bool {
-        #if DEBUG
+    /// 内部の配布か。Debug・`STRUIS_INTERNAL` 付きのビルド(TestFlight)・プロトタイプ。
+    static var isInternal: Bool {
+        #if DEBUG || STRUIS_INTERNAL
         return true
         #else
         return isPrototype(bundleIdentifier: Bundle.main.bundleIdentifier)
         #endif
-    }
-
-    /// 内部の配布か。TestFlight は App Store の取引情報の環境(sandbox)で見分ける。
-    static func resolve() async -> Bool {
-        if isKnownInternal { return true }
-        guard let result: VerificationResult<AppTransaction> = try? await AppTransaction.shared,
-              case .verified(let transaction) = result else { return false }
-        return transaction.environment == .sandbox || transaction.environment == .xcode
     }
 }
 

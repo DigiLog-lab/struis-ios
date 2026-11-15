@@ -156,7 +156,7 @@ nonisolated enum TimelineModels {
 
     static func fallback(role: String) -> TurnModel? {
         switch role {
-        case Self.role: TurnModel(model: "claude-sonnet-5-5", effort: "low")
+        case Self.role: TurnModel(model: TimelineModelPreference.defaultModel, effort: "low")
         case Self.graphRole: TurnModel(model: "claude-opus-5-5", effort: "medium")
         default: nil
         }

@@ -27,6 +27,11 @@ on:
         description: アップロード時の新しいbuild番号
         type: string
         required: false
+      distribution:
+        description: 配布先(testflight = 設定に「開発者向け」が入る、app-store = 入らない。審査に出すビルドは app-store)
+        type: choice
+        options: [testflight, app-store]
+        default: testflight
 
 permissions:
   contents: read
@@ -507,9 +512,10 @@ jobs:
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           UPLOAD: ${{ inputs.upload }}
           BUILD_NUMBER: ${{ inputs.build_number }}
+          DISTRIBUTION: ${{ inputs.distribution }}
         run: |
           set -euo pipefail
-          args=(--output "$RUNNER_TEMP/StruisArchive")
+          args=(--output "$RUNNER_TEMP/StruisArchive" --distribution "$DISTRIBUTION")
           if [[ "$UPLOAD" == "true" ]]; then
             args+=(--upload --build-number "$BUILD_NUMBER")
           fi

@@ -172,11 +172,25 @@ def terminate(signum, _frame):
     raise SystemExit(128 + signum)
 
 
+# Where the build goes. Only a TestFlight build compiles the developer settings in (`STRUIS_INTERNAL`,
+# Config/Build.xcconfig): App Review runs in the same sandbox as TestFlight, so the app cannot tell them apart
+# at run time, and the build submitted for review must be an `app-store` one.
+DISTRIBUTIONS = ('testflight', 'app-store')
+
+
+def distribution_settings(distribution):
+    """xcodebuild settings for the distribution: the internal switch only for TestFlight."""
+    if distribution not in DISTRIBUTIONS:
+        raise RuntimeError(f'Unknown distribution: {distribution}')
+    return ['STRUIS_INTERNAL=YES'] if distribution == 'testflight' else ['STRUIS_INTERNAL=NO']
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--upload', action='store_true')
     parser.add_argument('--build-number')
+    parser.add_argument('--distribution', required=True, choices=DISTRIBUTIONS)
     args = parser.parse_args()
     if args.build_number and not re.fullmatch(r'[1-9][0-9]*', args.build_number):
         raise RuntimeError('Build number must be a positive integer')
@@ -252,7 +266,8 @@ def main():
                    '-configuration', 'Release', '-destination', 'generic/platform=iOS',
                    '-derivedDataPath', str(output / 'DerivedData'), '-archivePath', str(archive),
                    f'DEVELOPMENT_TEAM={team}', 'CODE_SIGN_STYLE=Manual', f'CODE_SIGN_IDENTITY={identity[0]}',
-                   'PROVISIONING_PROFILE_SPECIFIER=$(STRUIS_CI_PROFILE_$(PRODUCT_NAME))', *settings]
+                   'PROVISIONING_PROFILE_SPECIFIER=$(STRUIS_CI_PROFILE_$(PRODUCT_NAME))', *settings,
+                   *distribution_settings(args.distribution)]
         if args.build_number:
             command.append(f'CURRENT_PROJECT_VERSION={args.build_number}')
         run(command, output / 'archive-private.log')
@@ -266,6 +281,7 @@ def main():
         info = plistlib.loads((app / 'Info.plist').read_bytes())
         record = {'sourceCommit': commit, 'version': info['CFBundleShortVersionString'],
                   'build': info['CFBundleVersion'], 'bundleIdentifier': info['CFBundleIdentifier'],
+                  'distribution': args.distribution,
                   'signedArchiveVerified': True, 'bundleAuditPassed': True,
                   'uploaded': False}
         if args.upload:

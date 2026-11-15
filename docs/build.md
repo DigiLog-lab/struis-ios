@@ -17,7 +17,7 @@ GitHub Actionsの`.github/workflows/ios.yml`は標準の`xcode-27` runnerを使�
 
 署名用のSecretsは`BUILD_CERTIFICATE_BASE64`、`P12_PASSWORD`と、App Store Connect APIの`APP_STORE_CONNECT_PRIVATE_KEY`、`APP_STORE_CONNECT_KEY_ID`、`APP_STORE_CONNECT_ISSUER_ID`です。2つ(アプリとExec拡張)のApp Store配布用プロファイルは`scripts/ci_archive.py`がAPIで取得し、配布証明書が一致して`ACTIVE`で期限まで7日以上あり、App Group(本体はiCloudコンテナ`iCloud.com.digiloglab.strius`も)が入っているものを再利用し、無ければ作ります。App IDに機能を足してプロファイルが無効になっても、Secretsの差し替えは要りません。配信サービス設定は`STRUIS_DELIVERY_APP_KEY`を使用します。値はコードへ記載しません。
 
-通常のCIはarchiveまでです。次の配布時は`main`を対象に手動実行し、`upload`を有効にして未使用の`build_number`を指定します。`scripts/ci_archive.py`が同じcheckoutから署名とアップロードを行い、元commit・version・buildを記録します。アップロード成功後はApp Store Connectで処理完了と内部配布先を確認し、公開ソースの対応表を更新してください。審査提出は自動実行しません。
+通常のCIはarchiveまでです。次の配布時は`main`を対象に手動実行し、`upload`を有効にして未使用の`build_number`を指定します。配布先`distribution`は、TestFlightで配るビルドは`testflight`、審査に出すビルドは`app-store`を選びます。`testflight`のビルドだけが`STRUIS_INTERNAL`付きでコンパイルされ、設定に「開発者向け」(モデルの切り替え・料金・トークン)を持ちます。App Reviewの端末はTestFlightと同じsandboxの購入環境で動くため、アプリの側では見分けられません。審査には必ず`app-store`で作ったbuild番号を選んでください。`scripts/ci_archive.py`が同じcheckoutから署名とアップロードを行い、元commit・version・buildを記録します。アップロード成功後はApp Store Connectで処理完了と内部配布先を確認し、公開ソースの対応表を更新してください。審査提出は自動実行しません。
 
 
 生成されたアプリは`NativeRuntime/Scripts/audit-bundle.py`、Rust通知は`audit-rust-licenses.py`で実物を確認できます。`audit-bundle.py`は、廃止したCodexの実行環境(`StruisRuntime.appex`、`NativeCodexHost.framework`、`hyotan_codex`・`codex_app_server`等のシンボルとLink Mapの項目)がbundleに無いことも確かめます。各スクリプトの引数は`--help`を参照してください。

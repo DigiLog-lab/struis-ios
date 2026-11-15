@@ -7,8 +7,8 @@ struct SettingsView: View {
     @Environment(SettingsStore.self) private var settings
     @Environment(LearnerData.self) private var learnerData
     @State private var usage: UsageStatus = UsageStatus()
-    /// 内部の配布か。TestFlight は開いてから分かるので、最初は Bundle ID とビルドで決める。
-    @State private var isInternalBuild: Bool = InternalBuild.isKnownInternal
+    /// 内部の配布か(Debug・TestFlight 向けのビルド・プロトタイプ)。ビルドで決まる。
+    private let isInternalBuild: Bool = InternalBuild.isInternal
 
     var body: some View {
         SettingsScreen(title: "設定") {
@@ -65,7 +65,6 @@ struct SettingsView: View {
         }
         .task {
             usage.refresh()
-            isInternalBuild = await InternalBuild.resolve()
         }
     }
 

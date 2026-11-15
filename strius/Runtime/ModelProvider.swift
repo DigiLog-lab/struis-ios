@@ -21,11 +21,12 @@ nonisolated enum ModelProvider: String, Codable, CaseIterable, Sendable {
 }
 
 /// 設定で選んだタイムライン(出題・採点・見直し)の Claude のモデル。検証のための設定(2026-10-28 の指示)。
-/// 知識グラフ(`timeline_graph`)は対象外。
+/// 既定は Haiku 5.5(2026-11-15 に Sonnet 5.5 から変えた: 持ち主の実使用の検証で Haiku でも十分だった)。
+/// 切り替えは内部の配布の「開発者向け」だけにあり、App Store 版は常に既定。知識グラフ(`timeline_graph`)は対象外。
 nonisolated enum TimelineModelPreference {
     static let defaultsKey = "settings.timelineClaudeModel"
     static let choices = ["claude-sonnet-5-5", "claude-haiku-5-5"]
-    static let defaultModel = "claude-sonnet-5-5"
+    static let defaultModel = "claude-haiku-5-5"
 
     static var current: String {
         get {
