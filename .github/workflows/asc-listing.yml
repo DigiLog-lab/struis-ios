@@ -1,0 +1,39 @@
+# App Store Connect の掲載情報を API で読み書きする。ブランチ claude/asc-listing に push した時だけ動く。
+# 実行する中身は scripts/asc/run.py。公開リポジトリなので、秘密の値と個人の連絡先は出力しない。
+name: ASC listing
+on:
+  push:
+    branches: [claude/asc-listing]
+    paths: ['scripts/asc/**', '.github/workflows/asc-listing.yml']
+permissions:
+  contents: read
+concurrency:
+  group: asc-listing
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: App Store Connect
+        env:
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          key="$RUNNER_TEMP/AuthKey.p8"
+          trap 'rm -f "$key"' EXIT
+          printf '%s\n' "$(printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" | tr -d '\r')" > "$key"
+          python3 scripts/asc/run.py "$key" "$RUNNER_TEMP/asc-out.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: asc-out-${{ github.run_id }}
+          path: ${{ runner.temp }}/asc-out.json
+          if-no-files-found: ignore
+          retention-days: 3
