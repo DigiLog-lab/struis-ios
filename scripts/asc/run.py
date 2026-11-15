@@ -1,14 +1,17 @@
 """App Store Connect の掲載情報の作業を1回分走らせる(.github/workflows/asc-listing.yml から呼ぶ)。
 
-今回の作業: バージョン 1.0 の文章(説明文・キーワード・プロモーションテキスト・サポートURL・著作権)と、
-審査用の連絡先(電話番号以外)とメモ。あわせてサブスクの日本の価格と状態を読み戻す。
+今回の作業: バージョン 1.0 の日本語の掲載スクショ(案I)。iPhone 6.9/6.7インチ(1290x2796)と
+iPad 13インチ(2752x2064、横向き)に6枚ずつ、assets/screens の番号の順で入れる。
+入っている枚数・チェックサムが同じなら何もしない。違えば全部消して入れ直す。
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
 import urllib.parse
+import urllib.request
 from typing import Any
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'agent'))
@@ -16,12 +19,8 @@ from appstoreconnect import AppStoreConnect  # noqa: E402
 
 BUNDLE_ID: str = 'com.digiloglab.strius'
 LOCALE: str = 'ja'
-TEXT_DIR: str = os.path.join(os.path.dirname(__file__), 'text')
-
-
-def read_text(name: str) -> str:
-    with open(os.path.join(TEXT_DIR, name), encoding='utf-8') as handle:
-        return handle.read().strip()
+SCREENS_DIR: str = os.path.join(os.path.dirname(__file__), 'assets', 'screens')
+SETS: dict[str, str] = {'APP_IPHONE_67': 'iphone', 'APP_IPAD_PRO_3GEN_129': 'ipad'}
 
 
 def main(key_path: str, out_path: str) -> None:
@@ -43,81 +42,67 @@ def main(key_path: str, out_path: str) -> None:
     app_id: str = asc.request('GET', f'/v1/apps?{query}')['data'][0]['id']
     versions: list[dict[str, Any]] = asc.request('GET', f'/v1/apps/{app_id}/appStoreVersions')['data']
     version: dict[str, Any] = next(v for v in versions if v['attributes']['appStoreState'] == 'PREPARE_FOR_SUBMISSION')
-    version_id: str = version['id']
+    locs: list[dict[str, Any]] = asc.request('GET', f"/v1/appStoreVersions/{version['id']}/appStoreVersionLocalizations")['data']
+    loc_id: str = next(l['id'] for l in locs if l['attributes']['locale'] == LOCALE)
 
-    step('version.copyright', 'PATCH', f'/v1/appStoreVersions/{version_id}', {'data': {
-        'type': 'appStoreVersions', 'id': version_id, 'attributes': {'copyright': read_text('copyright.txt')}}})
+    sets: list[dict[str, Any]] = asc.request('GET', f'/v1/appStoreVersionLocalizations/{loc_id}/appScreenshotSets')['data']
+    by_type: dict[str, dict[str, Any]] = {s['attributes']['screenshotDisplayType']: s for s in sets}
+    out['existingSetTypes'] = sorted(by_type)
 
-    attributes: dict[str, Any] = {
-        'description': read_text('description.txt'),
-        'keywords': read_text('keywords.txt'),
-        'promotionalText': read_text('promotional.txt'),
-        'supportUrl': 'https://struis.digiloglab.com/',
-    }
-    out['lengths'] = {k: len(v) for k, v in attributes.items()}
-    locs: list[dict[str, Any]] = asc.request('GET', f'/v1/appStoreVersions/{version_id}/appStoreVersionLocalizations')['data']
-    ja: dict[str, Any] | None = next((loc for loc in locs if loc['attributes']['locale'] == LOCALE), None)
-    if ja:
-        step('version.localization.ja', 'PATCH', f"/v1/appStoreVersionLocalizations/{ja['id']}", {'data': {
-            'type': 'appStoreVersionLocalizations', 'id': ja['id'], 'attributes': attributes}})
-    else:
-        created: Any = step('version.localization.ja', 'POST', '/v1/appStoreVersionLocalizations', {'data': {
-            'type': 'appStoreVersionLocalizations', 'attributes': dict(attributes, locale=LOCALE),
-            'relationships': {'appStoreVersion': {'data': {'type': 'appStoreVersions', 'id': version_id}}}}})
-        ja = created['data'] if created else None
+    for display_type, folder in SETS.items():
+        files: list[bytes] = [open(os.path.join(SCREENS_DIR, folder, f'{i}.png'), 'rb').read() for i in range(1, 7)]
+        sums: list[str] = [hashlib.md5(d).hexdigest() for d in files]
+        shot_set: dict[str, Any] | None = by_type.get(display_type)
+        if shot_set is None:
+            created: Any = step(f'{folder}.set.create', 'POST', '/v1/appScreenshotSets', {'data': {
+                'type': 'appScreenshotSets', 'attributes': {'screenshotDisplayType': display_type},
+                'relationships': {'appStoreVersionLocalization': {
+                    'data': {'type': 'appStoreVersionLocalizations', 'id': loc_id}}}}})
+            if not created:
+                continue
+            shot_set = created['data']
+        set_id: str = shot_set['id']
+        current: list[dict[str, Any]] = asc.request('GET', f'/v1/appScreenshotSets/{set_id}/appScreenshots')['data']
+        if [c['attributes'].get('sourceFileChecksum') for c in current] == sums:
+            steps.append({'step': f'{folder}.screenshots', 'result': 'ok (already uploaded)'})
+            continue
+        for c in current:
+            step(f"{folder}.delete.{c['attributes'].get('fileName')}", 'DELETE', f"/v1/appScreenshots/{c['id']}")
+        for index, data in enumerate(files, start=1):
+            name: str = f'struis-{folder}-{index}.png'
+            reserved: Any = step(f'{folder}.{index}.reserve', 'POST', '/v1/appScreenshots', {'data': {
+                'type': 'appScreenshots', 'attributes': {'fileName': name, 'fileSize': len(data)},
+                'relationships': {'appScreenshotSet': {'data': {'type': 'appScreenshotSets', 'id': set_id}}}}})
+            if not reserved:
+                continue
+            shot_id: str = reserved['data']['id']
+            try:
+                for op in reserved['data']['attributes']['uploadOperations']:
+                    chunk: bytes = data[op['offset']:op['offset'] + op['length']]
+                    headers: dict[str, str] = {h['name']: h['value'] for h in op.get('requestHeaders', [])}
+                    request = urllib.request.Request(op['url'], data=chunk, method=op['method'], headers=headers)
+                    urllib.request.urlopen(request, timeout=120).read()
+            except Exception as error:  # noqa: BLE001
+                steps.append({'step': f'{folder}.{index}.put', 'result': f'error: {error}'})
+                continue
+            step(f'{folder}.{index}.commit', 'PATCH', f'/v1/appScreenshots/{shot_id}', {'data': {
+                'type': 'appScreenshots', 'id': shot_id,
+                'attributes': {'uploaded': True, 'sourceFileChecksum': sums[index - 1]}}})
 
-    review: dict[str, Any] = {
-        'contactFirstName': 'Tomochika',
-        'contactLastName': 'Miyauji',
-        'contactEmail': 'support@digiloglab.com',
-        'demoAccountRequired': False,
-        'notes': read_text('review-notes.txt'),
-    }
-    try:
-        detail: dict[str, Any] | None = asc.request('GET', f'/v1/appStoreVersions/{version_id}/appStoreReviewDetail').get('data')
-    except RuntimeError:
-        detail = None
-    phone: str = os.environ.get('REVIEW_CONTACT_PHONE', '').strip()
-    if phone:
-        review['contactPhone'] = phone
-    if not detail and not phone:
-        steps.append({'step': 'reviewDetail', 'result': 'ok: skipped (作成には電話番号が必須。REVIEW_CONTACT_PHONE が未設定)'})
-    elif detail:
-        step('reviewDetail', 'PATCH', f"/v1/appStoreReviewDetails/{detail['id']}", {'data': {
-            'type': 'appStoreReviewDetails', 'id': detail['id'], 'attributes': review}})
-    else:
-        step('reviewDetail', 'POST', '/v1/appStoreReviewDetails', {'data': {
-            'type': 'appStoreReviewDetails', 'attributes': review,
-            'relationships': {'appStoreVersion': {'data': {'type': 'appStoreVersions', 'id': version_id}}}}})
-
-    # 読み戻し(連絡先の個人情報は出力しない)
-    v_attr: dict[str, Any] = asc.request('GET', f'/v1/appStoreVersions/{version_id}')['data']['attributes']
-    out['version'] = {k: v_attr.get(k) for k in ('versionString', 'copyright', 'releaseType', 'appStoreState')}
-    if ja:
-        out['ja'] = asc.request('GET', f"/v1/appStoreVersionLocalizations/{ja['id']}")['data']['attributes']
-    d_data: dict[str, Any] | None = asc.request('GET', f'/v1/appStoreVersions/{version_id}/appStoreReviewDetail').get('data')
-    d_attr: dict[str, Any] = (d_data or {}).get('attributes') or {}
-    out['reviewDetail'] = {'exists': d_data is not None, 'demoAccountRequired': d_attr.get('demoAccountRequired'),
-                           'hasEmail': bool(d_attr.get('contactEmail')), 'hasName': bool(d_attr.get('contactLastName')),
-                           'hasPhone': bool(d_attr.get('contactPhone')), 'notes': d_attr.get('notes')}
-
-    group: dict[str, Any] = asc.request('GET', f'/v1/apps/{app_id}/subscriptionGroups')['data'][0]
-    subs_out: list[dict[str, Any]] = []
-    for sub in asc.request('GET', f"/v1/subscriptionGroups/{group['id']}/subscriptions")['data']:
-        prices: list[dict[str, Any]] = asc.request(
-            'GET', f"/v1/subscriptions/{sub['id']}/prices?filter[territory]=JPN&include=subscriptionPricePoint")
-        points: dict[str, Any] = {i['id']: i['attributes'] for i in prices.get('included', [])}
-        jpn: list[Any] = [points.get(p['relationships']['subscriptionPricePoint']['data']['id'], {}).get('customerPrice')
-                          for p in prices['data']]
-        subs_out.append({'productId': sub['attributes']['productId'], 'state': sub['attributes']['state'], 'jpnPrice': jpn})
-    out['subscriptions'] = subs_out
-    builds: list[dict[str, Any]] = asc.request(
-        'GET', f'/v1/builds?filter[app]={app_id}&sort=-uploadedDate&limit=5&fields[builds]=version,uploadedDate,processingState,expired')['data']
-    out['builds'] = [b['attributes'] for b in builds]
+    # 読み戻し(処理には少しかかるので、状態は次の実行でも確かめる)
+    out['sets'] = {}
+    for s in asc.request('GET', f'/v1/appStoreVersionLocalizations/{loc_id}/appScreenshotSets')['data']:
+        shots: list[dict[str, Any]] = asc.request('GET', f"/v1/appScreenshotSets/{s['id']}/appScreenshots")['data']
+        out['sets'][s['attributes']['screenshotDisplayType']] = [
+            {'fileName': x['attributes'].get('fileName'),
+             'state': (x['attributes'].get('assetDeliveryState') or {}).get('state'),
+             'errors': (x['attributes'].get('assetDeliveryState') or {}).get('errors'),
+             'size': x['attributes'].get('imageAsset') and [x['attributes']['imageAsset'].get('width'),
+                                                            x['attributes']['imageAsset'].get('height')]}
+            for x in shots]
     out['steps'] = steps
-    text: str = json.dumps(out, ensure_ascii=False, indent=1)
     with open(out_path, 'w', encoding='utf-8') as handle:
-        handle.write(text)
+        handle.write(json.dumps(out, ensure_ascii=False, indent=1))
     print(json.dumps(steps, ensure_ascii=False))
     if any(not s['result'].startswith('ok') for s in steps):
         sys.exit(1)
