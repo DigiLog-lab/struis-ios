@@ -71,15 +71,8 @@ def main(key_path: str, out_path: str) -> None:
     name: str = next(n for n in archive.namelist() if n.endswith('.json'))
     spec: dict[str, Any] = json.loads(archive.read(name))
     schemas: dict[str, Any] = spec['components']['schemas']
-    out: dict[str, Any] = {'specFile': name, 'version': spec.get('info', {}).get('version')}
-    for schema in SCHEMAS:
-        out[schema] = resolve(schemas, schemas[schema]) if schema in schemas else 'MISSING'
-    paths: list[str] = sorted(p for p in spec['paths'] if any(
-        word in p for word in ('appAvailabilities', 'subscriptionIntroductoryOffers', 'appCategories',
-                               'accessibilityDeclarations', 'appPriceSchedules', 'subscriptionPrices',
-                               'pricePoints', 'territoryAvailabilities')))
-    out['paths'] = paths
-    text: str = json.dumps(out, ensure_ascii=False, indent=1)
+    del schemas
+    text: str = json.dumps(spec, ensure_ascii=False)
     with open(out_path, 'w', encoding='utf-8') as handle:
         handle.write(text)
     print(f'wrote {len(text)} bytes')
