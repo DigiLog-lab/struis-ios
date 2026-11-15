@@ -58,6 +58,10 @@ final class TimelinePlanModeLiveTests: XCTestCase {
 
         // 台帳: 単元・スキル・答案ごとのカード。写真は captures に「書く面の答案」の名前で置く(赤ペンの道具も本番と同じに使う)。
         let ledger = try Ledger.inMemory()
+        // 答案を拡大して見る道具(`timeline_view_capture`)と台帳の道具が、この台帳を読むようにする(アプリでは起動時に入れている)。
+        TimelineGraph.install(ledger)
+        // `plan.yaml` があれば Opus を呼ばずにその計画を使う(採点だけを測り直す時)。
+        let reusedPlan: String? = try? String(contentsOf: root.appendingPathComponent("plan.yaml"), encoding: .utf8)
         try StruisPaths.prepare()
         let now = LedgerClock.now()
         var paths: [String: String] = [:]
@@ -84,7 +88,12 @@ final class TimelinePlanModeLiveTests: XCTestCase {
                     commonMistakes: [], estimatedSeconds: 60, chain: nil, easierOf: nil, subunitId: nil, unitId: Self.unitID,
                     payload: .object(["steps": .array(item.steps.map(LedgerJSON.string))]), origin: "batch", status: "shown", createdAt: now, updatedAt: now))
             }
-            TimelinePlanMode.insertPlanRequest(log: opusLog, timeline: &timeline)
+            let planBatchID = TimelinePlanMode.insertPlanRequest(log: opusLog, timeline: &timeline)
+            if let reusedPlan, var row = timeline.batches[planBatchID] {
+                row.request = .object(["task": .string("plan"), "plan": .string(reusedPlan)])
+                row.status = "ready"
+                timeline.put("timeline.plan_ready", row)
+            }
             return ([.upsert("test", unit)] + timeline.events, ())
         }
 
@@ -97,7 +106,8 @@ final class TimelinePlanModeLiveTests: XCTestCase {
         }
         var report: [String: Any] = [:]
 
-        // 1. Opus の計画。
+        // 1. Opus の計画(`plan.yaml` を使う時は呼ばない)。
+        if reusedPlan == nil {
         let (workbook0, timeline0): (WorkbookMachine, TimelineMachine) = try await ledger.read { db in (try WorkbookMachine(loading: db), try TimelineMachine(loading: db)) }
         let planBatch = try XCTUnwrap(timeline0.batches.values.first { $0.purpose == TimelinePlanMode.planPurpose })
         let planTurn = try await TimelineTurns.graph(composer: composer, planID: "live-plan", batchID: planBatch.id, workbook: workbook0, timeline: timeline0)
@@ -113,6 +123,9 @@ final class TimelinePlanModeLiveTests: XCTestCase {
         report["plan"] = ["status": planOutcome.status.rawValue, "cost": cost(planOutcome), "seconds": Date().timeIntervalSince(started),
                           "text": plan ?? "", "requests": usage(planOutcome).map(\.any)]
         print(String(format: "PLAN_LIVE plan status=%@ cost=$%.3f seconds=%.0f", planOutcome.status.rawValue, cost(planOutcome), Date().timeIntervalSince(started)))
+        } else {
+            print("PLAN_LIVE plan reused")
+        }
 
         // 2. 答案を順番に採点する(同じスレッドが続く)。
         var gradings: [[String: Any]] = []
@@ -148,6 +161,7 @@ final class TimelinePlanModeLiveTests: XCTestCase {
                 record["thread"] = outcome.codexThreadID ?? ""
                 record["resumed"] = turn.thread.mode == .resume
                 record["requests"] = requests.map(\.any)
+                record["views"] = ((record["views"] as? Int) ?? 0) + outcome.executions.reduce(0) { $0 + ($1["capture_views"]?.arrayValue?.count ?? 0) }
                 record["status"] = outcome.status.rawValue
                 record["error"] = outcome.errorDetail ?? ""
                 if followUp.retry, round < 2 {
@@ -165,8 +179,8 @@ final class TimelinePlanModeLiveTests: XCTestCase {
             record["feedback"] = attempt?.feedback ?? ""
             record["marks"] = ((attempt?.errors.arrayValue ?? []).filter { $0["kind"]?.stringValue == TimelineMachine.RedPenMark.kind }).count
             gradings.append(record)
-            print(String(format: "PLAN_LIVE %@ rounds=%d resumed=%@ cost=$%.4f total=$%.3f", item.n, record["rounds"] as? Int ?? 0,
-                         (record["resumed"] as? Bool ?? false) ? "yes" : "no", record["cost"] as? Double ?? 0, spent))
+            print(String(format: "PLAN_LIVE %@ rounds=%d views=%d marks=%d resumed=%@ cost=$%.4f total=$%.3f", item.n, record["rounds"] as? Int ?? 0,
+                         record["views"] as? Int ?? 0, record["marks"] as? Int ?? 0, (record["resumed"] as? Bool ?? false) ? "yes" : "no", record["cost"] as? Double ?? 0, spent))
         }
         report["gradings"] = gradings
         report["spent"] = spent
