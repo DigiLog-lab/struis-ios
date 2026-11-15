@@ -59,7 +59,7 @@ final class TimelinePlanModeLiveTests: XCTestCase {
         // 台帳: 単元・スキル・答案ごとのカード。写真は captures に「書く面の答案」の名前で置く(赤ペンの道具も本番と同じに使う)。
         let ledger = try Ledger.inMemory()
         // 答案を拡大して見る道具(`timeline_view_capture`)と台帳の道具が、この台帳を読むようにする(アプリでは起動時に入れている)。
-        TimelineGraph.install(ledger)
+        TimelineQueryHost.install(ledger)
         // `plan.yaml` があれば Opus を呼ばずにその計画を使う(採点だけを測り直す時)。
         let reusedPlan: String? = try? String(contentsOf: root.appendingPathComponent("plan.yaml"), encoding: .utf8)
         try StruisPaths.prepare()
