@@ -56,8 +56,8 @@ final class TimelineAssetTests: XCTestCase {
 
     func testTimelineModelAliases() async throws {
         let cache = AssetCache()
-        let claude = await cache.model(TimelineModels.role)
-        XCTAssertEqual(claude.model, "claude-sonnet-5-5")
+        let claude = await AssetCache(timelineClaudeModel: { TimelineModelPreference.defaultModel }).model(TimelineModels.role)
+        XCTAssertEqual(claude.model, "claude-haiku-5-5")
         XCTAssertEqual(claude.provider, .anthropic)
         let graph = await cache.model(TimelineModels.graphRole)
         XCTAssertEqual(graph.model, "claude-opus-5-5")
@@ -83,15 +83,15 @@ final class TimelineAssetTests: XCTestCase {
         XCTAssertEqual(graph.model, "claude-opus-5-5")
     }
 
-    func testTimelineModelPreferenceDefaultsToSonnetAndIgnoresUnknownValues() {
+    func testTimelineModelPreferenceDefaultsToHaikuAndIgnoresUnknownValues() {
         let defaults = UserDefaults.standard
         let saved = defaults.object(forKey: TimelineModelPreference.defaultsKey)
         defer { defaults.set(saved, forKey: TimelineModelPreference.defaultsKey) }
         defaults.removeObject(forKey: TimelineModelPreference.defaultsKey)
-        XCTAssertEqual(TimelineModelPreference.current, "claude-sonnet-5-5")
-        TimelineModelPreference.current = "claude-haiku-5-5"
         XCTAssertEqual(TimelineModelPreference.current, "claude-haiku-5-5")
-        defaults.set("claude-opus-5-5", forKey: TimelineModelPreference.defaultsKey)
+        TimelineModelPreference.current = "claude-sonnet-5-5"
         XCTAssertEqual(TimelineModelPreference.current, "claude-sonnet-5-5")
+        defaults.set("claude-opus-5-5", forKey: TimelineModelPreference.defaultsKey)
+        XCTAssertEqual(TimelineModelPreference.current, "claude-haiku-5-5")
     }
 }

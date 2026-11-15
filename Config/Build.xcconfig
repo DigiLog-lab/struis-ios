@@ -7,6 +7,11 @@ STRUIS_CLAUDE_CLIENT_ID = clid_01VktLSgwMYeBarCsxhUjHUk
 // その前に Developer portal で App Clip ID の登録が要る(scripts/ci_archive.py が案内する)。
 STRUIS_TIME_ATTACK = NO
 STRUIS_TIME_ATTACK_CONDITION_YES = STRUIS_TIME_ATTACK
-SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) $(STRUIS_TIME_ATTACK_CONDITION_$(STRUIS_TIME_ATTACK))
+// 内部の配布(TestFlight)のスイッチ。YES のビルドだけが設定に「開発者向け」(モデル・料金・トークン)を持つ。
+// 既定は NO(App Store に出す形)。scripts/ci_archive.py が配布先 testflight の時だけ YES を渡す。
+// App Review の端末は TestFlight と同じ sandbox なので、購入環境では見分けず、ビルドで分ける。
+STRUIS_INTERNAL = NO
+STRUIS_INTERNAL_CONDITION_YES = STRUIS_INTERNAL
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) $(STRUIS_TIME_ATTACK_CONDITION_$(STRUIS_TIME_ATTACK)) $(STRUIS_INTERNAL_CONDITION_$(STRUIS_INTERNAL))
 
 #include? "Local.xcconfig"
