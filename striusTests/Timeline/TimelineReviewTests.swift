@@ -240,7 +240,8 @@ final class TimelineReviewTests: XCTestCase {
             let applied = try TimelineTurns.apply(kind: .timelineGrading, targetID: attemptID, outcome: outcome, model: "m", db: db)
             return (applied.events, ())
         }
-        let graded = try XCTUnwrap(try await ledger.read { db in try TimelineAttemptRecord.fetchOne(db, key: attemptID) })
+        let stored = try await ledger.read { db in try TimelineAttemptRecord.fetchOne(db, key: attemptID) }
+        let graded = try XCTUnwrap(stored)
         XCTAssertEqual(graded.grade, "wrong")
         XCTAssertEqual(graded.learnerAnswer, "6.0")
         XCTAssertTrue(graded.feedback.contains("54"), graded.feedback)
