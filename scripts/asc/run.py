@@ -77,7 +77,12 @@ def main(key_path: str, out_path: str) -> None:
         detail: dict[str, Any] | None = asc.request('GET', f'/v1/appStoreVersions/{version_id}/appStoreReviewDetail').get('data')
     except RuntimeError:
         detail = None
-    if detail:
+    phone: str = os.environ.get('REVIEW_CONTACT_PHONE', '').strip()
+    if phone:
+        review['contactPhone'] = phone
+    if not detail and not phone:
+        steps.append({'step': 'reviewDetail', 'result': 'ok: skipped (作成には電話番号が必須。REVIEW_CONTACT_PHONE が未設定)'})
+    elif detail:
         step('reviewDetail', 'PATCH', f"/v1/appStoreReviewDetails/{detail['id']}", {'data': {
             'type': 'appStoreReviewDetails', 'id': detail['id'], 'attributes': review}})
     else:
@@ -106,6 +111,9 @@ def main(key_path: str, out_path: str) -> None:
                           for p in prices['data']]
         subs_out.append({'productId': sub['attributes']['productId'], 'state': sub['attributes']['state'], 'jpnPrice': jpn})
     out['subscriptions'] = subs_out
+    builds: list[dict[str, Any]] = asc.request(
+        'GET', f'/v1/builds?filter[app]={app_id}&sort=-uploadedDate&limit=5&fields[builds]=version,uploadedDate,processingState,expired')['data']
+    out['builds'] = [b['attributes'] for b in builds]
     out['steps'] = steps
     text: str = json.dumps(out, ensure_ascii=False, indent=1)
     with open(out_path, 'w', encoding='utf-8') as handle:
