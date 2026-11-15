@@ -11,9 +11,8 @@ final class OnboardingScreenshotUITests: XCTestCase {
         continueAfterFailure = true
         // 27 画面を 1 枚ずつ起動して撮るので、既定の 3 分を超える(main の手動の全件実行で時間切れになった)。
         executionTimeAllowance = 6 * 60
-        let configuration = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Config/Struis.storekit")
-        let session = try SKTestSession(contentsOf: configuration)
+        // アプリを入れてから作る(入る前に作ると設定ファイルが読み込まれない。`UITestSupport.storeKitSession`)。
+        let session: SKTestSession = try MainActor.assumeIsolated { try UITestSupport.storeKitSession() }
         session.disableDialogs = true
         session.clearTransactions()
         storeSession = session
