@@ -1,6 +1,6 @@
 """App Store Connect の掲載情報の作業を1回分走らせる(.github/workflows/asc-listing.yml から呼ぶ)。
 
-今回の作業: バージョン 1.0 の日本語の掲載スクショ(案I)。iPhone 6.9/6.7インチ(1290x2796)と
+今回の作業: バージョン 1.0 の公開方法を手動(MANUAL)にする。日本語の掲載スクショ(案I)。iPhone 6.9/6.7インチ(1290x2796)と
 iPad 13インチ(2752x2064、横向き)に6枚ずつ、assets/screens の番号の順で入れる。
 入っている枚数・チェックサムが同じなら何もせず、処理の状態だけ読み戻す。違えば全部消して入れ直す。
 """
@@ -42,6 +42,9 @@ def main(key_path: str, out_path: str) -> None:
     app_id: str = asc.request('GET', f'/v1/apps?{query}')['data'][0]['id']
     versions: list[dict[str, Any]] = asc.request('GET', f'/v1/apps/{app_id}/appStoreVersions')['data']
     version: dict[str, Any] = next(v for v in versions if v['attributes']['appStoreState'] == 'PREPARE_FOR_SUBMISSION')
+    step('version.releaseType', 'PATCH', f"/v1/appStoreVersions/{version['id']}", {'data': {
+        'type': 'appStoreVersions', 'id': version['id'], 'attributes': {'releaseType': 'MANUAL'}}})
+    out['releaseType'] = asc.request('GET', f"/v1/appStoreVersions/{version['id']}")['data']['attributes'].get('releaseType')
     locs: list[dict[str, Any]] = asc.request('GET', f"/v1/appStoreVersions/{version['id']}/appStoreVersionLocalizations")['data']
     loc_id: str = next(l['id'] for l in locs if l['attributes']['locale'] == LOCALE)
 
