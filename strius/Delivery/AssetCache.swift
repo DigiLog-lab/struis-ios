@@ -114,6 +114,9 @@ nonisolated struct BundledAssets: Sendable {
         // 書く面の答案の採点に足す赤ペンの節と、採点の形に足す `marks`。
         "prompt:timeline_grading_red_pen": "timeline_grading_red_pen.md",
         "prompt:timeline_answer_instructions": "timeline_answer_instructions.md",
+        // 新しい形(`TimelinePlanMode`)の、上位モデルが書く学習の計画。
+        "prompt:timeline_plan_instructions": "timeline_plan_instructions.md",
+        "schema:timeline_plan": "timeline_plan.json",
         "schema:timeline_batch": "timeline_batch.json",
         "schema:timeline_grading": "timeline_grading.json",
         // オンボーディング(#40): お試しの1問の採点と、最初の計画。

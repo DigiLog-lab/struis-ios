@@ -142,6 +142,24 @@ nonisolated enum TimelineTurns {
         )
     }
 
+    /// 新しい形(`TimelinePlanMode`)の採点のスレッド: 基本指示は今までと同じで、今日の記録の代わりに Opus の計画と
+    /// スキルの一覧を入れる。1 時間以内に使ったスレッドがあれば、その続き(会話の履歴を持つ)。
+    static func sessionThread(composer: TurnComposer, planID: String, workbook: WorkbookMachine, timeline: TimelineMachine) async throws -> TurnPlan.ThreadSpec {
+        let effort = tutorEffort
+        let shared = try await composer.assets.text("prompt:timeline_shared")
+        let base = try await composer.assets.ref("prompt:base", append: shared + "\n\n" + NativeToolRouter.instructions)
+        let plan = TimelinePlanMode.latestPlan(timeline) ?? "まだありません。"
+        let context = sharedContext(workbook: workbook, timeline: timeline)
+        let developer = ["# この生徒の計画(上位の先生が書いたもの)\n\n" + plan, context.isEmpty ? "# 今の単元\n\nまだありません。" : context]
+            .joined(separator: ClaudeTranslation.blockSeparator)
+        let thread = TimelinePlanMode.session()
+        return TurnPlan.ThreadSpec(
+            codexThreadID: thread, mode: thread == nil ? .start : .resume, cwd: TurnPlan.guestWorkspace(id: planID), model: TimelinePlanMode.sessionModel,
+            effort: effort, ephemeral: false, baseInstructions: base, developerInstructions: nil, developerText: developer,
+            injectDeveloperOnResume: false, config: TurnComposer.structuredConfig(effort: effort), lastTurnID: nil, provider: .anthropic
+        )
+    }
+
     /// 知識グラフの依頼のスレッド(上位モデル。採点・出題とは先頭を共有しない)。
     /// 基本指示は、どの依頼でも同じ部分(`prompt:base`・`timeline_shared`)と、学習者の単元とスキルの一覧(スキルが増えるたびに
     /// 変わる)を `ClaudeTranslation.fixedEnd` で分ける。同じ部分だけが 1 時間のキャッシュに入り、続けて送る依頼がそれを読む。
@@ -295,7 +313,9 @@ nonisolated enum TimelineTurns {
         }
         return TurnPlan(
             id: planID, kind: .timelineGrading, round: repair == nil ? 1 : 2,
-            thread: try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline),
+            thread: TimelinePlanMode.isOn
+                ? try await sessionThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline)
+                : try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline),
             turn: TurnPlan.TurnSpec(text: turnText(task: task, materials: gradingRequest(attempt: attempt, card: card), repair: repair),
                                     images: [image], outputSchema: schema, sandboxPolicy: "dangerFullAccess"),
             workspace: workspace, delegation: nil, collect: [], limits: .structured
@@ -590,6 +610,7 @@ nonisolated enum TimelineTurns {
         let (instructions, schema) = switch request["task"]?.stringValue {
         case "decompose": ("prompt:timeline_decompose_instructions", "schema:timeline_decompose")
         case "misconceptions": ("prompt:timeline_misconceptions_instructions", "schema:timeline_misconceptions")
+        case "plan": ("prompt:timeline_plan_instructions", "schema:timeline_plan")
         default: ("prompt:timeline_graph_instructions", "schema:timeline_graph")
         }
         var plan: TurnPlan = TurnPlan(
@@ -667,7 +688,12 @@ nonisolated enum TimelineTurns {
                 break
             }
             let result = timeline.applyGrading(attemptID: targetID, grading: grading)
-            if result.verdict == "correct" || result.verdict == "wrong" { followUp.review = targetID }
+            if TimelinePlanMode.isOn {
+                // 新しい形: 答案ごとの見直しは走らせない。次の採点が同じスレッドを続けられるように控える。
+                TimelinePlanMode.touch(threadID: outcome.codexThreadID)
+            } else if result.verdict == "correct" || result.verdict == "wrong" {
+                followUp.review = targetID
+            }
             // 赤ペン: 答案を取り込んで確かめた場所だけ使う。確かめていなければ出さない(判定を遅らせないよう頼み直さない)。
             if let graded = timeline.attempts[targetID], wantsMarks(graded), !grading.marks.isEmpty {
                 if viewedCapture(outcome.executions, attemptID: targetID) {
@@ -720,6 +746,19 @@ nonisolated enum TimelineTurns {
             switch batch.request["task"]?.stringValue {
             case "decompose":
                 followUp = try applyDecomposition(batchID: targetID, text: outcome.finalText, timeline: &timeline, db: db)
+            case "plan":
+                guard let plan = (try? TimelineReply.decode(TimelinePlanMode.Reply.self, from: outcome.finalText))?.plan, !plan.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                      var row = timeline.batches[targetID] else {
+                    timeline.failBatch(id: targetID, error: "unreadable plan")
+                    break
+                }
+                var request = row.request.objectValue ?? [:]
+                request["plan"] = .string(plan)
+                request["log"] = nil
+                row.request = .object(request)
+                row.status = "ready"
+                row.updatedAt = timeline.now()
+                timeline.put("timeline.plan_ready", row)
             case "misconceptions":
                 guard let output = try? JSONDecoder().decode(TimelineGraph.Misconceptions.self, from: Data(outcome.finalText.utf8)) else {
                     timeline.failBatch(id: targetID, error: "unreadable misconceptions")
