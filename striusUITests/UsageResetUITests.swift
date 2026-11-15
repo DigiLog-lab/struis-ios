@@ -12,9 +12,8 @@ final class UsageResetUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
-        let configuration = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Config/Struis.storekit")
-        let session = try SKTestSession(contentsOf: configuration)
+        // アプリを入れてから作る(入る前に作ると設定ファイルが読み込まれない。`UITestSupport.storeKitSession`)。
+        let session: SKTestSession = try MainActor.assumeIsolated { try UITestSupport.storeKitSession() }
         session.resetToDefaultState()
         session.disableDialogs = true
         session.askToBuyEnabled = false

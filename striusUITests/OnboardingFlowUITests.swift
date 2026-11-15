@@ -11,9 +11,8 @@ final class OnboardingFlowUITests: XCTestCase {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         // 購入は StoreKit の設定ファイル(`Config/Struis.storekit`)で。確認のシートは出さずに通す。
-        let configuration = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Config/Struis.storekit")
-        let session = try SKTestSession(contentsOf: configuration)
+        // アプリを入れてから作る(入る前に作ると設定ファイルが読み込まれない。`UITestSupport.storeKitSession`)。
+        let session: SKTestSession = try MainActor.assumeIsolated { try UITestSupport.storeKitSession() }
         session.disableDialogs = true
         session.clearTransactions()
         storeSession = session

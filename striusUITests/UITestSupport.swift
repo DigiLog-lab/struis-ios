@@ -1,3 +1,4 @@
+import StoreKitTest
 import XCTest
 
 private final class UITestResourceBundle: NSObject {}
@@ -30,6 +31,50 @@ enum UITestSupport {
         app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = paperImagePath
         return app
     }
+
+    /// StoreKit の設定ファイル(`Config/Struis.storekit`)で購入を動かす `SKTestSession`。
+    ///
+    /// Xcode 27 は、テストするアプリ(`com.digiloglab.strius`)をシミュレータに入れるのを、最初の `launch()` の時まで遅らせる。
+    /// アプリがまだ入っていないシミュレータ(作り直した・アプリを消した)で、入る前に `SKTestSession` を作ると、storekitd が
+    /// アプリを見つけられず(`LSBundleRecord` の -10814)、設定ファイルを保存できない(`[SKTestSession] Error saving
+    /// configuration file`、`SKServiceErrorDomain Code=2`)。`SKTestSession` はこの失敗を投げずにログに出すだけなので、
+    /// アプリは設定ファイルではない商品(ライトが $9.99)を読み、購入も失敗していた(2026-11-15、Dev Box で再現)。
+    /// だから、アプリを一度起動して閉じ(入っていなければここで入る)、それから作る。作った後は、設定ファイルの
+    /// ストアフロント(JPN)が読めることを確かめ、読めなければ setUp を失敗させる。
+    @MainActor
+    static func storeKitSession() throws -> SKTestSession {
+        installAppUnderTest()
+        let configuration: URL = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Config/Struis.storekit")
+        let session: SKTestSession = try SKTestSession(contentsOf: configuration)
+        let storefront: String = session.storefront
+        guard storefront == "JPN" else { throw StoreKitSessionError.configurationNotLoaded(storefront: storefront) }
+        return session
+    }
+
+    enum StoreKitSessionError: Error, CustomStringConvertible {
+        case configurationNotLoaded(storefront: String)
+
+        var description: String {
+            switch self {
+            case .configurationNotLoaded(let storefront):
+                return "StoreKit の設定ファイルが読み込まれていない(ストアフロントが JPN ではなく「\(storefront)」)"
+            }
+        }
+    }
+
+    /// テストするアプリを入れる(このテストの実行で 1 回だけ、起動してすぐ閉じる)。
+    @MainActor
+    private static func installAppUnderTest() {
+        guard !appUnderTestInstalled else { return }
+        let app: XCUIApplication = XCUIApplication()
+        app.launchEnvironment = ["STRUIS_DEVICE_TURNS": "mock", "STRUIS_DEVICE_RUNTIME": "0"]
+        app.launch()
+        app.terminate()
+        appUnderTestInstalled = true
+    }
+
+    @MainActor private static var appUnderTestInstalled: Bool = false
 
     /// 画面の写真(PNG)と要素の木(txt)を `STRUIS_PROBE_DIR` に残す(CI では `$RUNNER_TEMP/ui-probe` を artifact に入れる)。
     /// 変数が無ければ添付だけにする。
