@@ -90,8 +90,9 @@ def main(key_path: str, out_path: str) -> None:
     out['version'] = {k: v_attr.get(k) for k in ('versionString', 'copyright', 'releaseType', 'appStoreState')}
     if ja:
         out['ja'] = asc.request('GET', f"/v1/appStoreVersionLocalizations/{ja['id']}")['data']['attributes']
-    d_attr: dict[str, Any] = asc.request('GET', f'/v1/appStoreVersions/{version_id}/appStoreReviewDetail')['data']['attributes']
-    out['reviewDetail'] = {'demoAccountRequired': d_attr.get('demoAccountRequired'),
+    d_data: dict[str, Any] | None = asc.request('GET', f'/v1/appStoreVersions/{version_id}/appStoreReviewDetail').get('data')
+    d_attr: dict[str, Any] = (d_data or {}).get('attributes') or {}
+    out['reviewDetail'] = {'exists': d_data is not None, 'demoAccountRequired': d_attr.get('demoAccountRequired'),
                            'hasEmail': bool(d_attr.get('contactEmail')), 'hasName': bool(d_attr.get('contactLastName')),
                            'hasPhone': bool(d_attr.get('contactPhone')), 'notes': d_attr.get('notes')}
 
