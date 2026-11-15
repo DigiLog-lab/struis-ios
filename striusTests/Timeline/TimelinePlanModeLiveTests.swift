@@ -39,7 +39,9 @@ final class TimelinePlanModeLiveTests: XCTestCase {
         let limit: Double = Double(env["STRUIS_PLAN_LIVE_LIMIT"] ?? "") ?? 3.0
         let root = URL(fileURLWithPath: folder, isDirectory: true)
         let key = try String(contentsOfFile: keyFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
-        let items = try JSONDecoder().decode([Item].self, from: Data(contentsOf: root.appendingPathComponent("items.json")))
+        // `STRUIS_PLAN_LIVE_COUNT` があれば、先頭のその数だけ流す。
+        let count: Int = ProcessInfo.processInfo.environment["STRUIS_PLAN_LIVE_COUNT"].flatMap(Int.init) ?? .max
+        let items = Array(try JSONDecoder().decode([Item].self, from: Data(contentsOf: root.appendingPathComponent("items.json"))).prefix(count))
         let skills = try JSONDecoder().decode([Skill].self, from: Data(contentsOf: root.appendingPathComponent("skills.json")))
         let opusLog = try String(contentsOf: root.appendingPathComponent("opus_log.md"), encoding: .utf8)
 
@@ -127,8 +129,9 @@ final class TimelinePlanModeLiveTests: XCTestCase {
             print("PLAN_LIVE plan reused")
         }
 
-        // 2. 答案を順番に採点する(同じスレッドが続く)。
+        // 2. 答案を順番に採点する(同じスレッドが続く)。採点の返事から Opus への依頼が入れば、アプリと同じくその場で走らせる。
         var gradings: [[String: Any]] = []
+        var escalations: [[String: Any]] = []
         for item in items {
             guard spent < limit else {
                 print("PLAN_LIVE stopped at the limit before \(item.n)")
@@ -164,6 +167,25 @@ final class TimelinePlanModeLiveTests: XCTestCase {
                 record["views"] = ((record["views"] as? Int) ?? 0) + outcome.executions.reduce(0) { $0 + ($1["capture_views"]?.arrayValue?.count ?? 0) }
                 record["status"] = outcome.status.rawValue
                 record["error"] = outcome.errorDetail ?? ""
+                record["escalate"] = (try? TimelineReply.decode(TimelinePlanMode.Escalation.self, from: outcome.finalText))?.escalate ?? ""
+                if let next = followUp.nextGraph {
+                    let (workbookE, timelineE): (WorkbookMachine, TimelineMachine) = try await ledger.read { db in (try WorkbookMachine(loading: db), try TimelineMachine(loading: db)) }
+                    let request = timelineE.batches[next]?.request
+                    let planTurn = try await TimelineTurns.graph(composer: composer, planID: "live-escalation-\(item.n)", batchID: next, workbook: workbookE, timeline: timelineE)
+                    let begin = Date()
+                    let planOutcome = try await runner.run(planTurn) { _ in }
+                    WorkspaceStager.cleanup(plan: planTurn)
+                    spent += cost(planOutcome)
+                    _ = try await ledger.commit { db in
+                        try TimelineTurns.apply(kind: .timelineGraph, targetID: next, outcome: planOutcome, model: planTurn.thread.model, db: db)
+                    }
+                    let newPlan: String? = try await ledger.read { db in try TimelineMachine(loading: db).batches[next]?.request["plan"]?.stringValue }
+                    escalations.append(["after": item.n, "trigger": request?["trigger"]?.stringValue ?? "", "reason": request?["reason"]?.stringValue ?? "",
+                                        "status": planOutcome.status.rawValue, "cost": cost(planOutcome), "seconds": Date().timeIntervalSince(begin),
+                                        "plan": newPlan ?? "", "error": planOutcome.errorDetail ?? ""])
+                    print(String(format: "PLAN_LIVE escalation after=%@ status=%@ plan=%@ cost=$%.3f", item.n, planOutcome.status.rawValue,
+                                 newPlan == nil ? "no" : "yes", cost(planOutcome)))
+                }
                 if followUp.retry, round < 2 {
                     repair = followUp.repair
                     continue
@@ -179,10 +201,11 @@ final class TimelinePlanModeLiveTests: XCTestCase {
             record["feedback"] = attempt?.feedback ?? ""
             record["marks"] = ((attempt?.errors.arrayValue ?? []).filter { $0["kind"]?.stringValue == TimelineMachine.RedPenMark.kind }).count
             gradings.append(record)
-            print(String(format: "PLAN_LIVE %@ rounds=%d views=%d marks=%d resumed=%@ cost=$%.4f total=$%.3f", item.n, record["rounds"] as? Int ?? 0,
+            print(String(format: "PLAN_LIVE %@ escalate=%@ rounds=%d views=%d marks=%d resumed=%@ cost=$%.4f total=$%.3f", item.n, ((record["escalate"] as? String) ?? "").isEmpty ? "no" : "yes", record["rounds"] as? Int ?? 0,
                          record["views"] as? Int ?? 0, record["marks"] as? Int ?? 0, (record["resumed"] as? Bool ?? false) ? "yes" : "no", record["cost"] as? Double ?? 0, spent))
         }
         report["gradings"] = gradings
+        report["escalations"] = escalations
         report["spent"] = spent
         let data = try JSONSerialization.data(withJSONObject: report, options: [.sortedKeys])
         try data.write(to: root.appendingPathComponent("plan_live_results.json"))
