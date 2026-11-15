@@ -469,7 +469,7 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
     private func openConversation() throws -> Bool {
         let conversations: ClaudeConversationStore = dependencies.conversations
         if plan.thread.mode != .start, let existing = plan.thread.codexThreadID {
-            let limit: Int = tutor ? TimelinePlanMode.sessionTokenLimit : ClaudeModelInfo.autoCompactTokenLimit
+            let limit: Int = tutor ? ClaudeModelInfo.timelineSessionTokenLimit : ClaudeModelInfo.autoCompactTokenLimit
             if let stored = try conversations.conversation(existing), stored.lastPromptTokens < limit {
                 threadID = existing
                 plan.workspaceKey = TurnPlan.threadWorkspaceKey(codexThreadID: threadID)

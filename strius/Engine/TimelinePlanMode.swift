@@ -18,7 +18,7 @@ nonisolated enum TimelinePlanMode {
     /// スレッドを続ける間隔(キャッシュの寿命と同じ 1 時間)。
     static let sessionTTL: TimeInterval = 3_600
     /// これを超えたら新しいスレッドにする(前の要求の入力トークン)。
-    static let sessionTokenLimit = 80_000
+    static let sessionTokenLimit = ClaudeModelInfo.timelineSessionTokenLimit
     /// 計画の依頼の purpose。
     static let planPurpose = "plan"
 

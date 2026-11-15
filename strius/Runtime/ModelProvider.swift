@@ -71,6 +71,8 @@ nonisolated enum ClaudeModels {
 nonisolated enum ClaudeModelInfo {
     static let contextWindow = 272_000
     static let autoCompactTokenLimit = 244_800
+    /// タイムラインの続くスレッド(`TimelinePlanMode`)を新しくする長さ(前の要求の入力トークン)。
+    static let timelineSessionTokenLimit = 80_000
 }
 
 nonisolated enum ModelProviderError: Error, LocalizedError {
