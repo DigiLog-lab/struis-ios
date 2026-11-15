@@ -151,7 +151,8 @@ nonisolated enum TimelineTurns {
         let planRow = TimelinePlanMode.latestPlanRow(timeline)
         let plan = planRow?.request["plan"]?.stringValue ?? "まだありません。"
         let context = sharedContext(workbook: workbook, timeline: timeline)
-        let developer = ["# この生徒の計画(上位の先生が書いたもの)\n\n" + plan, context.isEmpty ? "# 今の単元\n\nまだありません。" : context]
+        let escalate = try await composer.assets.text("prompt:timeline_session_escalate").trimmingCharacters(in: .whitespacesAndNewlines)
+        let developer = ["# この生徒の計画(上位の先生が書いたもの)\n\n" + plan + "\n\n" + escalate, context.isEmpty ? "# 今の単元\n\nまだありません。" : context]
             .joined(separator: ClaudeTranslation.blockSeparator)
         // 新しい計画が届いた後は、前の計画のスレッドを続けない(計画は先頭に入っているので、次の採点から新しいスレッドにする)。
         let thread = TimelinePlanMode.session(planID: planRow?.id)
@@ -314,9 +315,9 @@ nonisolated enum TimelineTurns {
             task = task.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + (try await composer.assets.text("prompt:timeline_grading_red_pen"))
             schema = withRedPen(schema, marks: try await composer.assets.json("schema:timeline_grading_red_pen"))
         }
-        // 新しい形: 計画の `escalate_when` に当たった時に、上位の先生(Opus)を呼ぶ理由を返させる。
+        // 新しい形: 計画の `escalate_when` に当たった時に、上位の先生(Opus)を呼ぶ理由を返させる(決まりはスレッドの先頭に置き、
+        // 今回の仕事は今までと同じにする。2026-11-16 に今回の仕事へ足した時は、誤答で答案を拡大しなくなった)。
         if TimelinePlanMode.isOn {
-            task = task.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + (try await composer.assets.text("prompt:timeline_session_escalate"))
             schema = TimelinePlanMode.withEscalation(schema)
         }
         return TurnPlan(

@@ -133,7 +133,8 @@ final class TimelinePlanModeTests: XCTestCase {
         let first = try await TimelineTurns.grading(composer: composer, planID: "turn-1", attemptID: attemptID, workbook: workbook, timeline: timeline)
         XCTAssertNil(first.thread.codexThreadID)
         XCTAssertTrue(first.thread.developerText?.contains("focus: クーロン") == true)
-        XCTAssertTrue(first.turn?.text.contains("escalate_when") == true, "計画の見直しを頼む決まりを今回の仕事に添える")
+        XCTAssertTrue(first.thread.developerText?.contains("escalate_when") == true, "計画の見直しを頼む決まりはスレッドの先頭に置く")
+        XCTAssertFalse(first.turn?.text.contains("escalate_when") == true, "今回の仕事は今までと同じ")
         let required = first.turn?.outputSchema?["required"]?.arrayValue?.compactMap(\.stringValue) ?? []
         XCTAssertTrue(required.contains("escalate"), "\(required)")
 
