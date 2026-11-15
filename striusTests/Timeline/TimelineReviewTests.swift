@@ -208,6 +208,52 @@ final class TimelineReviewTests: XCTestCase {
         XCTAssertFalse(TimelineWriteTools.apply(name: "timeline_revise", arguments: ["attempt_id": .string("nope"), "grade": .string("wrong"), "note": .string("")], machine: &machine).success)
     }
 
+    /// 2026-11-15 の実使用テスト: 採点中の答案が `timeline_revise` で「途中に誤り」に書き換わり、画面は生徒の答え・コメント・
+    /// 赤ペンが空のまま結果に移った。後から届いた採点の返事は「採点中ではない」として捨てられていた。
+    func testReviseRefusesAnAttemptStillBeingGradedAndTheGradingReplyIsKept() async throws {
+        let ledger = try Ledger.inMemory()
+        let attemptID: String = try await ledger.commit { db in
+            var timeline = try TimelineMachine(loading: db)
+            timeline.put("test", F.card("c1", status: "shown"))
+            let id = timeline.recordCapture(cardID: "c1", capturePath: "t.jpg", seconds: 27, assisted: false)
+            return (timeline.events, id)
+        }
+        let refused: (success: Bool, text: String) = try await ledger.commit { db in
+            var timeline = try TimelineMachine(loading: db)
+            let result = TimelineWriteTools.apply(name: "timeline_revise", arguments: [
+                "attempt_id": .string(attemptID), "grade": .string("partial"), "note": .string("途中の指数が違う"),
+            ], machine: &timeline)
+            return (timeline.events, result)
+        }
+        XCTAssertFalse(refused.success)
+        XCTAssertTrue(refused.text.contains("still being graded"), refused.text)
+        let waiting = try await ledger.read { db in try TimelineAttemptRecord.fetchOne(db, key: attemptID) }
+        XCTAssertEqual(waiting?.verdict, "grading", "採点中のまま(画面を結果に移さない)")
+        XCTAssertNil(waiting?.grade)
+
+        let reply: [String: Any] = ["readable": true, "grade": "wrong", "learner_answer": "6.0", "skill_ids": [], "transcript": "",
+                                    "notes": "", "comment": "$5.4\\times10^{-3}$ は $54\\times10^{-4}$ です。", "key_suspect": false]
+        let outcome = TurnOutcome(planID: "p", round: 1, status: .completed, codexThreadID: nil, codexTurnID: nil,
+                                  finalText: String(decoding: try JSONSerialization.data(withJSONObject: reply), as: UTF8.self),
+                                  executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: 0)
+        try await ledger.commit { db in
+            let applied = try TimelineTurns.apply(kind: .timelineGrading, targetID: attemptID, outcome: outcome, model: "m", db: db)
+            return (applied.events, ())
+        }
+        let stored = try await ledger.read { db in try TimelineAttemptRecord.fetchOne(db, key: attemptID) }
+        let graded = try XCTUnwrap(stored)
+        XCTAssertEqual(graded.grade, "wrong")
+        XCTAssertEqual(graded.learnerAnswer, "6.0")
+        XCTAssertTrue(graded.feedback.contains("54"), graded.feedback)
+    }
+
+    func testReviseRefusesAnAttemptWithoutAGrade() throws {
+        var machine = machine()
+        let skipped = machine.recordSkip(cardID: "c1", seconds: 5)
+        XCTAssertNotNil(machine.revise(attemptID: skipped, grade: "wrong", marks: nil, note: ""))
+        XCTAssertEqual(machine.attempts[skipped]?.verdict, "skipped")
+    }
+
     func testSQLQueryReadsTheLedgerAndRefusesWrites() async throws {
         let ledger = try Ledger.inMemory()
         try await ledger.commit { db in

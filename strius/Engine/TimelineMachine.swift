@@ -1110,8 +1110,16 @@ nonisolated struct TimelineMachine {
 
     /// 前の判定を取り消して直す。正誤を直し、スキルの印を付け直す(直した印の分だけ、その点に ○× を記録し直す)。
     /// 問題が無ければ nil、あれば理由を返す。
+    /// 直せるのは、判定が出た答案(correct・wrong)だけ。採点中の答案を直すと、画面はその場で結果に移り(生徒の答え・
+    /// コメント・赤ペンが空のまま)、後から届いた採点の返事は「採点中ではない」として捨てられていた(2026-11-15)。
     mutating func revise(attemptID: String, grade: String, marks: [String: String]?, note: String) -> String? {
         guard var row = attempts[attemptID], let card = cards[row.cardId] else { return "attempt not found: \(attemptID)" }
+        guard row.verdict != "grading" else {
+            return "attempt \(attemptID) is still being graded. Its grade comes from the grading reply, not timeline_revise."
+        }
+        guard row.verdict == "correct" || row.verdict == "wrong" else {
+            return "attempt \(attemptID) has no grade to revise (verdict: \(row.verdict))."
+        }
         guard ["correct", "partial", "wrong"].contains(grade) else { return "grade must be correct, partial or wrong" }
         let known = Set(activeSkills.map(\.id))
         let before = row.skillMarks ?? [:]
