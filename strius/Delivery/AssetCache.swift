@@ -116,6 +116,7 @@ nonisolated struct BundledAssets: Sendable {
         "prompt:timeline_answer_instructions": "timeline_answer_instructions.md",
         // 新しい形(`TimelinePlanMode`)の、上位モデルが書く学習の計画。
         "prompt:timeline_plan_instructions": "timeline_plan_instructions.md",
+        "prompt:timeline_session_escalate": "timeline_session_escalate.md",
         "schema:timeline_plan": "timeline_plan.json",
         "schema:timeline_batch": "timeline_batch.json",
         "schema:timeline_grading": "timeline_grading.json",

@@ -148,11 +148,14 @@ nonisolated enum TimelineTurns {
         let effort = tutorEffort
         let shared = try await composer.assets.text("prompt:timeline_shared")
         let base = try await composer.assets.ref("prompt:base", append: shared + "\n\n" + NativeToolRouter.instructions)
-        let plan = TimelinePlanMode.latestPlan(timeline) ?? "まだありません。"
+        let planRow = TimelinePlanMode.latestPlanRow(timeline)
+        let plan = planRow?.request["plan"]?.stringValue ?? "まだありません。"
         let context = sharedContext(workbook: workbook, timeline: timeline)
         let developer = ["# この生徒の計画(上位の先生が書いたもの)\n\n" + plan, context.isEmpty ? "# 今の単元\n\nまだありません。" : context]
             .joined(separator: ClaudeTranslation.blockSeparator)
-        let thread = TimelinePlanMode.session()
+        // 新しい計画が届いた後は、前の計画のスレッドを続けない(計画は先頭に入っているので、次の採点から新しいスレッドにする)。
+        let thread = TimelinePlanMode.session(planID: planRow?.id)
+        TimelinePlanMode.remember(turnID: planID, planID: planRow?.id)
         return TurnPlan.ThreadSpec(
             codexThreadID: thread, mode: thread == nil ? .start : .resume, cwd: TurnPlan.guestWorkspace(id: planID), model: TimelinePlanMode.sessionModel,
             effort: effort, ephemeral: false, baseInstructions: base, developerInstructions: nil, developerText: developer,
@@ -310,6 +313,11 @@ nonisolated enum TimelineTurns {
         if isInkCapture(path) {
             task = task.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + (try await composer.assets.text("prompt:timeline_grading_red_pen"))
             schema = withRedPen(schema, marks: try await composer.assets.json("schema:timeline_grading_red_pen"))
+        }
+        // 新しい形: 計画の `escalate_when` に当たった時に、上位の先生(Opus)を呼ぶ理由を返させる。
+        if TimelinePlanMode.isOn {
+            task = task.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + (try await composer.assets.text("prompt:timeline_session_escalate"))
+            schema = TimelinePlanMode.withEscalation(schema)
         }
         return TurnPlan(
             id: planID, kind: .timelineGrading, round: repair == nil ? 1 : 2,
@@ -670,6 +678,8 @@ nonisolated enum TimelineTurns {
             guard let attempt = timeline.attempts[targetID], attempt.verdict == "grading" else { return ([], followUp) }
             guard outcome.status == .completed else {
                 timelineTurnLog.error("timeline grading failed: \(outcome.error ?? "-", privacy: .public)")
+                // 新しい形: 組んだ時の計画の控えを消す(失敗したスレッドは続けない)。
+                if TimelinePlanMode.isOn { TimelinePlanMode.touch(threadID: nil, turnID: outcome.planID) }
                 timeline.failGrading(attemptID: targetID)
                 break
             }
@@ -690,7 +700,16 @@ nonisolated enum TimelineTurns {
             let result = timeline.applyGrading(attemptID: targetID, grading: grading)
             if TimelinePlanMode.isOn {
                 // 新しい形: 答案ごとの見直しは走らせない。次の採点が同じスレッドを続けられるように控える。
-                TimelinePlanMode.touch(threadID: outcome.codexThreadID)
+                TimelinePlanMode.touch(threadID: outcome.codexThreadID, turnID: outcome.planID)
+                // 計画の `escalate_when` に当たると返した: 決まり(1 日 1 回・新しい計画のあと 5 問)に合えば Opus を呼ぶ。
+                if let reason = (try? TimelineReply.decode(TimelinePlanMode.Escalation.self, from: outcome.finalText))?.escalate?
+                    .trimmingCharacters(in: .whitespacesAndNewlines), !reason.isEmpty {
+                    if let id = TimelinePlanMode.requestPlan(trigger: .escalation, reason: reason, timeline: &timeline) {
+                        followUp.nextGraph = id
+                    } else {
+                        timelineTurnLog.info("timeline: escalation not sent (limit)")
+                    }
+                }
             } else if result.verdict == "correct" || result.verdict == "wrong" {
                 followUp.review = targetID
             }

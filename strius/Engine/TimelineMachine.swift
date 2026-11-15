@@ -1283,9 +1283,17 @@ nonisolated struct TimelineMachine {
 
     /// 今日の記録(この端末で保存した・受け取った順)。この端末で書いた行は `seq` の位置(最後、またはその日の先頭)に入り、
     /// 他の端末から届いた行は届いた時点の最後に足す。届いた行が、この端末が前に送った依頼の先頭を書き換えない (Issue #57)。
-    var todayLog: [TimelineLogRecord] {
+    var todayLog: [TimelineLogRecord] { dayLog(today) }
+
+    /// 今日より前で、記録がある最後の日(無ければ nil)。
+    var lastLogDayBeforeToday: String? {
         let today = today
-        let entries = log.values.filter { $0.day == today }.sorted { a, b in
+        return log.values.map(\.day).filter { $0 < today }.max()
+    }
+
+    /// その日の記録(並べ方は `todayLog` と同じ)。
+    func dayLog(_ day: String) -> [TimelineLogRecord] {
+        let entries = log.values.filter { $0.day == day }.sorted { a, b in
             let (x, y) = (logArrival[a.id]?.order ?? .max, logArrival[b.id]?.order ?? .max)
             return (x, a.seq, a.createdAt, a.id) < (y, b.seq, b.createdAt, b.id)
         }
