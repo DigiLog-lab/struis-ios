@@ -62,8 +62,12 @@ final class TimelinePlanModeTests: XCTestCase {
 
         // 届いた計画のあとに 5 問解いても、その日 2 回目は呼ばない。
         timeline.now = { "2026-10-23T08:00:00.000000Z" }
+        // アプリが返事を反映する時と同じく、依頼の中身(trigger・reason)は残して計画を足し、記録を外す。
         var row = timeline.batches[escalation!]!
-        row.request = .object(["task": .string("plan"), "plan": .string("focus: 比")])
+        var request = row.request.objectValue ?? [:]
+        request["plan"] = .string("focus: 比")
+        request["log"] = nil
+        row.request = .object(request)
         row.status = "ready"
         row.updatedAt = timeline.now()
         timeline.put("timeline.plan_ready", row)
