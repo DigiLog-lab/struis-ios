@@ -112,10 +112,15 @@ extension TimelineMachine {
         return TimelineRules.stuckToday(results: results, today: today).sorted().map { (skill: $0, typeNames: types[$0] ?? []) }
     }
 
-    /// 不意打ちの答案を、その点の定着に反映する(途中に誤りは ○ として扱う: 答えまでたどり着けているので)。
-    mutating func applySurprise(skillID: String, attemptID: String) {
+    /// 不意打ちの答案を、その点の定着に反映する。`correct` はその点についた ○×(答案全体の正誤ではない)。
+    /// 途中に誤りは ○ として扱う(答えまでたどり着けているので)。やり方を見てから解いた答案は、思い出せなかったものとして × に扱う。
+    static func surpriseCorrect(markCorrect: Bool, attempt: TimelineAttemptRecord) -> Bool {
+        (markCorrect || attempt.grade == "partial") && !attempt.assisted
+    }
+
+    mutating func applySurprise(skillID: String, attemptID: String, markCorrect: Bool) {
         guard let skill = skills[skillID], let attempt = attempts[attemptID], attempt.verdict == "correct" || attempt.verdict == "wrong" else { return }
-        let correct = attempt.verdict == "correct" || attempt.grade == "partial"
+        let correct = Self.surpriseCorrect(markCorrect: markCorrect, attempt: attempt)
         let updated = TimelineRules.recordSurprise(skill, correct: correct, at: attempt.gradedAt ?? attempt.createdAt,
                                                    clearedDay: clearedPoint(skillID)?.day, calendar: calendar)
         put("timeline.skill_surprise", updated)

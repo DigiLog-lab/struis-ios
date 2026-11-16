@@ -239,9 +239,11 @@ nonisolated struct TimelineMachine {
         }
         // 入れるべきカード(出せる状態のゴール・不意打ち)が無ければ 1 回だけ作り直させる。2 回目は受け取り、足りない分は
         // 次の依頼で頼み直す(依頼のたびに計算し直すので、自然に次の束へ持ち越される)。
-        let required = ["goal_ready", "surprise_due"].flatMap { row.request[$0]?.arrayValue ?? [] }.compactMap(\.stringValue)
+        // 答案の足りない前提(needs_evidence)は、5枚に収まるよう先頭の `TimelineRules.requiredEvidenceCards` 個まで。
+        let evidence = (row.request["needs_evidence"]?.arrayValue ?? []).compactMap(\.stringValue).prefix(TimelineRules.requiredEvidenceCards)
+        let required = ["goal_ready", "surprise_due"].flatMap { row.request[$0]?.arrayValue ?? [] }.compactMap(\.stringValue) + evidence
         let missing = required.filter { id in !accepted.contains { $0.skills.contains(id) } }
-        if !missing.isEmpty { rejected.append("batch: no card uses " + missing.joined(separator: ", ") + " (goal_ready / surprise_due)") }
+        if !missing.isEmpty { rejected.append("batch: no card uses " + missing.joined(separator: ", ") + " (goal_ready / surprise_due / needs_evidence)") }
         if !rejected.isEmpty, row.retries < 1 {
             row.retries += 1
             row.rejected = rejected
@@ -713,7 +715,7 @@ nonisolated struct TimelineMachine {
         let updated = TimelineRules.record(skill, correct: correct, assisted: assisted, withinTime: withinTime, at: now(), calendar: calendar)
         put(correct ? "timeline.skill_correct" : "timeline.skill_wrong", updated)
         // 不意打ちのカードなら、その点の定着を進める(定着は不意打ちだけで決める。Issue #154)。
-        if surpriseSkill(of: card) == id { applySurprise(skillID: id, attemptID: attemptID) }
+        if surpriseSkill(of: card) == id { applySurprise(skillID: id, attemptID: attemptID, markCorrect: correct) }
         // 前提が未定着なのに、上の問題が一発で ○: 前提を「できると推定」にする(後日、30秒問題と混ぜて確かめる)。
         if correct, firstTry, !assisted, card.kind == "solve", card.level >= 2 {
             for prerequisite in allPrerequisites(of: id) {
@@ -757,14 +759,18 @@ nonisolated struct TimelineMachine {
         var row = current
         row.correctDates = current.correctDates.filter { !fromAttempts.contains($0) }
         row.attempts = 0
-        // 定着は不意打ちの答案だけで決める(Issue #154)。不意打ちの答案が1つも無い点は、前の版で定着した状態をそのまま残す。
+        // 定着は不意打ちの答案だけで決める(Issue #154)。前の版の決まりで定着した点(不意打ちで定着した記録が無い点)は、
+        // 定着から始めて不意打ちを並べ直す(× は間隔を 3 日に戻すだけで、定着は外さない。差分で反映した時と同じ)。
         let surprises = marked.filter { surpriseSkill(of: $0.card) == id }
-        let keepsLegacyMastery = surprises.isEmpty && current.status == "mastered"
-        row.status = keepsLegacyMastery ? "mastered" : (current.status == "assumed" && marked.isEmpty ? "assumed" : "practicing")
+        let masteredBySurprise = changes.values.contains {
+            $0.kind == "mastered" && $0.detail["skill_id"]?.stringValue == id && $0.detail["by"]?.stringValue == "surprise"
+        }
+        let legacyMastery = current.status == "mastered" && !masteredBySurprise
+        row.status = legacyMastery ? "mastered" : (current.status == "assumed" && marked.isEmpty ? "assumed" : "practicing")
         row.masteryThreshold = TimelineRules.masteryThreshold
         row.lastCorrectAt = nil
-        if !keepsLegacyMastery {
-            row.nextReviewAt = nil
+        if !legacyMastery || !surprises.isEmpty {
+            row.nextReviewAt = legacyMastery ? current.nextReviewAt : nil
             row.reviewCount = 0
         }
         let clearedDay = clearedPoint(id)?.day
@@ -773,7 +779,7 @@ nonisolated struct TimelineMachine {
                                        withinTime: item.attempt.capturePath == nil || item.attempt.seconds <= Double(item.card.estimatedSeconds),
                                        at: item.attempt.gradedAt ?? item.attempt.createdAt, calendar: calendar)
             if surpriseSkill(of: item.card) == id {
-                row = TimelineRules.recordSurprise(row, correct: item.correct || item.attempt.grade == "partial",
+                row = TimelineRules.recordSurprise(row, correct: Self.surpriseCorrect(markCorrect: item.correct, attempt: item.attempt),
                                                    at: item.attempt.gradedAt ?? item.attempt.createdAt, clearedDay: clearedDay, calendar: calendar)
             }
         }

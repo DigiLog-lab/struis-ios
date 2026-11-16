@@ -136,4 +136,100 @@ final class TimelineProgressTests: XCTestCase {
         XCTAssertEqual(machine.skills["old"]?.status, "mastered")
         XCTAssertEqual(machine.skills["old"]?.nextReviewAt, "2026-11-17")
     }
+
+    // MARK: レビューの指摘(PR #156)
+
+    /// law を 1 日目に先へ進んでよいにする(直近5問中4問)。
+    private func clearLaw(_ machine: inout TimelineMachine) {
+        for (index, correct) in [true, true, false, true, true].enumerated() {
+            answer(&machine, "l\(index)", skill: "law", correct: correct, at: time("2026-11-15", index))
+        }
+    }
+
+    private func surprise(_ machine: inout TimelineMachine, id: String, skills: [String], marks: [String: String], verdict: String,
+                          assisted: Bool = false, at: String) {
+        let card = F.card("card-\(id)", status: "answered", skills: skills, createdAt: at, payload: ["surprise": .string("law")])
+        machine.put("test", card)
+        var attempt = F.attempt(id, card: card.id, verdict: verdict, createdAt: at)
+        attempt.skillMarks = marks
+        attempt.assisted = assisted
+        machine.put("test", attempt)
+        for skill in skills {
+            machine.applySkill(id: skill, card: card, correct: marks[skill] == "correct", assisted: assisted, withinTime: true, firstTry: true, attemptID: id)
+        }
+    }
+
+    /// 2 つのスキルを使う不意打ち: 答案全体は × でも、不意打ちのスキルに ○ がつけば定着。計算し直しても同じ。
+    func testSurpriseUsesTheSkillsOwnMark() {
+        var machine = F.machine(now: "2026-11-16T10:00:00.000000Z")
+        setUpSubunit(&machine)
+        clearLaw(&machine)
+        surprise(&machine, id: "u", skills: ["law", "sci"], marks: ["law": "correct", "sci": "wrong"], verdict: "wrong", at: time("2026-11-16", 0))
+        XCTAssertEqual(machine.skills["law"]?.status, "mastered")
+        machine.recomputeSkill("law")
+        XCTAssertEqual(machine.skills["law"]?.status, "mastered", "差分で反映した時と、並べ直した時で同じ")
+    }
+
+    /// やり方を見てから解いた不意打ちは、○ でも定着にしない(思い出せなかったものとして扱う)。
+    func testHintedSurpriseDoesNotMaster() {
+        var machine = F.machine(now: "2026-11-16T10:00:00.000000Z")
+        setUpSubunit(&machine)
+        clearLaw(&machine)
+        surprise(&machine, id: "u", skills: ["law"], marks: ["law": "correct"], verdict: "correct", assisted: true, at: time("2026-11-16", 0))
+        XCTAssertEqual(machine.skills["law"]?.status, "practicing")
+        machine.recomputeSkill("law")
+        XCTAssertEqual(machine.skills["law"]?.status, "practicing")
+    }
+
+    /// 前の版で定着した点: 不意打ちの × の後に計算し直しても、定着は外さず、次の確かめを 3 日後にする。
+    func testLegacyMasterySurvivesAMissedSurpriseOnRecompute() {
+        var machine = F.machine(now: "2026-11-16T10:00:00.000000Z")
+        machine.put("test", F.skill("law", status: "mastered", dates: ["2026-11-10", "2026-11-12", "2026-11-14"]))
+        surprise(&machine, id: "u", skills: ["law"], marks: ["law": "wrong"], verdict: "wrong", at: time("2026-11-16", 0))
+        XCTAssertEqual(machine.skills["law"]?.status, "mastered")
+        XCTAssertEqual(machine.skills["law"]?.nextReviewAt, "2026-11-19")
+        machine.recomputeSkill("law")
+        XCTAssertEqual(machine.skills["law"]?.status, "mastered")
+        XCTAssertEqual(machine.skills["law"]?.nextReviewAt, "2026-11-19")
+    }
+
+    /// 答案の足りない前提(needs_evidence)のカードが無い5枚も、1 回だけ作り直させる。
+    func testMissingEvidenceCardAsksForOneRetry() throws {
+        var machine = F.machine(now: "2026-11-16T10:00:00.000000Z")
+        setUpSubunit(&machine)
+        let request: LedgerJSON = .object(["needs_evidence": .array([.string("vector")])])
+        let batchID = machine.insertBatchRequest(purpose: "cards", request: request, accuracy: nil, levelCap: nil)
+        let lawCard = F.draftJSON(level: 2, skills: ["law"])
+        XCTAssertEqual(machine.applyBatch(id: batchID, batch: try F.batch(cards: [lawCard])), .retry)
+        XCTAssertTrue(machine.batches[batchID]?.rejected.contains { $0.contains("vector") } ?? false)
+    }
+
+    /// 大きすぎる数(無限大になる)は読めない数として断り、どの値とも等しくしない。
+    func testOverflowingLiteralIsNotEqualToAnything() {
+        XCTAssertNil(TimelineExpression.equivalent("1e999", "42"))
+        XCTAssertFalse(TimelineExpression.close(.infinity, .infinity, tolerance: 1e-6))
+        XCTAssertFalse(TimelineExpression.close(.infinity, 42, tolerance: 1e-6))
+    }
+
+    /// 範囲を固定している時は、必ず入れさせるスキルも範囲の中だけにする(範囲の外は出せないので)。
+    func testRequiredSkillsFollowThePinnedUnit() {
+        let saved = TimelineScope.unitID
+        defer { TimelineScope.unitID = saved }
+        var workbook = WorkbookMachine()
+        let unitA = workbook.createUnit(title: "A", outcome: "", source: "consult", subunits: [.init(title: "a", n: 2)], firstStage: 3)
+        let unitB = workbook.createUnit(title: "B", outcome: "", source: "consult", subunits: [.init(title: "b", n: 2)], firstStage: 3)
+        var machine = F.machine(now: "2026-11-16T10:00:00.000000Z")
+        var inA = F.skill("inA")
+        inA.unitId = unitA
+        var inB = F.skill("inB")
+        inB.unitId = unitB
+        machine.put("test", inA)
+        machine.put("test", inB)
+        for skill in ["inA", "inB"] {
+            for index in 0..<3 { answer(&machine, "\(skill)\(index)", skill: skill, correct: false, at: time("2026-11-16", index)) }
+        }
+        TimelineScope.unitID = unitA
+        let stuck = TimelineTurns.progressRequest(workbook: workbook, timeline: machine)["stuck_today"]?.arrayValue?.compactMap { $0["skill_id"]?.stringValue }
+        XCTAssertEqual(stuck, ["inA"])
+    }
 }

@@ -79,7 +79,8 @@ nonisolated indirect enum TimelineExpression: Equatable, Sendable {
                         while end < chars.count, chars[end].isASCII, chars[end].isNumber { end += 1 }
                     }
                 }
-                guard let value = Double(String(chars[index..<end])) else { throw ParseError.unexpected(String(chars[index..<end])) }
+                // `1e999` のように大きすぎる数は無限大になるので、読めない数として断る。
+                guard let value = Double(String(chars[index..<end])), value.isFinite else { throw ParseError.unexpected(String(chars[index..<end])) }
                 tokens.append(.number(value))
                 index = end
                 continue
@@ -276,6 +277,8 @@ nonisolated indirect enum TimelineExpression: Equatable, Sendable {
     /// 2 つの値が同じとみなせるか。0.001 以上の値は今までどおり(1 以上は割合、1 未満は 1e-6 の差まで)。0.001 未満の値は割合で比べる
     /// (前は差が 1e-6 未満なら同じとみなしたので、物理の小さい値で 7.2e-7 と 7.2e-8 が一致していた。Issue #154)。
     static func close(_ x: Double, _ y: Double, tolerance: Double) -> Bool {
+        // 無限大・非数はどの値とも等しくしない(差も許容幅も無限大になって通ってしまう)。
+        guard x.isFinite, y.isFinite else { return false }
         let scale = max(abs(x), abs(y))
         let limit = tolerance * (scale >= 1e-3 ? max(1, scale) : scale) + 1e-15
         return abs(x - y) <= limit

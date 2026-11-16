@@ -28,6 +28,8 @@ nonisolated enum TimelineRules {
     /// 2回目以降の不意打ち: その日の数える答案がこの数たまってから(3枚目以降)。
     static let surpriseAfterAnswersToday = 2
     /// 定着後に不意打ちで ○ だった回数ごとの、次に出すまでの日数(Cepeda et al. 2008 の最適な間隔の範囲)。
+    /// 5枚に必ず入れさせる「答案の足りない前提」の数(多すぎると5枚に収まらない)。
+    static let requiredEvidenceCards = 2
     static let reviewIntervals = [3, 7, 21]
     /// 段の上限を決めるスキルごとの窓と、上限を掛け始める答案の数。
     static let skillLevelWindow = 5

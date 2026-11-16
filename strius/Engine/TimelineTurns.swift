@@ -238,13 +238,18 @@ nonisolated enum TimelineTurns {
         let subunitIDs = workbook.orderedSubunits(unitID: pinned?.id, status: "active").map(\.id)
         let goals = timeline.goalStates(subunitIDs: subunitIDs)
         let caps = timeline.skillLevelCaps
+        // 範囲を固定している時は、出せるスキル(`batchRequest` の allowed_skill_ids)と同じ範囲に絞る(範囲の外を必ず入れさせない)。
+        let inScope: (String) -> Bool = { id in
+            guard let pinned, let skill = timeline.skills[id] else { return true }
+            return TimelineGraphSchedule.unitID(of: skill, workbook: workbook) == pinned.id
+        }
         return [
             "skill_level_caps": .object(caps.mapValues { .number(Double($0)) }),
-            "goal_ready": .array(goals.filter { $0.ready && !$0.cleared }.map { .string($0.goalID) }),
+            "goal_ready": .array(goals.filter { $0.ready && !$0.cleared && inScope($0.goalID) }.map { .string($0.goalID) }),
             "goal_cleared": .array(goals.filter(\.cleared).map { .string($0.goalID) }),
-            "needs_evidence": .array(Array(Set(goals.flatMap(\.needsEvidence))).sorted().map(LedgerJSON.string)),
-            "surprise_due": .array(timeline.surpriseDueSkills.map(LedgerJSON.string)),
-            "stuck_today": .array(timeline.stuckSkills.map { .object(["skill_id": .string($0.skill), "failed_forms": .array($0.typeNames.map(LedgerJSON.string))]) }),
+            "needs_evidence": .array(Array(Set(goals.flatMap(\.needsEvidence))).filter(inScope).sorted().map(LedgerJSON.string)),
+            "surprise_due": .array(timeline.surpriseDueSkills.filter(inScope).map(LedgerJSON.string)),
+            "stuck_today": .array(timeline.stuckSkills.filter { inScope($0.skill) }.map { .object(["skill_id": .string($0.skill), "failed_forms": .array($0.typeNames.map(LedgerJSON.string))]) }),
         ]
     }
 
