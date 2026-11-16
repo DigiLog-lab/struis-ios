@@ -89,6 +89,8 @@ final class TimelineStore {
     private var warmupAuthored: Set<String> = []
     /// 今回の練習は点の型から作れる時だけ出す(開き直した時。速攻の問題では代えない)。
     private var warmupTemplateOnly = false
+    /// 練習で中断した問題の、それまでに前面にいた秒数(戻った時に続きから数える)。
+    private var suspendedSeconds: [String: Double] = [:]
     /// 「問題の型」を頼む送り口(nil なら頼まない)。テストで差し替える。
     var drillTransport: (any DrillAuthoringTransport)? = TimelineStore.defaultDrillTransport
     private var observer: UUID?
@@ -478,7 +480,7 @@ final class TimelineStore {
         lastAttemptID = nil
         decided = nil
         assisted = assistedIDs.contains(id)
-        cardStartedAt = ActiveClock.shared.now
+        cardStartedAt = ActiveClock.shared.now - (suspendedSeconds.removeValue(forKey: id) ?? 0)
         phase = .solving
         Task {
             await commit { machine in machine.markShown(id) }
@@ -849,8 +851,10 @@ final class TimelineStore {
             case .solving:
                 _ = await startWarmup(returnTo: currentID)
             case .result:
-                // 結果の画面: 次に決めた 1 枚の前に挟む。
-                if let decided { self.decided = await warmupBefore(decided, force: true) }
+                // 結果の画面: 次に決めた 1 枚の前に挟む(次がもう練習なら、そのまま。戻り先を上書きしない)。
+                if let decided, decided.cardID.flatMap({ machine.cards[$0] })?.origin != TimelineWarmup.origin {
+                    self.decided = await warmupBefore(decided, force: true)
+                }
             default:
                 break
             }
@@ -861,7 +865,10 @@ final class TimelineStore {
     func startWarmup(returnTo: String?) async -> Bool {
         let session: String = LedgerID.make()
         warmupReturnID = returnTo
+        // 解いている途中の問題の、前面にいた時間を残す(練習の後に戻った時に続きから数える。練習の時間は入れない)。
+        let interrupted: (id: String, seconds: Double)? = currentID.flatMap { id in id == returnTo && phase == .solving ? (id, elapsed) : nil }
         guard let first = await makeWarmupCard(session: session, after: nil) else { warmupReturnID = nil; return false }
+        if let interrupted { suspendedSeconds[interrupted.id] = interrupted.seconds }
         show(first)
         return true
     }
@@ -903,8 +910,14 @@ final class TimelineStore {
     private func makeWarmupCard(session: String, after previous: TimelineCardRecord?) async -> String? {
         let store = drillTemplates
         if previous?.payload["warmup_from"]?.stringValue != "rapid" {
+            // 解く範囲を固定していれば、その範囲のスキルだけ(戻っただけで選んだ単元の外を出さない)。
+            let pinned: String? = TimelineScope.pinnedUnit(workbook: workbook)?.id
+            let inScope: (String) -> Bool = { [machine, workbook] id in
+                guard let pinned, let skill = machine.skills[id] else { return true }
+                return TimelineGraphSchedule.unitID(of: skill, workbook: workbook) == pinned
+            }
             let skillID: String? = previous?.payload["warmup"]?.stringValue
-                ?? machine.warmupCandidates.first { (try? store.template(for: $0)) != nil }
+                ?? machine.warmupCandidates.first { inScope($0) && (try? store.template(for: $0)) != nil }
             if let skillID, let template = try? store.template(for: skillID), let generator = try? DrillGenerator(template: template) {
                 let used: Set<String> = Set(machine.warmupCards(session: session).map { $0.prompt + "\u{1F}" + $0.math })
                 var random = SystemRandomNumberGenerator()
@@ -922,7 +935,10 @@ final class TimelineStore {
                 }
             }
         }
-        guard !warmupTemplateOnly, let rapid = machine.rapidCards.first(where: { $0.id != warmupReturnID })?.id else { return nil }
+        let pinnedUnit: String? = TimelineScope.pinnedUnit(workbook: workbook)?.id
+        guard !warmupTemplateOnly, let rapid = machine.rapidCards.first(where: { card in
+            card.id != warmupReturnID && !(pinnedUnit.map { TimelineScope.isOutside(card, unitID: $0, workbook: workbook, timeline: machine) } ?? false)
+        })?.id else { return nil }
         return await commitValue { machine in machine.adoptRapidAsWarmup(cardID: rapid, session: session) } ?? nil
     }
 

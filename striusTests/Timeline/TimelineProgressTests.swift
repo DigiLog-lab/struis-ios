@@ -321,4 +321,20 @@ final class TimelineProgressTests: XCTestCase {
         let separate = try F.batch(cards: [F.draftJSON(kind: "solve", skills: ["law", "sci"]), F.draftJSON(kind: "solve", skills: ["sci"])]).cards
         XCTAssertEqual(TimelineMachine.assignSurprises(["law", "sci"], to: separate).assignment, [0: "law", 1: "sci"])
     }
+
+    /// 0 になる式は、計算の丸めでわずかにずれても 0 と同じ。0 でない小さい値どうしは今まで通り割合で比べる。
+    func testZeroAllowsRoundoffButSmallValuesStayRelative() {
+        XCTAssertEqual(TimelineExpression.equivalent("sqrt(20)^2-20", "0"), true)
+        XCTAssertEqual(TimelineExpression.equivalent("sin(10*pi)", "0"), true)
+        XCTAssertEqual(TimelineExpression.equivalent("7.2e-7", "7.2e-8"), false)
+        XCTAssertEqual(TimelineExpression.equivalent("1", "0"), false)
+    }
+
+    /// 不意打ちの割り当ては、先に来たスキルが別のスキルしか使えないカードを取らないようにする。
+    func testSurpriseAssignmentFindsAMatching() throws {
+        let cards = try F.batch(cards: [F.draftJSON(kind: "solve", skills: ["a", "b"]), F.draftJSON(kind: "solve", skills: ["a"])]).cards
+        let result = TimelineMachine.assignSurprises(["a", "b"], to: cards)
+        XCTAssertEqual(result.assignment, [0: "b", 1: "a"])
+        XCTAssertTrue(result.missing.isEmpty)
+    }
 }

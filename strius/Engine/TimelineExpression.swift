@@ -262,13 +262,15 @@ nonisolated indirect enum TimelineExpression: Equatable, Sendable {
 
     static func equivalent(_ a: TimelineExpression, _ b: TimelineExpression, tolerance: Double = 1e-6) -> Bool {
         let names = Array(a.variables.union(b.variables)).sorted()
+        // 片方が「0」そのもの: 0 になる式(`sqrt(20)^2-20`・`sin(10*pi)`)は計算の丸めで 1e-15 ほどずれるので、0 との比べだけ幅を持たせる。
+        let zeroSide = [a, b].contains { $0.variables.isEmpty && $0.evaluate([:]) == 0 }
         var compared = 0
         for sample in samplePoints {
             var bindings: [String: Double] = [:]
             for (offset, name) in names.enumerated() { bindings[name] = sample[offset % sample.count] + Double(offset) * 0.37 }
             guard let l = a.values(bindings), let r = b.values(bindings) else { continue }
             guard l.count == r.count else { return false }
-            for (x, y) in zip(l, r) where !close(x, y, tolerance: tolerance) { return false }
+            for (x, y) in zip(l, r) where !close(x, y, tolerance: tolerance, zeroSide: zeroSide) { return false }
             compared += 1
         }
         return compared >= 2
@@ -276,9 +278,13 @@ nonisolated indirect enum TimelineExpression: Equatable, Sendable {
 
     /// 2 つの値が同じとみなせるか。0.001 以上の値は今までどおり(1 以上は割合、1 未満は 1e-6 の差まで)。0.001 未満の値は割合で比べる
     /// (前は差が 1e-6 未満なら同じとみなしたので、物理の小さい値で 7.2e-7 と 7.2e-8 が一致していた。Issue #154)。
-    static func close(_ x: Double, _ y: Double, tolerance: Double) -> Bool {
+    /// 片方が 0 そのものの時に、丸めのずれとして許す幅。
+    static let zeroRoundoff: Double = 1e-10
+
+    static func close(_ x: Double, _ y: Double, tolerance: Double, zeroSide: Bool = false) -> Bool {
         // 無限大・非数はどの値とも等しくしない(差も許容幅も無限大になって通ってしまう)。
         guard x.isFinite, y.isFinite else { return false }
+        if zeroSide { return abs(x - y) <= zeroRoundoff }
         let scale = max(abs(x), abs(y))
         let limit = tolerance * (scale >= 1e-3 ? max(1, scale) : scale) + 1e-15
         return abs(x - y) <= limit

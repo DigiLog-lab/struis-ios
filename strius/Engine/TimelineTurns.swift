@@ -248,7 +248,7 @@ nonisolated enum TimelineTurns {
             "goal_ready": .array(goals.filter { $0.ready && !$0.cleared && inScope($0.goalID) }.map { .string($0.goalID) }),
             "goal_cleared": .array(goals.filter(\.cleared).map { .string($0.goalID) }),
             "needs_evidence": .array(Array(Set(goals.flatMap(\.needsEvidence))).filter(inScope).sorted().map(LedgerJSON.string)),
-            "surprise_due": .array(timeline.surpriseDueSkills.filter(inScope).map(LedgerJSON.string)),
+            "surprise_due": .array(timeline.surpriseDueSkills.filter(inScope).prefix(TimelineRules.requiredSurpriseCards).map(LedgerJSON.string)),
             "stuck_today": .array(timeline.stuckSkills.filter { inScope($0.skill) }.map { .object(["skill_id": .string($0.skill), "failed_forms": .array($0.typeNames.map(LedgerJSON.string))]) }),
         ]
     }

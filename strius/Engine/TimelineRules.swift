@@ -30,6 +30,8 @@ nonisolated enum TimelineRules {
     /// 定着後に不意打ちで ○ だった回数ごとの、次に出すまでの日数(Cepeda et al. 2008 の最適な間隔の範囲)。
     /// 5枚に必ず入れさせる「答案の足りない前提」の数(多すぎると5枚に収まらない)。
     static let requiredEvidenceCards = 2
+    /// 1 回の5枚に入れさせる不意打ちの数(残りは次の5枚へ。依頼のたびに計算し直すので持ち越される)。
+    static let requiredSurpriseCards = 2
     static let reviewIntervals = [3, 7, 21]
     /// 段の上限を決めるスキルごとの窓と、上限を掛け始める答案の数。
     static let skillLevelWindow = 5

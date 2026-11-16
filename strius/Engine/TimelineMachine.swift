@@ -230,16 +230,27 @@ nonisolated struct TimelineMachine {
 
     /// 不意打ちのスキルを、1 枚に 1 つずつ「解く」カードへ割り当てる(5枚の中の順)。割り当てられなかったスキルは `missing`。
     static func assignSurprises(_ due: [String], to drafts: [TimelineCards.Draft]) -> (assignment: [Int: String], missing: [String]) {
-        var assignment: [Int: String] = [:]
+        // 2 部グラフの最大マッチング(増加路)。先に来たスキルが別のスキルしか使えないカードを取ってしまわないように。
+        let eligible: [String: [Int]] = Dictionary(uniqueKeysWithValues: due.map { skill in
+            (skill, drafts.indices.filter { drafts[$0].kind == TimelineCards.Kind.solve.rawValue && drafts[$0].skills.contains(skill) })
+        })
+        var owner: [Int: String] = [:]
+        func augment(_ skill: String, _ seen: inout Set<Int>) -> Bool {
+            for index in eligible[skill] ?? [] where seen.insert(index).inserted {
+                if let other = owner[index] {
+                    guard augment(other, &seen) else { continue }
+                }
+                owner[index] = skill
+                return true
+            }
+            return false
+        }
         var missing: [String] = []
         for skill in due {
-            if let index = drafts.indices.first(where: { assignment[$0] == nil && drafts[$0].kind == TimelineCards.Kind.solve.rawValue && drafts[$0].skills.contains(skill) }) {
-                assignment[index] = skill
-            } else {
-                missing.append(skill)
-            }
+            var seen: Set<Int> = []
+            if !augment(skill, &seen) { missing.append(skill) }
         }
-        return (assignment, missing)
+        return (owner, missing)
     }
 
     /// 5枚の結果を受け取る。skills の ID・段の上限・検算に欠けがあれば 1 回だけ作り直させ、それでも欠けていれば欠けたカードを捨てる。
