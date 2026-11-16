@@ -264,4 +264,34 @@ final class TimelineProgressTests: XCTestCase {
         XCTAssertNil(machine.revise(attemptID: "u", grade: "wrong", marks: ["law": "wrong"], note: "やはり違う"))
         XCTAssertEqual(machine.skills["law"]?.status, "practicing", "並べ直しで定着した後に × に直しても、前の版の定着として残さない")
     }
+
+    /// 見直しで決まった印が、新しい不意打ちより後に届いた: 時刻の順に並べ直す(古い ○ → 新しい × なら、間隔は 3 日に戻る)。
+    func testLateSurpriseMarksAreAppliedInTimeOrder() {
+        var machine = F.machine(now: "2026-11-20T10:00:00.000000Z")
+        machine.put("test", F.skill("law", status: "mastered", dates: ["2026-11-01", "2026-11-03", "2026-11-05"]))
+        // 新しい × が先に反映される。
+        surprise(&machine, id: "new", skills: ["law"], marks: ["law": "wrong"], verdict: "wrong", at: "2026-11-20T09:00:00.000000Z")
+        // 古い ○ が後から届く。
+        surprise(&machine, id: "old", skills: ["law"], marks: ["law": "correct"], verdict: "correct", at: "2026-11-18T09:00:00.000000Z")
+        XCTAssertEqual(machine.skills["law"]?.status, "mastered")
+        XCTAssertEqual(machine.skills["law"]?.reviewCount, 0, "最後(11/20)の × で 0 に戻る")
+        XCTAssertEqual(machine.skills["law"]?.nextReviewAt, "2026-11-23")
+    }
+
+    /// 途中に誤り(○ と扱う)で定着した不意打ちを × に直すと、印が変わらなくても定着は外れる。
+    func testRevisingAPartialSurpriseToWrongWithdrawsMastery() {
+        var machine = F.machine(now: "2026-11-16T10:00:00.000000Z")
+        setUpSubunit(&machine)
+        clearLaw(&machine)
+        let card = F.card("card-p", status: "answered", skills: ["law"], createdAt: time("2026-11-16", 0), payload: ["surprise": .string("law")])
+        machine.put("test", card)
+        var attempt = F.attempt("p", card: card.id, verdict: "wrong", createdAt: time("2026-11-16", 0))
+        attempt.grade = "partial"
+        attempt.skillMarks = ["law": "wrong"]
+        machine.put("test", attempt)
+        machine.applySkill(id: "law", card: card, correct: false, assisted: false, withinTime: true, firstTry: true, attemptID: "p")
+        XCTAssertEqual(machine.skills["law"]?.status, "mastered")
+        XCTAssertNil(machine.revise(attemptID: "p", grade: "wrong", marks: nil, note: "答えも違う"))
+        XCTAssertEqual(machine.skills["law"]?.status, "practicing")
+    }
 }

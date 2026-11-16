@@ -1169,6 +1169,8 @@ nonisolated struct TimelineMachine {
         for (id, mark) in after.sorted(by: { $0.key < $1.key }) where before[id] != mark {
             remark(id: id, previous: before[id], card: card, correct: mark == "correct", assisted: row.assisted, withinTime: withinTime, firstTry: row.firstTry, attemptID: attemptID)
         }
+        // 不意打ちの答案: 途中に誤り(○ と扱う)と × の間で直した時は、印が変わらなくても定着の判定が変わるので並べ直す。
+        if let surprise = surpriseSkill(of: card), after[surprise] == before[surprise], previous != grade { recomputeSkill(surprise) }
         recordChange(kind: "revise_grade", detail: .object(["attempt_id": .string(attemptID), "from": .string(previous), "to": .string(grade), "note": .string(note)]),
                      attemptIDs: [attemptID], source: "review", reviewed: true)
         appendLog(kind: "revise", attemptID: attemptID, text: TimelineLogText.revise(row, from: previous, note: note, machine: self))

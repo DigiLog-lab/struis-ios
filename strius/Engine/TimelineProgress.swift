@@ -146,6 +146,18 @@ extension TimelineMachine {
     mutating func applySurprise(skillID: String, attemptID: String, markCorrect: Bool) {
         guard let skill = skills[skillID], let attempt = attempts[attemptID], attempt.verdict == "correct" || attempt.verdict == "wrong" else { return }
         noteLegacyMasteryIfNeeded(skill, excluding: attemptID)
+        // 後から決まった印(見直しで決まった ○×)が、もっと新しい不意打ちより後に届いた: 順番が大事なので、時刻順に並べ直す。
+        let newer = attempts.values.contains { other in
+            other.id != attemptID && other.createdAt > attempt.createdAt && (other.verdict == "correct" || other.verdict == "wrong")
+                && cards[other.cardId].map { surpriseSkill(of: $0) == skillID } == true
+        }
+        if newer {
+            recomputeSkill(skillID)
+            if skills[skillID]?.status == "mastered", skill.status != "mastered" {
+                recordChange(kind: "mastered", detail: .object(["skill_id": .string(skillID), "by": .string("surprise")]), attemptIDs: [attemptID], source: "app", reviewed: true)
+            }
+            return
+        }
         let correct = Self.surpriseCorrect(markCorrect: markCorrect, attempt: attempt)
         let updated = TimelineRules.recordSurprise(skill, correct: correct, at: attempt.gradedAt ?? attempt.createdAt,
                                                    clearedDay: clearedPoint(skillID)?.day, calendar: calendar)

@@ -294,6 +294,8 @@ nonisolated enum TimelineTurns {
             "level_cap": batch.levelCap.map { .number(Double($0)) } ?? .null,
             "skills": .array(Array(skillRows)),
             "allowed_skill_ids": .array(allowedSkills.map { .string($0.id) }),
+            // 段の上限は全部渡す(`skills` は 30 行までに絞るので、そこに無いスキルの上限も、受け取る時には確かめるため)。
+            "skill_level_caps": .object(caps.filter { id, _ in allowedSkills.contains { $0.id == id } }),
             "flow": .object(flow),
             "goal_ready": progress["goal_ready"] ?? .emptyArray,
             "goal_cleared": progress["goal_cleared"] ?? .emptyArray,
