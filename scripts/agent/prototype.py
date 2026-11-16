@@ -315,6 +315,12 @@ def ensure_profiles(asc, meta, serial, private):
             has_container = bool(suffix) or ICLOUD_CONTAINER in entitlements.get(CONTAINERS_KEY, [])
             return document, has_group, has_container
 
+        requested = plistlib.loads((workspace() / ENTITLEMENTS[product]).read_bytes())
+        hardened = sorted(key for key in requested if key.startswith('com.apple.security.hardened-process'))
+
+        def has_hardened(document):
+            return not hardened or any(key.startswith('com.apple.security.hardened-process') for key in document['Entitlements'])
+
         reusable = None
         horizon = (utc_now() + datetime.timedelta(days=7)).isoformat()
         for profile in asc.profiles_for(bundle):
@@ -322,7 +328,8 @@ def ensure_profiles(asc, meta, serial, private):
             if ((attributes.get('name') or '').startswith(name) and attributes.get('profileState') == 'ACTIVE'
                     and attributes.get('profileType') == 'IOS_APP_ADHOC' and (attributes.get('expirationDate') or '') > horizon):
                 decoded, has_group, has_container = decode(profile)
-                if has_group and has_container:
+                # Enhanced Security を後から有効にした App ID では、有効にする前に作ったプロファイルを使い回さない。
+                if has_group and has_container and has_hardened(decoded):
                     reusable = profile
                     break
         if not reusable:
@@ -338,9 +345,7 @@ def ensure_profiles(asc, meta, serial, private):
                                  'Developer ポータルで iCloud (CloudKit) のコンテナを設定してから再実行してください。')
         else:
             decoded, _, _ = decode(reusable)
-        requested = plistlib.loads((workspace() / ENTITLEMENTS[product]).read_bytes())
-        hardened = sorted(key for key in requested if key.startswith('com.apple.security.hardened-process'))
-        if hardened and not any(key.startswith('com.apple.security.hardened-process') for key in decoded['Entitlements']):
+        if not has_hardened(decoded):
             raise BuildError('provisioning',
                              f'App ID {identifier} で Enhanced Security が有効ではありません'
                              f"(要求: {', '.join(hardened)})。Developer ポータルで有効にしてから再実行してください。")
