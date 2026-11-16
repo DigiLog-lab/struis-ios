@@ -194,8 +194,9 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
         self.dependencies = dependencies
         self.deadline = deadline
         self.progress = progress
-        conversation = child == nil && plan.kind == .chat
         tutor = child == nil && ClaudeTranslation.tutorKinds.contains(plan.kind.rawValue)
+        // タイムラインの新しい形(`TimelinePlanMode`)の採点は、続くスレッド(ephemeral でない)として履歴を持つ。
+        conversation = child == nil && (plan.kind == .chat || (tutor && !plan.thread.ephemeral))
         translation = tutor ? ClaudeTranslation.tutor : ClaudeTranslation.current
         threadID = conversation ? (plan.thread.codexThreadID ?? Self.newThreadID()) : "direct-" + UUID().uuidString.lowercased()
     }
@@ -236,7 +237,7 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
                     if delegation.contractInDeveloper != true { text += created.prompt }
                 }
                 input = try userContent(text: text, images: turn.images, notes: notes)
-                if conversation, let agents = await agentsInstructions() {
+                if conversation, !tutor, let agents = await agentsInstructions() {
                     // `AGENTS.md` は、その本文をまだ送っていない会話の最初の発話の先頭に置く(新しいスレッド。本文が変わった時は
                     // 置き換えとして送り直す)。送ったかどうかは本文の hash で控える。分岐は元の会話の控えを引き継ぐので送り直さない。
                     // 以前の版は作業フォルダの場所を控えていた: 同じフォルダの控えは、送り済みとして読む。
@@ -355,6 +356,7 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
             // タイムラインの採点・出題・見直しは、道具の説明を基本指示の側に入れてある(今日の記録の前。`TimelineTurns.tutorThread`)。
             tutorParts = [base, developer]
             schemaInInstructions = true
+            if conversation { _ = try openConversation() }
             return []
         }
         var fullDeveloper: String = developer + "\n\n" + NativeToolRouter.instructions
@@ -467,7 +469,8 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
     private func openConversation() throws -> Bool {
         let conversations: ClaudeConversationStore = dependencies.conversations
         if plan.thread.mode != .start, let existing = plan.thread.codexThreadID {
-            if let stored = try conversations.conversation(existing), stored.lastPromptTokens < ClaudeModelInfo.autoCompactTokenLimit {
+            let limit: Int = tutor ? ClaudeModelInfo.timelineSessionTokenLimit : ClaudeModelInfo.autoCompactTokenLimit
+            if let stored = try conversations.conversation(existing), stored.lastPromptTokens < limit {
                 threadID = existing
                 plan.workspaceKey = TurnPlan.threadWorkspaceKey(codexThreadID: threadID)
                 return true
@@ -607,7 +610,10 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
             "model": model, "max_tokens": ClaudeRequestFormat.maxTokens, "stream": true, "messages": sent,
             "system": system, "thinking": ["type": "adaptive", "display": "summarized"],
         ]
-        if ClaudeTranslation.marksTail(translation: translation, messages: sent) {
+        if conversation, tutor {
+            // 続くスレッドの採点: 履歴の終わりに 1 時間の印を置き、次の採点がここまでを読む。
+            body["cache_control"] = ClaudeTranslation.cacheControl(ttl: "1h")
+        } else if ClaudeTranslation.marksTail(translation: translation, messages: sent) {
             body["cache_control"] = ClaudeTranslation.cacheControl(ttl: translation >= 2 && !tutor ? tailTTL : nil)
         }
         if includeDiagnostics {

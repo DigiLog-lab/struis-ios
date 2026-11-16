@@ -142,6 +142,49 @@ nonisolated enum TimelineTurns {
         )
     }
 
+    /// 新しい形(`TimelinePlanMode`)の採点のスレッド: 基本指示は今までと同じで、今日の記録の代わりに Opus の計画と
+    /// スキルの一覧を入れる。1 時間以内に使ったスレッドがあれば、その続き(会話の履歴を持つ)。
+    static func sessionThread(composer: TurnComposer, planID: String, workbook: WorkbookMachine, timeline: TimelineMachine) async throws -> TurnPlan.ThreadSpec {
+        let (base, developer, planRow) = try await sessionPrefix(composer: composer, workbook: workbook, timeline: timeline)
+        let effort = tutorEffort
+        // 新しい計画が届いた後は、前の計画のスレッドを続けない(計画は先頭に入っているので、次の採点から新しいスレッドにする)。
+        // 別の採点がスレッドを使っている間は、このターンは新しいスレッドで採点する(同じスレッドを 2 つのターンが同時に続けない)。
+        let stored = TimelinePlanMode.session(planID: planRow?.id)
+        let thread = TimelinePlanMode.reserve(turnID: planID) ? stored : nil
+        TimelinePlanMode.remember(turnID: planID, planID: planRow?.id)
+        return TurnPlan.ThreadSpec(
+            codexThreadID: thread, mode: thread == nil ? .start : .resume, cwd: TurnPlan.guestWorkspace(id: planID), model: TimelinePlanMode.sessionModel,
+            effort: effort, ephemeral: false, baseInstructions: base, developerInstructions: nil, developerText: developer,
+            injectDeveloperOnResume: false, config: TurnComposer.structuredConfig(effort: effort), lastTurnID: nil, provider: .anthropic
+        )
+    }
+
+    /// 新しい形の出題(5枚)のスレッド: 先頭は採点の続くスレッドと 1 バイトも同じにして(キャッシュを読む)、毎回新しく始める
+    /// (採点と同時に走ることがあるので、続くスレッドには入れない)。直近の答案は材料の `recent_answers` で渡す。
+    static func planBatchThread(composer: TurnComposer, planID: String, workbook: WorkbookMachine, timeline: TimelineMachine) async throws -> TurnPlan.ThreadSpec {
+        let (base, developer, _) = try await sessionPrefix(composer: composer, workbook: workbook, timeline: timeline)
+        let effort = tutorEffort
+        return TurnPlan.ThreadSpec(
+            codexThreadID: nil, mode: .start, cwd: TurnPlan.guestWorkspace(id: planID), model: TimelinePlanMode.sessionModel,
+            effort: effort, ephemeral: true, baseInstructions: base, developerInstructions: nil, developerText: developer,
+            injectDeveloperOnResume: false, config: TurnComposer.structuredConfig(effort: effort), lastTurnID: nil, provider: .anthropic
+        )
+    }
+
+    /// 新しい形の先頭: 基本指示(今までと同じ)と、Opus の計画・Opus を呼ぶ決まり・今の単元とスキルの一覧。
+    static func sessionPrefix(composer: TurnComposer, workbook: WorkbookMachine, timeline: TimelineMachine) async throws
+        -> (base: TurnPlan.AssetRef, developer: String, planRow: TimelineBatchRecord?) {
+        let shared = try await composer.assets.text("prompt:timeline_shared")
+        let base = try await composer.assets.ref("prompt:base", append: shared + "\n\n" + NativeToolRouter.instructions)
+        let planRow = TimelinePlanMode.latestPlanRow(timeline)
+        let plan = planRow?.request["plan"]?.stringValue ?? "まだありません。"
+        let context = sharedContext(workbook: workbook, timeline: timeline)
+        let escalate = try await composer.assets.text("prompt:timeline_session_escalate").trimmingCharacters(in: .whitespacesAndNewlines)
+        let developer = ["# この生徒の計画(上位の先生が書いたもの)\n\n" + plan + "\n\n" + escalate, context.isEmpty ? "# 今の単元\n\nまだありません。" : context]
+            .joined(separator: ClaudeTranslation.blockSeparator)
+        return (base, developer, planRow)
+    }
+
     /// 知識グラフの依頼のスレッド(上位モデル。採点・出題とは先頭を共有しない)。
     /// 基本指示は、どの依頼でも同じ部分(`prompt:base`・`timeline_shared`)と、学習者の単元とスキルの一覧(スキルが増えるたびに
     /// 変わる)を `ClaudeTranslation.fixedEnd` で分ける。同じ部分だけが 1 時間のキャッシュに入り、続けて送る依頼がそれを読む。
@@ -246,11 +289,24 @@ nonisolated enum TimelineTurns {
 
     static func batch(composer: TurnComposer, planID: String, batchID: String, workbook: WorkbookMachine, timeline: TimelineMachine, repair: String? = nil) async throws -> TurnPlan {
         guard let batch = timeline.batches[batchID] else { throw LedgerError.notFound("timeline batch") }
-        let request = batchRequest(workbook: workbook, timeline: timeline, batch: batch)
+        var request = batchRequest(workbook: workbook, timeline: timeline, batch: batch)
+        var task: String = try await composer.assets.text("prompt:timeline_instructions")
+        let thread: TurnPlan.ThreadSpec
+        if TimelinePlanMode.isOn {
+            // 新しい形: 今日の記録の代わりに、先頭の計画と、直近の答案(今日の記録の答案の行)で選ぶ。
+            thread = try await planBatchThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline)
+            if case .object(var fields) = request {
+                fields["recent_answers"] = .array(TimelinePlanMode.recentAnswers(timeline).map(LedgerJSON.string))
+                request = .object(fields)
+            }
+            task = task.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + TimelinePlanMode.batchNote
+        } else {
+            thread = try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline)
+        }
         return TurnPlan(
             id: planID, kind: .timelineBatch, round: repair == nil ? 1 : 2,
-            thread: try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline),
-            turn: TurnPlan.TurnSpec(text: turnText(task: try await composer.assets.text("prompt:timeline_instructions"), materials: request, repair: repair), images: [],
+            thread: thread,
+            turn: TurnPlan.TurnSpec(text: turnText(task: task, materials: request, repair: repair), images: [],
                                     outputSchema: try await composer.assets.json("schema:timeline_batch"), sandboxPolicy: "dangerFullAccess"),
             workspace: workspace, delegation: nil, collect: [], limits: .structured
         )
@@ -293,9 +349,16 @@ nonisolated enum TimelineTurns {
             task = task.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + (try await composer.assets.text("prompt:timeline_grading_red_pen"))
             schema = withRedPen(schema, marks: try await composer.assets.json("schema:timeline_grading_red_pen"))
         }
+        // 新しい形: 計画の `escalate_when` に当たった時に、上位の先生(Opus)を呼ぶ理由を返させる(決まりはスレッドの先頭に置き、
+        // 今回の仕事は今までと同じにする。2026-11-16 に今回の仕事へ足した時は、誤答で答案を拡大しなくなった)。
+        if TimelinePlanMode.isOn {
+            schema = TimelinePlanMode.withEscalation(schema)
+        }
         return TurnPlan(
             id: planID, kind: .timelineGrading, round: repair == nil ? 1 : 2,
-            thread: try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline),
+            thread: TimelinePlanMode.isOn
+                ? try await sessionThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline)
+                : try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline),
             turn: TurnPlan.TurnSpec(text: turnText(task: task, materials: gradingRequest(attempt: attempt, card: card), repair: repair),
                                     images: [image], outputSchema: schema, sandboxPolicy: "dangerFullAccess"),
             workspace: workspace, delegation: nil, collect: [], limits: .structured
@@ -590,6 +653,7 @@ nonisolated enum TimelineTurns {
         let (instructions, schema) = switch request["task"]?.stringValue {
         case "decompose": ("prompt:timeline_decompose_instructions", "schema:timeline_decompose")
         case "misconceptions": ("prompt:timeline_misconceptions_instructions", "schema:timeline_misconceptions")
+        case "plan": ("prompt:timeline_plan_instructions", "schema:timeline_plan")
         default: ("prompt:timeline_graph_instructions", "schema:timeline_graph")
         }
         var plan: TurnPlan = TurnPlan(
@@ -649,9 +713,13 @@ nonisolated enum TimelineTurns {
             guard let attempt = timeline.attempts[targetID], attempt.verdict == "grading" else { return ([], followUp) }
             guard outcome.status == .completed else {
                 timelineTurnLog.error("timeline grading failed: \(outcome.error ?? "-", privacy: .public)")
+                // 新しい形: 組んだ時の計画の控えと、スレッドを使っている印を消す(失敗したスレッドは続けない)。
+                if TimelinePlanMode.isOn { TimelinePlanMode.touch(threadID: nil, turnID: outcome.planID) }
                 timeline.failGrading(attemptID: targetID)
                 break
             }
+            // 新しい形: 返事を読めるかに関わらず、次の採点(頼み直しを含む)が同じスレッドを続けられるように控える。
+            if TimelinePlanMode.isOn { TimelinePlanMode.touch(threadID: outcome.codexThreadID, turnID: outcome.planID) }
             let grading: TimelineMachine.Grading
             do {
                 grading = try TimelineMachine.Grading.parse(outcome.finalText)
@@ -667,7 +735,23 @@ nonisolated enum TimelineTurns {
                 break
             }
             let result = timeline.applyGrading(attemptID: targetID, grading: grading)
-            if result.verdict == "correct" || result.verdict == "wrong" { followUp.review = targetID }
+            if TimelinePlanMode.isOn {
+                // 新しい形: 答案ごとの見直しは走らせない。スキルが 2 つ以上の答案の ○× は、採点の返事の `skill_results` で決める。
+                let extras = try? TimelineReply.decode(TimelinePlanMode.Escalation.self, from: outcome.finalText)
+                if timeline.attempts[targetID]?.skillsPending == true, let results = extras?.skillResults, !results.isEmpty {
+                    timeline.decideSkills(results.map { .init(attemptID: targetID, skillID: $0.skillID, result: $0.result) })
+                }
+                // 計画の `escalate_when` に当たると返した: 決まり(1 日 1 回・新しい計画のあと 5 問)に合えば Opus を呼ぶ。
+                if let reason = extras?.escalate?.trimmingCharacters(in: .whitespacesAndNewlines), !reason.isEmpty {
+                    if let id = TimelinePlanMode.requestPlan(trigger: .escalation, reason: reason, timeline: &timeline) {
+                        followUp.nextGraph = id
+                    } else {
+                        timelineTurnLog.info("timeline: escalation not sent (limit)")
+                    }
+                }
+            } else if result.verdict == "correct" || result.verdict == "wrong" {
+                followUp.review = targetID
+            }
             // 赤ペン: 答案を取り込んで確かめた場所だけ使う。確かめていなければ出さない(判定を遅らせないよう頼み直さない)。
             if let graded = timeline.attempts[targetID], wantsMarks(graded), !grading.marks.isEmpty {
                 if viewedCapture(outcome.executions, attemptID: targetID) {
@@ -720,6 +804,19 @@ nonisolated enum TimelineTurns {
             switch batch.request["task"]?.stringValue {
             case "decompose":
                 followUp = try applyDecomposition(batchID: targetID, text: outcome.finalText, timeline: &timeline, db: db)
+            case "plan":
+                guard let plan = (try? TimelineReply.decode(TimelinePlanMode.Reply.self, from: outcome.finalText))?.plan, !plan.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                      var row = timeline.batches[targetID] else {
+                    timeline.failBatch(id: targetID, error: "unreadable plan")
+                    break
+                }
+                var request = row.request.objectValue ?? [:]
+                request["plan"] = .string(plan)
+                request["log"] = nil
+                row.request = .object(request)
+                row.status = "ready"
+                row.updatedAt = timeline.now()
+                timeline.put("timeline.plan_ready", row)
             case "misconceptions":
                 guard let output = try? JSONDecoder().decode(TimelineGraph.Misconceptions.self, from: Data(outcome.finalText.utf8)) else {
                     timeline.failBatch(id: targetID, error: "unreadable misconceptions")

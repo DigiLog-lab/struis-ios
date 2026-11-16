@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "plan": {
+      "type": "string",
+      "description": "YAML"
+    }
+  },
+  "required": [
+    "plan"
+  ]
+}

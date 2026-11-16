@@ -405,6 +405,7 @@ final class TimelineStore {
         }
         // タイムラインを開いた時: グラフを頼むか決める。
         await ensureGraphWork()
+        await ensurePlanWork()
         await requestBatch()
     }
 
@@ -905,6 +906,14 @@ final class TimelineStore {
         await turns.startTimeline(kind: .timelineGraph, targetID: id, prefetch: true)
     }
 
+    /// 新しい形(`TimelinePlanMode`): その日最初に開いた時に、裏で Opus に計画を頼む。届くまでは前の計画で採点を続け、
+    /// 届いたら次の採点から新しいスレッドにする(`TimelineTurns.sessionThread`)。
+    private func ensurePlanWork() async {
+        guard TimelinePlanMode.isOn, !workbook.units.isEmpty, newWorkDenial() == nil else { return }
+        guard let id = await commitValue({ machine in TimelinePlanMode.requestPlan(trigger: .morning, timeline: &machine) }) ?? nil else { return }
+        await turns.startTimeline(kind: .timelineGraph, targetID: id, prefetch: true)
+    }
+
     // MARK: - 台帳
 
     private func scheduleReload() {
@@ -950,6 +959,8 @@ final class TimelineStore {
                 await decide()
                 // 採点結果を反映した: 見直し・1段下りるのきっかけを見る。
                 await ensureGraphWork()
+                // 開いたまま日をまたいだ時も、その日の計画を頼む。
+                await ensurePlanWork()
             } else {
                 // 読めなかった・採点できなかった: 撮り直してもらう。
                 actionError = attempt.feedback.isEmpty ? TimelineTurns.gradingFailure : attempt.feedback

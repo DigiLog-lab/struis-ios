@@ -1236,9 +1236,17 @@ nonisolated struct TimelineMachine {
 
     /// 見直しの結果を綴じる: 決めずに置いたスキルの ○×、見直しのメモ。見直した答案(対象と、それより前に採点した未見直しの答案)に印を付ける。
     mutating func applyReview(targetID: String, review: Review) {
+        let decided = decideSkills(review.skillResults)
+        let cutoff = attempts[targetID]?.gradedAt ?? attempts[targetID]?.createdAt ?? now()
+        markReviewed(targetID: targetID, notes: review.notes, decided: decided, cutoff: cutoff)
+    }
+
+    /// 決めずに置いたスキルの ○× を付ける(見直しの返事・新しい形の採点の返事)。付けた印を答案ごとに返す。
+    @discardableResult
+    mutating func decideSkills(_ results: [Review.SkillResult]) -> [String: [String: String]] {
         let known = Set(activeSkills.map(\.id))
         var decided: [String: [String: String]] = [:]
-        for item in review.skillResults where item.result == "correct" || item.result == "wrong" {
+        for item in results where item.result == "correct" || item.result == "wrong" {
             let id = TimelineGraph.normalizedID(item.skillID)
             guard known.isEmpty || known.contains(id), attempts[item.attemptID] != nil else { continue }
             decided[item.attemptID, default: [:]][id] = item.result
@@ -1256,15 +1264,18 @@ nonisolated struct TimelineMachine {
                 remark(id: id, previous: before[id], card: card, correct: mark == "correct", assisted: row.assisted, withinTime: withinTime, firstTry: row.firstTry, attemptID: attemptID)
             }
         }
-        let cutoff = attempts[targetID]?.gradedAt ?? attempts[targetID]?.createdAt ?? now()
+        return decided
+    }
+
+    private mutating func markReviewed(targetID: String, notes: String, decided: [String: [String: String]], cutoff: String) {
         for var row in orderedAttempts where row.reviewedAt == nil && (row.id == targetID || (row.grade != nil && (row.gradedAt ?? row.createdAt) <= cutoff)) {
-            if row.id == targetID, !review.notes.isEmpty {
-                row.reviewNotes = [row.reviewNotes, review.notes].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
+            if row.id == targetID, !notes.isEmpty {
+                row.reviewNotes = [row.reviewNotes, notes].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
             }
             row.reviewedAt = now()
             put("timeline.attempt_reviewed", row)
         }
-        if let text = TimelineLogText.review(targetID: targetID, notes: review.notes, decided: decided, machine: self) {
+        if let text = TimelineLogText.review(targetID: targetID, notes: notes, decided: decided, machine: self) {
             appendLog(kind: "review", attemptID: targetID, text: text)
         }
     }
@@ -1283,9 +1294,17 @@ nonisolated struct TimelineMachine {
 
     /// 今日の記録(この端末で保存した・受け取った順)。この端末で書いた行は `seq` の位置(最後、またはその日の先頭)に入り、
     /// 他の端末から届いた行は届いた時点の最後に足す。届いた行が、この端末が前に送った依頼の先頭を書き換えない (Issue #57)。
-    var todayLog: [TimelineLogRecord] {
+    var todayLog: [TimelineLogRecord] { dayLog(today) }
+
+    /// 今日より前で、記録がある最後の日(無ければ nil)。
+    var lastLogDayBeforeToday: String? {
         let today = today
-        let entries = log.values.filter { $0.day == today }.sorted { a, b in
+        return log.values.map(\.day).filter { $0 < today }.max()
+    }
+
+    /// その日の記録(並べ方は `todayLog` と同じ)。
+    func dayLog(_ day: String) -> [TimelineLogRecord] {
+        let entries = log.values.filter { $0.day == day }.sorted { a, b in
             let (x, y) = (logArrival[a.id]?.order ?? .max, logArrival[b.id]?.order ?? .max)
             return (x, a.seq, a.createdAt, a.id) < (y, b.seq, b.createdAt, b.id)
         }

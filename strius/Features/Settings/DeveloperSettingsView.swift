@@ -24,10 +24,13 @@ nonisolated enum InternalBuild {
 /// 開発者向け: AI モデル・料金・トークン・実行環境・調べる用の書き出し。本番には出さない。
 struct DeveloperSettingsView: View {
     @Environment(SettingsStore.self) private var settings
+    /// タイムラインの新しい形(`TimelinePlanMode`。試験中)。
+    @AppStorage(TimelinePlanMode.defaultsKey) private var timelinePlanMode: Bool = false
 
     var body: some View {
         SettingsScreen(title: "開発者向け") {
             modelSection
+            planModeSection
             costSection
             tokenSection
             runtimeSection
@@ -68,6 +71,26 @@ struct DeveloperSettingsView: View {
                 title: "知識グラフ",
                 value: Self.shortName(TimelineModels.fallback(role: TimelineModels.graphRole)?.model ?? "-")
             )
+        }
+    }
+
+    // MARK: - タイムラインの新しい形
+
+    private var planModeSection: some View {
+        SettingsSection(
+            header: "タイムラインの新しい形(試験)",
+            footer: "オンにすると、その日最初に開いた時と採点の先生が頼んだ時(1 日 1 回まで)に Opus が計画を書き、採点は Sonnet が 1 時間続くスレッドで行います。答案ごとの見直しは走りません。上の「タイムライン」のモデルは採点には使いません。"
+        ) {
+            Toggle(isOn: $timelinePlanMode) {
+                Text("Opus の計画と Sonnet の続くスレッド")
+                    .font(Typography.bodyCompact)
+                    .foregroundStyle(Theme.primaryText)
+            }
+            .tint(Theme.accentColor)
+            .padding(.horizontal, 16)
+            .frame(minHeight: 48)
+            .accessibilityIdentifier("settings-timeline-plan-mode")
+            .onChange(of: timelinePlanMode) { _, _ in TimelinePlanMode.reset() }
         }
     }
 
