@@ -294,4 +294,21 @@ final class TimelineProgressTests: XCTestCase {
         XCTAssertNil(machine.revise(attemptID: "p", grade: "wrong", marks: nil, note: "答えも違う"))
         XCTAssertEqual(machine.skills["law"]?.status, "practicing")
     }
+
+    /// 同じ日に答えた不意打ちの採点が日付をまたいで終わっても、別の日に思い出せたことにはしない。
+    func testGradingAfterMidnightDoesNotMakeASameDayAnswerALaterDay() {
+        var machine = F.machine(now: "2026-11-16T00:05:00.000000Z")
+        setUpSubunit(&machine)
+        clearLaw(&machine)
+        let card = F.card("card-m", status: "answered", skills: ["law"], createdAt: "2026-11-15T23:58:00.000000Z", payload: ["surprise": .string("law")])
+        machine.put("test", card)
+        var attempt = F.attempt("m", card: card.id, verdict: "correct", createdAt: "2026-11-15T23:58:00.000000Z")
+        attempt.gradedAt = "2026-11-16T00:01:00.000000Z"
+        attempt.skillMarks = ["law": "correct"]
+        machine.put("test", attempt)
+        machine.applySkill(id: "law", card: card, correct: true, assisted: false, withinTime: true, firstTry: true, attemptID: "m")
+        XCTAssertEqual(machine.skills["law"]?.status, "practicing")
+        machine.recomputeSkill("law")
+        XCTAssertEqual(machine.skills["law"]?.status, "practicing")
+    }
 }

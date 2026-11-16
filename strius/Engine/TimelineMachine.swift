@@ -776,7 +776,7 @@ nonisolated struct TimelineMachine {
                                        at: item.attempt.gradedAt ?? item.attempt.createdAt, calendar: calendar)
             if surpriseSkill(of: item.card) == id {
                 row = TimelineRules.recordSurprise(row, correct: Self.surpriseCorrect(markCorrect: item.correct, attempt: item.attempt),
-                                                   at: item.attempt.gradedAt ?? item.attempt.createdAt, clearedDay: clearedDay, calendar: calendar)
+                                                   at: item.attempt.createdAt, clearedDay: clearedDay, calendar: calendar)
             }
         }
         row.updatedAt = now()

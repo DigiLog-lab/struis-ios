@@ -159,7 +159,8 @@ extension TimelineMachine {
             return
         }
         let correct = Self.surpriseCorrect(markCorrect: markCorrect, attempt: attempt)
-        let updated = TimelineRules.recordSurprise(skill, correct: correct, at: attempt.gradedAt ?? attempt.createdAt,
+        // 日付は答えた時刻で決める(採点が日付をまたいでも、同じ日の答えを「別の日に思い出せた」にしない)。
+        let updated = TimelineRules.recordSurprise(skill, correct: correct, at: attempt.createdAt,
                                                    clearedDay: clearedPoint(skillID)?.day, calendar: calendar)
         put("timeline.skill_surprise", updated)
         if updated.status == "mastered", skill.status != "mastered" {
