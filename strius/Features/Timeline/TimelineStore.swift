@@ -805,7 +805,8 @@ final class TimelineStore {
     }
 
     /// 他のアプリに移って戻ってきた(SwiftUI の scenePhase)。5分以上なら戻った時の計算練習(#155)。
-    func scenePhaseChanged(_ scenePhase: ScenePhase) async {
+    /// `hasDraft`: 書く面に書きかけの線がある(練習を先に出すと消えてしまうので、答えを送った後に出す)。
+    func scenePhaseChanged(_ scenePhase: ScenePhase, hasDraft: Bool = false) async {
         switch scenePhase {
         case .background:
             awayStartedAt = Date()
@@ -813,7 +814,7 @@ final class TimelineStore {
             guard let away = awayStartedAt else { return }
             awayStartedAt = nil
             let seconds = Date().timeIntervalSince(away)
-            await warmupOnReturn(awaySeconds: seconds)
+            await warmupOnReturn(awaySeconds: seconds, hasDraft: hasDraft)
         default:
             break
         }
@@ -835,12 +836,15 @@ final class TimelineStore {
     /// アプリに戻った(5分以上離れていた): 計算のつまずきの易しい問題を 2〜3 問出してから元に戻る。
     /// 解いている途中で離れていた時は、30分未満なら答えを送った後に、30分以上なら先に出す。
     /// `launch`: アプリを開き直した時。開いた時はもともと速攻の問題から始まるので、点の型から作れる時だけ出す。
-    func warmupOnReturn(awaySeconds seconds: TimeInterval, midCard explicit: Bool? = nil, launch: Bool = false) async {
+    func warmupOnReturn(awaySeconds seconds: TimeInterval, midCard explicit: Bool? = nil, launch: Bool = false, hasDraft: Bool = false) async {
         let midCard: Bool = explicit ?? (phase == .solving && current?.status != "answered")
         if current.map({ machine.warmupSession(of: $0) != nil }) == true { return }
         guard newWorkDenial() == nil else { return }
         warmupTemplateOnly = launch
-        switch TimelineWarmup.timing(awaySeconds: seconds, midCard: midCard) {
+        var timing = TimelineWarmup.timing(awaySeconds: seconds, midCard: midCard)
+        // 書く面に書きかけがある: 先に出すと線が消えるので、答えを送った後に出す。
+        if timing == .now, midCard, hasDraft { timing = .afterAnswer }
+        switch timing {
         case .none:
             return
         case .afterAnswer:
@@ -947,11 +951,15 @@ final class TimelineStore {
     func authorWarmupTemplateIfNeeded() {
         guard let transport = drillTransport, newWorkDenial() == nil else { return }
         let store = drillTemplates
-        guard let skillID = machine.warmupCandidates.first(where: { id in
-            !warmupAuthored.contains(id) && ((try? store.needsAuthoring(skillID: id)) ?? false)
-        }), let skill = machine.skills[skillID] else { return }
-        let solved = DrillAuthoringClient.solvedExamples(skillID: skillID, timeline: machine)
-        guard !solved.isEmpty else { return }
+        // 解いた問題(「解く」カード)が無い点は飛ばして、次の候補を見る(型の手本が無いと頼めない)。
+        var picked: (id: String, skill: TimelineSkillRecord, solved: [DrillSolvedExample])? = nil
+        for id in machine.warmupCandidates where !warmupAuthored.contains(id) && ((try? store.needsAuthoring(skillID: id)) ?? false) {
+            guard let skill = machine.skills[id] else { continue }
+            let solved = DrillAuthoringClient.solvedExamples(skillID: id, timeline: machine)
+            if !solved.isEmpty { picked = (id, skill, solved); break }
+        }
+        guard let picked else { return }
+        let (skillID, skill, solved) = (picked.id, picked.skill, picked.solved)
         warmupAuthored.insert(skillID)
         let request = DrillAuthoringRequest(skillID: skillID, name: skill.name, kind: skill.kind, solved: solved)
         let assets = turns.assets

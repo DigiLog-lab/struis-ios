@@ -262,12 +262,19 @@ nonisolated indirect enum TimelineExpression: Equatable, Sendable {
             case "+", "-": scale = max(sa, sb, abs(l), abs(r))
             case "*": scale = max(sa * abs(r), sb * abs(l))
             case "/": scale = r == 0 ? 0 : max(sa / abs(r), sb * abs(l) / (r * r))
-            case "^": scale = max(sa, sb) * max(1, abs(pow(l, r)))
+            // 底のずれは r·l^(r-1) 倍、指数のずれは l^r·ln|l| 倍になって伝わる。
+            case "^": scale = sa * abs(r * pow(l, r - 1)) + (l == 0 ? 0 : sb * abs(pow(l, r) * log(abs(l))))
             default: scale = max(sa, sb)
             }
             return scale.isFinite ? scale : 0
         case .tuple(let items): return items.map { $0.roundoffScale(bindings) }.max() ?? 0
         }
+    }
+
+    /// 成分ごとの丸めの目安(組でなければ 1 つ)。
+    func componentRoundoffScales(_ bindings: [String: Double], count: Int) -> [Double] {
+        if case .tuple(let items) = self { return items.map { $0.roundoffScale(bindings) } }
+        return Array(repeating: roundoffScale(bindings), count: count)
     }
 
     func values(_ bindings: [String: Double]) -> [Double]? {
@@ -294,8 +301,9 @@ nonisolated indirect enum TimelineExpression: Equatable, Sendable {
             for (offset, name) in names.enumerated() { bindings[name] = sample[offset % sample.count] + Double(offset) * 0.37 }
             guard let l = a.values(bindings), let r = b.values(bindings) else { continue }
             guard l.count == r.count else { return false }
-            let roundoff = relativeRoundoff * max(a.roundoffScale(bindings), b.roundoffScale(bindings))
-            for (x, y) in zip(l, r) where !close(x, y, tolerance: tolerance, roundoff: roundoff) { return false }
+            // 丸めの幅は成分ごと(座標の片方の大きな計算が、もう片方の誤りを許さないように)。
+            let scales = zip(a.componentRoundoffScales(bindings, count: l.count), b.componentRoundoffScales(bindings, count: r.count)).map { max($0, $1) }
+            for ((x, y), scale) in zip(zip(l, r), scales) where !close(x, y, tolerance: tolerance, roundoff: relativeRoundoff * scale) { return false }
             compared += 1
         }
         return compared >= 2
@@ -313,7 +321,8 @@ nonisolated indirect enum TimelineExpression: Equatable, Sendable {
         guard x.isFinite, y.isFinite else { return false }
         if abs(x - y) <= roundoff { return true }
         let scale = max(abs(x), abs(y))
-        let limit = tolerance * (scale >= 1e-3 ? max(1, scale) : scale) + 1e-15
+        // 打ち消しの丸めは `roundoff` で許すので、決まった絶対の幅は持たない(1.6e-19 と 0 を同じにしない)。
+        let limit = tolerance * (scale >= 1e-3 ? max(1, scale) : scale)
         return abs(x - y) <= limit
     }
 
