@@ -578,7 +578,8 @@ final class TimelineStore {
     func skip() async {
         guard let card = current, phase == .solving else { return }
         let seconds = elapsed
-        let previousWasSkip = machine.orderedAttempts.last?.verdict == "skipped"
+        // 戻った時の計算練習(#155)を飛ばしたのは、続けて飛ばした数に入れない(練習を閉じただけで2択カードを出さない)。
+        let previousWasSkip = machine.orderedAttempts.last { machine.cards[$0.cardId]?.origin != TimelineWarmup.origin }?.verdict == "skipped"
         guard let attemptID = await commitValue({ machine in machine.recordSkip(cardID: card.id, seconds: seconds) }) else { return }
         lastAttemptID = attemptID
         showSkipBanner(attemptID)
