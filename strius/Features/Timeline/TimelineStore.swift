@@ -361,6 +361,12 @@ final class TimelineStore {
 
     /// 起動したらすぐ出す。1枚目は手元から選び、AI を呼ばない。出すと同時に、その日の最初の5枚を頼む。
     func start() async {
+        #if DEBUG
+        // シミュレータの確かめ用の状態(`-timeline-warmup-demo`)は、起動の準備が台帳に入れ終わってから読む。
+        if ProcessInfo.processInfo.arguments.contains("-timeline-warmup-demo") {
+            for _ in 0..<100 where (try? drillTemplates.template(for: "demo.exp")) == nil { try? await Task.sleep(for: .milliseconds(100)) }
+        }
+        #endif
         await reload()
         guard !started else { return }
         started = true
