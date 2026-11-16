@@ -81,6 +81,16 @@ final class TimelineStore {
     /// やり方の確認の後に解く「同じ形」の後で戻る、元のカード。
     private var returnToID: String?
     private var awayStartedAt: Date?
+    /// 戻った時の計算練習(#155)を、解いている問題の答えを送った後に出す(離れていたのが 5〜30 分)。
+    private var warmupAfterAnswer = false
+    /// 戻った時の計算練習が終わったら戻るカード(nil なら次に決めた 1 枚)。
+    private var warmupReturnID: String?
+    /// この起動で「問題の型」を頼んだ点(1 点 1 回)。
+    private var warmupAuthored: Set<String> = []
+    /// 今回の練習は点の型から作れる時だけ出す(開き直した時。速攻の問題では代えない)。
+    private var warmupTemplateOnly = false
+    /// 「問題の型」を頼む送り口(nil なら頼まない)。テストで差し替える。
+    var drillTransport: (any DrillAuthoringTransport)? = TimelineStore.defaultDrillTransport
     private var observer: UUID?
     private var reloadTask: Task<Void, Never>?
     /// 前に読んだ単元(新しい単元ができたかを見る)。
@@ -379,7 +389,10 @@ final class TimelineStore {
             break
         }
         // 前の起動で出したまま答えていないカードがあれば、それから。
-        if let shown = machine.cards.values.filter({ $0.status == "shown" && TimelineRules.day($0.updatedAt) == today && $0.origin != "history" && inScope($0.id) }).max(by: { $0.updatedAt < $1.updatedAt }) {
+        // 練習(#155)だけはそのまま戻さない(練習の回は起動をまたがない)。
+        var resumedShown = false
+        if let shown = machine.cards.values.filter({ $0.status == "shown" && TimelineRules.day($0.updatedAt) == today && $0.origin != "history" && $0.origin != TimelineWarmup.origin && inScope($0.id) }).max(by: { $0.updatedAt < $1.updatedAt }) {
+            resumedShown = true
             show(shown.id)
         } else {
             switch first {
@@ -402,6 +415,11 @@ final class TimelineStore {
             case .guide:
                 if let next = machine.queue.first(where: { inScope($0.id) }) { show(next.id) } else { phase = workbook.units.isEmpty ? .guide : .waiting }
             }
+        }
+        // 前に手を動かしてから 5 分以上たって開いた: 戻った時の計算練習(#155)。前の起動で解いている途中だった問題は、
+        // 30 分未満なら答えを送った後に、それ以上なら先に練習を出す。
+        if let last = machine.lastActivityAt.flatMap(LedgerClock.parse) {
+            await warmupOnReturn(awaySeconds: Date().timeIntervalSince(last), midCard: resumedShown, launch: true)
         }
         // タイムラインを開いた時: グラフを頼むか決める。
         await ensureGraphWork()
@@ -551,13 +569,19 @@ final class TimelineStore {
         guard let attemptID = await commitValue({ machine in machine.recordSkip(cardID: card.id, seconds: seconds) }) else { return }
         lastAttemptID = attemptID
         showSkipBanner(attemptID)
+        if let session = machine.warmupSession(of: card) {
+            // 練習を飛ばした: 練習はそこで終えて元に戻る。
+            decided = await finishWarmup(session: session)
+            await goNext()
+            return
+        }
         var next = TimelineRules.next(after: card, outcome: .skipped, queue: machine.queue, rapid: machine.rapidCards, wrongBefore: false)
         if next.cardID == nil, card.origin == "rapid" { next.cardID = machine.rapidCards.first?.id }
         if !next.discardIDs.isEmpty {
             let ids = next.discardIDs
             await commit { machine in machine.discard(ids: ids) }
         }
-        decided = next
+        decided = await warmupBefore(next)
         if let trigger = TimelineRules.dipAfterAnswer(seconds: seconds, usual: nil, outcome: .skipped, previousWasSkip: previousWasSkip, sinceLastDip: machine.cardsSinceLastDip) {
             await openDip(trigger)
             return
@@ -585,6 +609,10 @@ final class TimelineStore {
     /// 読んだモデルが5枚の中で決める(アプリの決まりで差し込まない)。
     private func decide() async {
         guard let card = current, let attempt = lastAttempt else { return }
+        if let session = machine.warmupSession(of: card) {
+            await decideWarmup(after: card, session: session)
+            return
+        }
         let outcome: TimelineRules.Outcome
         switch attempt.verdict {
         case "correct": outcome = .correct
@@ -605,7 +633,8 @@ final class TimelineStore {
             return next
         } ?? initial
         if card.origin == "easier", returnTo != nil, outcome == .correct { returnToID = nil }
-        decided = next
+        decided = await warmupBefore(next)
+        authorWarmupTemplateIfNeeded()
     }
 
     /// 結果の画面の「次へ」・下の帯を上に送る。
@@ -618,14 +647,16 @@ final class TimelineStore {
         if phase == .result, let attempt = lastAttempt, let card = current {
             // 撮るか飛ばすかした直後に、本人のいつもの2倍を超えていたら2択カード。
             let usual = TimelineRules.usualSeconds(level: card.level, history: machine.secondsHistory.dropLast().map { $0 }, estimatedSeconds: card.estimatedSeconds)
-            if card.origin != "rapid",
+            if card.origin != "rapid", card.origin != TimelineWarmup.origin, decided?.cardID.flatMap({ machine.cards[$0] })?.origin != TimelineWarmup.origin,
                let trigger = TimelineRules.dipAfterAnswer(seconds: attempt.seconds, usual: usual, outcome: attempt.verdict == "correct" ? .correct : .wrong,
                                                           previousWasSkip: false, sinceLastDip: machine.cardsSinceLastDip) {
                 await openDip(trigger)
                 return
             }
         }
-        if next?.requestBatch == true || TimelineRules.twoWrongInARow(machine.orderedAttempts) {
+        // 戻った時の計算練習(#155)の × は、続けての × に数えない。
+        let counted = machine.orderedAttempts.filter { machine.cards[$0.cardId]?.origin != TimelineWarmup.origin }
+        if next?.requestBatch == true || TimelineRules.twoWrongInARow(counted) {
             await requestBatch(force: next?.requestBatch == true)
         }
         show(next?.cardID ?? machine.queue.first?.id ?? machine.rapidCards.first?.id)
@@ -759,7 +790,7 @@ final class TimelineStore {
         if let current, current.status != "answered" { phase = .solving } else { show(machine.queue.first?.id ?? machine.rapidCards.first?.id) }
     }
 
-    /// 他のアプリに移って、30秒以上たって戻ってきた(SwiftUI の scenePhase)。
+    /// 他のアプリに移って戻ってきた(SwiftUI の scenePhase)。5分以上なら戻った時の計算練習(#155)。
     func scenePhaseChanged(_ scenePhase: ScenePhase) async {
         switch scenePhase {
         case .background:
@@ -768,11 +799,145 @@ final class TimelineStore {
             guard let away = awayStartedAt else { return }
             awayStartedAt = nil
             let seconds = Date().timeIntervalSince(away)
-            if let trigger = TimelineRules.dipOnReturn(awaySeconds: seconds, isSolving: phase == .solving && current?.kind == "solve", sinceLastDip: machine.cardsSinceLastDip) {
-                await openDip(trigger)
-            }
+            await warmupOnReturn(awaySeconds: seconds)
         default:
             break
+        }
+    }
+
+    // MARK: - 戻った時の計算練習(#155)
+
+    /// 既定の送り口。単体テストとモックのターンでは頼まない(テストは `drillTransport` を差し替える)。
+    nonisolated static var defaultDrillTransport: (any DrillAuthoringTransport)? {
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil { return nil }
+        #if DEBUG
+        if MockTurnRunner.isEnabled { return nil }
+        #endif
+        return AppDrillAuthoringTransport()
+    }
+
+    private var drillTemplates: DrillTemplateStore { DrillTemplateStore(queue: ledger.queue) }
+
+    /// アプリに戻った(5分以上離れていた): 計算のつまずきの易しい問題を 2〜3 問出してから元に戻る。
+    /// 解いている途中で離れていた時は、30分未満なら答えを送った後に、30分以上なら先に出す。
+    /// `launch`: アプリを開き直した時。開いた時はもともと速攻の問題から始まるので、点の型から作れる時だけ出す。
+    func warmupOnReturn(awaySeconds seconds: TimeInterval, midCard explicit: Bool? = nil, launch: Bool = false) async {
+        let midCard: Bool = explicit ?? (phase == .solving && current?.status != "answered")
+        if current.map({ machine.warmupSession(of: $0) != nil }) == true { return }
+        guard newWorkDenial() == nil else { return }
+        warmupTemplateOnly = launch
+        switch TimelineWarmup.timing(awaySeconds: seconds, midCard: midCard) {
+        case .none:
+            return
+        case .afterAnswer:
+            warmupAfterAnswer = true
+        case .now:
+            switch phase {
+            case .solving:
+                _ = await startWarmup(returnTo: currentID)
+            case .result:
+                // 結果の画面: 次に決めた 1 枚の前に挟む。
+                if let decided { self.decided = await warmupBefore(decided, force: true) }
+            default:
+                break
+            }
+        }
+    }
+
+    /// 練習を今すぐ始める(出せたら true)。終わったら `returnTo` に戻る。
+    func startWarmup(returnTo: String?) async -> Bool {
+        let session: String = LedgerID.make()
+        warmupReturnID = returnTo
+        guard let first = await makeWarmupCard(session: session, after: nil) else { warmupReturnID = nil; return false }
+        show(first)
+        return true
+    }
+
+    /// 答えを送った後に出すと決めていれば、次の 1 枚の前に練習を挟む。
+    private func warmupBefore(_ next: TimelineRules.Next, force: Bool = false) async -> TimelineRules.Next {
+        guard warmupAfterAnswer || force else { return next }
+        warmupAfterAnswer = false
+        let session: String = LedgerID.make()
+        warmupReturnID = next.cardID
+        guard let first = await makeWarmupCard(session: session, after: nil) else { warmupReturnID = nil; return next }
+        var warmup = next
+        warmup.cardID = first
+        warmup.reveal = false
+        return warmup
+    }
+
+    /// 練習のカードの結果が出た: もう 1 問か、元に戻るか。
+    private func decideWarmup(after card: TimelineCardRecord, session: String) async {
+        let results: [Bool] = machine.warmupResults(session: session)
+        if TimelineWarmup.wantsAnother(results: results), let next = await makeWarmupCard(session: session, after: card) {
+            decided = TimelineRules.Next(cardID: next)
+            return
+        }
+        decided = await finishWarmup(session: session)
+    }
+
+    /// 練習を終える(× が多ければ次の依頼に一言を残す)。戻る先を返す。
+    private func finishWarmup(session: String) async -> TimelineRules.Next {
+        await commit { machine in machine.finishWarmup(session: session) }
+        let target: String? = warmupReturnID.flatMap { id in
+            machine.cards[id].flatMap { $0.status == "unused" || $0.status == "shown" ? ($0.origin == TimelineWarmup.origin ? nil : id) : nil }
+        }
+        warmupReturnID = nil
+        return TimelineRules.Next(cardID: target ?? machine.queue.first?.id ?? machine.rapidCards.first?.id)
+    }
+
+    /// 練習の 1 問を作って差し込む。点の型があれば端末で作り(AI を待たない)、無ければ手元の速攻の問題を使う。
+    private func makeWarmupCard(session: String, after previous: TimelineCardRecord?) async -> String? {
+        let store = drillTemplates
+        if previous?.payload["warmup_from"]?.stringValue != "rapid" {
+            let skillID: String? = previous?.payload["warmup"]?.stringValue
+                ?? machine.warmupCandidates.first { (try? store.template(for: $0)) != nil }
+            if let skillID, let template = try? store.template(for: skillID), let generator = try? DrillGenerator(template: template) {
+                let used: Set<String> = Set(machine.warmupCards(session: session).map { $0.prompt + "\u{1F}" + $0.math })
+                var random = SystemRandomNumberGenerator()
+                var problem: DrillProblem? = nil
+                var last: DrillProblem? = previous.map { DrillProblem(prompt: $0.prompt, math: $0.math, answer: $0.answerKey) }
+                for _ in 0..<8 {
+                    guard let candidate = try? generator.next(using: &random, avoiding: last) else { break }
+                    problem = candidate
+                    if !used.contains(candidate.key) { break }
+                    last = candidate
+                }
+                if let problem {
+                    let title: String = machine.skills[skillID]?.name ?? template.title
+                    return await commitValue { machine in machine.insertWarmup(skillID: skillID, problem: problem, title: title, session: session) }
+                }
+            }
+        }
+        guard !warmupTemplateOnly, let rapid = machine.rapidCards.first(where: { $0.id != warmupReturnID })?.id else { return nil }
+        return await commitValue { machine in machine.adoptRapidAsWarmup(cardID: rapid, session: session) } ?? nil
+    }
+
+    /// 計算のつまずきの点に「問題の型」が無ければ、裏で 1 つ書かせる(次に戻った時から端末で作れる)。1 点につき 1 回。
+    func authorWarmupTemplateIfNeeded() {
+        guard let transport = drillTransport, newWorkDenial() == nil else { return }
+        let store = drillTemplates
+        guard let skillID = machine.warmupCandidates.first(where: { id in
+            !warmupAuthored.contains(id) && ((try? store.needsAuthoring(skillID: id)) ?? false)
+        }), let skill = machine.skills[skillID] else { return }
+        let solved = DrillAuthoringClient.solvedExamples(skillID: skillID, timeline: machine)
+        guard !solved.isEmpty else { return }
+        warmupAuthored.insert(skillID)
+        let request = DrillAuthoringRequest(skillID: skillID, name: skill.name, kind: skill.kind, solved: solved)
+        let assets = turns.assets
+        Task.detached(priority: .utility) {
+            do {
+                let instructions: String = try await assets.text("prompt:drill_template_instructions")
+                let templateSchema: String = try await assets.text("schema:drill_template")
+                let replySchema: String = try DrillAuthoring.replySchema(templateSchema: templateSchema)
+                let model: TurnModel = await assets.model(TimelineModels.role)
+                let outcome = try await DrillAuthoringClient.author(request: request, instructions: instructions, replySchema: replySchema,
+                                                                    model: model, transport: transport)
+                try store.save(skillID: skillID, outcome: outcome)
+                timelineLog.info("drill template for \(skillID, privacy: .public): \(String(String(describing: outcome).prefix(80)), privacy: .public)")
+            } catch {
+                timelineLog.notice("drill template for \(skillID, privacy: .public) failed: \(String(describing: error), privacy: .public)")
+            }
         }
     }
 

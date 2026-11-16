@@ -115,9 +115,6 @@ final class TimelineRulesTests: XCTestCase {
         XCTAssertEqual(TimelineRules.dipAfterAnswer(seconds: 5, usual: 60, outcome: .skipped, previousWasSkip: true, sinceLastDip: 9), .skips)
         // 一度出したら次の8枚は出さない。
         XCTAssertNil(TimelineRules.dipAfterAnswer(seconds: 500, usual: 60, outcome: .correct, previousWasSkip: false, sinceLastDip: 3))
-        XCTAssertEqual(TimelineRules.dipOnReturn(awaySeconds: 31, isSolving: true, sinceLastDip: nil), .away)
-        XCTAssertNil(TimelineRules.dipOnReturn(awaySeconds: 29, isSolving: true, sinceLastDip: nil))
-        XCTAssertNil(TimelineRules.dipOnReturn(awaySeconds: 60, isSolving: false, sinceLastDip: nil))
     }
 
     // MARK: できること

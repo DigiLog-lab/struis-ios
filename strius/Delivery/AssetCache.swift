@@ -137,6 +137,9 @@ nonisolated struct BundledAssets: Sendable {
         "schema:timeline_grading_red_pen": "timeline_grading_red_pen.json",
         "schema:timeline_answer": "timeline_answer.json",
         "skill:timeline_query": "skills/timeline-query/SKILL.md",
+        // 点ごとの「問題の型」(戻った時の計算練習 #155 とオフラインの反復)。
+        "prompt:drill_template_instructions": "drill_template_instructions.md",
+        "schema:drill_template": "drill_template.json",
     ]
 
     static var names: [String] { files.keys.sorted() }

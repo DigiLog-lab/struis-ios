@@ -294,6 +294,8 @@
 		FD261933644D618087CF5359 /* text-native.xcframework in Embed Native Frameworks */ = {isa = PBXBuildFile; fileRef = 6501D2306BFF134780428A95 /* text-native.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		FD4209235EE69B49E41E887F /* TimeAttackClaude.swift in Sources */ = {isa = PBXBuildFile; fileRef = E86C22E8E9AD8E6C3B59FD3C /* TimeAttackClaude.swift */; };
 		E8C18780367A5F364A5B809F /* TimelineProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = E857A7754363572832AAA6A0 /* TimelineProgress.swift */; };
+		E811532A51E5B7A52433ACB7 /* TimelineWarmup.swift in Sources */ = {isa = PBXBuildFile; fileRef = E843AE38FA34CE672601F854 /* TimelineWarmup.swift */; };
+		E83A9E3AD6B563A649EF5F22 /* DrillAuthoringClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8FC1383CBEE8C38C2FD8A47 /* DrillAuthoringClient.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -617,6 +619,8 @@
 		FA3411766DF329BEF05F1053 /* StruisExec.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = StruisExec.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		FC54E32625DFB785F657D221 /* ClipConsentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClipConsentView.swift; sourceTree = "<group>"; };
 		E857A7754363572832AAA6A0 /* TimelineProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineProgress.swift; sourceTree = "<group>"; };
+		E843AE38FA34CE672601F854 /* TimelineWarmup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineWarmup.swift; sourceTree = "<group>"; };
+		E8FC1383CBEE8C38C2FD8A47 /* DrillAuthoringClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillAuthoringClient.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -1096,6 +1100,7 @@
 				E8C0D3E206D0D0B0702ADFCE /* AppAttestClient.swift */,
 				E8F04EA037886E401DD829E7 /* ClaudeConversationStore.swift */,
 				E855AAC0242A645E161DCF54 /* ClaudeUsageLog.swift */,
+				E8FC1383CBEE8C38C2FD8A47 /* DrillAuthoringClient.swift */,
 			);
 			path = Claude;
 			sourceTree = "<group>";
@@ -1237,6 +1242,7 @@
 				E8D2F613BDD30DF07DF84F69 /* Drill */,
 				E8B4E9093131914FE95E4AD1 /* TimelinePlanMode.swift */,
 				E857A7754363572832AAA6A0 /* TimelineProgress.swift */,
+				E843AE38FA34CE672601F854 /* TimelineWarmup.swift */,
 			);
 			path = Engine;
 			sourceTree = "<group>";
@@ -1861,6 +1867,8 @@
 				E8740A5DE35F396B50411D7F /* DrillTemplateStore.swift in Sources */,
 				E82E9F6A43660E5D712F7B10 /* TimelinePlanMode.swift in Sources */,
 				E8C18780367A5F364A5B809F /* TimelineProgress.swift in Sources */,
+				E811532A51E5B7A52433ACB7 /* TimelineWarmup.swift in Sources */,
+				E83A9E3AD6B563A649EF5F22 /* DrillAuthoringClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

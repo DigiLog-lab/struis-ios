@@ -99,7 +99,8 @@ nonisolated struct TimelineMachine {
     /// 今日まだ 1 問も解いていない(次の解答はその日の最初の 1 問で、正答率に数えない)。
     var isFirstOfDay: Bool {
         let today = today
-        return !attempts.values.contains { TimelineRules.day($0.createdAt, calendar: calendar) == today }
+        // 戻った時の計算練習(#155)はその日の 1 問目に数えない(その後のいつもの 1 問目を、今まで通り数えない)。
+        return !attempts.values.contains { TimelineRules.day($0.createdAt, calendar: calendar) == today && cards[$0.cardId]?.origin != TimelineWarmup.origin }
     }
 
     var accuracy: Double? { TimelineRules.accuracy(orderedAttempts) }
@@ -112,6 +113,8 @@ nonisolated struct TimelineMachine {
     /// 答案ごとのスキルの ○×。採点で決めた印(`skill_marks`)があればそれ。新しい採点で印が無い(スキルが 0 個、または
     /// 見直し待ち)なら無し。前の版の答案は、カードの skills に答案全体の正誤を付けたものとして読む。
     func skillMarks(_ attempt: TimelineAttemptRecord) -> [(skill: String, correct: Bool)] {
+        // 戻った時の計算練習(#155)は、点の ○× に数えない。
+        if cards[attempt.cardId]?.origin == TimelineWarmup.origin { return [] }
         if let marks = attempt.skillMarks { return marks.keys.sorted().map { (skill: $0, correct: marks[$0] == "correct") } }
         guard attempt.grade == nil, attempt.verdict == "correct" || attempt.verdict == "wrong", let card = cards[attempt.cardId] else { return [] }
         return card.skills.map { (skill: $0, correct: attempt.verdict == "correct") }
@@ -721,7 +724,7 @@ nonisolated struct TimelineMachine {
 
     /// 1 つの「できること」に ○× を付ける。グラフにない ID(グラフを作る前)は、仮の点として足す。
     mutating func applySkill(id: String, card: TimelineCardRecord, correct: Bool, assisted: Bool, withinTime: Bool, firstTry: Bool, attemptID: String) {
-        guard !id.isEmpty else { return }
+        guard !id.isEmpty, card.origin != TimelineWarmup.origin else { return }
         let skill = skills[id] ?? TimelineSkillRecord(
             id: id, name: id.split(separator: ".").last.map(String.init) ?? id, kind: "procedure", unitId: card.unitId, status: "practicing",
             correctDates: [], masteryThreshold: TimelineRules.masteryThreshold, attempts: 0, lastCorrectAt: nil, nextReviewAt: nil, reviewCount: 0,
@@ -1373,7 +1376,8 @@ nonisolated struct TimelineMachine {
 
     /// 答案の結果が出た(採点・端末の中の採点・飛ばした・答えた・読めなかった・採点できなかった)時の 1 件。
     private mutating func logAttempt(_ attemptID: String) {
-        guard let attempt = attempts[attemptID], let card = cards[attempt.cardId] else { return }
+        // 戻った時の計算練習(#155)は 1 問ずつは残さない(× が多かった時だけ、終わった時に 1 行残す)。
+        guard let attempt = attempts[attemptID], let card = cards[attempt.cardId], card.origin != TimelineWarmup.origin else { return }
         appendLog(kind: "attempt", attemptID: attemptID, text: TimelineLogText.attempt(attempt, card: card, machine: self))
     }
 
@@ -1381,7 +1385,8 @@ nonisolated struct TimelineMachine {
     var unloggedAttemptsToday: [TimelineAttemptRecord] {
         let today = today
         let logged = Set(log.values.filter { $0.day == today && $0.kind == "attempt" }.compactMap(\.attemptId))
-        return orderedAttempts.filter { TimelineRules.day($0.createdAt, calendar: calendar) == today && $0.verdict != "grading" && !logged.contains($0.id) }
+        return orderedAttempts.filter { TimelineRules.day($0.createdAt, calendar: calendar) == today && $0.verdict != "grading" && !logged.contains($0.id)
+            && cards[$0.cardId]?.origin != TimelineWarmup.origin }
     }
 
     mutating func logMissedAttempts() {
