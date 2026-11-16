@@ -335,6 +335,8 @@ final class TimelineProgressTests: XCTestCase {
         XCTAssertEqual(TimelineExpression.equivalent("sqrt(1e24+1)", "0"), false, "平方根は感度を掛けて幅を伝える")
         XCTAssertEqual(TimelineExpression.equivalent("log(1e24+1)", "0"), false)
         XCTAssertEqual(TimelineExpression.equivalent("exp(log(5))-5", "0"), true)
+        XCTAssertEqual(TimelineExpression.equivalent("tan(pi/2-1e-13)", "0"), false, "特異点の近くで膨らんだ幅では同じにしない")
+        XCTAssertEqual(TimelineExpression.equivalent("log(1-0.99999999999999)", "0"), false)
         XCTAssertEqual(TimelineExpression.equivalent("(1e12+1,2)", "(1e12+1,3)"), false, "丸めの幅は成分ごと")
     }
 
