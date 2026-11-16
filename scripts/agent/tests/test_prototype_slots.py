@@ -154,3 +154,21 @@ class PrototypeWorkflowTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class StripHardenedProcessTests(unittest.TestCase):
+    def test_removes_only_enhanced_security_entitlements(self):
+        import plistlib
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in prototype.ENTITLEMENTS.values():
+                (root / relative).parent.mkdir(parents=True, exist_ok=True)
+                (root / relative).write_bytes(plistlib.dumps({
+                    'com.apple.security.application-groups': ['group.x'],
+                    'com.apple.security.hardened-process': True,
+                    'com.apple.security.hardened-process.hardened-heap': True,
+                }))
+            prototype.strip_hardened_process(root)
+            for relative in prototype.ENTITLEMENTS.values():
+                self.assertEqual(plistlib.loads((root / relative).read_bytes()), {'com.apple.security.application-groups': ['group.x']})

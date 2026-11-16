@@ -315,12 +315,6 @@ def ensure_profiles(asc, meta, serial, private):
             has_container = bool(suffix) or ICLOUD_CONTAINER in entitlements.get(CONTAINERS_KEY, [])
             return document, has_group, has_container
 
-        requested = plistlib.loads((workspace() / ENTITLEMENTS[product]).read_bytes())
-        hardened = sorted(key for key in requested if key.startswith('com.apple.security.hardened-process'))
-
-        def has_hardened(document):
-            return not hardened or any(key.startswith('com.apple.security.hardened-process') for key in document['Entitlements'])
-
         reusable = None
         horizon = (utc_now() + datetime.timedelta(days=7)).isoformat()
         for profile in asc.profiles_for(bundle):
@@ -328,8 +322,7 @@ def ensure_profiles(asc, meta, serial, private):
             if ((attributes.get('name') or '').startswith(name) and attributes.get('profileState') == 'ACTIVE'
                     and attributes.get('profileType') == 'IOS_APP_ADHOC' and (attributes.get('expirationDate') or '') > horizon):
                 decoded, has_group, has_container = decode(profile)
-                # Enhanced Security を後から有効にした App ID では、有効にする前に作ったプロファイルを使い回さない。
-                if has_group and has_container and has_hardened(decoded):
+                if has_group and has_container:
                     reusable = profile
                     break
         if not reusable:
@@ -345,7 +338,9 @@ def ensure_profiles(asc, meta, serial, private):
                                  'Developer ポータルで iCloud (CloudKit) のコンテナを設定してから再実行してください。')
         else:
             decoded, _, _ = decode(reusable)
-        if not has_hardened(decoded):
+        requested = plistlib.loads((workspace() / ENTITLEMENTS[product]).read_bytes())
+        hardened = sorted(key for key in requested if key.startswith('com.apple.security.hardened-process'))
+        if hardened and not any(key.startswith('com.apple.security.hardened-process') for key in decoded['Entitlements']):
             raise BuildError('provisioning',
                              f'App ID {identifier} で Enhanced Security が有効ではありません'
                              f"(要求: {', '.join(hardened)})。Developer ポータルで有効にしてから再実行してください。")
@@ -353,6 +348,16 @@ def ensure_profiles(asc, meta, serial, private):
                              'expires': decoded['ExpirationDate'].isoformat(), 'devices': len(decoded.get('ProvisionedDevices', [])),
                              'reused': bool(reusable)}
     return profiles, len(device_ids)
+
+
+def strip_hardened_process(root):
+    """プロトタイプでは Enhanced Security(com.apple.security.hardened-process*)の権限を外す(使い捨ての checkout だけを書き換える)。"""
+    for relative in ENTITLEMENTS.values():
+        path = root / relative
+        entitlements = plistlib.loads(path.read_bytes())
+        kept = {key: value for key, value in entitlements.items() if not key.startswith('com.apple.security.hardened-process')}
+        if kept != entitlements:
+            path.write_bytes(plistlib.dumps(kept))
 
 
 def patch_workspace(meta, build_number, root):
@@ -411,6 +416,9 @@ def cmd_build(args):
         asc = asc_client(private)
         p12 = private / 'distribution.p12'
         p12.write_bytes(base64.b64decode(os.environ['BUILD_CERTIFICATE_BASE64'], validate=True))
+        # Enhanced Security (#133 の RuntimeWorker) は、プロトタイプの枠の App ID では有効にしていない: 外して署名する
+        # (App Clip と同じく、プロトタイプは本番の識別子にしか無い設定を持たない)。
+        strip_hardened_process(root)
         profiles, device_count = ensure_profiles(asc, meta, certificate_serial(p12, os.environ['P12_PASSWORD']), private)
 
         keychain = private / 'prototype.keychain-db'
