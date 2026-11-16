@@ -232,4 +232,36 @@ final class TimelineProgressTests: XCTestCase {
         let stuck = TimelineTurns.progressRequest(workbook: workbook, timeline: machine)["stuck_today"]?.arrayValue?.compactMap { $0["skill_id"]?.stringValue }
         XCTAssertEqual(stuck, ["inA"])
     }
+
+    /// 前の版で定着し、すでに 1 回確かめていた点: 不意打ちの ○ で 2 回目になり、関係のない判定の直しで並べ直しても 2 回目のまま。
+    func testLegacyReviewCountIsTheReplayBaseline() {
+        var machine = F.machine(now: "2026-11-16T10:00:00.000000Z")
+        var legacy = F.skill("law", status: "mastered", dates: ["2026-11-01", "2026-11-03", "2026-11-05"])
+        legacy.reviewCount = 1
+        legacy.nextReviewAt = "2026-11-12"
+        machine.put("test", legacy)
+        surprise(&machine, id: "u", skills: ["law"], marks: ["law": "correct"], verdict: "correct", at: time("2026-11-16", 0))
+        XCTAssertEqual(machine.skills["law"]?.reviewCount, 2)
+        let next = machine.skills["law"]?.nextReviewAt
+        answer(&machine, "other", skill: "law", correct: false, at: time("2026-11-16", 5))
+        machine.recomputeSkill("law")
+        XCTAssertEqual(machine.skills["law"]?.status, "mastered")
+        XCTAssertEqual(machine.skills["law"]?.reviewCount, 2)
+        XCTAssertEqual(machine.skills["law"]?.nextReviewAt, next)
+    }
+
+    /// 不意打ちで定着した点: その不意打ちを × に直したら、定着も外れる(前の版の定着とは扱わない)。
+    func testRevisingTheMasteringSurpriseWithdrawsMastery() {
+        var machine = F.machine(now: "2026-11-16T10:00:00.000000Z")
+        setUpSubunit(&machine)
+        clearLaw(&machine)
+        surprise(&machine, id: "u", skills: ["law"], marks: ["law": "correct"], verdict: "correct", at: time("2026-11-16", 0))
+        XCTAssertEqual(machine.skills["law"]?.status, "mastered")
+        XCTAssertNil(machine.revise(attemptID: "u", grade: "wrong", marks: ["law": "wrong"], note: "読み違い"))
+        XCTAssertEqual(machine.skills["law"]?.status, "practicing")
+        XCTAssertNil(machine.revise(attemptID: "u", grade: "correct", marks: ["law": "correct"], note: "やはり正しい"))
+        XCTAssertEqual(machine.skills["law"]?.status, "mastered")
+        XCTAssertNil(machine.revise(attemptID: "u", grade: "wrong", marks: ["law": "wrong"], note: "やはり違う"))
+        XCTAssertEqual(machine.skills["law"]?.status, "practicing", "並べ直しで定着した後に × に直しても、前の版の定着として残さない")
+    }
 }

@@ -759,20 +759,16 @@ nonisolated struct TimelineMachine {
         var row = current
         row.correctDates = current.correctDates.filter { !fromAttempts.contains($0) }
         row.attempts = 0
-        // 定着は不意打ちの答案だけで決める(Issue #154)。前の版の決まりで定着した点(不意打ちで定着した記録が無い点)は、
-        // 定着から始めて不意打ちを並べ直す(× は間隔を 3 日に戻すだけで、定着は外さない。差分で反映した時と同じ)。
+        // 定着は不意打ちの答案だけで決める(Issue #154)。前の版の決まりで定着した点は、不意打ちを始める前の状態
+        // (`legacy_mastery` の記録: 定着・確かめた回数・次の確かめ)から不意打ちを並べ直す(× は間隔を 3 日に戻すだけで、
+        // 定着は外さない。差分で反映した時と同じ)。それ以外の点は、練習中から並べ直す。
         let surprises = marked.filter { surpriseSkill(of: $0.card) == id }
-        let masteredBySurprise = changes.values.contains {
-            $0.kind == "mastered" && $0.detail["skill_id"]?.stringValue == id && $0.detail["by"]?.stringValue == "surprise"
-        }
-        let legacyMastery = current.status == "mastered" && !masteredBySurprise
-        row.status = legacyMastery ? "mastered" : (current.status == "assumed" && marked.isEmpty ? "assumed" : "practicing")
+        let legacy = surprises.isEmpty ? noteLegacyMasteryIfNeeded(current, excluding: nil) : legacyMastery(of: id)
+        row.status = legacy != nil ? "mastered" : (current.status == "assumed" && marked.isEmpty ? "assumed" : "practicing")
         row.masteryThreshold = TimelineRules.masteryThreshold
         row.lastCorrectAt = nil
-        if !legacyMastery || !surprises.isEmpty {
-            row.nextReviewAt = legacyMastery ? current.nextReviewAt : nil
-            row.reviewCount = 0
-        }
+        row.reviewCount = legacy?.reviewCount ?? 0
+        row.nextReviewAt = legacy?.nextReviewAt
         let clearedDay = clearedPoint(id)?.day
         for item in marked {
             row = TimelineRules.record(row, correct: item.correct, assisted: item.attempt.assisted,

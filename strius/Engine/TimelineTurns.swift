@@ -831,6 +831,8 @@ nonisolated enum TimelineTurns {
                 break
             }
             timeline.applyReview(targetID: targetID, review: review)
+            // 見直しで決まったスキルの ○× で小単元のゴールが先へ進んでよいになったら、単元ホームの小単元も合格にする。
+            extra = try goalPassEvents(timeline: timeline, db: db)
         case .timelineGraph:
             guard let batch = timeline.batches[targetID], batch.status == "requested" else { return ([], followUp) }
             timeline.noteUsage(batchID: targetID, model: model, executions: outcome.executions)
@@ -881,6 +883,16 @@ nonisolated enum TimelineTurns {
         // 小単元のゴールが先へ進んでよいになったら、その小単元を合格にして次の小単元へ進める(Issue #154)。
         if !passed, let goal = timeline.goalStates(subunitIDs: [subunitID]).first, goal.cleared {
             _ = workbook.passSubunitByTimelineGoal(subunitID: subunitID)
+        }
+        return workbook.events
+    }
+
+    /// 単元ホームでまだ進めている小単元のうち、タイムラインのゴールが先へ進んでよいになったものを合格にする。
+    private static func goalPassEvents(timeline: TimelineMachine, db: Database) throws -> [LedgerEvent] {
+        var workbook = try WorkbookMachine(loading: db)
+        let active = workbook.orderedSubunits(status: "active").map(\.id)
+        for goal in timeline.goalStates(subunitIDs: active) where goal.cleared {
+            _ = workbook.passSubunitByTimelineGoal(subunitID: goal.subunitID)
         }
         return workbook.events
     }

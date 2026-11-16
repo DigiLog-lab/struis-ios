@@ -118,8 +118,34 @@ extension TimelineMachine {
         (markCorrect || attempt.grade == "partial") && !attempt.assisted
     }
 
+    /// 前の版の決まりで定着した点の、不意打ちを始める前の状態(`legacy_mastery` の記録。並べ直しの起点)。
+    func legacyMastery(of skillID: String) -> (reviewCount: Int, nextReviewAt: String?)? {
+        changes.values.filter { $0.kind == "legacy_mastery" && $0.detail["skill_id"]?.stringValue == skillID }
+            .min { $0.createdAt < $1.createdAt }
+            .map { (reviewCount: $0.detail["review_count"]?.intValue ?? 0, nextReviewAt: $0.detail["next_review_at"]?.stringValue) }
+    }
+
+    /// 定着している点に、まだ不意打ちの答案が無ければ(この版より前の決まりで定着した点)、その時の状態を 1 回だけ残す。
+    /// 不意打ちで定着した点は、前に不意打ちの答案があるので残さない(その答案を × に直せば、定着も外れる)。
+    @discardableResult
+    mutating func noteLegacyMasteryIfNeeded(_ skill: TimelineSkillRecord, excluding attemptID: String?) -> (reviewCount: Int, nextReviewAt: String?)? {
+        if let noted = legacyMastery(of: skill.id) { return noted }
+        guard skill.status == "mastered" else { return nil }
+        let surprised = attempts.values.contains { attempt in
+            attempt.id != attemptID && (attempt.verdict == "correct" || attempt.verdict == "wrong")
+                && cards[attempt.cardId].map { surpriseSkill(of: $0) == skill.id } == true
+        }
+        guard !surprised else { return nil }
+        recordChange(kind: "legacy_mastery", detail: .object([
+            "skill_id": .string(skill.id), "review_count": .number(Double(skill.reviewCount)),
+            "next_review_at": skill.nextReviewAt.map(LedgerJSON.string) ?? .null,
+        ]), attemptIDs: [], source: "app", reviewed: true)
+        return (reviewCount: skill.reviewCount, nextReviewAt: skill.nextReviewAt)
+    }
+
     mutating func applySurprise(skillID: String, attemptID: String, markCorrect: Bool) {
         guard let skill = skills[skillID], let attempt = attempts[attemptID], attempt.verdict == "correct" || attempt.verdict == "wrong" else { return }
+        noteLegacyMasteryIfNeeded(skill, excluding: attemptID)
         let correct = Self.surpriseCorrect(markCorrect: markCorrect, attempt: attempt)
         let updated = TimelineRules.recordSurprise(skill, correct: correct, at: attempt.gradedAt ?? attempt.createdAt,
                                                    clearedDay: clearedPoint(skillID)?.day, calendar: calendar)
