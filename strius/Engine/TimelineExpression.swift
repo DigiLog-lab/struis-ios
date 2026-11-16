@@ -251,9 +251,19 @@ nonisolated indirect enum TimelineExpression: Equatable, Sendable {
         case .number, .variable: return 0
         case .unary(_, let x): return x.roundoffScale(bindings)
         case .call(let name, let x):
+            // 引数のずれは、関数の傾き(感度)を掛けて伝わる。三角関数は引数の大きさに応じた丸めも加わる。
             let inner = x.roundoffScale(bindings)
-            if ["sin", "cos", "tan"].contains(name), let v = x.evaluate(bindings) { return max(inner, abs(v)) }
-            return inner
+            guard let v = x.evaluate(bindings) else { return 0 }
+            let scale: Double
+            switch name {
+            case "sqrt": scale = v > 0 ? inner / (2 * v.squareRoot()) : inner
+            case "exp": scale = inner * exp(v)
+            case "log", "ln": scale = v > 0 ? inner / v : inner
+            case "sin", "cos": scale = max(inner, abs(v))
+            case "tan": scale = max(inner, abs(v)) / max(pow(cos(v), 2), 1e-300)
+            default: scale = inner
+            }
+            return scale.isFinite ? scale : 0
         case .binary(let op, let a, let b):
             guard let l = a.evaluate(bindings), let r = b.evaluate(bindings) else { return 0 }
             let (sa, sb) = (a.roundoffScale(bindings), b.roundoffScale(bindings))

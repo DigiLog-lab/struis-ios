@@ -332,6 +332,9 @@ final class TimelineProgressTests: XCTestCase {
         XCTAssertEqual(TimelineExpression.equivalent("1.6e-19*2", "0"), false)
         XCTAssertEqual(TimelineExpression.equivalent("(x+1)^2-(x^2+2*x+1)", "0"), true)
         XCTAssertEqual(TimelineExpression.equivalent("(1e12+1)^2", "0"), false)
+        XCTAssertEqual(TimelineExpression.equivalent("sqrt(1e24+1)", "0"), false, "平方根は感度を掛けて幅を伝える")
+        XCTAssertEqual(TimelineExpression.equivalent("log(1e24+1)", "0"), false)
+        XCTAssertEqual(TimelineExpression.equivalent("exp(log(5))-5", "0"), true)
         XCTAssertEqual(TimelineExpression.equivalent("(1e12+1,2)", "(1e12+1,3)"), false, "丸めの幅は成分ごと")
     }
 
