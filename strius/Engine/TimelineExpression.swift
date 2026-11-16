@@ -312,8 +312,11 @@ nonisolated indirect enum TimelineExpression: Equatable, Sendable {
             guard let l = a.values(bindings), let r = b.values(bindings) else { continue }
             guard l.count == r.count else { return false }
             // 丸めの幅は成分ごと(座標の片方の大きな計算が、もう片方の誤りを許さないように)。
-            let scales = zip(a.componentRoundoffScales(bindings, count: l.count), b.componentRoundoffScales(bindings, count: r.count)).map { max($0, $1) }
-            for ((x, y), scale) in zip(zip(l, r), scales) where !close(x, y, tolerance: tolerance, roundoff: relativeRoundoff * scale) { return false }
+            let left = a.componentRoundoffScales(bindings, count: l.count), right = b.componentRoundoffScales(bindings, count: r.count)
+            for index in l.indices {
+                let roundoff = max(usableRoundoff(value: l[index], scale: left[index]), usableRoundoff(value: r[index], scale: right[index]))
+                if !close(l[index], r[index], tolerance: tolerance, roundoff: roundoff) { return false }
+            }
             compared += 1
         }
         return compared >= 2
@@ -323,6 +326,13 @@ nonisolated indirect enum TimelineExpression: Equatable, Sendable {
     /// (前は差が 1e-6 未満なら同じとみなしたので、物理の小さい値で 7.2e-7 と 7.2e-8 が一致していた。Issue #154)。
     /// 丸めのずれとして許す幅の割合(`roundoffScale` に掛ける)。倍精度の誤差(2.2e-16)に余裕を持たせた値。
     static let relativeRoundoff: Double = 1e-12
+
+    /// 幅を使ってよいのは、その値が幅よりずっと小さい時だけ(打ち消しで 0 に近づいた値: 幅の 1/100 以下)。
+    /// 値が幅と同じくらいある時は、特異点の近く(`tan(pi/2-1e-13)`・`log(1e-14)`)で傾きが幅を膨らませただけなので、幅は使わない。
+    static func usableRoundoff(value: Double, scale: Double) -> Double {
+        let roundoff = relativeRoundoff * scale
+        return abs(value) <= roundoff / 100 ? roundoff : 0
+    }
 
     /// `roundoff`: 打ち消しで生じ得る丸めのずれ(`roundoffScale` × `relativeRoundoff`)。0 になる式を 0 と比べる時に効き、
     /// 数そのもの(`7.2e-11` と `0`)の比べには効かない。
