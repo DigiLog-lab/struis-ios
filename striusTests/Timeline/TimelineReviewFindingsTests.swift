@@ -72,21 +72,21 @@ final class TimelineReviewFindingsTests: XCTestCase {
 
     func testRevisingAGradeReplacesTheEarlierMarkInsteadOfAddingOne() throws {
         var machine = F.machine()
-        // 前の日までに 2 日 ○: 今日の ○ で定着になる。
+        // 前の日までに 2 日 ○。○ の日は記録に残すだけで、定着は不意打ちでしか決めない(#154)。
         machine.put("test", F.skill("s", dates: ["2026-10-20", "2026-10-21"]))
         machine.put("test", F.card("c1", skills: ["s"]))
         let attempt = machine.recordCapture(cardID: "c1", capturePath: "t.jpg", seconds: 40, assisted: false)
         _ = machine.applyGrading(attemptID: attempt, grading: try grading("correct", skills: ["s"]))
-        XCTAssertEqual(machine.skills["s"]?.status, "mastered")
+        XCTAssertEqual(machine.skills["s"]?.status, "practicing")
         XCTAssertEqual(machine.skills["s"]?.attempts, 1)
+        XCTAssertEqual(machine.skills["s"]?.correctDates, ["2026-10-20", "2026-10-21", "2026-10-23"])
 
-        // 見直しで誤答に直す: 今日の ○ は取り消し、定着の前に戻る(定着の後の × として基準を 4 に上げない)。
+        // 見直しで誤答に直す: 今日の ○ は取り消す。
         XCTAssertNil(machine.revise(attemptID: attempt, grade: "wrong", marks: nil, note: "途中の符号"))
         let revised = try XCTUnwrap(machine.skills["s"])
         XCTAssertEqual(revised.attempts, 1, "1 つの答案は 1 回だけ数える")
         XCTAssertEqual(revised.correctDates, ["2026-10-20", "2026-10-21"])
         XCTAssertEqual(revised.status, "practicing")
-        XCTAssertEqual(revised.masteryThreshold, 3)
         XCTAssertNil(revised.nextReviewAt)
 
         // もう一度正解に直す: 元の状態と同じになる。
@@ -94,7 +94,7 @@ final class TimelineReviewFindingsTests: XCTestCase {
         let back = try XCTUnwrap(machine.skills["s"])
         XCTAssertEqual(back.attempts, 1)
         XCTAssertEqual(back.correctDates, ["2026-10-20", "2026-10-21", "2026-10-23"])
-        XCTAssertEqual(back.status, "mastered")
+        XCTAssertEqual(back.status, "practicing")
     }
 
     func testReviewThatOverridesAMarkRecomputesTheSkill() throws {
