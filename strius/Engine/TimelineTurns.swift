@@ -229,6 +229,25 @@ nonisolated enum TimelineTurns {
 
     // MARK: - 5枚
 
+    /// 5枚を頼んだ時点の、先へ進む判定から決まる材料(Issue #154)。依頼の行(`request`)に書いて残し、AI への材料と
+    /// 受け取りの検査の両方がこの同じ値を使う(頼んでから届くまでに答案が増えても、検査がずれないように)。
+    static let progressKeys: Set<String> = ["skill_level_caps", "goal_ready", "goal_cleared", "needs_evidence", "surprise_due", "stuck_today"]
+
+    static func progressRequest(workbook: WorkbookMachine, timeline: TimelineMachine) -> [String: LedgerJSON] {
+        let pinned = TimelineScope.pinnedUnit(workbook: workbook)
+        let subunitIDs = workbook.orderedSubunits(unitID: pinned?.id, status: "active").map(\.id)
+        let goals = timeline.goalStates(subunitIDs: subunitIDs)
+        let caps = timeline.skillLevelCaps
+        return [
+            "skill_level_caps": .object(caps.mapValues { .number(Double($0)) }),
+            "goal_ready": .array(goals.filter { $0.ready && !$0.cleared }.map { .string($0.goalID) }),
+            "goal_cleared": .array(goals.filter(\.cleared).map { .string($0.goalID) }),
+            "needs_evidence": .array(Array(Set(goals.flatMap(\.needsEvidence))).sorted().map(LedgerJSON.string)),
+            "surprise_due": .array(timeline.surpriseDueSkills.map(LedgerJSON.string)),
+            "stuck_today": .array(timeline.stuckSkills.map { .object(["skill_id": .string($0.skill), "failed_forms": .array($0.typeNames.map(LedgerJSON.string))]) }),
+        ]
+    }
+
     /// 5枚を頼む時に渡す材料。直近の結果は今日の記録にあるので、ここには入れない。
     static func batchRequest(workbook: WorkbookMachine, timeline: TimelineMachine, batch: TimelineBatchRecord) -> LedgerJSON {
         let attempts = timeline.orderedAttempts
@@ -239,11 +258,21 @@ nonisolated enum TimelineTurns {
         let allowedSkills = pinned.map { pin in
             timeline.activeSkills.filter { skill in TimelineGraphSchedule.unitID(of: skill, workbook: workbook) == pin.id }
         } ?? timeline.activeSkills
-        let skillRows = allowedSkills.filter { usedSkills.contains($0.id) || (unit != nil && TimelineGraphSchedule.unitID(of: $0, workbook: workbook) == unit?.id) }.prefix(30).map { skill -> LedgerJSON in
-            .object([
+        // 先へ進む判定から決まる材料は、頼んだ時に依頼の行に書いたもの(前の版の依頼の行には無いので、その時はここで計算する)。
+        let progress: [String: LedgerJSON] = batch.request["goal_ready"] == nil ? progressRequest(workbook: workbook, timeline: timeline)
+            : (batch.request.objectValue ?? [:]).filter { progressKeys.contains($0.key) }
+        let cleared = timeline.clearedSkills
+        let caps = progress["skill_level_caps"]?.objectValue ?? [:]
+        let mustShow = Set((["goal_ready", "needs_evidence", "surprise_due"].flatMap { progress[$0]?.arrayValue ?? [] }).compactMap(\.stringValue)
+            + (progress["stuck_today"]?.arrayValue ?? []).compactMap { $0["skill_id"]?.stringValue })
+        let skillRows = allowedSkills.filter { mustShow.contains($0.id) || usedSkills.contains($0.id) || (unit != nil && TimelineGraphSchedule.unitID(of: $0, workbook: workbook) == unit?.id) }
+            .sorted { mustShow.contains($0.id) && !mustShow.contains($1.id) }.prefix(30).map { skill -> LedgerJSON in
+            var row: [String: LedgerJSON] = [
                 "id": .string(skill.id), "status": .string(TimelineGraph.statusLabels[skill.status] ?? skill.status),
-                "attempts": .number(Double(skill.attempts)), "correct_days": .number(Double(skill.correctDays)),
-            ])
+                "attempts": .number(Double(skill.attempts)), "cleared": .bool(cleared.contains(skill.id)),
+            ]
+            if let cap = caps[skill.id] { row["level_cap"] = cap }
+            return .object(row)
         }
         var flow: [String: LedgerJSON] = [:]
         if let lastCard = attempts.last.flatMap({ timeline.cards[$0.cardId] }), let chain = TimelineRules.chainPosition(lastCard) {
@@ -252,7 +281,6 @@ nonisolated enum TimelineTurns {
         if let resume = TimelineRules.resumeCard(cards: Array(timeline.cards.values), attempts: attempts, today: timeline.today) {
             flow["resume_from_yesterday"] = .string(resume.prompt)
         }
-        let suppressed = TimelineRules.suppressedToday(results: timeline.skillResults, today: timeline.today)
         let splits = timeline.changes.values.filter { $0.kind == "split_requested" && !$0.reviewed }.map(\.detail)
         let placement = timeline.changes.values.filter { $0.kind == "build" }.max { $0.createdAt < $1.createdAt }?.detail["start_node_id"]
         var request: [String: LedgerJSON] = [
@@ -262,8 +290,11 @@ nonisolated enum TimelineTurns {
             "skills": .array(Array(skillRows)),
             "allowed_skill_ids": .array(allowedSkills.map { .string($0.id) }),
             "flow": .object(flow),
-            "review_due": .array(TimelineRules.reviewDue(timeline.activeSkills, today: timeline.today).map { .string($0.id) }),
-            "suppressed_today": .array(suppressed.sorted().map(LedgerJSON.string)),
+            "goal_ready": progress["goal_ready"] ?? .emptyArray,
+            "goal_cleared": progress["goal_cleared"] ?? .emptyArray,
+            "needs_evidence": progress["needs_evidence"] ?? .emptyArray,
+            "surprise_due": progress["surprise_due"] ?? .emptyArray,
+            "stuck_today": progress["stuck_today"] ?? .emptyArray,
             "split_requests": .array(splits),
             "subunits": .array(workbook.orderedSubunits(unitID: pinned?.id, status: "active").map { .object(["id": .string($0.id), "title": .string($0.title), "unit": .string(workbook.units[$0.unitId]?.title ?? "")]) }),
         ]
@@ -518,8 +549,9 @@ nonisolated enum TimelineTurns {
         var request: [String: LedgerJSON] = ["task": .string("review")]
         // 同じ一覧の見直しを二度頼まないための印(`TimelineGraphSchedule`)。
         request["change_ids"] = .array(changeIDs.map(LedgerJSON.string))
+        let cleared = timeline.clearedSkills
         request["nodes"] = .array(timeline.activeSkills.map { .object(["id": .string($0.id), "name": .string($0.name), "kind": .string($0.kind),
-                                                                     "status": .string($0.status), "correct_days": .number(Double($0.correctDays))]) })
+                                                                     "status": .string($0.status), "cleared": .bool(cleared.contains($0.id))]) })
         request["edges"] = .array(timeline.edges.values.sorted { $0.id < $1.id }.map { .object(["from": .string($0.requiresSkillId), "to": .string($0.skillId), "relation": .string($0.relation), "note": .string($0.note)]) })
         let pending = timeline.changes.values.filter { !$0.reviewed }.sorted { $0.createdAt < $1.createdAt }
         request["app_changes"] = .array(pending.map { change in
@@ -839,8 +871,12 @@ nonisolated enum TimelineTurns {
     private static func unitHomeEvents(result: TimelineMachine.GradingOutcome, attempt: TimelineAttemptRecord, timeline: TimelineMachine, db: Database) throws -> [LedgerEvent] {
         guard result.countsForUnitHome, let card = timeline.cards[attempt.cardId], let subunitID = card.subunitId else { return [] }
         var workbook = try WorkbookMachine(loading: db)
-        workbook.recordTimelineAttempt(subunitID: subunitID, prompt: [card.prompt, card.math].filter { !$0.isEmpty }.joined(separator: " "),
-                                       answerKey: card.answerKey, checkpoints: card.checkpoints, verdict: result.verdict, attemptID: attempt.id)
+        let passed = workbook.recordTimelineAttempt(subunitID: subunitID, prompt: [card.prompt, card.math].filter { !$0.isEmpty }.joined(separator: " "),
+                                                    answerKey: card.answerKey, checkpoints: card.checkpoints, verdict: result.verdict, attemptID: attempt.id)
+        // 小単元のゴールが先へ進んでよいになったら、その小単元を合格にして次の小単元へ進める(Issue #154)。
+        if !passed, let goal = timeline.goalStates(subunitIDs: [subunitID]).first, goal.cleared {
+            _ = workbook.passSubunitByTimelineGoal(subunitID: subunitID)
+        }
         return workbook.events
     }
 

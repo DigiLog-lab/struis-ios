@@ -69,6 +69,16 @@ nonisolated indirect enum TimelineExpression: Equatable, Sendable {
             if c.isNumber || c == "." {
                 var end = index
                 while end < chars.count, chars[end].isNumber || chars[end] == "." { end += 1 }
+                // 指数の書き方(9e9・3e-6・1.6E+3)は 1 つの数として読む。読まないと e を自然対数の底として掛け、3e-6 を
+                // 「3e から 6 を引く」と読んで、正しい検算でもカードを却下していた(Issue #154)。
+                if end < chars.count, chars[end] == "e" || chars[end] == "E" {
+                    var digits = end + 1
+                    if digits < chars.count, chars[digits] == "+" || chars[digits] == "-" { digits += 1 }
+                    if digits < chars.count, chars[digits].isASCII, chars[digits].isNumber {
+                        end = digits
+                        while end < chars.count, chars[end].isASCII, chars[end].isNumber { end += 1 }
+                    }
+                }
                 guard let value = Double(String(chars[index..<end])) else { throw ParseError.unexpected(String(chars[index..<end])) }
                 tokens.append(.number(value))
                 index = end
@@ -257,10 +267,18 @@ nonisolated indirect enum TimelineExpression: Equatable, Sendable {
             for (offset, name) in names.enumerated() { bindings[name] = sample[offset % sample.count] + Double(offset) * 0.37 }
             guard let l = a.values(bindings), let r = b.values(bindings) else { continue }
             guard l.count == r.count else { return false }
-            for (x, y) in zip(l, r) where abs(x - y) > tolerance * max(1, abs(x), abs(y)) { return false }
+            for (x, y) in zip(l, r) where !close(x, y, tolerance: tolerance) { return false }
             compared += 1
         }
         return compared >= 2
+    }
+
+    /// 2 つの値が同じとみなせるか。0.001 以上の値は今までどおり(1 以上は割合、1 未満は 1e-6 の差まで)。0.001 未満の値は割合で比べる
+    /// (前は差が 1e-6 未満なら同じとみなしたので、物理の小さい値で 7.2e-7 と 7.2e-8 が一致していた。Issue #154)。
+    static func close(_ x: Double, _ y: Double, tolerance: Double) -> Bool {
+        let scale = max(abs(x), abs(y))
+        let limit = tolerance * (scale >= 1e-3 ? max(1, scale) : scale) + 1e-15
+        return abs(x - y) <= limit
     }
 
     static let samplePoints: [[Double]] = [[0.5, 1.3, -0.7], [2.25, -1.5, 0.9], [-1.75, 3.1, 1.6], [3.4, 0.6, -2.2], [-2.6, -0.8, 2.7], [1.1, 2.9, -1.3]]

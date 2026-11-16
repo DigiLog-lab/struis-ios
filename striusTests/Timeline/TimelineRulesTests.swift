@@ -122,25 +122,69 @@ final class TimelineRulesTests: XCTestCase {
 
     // MARK: できること
 
-    func testMasteryNeedsThreeSeparateDaysWithoutHintsInTime() {
+    func testRecordKeepsDaysAsARecordButNeverMastersOrResets() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
         var skill = F.skill("s")
         skill = TimelineRules.record(skill, correct: true, assisted: false, withinTime: true, at: "2026-10-20T01:00:00.000000Z", calendar: calendar)
-        skill = TimelineRules.record(skill, correct: true, assisted: false, withinTime: true, at: "2026-10-20T05:00:00.000000Z", calendar: calendar)
         skill = TimelineRules.record(skill, correct: true, assisted: true, withinTime: true, at: "2026-10-21T01:00:00.000000Z", calendar: calendar)
         skill = TimelineRules.record(skill, correct: true, assisted: false, withinTime: false, at: "2026-10-22T01:00:00.000000Z", calendar: calendar)
-        XCTAssertEqual(skill.status, "practicing")
-        XCTAssertEqual(skill.correctDays, 1)
-        skill = TimelineRules.record(skill, correct: true, assisted: false, withinTime: true, at: "2026-10-22T02:00:00.000000Z", calendar: calendar)
         skill = TimelineRules.record(skill, correct: true, assisted: false, withinTime: true, at: "2026-10-23T02:00:00.000000Z", calendar: calendar)
-        XCTAssertEqual(skill.status, "mastered")
-        XCTAssertEqual(skill.nextReviewAt, "2026-10-26")
-        // 定着したはずのものが × → 練習中に戻し、この点だけ基準を 4 回に上げる。
-        skill = TimelineRules.record(skill, correct: false, assisted: false, withinTime: true, at: "2026-11-05T02:00:00.000000Z", calendar: calendar)
+        skill = TimelineRules.record(skill, correct: true, assisted: false, withinTime: true, at: "2026-10-24T02:00:00.000000Z", calendar: calendar)
+        // ○ の日は記録として残すが、日数では定着にしない(Issue #154: 定着は不意打ちで決める)。
+        XCTAssertEqual(skill.correctDays, 3)
         XCTAssertEqual(skill.status, "practicing")
-        XCTAssertEqual(skill.masteryThreshold, 4)
-        XCTAssertTrue(skill.correctDates.isEmpty)
+        // 前の版で定着した点も、普通の答案の × では日数を消さず、基準も上げず、定着のまま。
+        var mastered = F.skill("m", status: "mastered", dates: ["2026-10-20", "2026-10-21", "2026-10-22"])
+        mastered = TimelineRules.record(mastered, correct: false, assisted: false, withinTime: true, at: "2026-11-05T02:00:00.000000Z", calendar: calendar)
+        XCTAssertEqual(mastered.status, "mastered")
+        XCTAssertEqual(mastered.correctDays, 3)
+        XCTAssertEqual(mastered.masteryThreshold, 3)
+        // できると推定の点は、答えると練習中になる。
+        let assumed = TimelineRules.record(F.skill("a", status: "assumed"), correct: false, assisted: false, withinTime: true, at: "2026-11-05T02:00:00.000000Z", calendar: calendar)
+        XCTAssertEqual(assumed.status, "practicing")
+    }
+
+    func testSurpriseMastersOnlyOnALaterDayAndBacksOffOnMiss() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        var skill = F.skill("s")
+        // 先へ進んでよいになった日と同じ日の不意打ちは、○ でも定着にしない。
+        skill = TimelineRules.recordSurprise(skill, correct: true, at: "2026-11-15T12:30:00.000000Z", clearedDay: "2026-11-15", calendar: calendar)
+        XCTAssertEqual(skill.status, "practicing")
+        // 翌日以降の ○ で定着。次は 3 日後。
+        skill = TimelineRules.recordSurprise(skill, correct: true, at: "2026-11-16T05:00:00.000000Z", clearedDay: "2026-11-15", calendar: calendar)
+        XCTAssertEqual(skill.status, "mastered")
+        XCTAssertEqual(skill.nextReviewAt, "2026-11-19")
+        skill = TimelineRules.recordSurprise(skill, correct: true, at: "2026-11-19T05:00:00.000000Z", clearedDay: "2026-11-15", calendar: calendar)
+        XCTAssertEqual(skill.nextReviewAt, "2026-11-26")
+        skill = TimelineRules.recordSurprise(skill, correct: true, at: "2026-11-26T05:00:00.000000Z", clearedDay: "2026-11-15", calendar: calendar)
+        XCTAssertEqual(skill.nextReviewAt, "2026-12-17")
+        // × なら間隔を 3 日に戻す。定着は外さない。
+        skill = TimelineRules.recordSurprise(skill, correct: false, at: "2026-12-17T05:00:00.000000Z", clearedDay: "2026-11-15", calendar: calendar)
+        XCTAssertEqual(skill.status, "mastered")
+        XCTAssertEqual(skill.nextReviewAt, "2026-12-20")
+    }
+
+    func testSurpriseTiming() {
+        func due(status: String = "practicing", next: String? = nil, cleared: String? = "2026-11-15", isCleared: Bool = true, others: Int = 0,
+                 had: Bool = false, answered: Int = 0, shown: Bool = false, today: String) -> Bool {
+            TimelineRules.surpriseDue(status: status, nextReviewAt: next, clearedDay: cleared, cleared: isCleared, othersSinceCleared: others,
+                                      hadSurprise: had, answeredToday: answered, shownToday: shown, today: today)
+        }
+        // 1回目: 同じ日、ほかのスキルを 10 枚解いた後。
+        XCTAssertFalse(due(others: 9, today: "2026-11-15"))
+        XCTAssertTrue(due(others: 10, today: "2026-11-15"))
+        XCTAssertFalse(due(others: 20, had: true, today: "2026-11-15"))
+        // 2回目: 翌日以降、その日の 3 枚目から。
+        XCTAssertFalse(due(answered: 1, today: "2026-11-17"))
+        XCTAssertTrue(due(answered: 2, today: "2026-11-17"))
+        XCTAssertFalse(due(answered: 2, shown: true, today: "2026-11-17"))
+        // 今は先へ進んでよくない点には出さない。
+        XCTAssertFalse(due(isCleared: false, answered: 5, today: "2026-11-17"))
+        // 定着後: 予定の日を過ぎた勉強日に。
+        XCTAssertFalse(due(status: "mastered", next: "2026-11-20", answered: 5, today: "2026-11-19"))
+        XCTAssertTrue(due(status: "mastered", next: "2026-11-19", isCleared: false, answered: 2, today: "2026-11-25"))
     }
 
     func testReviewIntervals() {
@@ -154,12 +198,15 @@ final class TimelineRulesTests: XCTestCase {
         XCTAssertEqual(TimelineRules.reviewDue([due, later], today: "2026-10-23").map(\.id), ["d"])
     }
 
-    func testSplitSuppressAndStuck() {
+    func testSplitAndStuck() {
         let results = Array(repeating: (typeName: "x e^x", correct: true), count: 3) + Array(repeating: (typeName: "x sin x", correct: false), count: 2)
         XCTAssertEqual(TimelineRules.splitCandidate(results: results)?.bad, "x sin x")
         XCTAssertNil(TimelineRules.splitCandidate(results: Array(results.prefix(4))))
-        let wrongs = Array(repeating: (skill: "s", correct: false, day: "2026-10-23"), count: 3)
-        XCTAssertEqual(TimelineRules.suppressedToday(results: wrongs, today: "2026-10-23"), ["s"])
+        let wrongs = Array(repeating: (skill: "s", correct: false, day: "2026-10-23", partial: false), count: 3)
+        XCTAssertEqual(TimelineRules.stuckToday(results: wrongs, today: "2026-10-23"), ["s"])
+        // 途中に誤り(書き直しを省いただけなど)は数えない。
+        let withPartial = Array(wrongs.prefix(2)) + [(skill: "s", correct: false, day: "2026-10-23", partial: true)]
+        XCTAssertEqual(TimelineRules.stuckToday(results: withPartial, today: "2026-10-23"), [])
         let twoDays = [(skill: "s", correct: false, day: "2026-10-22"), (skill: "s", correct: false, day: "2026-10-22"),
                        (skill: "s", correct: false, day: "2026-10-23"), (skill: "s", correct: false, day: "2026-10-23")]
         XCTAssertEqual(TimelineRules.stuckTwoDays(results: twoDays, today: "2026-10-23"), ["s"])
@@ -172,5 +219,51 @@ final class TimelineRulesTests: XCTestCase {
         XCTAssertFalse(TimelineRules.countsForUnitHome(card: card, firstTry: true, assisted: true))
         XCTAssertFalse(TimelineRules.countsForUnitHome(card: F.card("c2", level: 2, subunitID: "sub"), firstTry: true, assisted: false))
         XCTAssertFalse(TimelineRules.countsForUnitHome(card: F.card("e", level: 3, origin: "easier", subunitID: "sub"), firstTry: true, assisted: false))
+    }
+
+    // MARK: 先へ進む判定(Issue #154)
+
+    func testClearedNeedsFourOfTheLastFive() {
+        XCTAssertFalse(TimelineRules.isCleared([true, true, true, true]))
+        XCTAssertTrue(TimelineRules.isCleared([false, true, true, true, true]))
+        XCTAssertTrue(TimelineRules.isCleared([true, false, true, true, true]))
+        XCTAssertFalse(TimelineRules.isCleared([true, true, true, true, true, false, false]))
+        XCTAssertEqual(TimelineRules.firstClearedIndex([false, false, true, true, true, true, false, true]), 6)
+        XCTAssertNil(TimelineRules.firstClearedIndex([false, true, false, true, true]))
+    }
+
+    func testGoalReadiness() {
+        // ○× の無い前提はゴールの問題の中で確かめる。答案が 5 問に足りない前提は判定できないので先に出させる。
+        let ready = TimelineRules.goalReadiness(prerequisites: ["law", "vector"], marks: ["law": [false, true, true, true, true]])
+        XCTAssertTrue(ready.ready)
+        XCTAssertEqual(ready.needsEvidence, [])
+        let short = TimelineRules.goalReadiness(prerequisites: ["law", "constant"], marks: ["law": [true, true, true, true, true], "constant": [true, true]])
+        XCTAssertFalse(short.ready)
+        XCTAssertEqual(short.needsEvidence, ["constant"])
+        let failing = TimelineRules.goalReadiness(prerequisites: ["law"], marks: ["law": [true, false, true, false, true]])
+        XCTAssertFalse(failing.ready)
+    }
+
+    func testLevelCapIsPerSkill() {
+        XCTAssertNil(TimelineRules.skillLevelCap([(true, 2), (false, 2)]))
+        XCTAssertEqual(TimelineRules.skillLevelCap([(false, 2), (false, 2), (true, 2)]), 1)
+        XCTAssertNil(TimelineRules.skillLevelCap([(false, 1), (true, 2), (true, 2), (true, 3), (false, 3)]))
+    }
+
+    func testGoalAndSurpriseCardsAreNotDiscarded() {
+        let wrong = F.card("w", origin: "easier")
+        let goal = F.card("g", position: 2, skills: ["goal.sub"])
+        let surprise = F.card("s", position: 3, payload: ["surprise": .string("law")])
+        let plain = F.card("p", position: 4)
+        let next = TimelineRules.next(after: wrong, outcome: .wrong, queue: [goal, surprise, plain], rapid: [F.card("r", origin: "rapid")], wrongBefore: true)
+        XCTAssertEqual(next.discardIDs, ["p"])
+        let skipped = TimelineRules.next(after: F.card("x", chain: ("c", 1, 2)), outcome: .skipped, queue: [F.card("y", chain: ("c", 2, 2)), F.card("z", chain: ("c", 2, 2), skills: ["goal.sub"])],
+                                         rapid: [], wrongBefore: false)
+        XCTAssertEqual(skipped.discardIDs, ["y"])
+    }
+
+    func testGoalCardsCountForUnitHomeAtAnyLevel() {
+        XCTAssertTrue(TimelineRules.countsForUnitHome(card: F.card("g", level: 1, skills: ["goal.sub"], subunitID: "sub"), firstTry: true, assisted: false))
+        XCTAssertFalse(TimelineRules.countsForUnitHome(card: F.card("c", level: 1, skills: ["law"], subunitID: "sub"), firstTry: true, assisted: false))
     }
 }

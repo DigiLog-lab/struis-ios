@@ -228,12 +228,20 @@ nonisolated struct TimelineMachine {
         guard var row = batches[id], row.status == "requested" else { return .failed("batch is not requested") }
         let allowed = Set(activeSkills.map(\.id))
         let cap = row.levelCap
+        // スキルごとの段の上限(Issue #154)。頼んだ時に依頼の行に書いた値。
+        let skillCaps = (row.request["skill_level_caps"]?.objectValue ?? [:]).compactMapValues(\.intValue)
         var accepted: [TimelineCards.Draft] = []
         var rejected: [String] = []
         for (index, draft) in batch.cards.enumerated() {
-            let defects = TimelineCards.defects(draft, allowedSkills: allowed, levelCap: cap)
+            var defects = TimelineCards.defects(draft, allowedSkills: allowed, levelCap: cap)
+            for skill in draft.skills { if let limit = skillCaps[skill], draft.level > limit { defects.append("level \(draft.level) exceeds cap \(limit) for \(skill)") } }
             if defects.isEmpty { accepted.append(draft) } else { rejected.append("card \(index + 1): " + defects.joined(separator: "; ")) }
         }
+        // 入れるべきカード(出せる状態のゴール・不意打ち)が無ければ 1 回だけ作り直させる。2 回目は受け取り、足りない分は
+        // 次の依頼で頼み直す(依頼のたびに計算し直すので、自然に次の束へ持ち越される)。
+        let required = ["goal_ready", "surprise_due"].flatMap { row.request[$0]?.arrayValue ?? [] }.compactMap(\.stringValue)
+        let missing = required.filter { id in !accepted.contains { $0.skills.contains(id) } }
+        if !missing.isEmpty { rejected.append("batch: no card uses " + missing.joined(separator: ", ") + " (goal_ready / surprise_due)") }
         if !rejected.isEmpty, row.retries < 1 {
             row.retries += 1
             row.rejected = rejected
@@ -245,7 +253,8 @@ nonisolated struct TimelineMachine {
             failBatch(id: id, error: "no acceptable cards: " + rejected.joined(separator: " | "))
             return .failed("no acceptable cards")
         }
-        // 手元の古いカードの後ろに並べる。
+        // 手元の古いカードの後ろに並べる。不意打ちのスキルは、それを使う最初のカードに印を付ける。
+        var surprisesLeft = (row.request["surprise_due"]?.arrayValue ?? []).compactMap(\.stringValue)
         var position = nextPosition
         var previousChain: (id: String, position: Int, total: Int)?
         for draft in accepted {
@@ -267,7 +276,9 @@ nonisolated struct TimelineMachine {
             } else {
                 previousChain = nil
             }
-            _ = insertCard(from: draft, batchID: id, position: position, chain: chain)
+            let surprise = surprisesLeft.first { draft.skills.contains($0) }
+            if let surprise { surprisesLeft.removeAll { $0 == surprise } }
+            _ = insertCard(from: draft, batchID: id, position: position, chain: chain, surprise: surprise)
             position += 1
         }
         // 速攻用の 3 問(手元に置いておく)。古い未使用の速攻は 6 問まで残す。
@@ -306,7 +317,7 @@ nonisolated struct TimelineMachine {
 
     /// 材料からカードを 1 枚作る。解いて撮る以外の種類は、材料から中身を組み替える(作れなければ解いて撮る問題にする)。
     @discardableResult
-    mutating func insertCard(from draft: TimelineCards.Draft, batchID: String?, position: Int, chain: LedgerJSON?) -> String {
+    mutating func insertCard(from draft: TimelineCards.Draft, batchID: String?, position: Int, chain: LedgerJSON?, surprise: String? = nil) -> String {
         var payload: [String: LedgerJSON] = [
             "steps": .array(draft.steps.map(LedgerJSON.string)),
             "mistake_steps": .array(draft.mistakeSteps.map { .object(["step": .number(Double($0.step)), "wrong": .string($0.wrong)]) }),
@@ -320,6 +331,8 @@ nonisolated struct TimelineMachine {
             payload["facts"] = .object(object)
         }
         if let easier = draft.easier { payload["easier"] = LedgerEvent.encode(easier) }
+        // 不意打ち(Issue #154): このスキルの定着を確かめるカード。画面には何も出さない。
+        if let surprise { payload["surprise"] = .string(surprise) }
         if !draft.reveal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { payload["reveal"] = .string(draft.reveal) }
         if let variant = draft.variant, !(variant.prompt.isEmpty && variant.math.isEmpty) { payload["variant"] = LedgerEvent.encode(variant) }
         for (key, value) in [("compare", draft.compare), ("reason", draft.reason), ("howto", draft.howto), ("diagnostic", draft.diagnostic)] {
@@ -697,12 +710,10 @@ nonisolated struct TimelineMachine {
             correctDates: [], masteryThreshold: TimelineRules.masteryThreshold, attempts: 0, lastCorrectAt: nil, nextReviewAt: nil, reviewCount: 0,
             replacedBy: [], source: "batch", createdAt: now(), updatedAt: now()
         )
-        let wasMastered = skill.status == "mastered"
         let updated = TimelineRules.record(skill, correct: correct, assisted: assisted, withinTime: withinTime, at: now(), calendar: calendar)
         put(correct ? "timeline.skill_correct" : "timeline.skill_wrong", updated)
-        if wasMastered, !correct {
-            recordChange(kind: "back_to_practice", detail: .object(["skill_id": .string(id), "mastery_threshold": .number(Double(updated.masteryThreshold))]), attemptIDs: [attemptID], source: "app")
-        }
+        // 不意打ちのカードなら、その点の定着を進める(定着は不意打ちだけで決める。Issue #154)。
+        if surpriseSkill(of: card) == id { applySurprise(skillID: id, attemptID: attemptID) }
         // 前提が未定着なのに、上の問題が一発で ○: 前提を「できると推定」にする(後日、30秒問題と混ぜて確かめる)。
         if correct, firstTry, !assisted, card.kind == "solve", card.level >= 2 {
             for prerequisite in allPrerequisites(of: id) {
@@ -746,16 +757,25 @@ nonisolated struct TimelineMachine {
         var row = current
         row.correctDates = current.correctDates.filter { !fromAttempts.contains($0) }
         row.attempts = 0
-        row.status = current.status == "assumed" && marked.isEmpty ? "assumed" : "practicing"
+        // 定着は不意打ちの答案だけで決める(Issue #154)。不意打ちの答案が1つも無い点は、前の版で定着した状態をそのまま残す。
+        let surprises = marked.filter { surpriseSkill(of: $0.card) == id }
+        let keepsLegacyMastery = surprises.isEmpty && current.status == "mastered"
+        row.status = keepsLegacyMastery ? "mastered" : (current.status == "assumed" && marked.isEmpty ? "assumed" : "practicing")
         row.masteryThreshold = TimelineRules.masteryThreshold
         row.lastCorrectAt = nil
-        row.nextReviewAt = nil
-        row.reviewCount = 0
-        if row.correctDays >= row.masteryThreshold { row.status = "mastered" }
+        if !keepsLegacyMastery {
+            row.nextReviewAt = nil
+            row.reviewCount = 0
+        }
+        let clearedDay = clearedPoint(id)?.day
         for item in marked {
             row = TimelineRules.record(row, correct: item.correct, assisted: item.attempt.assisted,
                                        withinTime: item.attempt.capturePath == nil || item.attempt.seconds <= Double(item.card.estimatedSeconds),
                                        at: item.attempt.gradedAt ?? item.attempt.createdAt, calendar: calendar)
+            if surpriseSkill(of: item.card) == id {
+                row = TimelineRules.recordSurprise(row, correct: item.correct || item.attempt.grade == "partial",
+                                                   at: item.attempt.gradedAt ?? item.attempt.createdAt, clearedDay: clearedDay, calendar: calendar)
+            }
         }
         row.updatedAt = now()
         put("timeline.skill_recomputed", row)
