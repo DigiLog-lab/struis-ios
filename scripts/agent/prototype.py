@@ -350,6 +350,16 @@ def ensure_profiles(asc, meta, serial, private):
     return profiles, len(device_ids)
 
 
+def strip_hardened_process(root):
+    """プロトタイプでは Enhanced Security(com.apple.security.hardened-process*)の権限を外す(使い捨ての checkout だけを書き換える)。"""
+    for relative in ENTITLEMENTS.values():
+        path = root / relative
+        entitlements = plistlib.loads(path.read_bytes())
+        kept = {key: value for key, value in entitlements.items() if not key.startswith('com.apple.security.hardened-process')}
+        if kept != entitlements:
+            path.write_bytes(plistlib.dumps(kept))
+
+
 def patch_workspace(meta, build_number, root):
     """Prototype identity lives only in this disposable checkout."""
     worker = root / WORKER_SOURCE
@@ -406,6 +416,9 @@ def cmd_build(args):
         asc = asc_client(private)
         p12 = private / 'distribution.p12'
         p12.write_bytes(base64.b64decode(os.environ['BUILD_CERTIFICATE_BASE64'], validate=True))
+        # Enhanced Security (#133 の RuntimeWorker) は、プロトタイプの枠の App ID では有効にしていない: 外して署名する
+        # (App Clip と同じく、プロトタイプは本番の識別子にしか無い設定を持たない)。
+        strip_hardened_process(root)
         profiles, device_count = ensure_profiles(asc, meta, certificate_serial(p12, os.environ['P12_PASSWORD']), private)
 
         keychain = private / 'prototype.keychain-db'

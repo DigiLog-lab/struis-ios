@@ -146,6 +146,8 @@ jobs:
     permissions:
       contents: read
       issues: write
+      # PR の番号で作った案は、結果を PR に投稿する(PR へのコメントは pull-requests の権限が要る)。
+      pull-requests: write
       id-token: write
     env:
       ISSUE: ${{ (inputs.issue || github.event.client_payload.issue) }}
