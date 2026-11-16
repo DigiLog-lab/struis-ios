@@ -72,7 +72,10 @@ nonisolated final class DrillTemplateStore: Sendable {
     // MARK: - 書く
 
     /// 結論を保存する(同じ点の前の行は置き換える)。
-    func save(skillID: String, outcome: DrillAuthoringOutcome) throws {
+    /// `onlyIfSkillExists`: 書かせている間に点が消えていたら(単元の削除・学習記録の消去)、保存しない(消した型を戻さない)。
+    /// 確かめと保存は同じ書き込みの中でする。保存したら true。
+    @discardableResult
+    func save(skillID: String, outcome: DrillAuthoringOutcome, onlyIfSkillExists: Bool = false) throws -> Bool {
         let now: String = LedgerClock.now()
         var entry: Entry = Entry(skillId: skillID, status: DrillTemplateStore.statusExcluded, format: DrillTemplate.currentFormat, template: nil,
                                  numericCheck: false, problems: 0, reasons: "[]", declined: false, createdAt: now, updatedAt: now)
@@ -87,10 +90,12 @@ nonisolated final class DrillTemplateStore: Sendable {
             entry.declined = declined
         }
         let stored: Entry = entry
-        try queue.write { (db: Database) -> Void in
+        return try queue.write { (db: Database) -> Bool in
+            if onlyIfSkillExists, try TimelineSkillRecord.fetchOne(db, key: skillID) == nil { return false }
             var row: Entry = stored
             if let previous: Entry = try Entry.fetchOne(db, key: skillID) { row.createdAt = previous.createdAt }
             try row.save(db)
+            return true
         }
     }
 

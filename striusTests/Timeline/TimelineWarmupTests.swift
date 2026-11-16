@@ -122,6 +122,31 @@ final class TimelineWarmupTests: XCTestCase {
         XCTAssertEqual(machine.warmupCandidates, ["stuck", "recent", "surprise"])
     }
 
+    /// 練習の答案の時間は、2択カードの「いつも」に入れない(易しい問題で「いつも」が短くならないように)。
+    func testWarmupTimesStayOutOfTheUsualSeconds() throws {
+        var machine = F.machine()
+        machine.put("test", F.skill("exp"))
+        let problem = try DrillGenerator(template: try exponentTemplate()).next(using: &DrillSeededRandomBox.random)
+        let id = machine.insertWarmup(skillID: "exp", problem: problem, title: "指数法則", session: "w1")
+        machine.put("test", F.attempt("a1", card: id, verdict: "correct", seconds: 5))
+        XCTAssertTrue(machine.secondsHistory.isEmpty)
+    }
+
+    /// 書かせている間に点が消えていたら(単元の削除・学習記録の消去)、型を保存しない。
+    func testTemplateIsNotSavedForASkillThatWasErased() async throws {
+        let ledger = try Ledger.inMemory()
+        let store = DrillTemplateStore(queue: ledger.queue)
+        let json = try exponentTemplate().canonicalJSON()
+        XCTAssertFalse(try store.save(skillID: "exp", outcome: .ready(json: json, numericallyChecked: true, problems: 100), onlyIfSkillExists: true))
+        XCTAssertNil(try store.entry(for: "exp"))
+        try await ledger.commit { db in
+            var timeline = try TimelineMachine(loading: db)
+            timeline.put("test", F.skill("exp"))
+            return (timeline.events, ())
+        }
+        XCTAssertTrue(try store.save(skillID: "exp", outcome: .ready(json: json, numericallyChecked: true, problems: 100), onlyIfSkillExists: true))
+    }
+
     func testRapidCardCanStandInWithoutATemplate() {
         var machine = F.machine()
         machine.put("test", F.card("r1", origin: "rapid"))
@@ -161,6 +186,11 @@ final class TimelineWarmupTests: XCTestCase {
         XCTAssertEqual(messages.map { $0["role"] as? String }, ["user", "assistant", "user"], "落ちた理由を同じ会話で返して書き直させる")
         XCTAssertNotNil((transport.bodies.first?["output_config"] as? [String: Any])?["format"], "返事の形は json_schema で縛る")
     }
+}
+
+/// 種を固定した乱数(テストの中で使い回す)。
+private enum DrillSeededRandomBox {
+    nonisolated(unsafe) static var random = DrillSeededRandom(seed: 11)
 }
 
 /// 店(`TimelineStore`)の流れ: 戻った時に練習を挟み、終われば元のカードに戻る。
@@ -255,6 +285,20 @@ final class TimelineWarmupStoreTests: XCTestCase {
     func testRelaunchAfterAShortBreakKeepsTheCardInProgress() async throws {
         let store = try await setUp(template: true, minutesAgo: 10)
         XCTAssertEqual(store.currentID, "c1")
+    }
+
+    /// 30 分未満で戻って「答えの後に出す」と決めた後、答える前にまた離れて 30 分以上たった: 練習を先に出し、
+    /// 練習の後に途中の問題を解いても、もう 1 回は出さない。
+    func testImmediateWarmupReplacesTheDeferredOne() async throws {
+        let store = try await setUp(template: true)
+        await store.warmupOnReturn(awaySeconds: 600)
+        XCTAssertEqual(store.currentID, "c1")
+        await store.warmupOnReturn(awaySeconds: 1900)
+        XCTAssertEqual(store.current?.origin, TimelineWarmup.origin)
+        await store.skip()
+        XCTAssertEqual(store.currentID, "c1")
+        await store.skip()
+        XCTAssertEqual(store.currentID, "c2", "練習を 2 回続けて出さない")
     }
 
     func testShortAwayDoesNothing() async throws {

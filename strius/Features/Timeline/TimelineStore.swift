@@ -263,6 +263,7 @@ final class TimelineStore {
         }
         if isOutside(decided?.cardID) { decided?.cardID = nil }
         if isOutside(returnToID) { returnToID = nil }
+        if isOutside(warmupReturnID) { warmupReturnID = nil }
         // 速攻の途中: 解いている問題までは残し、この後に出す範囲の外の問題を抜く(全部抜けたら、今の問題で速攻を終える)。
         if case .rapid(let index) = phase, index < rapidIDs.count {
             rapidIDs = Array(rapidIDs.prefix(index + 1)) + rapidIDs.dropFirst(index + 1).filter { !isOutside($0) }
@@ -842,6 +843,8 @@ final class TimelineStore {
         case .afterAnswer:
             warmupAfterAnswer = true
         case .now:
+            // 先に出す練習が、答えの後に出すと決めていた練習の代わりになる(2 回続けて出さない)。
+            warmupAfterAnswer = false
             switch phase {
             case .solving:
                 _ = await startWarmup(returnTo: currentID)
@@ -943,7 +946,7 @@ final class TimelineStore {
                 let model: TurnModel = await assets.model(TimelineModels.role)
                 let outcome = try await DrillAuthoringClient.author(request: request, instructions: instructions, replySchema: replySchema,
                                                                     model: model, transport: transport)
-                try store.save(skillID: skillID, outcome: outcome)
+                guard try store.save(skillID: skillID, outcome: outcome, onlyIfSkillExists: true) else { return }
                 timelineLog.info("drill template for \(skillID, privacy: .public): \(String(String(describing: outcome).prefix(80)), privacy: .public)")
             } catch {
                 timelineLog.notice("drill template for \(skillID, privacy: .public) failed: \(String(describing: error), privacy: .public)")

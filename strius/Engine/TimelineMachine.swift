@@ -123,7 +123,9 @@ nonisolated struct TimelineMachine {
     /// 同じ段の解答にかかった秒数(2択カードの「いつも」)。
     var secondsHistory: [(level: Int, seconds: Double)] {
         orderedAttempts.compactMap { attempt in
-            guard attempt.verdict == "correct" || attempt.verdict == "wrong", let card = cards[attempt.cardId], card.kind == "solve", card.origin != "rapid" else { return nil }
+            // 戻った時の計算練習(#155)は易しい問題なので、「いつも」の時間に入れない。
+            guard attempt.verdict == "correct" || attempt.verdict == "wrong", let card = cards[attempt.cardId], card.kind == "solve", card.origin != "rapid",
+                  card.origin != TimelineWarmup.origin else { return nil }
             return (card.level, attempt.seconds)
         }
     }
