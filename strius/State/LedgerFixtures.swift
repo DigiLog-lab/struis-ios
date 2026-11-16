@@ -63,9 +63,54 @@ nonisolated enum LedgerFixtures {
             if ProcessInfo.processInfo.arguments.contains("-screens-fixture") {
                 chatEvents += try seedScreensFixture(&machine, subunitID: "sub-1")
             }
-            return (machine.events + chatEvents, ())
+            var timelineEvents: [LedgerEvent] = []
+            if arguments.contains("-timeline-warmup-demo") {
+                timelineEvents = try seedWarmupDemo(db)
+            }
+            return (machine.events + chatEvents + timelineEvents, ())
+        }
+        if arguments.contains("-timeline-warmup-demo"), let template = try? DrillTemplate.decode(json: warmupDemoTemplate), let json = try? template.canonicalJSON() {
+            try? DrillTemplateStore(queue: ledger.queue).save(skillID: "demo.exp", outcome: .ready(json: json, numericallyChecked: true, problems: 100))
         }
     }
+
+    /// 戻った時の計算練習(#155)の確かめ用: 40 分前に、指数法則で 3 回 × のあと平方完成の問題を解いている途中だった。
+    /// 起動すると、指数法則の型から作った問題が先に出る。
+    private static func seedWarmupDemo(_ db: Database) throws -> [LedgerEvent] {
+        var timeline = try TimelineMachine(loading: db)
+        let at: String = LedgerClock.iso(Date().addingTimeInterval(-40 * 60))
+        timeline.put("fixture", TimelineSkillRecord(id: "demo.exp", name: "指数法則", kind: "procedure", unitId: nil, status: "practicing", correctDates: [],
+                                                    masteryThreshold: 3, attempts: 3, lastCorrectAt: nil, nextReviewAt: nil, reviewCount: 0, replacedBy: [],
+                                                    source: "initial", createdAt: at, updatedAt: at))
+        func card(_ id: String, prompt: String, math: String, answer: String, skills: [String], status: String, position: Int) -> TimelineCardRecord {
+            TimelineCardRecord(id: id, batchId: nil, position: position, kind: "solve", level: 2, skills: skills, typeName: "計算", prompt: prompt, math: math,
+                               question: "", answerKey: answer, answerExpr: "", checkpoints: [], commonMistakes: [], estimatedSeconds: 60, chain: nil,
+                               easierOf: nil, subunitId: nil, unitId: nil, payload: .emptyObject, origin: "batch", status: status, createdAt: at, updatedAt: at)
+        }
+        for i in 0..<3 {
+            timeline.put("fixture", card("demo-w\(i)", prompt: "次の計算をしなさい。", math: "2^{\(i + 3)} \\times 2^{-5}", answer: "", skills: ["demo.exp"], status: "answered", position: i))
+            timeline.put("fixture", TimelineAttemptRecord(
+                id: "demo-a\(i)", cardId: "demo-w\(i)", capturePath: nil, verdict: "wrong", checkpointResults: .emptyArray, errors: .emptyArray, learnerAnswer: "",
+                cause: "unknown", seconds: 40, firstTry: true, assisted: false, skipReason: nil, keySuspect: false, countsForAccuracy: true,
+                feedback: "", createdAt: at, gradedAt: at))
+        }
+        timeline.put("fixture", card("demo-c1", prompt: "次の2次関数の頂点を求めなさい。", math: "y = x^2 - 6x + 5", answer: "(3, -4)", skills: [], status: "shown", position: 3))
+        return timeline.events
+    }
+
+    private static let warmupDemoTemplate: String = #"""
+    {"format": 1, "skill_id": "demo.exp", "title": "指数法則", "subject": "math",
+     "variables": [{"name": "a", "kind": "choice", "options": [2, 3, 5]},
+                   {"name": "m", "kind": "integer", "min": -4, "max": 6, "exclude": [0, 1]},
+                   {"name": "n", "kind": "integer", "min": -4, "max": 6, "exclude": [0, 1]},
+                   {"name": "k", "kind": "integer", "min": -3, "max": 5, "exclude": [0, 1]}],
+     "lets": [{"name": "ans", "expr": "a^(m + n - k)"}],
+     "constraints": ["m + n - k >= -3", "m + n - k <= 4"],
+     "prompt": "次の計算をしなさい。",
+     "math": "{a}^{{m}} \\times {a}^{{n}} \\div {a}^{{k}}",
+     "answer": "${ans}$",
+     "checks": [{"kind": "value", "tex": "{a}^{{m}} \\times {a}^{{n}} \\div {a}^{{k}}", "equals": "ans"}]}
+    """#
 
     /// 分割採点の UI テストの準備: 類題に合格し、演習の一枚(5 問)を開いた状態にする。
     /// 画面で行う操作と同じ規則(WorkbookMachine)を通し、射影を直接書き換えない。

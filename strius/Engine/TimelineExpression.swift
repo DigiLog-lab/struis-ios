@@ -244,6 +244,39 @@ nonisolated indirect enum TimelineExpression: Equatable, Sendable {
         }
     }
 
+    /// 計算の丸めで生じ得るずれの大きさの目安(足し引きで打ち消し合った項の大きさ・三角関数の引数の大きさを、
+    /// 掛け算・割り算を通して運ぶ)。`sqrt(20)^2-20` は 20、`sin(10*pi)` は 31.4、`7.2e-11` や `1.6e-19*2` は 0。
+    func roundoffScale(_ bindings: [String: Double]) -> Double {
+        switch self {
+        case .number, .variable: return 0
+        case .unary(_, let x): return x.roundoffScale(bindings)
+        case .call(let name, let x):
+            let inner = x.roundoffScale(bindings)
+            if ["sin", "cos", "tan"].contains(name), let v = x.evaluate(bindings) { return max(inner, abs(v)) }
+            return inner
+        case .binary(let op, let a, let b):
+            guard let l = a.evaluate(bindings), let r = b.evaluate(bindings) else { return 0 }
+            let (sa, sb) = (a.roundoffScale(bindings), b.roundoffScale(bindings))
+            let scale: Double
+            switch op {
+            case "+", "-": scale = max(sa, sb, abs(l), abs(r))
+            case "*": scale = max(sa * abs(r), sb * abs(l))
+            case "/": scale = r == 0 ? 0 : max(sa / abs(r), sb * abs(l) / (r * r))
+            // 底のずれは r·l^(r-1) 倍、指数のずれは l^r·ln|l| 倍になって伝わる。
+            case "^": scale = sa * abs(r * pow(l, r - 1)) + (l == 0 ? 0 : sb * abs(pow(l, r) * log(abs(l))))
+            default: scale = max(sa, sb)
+            }
+            return scale.isFinite ? scale : 0
+        case .tuple(let items): return items.map { $0.roundoffScale(bindings) }.max() ?? 0
+        }
+    }
+
+    /// 成分ごとの丸めの目安(組でなければ 1 つ)。
+    func componentRoundoffScales(_ bindings: [String: Double], count: Int) -> [Double] {
+        if case .tuple(let items) = self { return items.map { $0.roundoffScale(bindings) } }
+        return Array(repeating: roundoffScale(bindings), count: count)
+    }
+
     func values(_ bindings: [String: Double]) -> [Double]? {
         if case .tuple(let items) = self {
             let values = items.compactMap { $0.evaluate(bindings) }
@@ -268,7 +301,9 @@ nonisolated indirect enum TimelineExpression: Equatable, Sendable {
             for (offset, name) in names.enumerated() { bindings[name] = sample[offset % sample.count] + Double(offset) * 0.37 }
             guard let l = a.values(bindings), let r = b.values(bindings) else { continue }
             guard l.count == r.count else { return false }
-            for (x, y) in zip(l, r) where !close(x, y, tolerance: tolerance) { return false }
+            // 丸めの幅は成分ごと(座標の片方の大きな計算が、もう片方の誤りを許さないように)。
+            let scales = zip(a.componentRoundoffScales(bindings, count: l.count), b.componentRoundoffScales(bindings, count: r.count)).map { max($0, $1) }
+            for ((x, y), scale) in zip(zip(l, r), scales) where !close(x, y, tolerance: tolerance, roundoff: relativeRoundoff * scale) { return false }
             compared += 1
         }
         return compared >= 2
@@ -276,11 +311,18 @@ nonisolated indirect enum TimelineExpression: Equatable, Sendable {
 
     /// 2 つの値が同じとみなせるか。0.001 以上の値は今までどおり(1 以上は割合、1 未満は 1e-6 の差まで)。0.001 未満の値は割合で比べる
     /// (前は差が 1e-6 未満なら同じとみなしたので、物理の小さい値で 7.2e-7 と 7.2e-8 が一致していた。Issue #154)。
-    static func close(_ x: Double, _ y: Double, tolerance: Double) -> Bool {
+    /// 丸めのずれとして許す幅の割合(`roundoffScale` に掛ける)。倍精度の誤差(2.2e-16)に余裕を持たせた値。
+    static let relativeRoundoff: Double = 1e-12
+
+    /// `roundoff`: 打ち消しで生じ得る丸めのずれ(`roundoffScale` × `relativeRoundoff`)。0 になる式を 0 と比べる時に効き、
+    /// 数そのもの(`7.2e-11` と `0`)の比べには効かない。
+    static func close(_ x: Double, _ y: Double, tolerance: Double, roundoff: Double = 0) -> Bool {
         // 無限大・非数はどの値とも等しくしない(差も許容幅も無限大になって通ってしまう)。
         guard x.isFinite, y.isFinite else { return false }
+        if abs(x - y) <= roundoff { return true }
         let scale = max(abs(x), abs(y))
-        let limit = tolerance * (scale >= 1e-3 ? max(1, scale) : scale) + 1e-15
+        // 打ち消しの丸めは `roundoff` で許すので、決まった絶対の幅は持たない(1.6e-19 と 0 を同じにしない)。
+        let limit = tolerance * (scale >= 1e-3 ? max(1, scale) : scale)
         return abs(x - y) <= limit
     }
 

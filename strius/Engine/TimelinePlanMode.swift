@@ -235,7 +235,7 @@ nonisolated enum TimelinePlanMode {
 
     /// 直近の答案(今日の記録の答案・飛ばした理由・判定の直し・異議の行を、新しい方から `recentAnswerCount` 件、古い順に)。
     static func recentAnswers(_ timeline: TimelineMachine) -> [String] {
-        let kinds: Set<String> = ["attempt", "skip_reason", "revise", "dispute"]
+        let kinds: Set<String> = ["attempt", "skip_reason", "revise", "dispute", "warmup"]
         return Array(timeline.todayLog.filter { kinds.contains($0.kind) }.suffix(recentAnswerCount).map(\.text))
     }
 

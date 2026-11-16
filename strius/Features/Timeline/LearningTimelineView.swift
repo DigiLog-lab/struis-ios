@@ -148,7 +148,8 @@ struct LearningTimelineView: View {
         .onAppear { ink.onColumnPan = scrollProblem }
         .onChange(of: scenePhase) { _, phase in
             guard !needsGuardianConsent else { return }
-            Task { await store.scenePhaseChanged(phase) }
+            let draft = hasInk
+            Task { await store.scenePhaseChanged(phase, hasDraft: draft) }
         }
         .onChange(of: reduceMotion, initial: true) { _, reduce in
             liquid.reduceMotion = reduce

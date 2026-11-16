@@ -30,13 +30,15 @@ nonisolated enum TimelineRules {
     /// 定着後に不意打ちで ○ だった回数ごとの、次に出すまでの日数(Cepeda et al. 2008 の最適な間隔の範囲)。
     /// 5枚に必ず入れさせる「答案の足りない前提」の数(多すぎると5枚に収まらない)。
     static let requiredEvidenceCards = 2
+    /// 1 回の5枚に入れさせる不意打ちの数(残りは次の5枚へ。依頼のたびに計算し直すので持ち越される)。
+    static let requiredSurpriseCards = 2
     static let reviewIntervals = [3, 7, 21]
     /// 段の上限を決めるスキルごとの窓と、上限を掛け始める答案の数。
     static let skillLevelWindow = 5
     static let skillLevelMinimum = 3
-    /// 2択カード: いつもの2倍、他のアプリから30秒、次の8枚は出さない、最初の10問は判定しない、「いつも」は同じ段の直近20問。
+    /// 2択カード: いつもの2倍、次の8枚は出さない、最初の10問は判定しない、「いつも」は同じ段の直近20問。
+    /// 他のアプリから戻った時は、2択カードではなく戻った時の計算練習(`TimelineWarmup`、#155)。
     static let slowFactor = 2.0
-    static let awaySeconds: TimeInterval = 30
     static let dipCooldownCards = 8
     static let dipWarmupAttempts = 10
     static let usualWindow = 20
@@ -74,7 +76,7 @@ nonisolated enum TimelineRules {
     /// 撮らないカード(並べ替えなど)と、答えが間違っていた問題も数えない。
     static func countsForAccuracy(card: TimelineCardRecord, isFirstOfDay: Bool, verdict: String) -> Bool {
         guard verdict == "correct" || verdict == "wrong" else { return false }
-        if isFirstOfDay || card.origin == "easier" || card.origin == "rapid" || card.origin == "review" || card.status == "broken" { return false }
+        if isFirstOfDay || card.origin == "easier" || card.origin == "rapid" || card.origin == "review" || card.origin == TimelineWarmup.origin || card.status == "broken" { return false }
         return card.kind == "solve"
     }
 
@@ -283,6 +285,7 @@ nonisolated enum TimelineRules {
     nonisolated enum DipTrigger: String, Equatable, Sendable {
         case slow
         case skips
+        /// 他のアプリから戻った(#155 より前の記録だけ。今は戻った時の計算練習を出す)。
         case away
     }
 
@@ -303,12 +306,6 @@ nonisolated enum TimelineRules {
         if outcome == .skipped, previousWasSkip { return .skips }
         if let usual, usual > 0, seconds > usual * slowFactor { return .slow }
         return nil
-    }
-
-    /// 解いている途中で他のアプリに移り、30秒以上たって戻ってきた。
-    static func dipOnReturn(awaySeconds seconds: TimeInterval, isSolving: Bool, sinceLastDip: Int?) -> DipTrigger? {
-        if let sinceLastDip, sinceLastDip < dipCooldownCards { return nil }
-        return isSolving && seconds >= awaySeconds ? .away : nil
     }
 
     // MARK: 「できること」の状態
