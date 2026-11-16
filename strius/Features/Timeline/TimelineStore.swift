@@ -365,6 +365,8 @@ final class TimelineStore {
         guard !started else { return }
         started = true
         let today = machine.today
+        // 離れていた時間は、カードを出す(出した時刻が書き換わる)前に測る。
+        let lastActivity: Date? = machine.lastActivityAt.flatMap(LedgerClock.parse)
         let resume = TimelineRules.resumeCard(cards: Array(machine.cards.values), attempts: machine.orderedAttempts, today: today)
         let keep = Set([resume?.id].compactMap { $0 })
         let past = pastSolved()
@@ -418,7 +420,7 @@ final class TimelineStore {
         }
         // 前に手を動かしてから 5 分以上たって開いた: 戻った時の計算練習(#155)。前の起動で解いている途中だった問題は、
         // 30 分未満なら答えを送った後に、それ以上なら先に練習を出す。
-        if let last = machine.lastActivityAt.flatMap(LedgerClock.parse) {
+        if let last = lastActivity {
             await warmupOnReturn(awaySeconds: Date().timeIntervalSince(last), midCard: resumedShown, launch: true)
         }
         // タイムラインを開いた時: グラフを頼むか決める。

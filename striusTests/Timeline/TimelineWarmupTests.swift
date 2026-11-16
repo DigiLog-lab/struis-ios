@@ -175,9 +175,12 @@ final class TimelineWarmupStoreTests: XCTestCase {
     }
 
     /// 解いている途中のカード c1 と、今日 3 回 × の点 exp(型あり)。
-    private func setUp(template: Bool, rapid: Bool = false) async throws -> TimelineStore {
+    private func setUp(template: Bool, rapid: Bool = false, minutesAgo: Double = 0) async throws -> TimelineStore {
+        // 前の日になる時刻(日付が替わった直後)は、途中のカードが「今日」でなくなるので確かめられない。
+        let sinceMidnight = Date().timeIntervalSince(Calendar.current.startOfDay(for: Date()))
+        try XCTSkipIf(sinceMidnight < (minutesAgo + 5) * 60, "日付が替わった直後")
         let ledger = try Ledger.inMemory()
-        let now = LedgerClock.now()
+        let now = LedgerClock.iso(Date().addingTimeInterval(-minutesAgo * 60))
         try await ledger.commit { db in
             var workbook = try WorkbookMachine(loading: db)
             _ = workbook.createUnit(title: "指数関数", outcome: "", source: "consult", subunits: [.init(title: "指数法則", n: 2)], firstStage: 1)
@@ -203,7 +206,7 @@ final class TimelineWarmupStoreTests: XCTestCase {
         store.newWorkDenial = { nil }
         store.drillTransport = nil
         await store.start()
-        XCTAssertEqual(store.currentID, "c1")
+        if minutesAgo == 0 { XCTAssertEqual(store.currentID, "c1") }
         return store
     }
 
@@ -238,6 +241,20 @@ final class TimelineWarmupStoreTests: XCTestCase {
         await store.warmupOnReturn(awaySeconds: 1900)
         XCTAssertEqual(store.currentID, "r1")
         XCTAssertEqual(store.current?.origin, TimelineWarmup.origin)
+    }
+
+    /// 開き直した時: 40 分前に解いている途中だった。型があれば練習を先に出し、終えたら途中の問題に戻る。
+    func testRelaunchAfterALongBreakStartsWithTheWarmup() async throws {
+        let store = try await setUp(template: true, minutesAgo: 40)
+        XCTAssertEqual(store.current?.origin, TimelineWarmup.origin)
+        await store.skip()
+        XCTAssertEqual(store.currentID, "c1")
+    }
+
+    /// 開き直した時: 10 分前に解いている途中だった。今の問題はそのまま(答えを送った後に出す)。
+    func testRelaunchAfterAShortBreakKeepsTheCardInProgress() async throws {
+        let store = try await setUp(template: true, minutesAgo: 10)
+        XCTAssertEqual(store.currentID, "c1")
     }
 
     func testShortAwayDoesNothing() async throws {
