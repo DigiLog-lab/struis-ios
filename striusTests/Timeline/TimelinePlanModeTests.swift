@@ -41,6 +41,49 @@ final class TimelinePlanModeTests: XCTestCase {
         XCTAssertNotNil(TimelinePlanMode.requestPlan(trigger: .morning, timeline: &timeline), "次の日は頼む")
     }
 
+    func testAbandonedRequestDoesNotBlockLaterPlans() {
+        var timeline = F.machine()
+        let orphan = TimelinePlanMode.insertPlanRequest(log: "", timeline: &timeline)
+        XCTAssertFalse(TimelinePlanMode.needsMorningPlan(timeline), "返事を待っている間は頼まない")
+        // ターンを組む前にアプリが終わり、依頼だけが残った。15 分を過ぎたら置き去りとして閉じ、その日の 1 回に数えない。
+        timeline.now = { "2026-10-23T06:20:00.000000Z" }
+        let next = TimelinePlanMode.requestPlan(trigger: .morning, timeline: &timeline)
+        XCTAssertNotNil(next)
+        XCTAssertEqual(timeline.batches[orphan]?.status, "failed")
+        XCTAssertEqual(timeline.batches[orphan]?.error, TimelinePlanMode.abandonedError)
+        XCTAssertNil(TimelinePlanMode.requestPlan(trigger: .morning, timeline: &timeline), "新しい依頼の返事を待っている")
+    }
+
+    func testBatchInPlanModeReadsThePlanAndRecentAnswersWithTheGradingPrefix() async throws {
+        let ledger = try Ledger.inMemory()
+        try await ledger.commit { db in
+            var timeline = try TimelineMachine(loading: db)
+            Self.readyPlan("focus: クーロン", timeline: &timeline)
+            _ = timeline.insertBatchRequest(purpose: "cards", request: .emptyObject, accuracy: 0.5, levelCap: nil)
+            timeline.put("test", F.card("c1"))
+            _ = timeline.recordCapture(cardID: "c1", capturePath: "t.jpg", seconds: 3, assisted: false)
+            timeline.appendLog(kind: "attempt", text: "card-04: 1/r として計算した")
+            timeline.appendLog(kind: "context", text: "単元とスキルの一覧")
+            return (timeline.events, ())
+        }
+        let (workbook, timeline) = try await ledger.read { db in (try WorkbookMachine(loading: db), try TimelineMachine(loading: db)) }
+        let composer = TurnComposer(assets: AssetCache())
+        let batchID = try XCTUnwrap(timeline.batches.values.first { $0.purpose == "cards" }?.id)
+        let attemptID = try XCTUnwrap(timeline.attempts.keys.first)
+        let batch = try await TimelineTurns.batch(composer: composer, planID: "b1", batchID: batchID, workbook: workbook, timeline: timeline)
+        let grading = try await TimelineTurns.grading(composer: composer, planID: "g1", attemptID: attemptID, workbook: workbook, timeline: timeline)
+        XCTAssertEqual(batch.thread.model, TimelinePlanMode.sessionModel)
+        XCTAssertTrue(batch.thread.ephemeral, "採点と同時に走ることがあるので、続くスレッドには入れない")
+        XCTAssertNil(batch.thread.codexThreadID)
+        XCTAssertEqual(batch.thread.baseInstructions, grading.thread.baseInstructions)
+        XCTAssertEqual(batch.thread.developerText, grading.thread.developerText, "先頭は採点の続くスレッドと同じ(キャッシュを読む)")
+        XCTAssertTrue(batch.thread.developerText?.contains("focus: クーロン") == true)
+        let text = batch.turn?.text ?? ""
+        XCTAssertTrue(text.contains("recent_answers") && text.contains("1/r として計算した"), text)
+        XCTAssertFalse(text.contains("単元とスキルの一覧"), "答案以外の記録の行は渡さない")
+        XCTAssertTrue(text.contains("split_if_stuck"), "計画に沿って出す一言を添える")
+    }
+
     func testMorningIsOffWhenPlanModeIsOff() {
         UserDefaults.standard.removeObject(forKey: TimelinePlanMode.defaultsKey)
         var timeline = F.machine()

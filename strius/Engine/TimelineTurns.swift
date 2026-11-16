@@ -145,15 +145,8 @@ nonisolated enum TimelineTurns {
     /// 新しい形(`TimelinePlanMode`)の採点のスレッド: 基本指示は今までと同じで、今日の記録の代わりに Opus の計画と
     /// スキルの一覧を入れる。1 時間以内に使ったスレッドがあれば、その続き(会話の履歴を持つ)。
     static func sessionThread(composer: TurnComposer, planID: String, workbook: WorkbookMachine, timeline: TimelineMachine) async throws -> TurnPlan.ThreadSpec {
+        let (base, developer, planRow) = try await sessionPrefix(composer: composer, workbook: workbook, timeline: timeline)
         let effort = tutorEffort
-        let shared = try await composer.assets.text("prompt:timeline_shared")
-        let base = try await composer.assets.ref("prompt:base", append: shared + "\n\n" + NativeToolRouter.instructions)
-        let planRow = TimelinePlanMode.latestPlanRow(timeline)
-        let plan = planRow?.request["plan"]?.stringValue ?? "まだありません。"
-        let context = sharedContext(workbook: workbook, timeline: timeline)
-        let escalate = try await composer.assets.text("prompt:timeline_session_escalate").trimmingCharacters(in: .whitespacesAndNewlines)
-        let developer = ["# この生徒の計画(上位の先生が書いたもの)\n\n" + plan + "\n\n" + escalate, context.isEmpty ? "# 今の単元\n\nまだありません。" : context]
-            .joined(separator: ClaudeTranslation.blockSeparator)
         // 新しい計画が届いた後は、前の計画のスレッドを続けない(計画は先頭に入っているので、次の採点から新しいスレッドにする)。
         let thread = TimelinePlanMode.session(planID: planRow?.id)
         TimelinePlanMode.remember(turnID: planID, planID: planRow?.id)
@@ -162,6 +155,32 @@ nonisolated enum TimelineTurns {
             effort: effort, ephemeral: false, baseInstructions: base, developerInstructions: nil, developerText: developer,
             injectDeveloperOnResume: false, config: TurnComposer.structuredConfig(effort: effort), lastTurnID: nil, provider: .anthropic
         )
+    }
+
+    /// 新しい形の出題(5枚)のスレッド: 先頭は採点の続くスレッドと 1 バイトも同じにして(キャッシュを読む)、毎回新しく始める
+    /// (採点と同時に走ることがあるので、続くスレッドには入れない)。直近の答案は材料の `recent_answers` で渡す。
+    static func planBatchThread(composer: TurnComposer, planID: String, workbook: WorkbookMachine, timeline: TimelineMachine) async throws -> TurnPlan.ThreadSpec {
+        let (base, developer, _) = try await sessionPrefix(composer: composer, workbook: workbook, timeline: timeline)
+        let effort = tutorEffort
+        return TurnPlan.ThreadSpec(
+            codexThreadID: nil, mode: .start, cwd: TurnPlan.guestWorkspace(id: planID), model: TimelinePlanMode.sessionModel,
+            effort: effort, ephemeral: true, baseInstructions: base, developerInstructions: nil, developerText: developer,
+            injectDeveloperOnResume: false, config: TurnComposer.structuredConfig(effort: effort), lastTurnID: nil, provider: .anthropic
+        )
+    }
+
+    /// 新しい形の先頭: 基本指示(今までと同じ)と、Opus の計画・Opus を呼ぶ決まり・今の単元とスキルの一覧。
+    static func sessionPrefix(composer: TurnComposer, workbook: WorkbookMachine, timeline: TimelineMachine) async throws
+        -> (base: TurnPlan.AssetRef, developer: String, planRow: TimelineBatchRecord?) {
+        let shared = try await composer.assets.text("prompt:timeline_shared")
+        let base = try await composer.assets.ref("prompt:base", append: shared + "\n\n" + NativeToolRouter.instructions)
+        let planRow = TimelinePlanMode.latestPlanRow(timeline)
+        let plan = planRow?.request["plan"]?.stringValue ?? "まだありません。"
+        let context = sharedContext(workbook: workbook, timeline: timeline)
+        let escalate = try await composer.assets.text("prompt:timeline_session_escalate").trimmingCharacters(in: .whitespacesAndNewlines)
+        let developer = ["# この生徒の計画(上位の先生が書いたもの)\n\n" + plan + "\n\n" + escalate, context.isEmpty ? "# 今の単元\n\nまだありません。" : context]
+            .joined(separator: ClaudeTranslation.blockSeparator)
+        return (base, developer, planRow)
     }
 
     /// 知識グラフの依頼のスレッド(上位モデル。採点・出題とは先頭を共有しない)。
@@ -268,11 +287,24 @@ nonisolated enum TimelineTurns {
 
     static func batch(composer: TurnComposer, planID: String, batchID: String, workbook: WorkbookMachine, timeline: TimelineMachine, repair: String? = nil) async throws -> TurnPlan {
         guard let batch = timeline.batches[batchID] else { throw LedgerError.notFound("timeline batch") }
-        let request = batchRequest(workbook: workbook, timeline: timeline, batch: batch)
+        var request = batchRequest(workbook: workbook, timeline: timeline, batch: batch)
+        var task: String = try await composer.assets.text("prompt:timeline_instructions")
+        let thread: TurnPlan.ThreadSpec
+        if TimelinePlanMode.isOn {
+            // 新しい形: 今日の記録の代わりに、先頭の計画と、直近の答案(今日の記録の答案の行)で選ぶ。
+            thread = try await planBatchThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline)
+            if case .object(var fields) = request {
+                fields["recent_answers"] = .array(TimelinePlanMode.recentAnswers(timeline).map(LedgerJSON.string))
+                request = .object(fields)
+            }
+            task = task.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + TimelinePlanMode.batchNote
+        } else {
+            thread = try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline)
+        }
         return TurnPlan(
             id: planID, kind: .timelineBatch, round: repair == nil ? 1 : 2,
-            thread: try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline),
-            turn: TurnPlan.TurnSpec(text: turnText(task: try await composer.assets.text("prompt:timeline_instructions"), materials: request, repair: repair), images: [],
+            thread: thread,
+            turn: TurnPlan.TurnSpec(text: turnText(task: task, materials: request, repair: repair), images: [],
                                     outputSchema: try await composer.assets.json("schema:timeline_batch"), sandboxPolicy: "dangerFullAccess"),
             workspace: workspace, delegation: nil, collect: [], limits: .structured
         )

@@ -110,14 +110,31 @@ nonisolated enum TimelinePlanMode {
         }
     }
 
-    /// 返事を待っている計画の依頼があるか。
+    /// 返事を待っている計画の依頼が、これより古ければ置き去り(依頼を書いた後、ターンを組む前にアプリが終わった等)とみなす。
+    /// 計画のターンの上限(3 分。`TurnCoordinator.timeLimits`)より十分長くする。
+    static let abandonedAfter: TimeInterval = 15 * 60
+    /// 置き去りとして閉じた依頼の理由(その日の 1 回に数えない)。
+    static let abandonedError = "abandoned plan request"
+
+    /// 返事を待っている計画の依頼があるか(置き去りの依頼は数えない)。
     static func inFlight(_ timeline: TimelineMachine) -> Bool {
-        timeline.batches.values.contains { $0.purpose == planPurpose && $0.status == "requested" }
+        timeline.batches.values.contains { $0.purpose == planPurpose && $0.status == "requested" && !isAbandoned($0, timeline: timeline) }
     }
 
-    /// その日最初に開いた時に Opus を呼ぶか: 今日まだ計画を頼んでいない(失敗も含めて 1 回だけ)。
+    static func isAbandoned(_ row: TimelineBatchRecord, timeline: TimelineMachine) -> Bool {
+        guard row.status == "requested", let created = LedgerClock.parse(row.createdAt), let now = LedgerClock.parse(timeline.now()) else { return false }
+        return now.timeIntervalSince(created) > abandonedAfter
+    }
+
+    /// 置き去りの計画の依頼を失敗として閉じる(閉じないと、次の依頼がいつまでも出せない)。
+    static func closeAbandoned(_ timeline: inout TimelineMachine) {
+        let stale = timeline.batches.values.filter { $0.purpose == planPurpose && isAbandoned($0, timeline: timeline) }.map(\.id)
+        for id in stale { timeline.failBatch(id: id, error: abandonedError) }
+    }
+
+    /// その日最初に開いた時に Opus を呼ぶか: 今日まだ計画を頼んでいない(失敗も含めて 1 回だけ。置き去りで閉じた依頼は数えない)。
     static func needsMorningPlan(_ timeline: TimelineMachine) -> Bool {
-        isOn && !inFlight(timeline) && requestsToday(timeline).isEmpty
+        isOn && !inFlight(timeline) && requestsToday(timeline).allSatisfy { $0.error == abandonedError }
     }
 
     /// 採点の返事に理由があった時に Opus を呼ぶか(1 日 1 回まで・新しい計画のあと 5 問は呼ばない)。
@@ -162,6 +179,8 @@ nonisolated enum TimelinePlanMode {
 
     /// 決まりに合えば、計画の依頼を入れて ID を返す(入れなければ nil)。
     static func requestPlan(trigger: Trigger, reason: String? = nil, timeline: inout TimelineMachine) -> String? {
+        guard isOn else { return nil }
+        closeAbandoned(&timeline)
         switch trigger {
         case .morning: guard needsMorningPlan(timeline) else { return nil }
         case .escalation: guard allowsEscalation(timeline) else { return nil }
@@ -169,6 +188,24 @@ nonisolated enum TimelinePlanMode {
         let log = planLog(trigger: trigger, reason: reason, timeline: timeline)
         return insertPlanRequest(log: log, trigger: trigger, reason: reason, timeline: &timeline)
     }
+
+    // MARK: - 出題
+
+    /// 出題(5枚)の材料に入れる直近の答案の数。
+    static let recentAnswerCount = 10
+
+    /// 直近の答案(今日の記録の答案・飛ばした理由・判定の直し・異議の行を、新しい方から `recentAnswerCount` 件、古い順に)。
+    static func recentAnswers(_ timeline: TimelineMachine) -> [String] {
+        let kinds: Set<String> = ["attempt", "skip_reason", "revise", "dispute"]
+        return Array(timeline.todayLog.filter { kinds.contains($0.kind) }.suffix(recentAnswerCount).map(\.text))
+    }
+
+    /// 新しい形の出題に添える一言(今回の仕事の後ろに足す)。
+    static let batchNote = """
+    ## 新しい形での出題
+
+    今日の記録は渡しません。先頭の計画(`focus`・`steps`・`problem_forms`・`split_if_stuck`・`known_weak_points`)に沿って、今どのスキルをどの形で出すかを決めてください。直近の答案は材料の `recent_answers` にあります。同じ型の間違いが続いている時は、計画の `split_if_stuck` の順に細かく分けた問題を出します。`escalate` の欄は採点の返事だけのもので、出題の返事には入れません。
+    """
 
     // MARK: - 採点の返事の形
 
