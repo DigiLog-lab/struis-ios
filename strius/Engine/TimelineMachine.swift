@@ -223,6 +223,20 @@ nonisolated struct TimelineMachine {
         case failed(String)
     }
 
+    /// 不意打ちのスキルを、1 枚に 1 つずつ「解く」カードへ割り当てる(5枚の中の順)。割り当てられなかったスキルは `missing`。
+    static func assignSurprises(_ due: [String], to drafts: [TimelineCards.Draft]) -> (assignment: [Int: String], missing: [String]) {
+        var assignment: [Int: String] = [:]
+        var missing: [String] = []
+        for skill in due {
+            if let index = drafts.indices.first(where: { assignment[$0] == nil && drafts[$0].kind == TimelineCards.Kind.solve.rawValue && drafts[$0].skills.contains(skill) }) {
+                assignment[index] = skill
+            } else {
+                missing.append(skill)
+            }
+        }
+        return (assignment, missing)
+    }
+
     /// 5枚の結果を受け取る。skills の ID・段の上限・検算に欠けがあれば 1 回だけ作り直させ、それでも欠けていれば欠けたカードを捨てる。
     mutating func applyBatch(id: String, batch: TimelineCards.Batch) -> BatchResult {
         guard var row = batches[id], row.status == "requested" else { return .failed("batch is not requested") }
@@ -241,9 +255,12 @@ nonisolated struct TimelineMachine {
         // 次の依頼で頼み直す(依頼のたびに計算し直すので、自然に次の束へ持ち越される)。
         // 答案の足りない前提(needs_evidence)は、5枚に収まるよう先頭の `TimelineRules.requiredEvidenceCards` 個まで。
         let evidence = (row.request["needs_evidence"]?.arrayValue ?? []).compactMap(\.stringValue).prefix(TimelineRules.requiredEvidenceCards)
-        let required = ["goal_ready", "surprise_due"].flatMap { row.request[$0]?.arrayValue ?? [] }.compactMap(\.stringValue) + evidence
-        let missing = required.filter { id in !accepted.contains { $0.skills.contains(id) } }
-        if !missing.isEmpty { rejected.append("batch: no card uses " + missing.joined(separator: ", ") + " (goal_ready / surprise_due / needs_evidence)") }
+        let required = (row.request["goal_ready"]?.arrayValue ?? []).compactMap(\.stringValue) + evidence
+        var missing = required.filter { id in !accepted.contains { $0.skills.contains(id) } }
+        // 不意打ちは、スキルごとに別の「解く」カードで確かめる(並べ替え・次の一行・穴埋めは手順を見せるので、思い出せたかを測れない)。
+        let surprises = Self.assignSurprises((row.request["surprise_due"]?.arrayValue ?? []).compactMap(\.stringValue), to: accepted)
+        missing += surprises.missing
+        if !missing.isEmpty { rejected.append("batch: no card uses " + missing.joined(separator: ", ") + " (goal_ready / surprise_due needs its own solve card / needs_evidence)") }
         if !rejected.isEmpty, row.retries < 1 {
             row.retries += 1
             row.rejected = rejected
@@ -255,11 +272,10 @@ nonisolated struct TimelineMachine {
             failBatch(id: id, error: "no acceptable cards: " + rejected.joined(separator: " | "))
             return .failed("no acceptable cards")
         }
-        // 手元の古いカードの後ろに並べる。不意打ちのスキルは、それを使う最初のカードに印を付ける。
-        var surprisesLeft = (row.request["surprise_due"]?.arrayValue ?? []).compactMap(\.stringValue)
+        // 手元の古いカードの後ろに並べる。不意打ちのスキルは、割り当てた「解く」カードに印を付ける。
         var position = nextPosition
         var previousChain: (id: String, position: Int, total: Int)?
-        for draft in accepted {
+        for (index, draft) in accepted.enumerated() {
             var chain: LedgerJSON?
             if let c = draft.chain, c.total > 1 {
                 let chainID: String
@@ -278,8 +294,7 @@ nonisolated struct TimelineMachine {
             } else {
                 previousChain = nil
             }
-            let surprise = surprisesLeft.first { draft.skills.contains($0) }
-            if let surprise { surprisesLeft.removeAll { $0 == surprise } }
+            let surprise = surprises.assignment[index]
             _ = insertCard(from: draft, batchID: id, position: position, chain: chain, surprise: surprise)
             position += 1
         }

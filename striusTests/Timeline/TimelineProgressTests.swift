@@ -311,4 +311,14 @@ final class TimelineProgressTests: XCTestCase {
         machine.recomputeSkill("law")
         XCTAssertEqual(machine.skills["law"]?.status, "practicing")
     }
+
+    /// 不意打ちは、スキルごとに別の「解く」カードに割り当てる。2 つのスキルが 1 枚にあるだけ・手順を見せる形(並べ替え)では足りない。
+    func testSurprisesNeedTheirOwnSolveCards() throws {
+        let both = try F.batch(cards: [F.draftJSON(kind: "solve", skills: ["law", "sci"]), F.draftJSON(kind: "order", skills: ["sci"])]).cards
+        let result = TimelineMachine.assignSurprises(["law", "sci"], to: both)
+        XCTAssertEqual(result.assignment, [0: "law"])
+        XCTAssertEqual(result.missing, ["sci"])
+        let separate = try F.batch(cards: [F.draftJSON(kind: "solve", skills: ["law", "sci"]), F.draftJSON(kind: "solve", skills: ["sci"])]).cards
+        XCTAssertEqual(TimelineMachine.assignSurprises(["law", "sci"], to: separate).assignment, [0: "law", 1: "sci"])
+    }
 }
