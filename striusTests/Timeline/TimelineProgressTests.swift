@@ -77,7 +77,8 @@ final class TimelineProgressTests: XCTestCase {
         answer(&machine, "d0", skill: "sci", correct: true, at: time("2026-11-16", 0))
         XCTAssertFalse(machine.surpriseDueSkills.contains("law"))
         answer(&machine, "d1", skill: "sci", correct: true, at: time("2026-11-16", 1))
-        XCTAssertEqual(machine.surpriseDueSkills, ["law"])
+        // sci も前の日に先へ進んでよいになっていた(5問目〜9問目で4問 ○)ので、同じく 2 回目の時期。
+        XCTAssertEqual(machine.surpriseDueSkills, ["law", "sci"])
         var second = F.card("next-day", level: 2, skills: ["law"], payload: ["surprise": .string("law")])
         second.createdAt = time("2026-11-16", 2)
         machine.put("test", second)

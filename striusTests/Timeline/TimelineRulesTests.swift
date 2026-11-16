@@ -228,7 +228,7 @@ final class TimelineRulesTests: XCTestCase {
         XCTAssertTrue(TimelineRules.isCleared([false, true, true, true, true]))
         XCTAssertTrue(TimelineRules.isCleared([true, false, true, true, true]))
         XCTAssertFalse(TimelineRules.isCleared([true, true, true, true, true, false, false]))
-        XCTAssertEqual(TimelineRules.firstClearedIndex([false, false, true, true, true, true, false, true]), 6)
+        XCTAssertEqual(TimelineRules.firstClearedIndex([false, false, true, true, true, true, false, true]), 5)
         XCTAssertNil(TimelineRules.firstClearedIndex([false, true, false, true, true]))
     }
 
