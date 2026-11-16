@@ -162,6 +162,8 @@ final class TimelineStore {
         if case .rapid(let index) = phase { return rapidIDs.dropFirst(index + 1).first.flatMap { machine.cards[$0] } }
         if let decided { return decided.cardID.flatMap { machine.cards[$0] } }
         if let returnToID, current?.origin == "easier" { return machine.cards[returnToID] }
+        // 戻った時の計算練習の間は、練習の後に戻るカード。
+        if let warmupReturnID, current?.origin == TimelineWarmup.origin, let card = machine.cards[warmupReturnID] { return card }
         return machine.queue.first { $0.id != currentID } ?? machine.rapidCards.first { $0.id != currentID }
     }
 
