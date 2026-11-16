@@ -107,9 +107,9 @@ nonisolated enum LedgerFixtures {
      "lets": [{"name": "ans", "expr": "a^(m + n - k)"}],
      "constraints": ["m + n - k >= -3", "m + n - k <= 4"],
      "prompt": "次の計算をしなさい。",
-     "math": "{a}^{{m}} \times {a}^{{n}} \div {a}^{{k}}",
+     "math": "{a}^{{m}} \\times {a}^{{n}} \\div {a}^{{k}}",
      "answer": "${ans}$",
-     "checks": [{"kind": "value", "tex": "{a}^{{m}} \times {a}^{{n}} \div {a}^{{k}}", "equals": "ans"}]}
+     "checks": [{"kind": "value", "tex": "{a}^{{m}} \\times {a}^{{n}} \\div {a}^{{k}}", "equals": "ans"}]}
     """#
 
     /// 分割採点の UI テストの準備: 類題に合格し、演習の一枚(5 問)を開いた状態にする。
