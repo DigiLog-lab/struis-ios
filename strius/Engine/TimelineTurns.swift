@@ -148,7 +148,9 @@ nonisolated enum TimelineTurns {
         let (base, developer, planRow) = try await sessionPrefix(composer: composer, workbook: workbook, timeline: timeline)
         let effort = tutorEffort
         // 新しい計画が届いた後は、前の計画のスレッドを続けない(計画は先頭に入っているので、次の採点から新しいスレッドにする)。
-        let thread = TimelinePlanMode.session(planID: planRow?.id)
+        // 別の採点がスレッドを使っている間は、このターンは新しいスレッドで採点する(同じスレッドを 2 つのターンが同時に続けない)。
+        let stored = TimelinePlanMode.session(planID: planRow?.id)
+        let thread = TimelinePlanMode.reserve(turnID: planID) ? stored : nil
         TimelinePlanMode.remember(turnID: planID, planID: planRow?.id)
         return TurnPlan.ThreadSpec(
             codexThreadID: thread, mode: thread == nil ? .start : .resume, cwd: TurnPlan.guestWorkspace(id: planID), model: TimelinePlanMode.sessionModel,
@@ -711,11 +713,13 @@ nonisolated enum TimelineTurns {
             guard let attempt = timeline.attempts[targetID], attempt.verdict == "grading" else { return ([], followUp) }
             guard outcome.status == .completed else {
                 timelineTurnLog.error("timeline grading failed: \(outcome.error ?? "-", privacy: .public)")
-                // 新しい形: 組んだ時の計画の控えを消す(失敗したスレッドは続けない)。
+                // 新しい形: 組んだ時の計画の控えと、スレッドを使っている印を消す(失敗したスレッドは続けない)。
                 if TimelinePlanMode.isOn { TimelinePlanMode.touch(threadID: nil, turnID: outcome.planID) }
                 timeline.failGrading(attemptID: targetID)
                 break
             }
+            // 新しい形: 返事を読めるかに関わらず、次の採点(頼み直しを含む)が同じスレッドを続けられるように控える。
+            if TimelinePlanMode.isOn { TimelinePlanMode.touch(threadID: outcome.codexThreadID, turnID: outcome.planID) }
             let grading: TimelineMachine.Grading
             do {
                 grading = try TimelineMachine.Grading.parse(outcome.finalText)
@@ -732,11 +736,13 @@ nonisolated enum TimelineTurns {
             }
             let result = timeline.applyGrading(attemptID: targetID, grading: grading)
             if TimelinePlanMode.isOn {
-                // 新しい形: 答案ごとの見直しは走らせない。次の採点が同じスレッドを続けられるように控える。
-                TimelinePlanMode.touch(threadID: outcome.codexThreadID, turnID: outcome.planID)
+                // 新しい形: 答案ごとの見直しは走らせない。スキルが 2 つ以上の答案の ○× は、採点の返事の `skill_results` で決める。
+                let extras = try? TimelineReply.decode(TimelinePlanMode.Escalation.self, from: outcome.finalText)
+                if timeline.attempts[targetID]?.skillsPending == true, let results = extras?.skillResults, !results.isEmpty {
+                    timeline.decideSkills(results.map { .init(attemptID: targetID, skillID: $0.skillID, result: $0.result) })
+                }
                 // 計画の `escalate_when` に当たると返した: 決まり(1 日 1 回・新しい計画のあと 5 問)に合えば Opus を呼ぶ。
-                if let reason = (try? TimelineReply.decode(TimelinePlanMode.Escalation.self, from: outcome.finalText))?.escalate?
-                    .trimmingCharacters(in: .whitespacesAndNewlines), !reason.isEmpty {
+                if let reason = extras?.escalate?.trimmingCharacters(in: .whitespacesAndNewlines), !reason.isEmpty {
                     if let id = TimelinePlanMode.requestPlan(trigger: .escalation, reason: reason, timeline: &timeline) {
                         followUp.nextGraph = id
                     } else {

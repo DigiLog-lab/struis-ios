@@ -18,6 +18,11 @@ nonisolated enum TimelinePlanMode {
     static let threadKey = "timeline.session.thread"
     static let lastUsedKey = "timeline.session.lastUsedAt"
     static let threadPlanKey = "timeline.session.plan"
+    /// 続くスレッドを今使っている採点のターンと、使い始めた時刻(2 つの採点が同時に同じスレッドを続けないように)。
+    static let busyTurnKey = "timeline.session.busyTurn"
+    static let busyAtKey = "timeline.session.busyAt"
+    /// これより前から使っているままなら、そのターンは終わったとみなす(採点のターンの上限より長く)。
+    static let busyTimeout: TimeInterval = 10 * 60
     /// 採点のターンごとに、組んだ時の計画を控える(結果を書く時に、そのスレッドの計画として残す)。
     static func turnPlanKey(_ turnID: String) -> String { "timeline.session.turnPlan.\(turnID)" }
 
@@ -43,9 +48,23 @@ nonisolated enum TimelinePlanMode {
         var plan: String
     }
 
-    /// 採点の返事のうち、Opus を呼ぶ理由の欄(`withEscalation` で足す)。
+    /// 採点の返事のうち、新しい形で足す欄(`withEscalation` で足す): Opus を呼ぶ理由と、スキルごとの ○×
+    /// (新しい形では見直しのターンが無いので、スキルが 2 つ以上の答案の ○× も採点で決める)。
     nonisolated struct Escalation: Decodable, Sendable {
+        nonisolated struct SkillResult: Decodable, Sendable {
+            var skillID: String
+            var result: String
+            enum CodingKeys: String, CodingKey {
+                case result
+                case skillID = "skill_id"
+            }
+        }
         var escalate: String?
+        var skillResults: [SkillResult]?
+        enum CodingKeys: String, CodingKey {
+            case escalate
+            case skillResults = "skill_results"
+        }
     }
 
     static var isOn: Bool {
@@ -70,11 +89,29 @@ nonisolated enum TimelinePlanMode {
         UserDefaults.standard.set(planID ?? "", forKey: turnPlanKey(turnID))
     }
 
+    /// 続くスレッドを、この採点のターンが使えるか。別のターンが使っている間は使わせない(そのターンは新しいスレッドで採点する。
+    /// 生徒が続けて答案を出すと、前の採点が終わる前に次の採点が始まる)。使えるなら、このターンが使っている印を付ける。
+    static func reserve(turnID: String, now: Date = Date()) -> Bool {
+        let defaults = UserDefaults.standard
+        if let busy = defaults.string(forKey: busyTurnKey), !busy.isEmpty, busy != turnID,
+           now.timeIntervalSince1970 - defaults.double(forKey: busyAtKey) < busyTimeout {
+            return false
+        }
+        defaults.set(turnID, forKey: busyTurnKey)
+        defaults.set(now.timeIntervalSince1970, forKey: busyAtKey)
+        return true
+    }
+
     /// 採点を終えたスレッドを、次の採点が続けて使えるように控える(そのターンを組んだ時の計画と一緒に)。
+    /// 失敗したターン・返事を読めなかったターンも呼ぶ(`threadID` nil): 控えと使っている印を消す。
     static func touch(threadID: String?, turnID: String, now: Date = Date()) {
         let defaults = UserDefaults.standard
         let planID = defaults.string(forKey: turnPlanKey(turnID))
         defaults.removeObject(forKey: turnPlanKey(turnID))
+        if defaults.string(forKey: busyTurnKey) == turnID {
+            defaults.removeObject(forKey: busyTurnKey)
+            defaults.removeObject(forKey: busyAtKey)
+        }
         guard let threadID, !threadID.isEmpty, !threadID.hasPrefix("direct-"), let planID else { return }
         defaults.set(threadID, forKey: threadKey)
         defaults.set(now.timeIntervalSince1970, forKey: lastUsedKey)
@@ -85,6 +122,8 @@ nonisolated enum TimelinePlanMode {
         UserDefaults.standard.removeObject(forKey: threadKey)
         UserDefaults.standard.removeObject(forKey: lastUsedKey)
         UserDefaults.standard.removeObject(forKey: threadPlanKey)
+        UserDefaults.standard.removeObject(forKey: busyTurnKey)
+        UserDefaults.standard.removeObject(forKey: busyAtKey)
     }
 
     // MARK: - 計画
@@ -209,12 +248,24 @@ nonisolated enum TimelinePlanMode {
 
     // MARK: - 採点の返事の形
 
-    /// 採点の返事に、Opus を呼ぶ理由の欄(`escalate`。当たらなければ空の文字列)を足す。
+    /// 採点の返事に、Opus を呼ぶ理由の欄(`escalate`。当たらなければ空の文字列)と、スキルごとの ○×(`skill_results`)を足す。
     static func withEscalation(_ schema: LedgerJSON) -> LedgerJSON {
         guard case .object(var root) = schema, case .object(var properties)? = root["properties"] else { return schema }
         properties["escalate"] = .object(["type": .string("string")])
+        properties["skill_results"] = .object([
+            "type": .string("array"),
+            "items": .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "skill_id": .object(["type": .string("string")]),
+                    "result": .object(["type": .string("string"), "enum": .array([.string("correct"), .string("wrong")])]),
+                ]),
+                "required": .array([.string("skill_id"), .string("result")]),
+                "additionalProperties": .bool(false),
+            ]),
+        ])
         root["properties"] = .object(properties)
-        root["required"] = .array((root["required"]?.arrayValue ?? []) + [.string("escalate")])
+        root["required"] = .array((root["required"]?.arrayValue ?? []) + [.string("escalate"), .string("skill_results")])
         return .object(root)
     }
 }

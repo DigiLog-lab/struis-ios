@@ -84,6 +84,56 @@ final class TimelinePlanModeTests: XCTestCase {
         XCTAssertTrue(text.contains("split_if_stuck"), "計画に沿って出す一言を添える")
     }
 
+    func testOverlappingGradingStartsItsOwnThread() async throws {
+        let ledger = try Ledger.inMemory()
+        try await ledger.commit { db in
+            var timeline = try TimelineMachine(loading: db)
+            timeline.put("test", F.card("c1"))
+            _ = timeline.recordCapture(cardID: "c1", capturePath: "t.jpg", seconds: 3, assisted: false)
+            return (timeline.events, ())
+        }
+        let (workbook, timeline) = try await ledger.read { db in (try WorkbookMachine(loading: db), try TimelineMachine(loading: db)) }
+        let composer = TurnComposer(assets: AssetCache())
+        let attemptID = try XCTUnwrap(timeline.attempts.keys.first)
+        TimelinePlanMode.remember(turnID: "turn-0", planID: nil)
+        TimelinePlanMode.touch(threadID: "thread-1", turnID: "turn-0")
+
+        let first = try await TimelineTurns.grading(composer: composer, planID: "turn-1", attemptID: attemptID, workbook: workbook, timeline: timeline)
+        XCTAssertEqual(first.thread.codexThreadID, "thread-1")
+        // 1 枚目の採点が終わる前に 2 枚目の採点が始まった: 同じスレッドを続けず、新しいスレッドで採点する。
+        let second = try await TimelineTurns.grading(composer: composer, planID: "turn-2", attemptID: attemptID, workbook: workbook, timeline: timeline)
+        XCTAssertNil(second.thread.codexThreadID)
+        // 1 枚目が終われば、次の採点は続くスレッドに戻る。
+        TimelinePlanMode.touch(threadID: "thread-1", turnID: "turn-1")
+        let third = try await TimelineTurns.grading(composer: composer, planID: "turn-3", attemptID: attemptID, workbook: workbook, timeline: timeline)
+        XCTAssertEqual(third.thread.codexThreadID, "thread-1")
+    }
+
+    func testGradingDecidesMarksForEachSkillWithoutAReview() async throws {
+        let ledger = try Ledger.inMemory()
+        try await ledger.commit { db in
+            var timeline = try TimelineMachine(loading: db)
+            timeline.put("test", F.card("c1"))
+            _ = timeline.recordCapture(cardID: "c1", capturePath: "t.jpg", seconds: 3, assisted: false)
+            return (timeline.events, ())
+        }
+        let attemptID = try await ledger.read { db in try XCTUnwrap(try TimelineMachine(loading: db).attempts.keys.first) }
+        let body: [String: Any] = ["readable": true, "grade": "wrong", "learner_answer": "6.0", "skill_ids": ["em.coulomb_law", "num.scientific_notation"],
+                                   "transcript": "", "notes": "", "comment": "指数を見直しましょう。", "key_suspect": false, "escalate": "",
+                                   "skill_results": [["skill_id": "em.coulomb_law", "result": "correct"], ["skill_id": "num.scientific_notation", "result": "wrong"]]]
+        let outcome = TurnOutcome(planID: "turn-1", round: 1, status: .completed, codexThreadID: nil, codexTurnID: nil,
+                                  finalText: String(decoding: try JSONSerialization.data(withJSONObject: body), as: UTF8.self),
+                                  executions: [], rateLimits: nil, files: [], error: nil, elapsedMs: 0)
+        let followUp = try await ledger.commit { db in
+            let applied = try TimelineTurns.apply(kind: .timelineGrading, targetID: attemptID, outcome: outcome, model: "m", db: db)
+            return (applied.events, applied.followUp)
+        }
+        XCTAssertNil(followUp.review, "新しい形では見直しを走らせない")
+        let attempt = try await ledger.read { db in try TimelineAttemptRecord.fetchOne(db, key: attemptID) }
+        XCTAssertEqual(attempt?.skillsPending, false)
+        XCTAssertEqual(attempt?.skillMarks, ["em.coulomb_law": "correct", "num.scientific_notation": "wrong"])
+    }
+
     func testMorningIsOffWhenPlanModeIsOff() {
         UserDefaults.standard.removeObject(forKey: TimelinePlanMode.defaultsKey)
         var timeline = F.machine()
