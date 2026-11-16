@@ -18,11 +18,22 @@ nonisolated enum TimelineRules {
     /// 1 回に頼む枚数と、裏で次を頼む位置(5枚のうち4枚目を出した時点)。
     static let batchSize = 5
     static let requestAtPosition = 4
-    /// 定着の基準(別々の日に3回、外れた人は4回)。
+    /// 前の版の定着の基準(別々の日に3回)。今の定着は不意打ちで決める(Issue #154)。新しい点の行に入れる値としてだけ残す。
     static let masteryThreshold = 3
-    static let raisedMasteryThreshold = 4
-    /// 定着後に ○ だった回数ごとの、次に出すまでの日数。
+    /// 先へ進んでよい: そのスキルの数える答案の直近5問で ○ が4問以上(Issue #154、2026-11-16 に持ち主が決めた)。
+    static let clearWindow = 5
+    static let clearNeeded = 4
+    /// 不意打ちの1回目: 先へ進んでよいになってから、ほかのスキルの数える答案がこの数たまった後(同じ日のうち)。
+    static let surpriseFirstGap = 10
+    /// 2回目以降の不意打ち: その日の数える答案がこの数たまってから(3枚目以降)。
+    static let surpriseAfterAnswersToday = 2
+    /// 定着後に不意打ちで ○ だった回数ごとの、次に出すまでの日数(Cepeda et al. 2008 の最適な間隔の範囲)。
+    /// 5枚に必ず入れさせる「答案の足りない前提」の数(多すぎると5枚に収まらない)。
+    static let requiredEvidenceCards = 2
     static let reviewIntervals = [3, 7, 21]
+    /// 段の上限を決めるスキルごとの窓と、上限を掛け始める答案の数。
+    static let skillLevelWindow = 5
+    static let skillLevelMinimum = 3
     /// 2択カード: いつもの2倍、他のアプリから30秒、次の8枚は出さない、最初の10問は判定しない、「いつも」は同じ段の直近20問。
     static let slowFactor = 2.0
     static let awaySeconds: TimeInterval = 30
@@ -83,9 +94,54 @@ nonisolated enum TimelineRules {
     }
 
     /// 歯止め: 直近10問の正答率が60%を切ったら、次の5枚は今の段から1つ下げさせる(返ってきた level が上限を超えたら作り直し)。
+    /// 全スキルをまとめた正答率なので、5枚の依頼には使わない(`skillLevelCap` を使う。Issue #154)。
     static func levelCap(accuracy: Double?, currentLevel: Int) -> Int? {
         guard let accuracy, accuracy < forceLowerBelow else { return nil }
         return max(1, currentLevel - 1)
+    }
+
+    /// スキルごとの段の上限: そのスキルの数える答案の直近5問(3問以上ある時)の正答率が60%を切ったら、最後に解いた段より1つ下。
+    /// 他のスキルの × では下げない(全体の正答率で下げると、指数の × のせいで別のスキルも段1から出られなくなった)。
+    static func skillLevelCap(_ marks: [(correct: Bool, level: Int)]) -> Int? {
+        let window = marks.suffix(skillLevelWindow)
+        guard window.count >= skillLevelMinimum, let last = window.last else { return nil }
+        let accuracy = Double(window.filter(\.correct).count) / Double(window.count)
+        guard accuracy < forceLowerBelow else { return nil }
+        return max(1, last.level - 1)
+    }
+
+    // MARK: 先へ進む判定(Issue #154)
+
+    /// 直近5問で ○ が4問以上(5問に足りなければ、まだ判定しない)。
+    static func isCleared(_ marks: [Bool]) -> Bool {
+        let window = marks.suffix(clearWindow)
+        return window.count == clearWindow && window.filter { $0 }.count >= clearNeeded
+    }
+
+    /// 初めて先へ進んでよいになった答案の位置(無ければ nil)。
+    static func firstClearedIndex(_ marks: [Bool]) -> Int? {
+        guard marks.count >= clearWindow else { return nil }
+        for end in (clearWindow - 1)..<marks.count where isCleared(Array(marks[...end])) { return end }
+        return nil
+    }
+
+    /// 小単元のゴールを出せるか。直接の前提のうち ○× が1つ以上あるものが全部「先へ進んでよい」なら出せる。
+    /// 答案が1〜4問の前提は判定できないので、`needsEvidence` に返す(依頼で優先して出させる)。○× が無い前提は、ゴールの問題の中で確かめる。
+    static func goalReadiness(prerequisites: [String], marks: [String: [Bool]]) -> (ready: Bool, needsEvidence: [String]) {
+        var ready = true
+        var needs: [String] = []
+        for id in prerequisites {
+            let list = marks[id] ?? []
+            if list.isEmpty { continue }
+            if list.count < clearWindow { needs.append(id); ready = false; continue }
+            if !isCleared(list) { ready = false }
+        }
+        return (ready, needs)
+    }
+
+    /// 手元のカードを捨てる時にも残すカード: 小単元のゴールと不意打ち。
+    static func isProtected(_ card: TimelineCardRecord) -> Bool {
+        card.payload["surprise"]?.stringValue != nil || card.skills.contains { $0.hasPrefix("goal.") }
     }
 
     /// × が2回続いた(数に入る解答の直近2つ、または同じ流れの直近2つ)。次は定着済みの前提の段1を挟む。
@@ -137,7 +193,8 @@ nonisolated enum TimelineRules {
             if card.origin == "easier" || card.origin == "variant" || wrongBefore {
                 // やさしい版も ×: その前提の段1(手元の速攻用)。続きは保留、残りは捨てて頼み直す。
                 var next = Next(cardID: rapid.first?.id ?? rest.first?.id)
-                next.discardIDs = rest.filter { $0.id != next.cardID }.map(\.id)
+                // ゴールと不意打ちのカードは捨てない(やさしい版の後に、そのまま並んで残る。Issue #154)。
+                next.discardIDs = rest.filter { $0.id != next.cardID && !isProtected($0) }.map(\.id)
                 next.requestBatch = true
                 next.pausedChain = chainID(card)
                 return next
@@ -155,7 +212,7 @@ nonisolated enum TimelineRules {
                 return Next(cardID: other.id)
             }
             var next = Next(cardID: rapid.first?.id)
-            next.discardIDs = rest.map(\.id)
+            next.discardIDs = rest.filter { !isProtected($0) }.map(\.id)
             next.requestBatch = true
             return next
         }
@@ -256,35 +313,54 @@ nonisolated enum TimelineRules {
 
     // MARK: 「できること」の状態
 
-    /// 1 回の結果を「できること」に反映する。定着: 別々の日に基準の回数、ヒントなしで ○、しかも目安時間内。
-    /// 定着したはずのものが × → 練習中に戻し、この点だけ基準を 4 回に上げる。
+    /// 1 回の結果を「できること」に反映する。回数・最後の ○・○ の日(ヒントなし・目安時間内。記録として残す)だけを付ける。
+    /// 定着は普通の答案では動かさない。定着は不意打ちの答案(`recordSurprise`)だけで決める(Issue #154。前の版は別々の日の
+    /// ○ の数で定着にし、定着後の 1 回の × で日数を消して基準を 4 回に上げていたので、同じ所を回り続けた)。
     static func record(_ skill: TimelineSkillRecord, correct: Bool, assisted: Bool, withinTime: Bool, at now: String, calendar: Calendar = .current) -> TimelineSkillRecord {
         var row = skill
         row.attempts += 1
         row.updatedAt = now
+        if row.status == "assumed" { row.status = "practicing" }
         guard let today = day(now, calendar: calendar) else { return row }
         if correct {
             row.lastCorrectAt = now
             if !assisted, withinTime, !row.correctDates.contains(today) { row.correctDates.append(today) }
-            if row.status == "mastered" {
-                row.reviewCount += 1
-                row.nextReviewAt = nextReview(reviewCount: row.reviewCount, from: today)
-            } else if row.correctDays >= row.masteryThreshold {
-                row.status = "mastered"
-                row.reviewCount = 0
-                row.nextReviewAt = nextReview(reviewCount: 0, from: today)
-            } else if row.status == "assumed" {
-                row.status = "practicing"
-            }
-        } else {
-            if row.status == "mastered" {
-                row.masteryThreshold = raisedMasteryThreshold
-                row.correctDates = []
-                row.nextReviewAt = nil
-            }
-            row.status = "practicing"
         }
         return row
+    }
+
+    /// 不意打ちの答案を反映する。`clearedDay` はそのスキルが初めて先へ進んでよいになった日。
+    /// - まだ定着していない: 先へ進んでよいになった日より後の日の ○ で定着(1 日以上空けた不意打ち。Pyc et al. 2014)。
+    /// - 定着済み: ○ なら次の間隔(3・7・21日、以降 21 日ごと)へ、× なら間隔を 3 日に戻す。定着は外さない。
+    static func recordSurprise(_ skill: TimelineSkillRecord, correct: Bool, at now: String, clearedDay: String?, calendar: Calendar = .current) -> TimelineSkillRecord {
+        var row = skill
+        guard let today = day(now, calendar: calendar) else { return row }
+        row.updatedAt = now
+        if row.status == "mastered" {
+            row.reviewCount = correct ? row.reviewCount + 1 : 0
+            row.nextReviewAt = nextReview(reviewCount: row.reviewCount, from: today)
+        } else if correct, let clearedDay, today > clearedDay {
+            row.status = "mastered"
+            row.reviewCount = 0
+            row.nextReviewAt = nextReview(reviewCount: 0, from: today)
+        }
+        return row
+    }
+
+    /// 不意打ちを今出すか。
+    /// - `clearedAt`: 初めて先へ進んでよいになった答案の日(定着していない時に要る)。`othersSinceCleared` はその後のほかのスキルの数える答案の数。
+    /// - `cleared`: 今も先へ進んでよいか。`hadSurprise`: このスキルの不意打ちの答案が前にあるか。
+    /// - `answeredToday`: 今日の数える答案の数。`shownToday`: 今日すでにこのスキルの不意打ちを出したか。
+    static func surpriseDue(status: String, nextReviewAt: String?, clearedDay: String?, cleared: Bool, othersSinceCleared: Int, hadSurprise: Bool,
+                            answeredToday: Int, shownToday: Bool, today: String) -> Bool {
+        guard !shownToday else { return false }
+        if status == "mastered" {
+            guard let next = nextReviewAt, next <= today else { return false }
+            return answeredToday >= surpriseAfterAnswersToday
+        }
+        guard cleared, let clearedDay else { return false }
+        if clearedDay == today { return !hadSurprise && othersSinceCleared >= surpriseFirstGap }
+        return today > clearedDay && answeredToday >= surpriseAfterAnswersToday
     }
 
     /// 上の問題が一発で ○ になった時、未定着の前提を「できると推定」にする。
@@ -321,9 +397,10 @@ nonisolated enum TimelineRules {
         return (g, b)
     }
 
-    /// その日はもう出さない「できること」(同じ点で1日に3回 ×)。
-    static func suppressedToday(results: [(skill: String, correct: Bool, day: String)], today: String) -> Set<String> {
-        let wrongs = results.filter { $0.day == today && !$0.correct }
+    /// 詰まっている「できること」(同じ点で1日に3回 ×。途中に誤りは数えない)。前の版はその日は出さない決まりだったが、
+    /// いちばん練習の要る点の練習が止まり、部品として使う大きな問題で × が続いて翌日も止まるので、止めずに細かく分けさせる(Issue #154)。
+    static func stuckToday(results: [(skill: String, correct: Bool, day: String, partial: Bool)], today: String) -> Set<String> {
+        let wrongs = results.filter { $0.day == today && !$0.correct && !$0.partial }
         return Set(Dictionary(grouping: wrongs, by: \.skill).filter { $0.value.count >= dailyWrongLimit }.keys)
     }
 
@@ -341,8 +418,10 @@ nonisolated enum TimelineRules {
 
     // MARK: 単元ホームとの数え合い
 
-    /// タイムラインの結果を単元ホームの合格に数えるか: 段3以上、その問題の初回、ヒントなし、小単元がある。
+    /// タイムラインの結果を単元ホームの合格に数えるか: 段3以上(小単元のゴールのカードは段を問わない。Issue #154)、その問題の初回、
+    /// ヒントなし、小単元がある。
     static func countsForUnitHome(card: TimelineCardRecord, firstTry: Bool, assisted: Bool) -> Bool {
-        card.kind == "solve" && card.level >= 3 && firstTry && !assisted && card.subunitId != nil && card.origin == "batch"
+        let isGoal = card.skills.contains { $0.hasPrefix("goal.") }
+        return card.kind == "solve" && (card.level >= 3 || isGoal) && firstTry && !assisted && card.subunitId != nil && card.origin == "batch"
     }
 }

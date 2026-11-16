@@ -801,9 +801,13 @@ final class TimelineStore {
         }
         guard force ? !pending : TimelineRules.shouldRequestBatch(unusedCount: machine.queue.filter { $0.id != currentID }.count, pending: pending) else { return }
         let accuracy = machine.accuracy
-        let cap = TimelineRules.levelCap(accuracy: accuracy, currentLevel: machine.currentLevel)
-        // 解く範囲を固定していれば、その単元を依頼の行に残す(届いたカードにその単元を付ける)。
-        let request: LedgerJSON = pinnedUnit.map { .object(["scope_unit_id": .string($0.id)]) } ?? .emptyObject
+        // 段の上限は全体の正答率ではなくスキルごとに決める(Issue #154)。依頼の行の skill_level_caps に入る。
+        let cap: Int? = nil
+        // 解く範囲を固定していれば、その単元を依頼の行に残す(届いたカードにその単元を付ける)。先へ進む判定から決まる材料も、
+        // 頼んだ時の値を依頼の行に残す(AI への材料と受け取りの検査が同じ値を使う)。
+        var fields = TimelineTurns.progressRequest(workbook: workbook, timeline: machine)
+        if let pinnedUnit { fields["scope_unit_id"] = .string(pinnedUnit.id) }
+        let request: LedgerJSON = .object(fields)
         // 行を書いてからターンに渡すまでの間は、まだ誰も働いていない。その間に別の呼び出しが持ち主のいない依頼と見て閉じないように印を付ける。
         batchRequestsInFlight += 1
         batchRequestEpoch += 1

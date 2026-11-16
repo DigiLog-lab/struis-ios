@@ -243,7 +243,7 @@ nonisolated enum TimelinePlanMode {
     static let batchNote = """
     ## 新しい形での出題
 
-    今日の記録は渡しません。先頭の計画(`focus`・`steps`・`problem_forms`・`split_if_stuck`・`known_weak_points`)に沿って、今どのスキルをどの形で出すかを決めてください。直近の答案は材料の `recent_answers` にあります。同じ型の間違いが続いている時は、計画の `split_if_stuck` の順に細かく分けた問題を出します。`escalate` の欄は採点の返事だけのもので、出題の返事には入れません。
+    今日の記録は渡しません。先頭の計画(`focus`・`steps`・`problem_forms`・`split_if_stuck`・`known_weak_points`)に沿って、今どのスキルをどの形で出すかを決めてください。直近の答案は材料の `recent_answers` にあります。同じ型の間違いが続いている時は、計画の `split_if_stuck` の順に細かく分けた問題を出します。材料の `goal_ready`・`needs_evidence`・`surprise_due` は、計画より優先して入れてください。`escalate` の欄は採点の返事だけのもので、出題の返事には入れません。
     """
 
     // MARK: - 採点の返事の形

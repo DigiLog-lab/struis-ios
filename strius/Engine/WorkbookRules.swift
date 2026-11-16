@@ -823,6 +823,13 @@ nonisolated struct WorkbookMachine {
         return true
     }
 
+    /// タイムラインで小単元のゴールが先へ進んでよい(直近5問中4問 ○)になった時に、その小単元を合格にする(Issue #154)。
+    mutating func passSubunitByTimelineGoal(subunitID: String) -> Bool {
+        guard let subunit = subunits[subunitID], subunit.status == "active" else { return false }
+        _ = passSubunit(subunit)
+        return true
+    }
+
     nonisolated struct GradingOutcome: Sendable {
         var stageBefore: Int
         var stageAfter: Int
