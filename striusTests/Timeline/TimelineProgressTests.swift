@@ -328,6 +328,9 @@ final class TimelineProgressTests: XCTestCase {
         XCTAssertEqual(TimelineExpression.equivalent("sin(10*pi)", "0"), true)
         XCTAssertEqual(TimelineExpression.equivalent("7.2e-7", "7.2e-8"), false)
         XCTAssertEqual(TimelineExpression.equivalent("1", "0"), false)
+        XCTAssertEqual(TimelineExpression.equivalent("7.2e-11", "0"), false, "0 でない小さい答えは 0 と同じにしない")
+        XCTAssertEqual(TimelineExpression.equivalent("1.6e-19*2", "0"), false)
+        XCTAssertEqual(TimelineExpression.equivalent("(x+1)^2-(x^2+2*x+1)", "0"), true)
     }
 
     /// 不意打ちの割り当ては、先に来たスキルが別のスキルしか使えないカードを取らないようにする。
