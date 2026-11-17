@@ -65,7 +65,12 @@ struct LearningTimelineView: View {
                     // 押せない1行なので、書く面の指は通さない(iPad は書く面がこの行の上にも乗る)。前は指を通していて、
                     // この行は Spacer で画面の幅いっぱいに広がるため、固定中は画面の端から端までの帯で書き始められなかった。
                     TimelineScopeFocus(title: focus.title, marks: focus.marks)
+                        .overlay(alignment: .trailing) { if showsReviewChip { reviewChip } }
                         .padding(.horizontal, layout.isPad ? 24 : 20)
+                        .padding(.top, 10)
+                } else if showsReviewChip {
+                    HStack { Spacer(minLength: 0); reviewChip }
+                        .padding(.horizontal, 20)
                         .padding(.top, 10)
                 }
                 ZStack(alignment: .bottomTrailing) {
@@ -81,12 +86,26 @@ struct LearningTimelineView: View {
                     if showsInkHint { inkHint }
                     // 送るボタン・採点中のカプセル・しずく(ボタンの文字と印は、この上の `actions` に描く)。
                     TimelineLiquidLayer(liquid: liquid, correct: store.lastAttempt?.verdict == "correct")
+                    if showsSelfGradeBar {
+                        TimelineSelfGradeBar { correct in store.selfGrade(correct: correct) }
+                            .timelineInkPassThrough()
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 16)
+                    }
                     actions
                         .timelineInkPassThrough()
                         .padding(.trailing, layout.isPad ? 28 : 20)
-                        .padding(.bottom, layout == .padLandscape ? 32 : 16)
+                        .padding(.bottom, layout == .padLandscape ? 32 : (showsSelfGradeBar ? 92 : 16))
                         // 書いている間はボタンを薄くして、下に書いた字を透かす。
                         .opacity(isDrawing ? 0.35 : 1)
+                }
+                .overlay {
+                    if isReviewing {
+                        TimelineReviewCard(cards: store.reviewCards,
+                                           onShoot: { store.isReviewCameraPresented = true },
+                                           onLater: { store.postponeReview() })
+                            .background(Theme.ground)
+                    }
                 }
                 .coordinateSpace(name: TimelineLiquidSpace.name)
                 .onPreferenceChange(TimelineLiquidSlotKey.self) { frame in
@@ -206,6 +225,7 @@ struct LearningTimelineView: View {
             }
         }
         .onChange(of: store.currentID) { _, _ in
+            store.isAnswerRevealed = false
             clearInk()
             problemScroll.scrollTo(edge: .top)
         }
@@ -213,6 +233,14 @@ struct LearningTimelineView: View {
             ChatCameraPresentation(isPresented: $isCameraPresented) { data in
                 Task { await store.submit(image: data) }
             }
+        }
+        .background {
+            // 見直し: 違った問題を 1 問ずつ、閉じずに続けて撮る。
+            ChatCameraPresentation(isPresented: Binding(get: { store.isReviewCameraPresented }, set: { store.isReviewCameraPresented = $0 }),
+                                   batch: ChatCameraBatch(limit: max(1, store.reviewCards.count), doneTitle: "見直す",
+                                                          guides: store.reviewCards.map { [$0.prompt, TimelineMath.plain($0.math)].filter { !$0.isEmpty }.joined(separator: " ") }) { photos in
+                store.finishReview(photos: photos)
+            })
         }
         #if STRUIS_TIME_ATTACK
         .fullScreenCover(item: $timeAttack) { session in
@@ -607,10 +635,32 @@ struct LearningTimelineView: View {
         }
     }
 
+    // MARK: 自分で丸付け(iPhone)
+
+    /// 見直しのカードを出している(iPhone だけ)。
+    private var isReviewing: Bool { !layout.isPad && store.isReviewCardPresented && !store.reviewCards.isEmpty }
+
+    /// 答えを見た後の ○× を出すか。
+    private var showsSelfGradeBar: Bool {
+        guard !layout.isPad, !isReviewing, case .solving = store.phase, store.isAnswerRevealed, let card = store.current else { return false }
+        return store.canSelfGrade(card)
+    }
+
+    private var showsReviewChip: Bool { !layout.isPad && !store.reviewPendingIDs.isEmpty && !isReviewing }
+
+    private var reviewChip: some View {
+        TimelineReviewChip(count: store.reviewPendingIDs.count) { store.openReview() }
+    }
+
     /// 解いている間の問題の列。
     private func solvingCard(_ card: TimelineCardRecord) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             TimelineProblemView(card: card, store: store)
+            if !layout.isPad, store.isAnswerRevealed, store.canSelfGrade(card) {
+                TimelineAnswerCard(text: store.answerText(card))
+                    .padding(.top, 10)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
             if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true {
                 if card.kind != "solve" { TimelineWritingPrompt(card: card) }
                 Spacer(minLength: 0)
@@ -648,6 +698,7 @@ struct LearningTimelineView: View {
 
     /// 指で書く面を出すか(読み取りで採点するカードを解いている間と、速攻)。
     private var showsInk: Bool {
+        if isReviewing { return false }
         switch store.phase {
         case .solving, .grading:
             guard let card = store.current else { return false }
@@ -762,6 +813,15 @@ struct LearningTimelineView: View {
                         if hasInk {
                             cameraPullButton(prominent: false)
                             TimelineSendButton(liquid: liquid) { sendInk() }
+                        } else if store.canSelfGrade(card) {
+                            // 自分で丸付け: 答えを見るのが先。撮るのは、合っていても解説を見たい時に残す。
+                            if !store.isAnswerRevealed {
+                                TimelineActionButton(symbol: TimelineSymbol.skip, label: "飛ばす", identifier: "timeline-skip") { Task { await store.skip() } }
+                                TimelineActionButton(symbol: TimelineSymbol.answer, label: "答え", prominent: true, identifier: "timeline-answer") {
+                                    withAnimation(.easeInOut(duration: Theme.Duration.standard)) { store.revealAnswer() }
+                                }
+                            }
+                            cameraPullButton(prominent: false)
                         } else {
                             TimelineActionButton(symbol: TimelineSymbol.skip, label: "飛ばす", identifier: "timeline-skip") { Task { await store.skip() } }
                             cameraPullButton(prominent: true)

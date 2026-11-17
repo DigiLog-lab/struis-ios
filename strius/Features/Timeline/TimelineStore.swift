@@ -434,6 +434,13 @@ final class TimelineStore {
         if let last = lastActivity {
             await warmupOnReturn(awaySeconds: Date().timeIntervalSince(last), midCard: resumedShown, launch: true)
         }
+        #if DEBUG
+        // 自分で丸付け(iPhone)の見た目の確かめ(`-self-grade-demo`)。AI を呼ばずに、決めた状態で止める。
+        if ProcessInfo.processInfo.arguments.contains("-self-grade-demo") {
+            applySelfGradeDemo()
+            return
+        }
+        #endif
         // タイムラインを開いた時: グラフを頼むか決める。
         await ensureGraphWork()
         await ensurePlanWork()
@@ -457,6 +464,85 @@ final class TimelineStore {
             return PastProblem(prompt: problem.prompt, answerKey: problem.answerKey, subunitID: problem.subunitId, unit: unit, at: attempt.createdAt)
         }.prefix(3).map { $0 }
     }
+
+    // MARK: - 自分で丸付け(iPhone)
+
+    // 見た目だけの仮の実装。○×はまだ台帳に書かず、見直し待ちもこの起動の間だけメモリに持つ。
+    // 記録の形(端末の中で採点したカードと同じ `recordInteractive`)と、見直し待ちを記録から数え直す処理は、この後に入れる。
+
+    /// 答えを見せている(今のカードだけ。カードが替わったら閉じる)。
+    var isAnswerRevealed = false
+    /// 自分で × を付けて、まだ撮っていない問題(付けた順)。
+    private(set) var reviewPendingIDs: [String] = []
+    /// 見直しのカード(違った問題を撮ってもらう 1 枚)を出している。
+    var isReviewCardPresented = false
+    /// 見直しのカメラを出している。
+    var isReviewCameraPresented = false
+
+    /// 自分で丸付けできるカード: 解く問題で、正しい答えを持っている。
+    func canSelfGrade(_ card: TimelineCardRecord) -> Bool {
+        card.kind == "solve" && !(card.answerKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && card.answerExpr.isEmpty)
+    }
+
+    /// 見せる答え(答えの欄の書き方。計算機向けの式も数式に直して組む)。
+    func answerText(_ card: TimelineCardRecord) -> String {
+        card.answerKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? card.answerExpr : card.answerKey
+    }
+
+    func revealAnswer() {
+        isAnswerRevealed = true
+    }
+
+    /// ○ 合ってた / × 違った。× は見直し待ちに入れる。
+    func selfGrade(correct: Bool) {
+        if !correct, let id = currentID, !reviewPendingIDs.contains(id) { reviewPendingIDs.append(id) }
+        isAnswerRevealed = false
+    }
+
+    /// 見直し待ちのカード(付けた順)。
+    var reviewCards: [TimelineCardRecord] {
+        reviewPendingIDs.compactMap { machine.cards[$0] }
+    }
+
+    func openReview() {
+        guard !reviewPendingIDs.isEmpty else { return }
+        isReviewCardPresented = true
+    }
+
+    /// 「あとで」: 次の区切りでまた出す。
+    func postponeReview() {
+        isReviewCardPresented = false
+    }
+
+    /// 見直しの写真を撮り終えた(仮: 採点はまだ頼まない)。
+    func finishReview(photos: [Data]) {
+        isReviewCameraPresented = false
+        isReviewCardPresented = false
+        reviewPendingIDs = []
+    }
+
+    #if DEBUG
+    /// `-self-grade-state <revealed|pending|review|camera>` の状態にする(`-self-grade-demo` の台帳の上で)。
+    private func applySelfGradeDemo() {
+        let arguments = ProcessInfo.processInfo.arguments
+        let state: String = arguments.firstIndex(of: "-self-grade-state").flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil } ?? ""
+        switch state {
+        case "revealed":
+            isAnswerRevealed = true
+        case "pending":
+            reviewPendingIDs = ["sg-done"]
+        case "review":
+            reviewPendingIDs = ["sg-done", "sg-now"]
+            isReviewCardPresented = true
+        case "camera":
+            reviewPendingIDs = ["sg-done", "sg-now"]
+            isReviewCardPresented = true
+            isReviewCameraPresented = true
+        default:
+            break
+        }
+    }
+    #endif
 
     // MARK: - 解く
 
