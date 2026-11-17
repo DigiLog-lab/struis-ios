@@ -34,6 +34,8 @@ final class TimelineReadingLiveTests: XCTestCase {
         try StruisPaths.prepare()
         let ledger = try Ledger.inMemory()
         try await LedgerArchive.importArchive(from: URL(fileURLWithPath: archive), into: ledger)
+        // 採点の道具(答案の拡大・台帳の問い合わせ)が、取り込んだ台帳を読むようにする(アプリでは LearnerData が入れる)。
+        TimelineQueryHost.install(ledger)
         let (workbook, timeline): (WorkbookMachine, TimelineMachine) = try await ledger.commit { db in
             let workbook = try WorkbookMachine(loading: db)
             var timeline = try TimelineMachine(loading: db)
@@ -120,10 +122,12 @@ final class TimelineReadingLiveTests: XCTestCase {
                 timeline.put("test.reset", fresh)
             }
             let planID = "reading-\(kind.rawValue)-\(attempt.id)"
-            let plan: TurnPlan = kind == .timelineAnswer
+            var plan: TurnPlan = kind == .timelineAnswer
                 ? try await TimelineTurns.answer(composer: context.composer, planID: planID, attemptID: attempt.id, timeline: timeline)
                 : try await TimelineTurns.grading(composer: context.composer, planID: planID, attemptID: attempt.id,
                                                   workbook: context.workbook, timeline: timeline)
+            // 読み取りだけを測る時は、指定したモデルで流す(アプリの読み取りは `TimelineModels.readerModel` に固定)。
+            if kind == .timelineAnswer { plan.thread.model = context.model }
             let outcome = try await context.runner.run(plan) { _ in }
             let execution: LedgerJSON = outcome.executions.last ?? .emptyObject
             row["status"] = outcome.status.rawValue
