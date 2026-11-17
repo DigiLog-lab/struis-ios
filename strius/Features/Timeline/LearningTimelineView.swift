@@ -83,6 +83,9 @@ struct LearningTimelineView: View {
                         .frame(width: layout == .padLandscape ? TimelineLayout.columnLeading + TimelineLayout.columnWidth : nil)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .environment(\.timelineHidesResultMark, !liquid.hasLanded)
+                        // 見直しのカードを出している間は、問題を隠す(地は画面の地をそのまま使い、上の帯と続けて見せる)。
+                        .opacity(isReviewing ? 0 : 1)
+                        .allowsHitTesting(!isReviewing)
                     if showsInkHint { inkHint }
                     // 送るボタン・採点中のカプセル・しずく(ボタンの文字と印は、この上の `actions` に描く)。
                     TimelineLiquidLayer(liquid: liquid, correct: store.lastAttempt?.verdict == "correct")
@@ -98,13 +101,14 @@ struct LearningTimelineView: View {
                         .padding(.bottom, layout == .padLandscape ? 32 : (showsSelfGradeBar ? 92 : 16))
                         // 書いている間はボタンを薄くして、下に書いた字を透かす。
                         .opacity(isDrawing ? 0.35 : 1)
+                        .opacity(isReviewing ? 0 : 1)
+                        .allowsHitTesting(!isReviewing)
                 }
                 .overlay {
                     if isReviewing {
                         TimelineReviewCard(cards: store.reviewCards,
                                            onShoot: { store.isReviewCameraPresented = true },
                                            onLater: { store.postponeReview() })
-                            .background(Theme.ground)
                     }
                 }
                 .coordinateSpace(name: TimelineLiquidSpace.name)
