@@ -110,6 +110,23 @@ final class UsageGateTests: XCTestCase {
         XCTAssertFalse(nextWeek.nextUnitIsFree())
     }
 
+    /// 今週の分で数えなかった単元づくりのターンが、期間の切り替わりをまたいで続いても、次の期間の分を使わない。
+    func testAWeeklyFreeTurnContinuingIntoTheNextPeriodStaysFree() {
+        let local = MemoryValueStore(), cloud = MemoryValueStore()
+        let monday = date("2026-11-16T10:00:00+09:00")
+        let first: UsageMeter = meter(plan: .light, local: local, cloud: cloud, now: monday)
+        let firstGate: DeviceUsageGate = gate(first)
+        for index in 1...(UsageRules.freeSetupTurns(.unit) + 1) {
+            firstGate.record(billed(0.05), requestBytes: 10, setup: .unit, turnID: "unit-\(index)")
+        }
+        let spanning = "unit-\(UsageRules.freeSetupTurns(.unit) + 1)"
+
+        let nextWeek: UsageMeter = meter(plan: .light, local: local, cloud: cloud, now: monday.addingTimeInterval(7 * 86_400))
+        gate(nextWeek).record(billed(0.05), requestBytes: 10, setup: .unit, turnID: spanning)
+        XCTAssertEqual(nextWeek.snapshot().spentUSD, 0, accuracy: 1e-9, "前の期間に数えないと決めたターンの続き")
+        XCTAssertTrue(nextWeek.nextUnitIsFree(), "続きは次の期間の 1 単元を使わない")
+    }
+
     /// 単元を作る前の確認: 数えられる単元づくりの時だけ、プランの週の枠に対する割合を見せる。
     func testUnitCostNoticeShowsTheShareOfTheWeeklyAllowance() {
         XCTAssertEqual(UnitCostNotice(plan: .light).tenths, 10)

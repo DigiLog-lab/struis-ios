@@ -180,6 +180,10 @@ extension TurnCoordinator {
         defer { activity.finish() }
         // 返事が全体像の提案を書き終えたら、返事の残りを待たずに全体像を組み始める(A12)。
         let collector = ReplyStreamCollector()
+        // 利用枠に数える単元づくりを質問の会話から頼まれた時は、先回りも自動の組み立てもせず、カードで確かめてから組む。
+        // 単元づくりの画面(その会話)は、開く前に確かめている(`WorkbookCoordinator.createUnit`)。
+        let confirmsUnit: Bool = UserDefaults.standard.string(forKey: OnboardingProfile.unitCreationThreadKey) != state.threadID
+            && UnitCostNotice.current() != nil
         // 返事が準備OKを書いたら、返事の残り(記録・検証)を待たずに「先に進む」を出す(§13.13 の 5)。
         let readyDetector = ExampleReadyStreamDetector()
         let assistantMessageID = state.assistantMessageID
@@ -233,7 +237,7 @@ extension TurnCoordinator {
                     activity.send(event)
                     guard let self else { return }
                     if case .replyDelta(let itemID, let text) = event.kind {
-                        if let request = collector.append(itemID: itemID, delta: text) {
+                        if !confirmsUnit, let request = collector.append(itemID: itemID, delta: text) {
                             Task { await self.prefetchUnit(messageID: assistantMessageID, request: request) }
                         }
                         if readyDetector.append(itemID: itemID, delta: text) {
@@ -268,7 +272,7 @@ extension TurnCoordinator {
                 ThreadContextStore.shared.recordMemory(codexThreadID, memory)
             }
             do {
-                let finished = try await ChatTurns.finish(ledger: ledger, state: state)
+                let finished = try await ChatTurns.finish(ledger: ledger, state: state, confirmsUnit: confirmsUnit)
                 chatCoordinatorLog.info("chat turn \(state.turnID, privacy: .public) finished")
                 if let setID = finished.prefetchSetID { await startPrefetchedSet(setID: setID) }
                 if finished.proposalRequest != nil {
@@ -277,7 +281,10 @@ extension TurnCoordinator {
                         try WorkbookProposalRecord.filter(Column("message_id") == state.assistantMessageID).fetchOne(db)?.id
                     }
                     // 返事の途中で先に組み始めた全体像があれば、それを結ぶ(A12)。無ければふつうに組む。
-                    if let proposalID {
+                    if let proposalID, confirmsUnit {
+                        // カードの「作る」で組み始める(`WorkbookStore.confirmProposal`)。
+                        await discardUnitPrefetch(messageID: state.assistantMessageID)
+                    } else if let proposalID {
                         if !(await adoptUnitPrefetch(proposalID: proposalID, messageID: state.assistantMessageID)) {
                             await startUnitGeneration(proposalID: proposalID)
                         }

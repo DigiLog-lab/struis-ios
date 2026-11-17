@@ -566,9 +566,19 @@ nonisolated final class UsageMeter: @unchecked Sendable {
             // 最初の分を使い切った後は、今の期間の分(単元 1 つ分)まで数えない。
             let weekly = freeSetupIDs(setup, period: periodKeys(at: date).period)
             if weekly.all.contains(turnID) { return true }
+            // 前の期間に数えないと決めたターンの続き・送り直しが期間の切り替わりをまたいだ: 今の期間の分を使わずに通す。
+            if periodFreeSetupContains(setup, turnID: turnID) { return true }
             guard weekly.all.count < UsageRules.weeklyFreeSetupTurns(setup) else { return false }
             values.set((weekly.own + [turnID]).joined(separator: ","), weekly.ownKey)
             return true
+        }
+    }
+
+    /// どれかの期間の「期間ごとに数えない分」に、このターンの ID があるか(ロックの中で呼ぶ)。iCloud には全期間・全端末の分が集まる。
+    private func periodFreeSetupContains(_ setup: UsageSetup, turnID: String) -> Bool {
+        let prefix: String = Self.freeSetupPrefix + setup.rawValue + ".period."
+        return values.cloud.keys(withPrefix: prefix).contains { key in
+            (values.cloud.string(key) ?? "").split(separator: ",").contains { $0 == turnID }
         }
     }
 

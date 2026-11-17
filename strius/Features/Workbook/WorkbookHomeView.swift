@@ -106,7 +106,7 @@ final class WorkbookCoordinator {
 
 /// 単元を作る前に見せる費用の目安(2026-11-17)。最初の 4 単元と、利用枠の期間ごとの 1 単元は数えない(`UsageRules.weeklyFreeSetupTurns`)。
 /// それを超えた単元づくりは、単元の地図づくり(上位モデル)の分だけ利用枠を大きく使うので、黙って使わずに確かめる。
-struct UnitCostNotice: Equatable, Identifiable {
+nonisolated struct UnitCostNotice: Equatable, Identifiable, Sendable {
     /// 今週の利用枠のうち、この単元づくりで使う割合(1〜10 割)。
     var tenths: Int
     var id: Int { tenths }

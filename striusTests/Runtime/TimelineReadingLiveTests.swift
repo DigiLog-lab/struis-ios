@@ -109,18 +109,26 @@ final class TimelineReadingLiveTests: XCTestCase {
         }
     }
 
+    /// 答案を台帳の中で採点前の状態に戻し、戻した後の状態を返す(採点の道具が前の結果を読めないように)。
+    nonisolated static func reset(_ attemptID: String, in ledger: Ledger) async throws -> TimelineMachine {
+        try await ledger.commit { db in
+            var timeline = try TimelineMachine(loading: db)
+            guard var fresh = timeline.attempts[attemptID] else { return ([], timeline) }
+            fresh.verdict = "grading"; fresh.grade = nil; fresh.transcript = nil; fresh.learnerAnswer = ""; fresh.notes = nil
+            timeline.put("test.reset", fresh)
+            return (timeline.events, timeline)
+        }
+    }
+
     /// 1 枚の答案を流し、結果の 1 行を JSON で返す。
     nonisolated static func run(_ attempt: TimelineAttemptRecord, context: Context) async -> Data {
         let kind = context.kind
         var row: [String: Any] = ["attempt_id": attempt.id, "card_id": attempt.cardId, "capture": attempt.capturePath ?? "",
                                   "model": context.model, "kind": kind.rawValue]
         do {
-            // 画像だけの採点を測る: 書き出した台帳の答案には前の採点の書き起こしが残っているので、採点前の状態に戻す。
-            var timeline = context.timeline
-            if var fresh = timeline.attempts[attempt.id] {
-                fresh.verdict = "grading"; fresh.transcript = nil; fresh.learnerAnswer = ""
-                timeline.put("test.reset", fresh)
-            }
+            // 画像だけの採点を測る: 書き出した台帳の答案には前の採点の結果が残っているので、採点前の状態に戻す。
+            // 採点の道具(`timeline_query`)が読むのは台帳そのものなので、手元の写しではなく台帳で戻す。
+            let timeline: TimelineMachine = try await Self.reset(attempt.id, in: context.ledger)
             let planID = "reading-\(kind.rawValue)-\(attempt.id)"
             var plan: TurnPlan = kind == .timelineAnswer
                 ? try await TimelineTurns.answer(composer: context.composer, planID: planID, attemptID: attempt.id, timeline: timeline)
@@ -153,13 +161,7 @@ final class TimelineReadingLiveTests: XCTestCase {
         var row: [String: Any] = ["attempt_id": attempt.id, "card_id": attempt.cardId, "capture": attempt.capturePath ?? "",
                                   "model": context.model, "kind": "pipeline"]
         do {
-            let reset: TimelineMachine = try await context.ledger.commit { db in
-                var timeline = try TimelineMachine(loading: db)
-                guard var fresh = timeline.attempts[attempt.id] else { return ([], timeline) }
-                fresh.verdict = "grading"; fresh.grade = nil; fresh.transcript = nil; fresh.learnerAnswer = ""; fresh.notes = nil
-                timeline.put("test.reset", fresh)
-                return (timeline.events, timeline)
-            }
+            let reset: TimelineMachine = try await Self.reset(attempt.id, in: context.ledger)
             let readPlan = try await TimelineTurns.answer(composer: context.composer, planID: "pipe-read-\(attempt.id)", attemptID: attempt.id, timeline: reset)
             let read = try await context.runner.run(readPlan) { _ in }
             let readExecution: LedgerJSON = read.executions.last ?? .emptyObject
