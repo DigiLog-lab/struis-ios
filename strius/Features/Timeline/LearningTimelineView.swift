@@ -90,7 +90,7 @@ struct LearningTimelineView: View {
                     // 送るボタン・採点中のカプセル・しずく(ボタンの文字と印は、この上の `actions` に描く)。
                     TimelineLiquidLayer(liquid: liquid, correct: store.lastAttempt?.verdict == "correct")
                     if showsSelfGradeBar {
-                        TimelineSelfGradeBar { correct in store.selfGrade(correct: correct) }
+                        TimelineSelfGradeBar { correct in Task { await store.selfGrade(correct: correct) } }
                             .timelineInkPassThrough()
                             .padding(.horizontal, 20)
                             .padding(.bottom, 16)
@@ -107,7 +107,7 @@ struct LearningTimelineView: View {
                 .overlay {
                     if isReviewing {
                         TimelineReviewCard(cards: store.reviewCards,
-                                           onShoot: { store.isReviewCameraPresented = true },
+                                           onShoot: { store.openReviewCamera() },
                                            onLater: { store.postponeReview() })
                     }
                 }
@@ -240,9 +240,9 @@ struct LearningTimelineView: View {
         .background {
             // 見直し: 違った問題を 1 問ずつ、閉じずに続けて撮る。
             ChatCameraPresentation(isPresented: Binding(get: { store.isReviewCameraPresented }, set: { store.isReviewCameraPresented = $0 }),
-                                   batch: ChatCameraBatch(limit: max(1, store.reviewCards.count), doneTitle: "見直す",
-                                                          guides: store.reviewCards.map { [$0.prompt, TimelineMath.plain($0.math)].filter { !$0.isEmpty }.joined(separator: " ") }) { photos in
-                store.finishReview(photos: photos)
+                                   batch: ChatCameraBatch(limit: max(1, store.reviewCameraCards.count), doneTitle: "見直す",
+                                                          guides: store.reviewCameraCards.map { [$0.prompt, TimelineMath.plain($0.math)].filter { !$0.isEmpty }.joined(separator: " ") }) { photos in
+                Task { await store.finishReview(photos: photos) }
             })
         }
         #if STRUIS_TIME_ATTACK
@@ -640,8 +640,8 @@ struct LearningTimelineView: View {
 
     // MARK: 自分で丸付け(iPhone)
 
-    /// 見直しのカードを出している(iPhone だけ)。
-    private var isReviewing: Bool { !layout.isPad && store.isReviewCardPresented && !store.reviewCards.isEmpty }
+    /// 見直しのカードを出している(iPhone で付けた × は、iPad でも見直せる)。
+    private var isReviewing: Bool { store.isReviewCardPresented && !store.reviewCards.isEmpty && !store.isInReview }
 
     /// 答えを見た後の ○× を出すか。
     private var showsSelfGradeBar: Bool {
@@ -649,7 +649,7 @@ struct LearningTimelineView: View {
         return store.canSelfGrade(card)
     }
 
-    private var showsReviewChip: Bool { !layout.isPad && !store.reviewPendingIDs.isEmpty && !isReviewing }
+    private var showsReviewChip: Bool { !store.reviewPendingIDs.isEmpty && !isReviewing && !store.isInReview }
 
     private var reviewChip: some View {
         TimelineReviewChip(count: store.reviewPendingIDs.count) { store.openReview() }

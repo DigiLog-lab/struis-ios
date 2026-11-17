@@ -147,6 +147,41 @@ nonisolated enum TimelineRules {
     }
 
     /// × が2回続いた(数に入る解答の直近2つ、または同じ流れの直近2つ)。次は定着済みの前提の段1を挟む。
+    // MARK: 自分で丸付け(iPhone)
+
+    /// 自分で付けた ○× の印(記録の `checkpointResults` に入れる)。
+    static let selfGradeMarker: LedgerJSON = .object(["self_graded": .bool(true)])
+
+    /// 自分で丸付けした記録(写真なしで、印がある)。
+    static func isSelfGraded(_ attempt: TimelineAttemptRecord) -> Bool {
+        guard attempt.capturePath == nil, case .array(let items) = attempt.checkpointResults else { return false }
+        return items.contains(selfGradeMarker)
+    }
+
+    /// 見直し待ち: 最後の記録が、自分で付けた × のカード(付けた順)。新しい項目は持たず、同期で届いた記録から毎回数え直すので、
+    /// どの端末でも同じになる。撮って採点すると、その記録が最後になって外れる。`attempts` は古い順。
+    static func reviewPending(_ attempts: [TimelineAttemptRecord]) -> [TimelineAttemptRecord] {
+        var latest: [String: String] = [:]
+        for attempt in attempts { latest[attempt.cardId] = attempt.id }
+        return attempts.filter { latest[$0.cardId] == $0.id && $0.verdict == "wrong" && isSelfGraded($0) }
+    }
+
+    /// 見直しのカードを挟む間隔(問題の数)。
+    static let reviewEvery = 5
+
+    /// 見直しの区切りに来たか: 一番古い見直し待ちの × から(その × も入れて)解いた問題の数が 5 の倍数。
+    /// 「あとで」は何も保存せず、次の区切りでまた出る。`attempts` は古い順。
+    static func reviewDue(_ attempts: [TimelineAttemptRecord]) -> Bool {
+        guard let oldest = reviewPending(attempts).first, let start = attempts.firstIndex(where: { $0.id == oldest.id }) else { return false }
+        let count: Int = attempts[start...].filter { $0.verdict != "grading" }.count
+        return count > 0 && count % reviewEvery == 0
+    }
+
+    /// 続けての × に数える記録: 自分で付けた × は数えない(なぜ違ったかが分かるのは、撮って採点した後)。
+    static func countsTowardWrongStreak(_ attempt: TimelineAttemptRecord) -> Bool {
+        !(attempt.verdict == "wrong" && isSelfGraded(attempt))
+    }
+
     static func twoWrongInARow(_ attempts: [TimelineAttemptRecord]) -> Bool {
         let graded = attempts.filter { $0.verdict == "correct" || $0.verdict == "wrong" }.suffix(2)
         return graded.count == 2 && graded.allSatisfy { $0.verdict == "wrong" }

@@ -110,6 +110,7 @@ nonisolated enum LedgerFixtures {
                                math: math, question: "", answerKey: answer, answerExpr: "", checkpoints: [], commonMistakes: [], estimatedSeconds: 60, chain: nil,
                                easierOf: nil, subunitId: nil, unitId: nil, payload: .emptyObject, origin: "batch", status: status, createdAt: at, updatedAt: at)
         }
+        timeline.put("fixture", card("sg-earlier", math: "y = (x^2 + 1)^4", answer: "$y' = 8x(x^2 + 1)^3$", status: "answered", position: -1))
         timeline.put("fixture", card("sg-done", math: "g(x) = \\sqrt{3x - 2}", answer: "$g'(x) = \\dfrac{3}{2\\sqrt{3x - 2}}$", status: "answered", position: 0))
         timeline.put("fixture", card("sg-now", math: "f(x) = (2x + 1)^3", answer: "$f'(x) = 6(2x + 1)^2$", status: "shown", position: 1))
         timeline.put("fixture", card("sg-next", math: "h(x) = \\sin(x^2)", answer: "$h'(x) = 2x\\cos(x^2)$", status: "unused", position: 2))

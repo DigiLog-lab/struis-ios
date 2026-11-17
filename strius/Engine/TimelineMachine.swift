@@ -505,6 +505,25 @@ nonisolated struct TimelineMachine {
         return id
     }
 
+    /// 自分で丸付けした解く問題(iPhone)。写真なしで、判定は本人が付けた ○×。形は端末の中で採点したカード(`recordInteractive`)と
+    /// 同じにして、古い版のアプリにも読めるようにする。× は見直し待ちになり、撮って採点すると外れる(`TimelineRules.reviewPending`)。
+    @discardableResult
+    mutating func recordSelfGrade(cardID: String, correct: Bool, seconds: Double, assisted: Bool) -> String {
+        let id = newID()
+        let firstTry = attempts(cardID: cardID).isEmpty
+        let verdict = correct ? "correct" : "wrong"
+        put("timeline.attempt_recorded", TimelineAttemptRecord(
+            id: id, cardId: cardID, capturePath: nil, verdict: verdict, checkpointResults: .array([TimelineRules.selfGradeMarker]), errors: .emptyArray,
+            learnerAnswer: "", cause: "unknown", seconds: seconds, firstTry: firstTry, assisted: assisted, skipReason: nil, keySuspect: false,
+            countsForAccuracy: cards[cardID].map { TimelineRules.countsForAccuracy(card: $0, isFirstOfDay: isFirstOfDay, verdict: verdict) } ?? false,
+            feedback: "", createdAt: now(), gradedAt: now()
+        ))
+        markAnswered(cardID)
+        if let card = cards[cardID] { applySkills(card: card, correct: correct, assisted: assisted, withinTime: true, firstTry: firstTry, attemptID: id) }
+        logAttempt(id)
+        return id
+    }
+
     mutating func recordSkip(cardID: String, seconds: Double) -> String {
         let id = newID()
         put("timeline.attempt_skipped", TimelineAttemptRecord(
