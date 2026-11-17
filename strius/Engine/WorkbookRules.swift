@@ -1830,14 +1830,36 @@ nonisolated struct WorkbookMachine {
     // MARK: - Proposals (入口 A)
 
     @discardableResult
-    mutating func insertProposal(request: String, threadID: String?, messageID: String?) -> String {
+    /// - Parameter awaitingConfirmation: 利用枠に数える単元づくり(質問の会話から頼まれた時)。全体像を組む前に、カードで
+    ///   費用の目安を見せて確かめる(`confirming`)。「作る」で `generating` に進む。
+    mutating func insertProposal(request: String, threadID: String?, messageID: String?, awaitingConfirmation: Bool = false) -> String {
         let id = newID()
         put("proposal.created", WorkbookProposalRecord(
-            id: id, threadId: threadID, messageId: messageID, status: "generating", request: String(request.prefix(4000)),
+            id: id, threadId: threadID, messageId: messageID, status: awaitingConfirmation ? "confirming" : "generating", request: String(request.prefix(4000)),
             overview: .emptyObject, unitId: nil, error: nil, createdAt: now(), updatedAt: now()
         ))
         return id
     }
+
+    /// 確かめるカードで「作る」: 全体像を組み始める。確かめている途中の提案でなければ false。
+    mutating func confirmProposal(id: String) -> Bool {
+        guard var row = proposals[id], row.status == "confirming" else { return false }
+        row.status = "generating"
+        row.updatedAt = now()
+        put("proposal.confirmed", row)
+        return true
+    }
+
+    /// 確かめるカードで「やめる」: 全体像を組まずに終える。
+    mutating func declineProposal(id: String) {
+        guard var row = proposals[id], row.status == "confirming" else { return }
+        row.status = "failed"
+        row.error = Self.declinedProposal
+        row.updatedAt = now()
+        put("proposal.declined", row)
+    }
+
+    static let declinedProposal = "単元を作るのをやめました"
 
     mutating func completeProposal(id: String, overview: LedgerJSON) {
         guard var row = proposals[id], row.status == "generating" else { return }

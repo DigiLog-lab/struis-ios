@@ -538,6 +538,35 @@ final class WorkbookStore {
         }
     }
 
+    /// 利用枠に数える単元づくりを確かめるカードで「作る」: 全体像を組み始める。
+    func confirmProposal(id: String) async {
+        do {
+            let (confirmed, proposal) = try await ledger.commit { db in
+                var machine = try WorkbookMachine(loading: db)
+                let confirmed = machine.confirmProposal(id: id)
+                return (machine.events, (confirmed, try machine.proposalView(id: id)))
+            }
+            proposals[id] = proposal
+            if confirmed { await turns.startUnitGeneration(proposalID: id) }
+        } catch {
+            actionError = Self.message(for: error)
+        }
+    }
+
+    /// 確かめるカードで「やめる」。
+    func declineProposal(id: String) async {
+        do {
+            let proposal = try await ledger.commit { db in
+                var machine = try WorkbookMachine(loading: db)
+                machine.declineProposal(id: id)
+                return (machine.events, try machine.proposalView(id: id))
+            }
+            proposals[id] = proposal
+        } catch {
+            actionError = Self.message(for: error)
+        }
+    }
+
     func startProposal(id: String) async -> WorkbookProposalDTO? {
         do {
             let proposal = try await ledger.commit { db in

@@ -522,12 +522,14 @@ nonisolated enum ChatTurns {
         var prefetchSetID: String?
     }
 
-    static func finish(ledger: Ledger, state: State) async throws -> Finished {
+    /// - Parameter confirmsUnit: 返事が単元づくりを提案したら、全体像を組む前に確かめる(利用枠に数える単元づくり)。
+    static func finish(ledger: Ledger, state: State, confirmsUnit: Bool = false) async throws -> Finished {
         let memorySnapshot = await applyMemory(ledger: ledger, state: state)
         return try await ledger.commit { db in
             guard let assistant = try MessageRecord.fetchOne(db, key: state.assistantMessageID) else { throw LedgerError.notFound("message") }
             var machine = try WorkbookMachine(loading: db)
-            let (events, finished) = try finishEvents(db, state: state, memorySnapshot: memorySnapshot, assistant: assistant, machine: &machine)
+            let (events, finished) = try finishEvents(db, state: state, memorySnapshot: memorySnapshot, assistant: assistant, machine: &machine,
+                                                         confirmsUnit: confirmsUnit)
             return (machine.events + events, finished)
         }
     }
@@ -590,7 +592,8 @@ nonisolated enum ChatTurns {
     }
 
     static func finishEvents(
-        _ db: Database, state: State, memorySnapshot: LedgerJSON, assistant pending: MessageRecord, machine: inout WorkbookMachine
+        _ db: Database, state: State, memorySnapshot: LedgerJSON, assistant pending: MessageRecord, machine: inout WorkbookMachine,
+        confirmsUnit: Bool = false
     ) throws -> ([LedgerEvent], Finished) {
         let plainText = LearnerText.sanitizeLearnerFacingText(state.visibleText)
         let blocks: LedgerJSON = plainText.isEmpty ? .emptyArray : .array([.object(["kind": .string("text"), "payload": .object(["text": .string(plainText)])])])
@@ -621,7 +624,8 @@ nonisolated enum ChatTurns {
             let prefetchSetID = state.exampleReady ? markExampleReady(machine: &machine, state: state) : nil
             var proposalID: String?
             if !proposalRequest.isEmpty {
-                proposalID = machine.insertProposal(request: proposalRequest, threadID: state.threadID, messageID: state.assistantMessageID)
+                proposalID = machine.insertProposal(request: proposalRequest, threadID: state.threadID, messageID: state.assistantMessageID,
+                                                    awaitingConfirmation: confirmsUnit)
                 metadata["workbook_proposal_id"] = .string(proposalID!)
             }
             assistant.metadata = WorkbookMachine.merge(assistant.metadata, metadata)

@@ -125,6 +125,21 @@ nonisolated enum UsageRules {
         }
     }
 
+    /// 最初の分(`freeSetupTurns`)を使い切った後も、利用枠の 1 期間(7 日)ごとに数えないターンの数。単元 1 つ分: 単元づくり 1 回と、
+    /// その単元の知識グラフの最初の構築(構築または追加 1 回・続きの段 `graphStepLimit` 回まで・つまずきの洗い出し 1 回)。
+    /// 2026-11-17 に決めた: 地図づくりは 1 単元で約 0.76 ドルかかり、ライトの 1 週間の枠(0.80 ドル)がほぼ尽きる。1 日 1 回にすると
+    /// 毎日作る人でライトの手取りを超えるので、期間ごとに 1 単元までにした。
+    static func weeklyFreeSetupTurns(_ setup: UsageSetup) -> Int {
+        switch setup {
+        case .unit: 1
+        case .graph: TimelineTurns.graphStepLimit + 2
+        case .plan, .graphUpkeep: 0
+        }
+    }
+
+    /// 単元 1 つを作る費用の目安(作る前の確認に使う): 単元づくりと知識グラフの最初の構築。2026-11-16 の実測で約 0.8 ドル。
+    static let unitCreationUSD = 0.80
+
     /// 1 期間の長さ(7 日)。課金した時刻から数えるので、暦や時間帯によらず秒で持つ。
     static let periodSeconds: TimeInterval = 7 * 86_400
 
@@ -523,9 +538,10 @@ nonisolated final class UsageMeter: @unchecked Sendable {
     /// 数えなかった「初回の準備」のターンの ID(ロックの中で呼ぶ)。使用額と同じく、端末ごとの鍵(種類の鍵 + `.device.` +
     /// 端末の ID)に自分の分だけを書き、読む時は iCloud に集まった全端末の分を合わせる。1 つの鍵に全部の ID を書くと、
     /// iPhone と iPad が同期の前にそれぞれ書いた時に、後から届いた方が相手の分を消してしまう。
-    private func freeSetupIDs(_ setup: UsageSetup) -> (ownKey: String, own: [String], all: Set<String>) {
+    /// `period` を渡すと、その期間の分(期間ごとに数えない分 `weeklyFreeSetupTurns`)の ID を読む。
+    private func freeSetupIDs(_ setup: UsageSetup, period: String? = nil) -> (ownKey: String, own: [String], all: Set<String>) {
         func ids(_ text: String?) -> [String] { (text ?? "").split(separator: ",").map(String.init) }
-        let prefix: String = Self.freeSetupPrefix + setup.rawValue + Self.deviceMarker
+        let prefix: String = Self.freeSetupPrefix + setup.rawValue + (period.map { ".period." + $0 } ?? "") + Self.deviceMarker
         let ownKey: String = prefix + deviceID()
         var own: [String] = []
         for id in ids(values.local.string(ownKey)) + ids(values.cloud.string(ownKey)) where !own.contains(id) { own.append(id) }
@@ -539,12 +555,39 @@ nonisolated final class UsageMeter: @unchecked Sendable {
     func takesFree(_ setup: UsageSetup, turnID: String) -> Bool {
         // 学習中の手入れは、いつも数えない(ID を残さない。回数は頼む側が抑える)。
         if setup == .graphUpkeep { return true }
+        let date: Date = now()
         return lock.withLock {
             let stored = freeSetupIDs(setup)
             if stored.all.contains(turnID) { return true }
-            guard stored.all.count < UsageRules.freeSetupTurns(setup) else { return false }
-            values.set((stored.own + [turnID]).joined(separator: ","), stored.ownKey)
+            if stored.all.count < UsageRules.freeSetupTurns(setup) {
+                values.set((stored.own + [turnID]).joined(separator: ","), stored.ownKey)
+                return true
+            }
+            // 最初の分を使い切った後は、今の期間の分(単元 1 つ分)まで数えない。
+            let weekly = freeSetupIDs(setup, period: periodKeys(at: date).period)
+            if weekly.all.contains(turnID) { return true }
+            // 前の期間に数えないと決めたターンの続き・送り直しが期間の切り替わりをまたいだ: 今の期間の分を使わずに通す。
+            if periodFreeSetupContains(setup, turnID: turnID) { return true }
+            guard weekly.all.count < UsageRules.weeklyFreeSetupTurns(setup) else { return false }
+            values.set((weekly.own + [turnID]).joined(separator: ","), weekly.ownKey)
             return true
+        }
+    }
+
+    /// どれかの期間の「期間ごとに数えない分」に、このターンの ID があるか(ロックの中で呼ぶ)。iCloud には全期間・全端末の分が集まる。
+    private func periodFreeSetupContains(_ setup: UsageSetup, turnID: String) -> Bool {
+        let prefix: String = Self.freeSetupPrefix + setup.rawValue + ".period."
+        return values.cloud.keys(withPrefix: prefix).contains { key in
+            (values.cloud.string(key) ?? "").split(separator: ",").contains { $0 == turnID }
+        }
+    }
+
+    /// 次に作る単元を利用枠に数えないか(最初の分が残っているか、今の期間の分をまだ使っていない)。作る前の確認に使う。
+    func nextUnitIsFree() -> Bool {
+        let date: Date = now()
+        return lock.withLock {
+            if freeSetupIDs(.unit).all.count < UsageRules.freeSetupTurns(.unit) { return true }
+            return freeSetupIDs(.unit, period: periodKeys(at: date).period).all.count < UsageRules.weeklyFreeSetupTurns(.unit)
         }
     }
 

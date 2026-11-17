@@ -318,6 +318,8 @@ struct WorkbookProposalOverviewDTO: Decodable, Hashable, Sendable {
 
 struct WorkbookProposalDTO: Decodable, Identifiable, Hashable, Sendable {
     enum Status: String, Decodable, Sendable {
+        /// 利用枠に数える単元づくりで、全体像を組む前に確かめている。
+        case confirming
         case generating, ready, started, failed
     }
 

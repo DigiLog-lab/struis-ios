@@ -295,7 +295,8 @@ struct UnitCreationWaitPane: View {
             switch proposal.status {
             case .generating: return .arranging
             case .ready, .started: return proposal.overview == nil ? .ended : .ready(proposal)
-            case .failed: return .ended
+            // 単元づくりの画面は開く前に確かめるので、ここでは確かめない(来ても終わりとして扱う)。
+            case .failed, .confirming: return .ended
             }
         }
     }

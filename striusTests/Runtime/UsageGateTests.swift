@@ -61,8 +61,8 @@ final class UsageGateTests: XCTestCase {
         XCTAssertEqual(meter.snapshot().spentUSD, 0, accuracy: 1e-9)
     }
 
-    /// 単元づくりは 3 回まで数えず、4 回目からは枠に数える。課金されなかった要求は回数を使わない。
-    func testTheFourthUnitIsCounted() {
+    /// 単元づくりは最初の 3 回と、利用枠の期間ごとに 1 回まで数えず、それを超えたら枠に数える。課金されなかった要求は回数を使わない。
+    func testUnitsBeyondTheFirstThreeAndOneAPeriodAreCounted() {
         let meter: UsageMeter = meter(plan: .standard)
         let gate: DeviceUsageGate = gate(meter)
         gate.record(["estimated_cost_usd": NSNull(), "cost_status": "not_billed"], requestBytes: 10, setup: .unit, turnID: "unit-0")
@@ -71,11 +71,96 @@ final class UsageGateTests: XCTestCase {
             gate.record(billed(0.2), requestBytes: 10, setup: .unit, turnID: "unit-\(index)")
         }
         XCTAssertEqual(meter.snapshot().spentUSD, 0, accuracy: 1e-9)
+        XCTAssertTrue(meter.nextUnitIsFree(), "最初の分を使い切っても、今の期間の 1 単元はまだ数えない")
         gate.record(billed(0.2), requestBytes: 10, setup: .unit, turnID: "unit-4")
+        XCTAssertEqual(meter.snapshot().spentUSD, 0, accuracy: 1e-9)
+        XCTAssertFalse(meter.nextUnitIsFree())
+        gate.record(billed(0.2), requestBytes: 10, setup: .unit, turnID: "unit-4")
+        XCTAssertEqual(meter.snapshot().spentUSD, 0, accuracy: 1e-9, "同じターンの送り直しは数を増やさない")
+        gate.record(billed(0.2), requestBytes: 10, setup: .unit, turnID: "unit-5")
         XCTAssertEqual(meter.snapshot().spentUSD, 0.2, accuracy: 1e-9)
         // 種類ごとに数える: 単元づくりを使い切っても、知識グラフの分は残っている。
         gate.record(billed(0.3), requestBytes: 10, setup: .graph, turnID: "graph-1")
         XCTAssertEqual(meter.snapshot().spentUSD, 0.2, accuracy: 1e-9)
+    }
+
+    /// 期間ごとの 1 単元は、次の期間になるとまた数えない。知識グラフも単元 1 つ分(最初の構築)まで数えない。
+    func testTheWeeklyFreeUnitComesBackNextPeriod() {
+        let local = MemoryValueStore(), cloud = MemoryValueStore()
+        let monday = date("2026-11-16T10:00:00+09:00")
+        let first: UsageMeter = meter(plan: .light, local: local, cloud: cloud, now: monday)
+        let firstGate: DeviceUsageGate = gate(first)
+        for index in 1...(UsageRules.freeSetupTurns(.unit) + 1) {
+            firstGate.record(billed(0.05), requestBytes: 10, setup: .unit, turnID: "unit-\(index)")
+        }
+        for index in 1...(UsageRules.freeSetupTurns(.graph) + UsageRules.weeklyFreeSetupTurns(.graph)) {
+            firstGate.record(billed(0.1), requestBytes: 10, setup: .graph, turnID: "graph-\(index)")
+        }
+        XCTAssertEqual(first.snapshot().spentUSD, 0, accuracy: 1e-9, "最初の 4 単元と今週の 1 単元(と、その地図)は数えない")
+        XCTAssertFalse(first.nextUnitIsFree())
+        firstGate.record(billed(0.1), requestBytes: 10, setup: .graph, turnID: "graph-over")
+        XCTAssertEqual(first.snapshot().spentUSD, 0.1, accuracy: 1e-9)
+
+        let nextWeek: UsageMeter = meter(plan: .light, local: local, cloud: cloud, now: monday.addingTimeInterval(7 * 86_400))
+        XCTAssertTrue(nextWeek.nextUnitIsFree(), "次の期間はまた 1 単元を数えない")
+        let nextGate: DeviceUsageGate = gate(nextWeek)
+        nextGate.record(billed(0.05), requestBytes: 10, setup: .unit, turnID: "unit-next")
+        nextGate.record(billed(0.7), requestBytes: 10, setup: .graph, turnID: "graph-next")
+        XCTAssertEqual(nextWeek.snapshot().spentUSD, 0, accuracy: 1e-9)
+        XCTAssertFalse(nextWeek.nextUnitIsFree())
+    }
+
+    /// 今週の分で数えなかった単元づくりのターンが、期間の切り替わりをまたいで続いても、次の期間の分を使わない。
+    func testAWeeklyFreeTurnContinuingIntoTheNextPeriodStaysFree() {
+        let local = MemoryValueStore(), cloud = MemoryValueStore()
+        let monday = date("2026-11-16T10:00:00+09:00")
+        let first: UsageMeter = meter(plan: .light, local: local, cloud: cloud, now: monday)
+        let firstGate: DeviceUsageGate = gate(first)
+        for index in 1...(UsageRules.freeSetupTurns(.unit) + 1) {
+            firstGate.record(billed(0.05), requestBytes: 10, setup: .unit, turnID: "unit-\(index)")
+        }
+        let spanning = "unit-\(UsageRules.freeSetupTurns(.unit) + 1)"
+
+        let nextWeek: UsageMeter = meter(plan: .light, local: local, cloud: cloud, now: monday.addingTimeInterval(7 * 86_400))
+        gate(nextWeek).record(billed(0.05), requestBytes: 10, setup: .unit, turnID: spanning)
+        XCTAssertEqual(nextWeek.snapshot().spentUSD, 0, accuracy: 1e-9, "前の期間に数えないと決めたターンの続き")
+        XCTAssertTrue(nextWeek.nextUnitIsFree(), "続きは次の期間の 1 単元を使わない")
+    }
+
+    /// 単元を作る前の確認: 数えられる単元づくりの時だけ、プランの週の枠に対する割合を見せる。
+    func testUnitCostNoticeShowsTheShareOfTheWeeklyAllowance() {
+        XCTAssertEqual(UnitCostNotice(plan: .light).tenths, 10)
+        XCTAssertEqual(UnitCostNotice(plan: .standard).tenths, 4)
+        XCTAssertEqual(UnitCostNotice(plan: .generous).tenths, 2)
+        XCTAssertTrue(UnitCostNotice(plan: .light).message.contains("ほぼすべて"))
+        XCTAssertTrue(UnitCostNotice(plan: .standard).message.contains("約4割"))
+
+        let meter: UsageMeter = meter(plan: .light)
+        XCTAssertNil(UnitCostNotice.current(meter: meter), "無料の分が残っている間は確かめない")
+        let gate: DeviceUsageGate = gate(meter)
+        for index in 1...(UsageRules.freeSetupTurns(.unit) + 1) {
+            gate.record(billed(0.05), requestBytes: 10, setup: .unit, turnID: "unit-\(index)")
+        }
+        XCTAssertEqual(UnitCostNotice.current(meter: meter)?.tenths, 10)
+        XCTAssertNil(UnitCostNotice.current(meter: self.meter(plan: nil)), "お試しの間は出さない")
+    }
+
+    @MainActor
+    func testCreatingACountedUnitWaitsForTheConfirmation() {
+        let coordinator = WorkbookCoordinator()
+        coordinator.createUnit(notice: UnitCostNotice(tenths: 4))
+        XCTAssertNil(coordinator.question, "確かめる前に単元づくりの画面を出さない")
+        XCTAssertEqual(coordinator.unitCostNotice?.tenths, 4)
+        coordinator.cancelUnitCreation()
+        XCTAssertNil(coordinator.unitCostNotice)
+        XCTAssertNil(coordinator.question)
+        coordinator.createUnit(notice: UnitCostNotice(tenths: 4))
+        coordinator.confirmUnitCreation()
+        XCTAssertNil(coordinator.unitCostNotice)
+        XCTAssertEqual(coordinator.question, .createUnit)
+        coordinator.question = nil
+        coordinator.createUnit(notice: nil)
+        XCTAssertEqual(coordinator.question, .createUnit, "数えない単元づくりは確かめずに始める")
     }
 
     /// 数えなかったターンの記録は、入れ直しても(Keychain)、別の端末でも(iCloud)残る。

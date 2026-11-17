@@ -69,10 +69,83 @@ final class WorkbookCoordinator {
         question = context
     }
 
+    /// 単元を作る前の確認(今の期間の無料の単元づくりを使い終えた時だけ出す)。
+    var unitCostNotice: UnitCostNotice?
+    private var pendingUnitAttachments: [ComposerAttachment] = []
+
     /// 単元づくり(オンボーディングの「最初の単元を作る」とホームの「単元を作る」は同じ入口)。
-    func createUnit(attachments: [ComposerAttachment] = []) {
+    /// 利用枠に数える単元づくりなら、先に費用の目安を見せて確かめる(`UnitCostNotice`)。
+    func createUnit(attachments: [ComposerAttachment] = [], notice: UnitCostNotice? = UnitCostNotice.current()) {
+        if let notice {
+            pendingUnitAttachments = attachments
+            unitCostNotice = notice
+            return
+        }
+        startUnitCreation(attachments)
+    }
+
+    /// 確認で「作る」を選んだ。
+    func confirmUnitCreation() {
+        let attachments = pendingUnitAttachments
+        pendingUnitAttachments = []
+        unitCostNotice = nil
+        startUnitCreation(attachments)
+    }
+
+    /// 確認で「やめる」を選んだ。
+    func cancelUnitCreation() {
+        pendingUnitAttachments = []
+        unitCostNotice = nil
+    }
+
+    private func startUnitCreation(_ attachments: [ComposerAttachment]) {
         unitCreationAttachments = attachments
         question = .createUnit
+    }
+}
+
+/// 単元を作る前に見せる費用の目安(2026-11-17)。最初の 4 単元と、利用枠の期間ごとの 1 単元は数えない(`UsageRules.weeklyFreeSetupTurns`)。
+/// それを超えた単元づくりは、単元の地図づくり(上位モデル)の分だけ利用枠を大きく使うので、黙って使わずに確かめる。
+nonisolated struct UnitCostNotice: Equatable, Identifiable, Sendable {
+    /// 今週の利用枠のうち、この単元づくりで使う割合(1〜10 割)。
+    var tenths: Int
+    var id: Int { tenths }
+
+    var title: String { "今週の無料の単元づくりは使い終わりました" }
+    var message: String {
+        let share = tenths >= 10 ? "今週の利用枠をほぼすべて使います" : "今週の利用枠の約\(tenths)割を使います"
+        return "新しい単元を作ると、単元の地図づくりの分で\(share)。"
+    }
+
+    /// プランがあり、次の単元が利用枠に数えられる時だけ返す(お試しの間は最初の分で足りるので出さない)。
+    static func current(meter: UsageMeter = .shared) -> UnitCostNotice? {
+        #if DEBUG
+        // 画面の確認用: `STRUIS_UNIT_COST_NOTICE=1` で、無料の分が残っていても確かめる。
+        if ProcessInfo.processInfo.environment["STRUIS_UNIT_COST_NOTICE"] == "1", let plan = meter.snapshot().plan { return UnitCostNotice(plan: plan) }
+        #endif
+        guard let plan = meter.snapshot().plan, !meter.nextUnitIsFree() else { return nil }
+        return UnitCostNotice(plan: plan)
+    }
+
+    init(tenths: Int) { self.tenths = tenths }
+
+    init(plan: UsagePlan) {
+        let share = UsageRules.unitCreationUSD / plan.weeklyLimitUSD
+        tenths = min(10, max(1, Int((share * 10).rounded())))
+    }
+}
+
+extension View {
+    /// 単元を作る前の確認(`WorkbookCoordinator.unitCostNotice`)。単元づくりの画面を出す所に付ける。
+    func unitCostConfirmation(_ coordinator: WorkbookCoordinator, isActive: Bool = true) -> some View {
+        alert(coordinator.unitCostNotice?.title ?? "",
+              isPresented: Binding(get: { isActive && coordinator.unitCostNotice != nil }, set: { if !$0 { coordinator.cancelUnitCreation() } }),
+              presenting: coordinator.unitCostNotice) { _ in
+            Button("やめる", role: .cancel) { coordinator.cancelUnitCreation() }
+            Button("作る") { coordinator.confirmUnitCreation() }
+        } message: { notice in
+            Text(notice.message)
+        }
     }
 }
 
@@ -193,6 +266,7 @@ struct WorkbookHomeView: View {
         .sheet(item: $coordinator.question) { context in
             WorkbookQuestionScreen(context: context)
         }
+        .unitCostConfirmation(coordinator)
         .fullScreenCover(item: $coordinator.pendingPages) { _ in
             WorkbookCaptureFlow {
                 coordinator.pendingPages = nil

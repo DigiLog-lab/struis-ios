@@ -21,6 +21,37 @@ struct WorkbookProposalCard: View {
         VStack(alignment: .leading, spacing: 10) {
             if let proposal {
                 switch proposal.status {
+                case .confirming:
+                    // 利用枠に数える単元づくり: 全体像を組む前に費用の目安を見せて確かめる(質問の会話から頼まれた時)。
+                    let notice = UnitCostNotice.current()
+                    Text(notice?.title ?? "この単元を作りますか？")
+                        .font(Typography.bodyEmphasized)
+                    if let notice {
+                        Text(notice.message)
+                            .font(Typography.caption)
+                            .foregroundStyle(Theme.secondaryText)
+                    }
+                    HStack(spacing: 10) {
+                        Button {
+                            guard !isStarting else { return }
+                            isStarting = true
+                            Task { await store.declineProposal(id: proposal.id); isStarting = false }
+                        } label: {
+                            Text("やめる").frame(maxWidth: .infinity).padding(.vertical, 6)
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("workbook-proposal-decline")
+                        Button {
+                            guard !isStarting else { return }
+                            isStarting = true
+                            Task { await store.confirmProposal(id: proposal.id); isStarting = false }
+                        } label: {
+                            Text("作る").font(Typography.bodyEmphasized).frame(maxWidth: .infinity).padding(.vertical, 6)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("workbook-proposal-confirm")
+                    }
+                    .disabled(isStarting)
                 case .generating:
                     HStack(spacing: 8) {
                         // W10: 読み込みのアイコンはアプリアイコン。

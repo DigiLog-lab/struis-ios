@@ -491,4 +491,23 @@ final class WorkbookRulesTests: XCTestCase {
         _ = TurnApplier.grading(machine: &machine, captureID: "cap-bad", outcome: ok, context: .init(scope: .emptyObject, subunits: []))
         XCTAssertEqual(machine.captures["cap-bad"]?.error, TurnApplier.gradingFailure)
     }
+
+    /// 利用枠に数える単元づくり(質問の会話から): 全体像を組む前に確かめ、「作る」で組み始め、「やめる」で終える。
+    func testACountedProposalWaitsForTheConfirmation() throws {
+        var machine = machine()
+        let confirmed = machine.insertProposal(request: "二次関数", threadID: nil, messageID: nil, awaitingConfirmation: true)
+        XCTAssertEqual(try machine.proposalView(id: confirmed).status, .confirming)
+        let failed = TurnOutcome(planID: "p", round: 1, status: .failed, codexThreadID: nil, codexTurnID: nil, finalText: "", executions: [], rateLimits: nil, files: [], error: "x", elapsedMs: 1)
+        TurnApplier.unit(machine: &machine, proposalID: confirmed, outcome: failed)
+        XCTAssertEqual(machine.proposals[confirmed]?.status, "confirming", "確かめる前の提案には、組んだ結果を書かない")
+        XCTAssertTrue(machine.confirmProposal(id: confirmed))
+        XCTAssertEqual(try machine.proposalView(id: confirmed).status, .generating)
+        XCTAssertFalse(machine.confirmProposal(id: confirmed), "2 回目の「作る」で組み直さない")
+
+        let declined = machine.insertProposal(request: "三角比", threadID: nil, messageID: nil, awaitingConfirmation: true)
+        machine.declineProposal(id: declined)
+        XCTAssertEqual(try machine.proposalView(id: declined).status, .failed)
+        XCTAssertEqual(machine.proposals[declined]?.error, WorkbookMachine.declinedProposal)
+        XCTAssertFalse(machine.confirmProposal(id: declined))
+    }
 }

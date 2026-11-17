@@ -255,6 +255,8 @@ struct AppRootView: View {
                     .sheet(item: Binding(get: { isUnitsPresented || sideQuestion != nil ? nil : coordinator.question }, set: { coordinator.question = $0 })) { context in
                         WorkbookQuestionScreen(context: context)
                     }
+                    // 単元を作る前の確認。単元ホームを重ねている間は、単元ホームが出す。
+                    .unitCostConfirmation(coordinator, isActive: !isUnitsPresented)
                     // 単元づくりの「はじめる」など、単元ホームの中の画面へ移る時は、単元ホームを重ねてから移る。
                     .onChange(of: coordinator.path) { _, path in
                         guard !path.isEmpty, !isUnitsPresented else { return }

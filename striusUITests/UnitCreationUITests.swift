@@ -15,6 +15,50 @@ final class UnitCreationUITests: XCTestCase {
         return app
     }
 
+    /// 利用枠に数える単元づくりは、作る前に今週の枠を使う割合を見せて確かめる(2026-11-17)。
+    @MainActor
+    func testACountedUnitAsksBeforeStarting() throws {
+        let app = app()
+        app.launchEnvironment["STRUIS_UNIT_COST_NOTICE"] = "1"
+        app.launch()
+        let create = app.buttons["workbook-create-unit"].firstMatch
+        XCTAssertTrue(create.appears(timeout: 30), "単元を作るボタンが無い")
+        create.tap()
+        let alert = app.alerts["今週の無料の単元づくりは使い終わりました"].firstMatch
+        XCTAssertTrue(alert.appears(timeout: 5), "確かめずに単元づくりを始めた")
+        XCTAssertTrue(alert.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "今週の利用枠をほぼすべて使います")).firstMatch.exists, "ライトの割合が出ていない")
+        UITestSupport.saveProbe(app, name: "unit-cost-notice")
+        alert.buttons["やめる"].tap()
+        XCTAssertFalse(app.buttons["onboarding-intent-range"].firstMatch.appears(timeout: 2), "やめても単元づくりが始まった")
+        create.tap()
+        app.alerts.firstMatch.buttons["作る"].tap()
+        XCTAssertTrue(app.buttons["onboarding-intent-range"].firstMatch.appears(timeout: 10), "作るを選んでも単元づくりが始まらない")
+    }
+
+    /// 質問の会話から単元を頼んだ時も、利用枠に数えるなら全体像を組む前にカードで確かめる(Codex の指摘、#161)。
+    @MainActor
+    func testACountedUnitFromAQuestionAsksBeforeBuilding() throws {
+        let app = app()
+        app.launchEnvironment["STRUIS_UNIT_COST_NOTICE"] = "1"
+        app.launch()
+        guard app.openQuestionSheet() else { return }
+        let field = app.textViews.matching(identifier: "chat-page").firstMatch
+        field.tap()
+        field.typeText("二次関数を一から学びたい")
+        let send = app.buttons.matching(NSPredicate(format: "label == %@", "送信")).allElementsBoundByIndex.first { $0.isHittable && $0.frame.minX >= 0 }
+        XCTAssertNotNil(send, "表示中の送信ボタンが無い")
+        send?.tap()
+        let confirm = app.buttons["workbook-proposal-confirm"].firstMatch
+        if !confirm.appears(timeout: 60) { UITestSupport.saveProbe(app, name: "unit-cost-card-missing") }
+        XCTAssertTrue(confirm.exists, "確かめずに全体像を組み始めた")
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "今週の利用枠をほぼすべて使います")).firstMatch.exists, "ライトの割合が出ていない")
+        XCTAssertFalse(app.buttons["workbook-proposal-start"].firstMatch.exists, "確かめる前に全体像ができている")
+        UITestSupport.saveProbe(app, name: "unit-cost-card")
+        confirm.tap()
+        XCTAssertTrue(app.buttons["workbook-proposal-start"].firstMatch.appears(timeout: 60), "作るを押しても全体像ができない")
+        UITestSupport.saveProbe(app, name: "unit-cost-card-confirmed")
+    }
+
     @MainActor
     func testChoosingAUnitAndDeadlineCreatesTheUnitAndOpensIt() throws {
         let app = app()
