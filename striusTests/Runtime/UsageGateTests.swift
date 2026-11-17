@@ -259,12 +259,12 @@ final class UsageGateTests: XCTestCase {
     func testPlansFollowTheDecidedTable() {
         XCTAssertEqual(UsagePlan.allCases.map(\.yen), [1_480, 3_980, 9_800])
         XCTAssertEqual(UsagePlan.allCases.map(\.weeklyLimitUSD), [0.80, 2.00, 4.80])
-        XCTAssertEqual(UsagePlan.allCases.map(\.weeklyProblems), [12, 30, 75])
+        XCTAssertEqual(UsagePlan.allCases.map(\.weeklyProblems), [42, 106, 256])
         XCTAssertEqual(UsagePlan.allCases.map(\.groupLevel), [3, 2, 1], "たっぷり 1・スタンダード 2・ライト 3")
         XCTAssertEqual(UsagePlan.light.upgrade, .standard)
         XCTAssertEqual(UsagePlan.standard.upgrade, .generous)
         XCTAssertNil(UsagePlan.generous.upgrade)
-        // 購入画面の目安(表の値)は、1 問 ¥10 で割った数を超えない。
+        // 購入画面の目安(表の値)は、1 問 ¥3 で割った数を超えない。
         for plan in UsagePlan.allCases {
             XCTAssertLessThanOrEqual(Double(plan.weeklyProblems), plan.weeklyLimitUSD / UsageRules.problemUSD, plan.displayName)
         }
@@ -349,15 +349,15 @@ final class UsageGateTests: XCTestCase {
         meter.add(0.336)
         let snapshot = meter.snapshot()
         XCTAssertEqual(snapshot.percent, 42)
-        XCTAssertEqual(snapshot.remainingProblems, 7, "(0.80 - 0.336) ÷ (10/160) = 7.4 → 7")
+        XCTAssertEqual(snapshot.remainingProblems, 24, "(0.80 - 0.336) ÷ (3/160) = 24.7 → 24")
         XCTAssertFalse(snapshot.isExhausted)
         XCTAssertEqual(UsageStatus.resetText(snapshot.resetsAt), "11月2日（月）0:00")
     }
 
     func testRemainingProblemsNeverExceedThePlansWeeklyProblems() {
-        // スタンダードの上限 $2.00 を 1 問 $0.0625 で割ると 32 問だが、購入画面の「週 約30問」を超えて見せない。
-        let meter = meter(plan: .standard, now: date("2026-10-31T09:00:00+09:00"))
-        XCTAssertEqual(meter.snapshot().remainingProblems, 30)
+        // ライトの上限 $0.80 を 1 問 $0.01875 で割ると 42.7 問。購入画面の「週 約42問」を超えて見せない(切り下げで同じ数になる)。
+        let meter = meter(plan: .light, now: date("2026-10-31T09:00:00+09:00"))
+        XCTAssertEqual(meter.snapshot().remainingProblems, 42)
     }
 
     func testNewWorkStopsAtTheLimitAndOnlyTheGradingOfTheAnswerInProgressUsesTheGrace() {

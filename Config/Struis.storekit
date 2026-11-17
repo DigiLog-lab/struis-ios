@@ -45,7 +45,7 @@
           },
           "localizations": [
             {
-              "description": "1週間に約12問が目安",
+              "description": "1週間に約42問が目安",
               "displayName": "ライト",
               "locale": "ja"
             }
@@ -67,7 +67,7 @@
           "introductoryOffer": null,
           "localizations": [
             {
-              "description": "ライトの2.5倍・1週間に約30問が目安",
+              "description": "ライトの2.5倍・1週間に約106問が目安",
               "displayName": "スタンダード",
               "locale": "ja"
             }
@@ -89,7 +89,7 @@
           "introductoryOffer": null,
           "localizations": [
             {
-              "description": "ライトの6倍・1週間に約75問が目安",
+              "description": "ライトの6倍・1週間に約256問が目安",
               "displayName": "たっぷり",
               "locale": "ja"
             }

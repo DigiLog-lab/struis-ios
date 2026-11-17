@@ -4,7 +4,7 @@ import OSLog
 nonisolated private let usageLog = Logger(subsystem: "com.digiloglab.strius", category: "usage")
 
 /// 料金プラン(#62、2026-10-30 決定)。プラン間で機能の差はつけず、1 週間に使える Claude 代だけが違う。
-/// 上限は内部的に 7 日ごとのドルで持つ(Claude 代は手取りの 50% 以内、1 ドル 160 円)。7 日は課金した時刻から数える。問題数は 1 問 ¥10 で割って切り下げた目安。
+/// 上限は内部的に 7 日ごとのドルで持つ(Claude 代は手取りの 50% 以内、1 ドル 160 円)。7 日は課金した時刻から数える。問題数は 1 問 ¥3 で割って切り下げた目安(2026-11-17。Sonnet の書き写し＋Haiku の採点で実測 1 問約 ¥1.9、単元の地図づくりや質問も同じ枠から引くので多めに見る。前は Sonnet の採点で ¥10)。
 nonisolated enum UsagePlan: String, CaseIterable, Codable, Sendable {
     case light, standard, generous
 
@@ -47,9 +47,9 @@ nonisolated enum UsagePlan: String, CaseIterable, Codable, Sendable {
     /// 週の目安の問題数。
     var weeklyProblems: Int {
         switch self {
-        case .light: 12
-        case .standard: 30
-        case .generous: 75
+        case .light: 42
+        case .standard: 106
+        case .generous: 256
         }
     }
 
@@ -103,8 +103,8 @@ nonisolated enum UsageSetup: String, Codable, Sendable, CaseIterable {
 
 /// 利用枠の決まり(#62)。
 nonisolated enum UsageRules {
-    /// 1 問の目安(¥10)を USD にしたもの(1 ドル 160 円)。
-    static let problemUSD = 10.0 / 160.0
+    /// 1 問の目安(¥3)を USD にしたもの(1 ドル 160 円)。
+    static let problemUSD = 3.0 / 160.0
     /// ソフトリミット: 上限に達しても、解いている途中のカード 1 枚分は採点まで通す。
     static let graceUSD = 0.07
     /// 購入する前(プランなし)の枠。お試しの 3 問の採点だけを通す(何問解いたかはアプリが Keychain で数える)。
@@ -296,7 +296,7 @@ nonisolated struct UsageSnapshot: Equatable, Sendable, Identifiable {
     var fraction: Double { limitUSD > 0 ? min(1, max(0, spentUSD / limitUSD)) : 1 }
     var percent: Int { Int((fraction * 100).rounded(.down)) }
     var isExhausted: Bool { spentUSD >= limitUSD }
-    /// 残りの目安の問題数(1 問 ¥10 で割って切り下げ)。購入画面の「週 約○問」を超えて見せない。
+    /// 残りの目安の問題数(1 問 ¥3 で割って切り下げ)。購入画面の「週 約○問」を超えて見せない。
     var remainingProblems: Int {
         let remaining: Int = max(0, Int(((limitUSD - spentUSD) / UsageRules.problemUSD).rounded(.down)))
         guard let plan else { return remaining }
