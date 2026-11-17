@@ -1,9 +1,20 @@
 {
   "type": "object",
   "properties": {
-    "readable": {"type": "boolean"},
-    "learner_answer": {"type": "string"}
+    "readable": {
+      "type": "boolean"
+    },
+    "learner_answer": {
+      "type": "string"
+    },
+    "transcript": {
+      "type": "string"
+    }
   },
-  "required": ["readable", "learner_answer"],
+  "required": [
+    "readable",
+    "learner_answer",
+    "transcript"
+  ],
   "additionalProperties": false
 }

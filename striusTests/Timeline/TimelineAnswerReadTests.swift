@@ -23,8 +23,8 @@ final class TimelineAnswerReadTests: XCTestCase {
         return card
     }
 
-    private func reply(readable: Bool = true, _ answer: String) -> String {
-        String(decoding: try! JSONSerialization.data(withJSONObject: ["readable": readable, "learner_answer": answer]), as: UTF8.self)
+    private func reply(readable: Bool = true, _ answer: String, transcript: String = "") -> String {
+        String(decoding: try! JSONSerialization.data(withJSONObject: ["readable": readable, "learner_answer": answer, "transcript": transcript]), as: UTF8.self)
     }
 
     private func outcome(_ text: String, status: TurnOutcome.Status = .completed) -> TurnOutcome {
@@ -56,12 +56,15 @@ final class TimelineAnswerReadTests: XCTestCase {
 
     // MARK: どのターンから始めるか
 
-    func testOnlySolveCardsWithAnAnswerExpressionStartWithTheAnswerRead() {
-        XCTAssertEqual(TimelineTurns.firstGradingKind(for: Self.keyedCard("a")), .timelineAnswer)
-        XCTAssertEqual(TimelineTurns.firstGradingKind(for: F.card("b")), .timelineGrading, "正しい答えの式が無ければ照合できない")
+    func testEveryPhotoAnswerStartsWithTheReadAndOnlyKeyedSolveCardsCanMatch() {
         var fill = Self.keyedCard("c")
         fill.kind = TimelineCards.Kind.fillLine.rawValue
-        XCTAssertEqual(TimelineTurns.firstGradingKind(for: fill), .timelineGrading)
+        for card in [Self.keyedCard("a"), F.card("b"), fill] {
+            XCTAssertEqual(TimelineTurns.firstGradingKind(for: card), .timelineAnswer, "字は先に Sonnet が書き写す(\(card.id))")
+        }
+        XCTAssertTrue(TimelineTurns.answerCanMatch(Self.keyedCard("a")))
+        XCTAssertFalse(TimelineTurns.answerCanMatch(F.card("b")), "正しい答えの式が無ければ照合できない")
+        XCTAssertFalse(TimelineTurns.answerCanMatch(fill))
     }
 
     func testTheRequestDoesNotCarryTheAnswer() {
@@ -105,6 +108,47 @@ final class TimelineAnswerReadTests: XCTestCase {
         XCTAssertEqual(followUp.grading, id)
         let verdict = try await attempt(ledger, id)?.verdict
         XCTAssertEqual(verdict, "grading", "× はいつもの採点が決める(読み違い・正しい答えの誤りがあり得る)")
+    }
+
+    func testAReadThatDoesNotMatchLeavesItsTranscriptForTheGrading() async throws {
+        let (ledger, id) = try await capturedLedger()
+        let followUp = try await apply(ledger, id, outcome(reply("5", transcript: "y = 2(x-2)^2 + 5\n最小値 5")))
+        XCTAssertEqual(followUp.grading, id)
+        let stored = try await attempt(ledger, id)
+        let row = try XCTUnwrap(stored)
+        XCTAssertEqual(row.verdict, "grading")
+        XCTAssertEqual(row.transcript, "y = 2(x-2)^2 + 5\n最小値 5")
+        XCTAssertEqual(row.learnerAnswer, "5")
+        XCTAssertTrue(TimelineTurns.usesReaderTranscript(row))
+    }
+
+    func testAnUnreadableReadLeavesNoTranscript() async throws {
+        let (ledger, id) = try await capturedLedger()
+        _ = try await apply(ledger, id, outcome(reply(readable: false, "", transcript: "?")))
+        let stored = try await attempt(ledger, id)
+        let row = try XCTUnwrap(stored)
+        XCTAssertFalse(TimelineTurns.usesReaderTranscript(row), "読めなかった答案は、今までどおり画像で採点する")
+    }
+
+    func testTheGradingReadsTheTranscriptAndKeepsThePhotoOnlyForTheRedPen() async throws {
+        for (path, images) in [("timeline-p.jpg", 0), (TimelineTurns.inkCapturePrefix + "p.jpg", 1)] {
+            let ledger = try Ledger.inMemory()
+            let (workbook, timeline, id): (WorkbookMachine, TimelineMachine, String) = try await ledger.commit { db in
+                var timeline = try TimelineMachine(loading: db)
+                timeline.put("test", Self.keyedCard("c1"))
+                let id = timeline.recordCapture(cardID: "c1", capturePath: path, seconds: 12, assisted: false)
+                var attempt = try XCTUnwrap(timeline.attempts[id])
+                attempt.transcript = "3.0\\times10^{-2}"
+                attempt.learnerAnswer = "3.0\\times10^{-2}"
+                timeline.put("test", attempt)
+                return (timeline.events, (try WorkbookMachine(loading: db), timeline, id))
+            }
+            let plan = try await TimelineTurns.grading(composer: TurnComposer(assets: AssetCache()), planID: "g", attemptID: id, workbook: workbook, timeline: timeline)
+            let turn = try XCTUnwrap(plan.turn)
+            XCTAssertEqual(turn.images.count, images, path)
+            XCTAssertTrue(turn.text.contains("\"reader\""), path)
+            XCTAssertTrue(turn.text.contains("字は、別の先生が先に書き写しました"), path)
+        }
     }
 
     func testUnreadableUnparsableOrFailedReadsGoToTheUsualGrading() async throws {
@@ -155,6 +199,7 @@ final class TimelineAnswerReadTests: XCTestCase {
         let plan = try await TimelineTurns.answer(composer: TurnComposer(assets: AssetCache()), planID: "p1", attemptID: attemptID, timeline: timeline)
         XCTAssertEqual(plan.kind, .timelineAnswer)
         XCTAssertEqual(plan.thread.effort, "low")
+        XCTAssertEqual(plan.thread.model, TimelineModels.readerModel, "字の書き写しは設定のモデルにかかわらず Sonnet")
         XCTAssertNil(plan.thread.developerInstructions)
         let turn = try XCTUnwrap(plan.turn)
         XCTAssertFalse(turn.text.contains("frac{7}{13}") || turn.text.contains("7/13") || turn.text.contains("answer_key"), "正しい答えを依頼に入れない")

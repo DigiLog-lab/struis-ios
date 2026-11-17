@@ -392,13 +392,24 @@ nonisolated enum TimelineTurns {
         if TimelinePlanMode.isOn {
             schema = TimelinePlanMode.withEscalation(schema)
         }
+        // 読み取りの書き写しがあれば、それを答案として採点させる。画像は赤ペンの場所を決める書く面の答案にだけ付ける。
+        var materials = gradingRequest(attempt: attempt, card: card)
+        var images = [image]
+        if usesReaderTranscript(attempt) {
+            task = task.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + (try await composer.assets.text("prompt:timeline_grading_from_reader"))
+            if case .object(var fields) = materials {
+                fields["reader"] = .object(["transcript": .string(attempt.transcript ?? ""), "learner_answer": .string(attempt.learnerAnswer)])
+                materials = .object(fields)
+            }
+            if !isInkCapture(path) { images = [] }
+        }
         return TurnPlan(
             id: planID, kind: .timelineGrading, round: repair == nil ? 1 : 2,
             thread: TimelinePlanMode.isOn
                 ? try await sessionThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline)
                 : try await tutorThread(composer: composer, planID: planID, workbook: workbook, timeline: timeline),
-            turn: TurnPlan.TurnSpec(text: turnText(task: task, materials: gradingRequest(attempt: attempt, card: card), repair: repair),
-                                    images: [image], outputSchema: schema, sandboxPolicy: "dangerFullAccess"),
+            turn: TurnPlan.TurnSpec(text: turnText(task: task, materials: materials, repair: repair),
+                                    images: images, outputSchema: schema, sandboxPolicy: "dangerFullAccess"),
             workspace: workspace, delegation: nil, collect: [], limits: .structured
         )
     }
@@ -408,27 +419,43 @@ nonisolated enum TimelineTurns {
     /// 答えの読み取りで ○ にした答案のメモ(今日の記録に載り、見直し・出題が読む)。
     static let answerOnlyNote = "最後の答えを正しい答えの式と照合して ○ にしました。途中の行は読んでいません。"
 
-    /// 写真の答案を最初に回すターン: 正しい答えの式があるふつうの問題は答えの読み取り、それ以外はいつもの採点。
+    /// 写真の答案を最初に回すターン: いつも答えの読み取り(Sonnet が字を書き写す)。正しい答えの式があるふつうの問題は、
+    /// 最後の答えが一致すればそこで ○。それ以外は書き写しを付けて採点に回す(2026-11-17)。
     static func firstGradingKind(for card: TimelineCardRecord) -> TurnPlan.Kind {
-        card.kind == TimelineCards.Kind.solve.rawValue && !card.answerExpr.isEmpty ? .timelineAnswer : .timelineGrading
+        .timelineAnswer
+    }
+
+    /// 答えの読み取りで ○ にできるカード(正しい答えの式があるふつうの問題)。
+    static func answerCanMatch(_ card: TimelineCardRecord) -> Bool {
+        card.kind == TimelineCards.Kind.solve.rawValue && !card.answerExpr.isEmpty
+    }
+
+    /// 読み取りの書き写しを採点に渡すか: 読めた答案で、書き写しがある時。読めなかった答案は今までどおり画像で採点する。
+    static func usesReaderTranscript(_ attempt: TimelineAttemptRecord) -> Bool {
+        !(attempt.transcript ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// 答えの読み取りの返事。
     nonisolated struct AnswerRead: Codable, Sendable {
         var readable: Bool
         var learnerAnswer: String
+        /// 答案の行の書き写し(採点のターンに画像の代わりに渡す)。
+        var transcript: String = ""
         enum CodingKeys: String, CodingKey {
             case readable
             case learnerAnswer = "learner_answer"
+            case transcript
         }
-        init(readable: Bool, learnerAnswer: String) {
+        init(readable: Bool, learnerAnswer: String, transcript: String = "") {
             self.readable = readable
             self.learnerAnswer = learnerAnswer
+            self.transcript = transcript
         }
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             readable = try c.decodeIfPresent(Bool.self, forKey: .readable) ?? false
             learnerAnswer = try c.decodeIfPresent(String.self, forKey: .learnerAnswer) ?? ""
+            transcript = try c.decodeIfPresent(String.self, forKey: .transcript) ?? ""
         }
         static func parse(_ text: String) throws -> AnswerRead {
             try TimelineReply.decode(AnswerRead.self, from: text)
@@ -455,7 +482,7 @@ nonisolated enum TimelineTurns {
         let model = await composer.assets.model(TimelineModels.role)
         let effort = "low"
         let thread = TurnPlan.ThreadSpec(
-            codexThreadID: nil, mode: .start, cwd: TurnPlan.guestWorkspace(id: planID), model: model.model, effort: effort,
+            codexThreadID: nil, mode: .start, cwd: TurnPlan.guestWorkspace(id: planID), model: TimelineModels.readerModel, effort: effort,
             ephemeral: true, baseInstructions: try await composer.assets.ref("prompt:timeline_answer_instructions"), developerInstructions: nil,
             developerText: "Answer only with one JSON object matching the supplied output schema.",
             injectDeveloperOnResume: false, config: TurnComposer.structuredConfig(effort: effort), lastTurnID: nil,
@@ -805,8 +832,16 @@ nonisolated enum TimelineTurns {
             // (字が読めない・答えが違う・式として比べられないの判断は、いつもの採点に任せる)。見直しは頼まない: 途中を疑うのは、
             // 同じスキルで × が出て、その採点の後の見直しが手順の誤りを見つけた時だけ(timeline_shared.md「起こり得ること」)。
             guard let attempt = timeline.attempts[targetID], attempt.verdict == "grading", let card = timeline.cards[attempt.cardId] else { return ([], followUp) }
-            guard outcome.status == .completed, let read = try? AnswerRead.parse(outcome.finalText), answerMatches(read, card: card) else {
+            let read: AnswerRead? = outcome.status == .completed ? try? AnswerRead.parse(outcome.finalText) : nil
+            guard let read, answerCanMatch(card), answerMatches(read, card: card) else {
                 if outcome.status != .completed { timelineTurnLog.error("timeline answer failed: \(outcome.error ?? "-", privacy: .public)") }
+                // 読めた書き写しは答案に残し、採点は画像の代わりにそれを読む(Haiku の手書きの読み違いを避ける)。
+                if let read, read.readable, !read.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    var stored = attempt
+                    stored.transcript = read.transcript
+                    stored.learnerAnswer = read.learnerAnswer
+                    timeline.put("timeline.attempt_read", stored)
+                }
                 followUp.grading = targetID
                 break
             }
