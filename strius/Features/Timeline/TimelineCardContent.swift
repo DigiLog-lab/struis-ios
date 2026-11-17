@@ -5,6 +5,8 @@ struct TimelineProblemView: View {
     let card: TimelineCardRecord
     let store: TimelineStore
     var compact = false
+    /// iPhone で自分で丸付けするカード(撮らずに、解いたら答えを見る)。
+    var selfGrades = false
 
     private var chain: (position: Int, total: Int)? { TimelineRules.chainPosition(card) }
 
@@ -52,7 +54,7 @@ struct TimelineProblemView: View {
             }
             if !compact, card.kind == "solve" {
                 if card.level >= 3, card.skills.count > 1 { TimelineProcedureList(card: card, store: store) }
-                Label(card.level <= 1 || card.origin == "rapid" ? "答えだけでOK" : (card.level >= 3 ? "途中まででOK" : "書いて撮る"), systemImage: TimelineSymbol.pencil)
+                Label(selfGrades ? "解いたら答えを見る" : (card.level <= 1 || card.origin == "rapid" ? "答えだけでOK" : (card.level >= 3 ? "途中まででOK" : "書いて撮る")), systemImage: TimelineSymbol.pencil)
                     .font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText)
             }
         }

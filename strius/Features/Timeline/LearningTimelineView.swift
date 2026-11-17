@@ -225,7 +225,6 @@ struct LearningTimelineView: View {
             }
         }
         .onChange(of: store.currentID) { _, _ in
-            store.isAnswerRevealed = false
             clearInk()
             problemScroll.scrollTo(edge: .top)
         }
@@ -655,7 +654,7 @@ struct LearningTimelineView: View {
     /// 解いている間の問題の列。
     private func solvingCard(_ card: TimelineCardRecord) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            TimelineProblemView(card: card, store: store)
+            TimelineProblemView(card: card, store: store, selfGrades: !layout.isPad && store.canSelfGrade(card))
             if !layout.isPad, store.isAnswerRevealed, store.canSelfGrade(card) {
                 TimelineAnswerCard(text: store.answerText(card))
                     .padding(.top, 10)

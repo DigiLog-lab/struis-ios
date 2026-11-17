@@ -562,6 +562,7 @@ final class TimelineStore {
             return
         }
         if card.origin != "rapid" || phase != .rapidDone { if badge != nil, currentID != nil, currentID != id { badge = nil } }
+        if currentID != id { isAnswerRevealed = false }
         currentID = id
         lastAttemptID = nil
         decided = nil
