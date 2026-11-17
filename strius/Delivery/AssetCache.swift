@@ -114,6 +114,7 @@ nonisolated struct BundledAssets: Sendable {
         // 書く面の答案の採点に足す赤ペンの節と、採点の形に足す `marks`。
         "prompt:timeline_grading_red_pen": "timeline_grading_red_pen.md",
         "prompt:timeline_answer_instructions": "timeline_answer_instructions.md",
+        "prompt:timeline_grading_from_reader": "timeline_grading_from_reader.md",
         // 新しい形(`TimelinePlanMode`)の、上位モデルが書く学習の計画。
         "prompt:timeline_plan_instructions": "timeline_plan_instructions.md",
         "prompt:timeline_session_escalate": "timeline_session_escalate.md",
@@ -160,6 +161,10 @@ nonisolated enum TimelineModels {
     static let role = "timeline"
     /// 知識グラフを作る・見直す上位モデル。
     static let graphRole = "timeline_graph"
+    /// 答案の字を書き写すモデル(答えの読み取り)。設定のタイムラインのモデルにかかわらず Sonnet: Haiku は手書きの読み違いが
+    /// 多く(2026-11-17、書き出した台帳の答案 109 枚で比べた。正解の答案を途中式の読み違いで × や △ にした)、採点は
+    /// Haiku のままで、Sonnet の書き写しを画像の代わりに渡す。
+    static let readerModel = "claude-sonnet-5-5"
 
     static func fallback(role: String) -> TurnModel? {
         switch role {
