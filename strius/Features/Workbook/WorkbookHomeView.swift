@@ -119,6 +119,10 @@ struct UnitCostNotice: Equatable, Identifiable {
 
     /// プランがあり、次の単元が利用枠に数えられる時だけ返す(お試しの間は最初の分で足りるので出さない)。
     static func current(meter: UsageMeter = .shared) -> UnitCostNotice? {
+        #if DEBUG
+        // 画面の確認用: `STRUIS_UNIT_COST_NOTICE=1` で、無料の分が残っていても確かめる。
+        if ProcessInfo.processInfo.environment["STRUIS_UNIT_COST_NOTICE"] == "1", let plan = meter.snapshot().plan { return UnitCostNotice(plan: plan) }
+        #endif
         guard let plan = meter.snapshot().plan, !meter.nextUnitIsFree() else { return nil }
         return UnitCostNotice(plan: plan)
     }
