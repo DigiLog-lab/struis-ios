@@ -113,11 +113,17 @@ final class TimelineReadingLiveTests: XCTestCase {
         var row: [String: Any] = ["attempt_id": attempt.id, "card_id": attempt.cardId, "capture": attempt.capturePath ?? "",
                                   "model": context.model, "kind": kind.rawValue]
         do {
+            // 画像だけの採点を測る: 書き出した台帳の答案には前の採点の書き起こしが残っているので、採点前の状態に戻す。
+            var timeline = context.timeline
+            if var fresh = timeline.attempts[attempt.id] {
+                fresh.verdict = "grading"; fresh.transcript = nil; fresh.learnerAnswer = ""
+                timeline.put("test.reset", fresh)
+            }
             let planID = "reading-\(kind.rawValue)-\(attempt.id)"
             let plan: TurnPlan = kind == .timelineAnswer
-                ? try await TimelineTurns.answer(composer: context.composer, planID: planID, attemptID: attempt.id, timeline: context.timeline)
+                ? try await TimelineTurns.answer(composer: context.composer, planID: planID, attemptID: attempt.id, timeline: timeline)
                 : try await TimelineTurns.grading(composer: context.composer, planID: planID, attemptID: attempt.id,
-                                                  workbook: context.workbook, timeline: context.timeline)
+                                                  workbook: context.workbook, timeline: timeline)
             let outcome = try await context.runner.run(plan) { _ in }
             let execution: LedgerJSON = outcome.executions.last ?? .emptyObject
             row["status"] = outcome.status.rawValue

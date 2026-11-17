@@ -430,9 +430,10 @@ nonisolated enum TimelineTurns {
         card.kind == TimelineCards.Kind.solve.rawValue && !card.answerExpr.isEmpty
     }
 
-    /// 読み取りの書き写しを採点に渡すか: 読めた答案で、書き写しがある時。読めなかった答案は今までどおり画像で採点する。
+    /// 読み取りの書き写しを採点に渡すか: 採点待ちの答案で、読み取りが書き写しを残した時。読めなかった答案は今までどおり
+    /// 画像で採点する。採点済みの答案の `transcript` は採点したモデルの書き起こしなので使わない。
     static func usesReaderTranscript(_ attempt: TimelineAttemptRecord) -> Bool {
-        !(attempt.transcript ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        attempt.verdict == "grading" && !(attempt.transcript ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// 答えの読み取りの返事。

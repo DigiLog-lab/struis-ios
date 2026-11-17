@@ -130,6 +130,14 @@ final class TimelineAnswerReadTests: XCTestCase {
         XCTAssertFalse(TimelineTurns.usesReaderTranscript(row), "読めなかった答案は、今までどおり画像で採点する")
     }
 
+    func testAGradedAttemptsTranscriptIsNotTreatedAsTheReaders() {
+        var graded = F.attempt("a", card: "c1", verdict: "wrong")
+        graded.transcript = "採点したモデルの書き起こし"
+        XCTAssertFalse(TimelineTurns.usesReaderTranscript(graded), "採点済みの書き起こしを、読み取りの書き写しとして使わない")
+        graded.verdict = "grading"
+        XCTAssertTrue(TimelineTurns.usesReaderTranscript(graded))
+    }
+
     func testTheGradingReadsTheTranscriptAndKeepsThePhotoOnlyForTheRedPen() async throws {
         for (path, images) in [("timeline-p.jpg", 0), (TimelineTurns.inkCapturePrefix + "p.jpg", 1)] {
             let ledger = try Ledger.inMemory()
