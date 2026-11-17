@@ -7,6 +7,8 @@ final class TimelineSelfGradeUITests: XCTestCase {
     @MainActor
     func testSelfGradeThenPhotographOnlyTheWrongOnes() throws {
         let app = UITestSupport.deviceApp(arguments: ["-skip-onboarding", "-self-grade-demo"])
+        // 起動の画面はタイムライン(ほかの UI テストは単元のホームから始める)。
+        app.launchEnvironment["STRUIS_START_SCREEN"] = nil
         app.launch()
         func shot(_ name: String) {
             let image = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
