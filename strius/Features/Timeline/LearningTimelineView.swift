@@ -1,3 +1,4 @@
+import PencilKit
 import SwiftUI
 
 /// 起動したら最初に出る、1問ずつの全画面の「タイムライン」(Issue #46)。ブランド名は出さない。
@@ -24,6 +25,10 @@ struct LearningTimelineView: View {
     @State private var isScopeDragging = false
     @State private var ink = TimelineInkController()
     @State private var inkGeneration = 0
+    /// 見直しの間だけ預かる、書きかけの答え。
+    @State private var reviewInkStash: TimelineInkStash?
+    /// 次に作る書く面に書き戻す線(見直しから戻った時)。
+    @State private var inkRestore: PKDrawing?
     @State private var isDrawing = false
     @State private var isInkZoomed = false
     @State private var inkPassThrough: [CGRect] = []
@@ -65,7 +70,12 @@ struct LearningTimelineView: View {
                     // 押せない1行なので、書く面の指は通さない(iPad は書く面がこの行の上にも乗る)。前は指を通していて、
                     // この行は Spacer で画面の幅いっぱいに広がるため、固定中は画面の端から端までの帯で書き始められなかった。
                     TimelineScopeFocus(title: focus.title, marks: focus.marks)
+                        .overlay(alignment: .trailing) { if showsReviewChip { reviewChip } }
                         .padding(.horizontal, layout.isPad ? 24 : 20)
+                        .padding(.top, 10)
+                } else if showsReviewChip {
+                    HStack { Spacer(minLength: 0); reviewChip }
+                        .padding(.horizontal, 20)
                         .padding(.top, 10)
                 }
                 ZStack(alignment: .bottomTrailing) {
@@ -78,15 +88,33 @@ struct LearningTimelineView: View {
                         .frame(width: layout == .padLandscape ? TimelineLayout.columnLeading + TimelineLayout.columnWidth : nil)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .environment(\.timelineHidesResultMark, !liquid.hasLanded)
+                        // 見直しのカードを出している間は、問題を隠す(地は画面の地をそのまま使い、上の帯と続けて見せる)。
+                        .opacity(isReviewing ? 0 : 1)
+                        .allowsHitTesting(!isReviewing)
                     if showsInkHint { inkHint }
                     // 送るボタン・採点中のカプセル・しずく(ボタンの文字と印は、この上の `actions` に描く)。
                     TimelineLiquidLayer(liquid: liquid, correct: store.lastAttempt?.verdict == "correct")
+                    if showsSelfGradeBar {
+                        TimelineSelfGradeBar { correct in Task { await store.selfGrade(correct: correct) } }
+                            .timelineInkPassThrough()
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 16)
+                    }
                     actions
                         .timelineInkPassThrough()
                         .padding(.trailing, layout.isPad ? 28 : 20)
-                        .padding(.bottom, layout == .padLandscape ? 32 : 16)
+                        .padding(.bottom, layout == .padLandscape ? 32 : (showsSelfGradeBar ? 92 : 16))
                         // 書いている間はボタンを薄くして、下に書いた字を透かす。
                         .opacity(isDrawing ? 0.35 : 1)
+                        .opacity(isReviewing ? 0 : 1)
+                        .allowsHitTesting(!isReviewing)
+                }
+                .overlay {
+                    if isReviewing {
+                        TimelineReviewCard(cards: store.reviewCards,
+                                           onShoot: { store.openReviewCamera() },
+                                           onLater: { store.postponeReview() })
+                    }
                 }
                 .coordinateSpace(name: TimelineLiquidSpace.name)
                 .onPreferenceChange(TimelineLiquidSlotKey.self) { frame in
@@ -205,14 +233,34 @@ struct LearningTimelineView: View {
                 if liquid.stage != .idle { liquid.reset() }
             }
         }
-        .onChange(of: store.currentID) { _, _ in
+        .onChange(of: store.currentID) { old, new in
+            // 見直しに入る時は、書きかけの答えを預かる(見直しが終わってそのカードに戻ったら書き戻す)。
+            if store.isInReview, reviewInkStash == nil, let old, old == store.reviewReturnID,
+               let drawing = ink.canvas?.drawing, !drawing.strokes.isEmpty {
+                reviewInkStash = TimelineInkStash(cardID: old, drawing: drawing)
+            }
             clearInk()
+            if !store.isInReview, let stash = reviewInkStash {
+                reviewInkStash = nil
+                if stash.cardID == new {
+                    inkRestore = stash.drawing
+                    hasInk = true
+                }
+            }
             problemScroll.scrollTo(edge: .top)
         }
         .background {
             ChatCameraPresentation(isPresented: $isCameraPresented) { data in
                 Task { await store.submit(image: data) }
             }
+        }
+        .background {
+            // 見直し: 違った問題を 1 問ずつ、閉じずに続けて撮る。
+            ChatCameraPresentation(isPresented: Binding(get: { store.isReviewCameraPresented }, set: { store.isReviewCameraPresented = $0 }),
+                                   batch: ChatCameraBatch(limit: max(1, store.reviewCameraCards.count), doneTitle: "見直す",
+                                                          guides: store.reviewCameraCards.map { [$0.prompt, TimelineMath.plain($0.math)].filter { !$0.isEmpty }.joined(separator: " ") }) { photos in
+                Task { await store.finishReview(photos: photos) }
+            })
         }
         #if STRUIS_TIME_ATTACK
         .fullScreenCover(item: $timeAttack) { session in
@@ -607,10 +655,34 @@ struct LearningTimelineView: View {
         }
     }
 
+    // MARK: 自分で丸付け(iPhone)
+
+    /// 見直しのカードを出している(iPhone で付けた × は、iPad でも見直せる)。
+    private var isReviewing: Bool { store.isReviewCardPresented && !store.reviewCards.isEmpty && !store.isInReview }
+
+    /// 答えを見た後の ○× を出すか。
+    private var showsSelfGradeBar: Bool {
+        guard !layout.isPad, !isReviewing, case .solving = store.phase, store.isAnswerRevealed, let card = store.current else { return false }
+        return store.canSelfGrade(card)
+    }
+
+    private var showsReviewChip: Bool { !store.reviewPendingIDs.isEmpty && !isReviewing && !store.isInReview }
+
+    private var reviewChip: some View {
+        TimelineReviewChip(count: store.reviewPendingIDs.count) { store.openReview() }
+            // iPad では書く面が上の帯まで覆うので、チップは指を通す。
+            .timelineInkPassThrough()
+    }
+
     /// 解いている間の問題の列。
     private func solvingCard(_ card: TimelineCardRecord) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            TimelineProblemView(card: card, store: store)
+            TimelineProblemView(card: card, store: store, selfGrades: !layout.isPad && store.canSelfGrade(card))
+            if !layout.isPad, store.isAnswerRevealed, store.canSelfGrade(card) {
+                TimelineAnswerCard(text: store.answerText(card))
+                    .padding(.top, 10)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
             if TimelineCards.Kind(rawValue: card.kind)?.needsReading ?? true {
                 if card.kind != "solve" { TimelineWritingPrompt(card: card) }
                 Spacer(minLength: 0)
@@ -648,6 +720,7 @@ struct LearningTimelineView: View {
 
     /// 指で書く面を出すか(読み取りで採点するカードを解いている間と、速攻)。
     private var showsInk: Bool {
+        if isReviewing { return false }
         switch store.phase {
         case .solving, .grading:
             guard let card = store.current else { return false }
@@ -688,7 +761,7 @@ struct LearningTimelineView: View {
                               fingerPassThrough: inkFingerPassThrough.map { $0.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y) },
                               // 単元ホームやタイムアタックを上に重ねている間は、iPad の道具パレットを隠す(ウィンドウの一番上に出て操作を塞ぐため)。
                               showsToolPicker: layout.isPad && showsInkTools && !isCovered && !isTimeAttackPresented,
-                              isReadOnly: isResult)
+                              isReadOnly: isResult, restore: inkRestore)
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 // 結果の画面では、書き足しはできないがスクロールと拡大縮小はできる(採点中は触らせない)。
@@ -762,6 +835,15 @@ struct LearningTimelineView: View {
                         if hasInk {
                             cameraPullButton(prominent: false)
                             TimelineSendButton(liquid: liquid) { sendInk() }
+                        } else if store.canSelfGrade(card) {
+                            // 自分で丸付け: 答えを見るのが先。撮るのは、合っていても解説を見たい時に残す。
+                            if !store.isAnswerRevealed {
+                                TimelineActionButton(symbol: TimelineSymbol.skip, label: "飛ばす", identifier: "timeline-skip") { Task { await store.skip() } }
+                                TimelineActionButton(symbol: TimelineSymbol.answer, label: "答え", prominent: true, identifier: "timeline-answer") {
+                                    withAnimation(.easeInOut(duration: Theme.Duration.standard)) { store.revealAnswer() }
+                                }
+                            }
+                            cameraPullButton(prominent: false)
                         } else {
                             TimelineActionButton(symbol: TimelineSymbol.skip, label: "飛ばす", identifier: "timeline-skip") { Task { await store.skip() } }
                             cameraPullButton(prominent: true)
@@ -988,6 +1070,7 @@ struct LearningTimelineView: View {
     }
 
     private func clearInk() {
+        inkRestore = nil
         ink.clear()
         hasInk = false
         isDrawing = false

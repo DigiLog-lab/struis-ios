@@ -149,6 +149,14 @@ final class TimelineStore {
         assistedIDs = []
         awaitedBatchID = nil
         inkAnswers = [:]
+        isAnswerRevealed = false
+        isReviewCardPresented = false
+        isReviewCameraPresented = false
+        reviewCameraIDs = []
+        reviewPhotos = []
+        isInReview = false
+        reviewReturnID = nil
+        isSelfGrading = false
     }
 
     // MARK: - 読む
@@ -434,6 +442,13 @@ final class TimelineStore {
         if let last = lastActivity {
             await warmupOnReturn(awaySeconds: Date().timeIntervalSince(last), midCard: resumedShown, launch: true)
         }
+        #if DEBUG
+        // 自分で丸付け(iPhone)の見た目の確かめ(`-self-grade-demo`)。AI を呼ばずに、決めた状態で止める。
+        if ProcessInfo.processInfo.arguments.contains("-self-grade-demo") {
+            await applySelfGradeDemo()
+            return
+        }
+        #endif
         // タイムラインを開いた時: グラフを頼むか決める。
         await ensureGraphWork()
         await ensurePlanWork()
@@ -458,6 +473,169 @@ final class TimelineStore {
         }.prefix(3).map { $0 }
     }
 
+    // MARK: - 自分で丸付け(iPhone)
+
+    // ○× は端末の中で採点したカードと同じ形で記録に書く(`TimelineMachine.recordSelfGrade`)。見直し待ちは項目として持たず、
+    // 同期で届いた記録から毎回数え直す(`TimelineRules.reviewPending`)ので、iPhone で付けた × は iPad でも見直せる。
+
+    /// 答えを見せている(今のカードだけ。カードが替わったら閉じる)。
+    var isAnswerRevealed = false
+    /// 見直しのカード(違った問題を撮ってもらう 1 枚)を出している。
+    var isReviewCardPresented = false
+    /// 見直しのカメラを出している。
+    var isReviewCameraPresented = false
+    /// 見直しのカメラで撮る順のカード(カメラを開いた時に決める。撮っている間に同期で増えても順がずれないように)。
+    private(set) var reviewCameraIDs: [String] = []
+    /// 見直しで撮った写真のうち、まだ採点に回していない分(1問ずつ今の採点に回し、結果の画面を順に出す)。
+    private var reviewPhotos: [(cardID: String, photo: Data)] = []
+    /// 見直しの途中(結果の「次へ」で、次の見直しの問題へ進む)。
+    private(set) var isInReview = false
+    /// ○× を書いている途中(2度押しを受けない)。
+    private(set) var isSelfGrading = false
+    /// 見直しの前に解いていたカード(見直しが終わったら戻る。書きかけの答えは画面の側が預かって書き戻す)。
+    private(set) var reviewReturnID: String?
+
+    /// 自分で丸付けできるカード: 解く問題で、正しい答えを持っている。続けて解く計算(rapid)と戻った時の練習は、今の流れのまま。
+    func canSelfGrade(_ card: TimelineCardRecord) -> Bool {
+        guard card.kind == "solve", card.origin != "rapid", card.origin != TimelineWarmup.origin, !isInReview else { return false }
+        return !answerText(card).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// 見せる答え(答えの欄の書き方。無ければ計算機向けの式)。
+    func answerText(_ card: TimelineCardRecord) -> String {
+        card.answerKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? card.answerExpr : card.answerKey
+    }
+
+    func revealAnswer() {
+        isAnswerRevealed = true
+    }
+
+    /// ○ 合ってた / × 違った。
+    func selfGrade(correct: Bool) async {
+        // 2度押し: 書き終える前に押された 2 回目は受けない(同じ答えを 2 回記録しない)。
+        guard !isSelfGrading, let card = current, phase == .solving, isAnswerRevealed, canSelfGrade(card) else { return }
+        isSelfGrading = true
+        defer { isSelfGrading = false }
+        let seconds = elapsed
+        let assisted = self.assisted
+        guard let id = await commitSelfGrade(cardID: card.id, correct: correct, seconds: seconds, assisted: assisted) else { return }
+        isAnswerRevealed = false
+        lastAttemptID = id
+        phase = .result
+        if correct {
+            await decide()
+        } else {
+            // 自分で付けた × は、なぜ違ったかがまだ分からない: やさしい版は挟まず、予定どおり次の問題へ。
+            // 見直しで撮って採点した結果が出てから、次の問題選びに反映する。
+            decided = await warmupBefore(TimelineRules.Next(cardID: machine.queue.first { $0.id != card.id }?.id))
+        }
+        await goNext()
+    }
+
+    /// 見直し待ちのカード(付けた順)。
+    var reviewPendingIDs: [String] {
+        TimelineRules.reviewPending(machine.orderedAttempts).map(\.cardId)
+    }
+
+    var reviewCards: [TimelineCardRecord] {
+        reviewPendingIDs.compactMap { machine.cards[$0] }
+    }
+
+    /// 見直しのカメラで撮る順のカード。
+    var reviewCameraCards: [TimelineCardRecord] {
+        reviewCameraIDs.compactMap { machine.cards[$0] }
+    }
+
+    /// 見直しのチップ: 5 問の区切りを待たずに見直しへ。
+    func openReview() {
+        guard !reviewPendingIDs.isEmpty, !isInReview else { return }
+        isReviewCardPresented = true
+    }
+
+    /// 「あとで」: 何も保存しない。次の区切りでまた出る。
+    func postponeReview() {
+        isReviewCardPresented = false
+    }
+
+    func openReviewCamera() {
+        reviewCameraIDs = reviewPendingIDs
+        guard !reviewCameraIDs.isEmpty else { return }
+        isReviewCameraPresented = true
+    }
+
+    /// 見直しの写真を撮り終えた: 1問ずつ今の採点に回し、結果の画面(解説)を順に出す。
+    func finishReview(photos: [Data]) async {
+        isReviewCameraPresented = false
+        isReviewCardPresented = false
+        reviewPhotos = zip(reviewCameraIDs, photos).map { (cardID: $0.0, photo: $0.1) }
+        reviewCameraIDs = []
+        guard !reviewPhotos.isEmpty else { return }
+        reviewReturnID = phase == .solving ? currentID : nil
+        // 戻った時に、見直しの前に解いていた時間から続ける(戻った時の練習で中断した時と同じ)。
+        if let returnID = reviewReturnID { suspendedSeconds[returnID] = elapsed }
+        isInReview = true
+        _ = await nextReviewItem()
+    }
+
+    /// 次の見直しの問題を採点に回す。残っていなければ false。
+    private func nextReviewItem() async -> Bool {
+        while !reviewPhotos.isEmpty {
+            let item = reviewPhotos.removeFirst()
+            guard machine.cards[item.cardID] != nil else { continue }
+            // 写真を撮った時間ではなく、自分で丸付けした時の解いた時間とヒントの有無で採点に回す(解く時間の記録と習熟の判定を歪めない)。
+            let original: TimelineAttemptRecord? = machine.attempts(cardID: item.cardID).last { TimelineRules.isSelfGraded($0) }
+            currentID = item.cardID
+            isAnswerRevealed = false
+            lastAttemptID = nil
+            decided = nil
+            assisted = original?.assisted ?? false
+            cardStartedAt = ActiveClock.shared.now - (original?.seconds ?? 0)
+            phase = .solving
+            await submit(image: item.photo)
+            return true
+        }
+        return false
+    }
+
+    /// 見直しの結果の「次へ」: 次の見直しの問題へ。全部終わったら、見直しの前に解いていたカードに戻る。
+    private func continueReview() async {
+        if await nextReviewItem() { return }
+        isInReview = false
+        let back = reviewReturnID.flatMap { id in machine.cards[id]?.status == "shown" ? id : nil }
+        reviewReturnID = nil
+        show(back ?? decided?.cardID ?? machine.queue.first?.id ?? machine.rapidCards.first?.id)
+    }
+
+    #if DEBUG
+    /// `-self-grade-state <revealed|pending|review|camera>` の状態にする(`-self-grade-demo` の台帳の上で)。
+    /// 見直し待ちは、本物と同じく自分で付けた × の記録を書いて作る。
+    private func applySelfGradeDemo() async {
+        let arguments = ProcessInfo.processInfo.arguments
+        let state: String = arguments.firstIndex(of: "-self-grade-state").flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil } ?? ""
+        func wrong(_ ids: [String]) async {
+            let pending = Set(reviewPendingIDs)
+            for id in ids where !pending.contains(id) {
+                await commit { machine in machine.recordSelfGrade(cardID: id, correct: false, seconds: 40, assisted: false) }
+            }
+        }
+        switch state {
+        case "revealed":
+            isAnswerRevealed = true
+        case "pending":
+            await wrong(["sg-done"])
+        case "review":
+            await wrong(["sg-earlier", "sg-done"])
+            isReviewCardPresented = true
+        case "camera":
+            await wrong(["sg-earlier", "sg-done"])
+            isReviewCardPresented = true
+            openReviewCamera()
+        default:
+            break
+        }
+    }
+    #endif
+
     // MARK: - 解く
 
     func show(_ id: String?) {
@@ -476,6 +654,7 @@ final class TimelineStore {
             return
         }
         if card.origin != "rapid" || phase != .rapidDone { if badge != nil, currentID != nil, currentID != id { badge = nil } }
+        if currentID != id { isAnswerRevealed = false }
         currentID = id
         lastAttemptID = nil
         decided = nil
@@ -657,6 +836,10 @@ final class TimelineStore {
             await skip()
             return
         }
+        if isInReview {
+            await continueReview()
+            return
+        }
         let next = decided
         if phase == .result, let attempt = lastAttempt, let card = current {
             // 撮るか飛ばすかした直後に、本人のいつもの2倍を超えていたら2択カード。
@@ -669,11 +852,14 @@ final class TimelineStore {
             }
         }
         // 戻った時の計算練習(#155)の × は、続けての × に数えない。
-        let counted = machine.orderedAttempts.filter { machine.cards[$0.cardId]?.origin != TimelineWarmup.origin }
+        // 自分で付けた × も数えない(なぜ違ったかが分かるのは、撮って採点した後)。
+        let counted = machine.orderedAttempts.filter { machine.cards[$0.cardId]?.origin != TimelineWarmup.origin && TimelineRules.countsTowardWrongStreak($0) }
         if next?.requestBatch == true || TimelineRules.twoWrongInARow(counted) {
             await requestBatch(force: next?.requestBatch == true)
         }
         show(next?.cardID ?? machine.queue.first?.id ?? machine.rapidCards.first?.id)
+        // 5 問の区切り: 自分で付けた × が溜まっていれば、見直しのカードを挟む。
+        if TimelineRules.reviewDue(machine.orderedAttempts) { isReviewCardPresented = true }
     }
 
     /// 新しい手順を押した: やり方の確認(ヒントありの扱いになる)。
@@ -1221,6 +1407,26 @@ final class TimelineStore {
             await reload()
         } catch {
             timelineLog.error("timeline commit failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    /// 自分で付けた ○× を書く。写真の採点と同じく、単元ホームの合格に数える答えなら単元ホームの台帳にも書く。
+    private func commitSelfGrade(cardID: String, correct: Bool, seconds: Double, assisted: Bool) async -> String? {
+        do {
+            let id: String = try await ledger.commit { db in
+                var machine = try TimelineMachine(loading: db)
+                let recorded = machine.recordSelfGradeOutcome(cardID: cardID, correct: correct, seconds: seconds, assisted: assisted)
+                var extra: [LedgerEvent] = []
+                if let attempt = machine.attempts[recorded.id] {
+                    extra = try TimelineTurns.unitHomeEvents(result: recorded.outcome, attempt: attempt, timeline: machine, db: db)
+                }
+                return (machine.events + extra, recorded.id)
+            }
+            await reload()
+            return id
+        } catch {
+            timelineLog.error("timeline self-grade commit failed: \(String(describing: error), privacy: .public)")
+            return nil
         }
     }
 

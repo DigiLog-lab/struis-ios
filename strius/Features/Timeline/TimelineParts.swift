@@ -31,6 +31,8 @@ enum TimelineSymbol {
     static let skip = "arrow.down"
     static let camera = "camera"
     static let send = "arrow.up"
+    /// 答えを見る(自分で丸付け)
+    static let answer = "eye"
     static let next = "arrow.down"
     static let explain = "text.book.closed"
     /// 一段戻す(やさしくした問題)。↺(前に解いた)とは別の記号にする。
@@ -320,6 +322,8 @@ struct TimelineInkCanvas: UIViewRepresentable {
     /// 見るだけ(結果の画面)。書き足しはできず、1本指でスクロール・2本指で拡大縮小だけできる
     /// (書いた線が解説の文に重なった時に、ずらして読めるように。2026-11-09)。
     var isReadOnly: Bool = false
+    /// 作る時に書き戻す線(見直しから戻った時の書きかけの答え)。
+    var restore: PKDrawing? = nil
 
     /// 書いた線の色と太さ(iPad は道具パレットで太さを変えられる。最初はこの太さ)。
     static let inkColor: UIColor = UIColor(red: 0.08, green: 0.07, blue: 0.06, alpha: 1)
@@ -343,6 +347,7 @@ struct TimelineInkCanvas: UIViewRepresentable {
         canvas.showsHorizontalScrollIndicator = false
         canvas.contentInsetAdjustmentBehavior = .never
         canvas.delegate = context.coordinator
+        if let restore { canvas.drawing = restore }
         canvas.accessibilityIdentifier = "timeline-ink"
         controller.canvas = canvas
         controller.viewport.update(canvas)
@@ -1620,4 +1625,160 @@ struct TimelineScopeSheet: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier("timeline-scope-unit-\(unit.id)")
     }
+}
+
+
+// MARK: - 自分で丸付け(iPhone)
+
+/// 「答え」を押した後、問題の下に出す正しい答え。
+struct TimelineAnswerCard: View {
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("答え").font(Typography.caption).foregroundStyle(Theme.secondaryText)
+            TimelineRichText(text: text, size: 22, plainMath: true)
+                .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .struisSurface()
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("timeline-answer-card")
+    }
+}
+
+/// 答えを見た後の「× 違った」「○ 合ってた」。押す回数の多い ○ を、親指の届きやすい右に置く。
+struct TimelineSelfGradeBar: View {
+    let onGrade: (Bool) -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Button { onGrade(false) } label: {
+                HStack(spacing: 8) {
+                    TimelineMark(correct: false, size: 16)
+                    Text("違った")
+                }
+                .font(Typography.sans(size: 19, weight: .bold))
+                .foregroundStyle(Theme.primaryText)
+                .frame(maxWidth: .infinity, minHeight: 60)
+                .glassEffect(.regular.interactive(), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("timeline-self-wrong")
+            Button { onGrade(true) } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "circle").font(.system(size: 17, weight: .bold))
+                    Text("合ってた")
+                }
+                .font(Typography.sans(size: 19, weight: .bold))
+                .foregroundStyle(Theme.onAccent)
+                .frame(maxWidth: .infinity, minHeight: 60)
+                .glassEffect(.regular.tint(Theme.accentColor).interactive(), in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("timeline-self-correct")
+        }
+    }
+}
+
+/// 見直し待ちの数(押すと、5 問の区切りを待たずに見直しへ)。
+struct TimelineReviewChip: View {
+    let count: Int
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                TimelineMark(correct: false, size: 10)
+                Text("見直し \(count)").monospacedDigit()
+            }
+            .font(Typography.sans(size: 12, weight: .bold))
+            .foregroundStyle(Theme.primaryText)
+            .padding(.horizontal, 12)
+            .frame(height: 28)
+            .background(Theme.regressColor.opacity(0.16), in: Capsule())
+            .overlay(Capsule().stroke(Theme.regressColor.opacity(0.35), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("見直し待ち \(count)問")
+        .accessibilityIdentifier("timeline-review-chip")
+    }
+}
+
+/// 5 問の区切りに挟む見直しのカード: 違った問題を 1 問ずつ撮ってもらう。
+struct TimelineReviewCard: View {
+    let cards: [TimelineCardRecord]
+    let onShoot: () -> Void
+    let onLater: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("見直し").font(Typography.caption).foregroundStyle(Theme.secondaryText)
+                    Text("さっき違った \(cards.count) 問を撮ってください")
+                        .font(Typography.heading2).foregroundStyle(Theme.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("ノートのその問題のところを、1 問ずつ撮ります。")
+                        .font(Typography.body).foregroundStyle(Theme.secondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(spacing: 10) {
+                        ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
+                            row(index + 1, card)
+                        }
+                    }
+                    .padding(.top, 14)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            VStack(spacing: 8) {
+                Button(action: onShoot) {
+                    Label("撮る", systemImage: TimelineSymbol.camera)
+                        .font(Typography.sans(size: 19, weight: .bold))
+                        .foregroundStyle(Theme.onAccent)
+                        .frame(maxWidth: .infinity, minHeight: 60)
+                        .glassEffect(.regular.tint(Theme.accentColor).interactive(), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("timeline-review-shoot")
+                Button("あとで", action: onLater)
+                    .font(Typography.body)
+                    .foregroundStyle(Theme.secondaryText)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .accessibilityIdentifier("timeline-review-later")
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("timeline-review-card")
+    }
+
+    private func row(_ number: Int, _ card: TimelineCardRecord) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Text("\(number)")
+                .font(Typography.sans(size: 15, weight: .bold)).monospacedDigit()
+                .foregroundStyle(Theme.primaryText)
+                .frame(width: 28, height: 28)
+                .background(Theme.regressColor.opacity(0.16), in: Circle())
+            VStack(alignment: .leading, spacing: 6) {
+                Text(card.prompt).font(Typography.body).foregroundStyle(Theme.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !card.math.isEmpty { TimelineRichText(text: TimelineMath.wrapped(card.math), size: 18) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(16)
+        .struisSurface()
+    }
+}
+
+/// 見直しの間だけ預かる、書きかけの答え(カードと線)。
+struct TimelineInkStash {
+    let cardID: String
+    let drawing: PKDrawing
 }

@@ -192,6 +192,9 @@ struct ChatCameraBatch {
     var limit = 8
     /// 束を渡すボタンの文字(答案は「採点する」、資料は「終える」)。
     var doneTitle = "採点する"
+    /// 1 枚ずつ撮ってほしいもの(見直しの問題文の 1 行)。空でなければ、上に「2 / 2 問目」とその行を出し、
+    /// この数だけ撮るまで束を渡すボタンを出さない。
+    var guides: [String] = []
     let onPhotos: ([Data]) -> Void
 }
 
@@ -462,7 +465,10 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
             done.trailingAnchor.constraint(equalTo: panel.trailingAnchor, constant: -16),
             counter.topAnchor.constraint(equalTo: previewView.topAnchor, constant: 14),
             counter.centerXAnchor.constraint(equalTo: previewView.centerXAnchor),
-            counter.heightAnchor.constraint(equalToConstant: 28),
+            (batch?.guides.isEmpty ?? true)
+                ? counter.heightAnchor.constraint(equalToConstant: 28)
+                : counter.heightAnchor.constraint(greaterThanOrEqualToConstant: 56),
+            counter.widthAnchor.constraint(lessThanOrEqualTo: previewView.widthAnchor, constant: -32),
         ])
         updateBatchControls()
     }
@@ -478,6 +484,16 @@ private final class ChatCameraController: UIViewController, AVCapturePhotoCaptur
             .font: UIFont.systemFont(ofSize: 15, weight: .semibold)
         ]))
         done.accessibilityLabel = title == "採点する" ? "\(total) 枚を採点する" : "\(total) 枚で\(title)"
+        if !batch.guides.isEmpty {
+            let count = batch.guides.count
+            done.isHidden = total < count
+            let index = min(total, count - 1)
+            counter.numberOfLines = 2
+            counter.text = total >= count ? "  \(count) 問とも撮れました  " : "  \(index + 1) / \(count) 問目  \n  \(batch.guides[index])  "
+            counter.isHidden = false
+            if total >= count { shutter.isEnabled = false }
+            return
+        }
         let full = total >= batch.limit
         counter.text = full ? "  \(batch.limit) 枚まで撮れます  " : "  \(total + 1) 枚目  "
         counter.isHidden = total == 0

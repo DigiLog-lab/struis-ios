@@ -67,6 +67,9 @@ nonisolated enum LedgerFixtures {
             if arguments.contains("-timeline-warmup-demo") {
                 timelineEvents = try seedWarmupDemo(db)
             }
+            if arguments.contains("-self-grade-demo") {
+                timelineEvents += try seedSelfGradeDemo(db)
+            }
             return (machine.events + chatEvents + timelineEvents, ())
         }
         if arguments.contains("-timeline-warmup-demo"), let template = try? DrillTemplate.decode(json: warmupDemoTemplate), let json = try? template.canonicalJSON() {
@@ -95,6 +98,22 @@ nonisolated enum LedgerFixtures {
                 feedback: "", createdAt: at, gradedAt: at))
         }
         timeline.put("fixture", card("demo-c1", prompt: "次の2次関数の頂点を求めなさい。", math: "y = x^2 - 6x + 5", answer: "(3, -4)", skills: [], status: "shown", position: 3))
+        return timeline.events
+    }
+
+    /// 自分で丸付け(iPhone)の見た目の確かめ用: 解いている途中の微分の問題と、その前に解いた 1 問、次の 1 問。
+    private static func seedSelfGradeDemo(_ db: Database) throws -> [LedgerEvent] {
+        var timeline = try TimelineMachine(loading: db)
+        let at: String = LedgerClock.now()
+        func card(_ id: String, math: String, answer: String, status: String, position: Int) -> TimelineCardRecord {
+            TimelineCardRecord(id: id, batchId: nil, position: position, kind: "solve", level: 2, skills: [], typeName: "計算", prompt: "次の関数を微分しなさい。",
+                               math: math, question: "", answerKey: answer, answerExpr: "", checkpoints: [], commonMistakes: [], estimatedSeconds: 60, chain: nil,
+                               easierOf: nil, subunitId: nil, unitId: nil, payload: .emptyObject, origin: "batch", status: status, createdAt: at, updatedAt: at)
+        }
+        timeline.put("fixture", card("sg-earlier", math: "y = (x^2 + 1)^4", answer: "$y' = 8x(x^2 + 1)^3$", status: "answered", position: -1))
+        timeline.put("fixture", card("sg-done", math: "g(x) = \\sqrt{3x - 2}", answer: "$g'(x) = \\dfrac{3}{2\\sqrt{3x - 2}}$", status: "answered", position: 0))
+        timeline.put("fixture", card("sg-now", math: "f(x) = (2x + 1)^3", answer: "$f'(x) = 6(2x + 1)^2$", status: "shown", position: 1))
+        timeline.put("fixture", card("sg-next", math: "h(x) = \\sin(x^2)", answer: "$h'(x) = 2x\\cos(x^2)$", status: "unused", position: 2))
         return timeline.events
     }
 
