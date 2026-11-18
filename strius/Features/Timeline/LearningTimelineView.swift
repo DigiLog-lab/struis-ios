@@ -670,6 +670,8 @@ struct LearningTimelineView: View {
 
     private var reviewChip: some View {
         TimelineReviewChip(count: store.reviewPendingIDs.count) { store.openReview() }
+            // iPad では書く面が上の帯まで覆うので、チップは指を通す。
+            .timelineInkPassThrough()
     }
 
     /// 解いている間の問題の列。

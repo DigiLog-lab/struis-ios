@@ -913,7 +913,7 @@ nonisolated enum TimelineTurns {
     }
 
     /// 単元ホームの合格に数える答案なら、単元ホームの台帳にも書く。
-    private static func unitHomeEvents(result: TimelineMachine.GradingOutcome, attempt: TimelineAttemptRecord, timeline: TimelineMachine, db: Database) throws -> [LedgerEvent] {
+    static func unitHomeEvents(result: TimelineMachine.GradingOutcome, attempt: TimelineAttemptRecord, timeline: TimelineMachine, db: Database) throws -> [LedgerEvent] {
         guard result.countsForUnitHome, let card = timeline.cards[attempt.cardId], let subunitID = card.subunitId else { return [] }
         var workbook = try WorkbookMachine(loading: db)
         let passed = workbook.recordTimelineAttempt(subunitID: subunitID, prompt: [card.prompt, card.math].filter { !$0.isEmpty }.joined(separator: " "),

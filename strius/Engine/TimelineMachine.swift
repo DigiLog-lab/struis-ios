@@ -479,10 +479,12 @@ nonisolated struct TimelineMachine {
         let id = newID()
         let firstTry = attempts(cardID: cardID).isEmpty
         let card = cards[cardID]
+        // 見直しの写真は、自分で付けた × と同じ答え: 正答率にもう一度は数えない。
+        let reviewsSelfGrade: Bool = attempts(cardID: cardID).last.map { $0.verdict == "wrong" && TimelineRules.isSelfGraded($0) } ?? false
         put("timeline.attempt_grading", TimelineAttemptRecord(
             id: id, cardId: cardID, capturePath: capturePath, verdict: "grading", checkpointResults: .emptyArray, errors: .emptyArray,
             learnerAnswer: "", cause: "unknown", seconds: seconds, firstTry: firstTry, assisted: assisted, skipReason: nil, keySuspect: false,
-            countsForAccuracy: card.map { TimelineRules.countsForAccuracy(card: $0, isFirstOfDay: isFirstOfDay, verdict: "correct") } ?? false,
+            countsForAccuracy: !reviewsSelfGrade && (card.map { TimelineRules.countsForAccuracy(card: $0, isFirstOfDay: isFirstOfDay, verdict: "correct") } ?? false),
             feedback: "", createdAt: now(), gradedAt: nil
         ))
         markAnswered(cardID)
@@ -509,6 +511,11 @@ nonisolated struct TimelineMachine {
     /// 同じにして、古い版のアプリにも読めるようにする。× は見直し待ちになり、撮って採点すると外れる(`TimelineRules.reviewPending`)。
     @discardableResult
     mutating func recordSelfGrade(cardID: String, correct: Bool, seconds: Double, assisted: Bool) -> String {
+        recordSelfGradeOutcome(cardID: cardID, correct: correct, seconds: seconds, assisted: assisted).id
+    }
+
+    /// `recordSelfGrade` と同じで、単元ホームの合格に数えるか(段3以上・初回・ヒントなし。写真の採点と同じ決まり)も返す。
+    mutating func recordSelfGradeOutcome(cardID: String, correct: Bool, seconds: Double, assisted: Bool) -> (id: String, outcome: GradingOutcome) {
         let id = newID()
         let firstTry = attempts(cardID: cardID).isEmpty
         let verdict = correct ? "correct" : "wrong"
@@ -521,7 +528,15 @@ nonisolated struct TimelineMachine {
         markAnswered(cardID)
         if let card = cards[cardID] { applySkills(card: card, correct: correct, assisted: assisted, withinTime: true, firstTry: firstTry, attemptID: id) }
         logAttempt(id)
-        return id
+        let counts: Bool = cards[cardID].map { TimelineRules.countsForUnitHome(card: $0, firstTry: firstTry, assisted: assisted) } ?? false
+        return (id, GradingOutcome(verdict: verdict, countsForUnitHome: counts))
+    }
+
+    /// 自分で付けた × を見直しで撮った写真か(その × の答えの解説のためで、もう 1 問解いたのではない)。
+    func isReviewCapture(_ attemptID: String) -> Bool {
+        guard let row = attempts[attemptID] else { return false }
+        guard let previous = attempts(cardID: row.cardId).last(where: { $0.id != attemptID && $0.createdAt <= row.createdAt }) else { return false }
+        return previous.verdict == "wrong" && TimelineRules.isSelfGraded(previous)
     }
 
     mutating func recordSkip(cardID: String, seconds: Double) -> String {
@@ -706,7 +721,12 @@ nonisolated struct TimelineMachine {
         var seen: Set<String> = []
         ids = ids.filter { !$0.isEmpty && seen.insert($0).inserted }
         row.skillIds = ids
-        if markAllSkills, verdict == "correct", !ids.isEmpty {
+        if isReviewCapture(attemptID) {
+            // 見直しの写真: スキルの ○× は自分で付けた × の時に付けている。同じ答えを 2 度数えない(解説と次の問題選びにだけ使う)。
+            row.skillsPending = false
+            row.skillMarks = [:]
+            row.countsForAccuracy = false
+        } else if markAllSkills, verdict == "correct", !ids.isEmpty {
             row.skillsPending = false
             row.skillMarks = Dictionary(uniqueKeysWithValues: ids.map { ($0, verdict) })
         } else {

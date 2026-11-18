@@ -512,7 +512,7 @@ final class TimelineStore {
         guard let card = current, phase == .solving, isAnswerRevealed, canSelfGrade(card) else { return }
         let seconds = elapsed
         let assisted = self.assisted
-        guard let id = await commitValue({ machine in machine.recordSelfGrade(cardID: card.id, correct: correct, seconds: seconds, assisted: assisted) }) else { return }
+        guard let id = await commitSelfGrade(cardID: card.id, correct: correct, seconds: seconds, assisted: assisted) else { return }
         isAnswerRevealed = false
         lastAttemptID = id
         phase = .result
@@ -1399,6 +1399,26 @@ final class TimelineStore {
             await reload()
         } catch {
             timelineLog.error("timeline commit failed: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    /// 自分で付けた ○× を書く。写真の採点と同じく、単元ホームの合格に数える答えなら単元ホームの台帳にも書く。
+    private func commitSelfGrade(cardID: String, correct: Bool, seconds: Double, assisted: Bool) async -> String? {
+        do {
+            let id: String = try await ledger.commit { db in
+                var machine = try TimelineMachine(loading: db)
+                let recorded = machine.recordSelfGradeOutcome(cardID: cardID, correct: correct, seconds: seconds, assisted: assisted)
+                var extra: [LedgerEvent] = []
+                if let attempt = machine.attempts[recorded.id] {
+                    extra = try TimelineTurns.unitHomeEvents(result: recorded.outcome, attempt: attempt, timeline: machine, db: db)
+                }
+                return (machine.events + extra, recorded.id)
+            }
+            await reload()
+            return id
+        } catch {
+            timelineLog.error("timeline self-grade commit failed: \(String(describing: error), privacy: .public)")
+            return nil
         }
     }
 

@@ -114,4 +114,39 @@ final class TimelineSelfGradeTests: XCTestCase {
         let photographed = [graded("a1", card: "c1", verdict: "wrong", second: 1), graded("a2", card: "c2", verdict: "wrong", second: 2)]
         XCTAssertTrue(TimelineRules.twoWrongInARow(photographed.filter(TimelineRules.countsTowardWrongStreak)))
     }
+
+    // MARK: 単元ホームと見直しの写真
+
+    func testFirstUnassistedSelfGradeOnALevel3CardCountsForTheUnitHome() {
+        var machine = F.machine()
+        machine.put("test", F.card("c1", level: 3, status: "shown", subunitID: "s1"))
+        machine.put("test", F.card("c2", level: 2, status: "shown", subunitID: "s1"))
+        XCTAssertTrue(machine.recordSelfGradeOutcome(cardID: "c1", correct: true, seconds: 30, assisted: false).outcome.countsForUnitHome)
+        XCTAssertFalse(machine.recordSelfGradeOutcome(cardID: "c2", correct: true, seconds: 30, assisted: false).outcome.countsForUnitHome, "段2は数えない(写真と同じ決まり)")
+    }
+
+    func testReviewPhotoDoesNotCountTheSameAnswerTwice() {
+        var machine = F.machine()
+        machine.put("test", F.card("c1", status: "shown", skills: ["skill.a"]))
+        let selfWrong = machine.recordSelfGrade(cardID: "c1", correct: false, seconds: 40, assisted: false)
+        let photo = machine.recordCapture(cardID: "c1", capturePath: "timeline-c1.jpg", seconds: 40, assisted: false)
+        XCTAssertTrue(machine.isReviewCapture(photo))
+        XCTAssertFalse(machine.isReviewCapture(selfWrong))
+        XCTAssertEqual(machine.attempts[photo]?.countsForAccuracy, false)
+        _ = machine.applyGrading(attemptID: photo, grading: TimelineMachine.Grading(grade: "wrong", learnerAnswer: "5"))
+        let graded = machine.attempts[photo]
+        XCTAssertEqual(graded?.verdict, "wrong")
+        XCTAssertEqual(graded?.countsForAccuracy, false)
+        XCTAssertTrue(graded.map { machine.skillMarks($0) }?.isEmpty ?? false, "スキルの ○× は自分で付けた × の時の 1 回だけ")
+        XCTAssertTrue(TimelineRules.reviewPending(machine.orderedAttempts).isEmpty)
+    }
+
+    func testAnOrdinaryRetakeIsNotAReviewPhoto() {
+        var machine = F.machine()
+        machine.put("test", F.card("c1", status: "shown"))
+        let first = machine.recordCapture(cardID: "c1", capturePath: "timeline-a.jpg", seconds: 40, assisted: false)
+        _ = machine.applyGrading(attemptID: first, grading: TimelineMachine.Grading(grade: "wrong", learnerAnswer: "5"))
+        let retake = machine.recordCapture(cardID: "c1", capturePath: "timeline-b.jpg", seconds: 40, assisted: false)
+        XCTAssertFalse(machine.isReviewCapture(retake))
+    }
 }
