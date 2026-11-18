@@ -149,6 +149,13 @@ final class TimelineStore {
         assistedIDs = []
         awaitedBatchID = nil
         inkAnswers = [:]
+        isAnswerRevealed = false
+        isReviewCardPresented = false
+        isReviewCameraPresented = false
+        reviewCameraIDs = []
+        reviewPhotos = []
+        isInReview = false
+        reviewReturnID = nil
     }
 
     // MARK: - 読む
@@ -482,8 +489,8 @@ final class TimelineStore {
     private var reviewPhotos: [(cardID: String, photo: Data)] = []
     /// 見直しの途中(結果の「次へ」で、次の見直しの問題へ進む)。
     private(set) var isInReview = false
-    /// 見直しの前に解いていたカード(見直しが終わったら戻る)。
-    private var reviewReturnID: String?
+    /// 見直しの前に解いていたカード(見直しが終わったら戻る。書きかけの答えは画面の側が預かって書き戻す)。
+    private(set) var reviewReturnID: String?
 
     /// 自分で丸付けできるカード: 解く問題で、正しい答えを持っている。続けて解く計算(rapid)と戻った時の練習は、今の流れのまま。
     func canSelfGrade(_ card: TimelineCardRecord) -> Bool {
@@ -567,12 +574,14 @@ final class TimelineStore {
         while !reviewPhotos.isEmpty {
             let item = reviewPhotos.removeFirst()
             guard machine.cards[item.cardID] != nil else { continue }
+            // 写真を撮った時間ではなく、自分で丸付けした時の解いた時間とヒントの有無で採点に回す(解く時間の記録と習熟の判定を歪めない)。
+            let original: TimelineAttemptRecord? = machine.attempts(cardID: item.cardID).last { TimelineRules.isSelfGraded($0) }
             currentID = item.cardID
             isAnswerRevealed = false
             lastAttemptID = nil
             decided = nil
-            assisted = false
-            cardStartedAt = ActiveClock.shared.now
+            assisted = original?.assisted ?? false
+            cardStartedAt = ActiveClock.shared.now - (original?.seconds ?? 0)
             phase = .solving
             await submit(image: item.photo)
             return true

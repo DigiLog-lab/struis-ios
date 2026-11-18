@@ -1,3 +1,4 @@
+import PencilKit
 import SwiftUI
 
 /// 起動したら最初に出る、1問ずつの全画面の「タイムライン」(Issue #46)。ブランド名は出さない。
@@ -24,6 +25,10 @@ struct LearningTimelineView: View {
     @State private var isScopeDragging = false
     @State private var ink = TimelineInkController()
     @State private var inkGeneration = 0
+    /// 見直しの間だけ預かる、書きかけの答え。
+    @State private var reviewInkStash: TimelineInkStash?
+    /// 次に作る書く面に書き戻す線(見直しから戻った時)。
+    @State private var inkRestore: PKDrawing?
     @State private var isDrawing = false
     @State private var isInkZoomed = false
     @State private var inkPassThrough: [CGRect] = []
@@ -228,8 +233,20 @@ struct LearningTimelineView: View {
                 if liquid.stage != .idle { liquid.reset() }
             }
         }
-        .onChange(of: store.currentID) { _, _ in
+        .onChange(of: store.currentID) { old, new in
+            // 見直しに入る時は、書きかけの答えを預かる(見直しが終わってそのカードに戻ったら書き戻す)。
+            if store.isInReview, reviewInkStash == nil, let old, old == store.reviewReturnID,
+               let drawing = ink.canvas?.drawing, !drawing.strokes.isEmpty {
+                reviewInkStash = TimelineInkStash(cardID: old, drawing: drawing)
+            }
             clearInk()
+            if !store.isInReview, let stash = reviewInkStash {
+                reviewInkStash = nil
+                if stash.cardID == new {
+                    inkRestore = stash.drawing
+                    hasInk = true
+                }
+            }
             problemScroll.scrollTo(edge: .top)
         }
         .background {
@@ -742,7 +759,7 @@ struct LearningTimelineView: View {
                               fingerPassThrough: inkFingerPassThrough.map { $0.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y) },
                               // 単元ホームやタイムアタックを上に重ねている間は、iPad の道具パレットを隠す(ウィンドウの一番上に出て操作を塞ぐため)。
                               showsToolPicker: layout.isPad && showsInkTools && !isCovered && !isTimeAttackPresented,
-                              isReadOnly: isResult)
+                              isReadOnly: isResult, restore: inkRestore)
                 .id(inkGeneration)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 // 結果の画面では、書き足しはできないがスクロールと拡大縮小はできる(採点中は触らせない)。
@@ -1051,6 +1068,7 @@ struct LearningTimelineView: View {
     }
 
     private func clearInk() {
+        inkRestore = nil
         ink.clear()
         hasInk = false
         isDrawing = false

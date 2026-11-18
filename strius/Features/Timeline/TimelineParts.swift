@@ -322,6 +322,8 @@ struct TimelineInkCanvas: UIViewRepresentable {
     /// 見るだけ(結果の画面)。書き足しはできず、1本指でスクロール・2本指で拡大縮小だけできる
     /// (書いた線が解説の文に重なった時に、ずらして読めるように。2026-11-09)。
     var isReadOnly: Bool = false
+    /// 作る時に書き戻す線(見直しから戻った時の書きかけの答え)。
+    var restore: PKDrawing? = nil
 
     /// 書いた線の色と太さ(iPad は道具パレットで太さを変えられる。最初はこの太さ)。
     static let inkColor: UIColor = UIColor(red: 0.08, green: 0.07, blue: 0.06, alpha: 1)
@@ -345,6 +347,7 @@ struct TimelineInkCanvas: UIViewRepresentable {
         canvas.showsHorizontalScrollIndicator = false
         canvas.contentInsetAdjustmentBehavior = .never
         canvas.delegate = context.coordinator
+        if let restore { canvas.drawing = restore }
         canvas.accessibilityIdentifier = "timeline-ink"
         controller.canvas = canvas
         controller.viewport.update(canvas)
@@ -1772,4 +1775,10 @@ struct TimelineReviewCard: View {
         .padding(16)
         .struisSurface()
     }
+}
+
+/// 見直しの間だけ預かる、書きかけの答え(カードと線)。
+struct TimelineInkStash {
+    let cardID: String
+    let drawing: PKDrawing
 }
