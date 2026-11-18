@@ -156,6 +156,7 @@ final class TimelineStore {
         reviewPhotos = []
         isInReview = false
         reviewReturnID = nil
+        isSelfGrading = false
     }
 
     // MARK: - 読む
@@ -489,6 +490,8 @@ final class TimelineStore {
     private var reviewPhotos: [(cardID: String, photo: Data)] = []
     /// 見直しの途中(結果の「次へ」で、次の見直しの問題へ進む)。
     private(set) var isInReview = false
+    /// ○× を書いている途中(2度押しを受けない)。
+    private(set) var isSelfGrading = false
     /// 見直しの前に解いていたカード(見直しが終わったら戻る。書きかけの答えは画面の側が預かって書き戻す)。
     private(set) var reviewReturnID: String?
 
@@ -509,7 +512,10 @@ final class TimelineStore {
 
     /// ○ 合ってた / × 違った。
     func selfGrade(correct: Bool) async {
-        guard let card = current, phase == .solving, isAnswerRevealed, canSelfGrade(card) else { return }
+        // 2度押し: 書き終える前に押された 2 回目は受けない(同じ答えを 2 回記録しない)。
+        guard !isSelfGrading, let card = current, phase == .solving, isAnswerRevealed, canSelfGrade(card) else { return }
+        isSelfGrading = true
+        defer { isSelfGrading = false }
         let seconds = elapsed
         let assisted = self.assisted
         guard let id = await commitSelfGrade(cardID: card.id, correct: correct, seconds: seconds, assisted: assisted) else { return }
@@ -565,6 +571,8 @@ final class TimelineStore {
         reviewCameraIDs = []
         guard !reviewPhotos.isEmpty else { return }
         reviewReturnID = phase == .solving ? currentID : nil
+        // 戻った時に、見直しの前に解いていた時間から続ける(戻った時の練習で中断した時と同じ)。
+        if let returnID = reviewReturnID { suspendedSeconds[returnID] = elapsed }
         isInReview = true
         _ = await nextReviewItem()
     }

@@ -526,7 +526,10 @@ nonisolated struct TimelineMachine {
             feedback: "", createdAt: now(), gradedAt: now()
         ))
         markAnswered(cardID)
-        if let card = cards[cardID] { applySkills(card: card, correct: correct, assisted: assisted, withinTime: true, firstTry: firstTry, attemptID: id) }
+        // 時間内かは、写真の採点と同じく目安の時間と比べる。
+        if let card = cards[cardID] {
+            applySkills(card: card, correct: correct, assisted: assisted, withinTime: seconds <= Double(card.estimatedSeconds), firstTry: firstTry, attemptID: id)
+        }
         logAttempt(id)
         let counts: Bool = cards[cardID].map { TimelineRules.countsForUnitHome(card: $0, firstTry: firstTry, assisted: assisted) } ?? false
         return (id, GradingOutcome(verdict: verdict, countsForUnitHome: counts))
