@@ -203,6 +203,18 @@ struct MathRenderingTests {
         #expect(highlighted.size == plain.size)
     }
 
+    /// 長い行中の式も、折り返さずに測った基線で文字に揃える。測る枠を式の幅ちょうどにしていた時は、SwiftMath が積分の式を
+    /// 2 行に折り返して測り、基線が約 19pt 下にずれて後ろの「、」が式の上に浮いた(2026-11-19)。式の一番下は積分の下端の
+    /// `-\pi` なので、積分だけの式と基線が同じになる。
+    @Test func longInlineFormulaKeepsTheBaselineOfItsLowestPart() throws {
+        let style = NativeMathStyle(color: .black, fontSize: 20, fontWeight: 700, scale: 2)
+        let long = try #require(NativeMathRenderer.shared.glyph(
+            latex: "\\int_{-\\pi}^{\\pi}\\sin mx\\sin nx\\,dx=\\pi\\ (m=n)", display: false, style: style, highlighted: false))
+        let integral = try #require(NativeMathRenderer.shared.glyph(latex: "\\int_{-\\pi}^{\\pi}", display: false, style: style, highlighted: false))
+        #expect(abs(long.baseline - integral.baseline) < 0.5, "長い式 \(long.baseline) / 積分だけ \(integral.baseline)")
+        #expect(abs(long.size.height - integral.size.height) < 0.5)
+    }
+
     @Test func sameFormulaIsRenderedOnceAndReused() throws {
         let style = NativeMathStyle(color: .black, fontSize: 15, fontWeight: 500, scale: 2)
         let first = try #require(NativeMathRenderer.shared.glyph(latex: "\\sqrt{2}", display: false, style: style, highlighted: false))
