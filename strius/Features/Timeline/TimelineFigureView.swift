@@ -18,7 +18,9 @@ struct TimelineFigureView: View {
             draw(in: &context, size: size)
         }
         .aspectRatio(figure.aspectRatio, contentMode: .fit)
-        .frame(maxWidth: .infinity, maxHeight: compact ? 150 : 300)
+        // 問題文が長い時は、画面の下の帯に図が隠れないように、空いている高さまで縮む(問題文・式・問いを先に並べる)。
+        .frame(maxWidth: .infinity, minHeight: compact ? 70 : 150, maxHeight: compact ? 150 : 300)
+        .layoutPriority(-1)
         .accessibilityElement()
         .accessibilityLabel(accessibilityText)
         .accessibilityIdentifier("timeline-figure")
@@ -161,13 +163,21 @@ struct TimelineFigureView: View {
             let label = TimelineFigure.displayLabel(curve.label)
             if !label.isEmpty, visible.count > 4 {
                 // 点の名前やほかの曲線の名前と重ならない所を、見えている部分の終わりの近くから順に探す。
-                let spots = figure.points.map { layout($0.x, $0.y) } + placedLabels
-                let candidates = [0.88, 0.78, 0.95, 0.65, 0.5, 0.35].map { visible[Int(Double(visible.count - 1) * $0)] }
-                let at = candidates.max { a, b in
-                    let da = spots.map { hypot($0.x - a.x, $0.y - a.y) }.min() ?? .infinity
-                    let db = spots.map { hypot($0.x - b.x, $0.y - b.y) }.min() ?? .infinity
-                    return min(da, 40) + 0.5 < min(db, 40)
-                } ?? candidates[0]
+                // 軸の線の上も避ける(軸に名前が掛かると読めない)。
+                var axisSpots: [CGPoint] = []
+                if let axes = figure.axes, let window {
+                    let origin = layout(0, 0)
+                    if axes.yMin <= 0, axes.yMax >= 0 { axisSpots += stride(from: window.minX, through: window.maxX, by: 16).map { CGPoint(x: $0, y: origin.y) } }
+                    if axes.xMin <= 0, axes.xMax >= 0 { axisSpots += stride(from: window.minY, through: window.maxY, by: 16).map { CGPoint(x: origin.x, y: $0) } }
+                }
+                let spots = figure.points.filter { !$0.isHidden }.map { layout($0.x, $0.y) } + placedLabels + axisSpots
+                let candidates = [0.88, 0.78, 0.95, 0.65, 0.5, 0.35, 0.2, 0.08].map { visible[Int(Double(visible.count - 1) * $0)] }
+                // 名前は点の左上か右上に出るので、その真ん中の辺りで離れ具合を見る。
+                func clearance(_ p: CGPoint) -> CGFloat {
+                    let center = CGPoint(x: p.x + (p.x > (window?.midX ?? 0) ? -30 : 30), y: p.y - 10)
+                    return min(spots.map { hypot($0.x - center.x, ($0.y - center.y) * 1.6) }.min() ?? .infinity, 60)
+                }
+                let at = candidates.max { a, b in clearance(a) + 0.5 < clearance(b) } ?? candidates[0]
                 placedLabels.append(at)
                 let right = at.x > (window?.midX ?? 0)
                 text(label, at: CGPoint(x: at.x + (right ? -6 : 6), y: at.y - 4), size: angleFontSize, color: Theme.primaryText,
