@@ -120,4 +120,32 @@ final class TimelineFigureTests: XCTestCase {
         XCTAssertLessThan(direction.dx, 0)
         XCTAssertGreaterThan(direction.dy, 0)
     }
+    /// 交点の名前は、通る線にも角の弧にも掛からない向きに置く。平行の印は交点を避ける(2026-11-19 の実際の出題で、
+    /// 交点 Q の名前が横切る線に重なり、平行の印が交点 F に重なった)。
+    func testIntersectionLabelsAndMarksAvoidTheLines() throws {
+        let figure = try XCTUnwrap(TimelineFigure(try json([
+            "points": [["name": "P", "x": 0, "y": 2], ["name": "E", "x": 2, "y": 2], ["name": "Q", "x": 6, "y": 2], ["name": "R", "x": 0, "y": 0],
+                       ["name": "F", "x": 3.11, "y": 0], ["name": "S", "x": 6, "y": 0], ["name": "U", "x": 1.5, "y": 2.9]],
+            "segments": [["from": "P", "to": "Q", "dashed": false, "ticks": 0, "arrows": 1], ["from": "R", "to": "S", "dashed": false, "ticks": 0, "arrows": 1],
+                         ["from": "U", "to": "F", "dashed": false, "ticks": 0, "arrows": 0]],
+            "angles": [["vertex": "E", "from": "Q", "to": "F", "label": "61°", "arcs": 1, "right": false]],
+            "circles": [],
+        ])))
+        XCTAssertEqual(figure.defects, [])
+        let e = try XCTUnwrap(figure.point("E"))
+        let label = figure.labelDirection(of: e)
+        // 画面の座標の向きを図の向き(y 上向き)に戻して、線と弧の向きから十分に離れているか。
+        let angle = atan2(-label.dy, label.dx) * 180 / .pi
+        for blocked in [0.0, 180, -180, 119, -61, -30] {
+            XCTAssertGreaterThan(abs(angle - blocked), 25, "E の名前が \(blocked)° の線か弧に近い: \(angle)")
+        }
+        // 下の平行線の印は、交点 F(線の 0.52 の所)から離す。
+        let rs = try XCTUnwrap(figure.segments.first { $0.from == "R" })
+        XCTAssertGreaterThan(abs(figure.markPosition(of: rs) - 3.11 / 6), 0.1)
+        // 上の平行線の印も、E(線の 1/3 の所)から離す。
+        let pq = try XCTUnwrap(figure.segments.first { $0.from == "P" })
+        XCTAssertGreaterThan(abs(figure.markPosition(of: pq) - 1.0 / 3), 0.15)
+        // 途中に点の無い線は真ん中。
+        XCTAssertEqual(figure.markPosition(of: TimelineFigure.Segment(from: "R", to: "P", dashed: false, ticks: 1, arrows: 0)), 0.5)
+    }
 }

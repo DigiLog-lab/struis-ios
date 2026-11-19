@@ -195,32 +195,73 @@ nonisolated struct TimelineFigure: Equatable, Sendable {
         return { p in CGPoint(x: offsetX + (p.x - b.minX) * scale, y: offsetY + (b.maxY - p.y) * scale) }
     }
 
-    /// 点の名前を置く向き(単位ベクトル、画面の座標)。つながっている線の反対側、線が無ければ図の中心の反対側。
+    /// 点の名前を置く向き(単位ベクトル、画面の座標)。点から出ている線・点を通る線・印を付けた角の向きを避け、
+    /// いちばん広く空いている向きの真ん中に置く。何も出ていない点は、図の中心の反対側。
     func labelDirection(of p: Point) -> CGVector {
-        var dx = 0.0, dy = 0.0
-        for s in segments {
-            let other: String? = s.from == p.name ? s.to : (s.to == p.name ? s.from : nil)
-            guard let other, let q = point(other) else { continue }
-            let l = hypot(q.x - p.x, q.y - p.y)
-            guard l > 0 else { continue }
-            dx += (q.x - p.x) / l
-            dy += (q.y - p.y) / l
+        var occupied: [Double] = []
+        func add(_ dx: Double, _ dy: Double) {
+            guard hypot(dx, dy) > 1e-9 else { return }
+            occupied.append(atan2(dy, dx))
         }
-        // 線の真ん中を通る点(交点)は、向きが打ち消し合う。その時は図の中心の反対側に置く。
-        if hypot(dx, dy) < 0.3 {
-            let cx = points.map(\.x).reduce(0, +) / Double(points.count), cy = points.map(\.y).reduce(0, +) / Double(points.count)
-            dx = cx - p.x
-            dy = cy - p.y
-            // 交点が中心にある時は、交わる線の間の空いている向き(線の向きと 90° ずれた向き)にする。
-            if hypot(dx, dy) < 1e-9, let s = segments.first(where: { $0.from == p.name || $0.to == p.name }),
-               let a = point(s.from), let b = point(s.to) {
-                dx = -(b.y - a.y)
-                dy = b.x - a.x
+        let diagonal = bounds.map { hypot($0.width, $0.height) } ?? 1
+        for s in segments {
+            guard let a = point(s.from), let b = point(s.to) else { continue }
+            if s.from == p.name { add(b.x - p.x, b.y - p.y) }
+            else if s.to == p.name { add(a.x - p.x, a.y - p.y) }
+            else if let t = Self.parameter(of: p, onSegmentFrom: a, to: b, tolerance: diagonal * 0.01), t > 0.001, t < 0.999 {
+                // 線の途中の点(交点など): 線は両側へ出ている。
+                add(b.x - a.x, b.y - a.y)
+                add(a.x - b.x, a.y - b.y)
             }
         }
-        let l = hypot(dx, dy)
-        guard l > 0 else { return CGVector(dx: 0, dy: -1) }
-        // 図の単位(y 上向き)の「向こう側」を、画面の座標(y 下向き)に直す。
-        return CGVector(dx: -dx / l, dy: dy / l)
+        for angle in angles where angle.vertex == p.name {
+            guard let a = point(angle.from), let b = point(angle.to) else { continue }
+            let la = hypot(a.x - p.x, a.y - p.y), lb = hypot(b.x - p.x, b.y - p.y)
+            guard la > 0, lb > 0 else { continue }
+            // 弧と角の文字は 2 本の線の間(二等分線の向き)にある。
+            add((a.x - p.x) / la + (b.x - p.x) / lb, (a.y - p.y) / la + (b.y - p.y) / lb)
+        }
+        let direction: Double
+        if occupied.isEmpty {
+            let cx = points.map(\.x).reduce(0, +) / Double(points.count), cy = points.map(\.y).reduce(0, +) / Double(points.count)
+            direction = hypot(p.x - cx, p.y - cy) > 1e-9 ? atan2(p.y - cy, p.x - cx) : .pi / 2
+        } else if occupied.count == 1 {
+            direction = occupied[0] + .pi
+        } else {
+            let sorted = occupied.sorted()
+            var best = (gap: -1.0, middle: 0.0)
+            for (index, angle) in sorted.enumerated() {
+                let next = index + 1 < sorted.count ? sorted[index + 1] : sorted[0] + 2 * .pi
+                let gap = next - angle
+                if gap > best.gap { best = (gap, angle + gap / 2) }
+            }
+            direction = best.middle
+        }
+        // 図の単位(y 上向き)を、画面の座標(y 下向き)に直す。
+        return CGVector(dx: cos(direction), dy: -sin(direction))
+    }
+
+    /// 点 p が線分 ab の上にあれば、a から b へのどこか(0〜1)。上に無ければ nil。
+    static func parameter(of p: Point, onSegmentFrom a: Point, to b: Point, tolerance: Double) -> Double? {
+        let dx = b.x - a.x, dy = b.y - a.y
+        let length2 = dx * dx + dy * dy
+        guard length2 > 0 else { return nil }
+        let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / length2
+        guard t >= -1e-9, t <= 1 + 1e-9 else { return nil }
+        let distance = hypot(a.x + t * dx - p.x, a.y + t * dy - p.y)
+        return distance <= tolerance ? t : nil
+    }
+
+    /// 等しい長さ・平行の印を置く位置(線分の a から b へのどこか)。線分の上の点から、なるべく離れた所。
+    func markPosition(of segment: Segment) -> Double {
+        guard let a = point(segment.from), let b = point(segment.to) else { return 0.5 }
+        let diagonal = bounds.map { hypot($0.width, $0.height) } ?? 1
+        let onSegment = points.compactMap { Self.parameter(of: $0, onSegmentFrom: a, to: b, tolerance: diagonal * 0.01) } + [0, 1]
+        let candidates: [Double] = [0.5, 0.42, 0.58, 0.35, 0.65, 0.28, 0.72]
+        return candidates.max { lhs, rhs in
+            let l = onSegment.map { abs($0 - lhs) }.min() ?? 1, r = onSegment.map { abs($0 - rhs) }.min() ?? 1
+            // 同じくらい離れていれば、真ん中に近い方(先に並べた方)。
+            return l + 0.02 < r
+        } ?? 0.5
     }
 }

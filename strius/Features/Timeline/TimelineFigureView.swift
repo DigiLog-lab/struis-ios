@@ -97,7 +97,9 @@ struct TimelineFigureView: View {
             context.stroke(path, with: ink, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, dash: segment.dashed ? [5, 4] : []))
             let direction = unit(pb - pa)
             let normal = CGVector(dx: -direction.dy, dy: direction.dx)
-            let middle = CGPoint(x: (pa.x + pb.x) / 2, y: (pa.y + pb.y) / 2)
+            // 印は線の上の点(交点など)と重ならない所に置く。
+            let t = CGFloat(figure.markPosition(of: segment))
+            let middle = CGPoint(x: pa.x + (pb.x - pa.x) * t, y: pa.y + (pb.y - pa.y) * t)
             // 等しい長さの印: 辺に垂直な短い線。
             if segment.ticks > 0 {
                 let half: CGFloat = compact ? 4 : 6, gap: CGFloat = compact ? 3 : 4
