@@ -21,6 +21,15 @@ struct PiecewiseRenderProbeTests {
         ("h_cases_display", head + "$$\(integral)=\\begin{cases}\\pi & (m=n)\\\\ 0 & (m\\neq n)\\end{cases}$$" + tail),
     ]
 
+    @Test func printGlyphMetrics() {
+        let style = NativeMathStyle(color: .white, fontSize: 20, fontWeight: 700, scale: 3)
+        for latex in ["\(Self.integral)=\\pi\\ (m=n)", "\(Self.integral)", "x=1", "\\frac{1}{2}"] {
+            if let glyph = NativeMathRenderer.shared.glyph(latex: latex, display: false, style: style, highlighted: false) {
+                print("PROBE size=\(glyph.size) baseline=\(glyph.baseline) latex=\(latex)")
+            }
+        }
+    }
+
     @Test func renderCandidates() throws {
         let directory = URL(fileURLWithPath: ProcessInfo.processInfo.environment["DEVBOX_FILES"] ?? NSTemporaryDirectory())
         let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
