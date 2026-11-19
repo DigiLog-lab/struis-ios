@@ -319,4 +319,38 @@ final class TimelineFigureTests: XCTestCase {
         XCTAssertTrue(TimelineCards.problemLines(graph).joined().contains("y = x^2(x は -2〜4)"))
         XCTAssertFalse(TimelineCards.problemLines(F.card("n")).joined().contains("問題の図"))
     }
+    /// 数直線のように点が横一列の図は受け取る。点が 1 つだけの図は断る。
+    func testANumberLineIsAccepted() throws {
+        let line = try XCTUnwrap(TimelineFigure(try json([
+            "points": [["name": "_L", "x": -4, "y": 0, "z": 0], ["name": "_R", "x": 4, "y": 0, "z": 0], ["name": "P", "x": 1, "y": 0, "z": 0]],
+            "segments": [["from": "_L", "to": "_R", "dashed": false, "ticks": 0, "arrows": 0, "head": true, "label": ""]],
+            "angles": [], "circles": [], "arcs": [], "regions": [], "curves": [], "fills": [],
+        ])))
+        XCTAssertEqual(line.defects, [])
+        let single = try XCTUnwrap(TimelineFigure(try json(["points": [["name": "A", "x": 1, "y": 1, "z": 0]], "segments": [], "angles": [], "circles": []])))
+        XCTAssertFalse(single.defects.isEmpty)
+    }
+
+    /// 目盛りの数字の桁は間隔から決める(細かい目盛りが 0 にならない)。
+    func testTickLabelsKeepTheDigitsOfTheStep() {
+        XCTAssertEqual(TimelineFigure.tickLabel(2, step: 1), "2")
+        XCTAssertEqual(TimelineFigure.tickLabel(-1.5, step: 0.5), "−1.5")
+        XCTAssertEqual(TimelineFigure.tickLabel(0.00005, step: 0.00005), "0.00005")
+        XCTAssertEqual(TimelineFigure.tickLabel(20, step: 5), "20")
+    }
+
+    /// やさしい版が図を持たず、問題文に「図」と書いていなくても、元の問題の図を使う。
+    func testTheEasierVersionKeepsTheFigureWithoutSayingFigure() throws {
+        var machine = F.machine()
+        let id = machine.insertBatchRequest(purpose: "cards", request: .emptyObject, accuracy: nil, levelCap: nil)
+        var draft = F.draftJSON()
+        draft["prompt"] = "右の図で、$x$ の大きさを求めなさい。"
+        draft["figure"] = triangle()
+        draft["easier"] = ["level": 1, "prompt": "$\\angle ABC$ の大きさを答えなさい。", "math": "", "question": "",
+                           "answer_key": "61", "answer_expr": "61", "checkpoints": [], "figure": NSNull()]
+        XCTAssertEqual(machine.applyBatch(id: id, batch: try F.batch(cards: [draft])), .applied(cards: 1))
+        let card = try XCTUnwrap(machine.queue.first)
+        let easierID = try XCTUnwrap(machine.makeEasier(of: card.id))
+        XCTAssertEqual(machine.cards[easierID]?.payload["figure"], card.payload["figure"])
+    }
 }
