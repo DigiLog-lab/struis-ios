@@ -7,6 +7,22 @@ struct TimelineProblemView: View {
     var compact = false
     /// iPhone で自分で丸付けするカード(撮らずに、解いたら答えを見る)。
     var selfGrades = false
+    /// 図の右の余白(右下のボタンの列と重ならないように空ける)。
+    var figureTrailing: CGFloat = 0
+    /// 問題の列の見えている高さ。図はこの中に収まるように縮める(問題文が長い時に、図が下の帯に隠れてスクロールしないと
+    /// 見えなかった。2026-11-19 の画面の確かめ)。nil なら縮めない。
+    var figureAvailableHeight: CGFloat? = nil
+    @State private var measuredTotal: CGFloat = 0
+    @State private var measuredFigure: CGFloat = 0
+
+    /// 図の高さの上限: 列の高さから、図のほか(問題文・式・問い・下の左の通し番号)の高さを引いた残り。
+    private var figureMaxHeight: CGFloat? {
+        guard let available = figureAvailableHeight, measuredTotal > 0 else { return nil }
+        let others = measuredTotal - measuredFigure
+        // 小さくしすぎると点の名前や目盛りが重なって読めない(150 では放物線と直線の図の文字が重なった)。それより低くなる時は、
+        // 列をスクロールして見てもらう。
+        return max(compact ? 70 : 210, available - others - 64)
+    }
 
     private var chain: (position: Int, total: Int)? { TimelineRules.chainPosition(card) }
 
@@ -43,6 +59,13 @@ struct TimelineProblemView: View {
             if !card.question.isEmpty, card.kind != TimelineCards.Kind.reason.rawValue, card.kind != TimelineCards.Kind.compare.rawValue {
                 TimelineQuestionText(text: card.question, changed: card.chain?["changed"]?.stringValue, size: compact ? 15 : 20)
             }
+            // 図形の問題の図・グラフ。問題文・式・問いの下に置く。上に置くと、その下の長い式が右下のボタンの列(質問・飛ばす・
+            // 答え・撮る)の高さに入って切れた(2026-11-19 の画面の確かめ)。図は右にボタンの列の幅を空ける。
+            if let figure = TimelineFigure(card.payload["figure"]) {
+                TimelineFigureView(figure: figure, compact: compact, maxHeight: figureMaxHeight)
+                    .padding(.trailing, figureTrailing)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { measuredFigure = $0 }
+            }
             if !compact, let previous = card.chain?["previous"]?.stringValue, !previous.isEmpty {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Image(systemName: TimelineSymbol.past).font(.system(size: 12, weight: .semibold))
@@ -58,6 +81,7 @@ struct TimelineProblemView: View {
                     .font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText)
             }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { measuredTotal = $0 }
         .opacity(compact ? 0.55 : 1)
     }
 

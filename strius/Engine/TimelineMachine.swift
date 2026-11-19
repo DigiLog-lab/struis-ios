@@ -371,6 +371,8 @@ nonisolated struct TimelineMachine {
         for (key, value) in [("compare", draft.compare), ("reason", draft.reason), ("howto", draft.howto), ("diagnostic", draft.diagnostic)] {
             if let value, value != .null { payload[key] = value }
         }
+        // 図形の問題の図。読めない図は持たない(受け取る前の点検で、図を前提にした問題は断っている)。
+        if TimelineFigure(draft.figure) != nil, let figure = draft.figure { payload["figure"] = figure }
         // 解く範囲を固定して頼んだ5枚は、その単元のカードとして持つ(グラフがまだ無くても範囲の中だと分かるように)。
         let unitID: String? = batchID.flatMap { batches[$0]?.request["scope_unit_id"]?.stringValue }
         var card = TimelineCardRecord(
@@ -426,11 +428,23 @@ nonisolated struct TimelineMachine {
             question: easier["question"]?.stringValue ?? "", answerKey: easier["answer_key"]?.stringValue ?? "",
             answerExpr: easier["answer_expr"]?.stringValue ?? "", checkpoints: easier["checkpoints"]?.arrayValue?.compactMap(\.stringValue) ?? [],
             commonMistakes: base.commonMistakes, estimatedSeconds: max(20, base.estimatedSeconds / 2), chain: base.chain, easierOf: base.id,
-            subunitId: nil, unitId: base.unitId, payload: .object(["steps": base.payload["steps"] ?? .emptyArray, "variant": .bool(variant != nil)]), origin: origin, status: "unused",
+            subunitId: nil, unitId: base.unitId, payload: .object(easierPayload(base: base, version: easier, isVariant: variant != nil)), origin: origin, status: "unused",
             createdAt: now(), updatedAt: now()
         )
         put("timeline.card_easier", card)
         return card.id
+    }
+
+    /// やさしい版・数値を変えた版の中身。図はその版の図、無ければ元の問題の図(図を指す問題文の時だけ)。
+    private func easierPayload(base: TimelineCardRecord, version: [String: LedgerJSON], isVariant: Bool) -> [String: LedgerJSON] {
+        var payload: [String: LedgerJSON] = ["steps": base.payload["steps"] ?? .emptyArray, "variant": .bool(isVariant)]
+        let text = [version["prompt"]?.stringValue ?? base.prompt, version["question"]?.stringValue ?? ""].joined(separator: " ")
+        if TimelineFigure(version["figure"]) != nil, let figure = version["figure"] {
+            payload["figure"] = figure
+        } else if TimelineFigure.mentionsFigure(text), let figure = base.payload["figure"], TimelineFigure(figure) != nil {
+            payload["figure"] = figure
+        }
+        return payload
     }
 
     /// 前に解けた問題(単元ホームの ○)を、1枚目の候補として置く。
