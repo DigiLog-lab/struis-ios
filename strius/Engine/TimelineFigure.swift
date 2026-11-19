@@ -413,9 +413,10 @@ nonisolated struct TimelineFigure: Equatable, Sendable {
         return text.trimmingCharacters(in: .whitespaces)
     }
 
-    /// 問題文が図を前提にしているか(「右の図で」「図の」「グラフ」)。「図形」は図を指さないので数えない。
+    /// 問題文が図を前提にしているか(「右の図で」「図の」「右のグラフ」)。「図形」は図を指さず、「次の関数のグラフの周期」のように
+    /// グラフという言葉を使うだけの問題も図を前提にしないので数えない(2026-11-19 の実際の出題で、三角関数の問題が断られた)。
     static func mentionsFigure(_ text: String) -> Bool {
-        text.range(of: #"図(?!形)|グラフ"#, options: .regularExpression) != nil
+        text.range(of: #"図(?!形)|(右|左|上|下|この|その)の?グラフ"#, options: .regularExpression) != nil
     }
 
     // MARK: 描く位置

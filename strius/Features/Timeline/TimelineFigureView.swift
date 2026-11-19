@@ -306,6 +306,11 @@ struct TimelineFigureView: View {
             let ordered = group.sorted { (figure.degrees(of: figure.angles[$0]) ?? 0) < (figure.degrees(of: figure.angles[$1]) ?? 0) }
             for (position, index) in ordered.enumerated() { rank[index] = position }
         }
+        // 角の文字どうしが重なる時(同じ頂点の印、近い頂点の印)は、あとの文字を二等分線に沿って外へずらす。
+        var placed: [CGRect] = figure.points.filter { !$0.isHidden }.map { p in
+            let c = place(p)
+            return CGRect(x: c.x - 4, y: c.y - 4, width: 8, height: 8)
+        }
         for (index, angle) in figure.angles.enumerated() {
             guard let v = figure.point(angle.vertex), let a = figure.point(angle.from), let b = figure.point(angle.to) else { continue }
             let pv = place(v), pa = place(a), pb = place(b)
@@ -337,7 +342,18 @@ struct TimelineFigureView: View {
                 if bisector == .zero { bisector = CGVector(dx: -ua.dy, dy: ua.dx) }
                 // 弧の外側に置く。角が小さいほど、弧の近くでは文字が線に掛かるので遠ざける。
                 let opening = acos(max(-1, min(1, ua.dx * ub.dx + ua.dy * ub.dy)))
-                let distance = radius + CGFloat(max(0, angle.arcs - 1)) * 4 + (compact ? 10 : 14) + (opening < 0.9 ? (compact ? 6 : 10) : 0)
+                var distance = radius + CGFloat(max(0, angle.arcs - 1)) * 4 + (compact ? 10 : 14) + (opening < 0.9 ? (compact ? 6 : 10) : 0)
+                let size = CGSize(width: CGFloat(label.count) * angleFontSize * 0.62 + 2, height: angleFontSize * 1.15)
+                func box(_ d: CGFloat) -> CGRect {
+                    let c = pv + bisector * d
+                    return CGRect(x: c.x - size.width / 2, y: c.y - size.height / 2, width: size.width, height: size.height)
+                }
+                var tries = 0
+                while tries < 5, placed.contains(where: { $0.intersects(box(distance)) }) {
+                    distance += compact ? 8 : 12
+                    tries += 1
+                }
+                placed.append(box(distance))
                 text(label, at: pv + bisector * distance, size: angleFontSize, color: Theme.accentColor, weight: .bold, in: &context)
             }
         }

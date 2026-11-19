@@ -37,22 +37,19 @@ struct TimelineProblemView: View {
                 TimelineQuestionText(text: card.prompt, changed: card.chain?["changed"]?.stringValue, size: compact ? 15 : (problem == nil ? 22 : 20))
                     .accessibilityIdentifier("timeline-prompt")
             }
-            // 図形の問題の図。問題文の下、式と問いの上(教科書と同じく、図を見てから問いを読む)。
-            if let figure = TimelineFigure(card.payload["figure"]) {
-                TimelineFigureView(figure: figure, compact: compact)
-                    .padding(.trailing, figureTrailing)
-            }
-            // 図の下に来る式と問いも、図と同じく右下のボタンの列の高さに入るので、その幅を空ける。
-            let belowFigure: CGFloat = TimelineFigure(card.payload["figure"]) == nil ? 0 : figureTrailing
             if !card.math.isEmpty, card.kind == "solve" || card.kind == "predict" {
                 TimelineMath(latex: card.math, size: compact ? 20 : 34, changed: card.chain?["changed"]?.stringValue)
-                    .padding(.trailing, belowFigure)
             }
             // 「理由を選ぶ」「2つの解き方を比べる」は、問いの文(`reason.question`・`compare.question`)を問題文として上に出している。
             // カードの `question` も出すと、同じ問いが 2 回並ぶ(2026-11-12 の実使用テスト)。
             if !card.question.isEmpty, card.kind != TimelineCards.Kind.reason.rawValue, card.kind != TimelineCards.Kind.compare.rawValue {
                 TimelineQuestionText(text: card.question, changed: card.chain?["changed"]?.stringValue, size: compact ? 15 : 20)
-                    .padding(.trailing, belowFigure)
+            }
+            // 図形の問題の図・グラフ。問題文・式・問いの下に置く。上に置くと、その下の長い式が右下のボタンの列(質問・飛ばす・
+            // 答え・撮る)の高さに入って切れた(2026-11-19 の画面の確かめ)。図は右にボタンの列の幅を空ける。
+            if let figure = TimelineFigure(card.payload["figure"]) {
+                TimelineFigureView(figure: figure, compact: compact)
+                    .padding(.trailing, figureTrailing)
             }
             if !compact, let previous = card.chain?["previous"]?.stringValue, !previous.isEmpty {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {

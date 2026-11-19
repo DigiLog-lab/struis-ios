@@ -67,6 +67,8 @@ final class TimelineFigureTests: XCTestCase {
     func testAProblemThatRefersToAFigureNeedsOne() throws {
         XCTAssertTrue(TimelineFigure.mentionsFigure("右の図で、AE∥BC である。"))
         XCTAssertFalse(TimelineFigure.mentionsFigure("合同な図形の対応する角は等しい。"))
+        XCTAssertTrue(TimelineFigure.mentionsFigure("右のグラフは $y=a\\sin bx$ の形です。"))
+        XCTAssertFalse(TimelineFigure.mentionsFigure("次の関数のグラフの周期を求めなさい。"))
         var draft = F.draftJSON()
         draft["prompt"] = "右の図で、$\\angle x$ の大きさを求めなさい。"
         draft["figure"] = NSNull()
