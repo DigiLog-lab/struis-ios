@@ -81,8 +81,10 @@ nonisolated enum TimelineCards {
             var answerKey: String
             var answerExpr: String
             var checkpoints: [String]
+            /// 図形の問題の図(`TimelineFigure`)。元の問題と図が変わらない時も、やさしい版で図を指すなら入れる。
+            var figure: LedgerJSON?
             enum CodingKeys: String, CodingKey {
-                case level, prompt, math, question, checkpoints
+                case level, prompt, math, question, checkpoints, figure
                 case answerKey = "answer_key"
                 case answerExpr = "answer_expr"
             }
@@ -95,6 +97,7 @@ nonisolated enum TimelineCards {
                 answerKey = try c.decodeIfPresent(String.self, forKey: .answerKey) ?? ""
                 answerExpr = try c.decodeIfPresent(String.self, forKey: .answerExpr) ?? ""
                 checkpoints = try c.decodeIfPresent([String].self, forKey: .checkpoints) ?? []
+                figure = try c.decodeIfPresent(LedgerJSON.self, forKey: .figure)
             }
         }
         nonisolated struct Facts: Codable, Sendable {
@@ -132,11 +135,13 @@ nonisolated enum TimelineCards {
         var reason: LedgerJSON?
         var howto: LedgerJSON?
         var diagnostic: LedgerJSON?
+        /// 図形の問題の図(`TimelineFigure`)。図の要らない問題は null。
+        var figure: LedgerJSON?
         /// 解き終わった後に難しさを明かす言葉(モデルが生徒に合わせて書く)。空なら明かさない。
         var reveal: String
 
         enum CodingKeys: String, CodingKey {
-            case kind, level, skills, prompt, math, question, checks, checkpoints, steps, chain, easier, variant, facts, compare, reason, howto, diagnostic, reveal
+            case kind, level, skills, prompt, math, question, checks, checkpoints, steps, chain, easier, variant, facts, compare, reason, howto, diagnostic, figure, reveal
             case typeName = "type_name"
             case answerKey = "answer_key"
             case answerExpr = "answer_expr"
@@ -172,6 +177,7 @@ nonisolated enum TimelineCards {
             reason = try c.decodeIfPresent(LedgerJSON.self, forKey: .reason)
             howto = try c.decodeIfPresent(LedgerJSON.self, forKey: .howto)
             diagnostic = try c.decodeIfPresent(LedgerJSON.self, forKey: .diagnostic)
+            figure = try c.decodeIfPresent(LedgerJSON.self, forKey: .figure)
             reveal = try c.decodeIfPresent(String.self, forKey: .reveal) ?? ""
         }
     }
@@ -243,6 +249,7 @@ nonisolated enum TimelineCards {
         if draft.kind == Kind.solve.rawValue, draft.answerKey.trimmingCharacters(in: .whitespaces).isEmpty { defects.append("empty answer_key") }
         defects += verificationFailures(draft.checks.map { ($0.left, $0.right) })
         if let easier = draft.easier, easier.prompt.isEmpty && easier.math.isEmpty { defects.append("empty easier prompt") }
+        defects += figureDefects(draft)
         switch Kind(rawValue: draft.kind) {
         case .order, .findError, .nextStep:
             if draft.steps.count < 3 { defects.append("\(draft.kind) needs 3+ steps") }
@@ -263,6 +270,26 @@ nonisolated enum TimelineCards {
             }
             if draft.kind == Kind.fillLine.rawValue, draft.steps.count < 2 { defects.append("fill_line needs steps") }
         default: break
+        }
+        return defects
+    }
+
+    /// 図の欠け: 図を前提にした問題文なのに図が無い・図の点や角が合わない。やさしい版・数値を変えた版も同じに見る
+    /// (やさしい版が図を持たない時は、元の問題の図を使うので、そちらで足りる)。
+    static func figureDefects(_ draft: Draft) -> [String] {
+        var defects: [String] = []
+        let figure = TimelineFigure(draft.figure)
+        if figure == nil, TimelineFigure.mentionsFigure([draft.prompt, draft.question].joined(separator: " ")) {
+            defects.append("the problem refers to a figure (図) but figure is null")
+        }
+        defects += figure?.defects ?? []
+        for (name, version) in [("easier", draft.easier), ("variant", draft.variant)] {
+            guard let version else { continue }
+            let own = TimelineFigure(version.figure)
+            if own == nil, figure == nil, TimelineFigure.mentionsFigure([version.prompt, version.question].joined(separator: " ")) {
+                defects.append("\(name) refers to a figure (図) but has no figure")
+            }
+            defects += (own?.defects ?? []).map { "\(name) \($0)" }
         }
         return defects
     }

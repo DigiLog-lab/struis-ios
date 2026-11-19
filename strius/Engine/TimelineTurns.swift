@@ -360,6 +360,8 @@ nonisolated enum TimelineTurns {
             "answer_key": .string(card.answerKey),
             "steps_for_reference": card.payload["steps"] ?? .emptyArray,
         ]
+        // 図形の問題は、生徒が見た図(点の座標・印を付けた角)も渡す。答案の「∠ABC」がどの角かは図で決まる。
+        if let figure = card.payload["figure"], TimelineFigure(figure) != nil { request["figure"] = figure }
         switch TimelineCards.Kind(rawValue: card.kind) {
         case .fillLine:
             request["lines"] = card.payload["lines"] ?? .emptyArray

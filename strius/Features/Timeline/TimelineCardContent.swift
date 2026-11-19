@@ -35,6 +35,10 @@ struct TimelineProblemView: View {
                 TimelineQuestionText(text: card.prompt, changed: card.chain?["changed"]?.stringValue, size: compact ? 15 : (problem == nil ? 22 : 20))
                     .accessibilityIdentifier("timeline-prompt")
             }
+            // 図形の問題の図。問題文の下、式と問いの上(教科書と同じく、図を見てから問いを読む)。
+            if let figure = TimelineFigure(card.payload["figure"]) {
+                TimelineFigureView(figure: figure, compact: compact)
+            }
             if !card.math.isEmpty, card.kind == "solve" || card.kind == "predict" {
                 TimelineMath(latex: card.math, size: compact ? 20 : 34, changed: card.chain?["changed"]?.stringValue)
             }

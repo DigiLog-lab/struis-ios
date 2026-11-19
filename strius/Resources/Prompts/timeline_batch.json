@@ -161,6 +161,129 @@
               },
               "answer_expr": {
                 "type": "string"
+              },
+              "figure": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "x",
+                        "y"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "segments": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "from": {
+                          "type": "string"
+                        },
+                        "to": {
+                          "type": "string"
+                        },
+                        "dashed": {
+                          "type": "boolean"
+                        },
+                        "ticks": {
+                          "type": "integer"
+                        },
+                        "arrows": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "from",
+                        "to",
+                        "dashed",
+                        "ticks",
+                        "arrows"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "angles": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "vertex": {
+                          "type": "string"
+                        },
+                        "from": {
+                          "type": "string"
+                        },
+                        "to": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "arcs": {
+                          "type": "integer"
+                        },
+                        "right": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "vertex",
+                        "from",
+                        "to",
+                        "label",
+                        "arcs",
+                        "right"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "circles": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "center": {
+                          "type": "string"
+                        },
+                        "radius": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "center",
+                        "radius"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "points",
+                  "segments",
+                  "angles",
+                  "circles"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -169,7 +292,8 @@
               "math",
               "question",
               "answer_key",
-              "answer_expr"
+              "answer_expr",
+              "figure"
             ],
             "additionalProperties": false
           },
@@ -196,6 +320,129 @@
               },
               "answer_expr": {
                 "type": "string"
+              },
+              "figure": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "x",
+                        "y"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "segments": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "from": {
+                          "type": "string"
+                        },
+                        "to": {
+                          "type": "string"
+                        },
+                        "dashed": {
+                          "type": "boolean"
+                        },
+                        "ticks": {
+                          "type": "integer"
+                        },
+                        "arrows": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "from",
+                        "to",
+                        "dashed",
+                        "ticks",
+                        "arrows"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "angles": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "vertex": {
+                          "type": "string"
+                        },
+                        "from": {
+                          "type": "string"
+                        },
+                        "to": {
+                          "type": "string"
+                        },
+                        "label": {
+                          "type": "string"
+                        },
+                        "arcs": {
+                          "type": "integer"
+                        },
+                        "right": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "vertex",
+                        "from",
+                        "to",
+                        "label",
+                        "arcs",
+                        "right"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "circles": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "center": {
+                          "type": "string"
+                        },
+                        "radius": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "center",
+                        "radius"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "points",
+                  "segments",
+                  "angles",
+                  "circles"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -204,7 +451,8 @@
               "math",
               "question",
               "answer_key",
-              "answer_expr"
+              "answer_expr",
+              "figure"
             ],
             "additionalProperties": false
           },
@@ -419,6 +667,129 @@
             ],
             "additionalProperties": false
           },
+          "figure": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "points": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "x",
+                    "y"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "segments": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "dashed": {
+                      "type": "boolean"
+                    },
+                    "ticks": {
+                      "type": "integer"
+                    },
+                    "arrows": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "from",
+                    "to",
+                    "dashed",
+                    "ticks",
+                    "arrows"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "angles": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "vertex": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "arcs": {
+                      "type": "integer"
+                    },
+                    "right": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "vertex",
+                    "from",
+                    "to",
+                    "label",
+                    "arcs",
+                    "right"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "circles": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "center": {
+                      "type": "string"
+                    },
+                    "radius": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "center",
+                    "radius"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "points",
+              "segments",
+              "angles",
+              "circles"
+            ],
+            "additionalProperties": false
+          },
           "reveal": {
             "type": "string"
           }
@@ -447,6 +818,7 @@
           "reason",
           "howto",
           "diagnostic",
+          "figure",
           "reveal"
         ],
         "additionalProperties": false

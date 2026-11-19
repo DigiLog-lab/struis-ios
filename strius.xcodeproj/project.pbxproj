@@ -296,6 +296,8 @@
 		E8C18780367A5F364A5B809F /* TimelineProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = E857A7754363572832AAA6A0 /* TimelineProgress.swift */; };
 		E811532A51E5B7A52433ACB7 /* TimelineWarmup.swift in Sources */ = {isa = PBXBuildFile; fileRef = E843AE38FA34CE672601F854 /* TimelineWarmup.swift */; };
 		E83A9E3AD6B563A649EF5F22 /* DrillAuthoringClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8FC1383CBEE8C38C2FD8A47 /* DrillAuthoringClient.swift */; };
+		E8784FB9B98C85248C3B9273 /* TimelineFigure.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89A7583A1191059350D84C0 /* TimelineFigure.swift */; };
+		E8D24D9A3B0EE4225FAE6CAB /* TimelineFigureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8FD469FF1F5DA79433642A1 /* TimelineFigureView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -621,6 +623,8 @@
 		E857A7754363572832AAA6A0 /* TimelineProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineProgress.swift; sourceTree = "<group>"; };
 		E843AE38FA34CE672601F854 /* TimelineWarmup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineWarmup.swift; sourceTree = "<group>"; };
 		E8FC1383CBEE8C38C2FD8A47 /* DrillAuthoringClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillAuthoringClient.swift; sourceTree = "<group>"; };
+		E89A7583A1191059350D84C0 /* TimelineFigure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineFigure.swift; sourceTree = "<group>"; };
+		E8FD469FF1F5DA79433642A1 /* TimelineFigureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineFigureView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -1180,6 +1184,7 @@
 		E85CF7AF0619E79733B68454 /* Timeline */ = {
 			isa = PBXGroup;
 			children = (
+				E8FD469FF1F5DA79433642A1 /* TimelineFigureView.swift */,
 			);
 			path = Timeline;
 			sourceTree = "<group>";
@@ -1243,6 +1248,7 @@
 				E8B4E9093131914FE95E4AD1 /* TimelinePlanMode.swift */,
 				E857A7754363572832AAA6A0 /* TimelineProgress.swift */,
 				E843AE38FA34CE672601F854 /* TimelineWarmup.swift */,
+				E89A7583A1191059350D84C0 /* TimelineFigure.swift */,
 			);
 			path = Engine;
 			sourceTree = "<group>";
@@ -1869,6 +1875,8 @@
 				E8C18780367A5F364A5B809F /* TimelineProgress.swift in Sources */,
 				E811532A51E5B7A52433ACB7 /* TimelineWarmup.swift in Sources */,
 				E83A9E3AD6B563A649EF5F22 /* DrillAuthoringClient.swift in Sources */,
+				E8784FB9B98C85248C3B9273 /* TimelineFigure.swift in Sources */,
+				E8D24D9A3B0EE4225FAE6CAB /* TimelineFigureView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
