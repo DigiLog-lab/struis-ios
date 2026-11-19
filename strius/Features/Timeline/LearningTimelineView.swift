@@ -677,7 +677,9 @@ struct LearningTimelineView: View {
     /// 解いている間の問題の列。
     private func solvingCard(_ card: TimelineCardRecord) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            TimelineProblemView(card: card, store: store, selfGrades: !layout.isPad && store.canSelfGrade(card))
+            // 図は右下のボタンの列(質問・飛ばす・答え・撮る)と重なる高さに来るので、その幅を空ける(2026-11-19 の画面の確かめ)。
+            TimelineProblemView(card: card, store: store, selfGrades: !layout.isPad && store.canSelfGrade(card),
+                                figureTrailing: layout == .padLandscape ? 0 : 64)
             if !layout.isPad, store.isAnswerRevealed, store.canSelfGrade(card) {
                 TimelineAnswerCard(text: store.answerText(card))
                     .padding(.top, 10)

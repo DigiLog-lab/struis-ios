@@ -397,10 +397,17 @@ nonisolated struct TimelineFigure: Equatable, Sendable {
     static func displayLabel(_ label: String) -> String {
         var text = label
         for (token, replacement) in [("^{\\circ}", "°"), ("^\\circ", "°"), ("\\circ", "°")] { text = text.replacingOccurrences(of: token, with: replacement) }
+        // 図の文字によく出る記号は、先に文字に直す(読める文字に直す処理は `\ell` を「ell」にする)。
+        for (token, replacement) in [("\\ell", "ℓ"), ("\\theta", "θ"), ("\\alpha", "α"), ("\\beta", "β"), ("\\pi", "π"), ("\\angle", "∠"),
+                                     ("\\triangle", "△"), ("\\parallel", "∥"), ("\\perp", "⊥"), ("\\vec", "")] {
+            text = text.replacingOccurrences(of: token, with: replacement)
+        }
         if text.contains("\\") || text.contains("^") || text.contains("_") {
             text = MathPlainText.preview("\\(" + text.replacingOccurrences(of: "$", with: "") + "\\)")
         }
-        return text.replacingOccurrences(of: "$", with: "").trimmingCharacters(in: .whitespaces)
+        text = text.replacingOccurrences(of: "$", with: "")
+        if !text.contains("\\") { text = text.replacingOccurrences(of: "{", with: "").replacingOccurrences(of: "}", with: "") }
+        return text.trimmingCharacters(in: .whitespaces)
     }
 
     /// 問題文が図を前提にしているか(「右の図で」「図の」「グラフ」)。「図形」は図を指さないので数えない。

@@ -7,6 +7,8 @@ struct TimelineProblemView: View {
     var compact = false
     /// iPhone で自分で丸付けするカード(撮らずに、解いたら答えを見る)。
     var selfGrades = false
+    /// 図の右の余白(右下のボタンの列と重ならないように空ける)。
+    var figureTrailing: CGFloat = 0
 
     private var chain: (position: Int, total: Int)? { TimelineRules.chainPosition(card) }
 
@@ -38,6 +40,7 @@ struct TimelineProblemView: View {
             // 図形の問題の図。問題文の下、式と問いの上(教科書と同じく、図を見てから問いを読む)。
             if let figure = TimelineFigure(card.payload["figure"]) {
                 TimelineFigureView(figure: figure, compact: compact)
+                    .padding(.trailing, figureTrailing)
             }
             if !card.math.isEmpty, card.kind == "solve" || card.kind == "predict" {
                 TimelineMath(latex: card.math, size: compact ? 20 : 34, changed: card.chain?["changed"]?.stringValue)

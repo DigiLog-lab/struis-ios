@@ -89,13 +89,19 @@ struct TimelineFigureView: View {
             arrowHead(at: end, from: start, in: &context, width: axisWidth)
             text("y", at: CGPoint(x: end.x + (compact ? 9 : 12), y: end.y + 2), size: fontSize, italic: true, in: &context)
         }
-        if hasX && hasY { text("O", at: CGPoint(x: yAxisX - (compact ? 8 : 10), y: xAxisY + (compact ? 9 : 11)), size: smallFontSize, in: &context) }
+        // 原点に点(O)を置いた図は、点の名前と重なるので軸の O を出さない。
+        let originIsPoint = figure.points.contains { abs($0.x) < 1e-9 && abs($0.y) < 1e-9 }
+        // 点の名前と重なる目盛りの数字は出さない(点の座標は問題に出てくる大事な数なので、点の方を残す)。
+        let pointSpots = figure.points.map { layout($0.x, $0.y) }
+        func nearPoint(_ p: CGPoint) -> Bool { pointSpots.contains { hypot($0.x - p.x, $0.y - p.y) < (compact ? 14 : 20) } }
+        if hasX && hasY && !originIsPoint { text("O", at: CGPoint(x: yAxisX - (compact ? 8 : 10), y: xAxisY + (compact ? 9 : 11)), size: smallFontSize, in: &context) }
         guard axes.ticks else { return }
         let tick: CGFloat = compact ? 3 : 4
         if hasX {
             for x in ticks(axes.xMin, axes.xMax, pi: axes.piTicks) where abs(x) > 1e-9 {
                 let p = layout(x, 0)
                 stroke(line: CGPoint(x: p.x, y: p.y - tick), CGPoint(x: p.x, y: p.y + tick), with: ink, width: axisWidth, in: &context)
+                if nearPoint(p) { continue }
                 text(tickLabel(x, pi: axes.piTicks), at: CGPoint(x: p.x, y: p.y + (compact ? 10 : 13)), size: smallFontSize, color: Theme.secondaryText, in: &context)
             }
         }
@@ -103,6 +109,7 @@ struct TimelineFigureView: View {
             for y in ticks(axes.yMin, axes.yMax, pi: false) where abs(y) > 1e-9 {
                 let p = layout(0, y)
                 stroke(line: CGPoint(x: p.x - tick, y: p.y), CGPoint(x: p.x + tick, y: p.y), with: ink, width: axisWidth, in: &context)
+                if nearPoint(p) { continue }
                 text(tickLabel(y, pi: false), at: CGPoint(x: p.x - (compact ? 6 : 8), y: p.y), size: smallFontSize, color: Theme.secondaryText,
                      anchor: .trailing, in: &context)
             }

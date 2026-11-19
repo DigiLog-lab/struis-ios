@@ -379,9 +379,8 @@ actor MockTurnRunner: TurnRunning {
     }
 
     /// 画面の確かめ用: `STRUIS_MOCK_TIMELINE_BATCH_FILE`(`cards` を持つ JSON。`TimelineFigureLiveTests` の figure_live.json など)の
-    /// カードを、`STRUIS_MOCK_TIMELINE_CARD_START` 番目(0 から)から 5 枚ずつ、頼まれるたびに順に返す。どれも解いて撮る問題にし、
-    /// スキルは手元のグラフのスキルに置き換える(実際の出題のカードを、そのままの画面で見るため)。
-    nonisolated(unsafe) private static var fixtureNext: Int?
+    /// カードを、`STRUIS_MOCK_TIMELINE_CARD_START` 番目(0 から)から 5 枚返す(起動直後に 5 枚の依頼が続けて来ることがあるので、
+    /// 何度頼まれても同じ 5 枚)。どれも解いて撮る問題にし、スキルは付けない(実際の出題のカードを、そのままの画面で見るため)。
 
     nonisolated static func timelineBatchFixture(skillIDs: [String]) -> JSONObject? {
         let environment = ProcessInfo.processInfo.environment
@@ -389,11 +388,10 @@ actor MockTurnRunner: TurnRunning {
               let data = FileManager.default.contents(atPath: path),
               let object = (try? JSONSerialization.jsonObject(with: data)) as? JSONObject,
               let rows = object["cards"] as? [JSONObject], !rows.isEmpty else { return nil }
-        let start = fixtureNext ?? Int(environment["STRUIS_MOCK_TIMELINE_CARD_START"] ?? "") ?? 0
+        let start = Int(environment["STRUIS_MOCK_TIMELINE_CARD_START"] ?? "") ?? 0
         let picked = (0..<5).map { rows[(start + $0) % rows.count] }
-        fixtureNext = start + 5
         let cards: [JSONObject] = picked.map { row in
-            ["kind": "solve", "level": row["level"] as? Int ?? 2, "skills": Array(skillIDs.prefix(1)), "type_name": "図",
+            ["kind": "solve", "level": row["level"] as? Int ?? 2, "skills": [String](), "type_name": "図",
              "prompt": row["prompt"] as? String ?? "", "math": row["math"] as? String ?? "", "question": row["question"] as? String ?? "",
              "answer_key": (row["answer_key"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "-", "answer_expr": "", "checks": [], "checkpoints": [],
              "common_mistakes": [], "steps": row["steps"] as? [String] ?? [], "mistake_steps": [], "estimated_seconds": 90, "chain": NSNull(),
