@@ -56,6 +56,29 @@ final class TimelineFigureLiveTests: XCTestCase {
                                                          correctDates: [], masteryThreshold: 3, attempts: 0, lastCorrectAt: nil, nextReviewAt: nil,
                                                          reviewCount: 0, replacedBy: [], source: "initial", createdAt: now, updatedAt: now, expansion: "done"))
             }
+            // `STRUIS_FIGURE_LIVE_WARM=1`: どのスキルも昨日 5 問中 5 問 ○ だったことにする(段 1〜2 の易しい問題から先へ進ませ、
+            // 重なった三角形のような難しい図を出させる)。
+            if env["STRUIS_FIGURE_LIVE_WARM"] == "1" {
+                let formatter = DateFormatter()
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.timeZone = TimeZone(identifier: "UTC")
+                formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'"
+                let yesterday = formatter.string(from: Date().addingTimeInterval(-86_400))
+                for skill in Self.skills {
+                    for n in 1...5 {
+                        let cardID = "warm-\(skill.id)-\(n)"
+                        timeline.put("test", TimelineCardRecord(
+                            id: cardID, batchId: nil, position: -100 + n, kind: "solve", level: 2, skills: [skill.id], typeName: "練習",
+                            prompt: "\(skill.name)(練習 \(n))", math: "", question: "", answerKey: "", answerExpr: "", checkpoints: [], commonMistakes: [],
+                            estimatedSeconds: 60, chain: nil, easierOf: nil, subunitId: nil, unitId: Self.unitID, payload: .emptyObject, origin: "batch",
+                            status: "answered", createdAt: yesterday, updatedAt: yesterday))
+                        timeline.put("test", TimelineAttemptRecord(
+                            id: "warm-a-\(skill.id)-\(n)", cardId: cardID, capturePath: nil, verdict: "correct", checkpointResults: .emptyArray,
+                            errors: .emptyArray, learnerAnswer: "", cause: "unknown", seconds: 60, firstTry: true, assisted: false, skipReason: nil,
+                            keySuspect: false, countsForAccuracy: true, feedback: "", createdAt: yesterday, gradedAt: yesterday))
+                    }
+                }
+            }
             return ([.upsert("test", unit)] + timeline.events, ())
         }
 
@@ -110,7 +133,7 @@ final class TimelineFigureLiveTests: XCTestCase {
 
         // 受け取ったカード(図の有無・中身)。
         let cards: [TimelineCardRecord] = try await ledger.read { db in
-            try TimelineMachine(loading: db).cards.values.filter { $0.origin == "batch" }.sorted { $0.position < $1.position }
+            try TimelineMachine(loading: db).cards.values.filter { $0.origin == "batch" && !$0.id.hasPrefix("warm-") }.sorted { $0.position < $1.position }
         }
         let rows: [[String: Any]] = cards.map { card in
             ["id": card.id, "kind": card.kind, "level": card.level, "skills": card.skills, "prompt": card.prompt, "math": card.math,
