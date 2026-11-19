@@ -153,12 +153,12 @@ struct TimelineFigureView: View {
             var path = Path()
             var previous: CGPoint?
             var visible: [CGPoint] = []
-            let jump = (window?.height ?? 400) * 1.5
+            let jump = (window?.height ?? 400) * 1.5, jumpX = (window?.width ?? 400) * 1.5
             for sample in samples {
                 guard let sample else { previous = nil; continue }
                 let p = layout(sample.x, sample.y)
-                // 漸近線をまたぐ所(1/x・tan x)は、縦に大きく跳ぶ。つながない。
-                if let q = previous, abs(p.y - q.y) < jump { path.addLine(to: p) } else { path.move(to: p) }
+                // 漸近線をまたぐ所(1/x・tan x)は、縦に大きく跳ぶ。媒介変数の曲線(x = 1/t)は横にも跳ぶ。どちらもつながない。
+                if let q = previous, abs(p.y - q.y) < jump, abs(p.x - q.x) < jumpX { path.addLine(to: p) } else { path.move(to: p) }
                 previous = p
                 if window?.insetBy(dx: -1, dy: -1).contains(p) ?? true { visible.append(p) }
             }
@@ -236,8 +236,10 @@ struct TimelineFigureView: View {
             }
             // 立体の底の円(上に円錐の頂点や円柱の上の円がある円)は、教科書の見取図と同じく奥の半分を点線にする。
             if figure.isSpace, isBottom(circle) {
-                let front = points.enumerated().filter { sin(Double($0.offset) / 144 * 2 * .pi) <= 0 }.map(\.element)
-                let back = points.enumerated().filter { sin(Double($0.offset) / 144 * 2 * .pi) >= 0 }.map(\.element)
+                // 手前の半分は角度 π〜2π(sin ≤ 0)、奥の半分は 0〜π。続いた範囲で取る(0 と π の点を飛び越えてつなぐと、
+                // 楕円の直径の線が描かれる。Codex のレビューの指摘)。
+                let front = Array(points[72...144])
+                let back = Array(points[0...72])
                 var frontPath = Path(), backPath = Path()
                 frontPath.addLines(front)
                 backPath.addLines(back)

@@ -433,6 +433,19 @@ nonisolated struct TimelineFigure: Equatable, Sendable {
             rect = rect.map { $0.union(r) } ?? r
         }
         for p in points { let q = plane(p); add(q.x, q.y) }
+        // 弧は両端の点だけでなく、回った途中の一番外まで入れる(270° の弧が枠からはみ出した。Codex のレビューの指摘)。
+        for arc in arcs {
+            guard let c = point(arc.center), let a = point(arc.from), let b = point(arc.to) else { continue }
+            let r = hypot(a.x - c.x, a.y - c.y)
+            let start = atan2(a.y - c.y, a.x - c.x)
+            var end = atan2(b.y - c.y, b.x - c.x)
+            while end <= start { end += 2 * .pi }
+            for k in 0...48 {
+                let t = start + (end - start) * Double(k) / 48
+                let q = plane(c.x + r * cos(t), c.y + r * sin(t), c.z)
+                add(q.x, q.y)
+            }
+        }
         for c in circles {
             guard let center = point(c.center), c.radius > 0 else { continue }
             for k in 0..<16 {
@@ -584,6 +597,63 @@ nonisolated struct TimelineFigure: Equatable, Sendable {
             // 同じくらい離れていれば、真ん中に近い方(先に並べた方)。
             return l + 0.02 < r
         } ?? 0.5
+    }
+
+    // MARK: 文で伝える
+
+    /// 図の中身を文にしたもの(質問・解説に添える。チャットの先生には図そのものを送れないので、生徒が見ている図を
+    /// 座標と印で伝える。Codex のレビューの指摘)。
+    var summaryLines: [String] {
+        func number(_ v: Double) -> String {
+            let r = (v * 100).rounded() / 100
+            return r == r.rounded() ? String(Int(r)) : String(format: "%g", r)
+        }
+        var lines: [String] = []
+        if let axes {
+            lines.append("座標平面(x は \(number(axes.xMin))〜\(number(axes.xMax))、y は \(number(axes.yMin))〜\(number(axes.yMax)))")
+        } else if isSpace {
+            lines.append("立体の見取図(x が右、y が奥行き、z が高さ)")
+        }
+        let shown = points.filter { !$0.isHidden }
+        if !shown.isEmpty {
+            lines.append("点: " + shown.map { p in
+                isSpace ? "\(p.name)(\(number(p.x)), \(number(p.y)), \(number(p.z)))" : "\(p.name)(\(number(p.x)), \(number(p.y)))"
+            }.joined(separator: "、"))
+        }
+        if !segments.isEmpty {
+            lines.append("線分: " + segments.map { s in
+                var text = s.from + s.to
+                if s.dashed { text += "(点線)" }
+                if s.head { text += "(\(s.to)の向きの矢印)" }
+                if !s.label.isEmpty { text += "「\(Self.displayLabel(s.label))」" }
+                return text
+            }.joined(separator: "、"))
+        }
+        for ticks in Set(segments.map(\.ticks)).sorted() where ticks > 0 {
+            lines.append("等しい長さの印(\(ticks) 本): " + segments.filter { $0.ticks == ticks }.map { $0.from + $0.to }.joined(separator: " = "))
+        }
+        for arrows in Set(segments.map(\.arrows)).sorted() where arrows > 0 {
+            lines.append("平行の印: " + segments.filter { $0.arrows == arrows }.map { $0.from + $0.to }.joined(separator: " ∥ "))
+        }
+        if !angles.isEmpty {
+            lines.append("角の印: " + angles.map { a in
+                "∠\(a.from)\(a.vertex)\(a.to)" + (a.right ? "(直角)" : "") + (a.label.isEmpty ? "" : "「\(Self.displayLabel(a.label))」")
+                    + (a.arcs >= 2 ? "(弧 \(a.arcs) 本)" : "")
+            }.joined(separator: "、"))
+        }
+        for c in circles { lines.append("円: 中心 \(c.center)、半径 \(number(c.radius))") }
+        for a in arcs { lines.append("弧: 中心 \(a.center)、\(a.from) から \(a.to) へ" + (a.label.isEmpty ? "" : "「\(Self.displayLabel(a.label))」")) }
+        for r in regions { lines.append("塗った部分: " + r.points.joined(separator: "")) }
+        for c in curves {
+            let name = c.label.isEmpty ? "" : "「\(Self.displayLabel(c.label))」"
+            if !c.expr.isEmpty {
+                lines.append("曲線\(name): y = \(c.expr)(x は \(number(c.from))〜\(number(c.to)))" + (c.dashed ? "(点線)" : ""))
+            } else {
+                lines.append("曲線\(name): x = \(c.xExpr)、y = \(c.yExpr)(t は \(number(c.from))〜\(number(c.to)))" + (c.dashed ? "(点線)" : ""))
+            }
+        }
+        for f in fills { lines.append("塗った部分: y = \(f.lower) から y = \(f.upper) の間(x は \(number(f.from))〜\(number(f.to)))") }
+        return lines.isEmpty ? [] : ["(問題の図)"] + lines
     }
 
     /// 目盛りの間隔(1・2・5 の 10 のべき倍で、8 本前後)。

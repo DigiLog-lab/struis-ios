@@ -500,7 +500,9 @@ nonisolated enum TimelineCards {
         // 選ぶカードの `problem` は「問いかけ + 式」を 1 行にしたものなので、同じ式を重ねない。
         let mathInProblem: Bool = !card.math.isEmpty && problem.contains(card.math)
         let lines: [String] = [problem, showsPrompt && card.prompt != problem ? card.prompt : "", mathInProblem ? "" : math, asksInPrompt ? "" : card.question].filter { !$0.isEmpty }
-        return lines + optionLines(card)
+        // 図形の問題の図・グラフは、座標と印を文にして添える(質問・解説の先生には図を送れない。Codex のレビューの指摘)。
+        let figure: [String] = TimelineFigure(card.payload["figure"])?.summaryLines ?? []
+        return lines + figure + optionLines(card)
     }
 
     /// 質問・解説に添える、カードの選ぶもの(番号付き)。読み取って採点するカードには無い。

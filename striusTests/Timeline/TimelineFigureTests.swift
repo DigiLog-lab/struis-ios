@@ -288,4 +288,35 @@ final class TimelineFigureTests: XCTestCase {
         XCTAssertTrue(figure.points.allSatisfy(\.isHidden))
         XCTAssertEqual(figure.defects, [])
     }
+    // MARK: Codex のレビューの指摘(2026-11-19)
+
+    /// 中心から反時計回りに 270° 回る弧は、両端の点より外まで描く範囲に入れる。
+    func testTheBoundsIncludeTheWholeArc() throws {
+        let figure = try XCTUnwrap(TimelineFigure(try json([
+            "points": [["name": "O", "x": 0, "y": 0, "z": 0], ["name": "A", "x": 1, "y": 0, "z": 0], ["name": "B", "x": 0, "y": -1, "z": 0]],
+            "segments": [seg("O", "A"), seg("O", "B")], "angles": [], "circles": [], "regions": [], "curves": [], "fills": [],
+            "arcs": [["center": "O", "from": "A", "to": "B", "label": ""]],
+        ])))
+        let bounds = try XCTUnwrap(figure.bounds)
+        XCTAssertEqual(bounds.minX, -1, accuracy: 1e-6)
+        XCTAssertEqual(bounds.maxY, 1, accuracy: 1e-6)
+    }
+
+    /// 質問・解説に添える問題の文に、図の点・線分・印・曲線が入る(チャットの先生は図を見られない)。
+    func testTheProblemTextForQuestionsDescribesTheFigure() throws {
+        var payload: [String: LedgerJSON] = ["figure": try json(triangle())]
+        payload["steps"] = .emptyArray
+        let card = F.card("c", payload: payload)
+        let text = TimelineCards.problemLines(card).joined(separator: "\n")
+        XCTAssertTrue(text.contains("(問題の図)"), text)
+        XCTAssertTrue(text.contains("A(3.98, 7.18)"), text)
+        XCTAssertTrue(text.contains("∠ABC「61°」"), text)
+        let graph = F.card("g", payload: ["figure": try json([
+            "points": [], "segments": [], "angles": [], "circles": [], "arcs": [], "regions": [],
+            "axes": ["x_min": -2, "x_max": 4, "y_min": -1, "y_max": 10, "ticks": true, "grid": false, "pi_ticks": false],
+            "curves": [["expr": "x^2", "x_expr": "", "y_expr": "", "from": -2, "to": 4, "dashed": false, "label": "$y=x^2$"]], "fills": [],
+        ])])
+        XCTAssertTrue(TimelineCards.problemLines(graph).joined().contains("y = x^2(x は -2〜4)"))
+        XCTAssertFalse(TimelineCards.problemLines(F.card("n")).joined().contains("問題の図"))
+    }
 }
