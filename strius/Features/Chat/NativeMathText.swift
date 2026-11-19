@@ -174,6 +174,8 @@ final class NativeMathRenderer {
         cache.totalCostLimit = 48 * 1024 * 1024
         return cache
     }()
+    /// 式の大きさを測る時の枠の幅。どの式もこれより広くはならない(折り返さずに測るため)。
+    private static let unwrappedWidth: CGFloat = 100_000
     private var parsed: [String: Result<Void, ParseError>] = [:]
     private var fonts: [CGFloat: MTFont] = [:]
     private let measurer = MTMathUILabel()
@@ -219,7 +221,10 @@ final class NativeMathRenderer {
         measurer.labelMode = display ? .display : .text
         measurer.latex = prepared
         let fitted = measurer.sizeThatFits(.zero)
-        measurer.frame = CGRect(origin: .zero, size: fitted)
+        // 測る時の枠は折り返さない広さにする。`MTMathUILabel` は枠の幅で式を折り返して組むので、測った幅ちょうどの枠だと
+        // 大きな積分などを 2 行に折り返して測り、下の長さ(descent)が実際の画像(`MTMathImage` は折り返さない)より長くなる。
+        // その分だけ行中の式が文字の基線より下にずれ、後ろの「、」が式の上の方に浮いて見えた(2026-11-19、フーリエ解析の問題文)。
+        measurer.frame = CGRect(origin: .zero, size: CGSize(width: Self.unwrappedWidth, height: fitted.height))
         measurer.layoutSubviews()
         guard let list = measurer.displayList, list.width >= 0.5, list.ascent + list.descent >= 0.5 else {
             return NativeMathGlyph(image: UIImage(), size: CGSize(width: 1, height: 1), baseline: 0)
