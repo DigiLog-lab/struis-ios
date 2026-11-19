@@ -1,3 +1,4 @@
+import SwiftMath
 import SwiftUI
 import Testing
 import UIKit
@@ -21,13 +22,28 @@ struct PiecewiseRenderProbeTests {
         ("h_cases_display", head + "$$\(integral)=\\begin{cases}\\pi & (m=n)\\\\ 0 & (m\\neq n)\\end{cases}$$" + tail),
     ]
 
-    @Test func printGlyphMetrics() {
+    @Test func printGlyphMetrics() throws {
+        var lines: [String] = []
         let style = NativeMathStyle(color: .white, fontSize: 20, fontWeight: 700, scale: 3)
         for latex in ["\(Self.integral)=\\pi\\ (m=n)", "\(Self.integral)", "x=1", "\\frac{1}{2}"] {
             if let glyph = NativeMathRenderer.shared.glyph(latex: latex, display: false, style: style, highlighted: false) {
-                print("PROBE size=\(glyph.size) baseline=\(glyph.baseline) latex=\(latex)")
+                lines.append("size=\(glyph.size) baseline=\(glyph.baseline) latex=\(latex)")
+                let label = MTMathUILabel()
+                label.font = MTFontManager.manager.latinModernFont(withSize: style.mathSize)
+                label.labelMode = .text
+                label.latex = MathSourceNormalizer.prepare(latex)
+                let fitted = label.sizeThatFits(.zero)
+                for width in [fitted.width, 100_000] {
+                    label.frame = CGRect(origin: .zero, size: CGSize(width: width, height: fitted.height))
+                    label.layoutSubviews()
+                    if let list = label.displayList {
+                        lines.append("  frameWidth=\(width) fitted=\(fitted) list w=\(list.width) a=\(list.ascent) d=\(list.descent) subs=\(list.subDisplays.count)")
+                    }
+                }
             }
         }
+        let directory = URL(fileURLWithPath: ProcessInfo.processInfo.environment["DEVBOX_FILES"] ?? NSTemporaryDirectory())
+        try lines.joined(separator: "\n").write(to: directory.appendingPathComponent("metrics.txt"), atomically: true, encoding: .utf8)
     }
 
     @Test func renderCandidates() throws {
