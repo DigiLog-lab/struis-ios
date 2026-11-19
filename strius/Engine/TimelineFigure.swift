@@ -252,11 +252,27 @@ nonisolated struct TimelineFigure: Equatable, Sendable {
         return distance <= tolerance ? t : nil
     }
 
+    /// 線分 ab と線分 cd が交わる所(ab の上のどこか、0〜1)。平行・交わらなければ nil。
+    static func crossing(_ a: Point, _ b: Point, _ c: Point, _ d: Point) -> Double? {
+        let rx = b.x - a.x, ry = b.y - a.y, sx = d.x - c.x, sy = d.y - c.y
+        let denominator = rx * sy - ry * sx
+        guard abs(denominator) > 1e-12 else { return nil }
+        let t = ((c.x - a.x) * sy - (c.y - a.y) * sx) / denominator
+        let u = ((c.x - a.x) * ry - (c.y - a.y) * rx) / denominator
+        guard t > 1e-6, t < 1 - 1e-6, u >= -1e-6, u <= 1 + 1e-6 else { return nil }
+        return t
+    }
+
     /// 等しい長さ・平行の印を置く位置(線分の a から b へのどこか)。線分の上の点から、なるべく離れた所。
     func markPosition(of segment: Segment) -> Double {
         guard let a = point(segment.from), let b = point(segment.to) else { return 0.5 }
         let diagonal = bounds.map { hypot($0.width, $0.height) } ?? 1
-        let onSegment = points.compactMap { Self.parameter(of: $0, onSegmentFrom: a, to: b, tolerance: diagonal * 0.01) } + [0, 1]
+        // 線の上の点と、ほかの線と交わる所(名前の無い交点。長方形の対角線など)。
+        var onSegment = points.compactMap { Self.parameter(of: $0, onSegmentFrom: a, to: b, tolerance: diagonal * 0.01) } + [0, 1]
+        for other in segments where other != segment {
+            guard let c = point(other.from), let d = point(other.to), let t = Self.crossing(a, b, c, d) else { continue }
+            onSegment.append(t)
+        }
         let candidates: [Double] = [0.5, 0.42, 0.58, 0.35, 0.65, 0.28, 0.72]
         return candidates.max { lhs, rhs in
             let l = onSegment.map { abs($0 - lhs) }.min() ?? 1, r = onSegment.map { abs($0 - rhs) }.min() ?? 1

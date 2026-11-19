@@ -148,4 +148,17 @@ final class TimelineFigureTests: XCTestCase {
         // 途中に点の無い線は真ん中。
         XCTAssertEqual(figure.markPosition(of: TimelineFigure.Segment(from: "R", to: "P", dashed: false, ticks: 1, arrows: 0)), 0.5)
     }
+    /// 名前の無い交点(長方形の対角線)も避ける(2026-11-19 の実際の出題で、対角線の等しい長さの印が交わる所に重なった)。
+    func testMarksAvoidUnnamedCrossings() throws {
+        let figure = try XCTUnwrap(TimelineFigure(try json([
+            "points": [["name": "A", "x": 0, "y": 0], ["name": "B", "x": 0, "y": 3], ["name": "C", "x": 4, "y": 3], ["name": "D", "x": 4, "y": 0]],
+            "segments": [["from": "A", "to": "C", "dashed": false, "ticks": 2, "arrows": 0], ["from": "D", "to": "B", "dashed": false, "ticks": 2, "arrows": 0],
+                         ["from": "A", "to": "B", "dashed": false, "ticks": 1, "arrows": 0]],
+            "angles": [], "circles": [],
+        ])))
+        let ac = try XCTUnwrap(figure.segments.first { $0.from == "A" && $0.to == "C" })
+        XCTAssertGreaterThan(abs(figure.markPosition(of: ac) - 0.5), 0.1)
+        let ab = try XCTUnwrap(figure.segments.first { $0.to == "B" && $0.from == "A" })
+        XCTAssertEqual(figure.markPosition(of: ab), 0.5)
+    }
 }
