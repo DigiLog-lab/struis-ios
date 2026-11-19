@@ -616,7 +616,7 @@ struct LearningTimelineView: View {
                 // 止まり、下の手順を並べ替えられなくなる(Codex のレビューの指摘)。入りきる時は `.basedOnSize` で動かない。
                 GeometryReader { proxy in
                     ScrollView {
-                        solvingCard(card).frame(minHeight: proxy.size.height, alignment: .top)
+                        solvingCard(card, height: proxy.size.height).frame(minHeight: proxy.size.height, alignment: .top)
                     }
                     .scrollBounceBehavior(.basedOnSize)
                     .scrollIndicators(isProblemScrolling ? .visible : .hidden)
@@ -675,11 +675,11 @@ struct LearningTimelineView: View {
     }
 
     /// 解いている間の問題の列。
-    private func solvingCard(_ card: TimelineCardRecord) -> some View {
+    private func solvingCard(_ card: TimelineCardRecord, height: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             // 図は右下のボタンの列(質問・飛ばす・答え・撮る)と重なる高さに来るので、その幅を空ける(2026-11-19 の画面の確かめ)。
             TimelineProblemView(card: card, store: store, selfGrades: !layout.isPad && store.canSelfGrade(card),
-                                figureTrailing: layout == .padLandscape ? 0 : 64)
+                                figureTrailing: layout == .padLandscape ? 0 : 64, figureAvailableHeight: height)
             if !layout.isPad, store.isAnswerRevealed, store.canSelfGrade(card) {
                 TimelineAnswerCard(text: store.answerText(card))
                     .padding(.top, 10)

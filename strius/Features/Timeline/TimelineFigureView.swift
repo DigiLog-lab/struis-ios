@@ -6,6 +6,12 @@ struct TimelineFigureView: View {
     let figure: TimelineFigure
     /// 一覧に並べた小さいカード(`TimelineProblemView` の compact)。
     var compact = false
+    /// 高さの上限(問題の列の残りの高さ)。nil なら既定の上限。
+    var maxHeight: CGFloat? = nil
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    /// 既定の高さの上限。iPad は画面が広いので大きく描く。
+    private var cap: CGFloat { compact ? 150 : (sizeClass == .regular ? 420 : 300) }
 
     private var inset: CGFloat { compact ? 18 : 28 }
     private var fontSize: CGFloat { compact ? 12 : 16 }
@@ -18,9 +24,7 @@ struct TimelineFigureView: View {
             draw(in: &context, size: size)
         }
         .aspectRatio(figure.aspectRatio, contentMode: .fit)
-        // 問題文が長い時は、画面の下の帯に図が隠れないように、空いている高さまで縮む(問題文・式・問いを先に並べる)。
-        .frame(maxWidth: .infinity, minHeight: compact ? 70 : 150, maxHeight: compact ? 150 : 300)
-        .layoutPriority(-1)
+        .frame(maxWidth: .infinity, maxHeight: min(cap, maxHeight ?? cap))
         .accessibilityElement()
         .accessibilityLabel(accessibilityText)
         .accessibilityIdentifier("timeline-figure")
@@ -171,17 +175,24 @@ struct TimelineFigureView: View {
                     if axes.xMin <= 0, axes.xMax >= 0 { axisSpots += stride(from: window.minY, through: window.maxY, by: 16).map { CGPoint(x: origin.x, y: $0) } }
                 }
                 let spots = figure.points.filter { !$0.isHidden }.map { layout($0.x, $0.y) } + placedLabels + axisSpots
-                let candidates = [0.88, 0.78, 0.95, 0.65, 0.5, 0.35, 0.2, 0.08].map { visible[Int(Double(visible.count - 1) * $0)] }
-                // 名前は点の左上か右上に出るので、その真ん中の辺りで離れ具合を見る。
+                let candidates = [0.88, 0.78, 0.95, 1.0, 0.65, 0.5, 0.35, 0.2, 0.08, 0.0].map { visible[Int(Double(visible.count - 1) * $0)] }
+                // 名前は点の左上か右上に出る。名前の枠と、点・軸・ほかの名前との離れ具合で選ぶ。
+                let width = CGFloat(label.count) * angleFontSize * 0.6 + 4, height = angleFontSize * 1.2
+                func box(_ p: CGPoint) -> CGRect {
+                    let right = p.x > (window?.midX ?? 0)
+                    return CGRect(x: right ? p.x - 6 - width : p.x + 6, y: p.y - 4 - height, width: width, height: height)
+                }
                 func clearance(_ p: CGPoint) -> CGFloat {
-                    let center = CGPoint(x: p.x + (p.x > (window?.midX ?? 0) ? -30 : 30), y: p.y - 10)
-                    return min(spots.map { hypot($0.x - center.x, ($0.y - center.y) * 1.6) }.min() ?? .infinity, 60)
+                    let r = box(p)
+                    let gaps = spots.map { s in hypot(max(r.minX - s.x, 0, s.x - r.maxX), max(r.minY - s.y, 0, s.y - r.maxY)) }
+                    // 枠が窓からはみ出す所は選ばない。
+                    let outside = window.map { !$0.insetBy(dx: -4, dy: -4).contains(r) } ?? false
+                    return outside ? -1 : min(gaps.min() ?? .infinity, 40)
                 }
                 let at = candidates.max { a, b in clearance(a) + 0.5 < clearance(b) } ?? candidates[0]
-                placedLabels.append(at)
-                let right = at.x > (window?.midX ?? 0)
-                text(label, at: CGPoint(x: at.x + (right ? -6 : 6), y: at.y - 4), size: angleFontSize, color: Theme.primaryText,
-                     anchor: right ? .bottomTrailing : .bottomLeading, weight: .bold, in: &context)
+                let frame = box(at)
+                placedLabels += [CGPoint(x: frame.minX, y: frame.midY), CGPoint(x: frame.midX, y: frame.midY), CGPoint(x: frame.maxX, y: frame.midY)]
+                text(label, at: CGPoint(x: frame.midX, y: frame.midY), size: angleFontSize, color: Theme.primaryText, weight: .bold, in: &context)
             }
         }
     }
