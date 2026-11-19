@@ -275,4 +275,15 @@ final class TimelineFigureTests: XCTestCase {
         object["arcs"] = [["center": "O", "from": "A", "to": "C", "label": ""]]
         XCTAssertTrue(try XCTUnwrap(TimelineFigure(try json(object))).defects.contains { $0.contains("not on one circle") })
     }
+    /// 名前が `_` で始まる点は、ヒストグラムの棒の角などに使うだけの点。重なっていても断らない。
+    func testHiddenPointsAreOnlyCorners() throws {
+        let figure = try XCTUnwrap(TimelineFigure(try json([
+            "points": [["name": "_1", "x": 0, "y": 0, "z": 0], ["name": "_2", "x": 0, "y": 0.01, "z": 0], ["name": "_3", "x": 10, "y": 3, "z": 0],
+                       ["name": "_4", "x": 10, "y": 0, "z": 0]],
+            "segments": [], "angles": [], "circles": [], "arcs": [], "regions": [["points": ["_1", "_2", "_3", "_4"]]],
+            "axes": ["x_min": -1, "x_max": 12, "y_min": -1, "y_max": 5, "ticks": true, "grid": false, "pi_ticks": false], "curves": [], "fills": [],
+        ])))
+        XCTAssertTrue(figure.points.allSatisfy(\.isHidden))
+        XCTAssertEqual(figure.defects, [])
+    }
 }

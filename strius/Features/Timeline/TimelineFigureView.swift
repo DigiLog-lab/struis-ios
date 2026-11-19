@@ -92,7 +92,7 @@ struct TimelineFigureView: View {
         // 原点に点(O)を置いた図は、点の名前と重なるので軸の O を出さない。
         let originIsPoint = figure.points.contains { abs($0.x) < 1e-9 && abs($0.y) < 1e-9 }
         // 点の名前と重なる目盛りの数字は出さない(点の座標は問題に出てくる大事な数なので、点の方を残す)。
-        let pointSpots = figure.points.map { layout($0.x, $0.y) }
+        let pointSpots = figure.points.filter { !$0.isHidden }.map { layout($0.x, $0.y) }
         func nearPoint(_ p: CGPoint) -> Bool { pointSpots.contains { hypot($0.x - p.x, $0.y - p.y) < (compact ? 14 : 20) } }
         if hasX && hasY && !originIsPoint { text("O", at: CGPoint(x: yAxisX - (compact ? 8 : 10), y: xAxisY + (compact ? 9 : 11)), size: smallFontSize, in: &context) }
         guard axes.ticks else { return }
@@ -330,7 +330,7 @@ struct TimelineFigureView: View {
     // MARK: 点
 
     private func drawPoints(place: (TimelineFigure.Point) -> CGPoint, in context: inout GraphicsContext) {
-        for point in figure.points {
+        for point in figure.points where !point.isHidden {
             let p = place(point)
             let dot: CGFloat = (compact ? 2 : 2.6) * (figure.axes == nil ? 1 : 1.2)
             context.fill(Path(ellipseIn: CGRect(x: p.x - dot, y: p.y - dot, width: dot * 2, height: dot * 2)), with: ink)

@@ -19,6 +19,8 @@ nonisolated struct TimelineFigure: Equatable, Sendable {
         var x: Double
         var y: Double
         var z: Double = 0
+        /// 名前が `_` で始まる点は、線や塗りの角に使うだけの点(ヒストグラムの棒の角・箱ひげ図の端など)。点も名前も描かない。
+        var isHidden: Bool { name.hasPrefix("_") }
     }
 
     nonisolated struct Segment: Equatable, Sendable {
@@ -243,8 +245,9 @@ nonisolated struct TimelineFigure: Equatable, Sendable {
         // 重なった点は名前の文字が重なって読めない(平面に写した位置で見る)。
         if let bounds {
             let diagonal = hypot(bounds.width, bounds.height)
-            for (i, a) in points.enumerated() {
-                for b in points[(i + 1)...] {
+            let shown = points.filter { !$0.isHidden }
+            for (i, a) in shown.enumerated() {
+                for b in shown[(i + 1)...] {
                     let pa = plane(a), pb = plane(b)
                     if hypot(pa.x - pb.x, pa.y - pb.y) < diagonal * 0.02 { defects.append("figure: points \(a.name) and \(b.name) overlap") }
                 }
