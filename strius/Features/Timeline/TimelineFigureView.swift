@@ -213,10 +213,22 @@ struct TimelineFigureView: View {
                 let q = figure.plane(c.x + circle.radius * cos(t), c.y + circle.radius * sin(t), c.z)
                 return layout(q.x, q.y)
             }
+            // 立体の底の円(上に円錐の頂点や円柱の上の円がある円)は、教科書の見取図と同じく奥の半分を点線にする。
+            if figure.isSpace, isBottom(circle) {
+                let front = points.enumerated().filter { sin(Double($0.offset) / 144 * 2 * .pi) <= 0 }.map(\.element)
+                let back = points.enumerated().filter { sin(Double($0.offset) / 144 * 2 * .pi) >= 0 }.map(\.element)
+                var frontPath = Path(), backPath = Path()
+                frontPath.addLines(front)
+                backPath.addLines(back)
+                context.stroke(frontPath, with: ink, style: StrokeStyle(lineWidth: lineWidth))
+                context.stroke(backPath, with: ink, style: StrokeStyle(lineWidth: lineWidth, dash: [5, 4]))
+                continue
+            }
             var path = Path()
             path.addLines(points)
             context.stroke(path, with: ink, style: StrokeStyle(lineWidth: lineWidth, dash: circle.dashed ? [5, 4] : []))
         }
+        drawSolidOutlines(layout: layout, place: place, in: &context)
         for arc in figure.arcs {
             guard let c = figure.point(arc.center), let a = figure.point(arc.from), let b = figure.point(arc.to) else { continue }
             let r = hypot(a.x - c.x, a.y - c.y)
@@ -240,14 +252,65 @@ struct TimelineFigureView: View {
         }
     }
 
+    /// 立体の円が底面か(真上か真下に円錐の頂点、または同じ中心の円がある)。
+    private func isBottom(_ circle: TimelineFigure.Circle) -> Bool {
+        guard let c = figure.point(circle.center) else { return false }
+        let above = figure.points.contains { $0.name != c.name && abs($0.x - c.x) < 1e-6 && abs($0.y - c.y) < 1e-6 && $0.z > c.z }
+        return above
+    }
+
+    /// 円錐と円柱の輪郭。円錐は頂点から底面の楕円への 2 本の接線、円柱は上下の楕円の左右の端を結ぶ 2 本の線。
+    /// 斜めから見た楕円の接点はモデルには計算しにくいので、アプリが描く。
+    private func drawSolidOutlines(layout: TimelineFigure.Layout, place: (TimelineFigure.Point) -> CGPoint, in context: inout GraphicsContext) {
+        guard figure.isSpace else { return }
+        func ellipse(_ circle: TimelineFigure.Circle, _ c: TimelineFigure.Point) -> [CGPoint] {
+            (0..<360).map { k in
+                let t = Double(k) / 360 * 2 * .pi
+                let q = figure.plane(c.x + circle.radius * cos(t), c.y + circle.radius * sin(t), c.z)
+                return layout(q.x, q.y)
+            }
+        }
+        for circle in figure.circles {
+            guard let c = figure.point(circle.center), circle.radius > 0 else { continue }
+            let rim = ellipse(circle, c)
+            // 円柱: 同じ中心の真上にある同じ半径の円。
+            if let top = figure.circles.first(where: { other in
+                guard let o = figure.point(other.center) else { return false }
+                return abs(o.x - c.x) < 1e-6 && abs(o.y - c.y) < 1e-6 && o.z > c.z && abs(other.radius - circle.radius) < 1e-6
+            }), let o = figure.point(top.center) {
+                let upper = ellipse(top, o)
+                guard let left = rim.indices.min(by: { rim[$0].x < rim[$1].x }), let right = rim.indices.max(by: { rim[$0].x < rim[$1].x }) else { continue }
+                stroke(line: rim[left], upper[left], with: ink, width: lineWidth, in: &context)
+                stroke(line: rim[right], upper[right], with: ink, width: lineWidth, in: &context)
+                continue
+            }
+            // 円錐: 中心の真上の点(頂点)。円が無い高さの点だけ。
+            for apex in figure.points where apex.name != c.name && abs(apex.x - c.x) < 1e-6 && abs(apex.y - c.y) < 1e-6 && apex.z > c.z {
+                let hasCircle = figure.circles.contains { figure.point($0.center).map { $0.name == apex.name } ?? false }
+                if hasCircle { continue }
+                let pa = place(apex)
+                let angles = rim.map { atan2($0.y - pa.y, $0.x - pa.x) }
+                guard let low = angles.indices.min(by: { angles[$0] < angles[$1] }), let high = angles.indices.max(by: { angles[$0] < angles[$1] }) else { continue }
+                stroke(line: pa, rim[low], with: ink, width: lineWidth, in: &context)
+                stroke(line: pa, rim[high], with: ink, width: lineWidth, in: &context)
+            }
+        }
+    }
+
     // MARK: 角
 
     private func drawAngles(place: (TimelineFigure.Point) -> CGPoint, in context: inout GraphicsContext) {
-        for angle in figure.angles {
+        // 同じ頂点に印が 2 つ以上ある時(∠ACB と ∠ACD など)は、小さい角から順に弧を外へずらす。同じ半径だと弧と文字が重なる。
+        var rank: [Int: Int] = [:]
+        for (_, group) in Dictionary(grouping: figure.angles.indices, by: { figure.angles[$0].vertex }) where group.count > 1 {
+            let ordered = group.sorted { (figure.degrees(of: figure.angles[$0]) ?? 0) < (figure.degrees(of: figure.angles[$1]) ?? 0) }
+            for (position, index) in ordered.enumerated() { rank[index] = position }
+        }
+        for (index, angle) in figure.angles.enumerated() {
             guard let v = figure.point(angle.vertex), let a = figure.point(angle.from), let b = figure.point(angle.to) else { continue }
             let pv = place(v), pa = place(a), pb = place(b)
             let ua = unit(pa - pv), ub = unit(pb - pv)
-            let radius: CGFloat = compact ? 13 : 20
+            let radius: CGFloat = (compact ? 13 : 20) + CGFloat(rank[index] ?? 0) * (compact ? 9 : 14)
             if angle.right {
                 let s = radius * 0.6
                 var path = Path()

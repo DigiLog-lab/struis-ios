@@ -42,13 +42,17 @@ struct TimelineProblemView: View {
                 TimelineFigureView(figure: figure, compact: compact)
                     .padding(.trailing, figureTrailing)
             }
+            // 図の下に来る式と問いも、図と同じく右下のボタンの列の高さに入るので、その幅を空ける。
+            let belowFigure: CGFloat = TimelineFigure(card.payload["figure"]) == nil ? 0 : figureTrailing
             if !card.math.isEmpty, card.kind == "solve" || card.kind == "predict" {
                 TimelineMath(latex: card.math, size: compact ? 20 : 34, changed: card.chain?["changed"]?.stringValue)
+                    .padding(.trailing, belowFigure)
             }
             // 「理由を選ぶ」「2つの解き方を比べる」は、問いの文(`reason.question`・`compare.question`)を問題文として上に出している。
             // カードの `question` も出すと、同じ問いが 2 回並ぶ(2026-11-12 の実使用テスト)。
             if !card.question.isEmpty, card.kind != TimelineCards.Kind.reason.rawValue, card.kind != TimelineCards.Kind.compare.rawValue {
                 TimelineQuestionText(text: card.question, changed: card.chain?["changed"]?.stringValue, size: compact ? 15 : 20)
+                    .padding(.trailing, belowFigure)
             }
             if !compact, let previous = card.chain?["previous"]?.stringValue, !previous.isEmpty {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
