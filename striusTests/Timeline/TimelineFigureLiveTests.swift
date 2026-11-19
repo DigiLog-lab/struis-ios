@@ -158,6 +158,34 @@ final class TimelineFigureLiveTests: XCTestCase {
         XCTAssertGreaterThan(cards.count, 0)
     }
 
+    /// 前に保存した `figure_live.json` のカードを、今の描き方で撮り直す(API は使わない)。
+    /// `TEST_RUNNER_STRUIS_FIGURE_REPLAY=<figure_live.json>` と `TEST_RUNNER_STRUIS_FIGURE_LIVE=<出力先>` を渡した時だけ動く。
+    @MainActor
+    func testReplayRendersSavedCards() async throws {
+        let env = ProcessInfo.processInfo.environment
+        let replay = env["STRUIS_FIGURE_REPLAY"] ?? "", folder = env["STRUIS_FIGURE_LIVE"] ?? ""
+        try XCTSkipIf(replay.isEmpty || folder.isEmpty, "手動の撮り直し(TEST_RUNNER_STRUIS_FIGURE_REPLAY が要る)")
+        let out = URL(fileURLWithPath: folder, isDirectory: true)
+        try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+        let summary = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: replay))) as? [String: Any])
+        let rows = try XCTUnwrap(summary["cards"] as? [[String: Any]])
+        let ledger = try Ledger.inMemory()
+        let now = LedgerClock.now()
+        let cards: [TimelineCardRecord] = try rows.enumerated().map { index, row in
+            let figure = try JSONDecoder().decode(LedgerJSON.self, from: JSONSerialization.data(withJSONObject: row["figure"] ?? NSNull(), options: .fragmentsAllowed))
+            return TimelineCardRecord(
+                id: row["id"] as? String ?? "r\(index)", batchId: nil, position: index, kind: row["kind"] as? String ?? "solve", level: row["level"] as? Int ?? 1,
+                skills: [], typeName: "", prompt: row["prompt"] as? String ?? "", math: row["math"] as? String ?? "", question: row["question"] as? String ?? "",
+                answerKey: row["answer_key"] as? String ?? "", answerExpr: "", checkpoints: [], commonMistakes: [], estimatedSeconds: 60, chain: nil,
+                easierOf: nil, subunitId: nil, unitId: nil, payload: .object(["figure": figure]), origin: "batch", status: "unused", createdAt: now, updatedAt: now)
+        }
+        let store = TimelineStore(ledger: ledger, turns: TurnCoordinator(ledger: ledger, assets: AssetCache(), runner: MockTurnRunner()))
+        for (number, card) in cards.enumerated() where TimelineFigure(card.payload["figure"]) != nil {
+            let png = try snapshot(TimelineFigureLiveScreen(card: card, store: store), size: CGSize(width: 402, height: 874))
+            try png.write(to: out.appendingPathComponent(String(format: "replay-%02d-iphone.png", number + 1)))
+        }
+    }
+
     /// 画面に組んでから撮る(数式は UIKit で描くので、`ImageRenderer` では写らない)。
     @MainActor
     private func snapshot<V: View>(_ view: V, size: CGSize) throws -> Data {
