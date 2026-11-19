@@ -19,7 +19,9 @@ struct TimelineProblemView: View {
     private var figureMaxHeight: CGFloat? {
         guard let available = figureAvailableHeight, measuredTotal > 0 else { return nil }
         let others = measuredTotal - measuredFigure
-        return max(compact ? 70 : 150, available - others - 64)
+        // 小さくしすぎると点の名前や目盛りが重なって読めない(150 では放物線と直線の図の文字が重なった)。それより低くなる時は、
+        // 列をスクロールして見てもらう。
+        return max(compact ? 70 : 210, available - others - 64)
     }
 
     private var chain: (position: Int, total: Int)? { TimelineRules.chainPosition(card) }
