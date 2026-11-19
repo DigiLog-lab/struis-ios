@@ -211,14 +211,14 @@ nonisolated struct TimelineFigure: Equatable, Sendable {
             guard to > from else { return [] }
             return (0...count).map { i in
                 let x = from + (to - from) * Double(i) / Double(count)
-                return Self.value(f, "x", x).map { (x, $0) }
+                return Self.value(f, "x", x).map { (x: x, y: $0) }
             }
         }
         guard let fx = Self.expression(curve.xExpr), let fy = Self.expression(curve.yExpr) else { return [] }
         return (0...count).map { i in
             let t = curve.from + (curve.to - curve.from) * Double(i) / Double(count)
             guard let x = Self.value(fx, "t", t), let y = Self.value(fy, "t", t) else { return nil }
-            return (x, y)
+            return (x: x, y: y)
         }
     }
 
@@ -514,7 +514,7 @@ nonisolated struct TimelineFigure: Equatable, Sendable {
         }
         let direction: Double
         if occupied.isEmpty {
-            let planes = points.map(plane)
+            let planes = points.map { plane($0) }
             let cx = planes.map(\.x).reduce(0, +) / Double(max(1, planes.count)), cy = planes.map(\.y).reduce(0, +) / Double(max(1, planes.count))
             direction = hypot(pp.x - cx, pp.y - cy) > 1e-9 ? atan2(pp.y - cy, pp.x - cx) : .pi / 2
         } else if occupied.count == 1 {
