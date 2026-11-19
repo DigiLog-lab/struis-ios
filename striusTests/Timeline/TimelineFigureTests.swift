@@ -161,4 +161,118 @@ final class TimelineFigureTests: XCTestCase {
         let ab = try XCTUnwrap(figure.segments.first { $0.to == "B" && $0.from == "A" })
         XCTAssertEqual(figure.markPosition(of: ab), 0.5)
     }
+    // MARK: グラフ・立体・印の点検(2026-11-19)
+
+    private func seg(_ from: String, _ to: String, ticks: Int = 0, arrows: Int = 0) -> [String: Any] {
+        ["from": from, "to": to, "dashed": false, "ticks": ticks, "arrows": arrows, "head": false, "label": ""]
+    }
+
+    func testEqualLengthAndParallelMarksMustMatchTheCoordinates() throws {
+        // 平行四辺形 ABCD: AB∥DC・AB=DC は正しい。AD に AB と同じ印を付けると長さが違う。
+        let base: [String: Any] = [
+            "points": [["name": "A", "x": 0, "y": 0], ["name": "B", "x": 4, "y": 0], ["name": "C", "x": 5, "y": 2], ["name": "D", "x": 1, "y": 2]],
+            "angles": [], "circles": [],
+        ]
+        var good = base
+        good["segments"] = [seg("A", "B", ticks: 1, arrows: 1), seg("D", "C", ticks: 1, arrows: 1), seg("B", "C", arrows: 2), seg("A", "D", arrows: 2)]
+        XCTAssertEqual(try XCTUnwrap(TimelineFigure(try json(good))).defects, [])
+        var bad = base
+        bad["segments"] = [seg("A", "B", ticks: 1), seg("A", "D", ticks: 1), seg("A", "C", arrows: 1), seg("B", "D", arrows: 1)]
+        let defects = try XCTUnwrap(TimelineFigure(try json(bad))).defects
+        XCTAssertTrue(defects.contains { $0.contains("equal-length ticks") }, "\(defects)")
+        XCTAssertTrue(defects.contains { $0.contains("marked parallel") }, "\(defects)")
+    }
+
+    func testAnglesWithTheSameArcsMustBeEqual() throws {
+        var object = triangle()
+        object["angles"] = [["vertex": "B", "from": "A", "to": "C", "label": "", "arcs": 2, "right": false],
+                            ["vertex": "C", "from": "B", "to": "A", "label": "", "arcs": 2, "right": false]]
+        XCTAssertTrue(try XCTUnwrap(TimelineFigure(try json(object))).defects.contains { $0.contains("arcs (equal)") })
+        // 1 本の弧はただの印なので、大きさが違ってもよい。
+        object["angles"] = [["vertex": "B", "from": "A", "to": "C", "label": "", "arcs": 1, "right": false],
+                            ["vertex": "C", "from": "B", "to": "A", "label": "", "arcs": 1, "right": false]]
+        XCTAssertEqual(try XCTUnwrap(TimelineFigure(try json(object))).defects, [])
+    }
+
+    func testAGraphWithAxesCurvesAndAFill() throws {
+        let figure = try XCTUnwrap(TimelineFigure(try json([
+            "points": [["name": "A", "x": 1, "y": 1, "z": 0], ["name": "B", "x": 3, "y": 9, "z": 0]],
+            "segments": [], "angles": [], "circles": [], "arcs": [], "regions": [],
+            "axes": ["x_min": -2, "x_max": 4, "y_min": -1, "y_max": 10, "ticks": true, "grid": false, "pi_ticks": false],
+            "curves": [["expr": "x^2", "x_expr": "", "y_expr": "", "from": -2, "to": 4, "dashed": false, "label": "$y=x^2$"],
+                       ["expr": "4*x-3", "x_expr": "", "y_expr": "", "from": -2, "to": 4, "dashed": false, "label": ""]],
+            "fills": [["upper": "4*x-3", "lower": "x^2", "from": 1, "to": 3]],
+        ])))
+        XCTAssertEqual(figure.defects, [])
+        XCTAssertEqual(figure.bounds, CGRect(x: -2, y: -1, width: 6, height: 11))
+        XCTAssertFalse(figure.isSpace)
+        let samples = figure.samples(of: figure.curves[0]).compactMap { $0 }
+        XCTAssertEqual(samples.count, 481)
+        XCTAssertEqual(try XCTUnwrap(samples.last).y, 16, accuracy: 1e-9)
+        // A は曲線の上にあるので、名前は曲線の接線の向きを避ける(真上・真下のどちらかの側)。
+        let direction = figure.labelDirection(of: figure.points[0])
+        XCTAssertGreaterThan(abs(direction.dy), 0.3, "\(direction)")
+        XCTAssertFalse(TimelineFigure.displayLabel("$y=x^2$").contains("$"))
+        XCTAssertFalse(TimelineFigure.displayLabel("$y=x^2$").contains("^"))
+    }
+
+    func testRejectsAGraphWhoseCurveIsOutsideTheWindowOrUnreadable() throws {
+        let figure = try XCTUnwrap(TimelineFigure(try json([
+            "points": [["name": "P", "x": 9, "y": 0, "z": 0]], "segments": [], "angles": [], "circles": [], "arcs": [], "regions": [],
+            "axes": ["x_min": -2, "x_max": 2, "y_min": -2, "y_max": 2, "ticks": true, "grid": false, "pi_ticks": false],
+            "curves": [["expr": "x^2+10", "x_expr": "", "y_expr": "", "from": -2, "to": 2, "dashed": false, "label": ""],
+                       ["expr": "", "x_expr": "cos(t", "y_expr": "sin(t)", "from": 0, "to": 6.3, "dashed": false, "label": "円"]],
+            "fills": [],
+        ])))
+        let defects = figure.defects
+        XCTAssertTrue(defects.contains { $0.contains("outside the axes window") && $0.contains("P") }, "\(defects)")
+        XCTAssertTrue(defects.contains { $0.contains("almost outside") }, "\(defects)")
+        XCTAssertTrue(defects.contains { $0.contains("cannot be read") }, "\(defects)")
+    }
+
+    func testAParametricCircleAndPiTicks() throws {
+        let figure = try XCTUnwrap(TimelineFigure(try json([
+            "points": [], "segments": [], "angles": [], "circles": [], "arcs": [], "regions": [],
+            "axes": ["x_min": -3, "x_max": 3, "y_min": -3, "y_max": 3, "ticks": true, "grid": false, "pi_ticks": true],
+            "curves": [["expr": "", "x_expr": "2*cos(t)", "y_expr": "2*sin(t)", "from": 0, "to": 6.2832, "dashed": false, "label": ""]],
+            "fills": [],
+        ])))
+        XCTAssertEqual(figure.defects, [])
+        XCTAssertTrue(try XCTUnwrap(figure.axes).piTicks)
+        let first = try XCTUnwrap(figure.samples(of: figure.curves[0]).first ?? nil)
+        XCTAssertEqual(first.x, 2, accuracy: 1e-9)
+    }
+
+    /// 立体(立方体): 直角と長さは立体の座標で確かめ、描く位置は斜めから見た図(奥は右上へ半分)。
+    func testASolidIsCheckedInSpaceAndDrawnObliquely() throws {
+        let cube: [[String: Any]] = [
+            ["name": "A", "x": 0, "y": 0, "z": 0], ["name": "B", "x": 4, "y": 0, "z": 0], ["name": "C", "x": 4, "y": 4, "z": 0], ["name": "D", "x": 0, "y": 4, "z": 0],
+            ["name": "E", "x": 0, "y": 0, "z": 4], ["name": "F", "x": 4, "y": 0, "z": 4], ["name": "G", "x": 4, "y": 4, "z": 4], ["name": "H", "x": 0, "y": 4, "z": 4],
+        ]
+        let figure = try XCTUnwrap(TimelineFigure(try json([
+            "points": cube,
+            "segments": [seg("A", "B", ticks: 1), seg("B", "C"), seg("C", "D"), seg("D", "A"), seg("E", "F"), seg("F", "G"), seg("G", "H"), seg("H", "E"),
+                         seg("A", "E", ticks: 1), seg("B", "F"), seg("C", "G"), seg("D", "H"), seg("A", "G")],
+            // ∠ABC は見取図では 90° に見えないが、立体では直角。∠GAC は立体の対角線の角(約 35.3°)。
+            "angles": [["vertex": "B", "from": "A", "to": "C", "label": "", "arcs": 1, "right": true],
+                       ["vertex": "A", "from": "C", "to": "G", "label": "35°", "arcs": 1, "right": false]],
+            "circles": [], "arcs": [], "regions": [["points": ["A", "C", "G", "E"]]], "axes": NSNull(), "curves": [], "fills": [],
+        ])))
+        XCTAssertTrue(figure.isSpace)
+        XCTAssertEqual(figure.defects, [])
+        let d = figure.plane(try XCTUnwrap(figure.point("D")))
+        XCTAssertEqual(d.x, 2 * cos(35 * Double.pi / 180), accuracy: 1e-9)
+        XCTAssertEqual(d.y, 2 * sin(35 * Double.pi / 180), accuracy: 1e-9)
+    }
+
+    func testAnArcNeedsBothEndsOnOneCircle() throws {
+        var object: [String: Any] = [
+            "points": [["name": "O", "x": 0, "y": 0, "z": 0], ["name": "A", "x": 3, "y": 0, "z": 0], ["name": "B", "x": 0, "y": 3, "z": 0], ["name": "C", "x": 0, "y": 2, "z": 0]],
+            "segments": [seg("O", "A"), seg("O", "B")], "angles": [], "circles": [], "regions": [], "curves": [], "fills": [],
+            "arcs": [["center": "O", "from": "A", "to": "B", "label": ""]],
+        ]
+        XCTAssertEqual(try XCTUnwrap(TimelineFigure(try json(object))).defects, [])
+        object["arcs"] = [["center": "O", "from": "A", "to": "C", "label": ""]]
+        XCTAssertTrue(try XCTUnwrap(TimelineFigure(try json(object))).defects.contains { $0.contains("not on one circle") })
+    }
 }
