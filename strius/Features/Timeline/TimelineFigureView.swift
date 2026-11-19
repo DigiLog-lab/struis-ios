@@ -141,6 +141,7 @@ struct TimelineFigureView: View {
     private func drawCurves(layout: TimelineFigure.Layout, window: CGRect?, in context: inout GraphicsContext) {
         var clipped = context
         if let window { clipped.clip(to: Path(window.insetBy(dx: -1, dy: -1))) }
+        var placedLabels: [CGPoint] = []
         for curve in figure.curves {
             let samples = figure.samples(of: curve)
             var path = Path()
@@ -159,7 +160,15 @@ struct TimelineFigureView: View {
             // 曲線の名前(y = x^2 など)は、見えている部分の終わりの近くに置く。
             let label = TimelineFigure.displayLabel(curve.label)
             if !label.isEmpty, visible.count > 4 {
-                let at = visible[Int(Double(visible.count - 1) * 0.88)]
+                // 点の名前やほかの曲線の名前と重ならない所を、見えている部分の終わりの近くから順に探す。
+                let spots = figure.points.map { layout($0.x, $0.y) } + placedLabels
+                let candidates = [0.88, 0.78, 0.95, 0.65, 0.5, 0.35].map { visible[Int(Double(visible.count - 1) * $0)] }
+                let at = candidates.max { a, b in
+                    let da = spots.map { hypot($0.x - a.x, $0.y - a.y) }.min() ?? .infinity
+                    let db = spots.map { hypot($0.x - b.x, $0.y - b.y) }.min() ?? .infinity
+                    return min(da, 40) + 0.5 < min(db, 40)
+                } ?? candidates[0]
+                placedLabels.append(at)
                 let right = at.x > (window?.midX ?? 0)
                 text(label, at: CGPoint(x: at.x + (right ? -6 : 6), y: at.y - 4), size: angleFontSize, color: Theme.primaryText,
                      anchor: right ? .bottomTrailing : .bottomLeading, weight: .bold, in: &context)
