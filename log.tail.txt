@@ -1,0 +1,5 @@
+2026-11-20 09:27:22.177 xcodebuild[18474:61784] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-20 09:28:19.032 xcodebuild[18474:61784] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-20 09:28:19.033 xcodebuild[18474:61784] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-20 09:28:19.037 xcodebuild[18474:61784] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+** TEST EXECUTE SUCCEEDED **
