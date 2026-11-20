@@ -1,0 +1,38 @@
+Command line invocation:
+    /Applications/Xcode_27.1.app/Contents/Developer/usr/bin/xcodebuild test-without-building -project strius.xcodeproj -scheme strius -destination id=4AD2086B-7B8F-4608-A742-AA422A0B8D74 -derivedDataPath /Users/runner/work/_temp/DerivedData ARCHS=arm64 STRUIS_AUTH_REQUIRED=YES -resultBundlePath /Users/runner/work/_temp/devbox/out-20261120T092840-006504-b3427c/files/r.xcresult "-only-testing:striusTests/TimelinePlanModeTests" "-only-testing:striusTests/TimelineAssetTests" "-only-testing:striusTests/TimelineWarmupTests" "-only-testing:striusTests/TimelineAnswerReadTests"
+
+Build settings from command line:
+    ARCHS = arm64
+    STRUIS_AUTH_REQUIRED = YES
+
+Build settings from configuration file '/Users/runner/work/_temp/devbox/cas.xcconfig':
+    COMPILATION_CACHE_ENABLE_CACHING = YES
+
+Resolve Package Graph
+
+
+Resolved source packages:
+  JWTDecode: https://github.com/auth0/JWTDecode.swift.git @ 3.3.0
+  SwiftMath: https://github.com/mgriebling/SwiftMath @ 1d2c908
+  Auth0: https://github.com/auth0/Auth0.swift @ 2.25.0
+  GRDB: https://github.com/groue/GRDB.swift @ 7.11.1
+  Yams: https://github.com/jpsim/Yams.git @ 5.4.0
+  SimpleKeychain: https://github.com/auth0/SimpleKeychain.git @ 1.3.0
+
+Writing result bundle at path:
+	/Users/runner/work/_temp/devbox/out-20261120T092840-006504-b3427c/files/r.xcresult
+
+2026-11-20 09:29:06.556 xcodebuild[23680:75238] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-20 09:29:49.795 xcodebuild[23680:75238] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-20 09:29:50.116 xcodebuild[23680:75238] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-20 09:29:50.545 xcodebuild[23680:75238] [MT] IDESchemeActionSDKRecord: operatingSystemBuild = <DVTBuildVersion 24A94232>, error = invalidDigitCount(94232).
+2026-11-20 09:30:12.370 xcodebuild[23680:75238] [MT] IDETestOperationsObserverDebug: 66.105 elapsed -- Testing started completed.
+2026-11-20 09:30:12.371 xcodebuild[23680:75238] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-20 09:30:12.371 xcodebuild[23680:75238] [MT] IDETestOperationsObserverDebug: 66.105 sec, +66.105 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/work/_temp/devbox/out-20261120T092840-006504-b3427c/files/r.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started
