@@ -134,6 +134,23 @@ final class TimelinePlanModeTests: XCTestCase {
         XCTAssertEqual(attempt?.skillMarks, ["em.coulomb_law": "correct", "num.scientific_notation": "wrong"])
     }
 
+    /// 審査と App Store のビルドでは、内部の配布で保存したオン・オフもモデルの選択も効かない(切り替えの画面が無く、戻せない)。
+    func testReleaseBuildIgnoresSavedDeveloperSettings() throws {
+        let suite = "TimelinePlanModeTests.release.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(true, forKey: TimelinePlanMode.defaultsKey)
+        defaults.set("claude-sonnet-5-5", forKey: TimelineModelPreference.defaultsKey)
+
+        XCTAssertTrue(TimelinePlanMode.isOn(internalBuild: true, defaults: defaults, environment: [:]))
+        XCTAssertFalse(TimelinePlanMode.isOn(internalBuild: false, defaults: defaults, environment: [:]))
+        XCTAssertFalse(TimelinePlanMode.isOn(internalBuild: false, defaults: defaults, environment: ["STRUIS_TIMELINE_PLAN_MODE": "1"]))
+
+        XCTAssertEqual(TimelineModelPreference.current(internalBuild: true, defaults: defaults), "claude-sonnet-5-5")
+        XCTAssertEqual(TimelineModelPreference.current(internalBuild: false, defaults: defaults), TimelineModelPreference.defaultModel)
+        XCTAssertEqual(TimelineModelPreference.defaultModel, "claude-haiku-5-5")
+    }
+
     func testMorningIsOffWhenPlanModeIsOff() {
         UserDefaults.standard.removeObject(forKey: TimelinePlanMode.defaultsKey)
         var timeline = F.machine()
