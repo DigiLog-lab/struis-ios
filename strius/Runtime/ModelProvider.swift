@@ -29,13 +29,18 @@ nonisolated enum TimelineModelPreference {
     static let defaultModel = "claude-haiku-5-5"
 
     static var current: String {
-        get {
-            #if DEBUG
-            if let forced = ProcessInfo.processInfo.environment["STRUIS_TIMELINE_CLAUDE_MODEL"], choices.contains(forced) { return forced }
-            #endif
-            return UserDefaults.standard.string(forKey: defaultsKey).flatMap { choices.contains($0) ? $0 : nil } ?? defaultModel
-        }
+        get { current(internalBuild: InternalBuild.isInternal) }
         set { UserDefaults.standard.set(newValue, forKey: defaultsKey) }
+    }
+
+    /// 内部の配布の時だけ、「開発者向け」で選んで保存したモデルを使う。審査と App Store のビルドは、内部の配布で選んだ値が
+    /// 端末に残っていても既定にする(切り替えの画面が無く、戻せないため。2026-11-20)。
+    static func current(internalBuild: Bool, defaults: UserDefaults = .standard) -> String {
+        #if DEBUG
+        if let forced = ProcessInfo.processInfo.environment["STRUIS_TIMELINE_CLAUDE_MODEL"], choices.contains(forced) { return forced }
+        #endif
+        guard internalBuild else { return defaultModel }
+        return defaults.string(forKey: defaultsKey).flatMap { choices.contains($0) ? $0 : nil } ?? defaultModel
     }
 }
 

@@ -68,7 +68,17 @@ nonisolated enum TimelinePlanMode {
     }
 
     static var isOn: Bool {
-        UserDefaults.standard.bool(forKey: defaultsKey) || ProcessInfo.processInfo.environment["STRUIS_TIMELINE_PLAN_MODE"] == "1"
+        isOn(internalBuild: InternalBuild.isInternal)
+    }
+
+    /// 内部の配布(Debug・TestFlight・プロトタイプ)の時だけ、保存したオン・オフ(と測定用の環境変数)を見る。審査と App Store の
+    /// ビルドには切り替えの画面が無いので、内部の配布で一度オンにした端末に審査用のビルドを入れても、残った値を効かせない
+    /// (2026-11-20: 審査用のビルドを入れた持ち主の端末で、11/16 にオンにした値が残り、採点と出題が Sonnet の続くスレッドで
+    /// 動いていた。審査と App Store のビルドは、Sonnet の読み取りと Haiku の採点・出題(#160)で動く)。
+    static func isOn(internalBuild: Bool, defaults: UserDefaults = .standard,
+                     environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool {
+        guard internalBuild else { return false }
+        return defaults.bool(forKey: defaultsKey) || environment["STRUIS_TIMELINE_PLAN_MODE"] == "1"
     }
 
     // MARK: - 続くスレッド
