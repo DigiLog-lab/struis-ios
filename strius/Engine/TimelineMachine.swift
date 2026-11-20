@@ -435,13 +435,14 @@ nonisolated struct TimelineMachine {
         return card.id
     }
 
-    /// やさしい版・数値を変えた版の中身。図はその版の図、無ければ元の問題の図(図を指す問題文の時だけ)。
+    /// やさしい版・数値を変えた版の中身。図はその版の図、無ければ元の問題の図。出題の指示では、元の問題と同じ図でよい版は
+    /// `figure` を null にするので、問題文が「図」と書いていなくても元の図を使う(「∠ABC の大きさを求めなさい。」だけの版が
+    /// 図を失って解けなくなる。Codex のレビューの指摘)。
     private func easierPayload(base: TimelineCardRecord, version: [String: LedgerJSON], isVariant: Bool) -> [String: LedgerJSON] {
         var payload: [String: LedgerJSON] = ["steps": base.payload["steps"] ?? .emptyArray, "variant": .bool(isVariant)]
-        let text = [version["prompt"]?.stringValue ?? base.prompt, version["question"]?.stringValue ?? ""].joined(separator: " ")
         if TimelineFigure(version["figure"]) != nil, let figure = version["figure"] {
             payload["figure"] = figure
-        } else if TimelineFigure.mentionsFigure(text), let figure = base.payload["figure"], TimelineFigure(figure) != nil {
+        } else if let figure = base.payload["figure"], TimelineFigure(figure) != nil {
             payload["figure"] = figure
         }
         return payload

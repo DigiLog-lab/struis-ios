@@ -237,8 +237,9 @@ nonisolated struct TimelineFigure: Equatable, Sendable {
         if let axes {
             defects += axesDefects(axes)
         } else {
-            guard let bounds, bounds.width > 0, bounds.height > 0 else {
-                defects.append("figure: the points lie on one line or one point")
+            // 数直線のように点が横一列に並ぶ図は描ける。縦にも横にも広がりが無い(点が 1 つだけ)図だけを断る(Codex のレビューの指摘)。
+            guard let bounds, bounds.width > 0 || bounds.height > 0 else {
+                defects.append("figure: the points lie on one point")
                 return defects
             }
         }
@@ -654,6 +655,15 @@ nonisolated struct TimelineFigure: Equatable, Sendable {
         }
         for f in fills { lines.append("塗った部分: y = \(f.lower) から y = \(f.upper) の間(x は \(number(f.from))〜\(number(f.to)))") }
         return lines.isEmpty ? [] : ["(問題の図)"] + lines
+    }
+
+    /// 目盛りの数字。小数の桁は目盛りの間隔から決める(決まった桁で丸めると、間隔の細かい目盛りが全部 0 になる。
+    /// Codex のレビューの指摘)。
+    static func tickLabel(_ value: Double, step: Double) -> String {
+        let digits = step > 0 && step.isFinite ? max(0, Int(ceil(-log10(step) - 1e-9))) : 0
+        var text = String(format: "%.\(digits)f", value)
+        if text.hasPrefix("-"), Double(text) == 0 { text.removeFirst() }
+        return text.replacingOccurrences(of: "-", with: "−")
     }
 
     /// 目盛りの間隔(1・2・5 の 10 のべき倍で、8 本前後)。

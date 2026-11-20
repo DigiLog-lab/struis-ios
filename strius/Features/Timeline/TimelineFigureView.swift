@@ -108,7 +108,7 @@ struct TimelineFigureView: View {
                 let p = layout(x, 0)
                 stroke(line: CGPoint(x: p.x, y: p.y - tick), CGPoint(x: p.x, y: p.y + tick), with: ink, width: axisWidth, in: &context)
                 if nearPoint(p) { continue }
-                text(tickLabel(x, pi: axes.piTicks), at: CGPoint(x: p.x, y: p.y + (compact ? 10 : 13)), size: smallFontSize, color: Theme.secondaryText, in: &context)
+                text(tickLabel(x, pi: axes.piTicks, step: TimelineFigure.tickStep(axes.xMax - axes.xMin)), at: CGPoint(x: p.x, y: p.y + (compact ? 10 : 13)), size: smallFontSize, color: Theme.secondaryText, in: &context)
             }
         }
         if hasY {
@@ -116,7 +116,7 @@ struct TimelineFigureView: View {
                 let p = layout(0, y)
                 stroke(line: CGPoint(x: p.x - tick, y: p.y), CGPoint(x: p.x + tick, y: p.y), with: ink, width: axisWidth, in: &context)
                 if nearPoint(p) { continue }
-                text(tickLabel(y, pi: false), at: CGPoint(x: p.x - (compact ? 6 : 8), y: p.y), size: smallFontSize, color: Theme.secondaryText,
+                text(tickLabel(y, pi: false, step: TimelineFigure.tickStep(axes.yMax - axes.yMin)), at: CGPoint(x: p.x - (compact ? 6 : 8), y: p.y), size: smallFontSize, color: Theme.secondaryText,
                      anchor: .trailing, in: &context)
             }
         }
@@ -131,7 +131,7 @@ struct TimelineFigureView: View {
         return (first...last).map { Double($0) * step }.filter { $0 > low + step * 0.2 && $0 < high - step * 0.2 }
     }
 
-    private func tickLabel(_ value: Double, pi: Bool) -> String {
+    private func tickLabel(_ value: Double, pi: Bool, step: Double) -> String {
         if pi {
             let halves = Int((value / (Double.pi / 2)).rounded())
             let sign = halves < 0 ? "−" : ""
@@ -139,9 +139,7 @@ struct TimelineFigureView: View {
             if n % 2 == 0 { return n == 2 ? "\(sign)π" : "\(sign)\(n / 2)π" }
             return n == 1 ? "\(sign)π/2" : "\(sign)\(n)π/2"
         }
-        let rounded = (value * 1000).rounded() / 1000
-        let text = rounded == rounded.rounded() ? String(Int(rounded)) : String(format: "%g", rounded)
-        return text.replacingOccurrences(of: "-", with: "−")
+        return TimelineFigure.tickLabel(value, step: step)
     }
 
     private func drawCurves(layout: TimelineFigure.Layout, window: CGRect?, in context: inout GraphicsContext) {
