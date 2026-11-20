@@ -44,5 +44,5 @@
 
 ## 配信
 
-- TestFlight への配信は、main で `ios.yml` を手動実行して行います(全 UI テスト → `signed-archive`、`upload` で App Store Connect へ)。配信用の archive は、Actions cache を使わずに native 依存をソースから作ります。
+- TestFlight への配信は、main で `ios.yml` を手動実行して行います(全 UI テスト → `signed-archive`、`upload` で App Store Connect へ)。配信用の archive は、Actions cache を使わずに native 依存をソースから作ります。web 版の Claude は手動実行を起動できないので、種類 `release` の repository_dispatch を送り、`release-dispatch.yml` が同じ手動実行(`upload` 有効)を起動します。
 - Ad Hoc のプロトタイプは `agent-prototype.yml` です([agent.md](agent.md))。

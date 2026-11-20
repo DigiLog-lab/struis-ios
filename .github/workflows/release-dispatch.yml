@@ -1,0 +1,52 @@
+name: Release dispatch
+
+# The web Claude's way to start a distribution build (docs/build.md). Its token cannot start ios.yml by hand
+# (workflow_dispatch: "Resource not accessible by integration", HTTP 403, tried 2026-11-07 and 2026-11-20), but
+# it can send repository_dispatch. This job turns a `release` repository_dispatch into the same manual run of
+# ios.yml the owner starts from the Actions page: main, upload on, the given build number and distribution.
+# GITHUB_TOKEN may start workflow_dispatch runs (the merge queue starts its self-tests that way).
+#
+# repository_dispatch always runs main's definition of this file, and the run it starts is main's ios.yml on
+# main: a work branch can change neither what is built nor how it is signed. Submitting for review stays by hand.
+#
+#     gh api repos/DigiLog-lab/struis-ios/dispatches -f event_type=release \
+#       -f 'client_payload[distribution]=app-store' -f 'client_payload[build_number]=222'
+on:
+  repository_dispatch:
+    types: [release]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write     # POST actions/workflows/ios.yml/dispatches
+    steps:
+      - name: main の ios.yml を配布の手動実行として起動する
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISTRIBUTION: ${{ github.event.client_payload.distribution }}
+          BUILD_NUMBER: ${{ github.event.client_payload.build_number }}
+        run: |
+          set -euo pipefail
+          [[ "$DISTRIBUTION" == "testflight" || "$DISTRIBUTION" == "app-store" ]] ||
+            { echo "::error::distribution は testflight か app-store: '$DISTRIBUTION'"; exit 1; }
+          [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]{0,8}$ ]] ||
+            { echo "::error::build_number は正の整数: '$BUILD_NUMBER'"; exit 1; }
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ios.yml/dispatches" -f ref=main \
+            -f 'inputs[ui_tier]=pr' -f 'inputs[upload]=true' \
+            -f "inputs[build_number]=$BUILD_NUMBER" -f "inputs[distribution]=$DISTRIBUTION" --silent
+          {
+            echo "### 配布の手動実行を起動しました"
+            echo
+            echo "- ios.yml(main)、upload: true"
+            echo "- distribution: \`$DISTRIBUTION\`"
+            echo "- build_number: \`$BUILD_NUMBER\`"
+          } >> "$GITHUB_STEP_SUMMARY"
