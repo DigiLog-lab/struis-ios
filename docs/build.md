@@ -19,5 +19,7 @@ GitHub Actionsの`.github/workflows/ios.yml`は標準の`xcode-27` runnerを使�
 
 通常のCIはarchiveまでです。次の配布時は`main`を対象に手動実行し、`upload`を有効にして未使用の`build_number`を指定します。配布先`distribution`は、TestFlightで配るビルドは`testflight`、審査に出すビルドは`app-store`を選びます。`testflight`のビルドだけが`STRUIS_INTERNAL`付きでコンパイルされ、設定に「開発者向け」(モデルの切り替え・料金・トークン)を持ちます。App Reviewの端末はTestFlightと同じsandboxの購入環境で動くため、アプリの側では見分けられません。審査には必ず`app-store`で作ったbuild番号を選んでください。`scripts/ci_archive.py`が同じcheckoutから署名とアップロードを行い、元commit・version・buildを記録します。アップロード成功後はApp Store Connectで処理完了と内部配布先を確認し、公開ソースの対応表を更新してください。審査提出は自動実行しません。
 
+web版のClaudeのトークンは`ios.yml`の手動実行(workflow_dispatch)を起動できません(HTTP 403。2026-11-07と2026-11-20に確認)。Claudeが配布のビルドを作る時は、種類`release`のrepository_dispatchを送ります(`client_payload`に`distribution`(`testflight`か`app-store`)と未使用の`build_number`)。`.github/workflows/release-dispatch.yml`が値を確かめ、`main`の`ios.yml`を`upload`有効で手動実行として起動します。起動されるのは`main`の定義と`main`のコードだけで、審査提出は今までどおり手で行います。
+
 
 生成されたアプリは`NativeRuntime/Scripts/audit-bundle.py`、Rust通知は`audit-rust-licenses.py`で実物を確認できます。`audit-bundle.py`は、廃止したCodexの実行環境(`StruisRuntime.appex`、`NativeCodexHost.framework`、`hyotan_codex`・`codex_app_server`等のシンボルとLink Mapの項目)がbundleに無いことも確かめます。各スクリプトの引数は`--help`を参照してください。
