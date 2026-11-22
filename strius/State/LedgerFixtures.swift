@@ -124,7 +124,7 @@ nonisolated enum LedgerFixtures {
     private static func seedOrderDemo(_ db: Database) throws -> [LedgerEvent] {
         var timeline = try TimelineMachine(loading: db)
         let at: String = LedgerClock.now()
-        let steps: [JSONValue] = [
+        let steps: [LedgerJSON] = [
             .string("各電荷の電場の大きさ $E = k\\dfrac{|q|}{r^2}$ を、電荷ごとに求めます。"),
             .string("正の電荷からは遠ざかる向き、負の電荷へは近づく向きとして、各電場の $x$ 成分の符号を決めます。"),
             .string("2つの $x$ 成分を足し合わせます。"),
