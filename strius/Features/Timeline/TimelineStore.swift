@@ -49,7 +49,10 @@ final class TimelineStore {
     private(set) var machine = TimelineMachine()
     private(set) var workbook = WorkbookMachine()
     private(set) var phase: Phase = .loading
-    private(set) var currentID: String?
+    /// 出ている問題が変わったら、前の問題のお知らせ(「字が読めませんでした」など)は消す。
+    private(set) var currentID: String? {
+        didSet { if currentID != oldValue { actionError = nil } }
+    }
     private(set) var lastAttemptID: String?
     private(set) var decided: TimelineRules.Next?
     private(set) var badge: Badge?
@@ -714,6 +717,8 @@ final class TimelineStore {
             }
             lastAttemptID = attemptID
             inkAnswers = ink.map { [attemptID: $0] } ?? [:]
+            // 撮り直して送った: 前の答案への「撮り直してください」は消す。
+            actionError = nil
             phase = .grading(attemptID)
             await reload()
             // 正しい答えの式があるふつうの問題は、まず答えだけを読む(一致すれば途中を読まずに ○。#101)。

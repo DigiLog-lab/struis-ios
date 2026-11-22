@@ -149,8 +149,8 @@ struct LearningTimelineView: View {
             }
             if store.skipBannerAttemptID != nil { skipBanner.transition(.move(edge: .top).combined(with: .opacity)) }
             if let error = store.actionError {
-                Text(error)
-                    .font(Typography.sans(size: 14, weight: .medium))
+                // 採点の講評がそのまま入ることがあり、`$…$` の数式を含む。文字のまま出さずに数式として描く。
+                TimelineRichText(text: error, size: 14)
                     .padding(12)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
                     .padding(.top, 60)

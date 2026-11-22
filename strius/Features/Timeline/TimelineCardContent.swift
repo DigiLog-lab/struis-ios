@@ -432,6 +432,8 @@ struct TimelineInteractiveCard: View {
     let store: TimelineStore
     /// 選んだもの・並べた順。カードが変わったら初めに戻す(前のカードの選択を次のカードに残さない)。
     @State private var state = TimelineChoiceState()
+    /// 並び替えの一覧の中身の高さ(行の高さは文の長さと数式で変わるので、測った高さに合わせる)。
+    @State private var orderListHeight: CGFloat?
 
     private var kind: TimelineCards.Kind? { TimelineCards.Kind(rawValue: card.kind) }
 
@@ -508,7 +510,13 @@ struct TimelineInteractiveCard: View {
             }
             .environment(\.editMode, .constant(.active))
             .scrollContentBackground(.hidden)
-            .frame(height: CGFloat(max(1, steps.count)) * 52)
+            // 行の高さを決め打ちすると、2〜3行の手順や分数の入った手順で一覧の上下が切れる。中身の高さを測って合わせる。
+            .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentSize.height + geometry.contentInsets.top + geometry.contentInsets.bottom
+            } action: { _, height in
+                if height > 0 { orderListHeight = height }
+            }
+            .frame(height: orderListHeight ?? CGFloat(max(1, steps.count)) * 52)
             .accessibilityIdentifier("timeline-order-list")
             Button("この順で決める") {
                 Task { await store.answer(.array(state.order.map { .number(Double($0)) })) }
