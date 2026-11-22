@@ -25,10 +25,21 @@ final class TimelineOrderCardUITests: XCTestCase {
         shot("1-order-with-error")
 
         // 一覧の中で隠れている行が無い: 3つの行がどれも一覧の枠の中に収まっている。
-        let cells = list.cells.allElementsBoundByIndex
-        XCTAssertEqual(cells.count, 3, "並び替えの行が 3 つ出ていない")
-        for (index, cell) in cells.enumerated() {
-            XCTAssertTrue(list.frame.contains(cell.frame), "\(index) 行目が一覧の枠からはみ出している(\(cell.frame) / \(list.frame))")
+        func assertRowsFit(_ label: String) {
+            let cells = list.cells.allElementsBoundByIndex
+            XCTAssertEqual(cells.count, 3, "\(label): 並び替えの行が 3 つ出ていない")
+            for (index, cell) in cells.enumerated() {
+                XCTAssertTrue(list.frame.contains(cell.frame), "\(label): \(index) 行目が一覧の枠からはみ出している(\(cell.frame) / \(list.frame))")
+            }
+        }
+        assertRowsFit("縦向き")
+        // iPad は横向き(問題が左の列に入り、手順が折り返す)でも確かめる。
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            XCUIDevice.shared.orientation = .landscapeLeft
+            sleep(2)
+            assertRowsFit("横向き")
+            XCTAssertTrue(error.exists, "回すとお知らせが消える")
+            shot("1b-order-with-error-landscape")
         }
 
         // 飛ばして次の問題へ進むと、前の問題のお知らせは消える。
