@@ -1136,14 +1136,23 @@ struct LearningTimelineView: View {
                                                 autoSendText: "この問題の解き方を説明してください。"))
     }
 
+    @ViewBuilder private var skipReasonButtons: some View {
+        Button("難しそう") { Task { await store.setSkipReason("too_hard") } }
+            .accessibilityIdentifier("timeline-skip-too-hard")
+        Button("簡単すぎる") { Task { await store.setSkipReason("too_easy") } }
+            .accessibilityIdentifier("timeline-skip-too-easy")
+        // 問題は AI が作るので、問題文や答えがおかしいこともある。難しさの 2 つに押し込めると、難しさを下げる手がかりとして伝わってしまう。
+        Button("問題がおかしい") { Task { await store.setSkipReason("broken") } }
+            .accessibilityIdentifier("timeline-skip-broken")
+    }
+
     private var skipBanner: some View {
         VStack(spacing: 10) {
             Text("飛ばしました").font(Typography.sans(size: 15, weight: .bold))
-            HStack(spacing: 10) {
-                Button("難しそう") { Task { await store.setSkipReason("too_hard") } }
-                    .accessibilityIdentifier("timeline-skip-too-hard")
-                Button("簡単すぎる") { Task { await store.setSkipReason("too_easy") } }
-                    .accessibilityIdentifier("timeline-skip-too-easy")
+            // 3 つが横に入らない幅(文字を大きくした iPhone など)では縦に並べる。文字は縮めない。
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) { skipReasonButtons }
+                VStack(spacing: 8) { skipReasonButtons }
             }
             .buttonStyle(.bordered)
         }

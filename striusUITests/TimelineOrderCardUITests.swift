@@ -48,5 +48,13 @@ final class TimelineOrderCardUITests: XCTestCase {
         XCTAssertTrue(error.waitForNonExistence(timeout: 5), "問題が変わってもお知らせが残っている")
         sleep(1)
         shot("2-next-card")
+
+        // 飛ばした理由に「問題がおかしい」がある。押すと帯が閉じる。
+        let broken = app.buttons["timeline-skip-broken"]
+        XCTAssertTrue(broken.appears(timeout: 5), "飛ばした理由に「問題がおかしい」が無い")
+        XCTAssertTrue(app.buttons["timeline-skip-too-hard"].isHittable && app.buttons["timeline-skip-too-easy"].isHittable && broken.isHittable,
+                      "理由の 3 つのどれかが押せない")
+        broken.tap()
+        XCTAssertTrue(element("timeline-skip-banner").waitForNonExistence(timeout: 5), "理由を押しても帯が閉じない")
     }
 }

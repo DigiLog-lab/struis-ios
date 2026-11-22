@@ -154,6 +154,14 @@ final class TimelineReviewTests: XCTestCase {
         let afterSkip = TimelineTurns.answerLog(timeline: machine)
         assertGrows(afterSkill, afterSkip, "飛ばした")
         XCTAssertTrue(afterSkip.contains("を飛ばした理由: 難しすぎる"))
+
+        // 「問題がおかしい」は、難しさとは別の理由として伝える。
+        machine.put("test", F.card("c4", level: 2))
+        let broken = machine.recordSkip(cardID: "c4", seconds: 5)
+        machine.setSkipReason(attemptID: broken, reason: "broken")
+        let afterBroken = TimelineTurns.answerLog(timeline: machine)
+        assertGrows(afterSkip, afterBroken, "問題がおかしいで飛ばした")
+        XCTAssertTrue(afterBroken.contains("を飛ばした理由: 問題がおかしい"))
     }
 
     func testFirstContextOfTheDayGoesBeforeAnswersLoggedBeforeTheFirstRequest() throws {

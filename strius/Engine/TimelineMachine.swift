@@ -569,7 +569,7 @@ nonisolated struct TimelineMachine {
         return id
     }
 
-    /// 飛ばした理由(難しそう too_hard / 簡単すぎる too_easy)。押さなくてもよい。
+    /// 飛ばした理由(難しそう too_hard / 簡単すぎる too_easy / 問題がおかしい broken)。押さなくてもよい。
     mutating func setSkipReason(attemptID: String, reason: String) {
         guard var row = attempts[attemptID], row.verdict == "skipped" else { return }
         row.skipReason = reason
