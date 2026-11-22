@@ -1070,7 +1070,17 @@ nonisolated enum TimelineLogText {
     }
 
     static func skipReason(_ attempt: TimelineAttemptRecord) -> String {
-        "## 答案 \(attempt.id) を飛ばした理由: " + (attempt.skipReason == "too_hard" ? "難しすぎる" : attempt.skipReason == "too_easy" ? "簡単すぎる" : attempt.skipReason ?? "")
+        "## 答案 \(attempt.id) を飛ばした理由: " + (skipReasonLabel(attempt.skipReason) ?? attempt.skipReason ?? "")
+    }
+
+    /// 飛ばした理由の、AI に渡す言葉。
+    static func skipReasonLabel(_ reason: String?) -> String? {
+        switch reason {
+        case "too_hard": "難しすぎる"
+        case "too_easy": "簡単すぎる"
+        case "broken": "問題がおかしい(問題文・答え・図のどこかが変だと生徒が言った)"
+        default: nil
+        }
     }
 
     static func dispute(_ attempt: TimelineAttemptRecord) -> String {
@@ -1128,7 +1138,7 @@ nonisolated enum TimelineLogText {
         case "correct": "正解"
         case "partial": "答えは合うが途中に誤り"
         case "wrong": "誤答"
-        case "skipped": "飛ばした" + (attempt.skipReason.map { $0 == "too_hard" ? "(難しすぎる)" : $0 == "too_easy" ? "(簡単すぎる)" : "" } ?? "")
+        case "skipped": "飛ばした" + (skipReasonLabel(attempt.skipReason).map { "(\($0))" } ?? "")
         case "grading": "採点中"
         case "unreadable": "字が読めなかった"
         case "failed": "採点できなかった"
