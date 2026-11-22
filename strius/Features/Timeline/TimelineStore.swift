@@ -757,8 +757,6 @@ final class TimelineStore {
     func skip() async {
         guard let card = current, phase == .solving else { return }
         let seconds = elapsed
-        // 戻った時の計算練習(#155)を飛ばしたのは、続けて飛ばした数に入れない(練習を閉じただけで2択カードを出さない)。
-        let previousWasSkip = machine.orderedAttempts.last { machine.cards[$0.cardId]?.origin != TimelineWarmup.origin }?.verdict == "skipped"
         guard let attemptID = await commitValue({ machine in machine.recordSkip(cardID: card.id, seconds: seconds) }) else { return }
         lastAttemptID = attemptID
         showSkipBanner(attemptID)
@@ -775,10 +773,9 @@ final class TimelineStore {
             await commit { machine in machine.discard(ids: ids) }
         }
         decided = await warmupBefore(next)
-        if let trigger = TimelineRules.dipAfterAnswer(seconds: seconds, usual: nil, outcome: .skipped, previousWasSkip: previousWasSkip, sinceLastDip: machine.cardsSinceLastDip) {
-            await openDip(trigger)
-            return
-        }
+        // 2回続けて飛ばしても2択カード(速攻・さわるだけ・続き)は出さない。続けて飛ばした時は、易しい版・前提の段1・
+        // 同じスキルで1日3回 × の時の部品の問題・戻った時の計算練習(#155)で十分に続けられ、2択カードは流れを止めるだけだった。
+        // 2択カードの画面と判定(`TimelineRules.dipAfterAnswer`・`openDip`)は残してある。
         await goNext()
     }
 
@@ -841,16 +838,7 @@ final class TimelineStore {
             return
         }
         let next = decided
-        if phase == .result, let attempt = lastAttempt, let card = current {
-            // 撮るか飛ばすかした直後に、本人のいつもの2倍を超えていたら2択カード。
-            let usual = TimelineRules.usualSeconds(level: card.level, history: machine.secondsHistory.dropLast().map { $0 }, estimatedSeconds: card.estimatedSeconds)
-            if card.origin != "rapid", card.origin != TimelineWarmup.origin, decided?.cardID.flatMap({ machine.cards[$0] })?.origin != TimelineWarmup.origin,
-               let trigger = TimelineRules.dipAfterAnswer(seconds: attempt.seconds, usual: usual, outcome: attempt.verdict == "correct" ? .correct : .wrong,
-                                                          previousWasSkip: false, sinceLastDip: machine.cardsSinceLastDip) {
-                await openDip(trigger)
-                return
-            }
-        }
+        // 解く時間がいつもの2倍を超えても2択カードは出さない(飛ばした時と同じ理由。`skip()` を見てください)。
         // 戻った時の計算練習(#155)の × は、続けての × に数えない。
         // 自分で付けた × も数えない(なぜ違ったかが分かるのは、撮って採点した後)。
         let counted = machine.orderedAttempts.filter { machine.cards[$0.cardId]?.origin != TimelineWarmup.origin && TimelineRules.countsTowardWrongStreak($0) }

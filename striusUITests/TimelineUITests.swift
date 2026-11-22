@@ -299,9 +299,9 @@ final class TimelineUITests: XCTestCase {
         return CGPoint(x: x, y: y)
     }
 
-    /// 飛ばしたら、画面の上に「飛ばしました」と理由の2択。2回続けて飛ばしたら2択カード。
+    /// 飛ばしたら、画面の上に「飛ばしました」と理由の2択。2回続けて飛ばしても2択カードは出さず、次の問題へ進む。
     @MainActor
-    func testSkippingShowsReasonsAndTwoSkipsOfferTheDipCard() throws {
+    func testSkippingShowsReasonsAndTwoSkipsGoToTheNextProblem() throws {
         let app = launchTimeline()
         waitForProblem(app)
         app.buttons["timeline-skip"].tap()
@@ -309,10 +309,8 @@ final class TimelineUITests: XCTestCase {
         app.buttons["timeline-skip-too-hard"].tap()
         XCTAssertTrue(app.buttons["timeline-skip"].appears(timeout: 10))
         app.buttons["timeline-skip"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["timeline-dip"].firstMatch.appears(timeout: 10), "飛ばすが2回続いても2択カードが出ない")
-        XCTAssertTrue(app.descendants(matching: .any)["timeline-dip-rapid"].firstMatch.exists)
-        app.descendants(matching: .any)["timeline-dip-continue"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["timeline-skip"].appears(timeout: 10))
+        XCTAssertTrue(app.buttons["timeline-skip"].appears(timeout: 10), "2回続けて飛ばした後に次の問題が出ない")
+        XCTAssertFalse(app.descendants(matching: .any)["timeline-dip"].firstMatch.exists, "2回続けて飛ばしたら2択カードが出た")
     }
 
     /// やめようとしたときのシート: 今日の問題数と時間、「あと 1 つ」と「今日はここまで」。
