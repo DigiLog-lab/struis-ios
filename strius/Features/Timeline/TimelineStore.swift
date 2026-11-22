@@ -451,6 +451,11 @@ final class TimelineStore {
             await applySelfGradeDemo()
             return
         }
+        // 読めなかった時のお知らせの確かめ(`-timeline-order-demo`)。講評に数式が入った形で出す。
+        if ProcessInfo.processInfo.arguments.contains("-timeline-order-demo") {
+            actionError = "字が読めませんでした。解答を書き直して、もう一度撮ってください。計算は $(3.0\\times10^{-9})\\times(9.0\\times10^{9})$ を、数字がはっきり見えるように書いてください。"
+            return
+        }
         #endif
         // タイムラインを開いた時: グラフを頼むか決める。
         await ensureGraphWork()

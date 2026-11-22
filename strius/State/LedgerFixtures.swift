@@ -70,6 +70,9 @@ nonisolated enum LedgerFixtures {
             if arguments.contains("-self-grade-demo") {
                 timelineEvents += try seedSelfGradeDemo(db)
             }
+            if arguments.contains("-timeline-order-demo") {
+                timelineEvents += try seedOrderDemo(db)
+            }
             return (machine.events + chatEvents + timelineEvents, ())
         }
         if arguments.contains("-timeline-warmup-demo"), let template = try? DrillTemplate.decode(json: warmupDemoTemplate), let json = try? template.canonicalJSON() {
@@ -114,6 +117,31 @@ nonisolated enum LedgerFixtures {
         timeline.put("fixture", card("sg-done", math: "g(x) = \\sqrt{3x - 2}", answer: "$g'(x) = \\dfrac{3}{2\\sqrt{3x - 2}}$", status: "answered", position: 0))
         timeline.put("fixture", card("sg-now", math: "f(x) = (2x + 1)^3", answer: "$f'(x) = 6(2x + 1)^2$", status: "shown", position: 1))
         timeline.put("fixture", card("sg-next", math: "h(x) = \\sin(x^2)", answer: "$h'(x) = 2x\\cos(x^2)$", status: "unused", position: 2))
+        return timeline.events
+    }
+
+    /// 並び替えのカードと、読めなかった時のお知らせの確かめ用: 2〜3行の手順と分数の入った手順を並べるカードと、次の 1 問。
+    private static func seedOrderDemo(_ db: Database) throws -> [LedgerEvent] {
+        var timeline = try TimelineMachine(loading: db)
+        let at: String = LedgerClock.now()
+        let steps: [JSONValue] = [
+            .string("各電荷の電場の大きさ $E = k\\dfrac{|q|}{r^2}$ を、電荷ごとに求めます。"),
+            .string("正の電荷からは遠ざかる向き、負の電荷へは近づく向きとして、各電場の $x$ 成分の符号を決めます。"),
+            .string("2つの $x$ 成分を足し合わせます。"),
+        ]
+        let order = TimelineCardRecord(
+            id: "od-now", batchId: nil, position: 0, kind: "order", level: 2, skills: [], typeName: "手順の並び替え",
+            prompt: "$x$ 軸上の2つの点電荷が1点につくる電場の $x$ 成分を求める手順を、解く順に並べなさい。", math: "", question: "",
+            answerKey: "", answerExpr: "", checkpoints: [], commonMistakes: [], estimatedSeconds: 60, chain: nil, easierOf: nil,
+            subunitId: nil, unitId: nil, payload: .object(["steps": .array(steps), "shuffled": .array([.number(1), .number(0), .number(2)]),
+                                                           "answer": .array([.number(0), .number(1), .number(2)])]),
+            origin: "batch", status: "shown", createdAt: at, updatedAt: at)
+        timeline.put("fixture", order)
+        timeline.put("fixture", TimelineCardRecord(
+            id: "od-next", batchId: nil, position: 1, kind: "solve", level: 2, skills: [], typeName: "計算",
+            prompt: "$x$ 軸上の $x = 0$ に $+1\\,\\mathrm{nC}$、$x = 2\\,\\mathrm{m}$ に $-1\\,\\mathrm{nC}$ の点電荷があります。$x = 1\\,\\mathrm{m}$ の電場の $x$ 成分を求めなさい。",
+            math: "", question: "", answerKey: "", answerExpr: "", checkpoints: [], commonMistakes: [], estimatedSeconds: 60, chain: nil,
+            easierOf: nil, subunitId: nil, unitId: nil, payload: .emptyObject, origin: "batch", status: "unused", createdAt: at, updatedAt: at))
         return timeline.events
     }
 
