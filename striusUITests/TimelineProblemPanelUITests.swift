@@ -20,9 +20,10 @@ final class TimelineProblemPanelUITests: XCTestCase {
     }
 
     @MainActor
-    private func launch(_ arguments: [String]) -> XCUIApplication {
+    private func launch(_ arguments: [String], environment: [String: String] = [:]) -> XCUIApplication {
         let app = UITestSupport.deviceApp(arguments: ["-skip-onboarding"] + arguments)
         app.launchEnvironment["STRUIS_START_SCREEN"] = nil
+        for (key, value) in environment { app.launchEnvironment[key] = value }
         app.launch()
         return app
     }
@@ -56,6 +57,11 @@ final class TimelineProblemPanelUITests: XCTestCase {
         sleep(2)
         shot("reason-portrait")
         XCTAssertEqual(panel.frame.width, 432, accuracy: 1, "縦向きでもパネルの幅は横向きと同じ")
+        // 選ぶと、結果もパネルの中に出る。
+        app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "異符号の電荷は引き合うから")).firstMatch.tap()
+        XCTAssertTrue(app.buttons["timeline-next"].waitForExistence(timeout: 15), "選んだ後の結果が出ない")
+        sleep(2)
+        shot("reason-portrait-result")
     }
 
     /// 書くカード: つまみを引くと指を止めた所でパネルが止まり、下まで引くと畳んで問いの 1 行が残る。畳んだ所に書いてから
@@ -63,7 +69,8 @@ final class TimelineProblemPanelUITests: XCTestCase {
     @MainActor
     func testPanelFollowsFingerAndCollapses() throws {
         try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "iPad の並びだけ")
-        let app = launch(["-timeline-panel-demo", "-timeline-panel-solve"])
+        // 誤答で返す(結果の画面で、書いた線に赤ペンが重なる所まで見る)。
+        let app = launch(["-timeline-panel-demo", "-timeline-panel-solve"], environment: ["STRUIS_MOCK_TIMELINE_WRONG": "1"])
         XCUIDevice.shared.orientation = .landscapeLeft
         let panel = app.descendants(matching: .any)["timeline-problem-panel"]
         let handle = app.descendants(matching: .any)["timeline-problem-panel-handle"]
@@ -117,5 +124,14 @@ final class TimelineProblemPanelUITests: XCTestCase {
         sleep(2)
         shot("solve-7-portrait-collapsed")
         XCTAssertLessThan(panel.frame.height, 80, "つまみを押しても畳まない")
+
+        // 送ると、畳んでいてもパネルを広げて結果を出す。書いた線はパネルの右に残る。
+        let send = app.buttons["timeline-send"]
+        XCTAssertTrue(send.waitForExistence(timeout: 5), "送るが出ない")
+        send.pullUp()
+        XCTAssertTrue(app.buttons["timeline-next"].waitForExistence(timeout: 30), "結果が出ない")
+        sleep(3)
+        shot("solve-8-portrait-result")
+        XCTAssertGreaterThan(panel.frame.height, 300, "結果の時にパネルが広がらない")
     }
 }
