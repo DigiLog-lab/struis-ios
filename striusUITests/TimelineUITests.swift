@@ -19,6 +19,10 @@ final class TimelineUITests: XCTestCase {
         app.launchArguments = ["-skip-onboarding"]
         if wrong { app.launchEnvironment["STRUIS_MOCK_TIMELINE_WRONG"] = "1" }
         if longComment { app.launchEnvironment["STRUIS_MOCK_TIMELINE_LONG_COMMENT"] = "1" }
+        // 答えの欄の文の差し替え(`TEST_RUNNER_` を付けて渡すと届く。答えの欄の書き方を画面で確かめる時)。
+        for key in ["STRUIS_MOCK_TIMELINE_ANSWER_KEY", "STRUIS_MOCK_TIMELINE_LEARNER_ANSWER"] {
+            if let value = ProcessInfo.processInfo.environment[key] { app.launchEnvironment[key] = value }
+        }
         app.launchEnvironment["STRUIS_DEVICE_TURNS"] = "mock"
         app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "0"
         if !realCamera { app.launchEnvironment["STRUIS_TEST_CAMERA_IMAGE"] = UITestSupport.paperImagePath }

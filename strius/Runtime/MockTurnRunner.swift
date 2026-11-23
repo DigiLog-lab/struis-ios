@@ -342,7 +342,8 @@ actor MockTurnRunner: TurnRunning {
                   checks: [JSONObject], chain: Any, easier: Any, howto: Any = NSNull(), facts: JSONObject = ["answer_value": -5, "vertex": [2, -5], "axis": 2], seconds: Int = 60,
                   reason: Any = NSNull()) -> JSONObject {
             ["kind": kind, "level": level, "skills": skills(skillIDs), "type_name": "二次関数の最大最小", "prompt": prompt, "math": math, "question": question,
-             "answer_key": answer, "answer_expr": answerExpr, "checks": checks, "checkpoints": ["平方完成 y = 2(x - 2)^2 - 5", "軸 x = 2 は範囲の中", "最小値 -5(x = 2)"],
+             // 答えの欄の書き方を画面で確かめる時は、`STRUIS_MOCK_TIMELINE_ANSWER_KEY` で正しい答えの文を差し替える。
+             "answer_key": ProcessInfo.processInfo.environment["STRUIS_MOCK_TIMELINE_ANSWER_KEY"] ?? answer, "answer_expr": answerExpr, "checks": checks, "checkpoints": ["平方完成 y = 2(x - 2)^2 - 5", "軸 x = 2 は範囲の中", "最小値 -5(x = 2)"],
              "common_mistakes": ["範囲の端だけを比べて、頂点を見落とす"], "steps": steps, "mistake_steps": mistakes, "estimated_seconds": seconds,
              "chain": chain, "easier": easier, "subunit_id": NSNull(), "facts": facts, "compare": NSNull(), "reason": reason, "howto": howto, "diagnostic": NSNull(),
              "reveal": (chain as? JSONObject)?["position"] as? Int == 3 ? "入試でよく出る形です。" : ""]
@@ -535,7 +536,9 @@ actor MockTurnRunner: TurnRunning {
             : "a ≥ 2 の場合が抜けています。"
         return [
             "readable": true, "grade": wrong ? "wrong" : "correct",
-            "learner_answer": request["target_vertex"] != nil ? "2(x-2)^2-5" : (wrong ? "-3" : key),
+            // 誤答の「あなたの答え」の文は、`STRUIS_MOCK_TIMELINE_LEARNER_ANSWER` で差し替えられる(答えの欄の書き方を画面で確かめる時)。
+            "learner_answer": request["target_vertex"] != nil ? "2(x-2)^2-5"
+                : (wrong ? (ProcessInfo.processInfo.environment["STRUIS_MOCK_TIMELINE_LEARNER_ANSWER"] ?? "-3") : key),
             "skill_ids": [], "transcript": wrong ? "y = 2(x-2)^2 - 5\n最小値 -3" : key, "notes": wrong ? "a ≥ 2 の場合を書いていません。" : "",
             "comment": comment, "key_suspect": false,
             // 書く面の答案(採点の指示に赤ペンの節が付く)の誤答だけ、赤ペンを 1 か所返す。
