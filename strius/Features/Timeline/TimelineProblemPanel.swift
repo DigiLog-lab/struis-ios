@@ -24,6 +24,8 @@ struct TimelineProblemPanel<Content: View>: View {
 
     /// パネルが使える高さ(上の帯の下から「次」の帯の上まで)。
     @State private var available: CGFloat = 0
+    /// パネルが使える幅(左の余白の右から、タイムラインの右端まで)。
+    @State private var availableWidth: CGFloat = 0
     /// 引き始めた時の高さ。
     @State private var dragStart: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -45,10 +47,21 @@ struct TimelineProblemPanel<Content: View>: View {
 
     private var isCollapsed: Bool { openness < 0.5 }
 
+    /// パネルの幅。いつもは決めた幅(432pt)。縦向きの iPad mini で右に質問の欄を開いた時のように、タイムラインがそれより
+    /// 狭い時は、右端に 8pt 残して縮める(前は欄の中まではみ出した。Codex のレビューの指摘)。右下のボタンはパネルの上に重なる
+    /// (前の全幅の問題の列と同じ)。
+    private var panelWidth: CGFloat {
+        guard availableWidth > 0 else { return TimelineLayout.panelWidth }
+        return min(TimelineLayout.panelWidth, max(200, availableWidth - 8))
+    }
+
     var body: some View {
         Color.clear
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { available = $0 }
+            .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                available = size.height
+                availableWidth = size.width
+            }
             .overlay(alignment: .bottomLeading) { panel }
     }
 
@@ -68,7 +81,7 @@ struct TimelineProblemPanel<Content: View>: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .frame(width: TimelineLayout.panelWidth, height: shownHeight, alignment: .top)
+        .frame(width: panelWidth, height: shownHeight, alignment: .top)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(TimelineInkSpace.name)) } action: { onFrameChange($0) }
         .clipShape(shape)
         .glassEffect(.regular.tint(Theme.card.opacity(0.55)), in: shape)

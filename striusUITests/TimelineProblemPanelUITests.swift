@@ -57,6 +57,17 @@ final class TimelineProblemPanelUITests: XCTestCase {
         sleep(2)
         shot("reason-portrait")
         XCTAssertEqual(panel.frame.width, 432, accuracy: 1, "縦向きでもパネルの幅は横向きと同じ")
+        // 縦向きで右に質問の欄を開くと、タイムラインが狭くなる。パネルは欄の中まではみ出さない(Codex のレビューの指摘)。
+        app.buttons["timeline-ask"].drag(by: CGVector(dx: -240, dy: 0))
+        let close = app.buttons["question-close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 6), "引いても質問が開かない")
+        sleep(2)
+        shot("reason-portrait-question-open")
+        let window = app.windows.firstMatch.frame
+        XCTAssertLessThanOrEqual(panel.frame.maxX, window.maxX - 380 + 1, "質問の欄を開くと、パネルが欄の中まではみ出す")
+        close.tap()
+        sleep(2)
+        XCTAssertEqual(panel.frame.width, 432, accuracy: 1, "質問の欄を閉じても、パネルの幅が戻らない")
         // 選ぶと、結果もパネルの中に出る。
         app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "異符号の電荷は引き合うから")).firstMatch.tap()
         XCTAssertTrue(app.buttons["timeline-next"].waitForExistence(timeout: 15), "選んだ後の結果が出ない")

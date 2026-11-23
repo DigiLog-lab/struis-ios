@@ -546,7 +546,7 @@ struct LearningTimelineView: View {
         .foregroundStyle(Theme.tertiaryText)
         // 縦向きも横向きも、問題のパネルの右の紙の真ん中(#176)。
         return hint.frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.leading, TimelineLayout.panelLeading + TimelineLayout.panelWidth)
+        .padding(.leading, TimelineLayout.panelLeading + (panelFrame?.width ?? TimelineLayout.panelWidth))
         .allowsHitTesting(false)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("timeline-ink-hint")
