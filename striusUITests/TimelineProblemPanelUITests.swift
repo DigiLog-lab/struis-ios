@@ -27,6 +27,21 @@ final class TimelineProblemPanelUITests: XCTestCase {
         return app
     }
 
+    /// 前後比較用: main にもある並び替えのカード(`-timeline-order-demo`)を、横向きと縦向きで撮るだけ。
+    /// main のビルドにも同じ操作で撮れるように、パネルの有無は確かめない。
+    @MainActor
+    func testOrderCardShots() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "iPad の並びだけ")
+        let app = launch(["-timeline-order-demo"])
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(app.descendants(matching: .any)["timeline-order-list"].waitForExistence(timeout: 30), "並び替えのカードが出ない")
+        sleep(2)
+        shot("order-landscape")
+        XCUIDevice.shared.orientation = .portrait
+        sleep(2)
+        shot("order-portrait")
+    }
+
     /// 選ぶカード: 条件を改行して並べた問題文が、縦向きでも横向きでも同じ幅のパネルに入る。
     @MainActor
     func testReasonCardInPanel() throws {
