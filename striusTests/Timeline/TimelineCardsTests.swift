@@ -158,11 +158,25 @@ final class TimelineCardsTests: XCTestCase {
         XCTAssertEqual(TimelineCards.gradeWritten(inverse, learnerExpr: "3(x - 2)^2 - 5"), true)
         XCTAssertEqual(TimelineCards.gradeWritten(inverse, learnerExpr: "-(x-2)^2-5"), true)
         XCTAssertEqual(TimelineCards.gradeWritten(inverse, learnerExpr: "(x+2)^2-5"), false)
+        // 採点の `learner_answer` が文で来ても(2026-11-23 から)、`$…$` の中の式で比べる。
+        XCTAssertEqual(TimelineCards.gradeWritten(inverse, learnerExpr: try XCTUnwrap(TimelineCards.comparableExpression("$y = 3(x-2)^2-5$ です。"))), true)
         var fill = card
         fill.kind = "fill_line"
         fill.payload = .object((card.payload.objectValue ?? [:]).merging(TimelineCards.derive(.fillLine, from: card)!.payload) { _, new in new })
         // 隠した行は 3 行目(= 2(x − 2)^2 − 5)。
         XCTAssertEqual(TimelineCards.gradeWritten(fill, learnerExpr: "2(x-2)^2-5"), true)
         XCTAssertEqual(TimelineCards.gradeWritten(fill, learnerExpr: "2(x-2)^2+5"), false)
+    }
+
+    /// 採点の `learner_answer` は画面に出す文(2026-11-23 から)。式として比べるのは `$…$` の中だけで、決められなければ比べない。
+    func testComparableExpressionFromTheDisplayedAnswer() {
+        XCTAssertEqual(TimelineCards.comparableExpression("$y=2(x-2)^2-5$ です。"), "y=2(x-2)^2-5")
+        XCTAssertEqual(TimelineCards.comparableExpression("$2(x-2)^2-5$"), "2(x-2)^2-5")
+        // 区切り無しの古い答えは、今までどおり文全体。
+        XCTAssertEqual(TimelineCards.comparableExpression("2(x-2)^2-5"), "2(x-2)^2-5")
+        // 式が 2 つ・空は、比べずにモデルの判定のまま。
+        XCTAssertNil(TimelineCards.comparableExpression("$x=1$ と $x=3$"))
+        XCTAssertNil(TimelineCards.comparableExpression("$$"))
+        XCTAssertNil(TimelineCards.comparableExpression(" "))
     }
 }

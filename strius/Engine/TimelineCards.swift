@@ -593,6 +593,19 @@ nonisolated enum TimelineCards {
     }
 
     /// 1 行の比べ方: `= 2(x - 2)^2 - 5` のような行は、最後の `=` の右側を比べる。
+    /// 画面に出す答えの文(`learner_answer`)から、式として比べるところ。`$…$` が 1 つだけならその中身、区切りが無ければ文全体
+    /// (2026-11-23 より前の区切り無しの答え)。`$…$` が 2 つ以上あるか、区切りの外に字があって式が決められない時は nil
+    /// (比べずにモデルの判定のままにする。「`$y=2(x-2)^2-5$` です。」の「です。」まで式として読むと × になるため)。
+    static func comparableExpression(_ answer: String) -> String? {
+        let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.contains("$") else { return trimmed.isEmpty ? nil : trimmed }
+        let parts = trimmed.components(separatedBy: "$")
+        // `$式$` 1 つ: ["前", "式", "後"]。前後に式でない字があっても、式が 1 つに決まるならその式で比べる。
+        guard parts.count == 3 else { return nil }
+        let expr = parts[1].trimmingCharacters(in: .whitespaces)
+        return expr.isEmpty ? nil : expr
+    }
+
     static func equivalentLines(_ expected: String, _ written: String) -> Bool? {
         func rhs(_ text: String) -> String {
             let parts = TimelineExpression.normalize(text).components(separatedBy: "=")
