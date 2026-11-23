@@ -298,6 +298,7 @@
 		E83A9E3AD6B563A649EF5F22 /* DrillAuthoringClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8FC1383CBEE8C38C2FD8A47 /* DrillAuthoringClient.swift */; };
 		E8784FB9B98C85248C3B9273 /* TimelineFigure.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89A7583A1191059350D84C0 /* TimelineFigure.swift */; };
 		E8D24D9A3B0EE4225FAE6CAB /* TimelineFigureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8FD469FF1F5DA79433642A1 /* TimelineFigureView.swift */; };
+		E8EEF6D2F666F6EEC09B22D3 /* TimelineProblemPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8698DE2583FF53B576AE056 /* TimelineProblemPanel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -625,6 +626,7 @@
 		E8FC1383CBEE8C38C2FD8A47 /* DrillAuthoringClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DrillAuthoringClient.swift; sourceTree = "<group>"; };
 		E89A7583A1191059350D84C0 /* TimelineFigure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineFigure.swift; sourceTree = "<group>"; };
 		E8FD469FF1F5DA79433642A1 /* TimelineFigureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineFigureView.swift; sourceTree = "<group>"; };
+		E8698DE2583FF53B576AE056 /* TimelineProblemPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineProblemPanel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -1185,6 +1187,7 @@
 			isa = PBXGroup;
 			children = (
 				E8FD469FF1F5DA79433642A1 /* TimelineFigureView.swift */,
+				E8698DE2583FF53B576AE056 /* TimelineProblemPanel.swift */,
 			);
 			path = Timeline;
 			sourceTree = "<group>";
@@ -1877,6 +1880,7 @@
 				E83A9E3AD6B563A649EF5F22 /* DrillAuthoringClient.swift in Sources */,
 				E8784FB9B98C85248C3B9273 /* TimelineFigure.swift in Sources */,
 				E8D24D9A3B0EE4225FAE6CAB /* TimelineFigureView.swift in Sources */,
+				E8EEF6D2F666F6EEC09B22D3 /* TimelineProblemPanel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -180,8 +180,10 @@ final class TimelineUITests: XCTestCase {
         waitForProblem(app)
         let ink = app.descendants(matching: .any)["timeline-ink"].firstMatch
         XCTAssertTrue(ink.appears(timeout: 5))
-        ink.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.45))
-            .press(forDuration: 0.05, thenDragTo: ink.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.5)))
+        // iPad は左に問題のパネルが浮いていて、その上には書けない(#176)。パネルの右に書く。
+        let onPad: Bool = app.descendants(matching: .any)["timeline-problem-panel"].firstMatch.exists
+        ink.coordinate(withNormalizedOffset: CGVector(dx: onPad ? 0.65 : 0.2, dy: 0.45))
+            .press(forDuration: 0.05, thenDragTo: ink.coordinate(withNormalizedOffset: CGVector(dx: onPad ? 0.85 : 0.55, dy: 0.5)))
         XCTAssertTrue(app.buttons["timeline-send"].appears(timeout: 5))
         app.buttons["timeline-send"].pullUp()
         XCTAssertTrue(app.descendants(matching: .any)["timeline-result-wrong"].firstMatch.appears(timeout: 30), "誤答の結果が出ない")
