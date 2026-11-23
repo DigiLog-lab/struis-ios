@@ -134,4 +134,65 @@ final class TimelineProblemPanelUITests: XCTestCase {
         shot("solve-8-portrait-result")
         XCTAssertGreaterThan(panel.frame.height, 300, "結果の時にパネルが広がらない")
     }
+
+    /// 実際の Claude が、条件ごとに改行した問題文を出すか(#176)。力学の単元に固定して 3 問撮り、問題文を文字でも残す。
+    /// `STRUIS_DEMO_ANTHROPIC_KEY_FILE`(API キーのファイル)が無ければ飛ばす(CI では流さない)。
+    @MainActor
+    func testRealClaudeWritesConditionsOnSeparateLines() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "iPad の並びだけ")
+        guard let key = ProcessInfo.processInfo.environment["STRUIS_DEMO_ANTHROPIC_KEY_FILE"], !key.isEmpty else {
+            throw XCTSkip("STRUIS_DEMO_ANTHROPIC_KEY_FILE が無い")
+        }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = XCUIApplication()
+        app.launchArguments = ["-skip-onboarding", "-timeline-scope-demo"]
+        app.launchEnvironment["STRUIS_LEDGER"] = "memory"
+        app.launchEnvironment["STRUIS_DEVICE_RUNTIME"] = "1"
+        app.launchEnvironment["STRUIS_DEBUG_ANTHROPIC_KEY_FILE"] = key
+        app.launchEnvironment["STRUIS_PLAN"] = "generous"
+        app.launchEnvironment["STRUIS_USAGE_PERCENT"] = "0"
+        app.launch()
+        XCTAssertTrue(app.buttons["timeline-units-button"].waitForExistence(timeout: 60), "タイムラインが出ない")
+        app.buttons["timeline-units-button"].tap()
+        let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'workbook-unit-card-' AND label CONTAINS '力学'")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 15), "力学の単元が無い")
+        if !card.isHittable { app.swipeUp() }
+        card.tap()
+        let solve = app.buttons["workbook-unit-solve-in-timeline"]
+        XCTAssertTrue(solve.waitForExistence(timeout: 15), "「タイムラインで解く」が無い")
+        solve.tap()
+        var previous: String = ""
+        var texts: [String] = []
+        for index in 1...3 {
+            XCTAssertTrue(waitForProblem(app, timeout: 420, changingFrom: previous), "\(index) 問目が出ない")
+            sleep(3)
+            previous = problemText(app)
+            texts.append("--- \(index)\n" + previous)
+            shot("real-\(index)")
+            guard index < 3, app.buttons["timeline-skip"].exists else { break }
+            app.buttons["timeline-skip"].tap()
+        }
+        let text = XCTAttachment(string: texts.joined(separator: "\n"))
+        text.name = "real-problem-texts"
+        text.lifetime = .keepAlways
+        add(text)
+    }
+
+    @MainActor
+    private func problemText(_ app: XCUIApplication) -> String {
+        let problem = app.descendants(matching: .any)["timeline-problem"].firstMatch
+        let prompt = app.descendants(matching: .any)["timeline-prompt"].firstMatch
+        return [problem, prompt].filter(\.exists).map(\.label).joined(separator: "\n[prompt]\n")
+    }
+
+    @MainActor
+    private func waitForProblem(_ app: XCUIApplication, timeout: TimeInterval, changingFrom previous: String) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let text = problemText(app)
+            if !text.isEmpty, text != previous { return true }
+            sleep(2)
+        }
+        return false
+    }
 }
