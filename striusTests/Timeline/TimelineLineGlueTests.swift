@@ -31,3 +31,43 @@ final class TimelineLineGlueTests: XCTestCase {
         XCTAssertEqual(TimelineLineGlue.apply("次の問いに答えなさい。"), "次の問いに答えなさい。")
     }
 }
+
+/// 日本語の文節の途中では折らない(#176)。語の切れ目は端末の辞書で決まるので、折れてはいけない所だけを確かめる。
+final class TimelineLinePhraseTests: XCTestCase {
+    private let joiner: Character = "\u{2060}"
+
+    /// 折れてよい位置(糊の無い文字の間)の、前の文字までの文字列。
+    private func breakPoints(_ glued: String) -> [String] {
+        var points: [String] = []
+        var seen: String = ""
+        var previous: Character?
+        for character in glued {
+            if let previous, previous != joiner, character != joiner { points.append(seen) }
+            if character != joiner { seen.append(character) }
+            previous = character
+        }
+        return points
+    }
+
+    func testParticlesStayWithTheWordBefore() {
+        let points: [String] = breakPoints(TimelineLineGlue.apply("次の問いに答えなさい。"))
+        XCTAssertFalse(points.contains("次の問い"), "「問い」と「に」の間で折れる: \(points)")
+        XCTAssertFalse(points.contains("次"), "「次」と「の」の間で折れる: \(points)")
+        XCTAssertFalse(points.contains("次の問いに答"), "「答え」の途中で折れる: \(points)")
+    }
+
+    func testWordsAreNotSplit() {
+        let points: [String] = breakPoints(TimelineLineGlue.apply("軸上の原点に置きます。"))
+        XCTAssertFalse(points.contains("軸上の原"), "「原点」の途中で折れる: \(points)")
+    }
+
+    func testNumberStaysWithItsCounter() {
+        let points: [String] = breakPoints(TimelineLineGlue.apply("2点の電荷"))
+        XCTAssertFalse(points.contains("2"), "「2」と「点」の間で折れる: \(points)")
+    }
+
+    func testMathIsLeftAlone() {
+        let source: String = "$\\frac{1}{2}$"
+        XCTAssertEqual(TimelineLineGlue.joinPhrases(source), source)
+    }
+}

@@ -240,7 +240,7 @@ struct TimelineRichText: View {
     }
 }
 
-/// 問いの文の、行中の式とその前後の語の間で行を折らない(#176)。
+/// 問いの文の、行中の式とその前後の語の間と、日本語の文節の途中では行を折らない(#176)。
 ///
 /// 「点 $B$ に $q_B=-3.0\times10^{-9}\,\mathrm{C}$」が「点 B に」で行を終え、式だけ次の行に送られて、どの値がどの点のものか
 /// 読み取りにくかった(2026-11-23 の実機の iPad 横向き)。式の前後の空白を折らない空白(U+00A0)にし、空白を挟まずに続く文字との
@@ -257,8 +257,81 @@ enum TimelineLineGlue {
     ]
 
     static func apply(_ text: String) -> String {
+        joinMath(joinPhrases(text))
+    }
+
+    /// 日本語の文は、文節(自立語と、続く助詞・助動詞)の途中では折らない。前は「次の問い|に答えなさい」「x 軸上の原|点」と
+    /// 語の途中で折れていた(2026-11-23 の実機・シミュレータの iPad)。語の切れ目は `CFStringTokenizer` で求め、ひらがなで
+    /// 始まる語(助詞・助動詞・送り仮名)は前の語に付ける。数字の後の漢字(「2 点」の「2点」)も付ける。式の中は触らない。
+    static func joinPhrases(_ text: String) -> String {
+        var out: String = ""
+        for (segment, isMath) in segments(text) {
+            out += isMath ? segment : joinPhrasesInText(segment)
+        }
+        return out
+    }
+
+    private static func joinPhrasesInText(_ text: String) -> String {
+        let string: NSString = text as NSString
+        guard string.length > 1 else { return text }
+        let tokenizer: CFStringTokenizer = CFStringTokenizerCreate(nil, string as CFString, CFRange(location: 0, length: string.length),
+                                                                   kCFStringTokenizerUnitWordBoundary, Locale(identifier: "ja") as CFLocale)
+        var starts: Set<Int> = []
+        while CFStringTokenizerAdvanceToNextToken(tokenizer) != CFStringTokenizerTokenType(rawValue: 0) {
+            starts.insert(CFStringTokenizerGetCurrentTokenRange(tokenizer).location)
+        }
+        var out: String = ""
+        var offset: Int = 0
+        var previous: Character?
+        for character in text {
+            if let previous, !allowsBreak(previous, character, atWordStart: starts.contains(offset)) {
+                out.append(wordJoiner)
+            }
+            out.append(character)
+            previous = character
+            offset += character.utf16.count
+        }
+        return out
+    }
+
+    private static func allowsBreak(_ previous: Character, _ next: Character, atWordStart: Bool) -> Bool {
+        if previous.isWhitespace || next.isWhitespace || previous == wordJoiner || next == wordJoiner { return true }
+        guard isJapanese(previous) || isJapanese(next) else { return true }
+        // 句読点・括弧の前後は、これまでどおり(行頭・行末の禁則は文字組みが守る)。
+        if breakable.contains(previous) || breakable.contains(next) { return true }
+        if !atWordStart { return false }
+        if isHiragana(next) { return false }
+        if let ascii = previous.asciiValue, (48...57).contains(ascii) || (65...90).contains(ascii) || (97...122).contains(ascii) { return false }
+        return true
+    }
+
+    private static func isHiragana(_ character: Character) -> Bool {
+        character.unicodeScalars.first.map { (0x3040...0x309F).contains($0.value) } ?? false
+    }
+
+    private static func isJapanese(_ character: Character) -> Bool {
+        guard let value = character.unicodeScalars.first?.value else { return false }
+        return (0x3040...0x30FF).contains(value) || (0x3400...0x4DBF).contains(value) || (0x4E00...0x9FFF).contains(value)
+            || value == 0x3005 || (0xFF66...0xFF9F).contains(value)
+    }
+
+    /// 文を、式(`$…$`・`$$…$$`)とそれ以外に分ける。
+    private static func segments(_ text: String) -> [(String, Bool)] {
+        let chars: [Character] = Array(text)
+        var parts: [(String, Bool)] = []
+        var last: Int = 0
+        for span in mathSpans(chars, includingDisplay: true) {
+            if span.open > last { parts.append((String(chars[last..<span.open]), false)) }
+            parts.append((String(chars[span.open...span.close]), true))
+            last = span.close + 1
+        }
+        if last < chars.count { parts.append((String(chars[last...]), false)) }
+        return parts
+    }
+
+    static func joinMath(_ text: String) -> String {
         var chars: [Character] = Array(text)
-        let spans: [(open: Int, close: Int)] = inlineMathSpans(chars)
+        let spans: [(open: Int, close: Int)] = mathSpans(chars, includingDisplay: false)
         guard !spans.isEmpty else { return text }
         // 後ろの式から順に直す(前の式の位置がずれないように)。1 つの式では、閉じる側を先に直す。
         for span in spans.reversed() {
@@ -282,8 +355,9 @@ enum TimelineLineGlue {
         return String(chars)
     }
 
-    /// 行中の式 `$…$` の開き・閉じの位置。`$$…$$`(独立した行の式)と、`\$` は数えない。
-    private static func inlineMathSpans(_ chars: [Character]) -> [(open: Int, close: Int)] {
+    /// 式 `$…$` の開き・閉じの位置。`$$…$$`(独立した行の式)は `includingDisplay` の時だけ(閉じの位置は 2 つ目の `$`)。
+    /// `\$` は数えない。
+    private static func mathSpans(_ chars: [Character], includingDisplay: Bool) -> [(open: Int, close: Int)] {
         var spans: [(open: Int, close: Int)] = []
         var i: Int = 0
         func isDollar(_ index: Int) -> Bool { chars[index] == "$" && (index == 0 || chars[index - 1] != "\\") }
@@ -292,6 +366,7 @@ enum TimelineLineGlue {
             if i + 1 < chars.count, chars[i + 1] == "$" {
                 var j: Int = i + 2
                 while j + 1 < chars.count, !(isDollar(j) && chars[j + 1] == "$") { j += 1 }
+                if includingDisplay { spans.append((i, min(j + 1, chars.count - 1))) }
                 i = j + 2
                 continue
             }
@@ -318,7 +393,8 @@ struct TimelineQuestionText: View {
             TimelineRichText(text: TimelineLineGlue.apply(text), size: size, weight: .bold)
                 .accessibilityIdentifier("timeline-question")
         } else {
-            Text(attributed)
+            // 文節の途中で折らない(#176)。変えたところに色を付ける時は、元の文で探すので付けない。
+            Text((changed ?? "").isEmpty ? AttributedString(TimelineLineGlue.apply(text)) : attributed)
                 .font(Typography.sans(size: size, weight: .bold))
                 .foregroundStyle(Theme.primaryText)
                 .fixedSize(horizontal: false, vertical: true)

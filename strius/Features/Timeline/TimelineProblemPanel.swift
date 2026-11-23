@@ -100,10 +100,10 @@ struct TimelineProblemPanel<Content: View>: View {
 
     /// 畳んだ時の帯: 太字の問いの 1 行。押すか上に引くと広がる。
     private var collapsedRow: some View {
-        ProblemCatalogRichText(text: collapsedLine, font: Typography.sans(size: 16, weight: .bold), katexFontSize: 16, katexFontWeight: 700,
-                               color: UIColor(Theme.primaryText), lineLimit: 1, maxKatexHeight: 30)
-            .foregroundStyle(Theme.primaryText)
-            .frame(height: Self.collapsed - Self.handleHeight - 12, alignment: .leading)
+        // 問題文と同じ太字で組み、1 行に入らない分は切る(帯の高さは変えない)。
+        TimelineRichText(text: collapsedLine, size: 16, weight: .bold)
+            .frame(height: 28, alignment: .topLeading)
+            .padding(.top, 3)
             .frame(maxWidth: .infinity, alignment: .leading)
             .clipped()
             .padding(.horizontal, 22)

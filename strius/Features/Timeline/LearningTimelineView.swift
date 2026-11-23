@@ -1023,7 +1023,12 @@ struct LearningTimelineView: View {
     private var isGrading: Bool { if case .grading = store.phase { true } else { false } }
     private var isResult: Bool { if case .result = store.phase { true } else { false } }
 
+    /// 下の帯の 1 行。問題文の改行(条件ごとの改行、#176)は空白にして 1 行に続ける(改行のままだと帯の中で 2 行目が切れる)。
     private var stripLine: String {
+        stripSource.replacingOccurrences(of: "\n", with: " ")
+    }
+
+    private var stripSource: String {
         guard let next = store.upcoming else { return store.phase == .waiting ? "用意しています" : "" }
         // 式は数式として描く(LaTeX を文字のまま出さない)。式がある時は式だけ(問いの文まで並べると 1 行に入らず、2 行目が切れる)。
         if next.kind == "solve", !next.math.isEmpty { return "$" + next.math + "$" }
