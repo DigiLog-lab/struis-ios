@@ -44,13 +44,13 @@ enum TimelineSymbol {
     static let clear = "trash"
 }
 
-/// iPad の並び(問題は左の列、右は全部紙。書く道具は右上、質問は右に開く)。iPad で横幅が広い時だけ使う。
+/// iPad の並び(紙は画面全体、問題は紙の上に浮かぶパネル。書く道具は右上、質問は右に開く)。iPad で横幅が広い時だけ使う。
 /// iPhone と、Split View で狭くした iPad は `.compact`(今の並び)のまま。
 enum TimelineLayout: Equatable {
     case compact
-    /// iPad 横向き: 問題は左の列、下の帯は問題の列の下だけ。
+    /// iPad 横向き: 問題は左に浮かぶパネル、下の帯はパネルの下だけ。
     case padLandscape
-    /// iPad 縦向き: 問題は上に全幅、下の帯も全幅。
+    /// iPad 縦向き: 問題は横向きと同じ幅のパネル、下の帯は全幅(#176)。
     case padPortrait
 
     /// 画面全体(右に開いた質問の欄も含む)の大きさから決める。欄を開いてタイムラインが細くなっても、横向きのまま。
@@ -72,6 +72,14 @@ enum TimelineLayout: Equatable {
     static let columnWidth: CGFloat = 384
     static let stripLeading: CGFloat = 16
     static let stripWidth: CGFloat = 432
+    /// 問題のパネル(#176): 左 16pt・幅 432pt で、横向きの下の帯と左右の端を揃える。中は左右 24pt 空けるので、問題文の幅は
+    /// 前の問題の列と同じ 384pt(条件ごとの改行が同じ幅で決まる)。高さだけが変わり、横幅は縦向きでも変えない。
+    static let panelLeading: CGFloat = 16
+    static let panelWidth: CGFloat = 432
+    static let panelInset: CGFloat = 24
+    /// 畳んだ時の帯の高さ(つまみと、太字の問いの 1 行)。
+    static let panelCollapsedHeight: CGFloat = 68
+    static let panelCorner: CGFloat = 28
     /// 右に開く質問の欄の幅。
     static let questionPanelWidth: CGFloat = 380
     /// iPad の「送る」の大きさ。
@@ -232,6 +240,71 @@ struct TimelineRichText: View {
     }
 }
 
+/// 問いの文の、行中の式とその前後の語の間で行を折らない(#176)。
+///
+/// 「点 $B$ に $q_B=-3.0\times10^{-9}\,\mathrm{C}$」が「点 B に」で行を終え、式だけ次の行に送られて、どの値がどの点のものか
+/// 読み取りにくかった(2026-11-23 の実機の iPad 横向き)。式の前後の空白を折らない空白(U+00A0)にし、空白を挟まずに続く文字との
+/// 間には折らない印(U+2060 WORD JOINER)を入れる。読点・句点・括弧の後や改行の後は、これまでどおり折れる(条件ごとの区切り)。
+/// 式そのものは、これまでも途中で折れない(1 つの画像として組む)。
+enum TimelineLineGlue {
+    private static let noBreakSpace: Character = "\u{00A0}"
+    private static let wordJoiner: Character = "\u{2060}"
+    /// この文字の前後では、もともと行を折ってよい(糊でつながない)。
+    private static let breakable: Set<Character> = [
+        " ", "\n", "\t", "\u{00A0}", "\u{2060}", "$",
+        "、", "。", "，", "．", ",", ".", ";", ":", "；", "：", "!", "?", "！", "？",
+        "(", ")", "（", "）", "「", "」", "『", "』", "[", "]", "【", "】",
+    ]
+
+    static func apply(_ text: String) -> String {
+        var chars: [Character] = Array(text)
+        let spans: [(open: Int, close: Int)] = inlineMathSpans(chars)
+        guard !spans.isEmpty else { return text }
+        // 後ろの式から順に直す(前の式の位置がずれないように)。1 つの式では、閉じる側を先に直す。
+        for span in spans.reversed() {
+            let after: Int = span.close + 1
+            if after < chars.count {
+                if chars[after] == " ", after + 1 < chars.count, !breakable.contains(chars[after + 1]) {
+                    chars[after] = noBreakSpace
+                } else if !breakable.contains(chars[after]) {
+                    chars.insert(wordJoiner, at: after)
+                }
+            }
+            let before: Int = span.open - 1
+            if before >= 0 {
+                if chars[before] == " ", before - 1 >= 0, !breakable.contains(chars[before - 1]) {
+                    chars[before] = noBreakSpace
+                } else if !breakable.contains(chars[before]) {
+                    chars.insert(wordJoiner, at: span.open)
+                }
+            }
+        }
+        return String(chars)
+    }
+
+    /// 行中の式 `$…$` の開き・閉じの位置。`$$…$$`(独立した行の式)と、`\$` は数えない。
+    private static func inlineMathSpans(_ chars: [Character]) -> [(open: Int, close: Int)] {
+        var spans: [(open: Int, close: Int)] = []
+        var i: Int = 0
+        func isDollar(_ index: Int) -> Bool { chars[index] == "$" && (index == 0 || chars[index - 1] != "\\") }
+        while i < chars.count {
+            guard isDollar(i) else { i += 1; continue }
+            if i + 1 < chars.count, chars[i + 1] == "$" {
+                var j: Int = i + 2
+                while j + 1 < chars.count, !(isDollar(j) && chars[j + 1] == "$") { j += 1 }
+                i = j + 2
+                continue
+            }
+            var j: Int = i + 1
+            while j < chars.count, !isDollar(j) { j += 1 }
+            guard j < chars.count else { break }
+            spans.append((i, j))
+            i = j + 1
+        }
+        return spans
+    }
+}
+
 /// 問いの文。前の問題から変えたところ(例: 範囲の a)は銅色の地にする。
 struct TimelineQuestionText: View {
     let text: String
@@ -241,7 +314,8 @@ struct TimelineQuestionText: View {
     var body: some View {
         if text.containsCatalogLaTeX {
             // 文の中の式(`$\sin\frac{5\pi}{2}$`)は数式として組む。変えたところの色は付けない(式の中の位置を文字では指せない)。
-            TimelineRichText(text: text, size: size, weight: .bold)
+            // 「点 B に」と式の間では行を折らない(#176)。
+            TimelineRichText(text: TimelineLineGlue.apply(text), size: size, weight: .bold)
                 .accessibilityIdentifier("timeline-question")
         } else {
             Text(attributed)

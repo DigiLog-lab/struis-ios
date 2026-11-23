@@ -73,6 +73,9 @@ nonisolated enum LedgerFixtures {
             if arguments.contains("-timeline-order-demo") {
                 timelineEvents += try seedOrderDemo(db)
             }
+            if arguments.contains("-timeline-panel-demo") {
+                timelineEvents += try seedPanelDemo(db, solveFirst: arguments.contains("-timeline-panel-solve"))
+            }
             return (machine.events + chatEvents + timelineEvents, ())
         }
         if arguments.contains("-timeline-warmup-demo"), let template = try? DrillTemplate.decode(json: warmupDemoTemplate), let json = try? template.canonicalJSON() {
@@ -142,6 +145,29 @@ nonisolated enum LedgerFixtures {
             prompt: "$x$ 軸上の $x = 0$ に $+1\\,\\mathrm{nC}$、$x = 2\\,\\mathrm{m}$ に $-1\\,\\mathrm{nC}$ の点電荷があります。$x = 1\\,\\mathrm{m}$ の電場の $x$ 成分を求めなさい。",
             math: "", question: "", answerKey: "", answerExpr: "", checkpoints: [], commonMistakes: [], estimatedSeconds: 60, chain: nil,
             easierOf: nil, subunitId: nil, unitId: nil, payload: .emptyObject, origin: "batch", status: "unused", createdAt: at, updatedAt: at))
+        return timeline.events
+    }
+
+    /// iPad の問題のパネル(#176)の確かめ用: 条件を改行して並べた「理由を選ぶ」のカードと、書いて解く計算のカード。
+    /// `-timeline-panel-solve` を足すと、計算のカードを先に出す(畳んで書く所を確かめる)。
+    private static func seedPanelDemo(_ db: Database, solveFirst: Bool) throws -> [LedgerEvent] {
+        var timeline = try TimelineMachine(loading: db)
+        let at: String = LedgerClock.now()
+        let problem: String = "点 $A$ に $q_A = +2.0 \\times 10^{-9}\\,\\mathrm{C}$、\n点 $B$ に $q_B = -3.0 \\times 10^{-9}\\,\\mathrm{C}$ があります。\n2 点の電荷の間にはたらく力について、次の問いに答えなさい。"
+        let options: [LedgerJSON] = ["どちらも正の電荷で、同じ向きに力が働くから", "異符号の電荷は引き合うから", "正の電荷の方が大きさが大きいから", "距離が近いと電荷は反発するから"].map(LedgerJSON.string)
+        timeline.put("fixture", TimelineCardRecord(
+            id: "pn-reason", batchId: nil, position: solveFirst ? 1 : 0, kind: "reason", level: 2, skills: [], typeName: "理由を選ぶ",
+            prompt: "この 2 つの電荷の間にはたらく力が引力になるのはなぜですか。", math: "", question: "", answerKey: "", answerExpr: "",
+            checkpoints: [], commonMistakes: [], estimatedSeconds: 40, chain: nil, easierOf: nil, subunitId: nil, unitId: nil,
+            payload: .object(["problem": .string(problem), "question": .string("この 2 つの電荷の間にはたらく力が引力になるのはなぜですか。"),
+                              "options": .array(options), "answer_index": .number(1)]),
+            origin: "batch", status: solveFirst ? "unused" : "shown", createdAt: at, updatedAt: at))
+        timeline.put("fixture", TimelineCardRecord(
+            id: "pn-solve", batchId: nil, position: solveFirst ? 0 : 1, kind: "solve", level: 2, skills: [], typeName: "計算",
+            prompt: "$x$ 軸上の原点 $O$ に $q_1 = +2.0 \\times 10^{-9}\\,\\mathrm{C}$、\n$x = 3\\,\\mathrm{m}$ の点 $P$ に $q_2 = +4.0 \\times 10^{-9}\\,\\mathrm{C}$ の点電荷を置きます。\n$x = 1\\,\\mathrm{m}$ の点の電場の $x$ 成分を求めなさい。",
+            math: "", question: "", answerKey: "", answerExpr: "", checkpoints: [], commonMistakes: [], estimatedSeconds: 90, chain: nil,
+            easierOf: nil, subunitId: nil, unitId: nil, payload: .emptyObject, origin: "batch", status: solveFirst ? "shown" : "unused",
+            createdAt: at, updatedAt: at))
         return timeline.events
     }
 

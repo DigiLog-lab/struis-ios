@@ -6,7 +6,8 @@ import SwiftUI
 /// 上の帯と下の帯の間は、問題文の上も含めて画面の端から端まで指で書ける。次へ進むのは、下の帯を上に送ったときだけ。
 /// iPad で横幅が広い時(Issue #55)は、書く道具を右上に、「送る」を右下に常に置き(書くまで押せない)、結果でも送った手書きを残す。
 /// ペンの太さと消しゴムは、書ける間だけ出す標準の道具パレット(ペン1本と消しゴムだけ)で選ぶ。
-/// 横向きは問題を左の列に置いて右を全部紙にし、下の帯を問題の列の下だけにして右下まで書けるようにする。
+/// iPad は紙を画面全体に敷き、問題は紙の上に浮かぶパネルに出す(#176)。パネルは横幅を変えずに高さだけ変わり、畳むと
+/// 左下に問いの 1 行だけが残る。横向きは下の帯をパネルの下だけにして、右下まで書けるようにする。
 struct LearningTimelineView: View {
     let store: TimelineStore
     let onOpenUnits: () -> Void
@@ -58,6 +59,12 @@ struct LearningTimelineView: View {
     @State private var disputeDraft = ""
     /// 16 歳未満で、今の版の保護者の同意が無い(#76)。同意するまでタイムラインを始めない(始めても AI に頼めず、失敗の画面になる)。
     @State private var needsGuardianConsent = GuardianConsentGate.consentRequired
+    /// iPad の問題のパネルの高さ(#176)。nil は広げきった状態。
+    @State private var panelHeight: CGFloat?
+    /// 問題のパネルの形の場所(`TimelineInkSpace` の座標)。書く面のこの部分を抜く。
+    @State private var panelFrame: CGRect?
+    /// iPad 横向きの下の帯の高さ。パネルの下端をこの上に留める。
+    @State private var stripHeight: CGFloat = 0
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -79,14 +86,7 @@ struct LearningTimelineView: View {
                         .padding(.top, 10)
                 }
                 ZStack(alignment: .bottomTrailing) {
-                    content
-                        .padding(.leading, layout.isPad ? TimelineLayout.columnLeading : 24)
-                        .padding(.trailing, layout == .padLandscape ? 0 : contentTrailing)
-                        .padding(.top, 16)
-                        // 横向きは下の帯が問題の列の下に重なるので、その分を空ける。
-                        .padding(.bottom, layout == .padLandscape ? 132 : 0)
-                        .frame(width: layout == .padLandscape ? TimelineLayout.columnLeading + TimelineLayout.columnWidth : nil)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    contentArea
                         .environment(\.timelineHidesResultMark, !liquid.hasLanded)
                         // 見直しのカードを出している間は、問題を隠す(地は画面の地をそのまま使い、上の帯と続けて見せる)。
                         .opacity(isReviewing ? 0 : 1)
@@ -134,13 +134,14 @@ struct LearningTimelineView: View {
             if layout == .padLandscape {
                 nextStrip
                     .frame(width: TimelineLayout.stripWidth)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { stripHeight = $0 }
                     .padding(.leading, TimelineLayout.stripLeading)
                     .offset(y: min(0, dragOffset) * 0.35)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             }
-            // iPad の縦向きの結果の画面では、書く面を見えなくする(結果の列が全幅なので、書いた線が講評の文に重なって読めなくなる)。
-            // 書いた答案は結果の列の中に出す。木からは外さない(外すと書く面が作り直され、横向きに回した時に線が消える)。
-            if showsInk { placedInkLayer.opacity(hidesInkInResult ? 0 : 1).allowsHitTesting(!hidesInkInResult) }
+            // iPad は縦向きも横向きも、問題のパネルの右に書いた線を残す(#176。前は縦向きの結果の画面で書く面を隠し、
+            // 書いた答案を全幅の結果の列の中に出していた)。
+            if showsInk { placedInkLayer }
             // 撮るを引いている間の形と、単元のチップから伸びる一覧(書いた線や下の帯の上にも重ねる)。
             // 質問の画面は、iPad で右の欄になるので、タイムラインの外(AppRootView)で出す。
             TimelinePullGlassLayer(pullOut: pullOut, cameraIsProminent: !layout.isPad && !hasInk)
@@ -228,6 +229,7 @@ struct LearningTimelineView: View {
             case .grading:
                 liquid.startGrading()
             case .result:
+                expandPanel()
                 if case .grading = old { liquid.emerge(correct: store.lastAttempt?.verdict == "correct") } else if liquid.stage != .emerging { liquid.reset() }
             default:
                 if liquid.stage != .idle { liquid.reset() }
@@ -248,6 +250,7 @@ struct LearningTimelineView: View {
                 }
             }
             problemScroll.scrollTo(edge: .top)
+            expandPanel()
         }
         .background {
             ChatCameraPresentation(isPresented: $isCameraPresented) { data in
@@ -278,7 +281,68 @@ struct LearningTimelineView: View {
     /// 下まで伸びるので、ボタンの列の幅を空けて重ならないようにする(文字は縮めない。入らない分はスクロールで読む)。
     private var contentTrailing: CGFloat {
         guard dynamicTypeSize.isAccessibilitySize else { return 24 }
-        return layout.isPad ? 116 : 104
+        return 104
+    }
+
+    /// 問題の欄。iPhone は上の帯と下の帯の間の列。iPad は、紙の上に浮かぶ問題のパネル(#176)。パネルの下端は「次」の帯の
+    /// すぐ上に留める(横向きは帯が問題の欄に重なるので帯の高さを空け、縦向きは帯が欄の下にあるので少し空けるだけ)。
+    @ViewBuilder
+    private var contentArea: some View {
+        if layout.isPad {
+            // パネルの形の場所(書く面の座標)を受け取り、書く面のその部分を抜く(パネルの上に書いた線が重ならないように)。
+            TimelineProblemPanel(height: $panelHeight, collapsedLine: collapsedLine, onFrameChange: { panelFrame = $0 }) {
+                content
+                    .padding(.horizontal, TimelineLayout.panelInset)
+                    .padding(.top, 2)
+                    .padding(.bottom, 14)
+            }
+            .padding(.leading, TimelineLayout.panelLeading)
+            .padding(.top, 12)
+            .padding(.bottom, layout == .padLandscape ? stripHeight + 12 : 12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        } else {
+            content
+                .padding(.leading, 24)
+                .padding(.trailing, contentTrailing)
+                .padding(.top, 16)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+    }
+
+    /// 畳んだパネルの帯に出す 1 行: 太字の問い(問題文の最後の行。条件を改行して並べた問題文では、問いは最後の行に来る)。
+    /// 計算のカードで式があれば、式も続ける。
+    private var collapsedLine: String {
+        guard let card = store.current else { return store.phase == .waiting ? "問題を用意しています" : "" }
+        let asked: String = card.kind == "solve" && !card.question.isEmpty ? card.question : card.prompt
+        let last: String = asked.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.last { !$0.isEmpty } ?? ""
+        let line: String = card.kind == "solve" ? TimelineCards.problemLine(prompt: last, math: card.math) : last
+        return TimelineRichText.source(line)
+    }
+
+    /// 新しい問題と結果は、パネルを広げて出す(#176。前の問題で畳んでいても広げる。結果は、液体の ○ がパネルの中の印に降りるため)。
+    private func expandPanel() {
+        guard panelHeight != nil else { return }
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.38, dampingFraction: 0.86)) { panelHeight = nil }
+    }
+
+    /// 書く面から、問題のパネルの形を抜く(パネルは書く面より下にあるので、抜かないと書いた線がパネルの文に重なる)。
+    @ViewBuilder
+    private func inkMask(size: CGSize) -> some View {
+        if layout.isPad, let panel = panelFrame {
+            let local: CGRect = panel.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y)
+            Rectangle()
+                .fill(Color.black)
+                .overlay(alignment: .topLeading) {
+                    RoundedRectangle(cornerRadius: TimelineLayout.panelCorner, style: .continuous)
+                        .frame(width: local.width, height: local.height)
+                        .offset(x: local.minX, y: local.minY)
+                        .blendMode(.destinationOut)
+                }
+                .compositingGroup()
+                .frame(width: size.width, height: size.height)
+        } else {
+            Rectangle().frame(width: size.width, height: size.height)
+        }
     }
 
     // MARK: 上端
@@ -481,12 +545,9 @@ struct LearningTimelineView: View {
             Text("どこにでも書けます").font(Typography.sans(size: 15, weight: .medium))
         }
         .foregroundStyle(Theme.tertiaryText)
-        return VStack(spacing: 0) {
-            // 縦向きは問題の下の紙(下半分)の真ん中、横向きは問題の列の右の紙の真ん中。
-            if layout == .padPortrait { Color.clear }
-            hint.frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .padding(.leading, layout == .padLandscape ? TimelineLayout.columnLeading + TimelineLayout.columnWidth : 0)
+        // 縦向きも横向きも、問題のパネルの右の紙の真ん中(#176)。
+        return hint.frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.leading, TimelineLayout.panelLeading + TimelineLayout.panelWidth)
         .allowsHitTesting(false)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("timeline-ink-hint")
@@ -566,17 +627,11 @@ struct LearningTimelineView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         TimelineResultView(card: card, attempt: attempt, store: store)
-                        // iPhone と iPad の縦向きは結果の画面で書く面を出さないので、送った手書きに赤ペンを重ねてここに出す。
-                        // iPhone は赤ペンがある時だけ。iPad の縦向きは、書いた答案が消えたように見えないよう、いつも出す
-                        // (書いた時の大きさより大きくはしない)。
-                        if layout != .padLandscape, let answer = store.inkAnswer(attempt.id) {
+                        // iPhone は結果の画面で書く面を出さないので、送った手書きに赤ペンを重ねてここに出す(赤ペンがある時だけ)。
+                        // iPad は縦向きも横向きも、書いた線を問題のパネルの右の紙に残し、赤ペンもそこに重ねる(#176)。
+                        if !layout.isPad, let answer = store.inkAnswer(attempt.id) {
                             let marks = store.redPen(attempt.id)
-                            if layout == .padPortrait {
-                                TimelineRedPenPaper(answer: answer, marks: marks)
-                                    .frame(maxWidth: answer.frame.bounds.width, alignment: .leading)
-                            } else if !marks.isEmpty {
-                                TimelineRedPenPaper(answer: answer, marks: marks)
-                            }
+                            if !marks.isEmpty { TimelineRedPenPaper(answer: answer, marks: marks) }
                         }
                         if attempt.verdict == "wrong", store.isStuck(card) {
                             // 2日続けて同じ所で止まった: 直近の答案をすべて渡して、質問(チューターとの会話)で一緒に考える。
@@ -593,7 +648,7 @@ struct LearningTimelineView: View {
                             .accessibilityIdentifier("timeline-stuck-ask")
                         }
                     }
-                    .padding(.trailing, layout == .padLandscape ? 0 : 60).padding(.bottom, 24)
+                    .padding(.trailing, layout.isPad ? 0 : 60).padding(.bottom, 24)
                 }
                 .scrollIndicators(isResultScrolling ? .visible : .hidden)
                 .onScrollGeometryChange(for: Bool.self) { $0.contentSize.height > $0.containerSize.height + 1 } action: { _, value in
@@ -679,7 +734,7 @@ struct LearningTimelineView: View {
         VStack(alignment: .leading, spacing: 14) {
             // 図は右下のボタンの列(質問・飛ばす・答え・撮る)と重なる高さに来るので、その幅を空ける(2026-11-19 の画面の確かめ)。
             TimelineProblemView(card: card, store: store, selfGrades: !layout.isPad && store.canSelfGrade(card),
-                                figureTrailing: layout == .padLandscape ? 0 : 64, figureAvailableHeight: height)
+                                figureTrailing: layout.isPad ? 0 : 64, figureAvailableHeight: height)
             if !layout.isPad, store.isAnswerRevealed, store.canSelfGrade(card) {
                 TimelineAnswerCard(text: store.answerText(card))
                     .padding(.top, 10)
@@ -690,7 +745,7 @@ struct LearningTimelineView: View {
                 Spacer(minLength: 0)
                 footnote(card)
             } else {
-                TimelineInteractiveCard(card: card, store: store).id(card.id).padding(.trailing, layout == .padLandscape ? 0 : 64)
+                TimelineInteractiveCard(card: card, store: store).id(card.id).padding(.trailing, layout.isPad ? 0 : 64)
                 Spacer(minLength: 0)
             }
         }
@@ -715,7 +770,7 @@ struct LearningTimelineView: View {
         .font(Typography.sans(size: 14, weight: .medium))
         .foregroundStyle(Theme.secondaryText)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.trailing, layout == .padLandscape ? 0 : 90)
+        .padding(.trailing, layout.isPad ? 0 : 90)
         // 書いた後は、同じ場所に「1つ戻す」「全部消す」を出す(iPad は右上に出すので消さない)。
         .opacity(!layout.isPad && (hasInk || isInkZoomed) ? 0 : 1)
     }
@@ -750,6 +805,7 @@ struct LearningTimelineView: View {
             let area: CGRect = layout.isPad ? CGRect(origin: .zero, size: proxy.size) : inkArea
             inkLayer
                 .frame(width: area.width, height: area.height)
+                .mask { inkMask(size: area.size) }
                 .position(x: area.midX, y: area.midY)
         }
         .ignoresSafeArea(edges: layout.isPad ? .all : [])
@@ -966,8 +1022,6 @@ struct LearningTimelineView: View {
     private var isRapid: Bool { if case .rapid = store.phase { true } else { false } }
     private var isGrading: Bool { if case .grading = store.phase { true } else { false } }
     private var isResult: Bool { if case .result = store.phase { true } else { false } }
-    /// iPad の縦向きの結果の画面: 書く面を見えなくして、書いた答案は結果の列の中に出す。
-    private var hidesInkInResult: Bool { layout == .padPortrait && isResult }
 
     private var stripLine: String {
         guard let next = store.upcoming else { return store.phase == .waiting ? "用意しています" : "" }
