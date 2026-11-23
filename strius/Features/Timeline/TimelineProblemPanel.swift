@@ -29,7 +29,7 @@ struct TimelineProblemPanel<Content: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static var collapsed: CGFloat { TimelineLayout.panelCollapsedHeight }
-    private static var handleHeight: CGFloat { 22 }
+    private static var handleHeight: CGFloat { 18 }
     private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: TimelineLayout.panelCorner, style: .continuous) }
 
     /// 今の高さ。使える高さが分かる前は広げきった形にする。

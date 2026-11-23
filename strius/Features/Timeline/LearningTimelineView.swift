@@ -293,12 +293,11 @@ struct LearningTimelineView: View {
             TimelineProblemPanel(height: $panelHeight, collapsedLine: collapsedLine, onFrameChange: { panelFrame = $0 }) {
                 content
                     .padding(.horizontal, TimelineLayout.panelInset)
-                    .padding(.top, 2)
-                    .padding(.bottom, 14)
+                    .padding(.bottom, 10)
             }
             .padding(.leading, TimelineLayout.panelLeading)
-            .padding(.top, 12)
-            .padding(.bottom, layout == .padLandscape ? stripHeight + 12 : 12)
+            .padding(.top, 8)
+            .padding(.bottom, layout == .padLandscape ? stripHeight + 8 : 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         } else {
             content
