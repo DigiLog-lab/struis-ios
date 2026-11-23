@@ -249,4 +249,26 @@ struct MathRenderingTests {
         #expect(source == lead)
         #expect(NativeMathDocument.make(source, display: false) != nil)
     }
+
+    /// 答えの欄は、画面に出すほかの文と同じく `$…$` で囲んだ文で来る(2026-11-23 から)。区切りを足したり切ったりせず、そのまま組む。
+    @Test func anAnswerWrittenLikeAWorkbookIsDrawnAsWritten() {
+        let key: String = "$3.8\\times10^{4}\\,\\mathrm{N/C}$、x 軸の正の向き"
+        #expect(TimelineRichText.answerSource(key) == key)
+        #expect(NativeMathDocument.make(key, display: false) != nil)
+    }
+
+    /// 区切り無しで書かせていた頃の答え(実機 2026-11-23 の物理の答え)。日本語が混じると、どこまでが式かを推測して区切らず、
+    /// 読める文字で出す(前は `\mathrm{N` で切れて閉じない `{` を囲み、LaTeX がそのまま出ていた)。
+    @Test func anOldUndelimitedAnswerMixedWithJapaneseIsShownAsReadableText() {
+        let key: String = TimelineRichText.answerSource("3.825\\times10^{4}\\,\\mathrm{N/C}\\ (+x\\text{向き})")
+        let learner: String = TimelineRichText.answerSource("-4.5\\times10^{-2}\\,\\mathrm{N/C}\\ (x\\text{の負の方向})")
+        #expect(key == "3.825 × 10⁴ N/C (+x向き)")
+        #expect(learner == "−4.5 × 10⁻² N/C (xの負の方向)")
+        #expect(!key.containsCatalogLaTeX && !learner.containsCatalogLaTeX)
+    }
+
+    /// 日本語を含まない区切り無しの式は、今までどおり全体を数式として組む。
+    @Test func anOldUndelimitedFormulaIsStillDrawnAsMath() {
+        #expect(TimelineRichText.answerSource("\\frac{\\pi^2}{8}+1") == "$\\frac{\\pi^2}{8}+1$")
+    }
 }

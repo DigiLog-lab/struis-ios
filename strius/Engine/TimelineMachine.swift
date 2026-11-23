@@ -704,7 +704,8 @@ nonisolated struct TimelineMachine {
         var grade = grading.grade
         // 04・09 は読み取った式を数式で判定する(何通りもある答えも、頂点を計算すれば判定できる)。読めなければモデルの判定のまま。
         if let kind = TimelineCards.Kind(rawValue: card.kind), kind == .fillLine || kind == .inverse,
-           let written = TimelineCards.gradeWritten(card, learnerExpr: grading.learnerExpr.isEmpty ? grading.learnerAnswer : grading.learnerExpr) {
+           let expr: String = grading.learnerExpr.isEmpty ? TimelineCards.comparableExpression(grading.learnerAnswer) : Optional(grading.learnerExpr),
+           let written = TimelineCards.gradeWritten(card, learnerExpr: expr) {
             grade = written ? (grade == "partial" ? "partial" : "correct") : "wrong"
         }
         let verdict = grade == "correct" ? "correct" : "wrong"

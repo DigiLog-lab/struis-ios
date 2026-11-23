@@ -204,22 +204,23 @@ struct TimelineRichText: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .allowsHitTesting(false)
         } else {
-            Text(text).font(Typography.sans(size: size, weight: weight)).foregroundStyle(color).fixedSize(horizontal: false, vertical: true)
+            Text(source).font(Typography.sans(size: size, weight: weight)).foregroundStyle(color).fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    /// 数式区切りが無い LaTeX(`\frac{\pi}{2}+1` など、日本語を含まない式だけの文)は `$…$` で囲む。日本語の文の中の式は、
-    /// 単元ホームと同じ見分け方で区切る。
+    /// 描く本文。`$…$` で囲んだ文(画面に出す文の書き方)は、そのまま組む。
+    ///
+    /// 区切りの無い LaTeX は、2026-11-23 より前に `answer_key`・`learner_answer` を区切り無しで書かせていた頃の記録に残っている。
+    /// 日本語を含まない式だけの文(`\frac{\pi}{2}+1`)は全体を `$…$` で囲む。日本語の混じった文(`3.825\times10^{4}\,\mathrm{N/C}\ (+x\text{向き})`)は、
+    /// どこまでが式かを推測して区切らず、読める文字(`3.825×10⁴ N/C (+x向き)`)にして出す。前は `\` から始まる英数字の塊を
+    /// 正規表現で区切っていたが、`/` や `\text{…}` の途中で切れて閉じない `{` を囲み、LaTeX がそのまま出ていた(実機 2026-11-23)。
     static func source(_ text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.containsCatalogLaTeX else { return trimmed }
         let japanese = trimmed.unicodeScalars.contains { (0x3040...0x30FF).contains($0.value) || (0x4E00...0x9FFF).contains($0.value) || (0xFF00...0xFFEF).contains($0.value) }
         let latexLike = trimmed.contains("\\") || trimmed.contains("^") || trimmed.contains("_{")
         if !japanese, latexLike { return "$" + trimmed + "$" }
-        if japanese, trimmed.contains("\\") {
-            // 日本語の中にある `\` から始まる式の塊を区切る。
-            return trimmed.replacingOccurrences(of: #"([A-Za-z0-9 ()+\-=^_{}.,\\]*\\[A-Za-z]+[A-Za-z0-9 ()+\-=^_{}.,\\]*)"#, with: "\\$$1\\$", options: .regularExpression)
-        }
+        if japanese, trimmed.contains("\\") { return MathPlainText.preview("\\(" + trimmed + "\\)") }
         return WorkbookMathSource.withInlineMath(trimmed)
     }
 
