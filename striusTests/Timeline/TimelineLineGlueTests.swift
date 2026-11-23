@@ -37,7 +37,7 @@ final class TimelineLinePhraseTests: XCTestCase {
     private let joiner: Character = "\u{2060}"
 
     /// 折れてよい位置(糊の無い文字の間)の、前の文字までの文字列。
-    private func breakPoints(_ glued: String) -> [String] {
+    fileprivate func breakPoints(_ glued: String) -> [String] {
         var points: [String] = []
         var seen: String = ""
         var previous: Character?
@@ -69,5 +69,12 @@ final class TimelineLinePhraseTests: XCTestCase {
     func testMathIsLeftAlone() {
         let source: String = "$\\frac{1}{2}$"
         XCTAssertEqual(TimelineLineGlue.joinPhrases(source), source)
+    }
+}
+
+extension TimelineLinePhraseTests {
+    func testKanjiCompoundStaysTogether() {
+        let points: [String] = breakPoints(TimelineLineGlue.apply("の点電荷を置きます。"))
+        XCTAssertFalse(points.contains("の点"), "「点電荷」の途中で折れる: \(points)")
     }
 }

@@ -262,7 +262,7 @@ enum TimelineLineGlue {
 
     /// 日本語の文は、文節(自立語と、続く助詞・助動詞)の途中では折らない。前は「次の問い|に答えなさい」「x 軸上の原|点」と
     /// 語の途中で折れていた(2026-11-23 の実機・シミュレータの iPad)。語の切れ目は `CFStringTokenizer` で求め、ひらがなで
-    /// 始まる語(助詞・助動詞・送り仮名)は前の語に付ける。数字の後の漢字(「2 点」の「2点」)も付ける。式の中は触らない。
+    /// 始まる語(助詞・助動詞・送り仮名)は前の語に付ける。続く漢字(「点電荷」)と、数字の後の漢字(「2点」)も付ける。式の中は触らない。
     static func joinPhrases(_ text: String) -> String {
         var out: String = ""
         for (segment, isMath) in segments(text) {
@@ -301,12 +301,19 @@ enum TimelineLineGlue {
         if breakable.contains(previous) || breakable.contains(next) { return true }
         if !atWordStart { return false }
         if isHiragana(next) { return false }
+        // 漢字が続く所(「点電荷」「運動方程式」)は、辞書が語を分けても 1 つの語として扱う。
+        if isKanji(previous), isKanji(next) { return false }
         if let ascii = previous.asciiValue, (48...57).contains(ascii) || (65...90).contains(ascii) || (97...122).contains(ascii) { return false }
         return true
     }
 
     private static func isHiragana(_ character: Character) -> Bool {
         character.unicodeScalars.first.map { (0x3040...0x309F).contains($0.value) } ?? false
+    }
+
+    private static func isKanji(_ character: Character) -> Bool {
+        guard let value = character.unicodeScalars.first?.value else { return false }
+        return (0x3400...0x4DBF).contains(value) || (0x4E00...0x9FFF).contains(value) || value == 0x3005
     }
 
     private static func isJapanese(_ character: Character) -> Bool {
