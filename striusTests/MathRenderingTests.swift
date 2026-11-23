@@ -263,7 +263,7 @@ struct MathRenderingTests {
         let key: String = TimelineRichText.answerSource("3.825\\times10^{4}\\,\\mathrm{N/C}\\ (+x\\text{向き})")
         let learner: String = TimelineRichText.answerSource("-4.5\\times10^{-2}\\,\\mathrm{N/C}\\ (x\\text{の負の方向})")
         #expect(key == "3.825 × 10⁴ N/C (+x向き)")
-        #expect(learner == "-4.5 × 10⁻² N/C (xの負の方向)")
+        #expect(learner == "−4.5 × 10⁻² N/C (xの負の方向)")
         #expect(!key.containsCatalogLaTeX && !learner.containsCatalogLaTeX)
     }
 
