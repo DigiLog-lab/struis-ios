@@ -15,7 +15,18 @@
 
 設定の「利用規約」「プライバシーポリシー」は`https://struis.digiloglab.com/terms`・`/privacy`を外部のブラウザで開きます。アプリ自身は取得しません。
 
-以前は端末内のCodex(OpenAI)を使い、ChatGPTのログインと`127.0.0.1`の中継を経由していました。この経路は削除し、OpenAI・ChatGPTのホストへは通信しません。
+以前は端末内のCodex(OpenAI)を使い、ChatGPTのログインと`127.0.0.1`の中継を経由していました。この経路は削除しました。App Store版はOpenAI・ChatGPTのホストへ通信しません。
+
+### ChatGPT でサインイン(TestFlight版・プロトタイプだけ)
+
+内部の配布(`STRUIS_INTERNAL`。TestFlight版とプロトタイプ)とDebugのビルドだけ、設定の「開発者向け」から、AIの送り先をChatGPT(利用者自身のChatGPTのプラン)に切り替えられます。App Storeに出すビルドには、このコード([strius/Runtime/ChatGPT](../strius/Runtime/ChatGPT)、[ChatGPTSettingsView](../strius/Features/Settings/ChatGPTSettingsView.swift))自体が入りません。
+
+| 通信先 | 契機と送信項目 |
+|---|---|
+| `https://auth.openai.com` | 「ChatGPTでサインイン」を押した時の認可(iOSの認証の画面で開く)と、トークンの受け取り・更新。端末ごとのID(`urn:uuid:…`)、アプリ名「Struis」(最初の登録だけ)、PKCE、戻り先`http://127.0.0.1:<ポート>/auth/callback`を送ります。戻り先はアプリが認証の間だけ`127.0.0.1`で待ち受けます |
+| `https://api.openai.com/v1/responses`・`/v1/models` | 送り先をChatGPTにしている間のすべてのAIのターン(Claudeの行と同じ内容)と、問題の型の作成。Responses APIの形に変えて、`store: false`で送ります。モデルの一覧も取ります |
+
+受け取ったclient ID・トークン・名前とメールアドレスはKeychainの「この端末だけ」に保存し、iCloudには送りません。Struisの利用枠には数えず、料金の記録も残しません(実行監査の`billing_source`は`chatgpt_plan`)。会話の履歴はClaudeと同じ`claude_conversations`に保存します(ChatGPTの思考の要約は保存しません)。
 
 StruisのAPI base URLは`STRUIS_API_BASE_URL`で上書きできます(手元のサーバー`http://127.0.0.1:4040`等)。AnthropicのURLはDEBUGビルドだけ`STRUIS_ANTHROPIC_BASE_URL`で上書きでき、検証用の模擬サーバー(`scripts/e2e/fake_anthropic.py`)に向けます。DEBUGのSimulatorはApp Attestを使えないため、`STRUIS_DEBUG_ANTHROPIC_KEY_FILE`のAPIキーで送ります。端末向けのビルドにはこの経路が入りません。これらの手元のHTTPサーバーのため、Info.plistは`NSAllowsLocalNetworking`を有効にしています。端末の設定と依存を変更したビルドについて、上の既定値だけで通信先が限定されるとは扱えません。プロンプトから実行されるPython等の通信能力を含め、公開ソースが提供するのは実装を追えることです。
 

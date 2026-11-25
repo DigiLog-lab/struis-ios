@@ -26,9 +26,15 @@ struct DeveloperSettingsView: View {
     @Environment(SettingsStore.self) private var settings
     /// タイムラインの新しい形(`TimelinePlanMode`。試験中)。
     @AppStorage(TimelinePlanMode.defaultsKey) private var timelinePlanMode: Bool = false
+    #if DEBUG || STRUIS_INTERNAL
+    @State private var chatGPT = ChatGPTSettingsModel.shared
+    #endif
 
     var body: some View {
         SettingsScreen(title: "開発者向け") {
+            #if DEBUG || STRUIS_INTERNAL
+            providerSection
+            #endif
             modelSection
             planModeSection
             costSection
@@ -41,8 +47,58 @@ struct DeveloperSettingsView: View {
 
     // MARK: - AI モデル
 
+    #if DEBUG || STRUIS_INTERNAL
+    // MARK: - AI の送り先(ChatGPT でサインイン)
+
+    private var providerSection: some View {
+        SettingsSection(header: "AI の送り先") {
+            HStack(spacing: 12) {
+                Text("送り先")
+                    .font(Typography.body)
+                    .foregroundStyle(Theme.primaryText)
+                Spacer(minLength: 12)
+                Picker("送り先", selection: $chatGPT.prefersChatGPT) {
+                    Text("Claude").tag(false)
+                    Text("ChatGPT").tag(true)
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 200)
+                // サインインしていない間は ChatGPT を選べない(選んでも Claude で動くため)。
+                .disabled(!chatGPT.isSignedIn)
+                .accessibilityIdentifier("settings-ai-provider")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            SettingsDivider()
+            SettingsLinkRow(title: "ChatGPT", value: chatGPT.isSignedIn ? "接続済み" : "未接続") {
+                ChatGPTSettingsView()
+            }
+            .accessibilityIdentifier("settings-row-chatgpt")
+        }
+    }
+    #endif
+
     @ViewBuilder
     private var modelSection: some View {
+        #if DEBUG || STRUIS_INTERNAL
+        if chatGPT.isActive {
+            SettingsSection(header: "AI モデル") {
+                SettingsLinkRow(title: "モデル", value: chatGPT.modelName) {
+                    ChatGPTSettingsView()
+                }
+                .accessibilityIdentifier("settings-chatgpt-model")
+            }
+        } else {
+            claudeModelSection
+        }
+        #else
+        claudeModelSection
+        #endif
+    }
+
+    @ViewBuilder
+    private var claudeModelSection: some View {
         @Bindable var bindable: SettingsStore = settings
         SettingsSection(header: "AI モデル") {
             HStack(spacing: 12) {

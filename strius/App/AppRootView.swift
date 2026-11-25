@@ -151,6 +151,9 @@ struct AppRootView: View {
         #if DEBUG
         .overlay(alignment: .topLeading) { MainThreadWatchdogProbe() }
         #endif
+        #if DEBUG || STRUIS_INTERNAL
+        .chatGPTLimitGuide()
+        #endif
         // 台帳・配信の準備と中断ターンの後始末は、オンボーディング中にも進める。
         // サインアウトでオンボーディングの記録は消える。次にサインインした学習者にはオンボーディングから見せる。
         .onChange(of: auth.canUseApp) { wasSignedIn, signedIn in

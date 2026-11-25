@@ -299,6 +299,10 @@
 		E8784FB9B98C85248C3B9273 /* TimelineFigure.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89A7583A1191059350D84C0 /* TimelineFigure.swift */; };
 		E8D24D9A3B0EE4225FAE6CAB /* TimelineFigureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8FD469FF1F5DA79433642A1 /* TimelineFigureView.swift */; };
 		E8EEF6D2F666F6EEC09B22D3 /* TimelineProblemPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8698DE2583FF53B576AE056 /* TimelineProblemPanel.swift */; };
+		E88FB320C4285B02C9D7F545 /* ChatGPTSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8653BA7B94943B4E635B328 /* ChatGPTSettingsView.swift */; };
+		E8D804369E0D11DD721A81EC /* ChatGPTAccount.swift in Sources */ = {isa = PBXBuildFile; fileRef = E812BBF9B4A870DF6114AEAA /* ChatGPTAccount.swift */; };
+		E80345A365DA38D8BF690F82 /* ChatGPTSignIn.swift in Sources */ = {isa = PBXBuildFile; fileRef = E817F33FEAFDA44594850C68 /* ChatGPTSignIn.swift */; };
+		E843F116962D38040F28E540 /* ResponsesTranslation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8D08A4B4FFE1144DF084558 /* ResponsesTranslation.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -627,6 +631,10 @@
 		E89A7583A1191059350D84C0 /* TimelineFigure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineFigure.swift; sourceTree = "<group>"; };
 		E8FD469FF1F5DA79433642A1 /* TimelineFigureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineFigureView.swift; sourceTree = "<group>"; };
 		E8698DE2583FF53B576AE056 /* TimelineProblemPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineProblemPanel.swift; sourceTree = "<group>"; };
+		E8653BA7B94943B4E635B328 /* ChatGPTSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGPTSettingsView.swift; sourceTree = "<group>"; };
+		E812BBF9B4A870DF6114AEAA /* ChatGPTAccount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGPTAccount.swift; sourceTree = "<group>"; };
+		E817F33FEAFDA44594850C68 /* ChatGPTSignIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatGPTSignIn.swift; sourceTree = "<group>"; };
+		E8D08A4B4FFE1144DF084558 /* ResponsesTranslation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponsesTranslation.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -1288,6 +1296,7 @@
 				E823A92C87043B90267739DE /* TurnRuntimeError.swift */,
 				E84B9E4A212B2A53E8699532 /* WorkspaceStager.swift */,
 				E874460EB6F9E603DE0AA7AF /* TokenUsageSummary.swift */,
+				E8FB6025F2DEC681497EAF84 /* ChatGPT */,
 			);
 			path = Runtime;
 			sourceTree = "<group>";
@@ -1369,8 +1378,19 @@
 		E8FF65C4FFEB5AA5BE679E2D /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				E8653BA7B94943B4E635B328 /* ChatGPTSettingsView.swift */,
 			);
 			path = Settings;
+			sourceTree = "<group>";
+		};
+		E8FB6025F2DEC681497EAF84 /* ChatGPT */ = {
+			isa = PBXGroup;
+			children = (
+				E812BBF9B4A870DF6114AEAA /* ChatGPTAccount.swift */,
+				E817F33FEAFDA44594850C68 /* ChatGPTSignIn.swift */,
+				E8D08A4B4FFE1144DF084558 /* ResponsesTranslation.swift */,
+			);
+			path = ChatGPT;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1881,6 +1901,10 @@
 				E8784FB9B98C85248C3B9273 /* TimelineFigure.swift in Sources */,
 				E8D24D9A3B0EE4225FAE6CAB /* TimelineFigureView.swift in Sources */,
 				E8EEF6D2F666F6EEC09B22D3 /* TimelineProblemPanel.swift in Sources */,
+				E88FB320C4285B02C9D7F545 /* ChatGPTSettingsView.swift in Sources */,
+				E8D804369E0D11DD721A81EC /* ChatGPTAccount.swift in Sources */,
+				E80345A365DA38D8BF690F82 /* ChatGPTSignIn.swift in Sources */,
+				E843F116962D38040F28E540 /* ResponsesTranslation.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
