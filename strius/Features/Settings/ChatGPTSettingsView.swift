@@ -205,55 +205,75 @@ struct ChatGPTSettingsView: View {
 }
 
 /// ChatGPT の利用上限で止まった時の案内(内部の配布だけ)。自動では Claude に戻さず、押した時だけ戻す。
+/// 単元の全画面や設定のシートが出ていても見えるように、いちばん上に出ている画面からシートで出す。
 private struct ChatGPTLimitGuide: ViewModifier {
-    @State private var isPresented = false
-
     func body(content: Content) -> some View {
         content
             #if DEBUG
             .task {
                 // 画面の確認用(`STRUIS_CHATGPT_PREVIEW=limit`)。
                 if ProcessInfo.processInfo.environment["STRUIS_CHATGPT_PREVIEW"] == "limit" {
-                    try? await Task.sleep(for: .seconds(2))
-                    isPresented = true
+                    try? await Task.sleep(for: .seconds(3))
+                    ChatGPTLimitPresenter.present()
                 }
             }
             #endif
-            .onReceive(NotificationCenter.default.publisher(for: .chatGPTLimitReached)) { _ in
-                if !isPresented { isPresented = true }
-            }
-            .sheet(isPresented: $isPresented) {
-                VStack(spacing: 14) {
-                    Text("ChatGPT の上限に達しました")
-                        .font(Typography.sans(size: 17, weight: .bold, relativeTo: .headline))
-                        .foregroundStyle(Theme.primaryText)
-                        .multilineTextAlignment(.center)
-                    VStack(spacing: 8) {
-                        OnboardingPrimaryButton(title: "Claude に切り替える", identifier: "chatgpt-limit-switch") {
-                            ChatGPTSettingsModel.shared.prefersChatGPT = false
-                            isPresented = false
-                        }
-                        Button {
-                            isPresented = false
-                        } label: {
-                            Text("閉じる")
-                                .font(Typography.body)
-                                .foregroundStyle(Theme.primaryText)
-                                .frame(maxWidth: .infinity, minHeight: 52)
-                                .background(Theme.accentColor.opacity(0.16), in: Capsule())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("chatgpt-limit-close")
-                    }
+            .onReceive(NotificationCenter.default.publisher(for: .chatGPTLimitReached)) { _ in ChatGPTLimitPresenter.present() }
+    }
+}
+
+@MainActor
+enum ChatGPTLimitPresenter {
+    static func present() {
+        let windows = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.flatMap(\.windows)
+        guard var top = (windows.first(where: \.isKeyWindow) ?? windows.first)?.rootViewController else { return }
+        while let presented = top.presentedViewController, !presented.isBeingDismissed { top = presented }
+        guard !(top is UIHostingController<ChatGPTLimitSheet>) else { return }
+        let holder = WeakController()
+        let host = UIHostingController(rootView: ChatGPTLimitSheet { holder.controller?.dismiss(animated: true) })
+        holder.controller = host
+        if let controller = host.sheetPresentationController {
+            controller.detents = [.custom { _ in 230 }]
+            controller.prefersGrabberVisible = true
+        }
+        top.present(host, animated: true)
+    }
+}
+
+private final class WeakController {
+    weak var controller: UIViewController?
+}
+
+struct ChatGPTLimitSheet: View {
+    let close: () -> Void
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Text("ChatGPT の上限に達しました")
+                .font(Typography.sans(size: 17, weight: .bold, relativeTo: .headline))
+                .foregroundStyle(Theme.primaryText)
+                .multilineTextAlignment(.center)
+            VStack(spacing: 8) {
+                OnboardingPrimaryButton(title: "Claude に切り替える", identifier: "chatgpt-limit-switch") {
+                    ChatGPTSettingsModel.shared.prefersChatGPT = false
+                    close()
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 28)
-                .frame(maxHeight: .infinity, alignment: .top)
-                .background(Theme.card.ignoresSafeArea())
-                .presentationDetents([.height(230)])
-                .presentationDragIndicator(.visible)
-                .accessibilityIdentifier("chatgpt-limit-sheet")
+                Button(action: close) {
+                    Text("閉じる")
+                        .font(Typography.body)
+                        .foregroundStyle(Theme.primaryText)
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .background(Theme.accentColor.opacity(0.16), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("chatgpt-limit-close")
             }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Theme.card.ignoresSafeArea())
+        .accessibilityIdentifier("chatgpt-limit-sheet")
     }
 }
 
