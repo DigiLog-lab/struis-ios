@@ -321,6 +321,16 @@ nonisolated enum ChatGPTOneShot {
                 if collected.count > 64 * 1024 { break }
             }
             let message = String(decoding: collected.prefix(2000), as: UTF8.self)
+            let error = ((try? JSONSerialization.jsonObject(with: collected)) as? [String: Any])?["error"] as? [String: Any]
+            let code = (error?["code"] ?? error?["type"]) as? String
+            let limit = code.flatMap { ResponsesEventTranslator.limitCodes.contains($0) ? $0 : nil }
+                ?? ResponsesEventTranslator.limitCodes.first(where: message.contains)
+            if let limit {
+                // ターンと同じく、上限は案内を出して止める(送り直さない)。
+                ChatGPTFailureLog.record(summary: "上限に達しました", detail: "task: drill_template\nHTTP \(status)\ncode: \(limit)\n\(message)")
+                DispatchQueue.main.async { NotificationCenter.default.post(name: .chatGPTLimitReached, object: "drill_template") }
+                throw ChatGPTAccount.Failure.malformed(limit)
+            }
             ChatGPTFailureLog.record(summary: "受け付けられませんでした(HTTP \(status))", detail: "task: drill_template\nmodel: \(model)\n\(message)")
             throw ChatGPTAccount.Failure.token(status: status, message: message)
         }
