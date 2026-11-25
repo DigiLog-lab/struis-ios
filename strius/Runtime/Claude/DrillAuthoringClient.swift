@@ -98,6 +98,13 @@ nonisolated struct AppDrillAuthoringTransport: DrillAuthoringTransport {
     }
 
     func send(_ body: [String: Any]) async throws -> [String: Any] {
+        #if DEBUG || STRUIS_INTERNAL
+        // 送り先を ChatGPT にしている時は、利用者の ChatGPT のプランで頼む(Struis の利用枠には数えない)。
+        if ChatGPTAccount.isActive {
+            guard let model = ChatGPTPreferences.model, !model.isEmpty else { throw Failure.unavailable }
+            return try await ChatGPTOneShot.send(body, model: model, session: upstream.session)
+        }
+        #endif
         if let denial = upstream.gate.denial(for: UsageRequest(kind: .timelineBatch, finishing: false)) { throw Failure.usage(denial) }
         guard let route = upstream.route() else { throw Failure.unavailable }
         let data = try JSONSerialization.data(withJSONObject: body)

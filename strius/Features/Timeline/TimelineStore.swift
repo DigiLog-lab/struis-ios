@@ -106,7 +106,13 @@ final class TimelineStore {
     /// 利用枠の案内のシート(止まった時と、止まった画面のボタンから出す。`AppRootView` が出す)。
     var limitPrompt: UsageLimitPrompt?
     /// 新しい作業(新しいカード・5枚の依頼)を利用枠が止める理由(nil なら出せる)。テストで差し替える。
-    var newWorkDenial: @MainActor () -> UsageDenial? = { DeviceUsageGate().usageDenial() }
+    var newWorkDenial: @MainActor () -> UsageDenial? = {
+        #if DEBUG || STRUIS_INTERNAL
+        // 送り先が ChatGPT の時は利用者の ChatGPT のプランで動くので、Struis の利用枠では止めない。
+        if ChatGPTAccount.isActive { return nil }
+        #endif
+        return DeviceUsageGate().usageDenial()
+    }
     private var usageObserver: NSObjectProtocol?
 
     init(ledger: Ledger, turns: TurnCoordinator) {

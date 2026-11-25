@@ -20,9 +20,12 @@ nonisolated final class ClaudeMessageReader {
     private var blocks: [Int: Block] = [:]
     private var order: [Int] = []
     private let prefix: String
+    /// thinking を履歴に戻すか。ChatGPT の要約(署名の無い thinking)は待ちの表示にだけ使い、履歴には残さない。
+    private let keepsThinking: Bool
 
-    init(itemPrefix: String = UUID().uuidString.lowercased()) {
+    init(itemPrefix: String = UUID().uuidString.lowercased(), keepsThinking: Bool = true) {
         prefix = itemPrefix
+        self.keepsThinking = keepsThinking
     }
 
     func consume(_ event: [String: Any]) -> [Output] {
@@ -91,8 +94,8 @@ nonisolated final class ClaudeMessageReader {
         order.compactMap { index -> [String: Any]? in
             switch blocks[index] {
             case .text(let text): return text.isEmpty ? nil : ["type": "text", "text": text]
-            case .thinking(let text, let signature): return ["type": "thinking", "thinking": text, "signature": signature]
-            case .redactedThinking(let data): return ["type": "redacted_thinking", "data": data]
+            case .thinking(let text, let signature): return keepsThinking ? ["type": "thinking", "thinking": text, "signature": signature] : nil
+            case .redactedThinking(let data): return keepsThinking ? ["type": "redacted_thinking", "data": data] : nil
             case .toolUse(let id, let name, let json):
                 let input = (try? JSONSerialization.jsonObject(with: Data((json.isEmpty ? "{}" : json).utf8))) as? [String: Any] ?? [:]
                 return ["type": "tool_use", "id": id, "name": name, "input": input]

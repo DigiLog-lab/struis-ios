@@ -453,6 +453,8 @@ def cmd_build(args):
              f'DEVELOPMENT_TEAM={team}', 'CODE_SIGN_STYLE=Manual', f'CODE_SIGN_IDENTITY={identities[0]}',
              'PROVISIONING_PROFILE_SPECIFIER=$(STRUIS_CI_PROFILE_$(PRODUCT_NAME))', *settings,
              f"STRUIS_BUNDLE_ID_BASE={meta['bundleId']}", f"STRUIS_APP_GROUP={meta['appGroup']}",
+             # プロトタイプは内部の配布: TestFlight と同じく「開発者向け」と ChatGPT でサインインを入れる(Config/Build.xcconfig)。
+             'STRUIS_INTERNAL=YES',
              f'CURRENT_PROJECT_VERSION={build_number}'], log=out / 'archive.log', cwd=root)
 
         record['stage'] = 'export'

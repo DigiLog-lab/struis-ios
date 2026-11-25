@@ -186,6 +186,18 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
     private var structuredText: [String: String] = [:]
     private var reasoning: [String: String] = [:]
     private var skills: SkillWaiting = SkillWaiting()
+    #if DEBUG || STRUIS_INTERNAL
+    /// 送り先を ChatGPT にしている時のモデル(開発者向けの設定。内部の配布だけ)。nil は Claude。
+    private let chatGPTModel: String? = ChatGPTAccount.isActive ? (ChatGPTPreferences.model ?? "") : nil
+    #endif
+    /// このターンを ChatGPT(利用者の ChatGPT のプラン)で動かすか。App Store のビルドは常に false。
+    private var usesChatGPT: Bool {
+        #if DEBUG || STRUIS_INTERNAL
+        return chatGPTModel != nil
+        #else
+        return false
+        #endif
+    }
 
     init(plan: TurnPlan, child: DelegationWatcher.Child?, dependencies: ClaudeTurnRunner.Dependencies, deadline: TurnDeadline,
          progress: @escaping @Sendable (TurnProgressEvent) -> Void) {
@@ -208,7 +220,12 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
     private var workspace: URL { child.map { URL(fileURLWithPath: $0.cwd, isDirectory: true) } ?? plan.hostWorkspace }
     private var toolPlanID: String { child?.planID ?? plan.id }
     private var taskType: String { child?.taskType ?? plan.kind.rawValue }
-    private var model: String { child?.model ?? plan.thread.model }
+    private var model: String {
+        #if DEBUG || STRUIS_INTERNAL
+        if let chatGPTModel { return chatGPTModel }
+        #endif
+        return child?.model ?? plan.thread.model
+    }
     private var effort: String { child?.effort ?? plan.thread.effort }
     private var elapsed: Int { ClaudeTurnClock.elapsed(started) }
 
@@ -218,7 +235,7 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
         do {
             try await dependencies.prepareCommands()
             TurnStage.report("runtime_ready")
-            guard dependencies.upstream.route() != nil else { throw ModelProviderError.claudeUnavailable }
+            guard usesChatGPT || dependencies.upstream.route() != nil else { throw ModelProviderError.claudeUnavailable }
             var input: [[String: Any]]
             if let child {
                 try configureChild(child)
@@ -351,6 +368,8 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
             developer = spec.developerText ?? "Answer only with one JSON object matching the supplied output schema."
         }
         outputSchema = turn.outputSchema?.any
+        // ChatGPT には出力の形を指示文で渡す(Responses の structured outputs は使わない)。
+        if usesChatGPT { schemaInInstructions = true }
         toolNames = ClaudeToolNames(responsesTools: NativeToolRouter.definitions(for: plan.kind) + [Self.viewImageTool], sorted: true)
         if tutor {
             // タイムラインの採点・出題・見直しは、道具の説明を基本指示の側に入れてある(今日の記録の前。`TimelineTurns.tutorThread`)。
@@ -396,6 +415,7 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
     private func configureChild(_ child: DelegationWatcher.Child) throws {
         systemParts = [child.baseInstructions, child.developerInstructions]
         outputSchema = child.outputSchema.any
+        if usesChatGPT { schemaInInstructions = true }
         toolNames = ClaudeToolNames(responsesTools: NativeToolRouter.lookupDefinitions + [Self.viewImageTool], sorted: true)
     }
 
@@ -761,10 +781,14 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
     private enum Exchange: @unchecked Sendable {
         case finished(ClaudeMessageReader, ClaudeStreamStatus)
         case ended(ClaudeStreamStatus)
-        case rejected(status: Int, type: String?, message: String, retryAfter: TimeInterval?, bearer: String?)
+        /// `code`: 応答の `error.code`(OpenAI の利用上限などの機械向けの印。Anthropic は返さない)。
+        case rejected(status: Int, type: String?, message: String, retryAfter: TimeInterval?, bearer: String?, code: String? = nil)
     }
 
     private func ask(reason first: ClaudeRequestReason) async throws -> ClaudeMessageReader {
+        #if DEBUG || STRUIS_INTERNAL
+        if let chatGPTModel { return try await askChatGPT(model: chatGPTModel, reason: first) }
+        #endif
         let upstream: ClaudeUpstream = dependencies.upstream
         guard let route = upstream.route() else { throw ModelProviderError.claudeUnavailable }
         var reason: ClaudeRequestReason = first
@@ -859,7 +883,7 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
                 reason = .retry
                 try await Self.backoff(streamRetries, retryAfter: nil)
                 continue
-            case .rejected(let status, let type, let message, let retryAfter, let bearer):
+            case .rejected(let status, let type, let message, let retryAfter, let bearer, _):
                 settle(bytes: data.count, attempt.finish(status: "http_error", translator: nil, httpStatus: status, error: (type, message)))
                 if status == 400, includeDiagnostics, body["diagnostics"] != nil, message.localizedCaseInsensitiveContains("diagnostics") {
                     // cache diagnostics を受け付けない経路では外して送り直す(診断は無くても要求は通す)。
@@ -913,10 +937,12 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
     }
 
     /// 要求を送って応答を読み切る。読む処理と見張りを並べ、期限や停止が先に来たら読む処理を止める。
-    private func send(_ request: URLRequest, bearer: String?, translator: ClaudeStreamStatus, reader: ClaudeMessageReader) async throws -> Exchange {
+    /// `responses`: ChatGPT の時、Responses のイベントを Messages のイベントに戻してから読む。
+    private func send(_ request: URLRequest, bearer: String?, translator: ClaudeStreamStatus, reader: ClaudeMessageReader,
+                      responses: ResponsesEventSource? = nil) async throws -> Exchange {
         let watch: ClaudeStreamWatch = ClaudeStreamWatch()
         return try await withThrowingTaskGroup(of: Exchange?.self) { group in
-            group.addTask { [self] in try await exchange(request, bearer: bearer, translator: translator, reader: reader, watch: watch) }
+            group.addTask { [self] in try await exchange(request, bearer: bearer, translator: translator, reader: reader, watch: watch, responses: responses) }
             group.addTask { [self] in
                 try await watchStream(watch)
                 return nil
@@ -929,7 +955,8 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
         }
     }
 
-    private func exchange(_ request: URLRequest, bearer: String?, translator: ClaudeStreamStatus, reader: ClaudeMessageReader, watch: ClaudeStreamWatch) async throws -> Exchange {
+    private func exchange(_ request: URLRequest, bearer: String?, translator: ClaudeStreamStatus, reader: ClaudeMessageReader, watch: ClaudeStreamWatch,
+                          responses: ResponsesEventSource?) async throws -> Exchange {
         let (bytes, response) = try await dependencies.upstream.session.bytes(for: request)
         let status: Int = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard status == 200 else {
@@ -941,15 +968,17 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
             let error: [String: Any]? = ((try? JSONSerialization.jsonObject(with: collected)) as? [String: Any])?["error"] as? [String: Any]
             let retryAfter: TimeInterval? = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "retry-after").flatMap(TimeInterval.init)
             return .rejected(status: status, type: error?["type"] as? String, message: error?["message"] as? String ?? String(decoding: collected.prefix(2_000), as: UTF8.self),
-                             retryAfter: retryAfter, bearer: bearer)
+                             retryAfter: retryAfter, bearer: bearer, code: error?["code"] as? String)
         }
         for try await line in bytes.lines {
             guard line.hasPrefix("data:") else { continue }
             let payload: String = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
             guard let event = (try? JSONSerialization.jsonObject(with: Data(payload.utf8))) as? [String: Any] else { continue }
             watch.touch()
-            translator.consume(event)
-            for output in reader.consume(event) { show(output, watch: watch) }
+            for event in responses.map({ $0.translate(event) }) ?? [event] {
+                translator.consume(event)
+                for output in reader.consume(event) { show(output, watch: watch) }
+            }
             if translator.isFinished { return .finished(reader, translator) }
         }
         return .ended(translator)
@@ -1016,7 +1045,7 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
             "resolved_model": model, "resolved_effort": effort, "configuration_evidence": "direct_messages",
             "actual_model": NSNull(), "actual_effort": NSNull(), "reroutes": [Any](), "lookup_commands": child == nil ? NSNull() : [Any](), "usage": NSNull(),
             "turn_tokens": NSNull(), "estimated_cost_usd": NSNull(), "status": "in_progress", "elapsed_ms": NSNull(),
-            "billing_source": ModelProvider.anthropic.billingSource, "actual_charge": NSNull(),
+            "billing_source": usesChatGPT ? "chatgpt_plan" : ModelProvider.anthropic.billingSource, "actual_charge": NSNull(),
             "round_reason": plan.round > 1 && child == nil ? ClaudeRequestReason.validationRepair.rawValue : ClaudeRequestReason.turnStart.rawValue,
         ]
         executions.append(LedgerJSON(any: audit))
@@ -1163,3 +1192,169 @@ extension ClaudeTurnRunner {
         return waiting
     }
 }
+
+/// ストリームのイベントを Messages API のイベントに置き換える(ChatGPT の経路の `ResponsesEventTranslator`)。
+/// 実装は内部の配布(TestFlight・プロトタイプ)と Debug にだけ入る。
+nonisolated protocol ResponsesEventSource: AnyObject {
+    func translate(_ event: [String: Any]) -> [[String: Any]]
+}
+
+#if DEBUG || STRUIS_INTERNAL
+/// ChatGPT(利用者の ChatGPT のプラン)への 1 回の要求と再試行。Struis の利用枠は通さず、料金も数えない。
+/// 履歴・道具の往復・期限・実行監査は Claude と同じものを使い、要求の形と送り先だけを変える。
+extension ClaudeTurn {
+    fileprivate func askChatGPT(model: String, reason first: ClaudeRequestReason) async throws -> ClaudeMessageReader {
+        guard !model.isEmpty else {
+            ChatGPTFailureLog.record(summary: "モデルが選ばれていません", detail: "task: \(taskType)\nChatGPT のモデルが選ばれていません。開発者向けの「ChatGPT」で選んでください。")
+            throw TurnRuntimeError.turnFailed("ChatGPT model is not selected")
+        }
+        var reason: ClaudeRequestReason = first
+        var requestRetries: Int = 0
+        var streamRetries: Int = 0
+        var refreshedToken: Bool = false
+        var includeReasoning: Bool = true
+        while true {
+            try Task.checkCancellation()
+            let body: [String: Any] = ResponsesRequest.body(model: model, effort: effort, system: system, messages: messages, tools: toolNames,
+                                                            includeReasoning: includeReasoning)
+            let data: Data = try JSONSerialization.data(withJSONObject: body, options: [.sortedKeys, .withoutEscapingSlashes])
+            var options: ClaudeRequestOptions = ClaudeRequestOptions()
+            options.schemaInInstructions = true
+            options.includeDiagnostics = false
+            var attempt: ClaudeRequestAttempt = ClaudeRequestAttempt(reason: reason, model: model, translation: translation, tailTTL: tailTTL, options: options)
+            attempt.record["provider"] = "chatgpt"
+            attempt.record["cache_ttl"] = NSNull()
+            attempt.record["reasoning_sent"] = includeReasoning
+            if ClaudeUpstream.requestTooLarge(data.count) {
+                settleChatGPT(attempt.finish(status: "oversized", translator: nil, httpStatus: nil, error: ("request_too_large", "request body \(data.count) bytes")))
+                throw TurnRuntimeError.turnFailed("送る内容が大きすぎます(\(data.count / (1024 * 1024)) MB)。写真の枚数を減らすか、新しい会話で送ってください。")
+            }
+            let translator: ClaudeStreamStatus = ClaudeStreamStatus()
+            let reader: ClaudeMessageReader = ClaudeMessageReader(keepsThinking: false)
+            let events: ResponsesEventTranslator = ResponsesEventTranslator(tools: toolNames)
+            let exchange: Exchange
+            do {
+                let token: String = try await ChatGPTAccount.shared.accessToken()
+                var request: URLRequest = URLRequest(url: ChatGPTConfig.apiBaseURL.appendingPathComponent("responses"))
+                request.httpMethod = "POST"
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+                request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
+                request.httpBody = data
+                exchange = try await send(request, bearer: token, translator: translator, reader: reader, responses: events)
+            } catch {
+                if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
+                    settleChatGPT(attempt.finish(status: "cancelled", translator: translator, httpStatus: nil, error: nil))
+                    throw TurnRuntimeError.interrupted
+                }
+                settleChatGPT(attempt.finish(status: "failed", translator: translator, httpStatus: nil, error: (nil, String(describing: error))))
+                if let failure = error as? ChatGPTAccount.Failure {
+                    ChatGPTFailureLog.record(summary: "認証に失敗しました", detail: "task: \(taskType)\n\(failure.errorDescription ?? String(describing: failure))")
+                    throw TurnRuntimeError.turnFailed("ChatGPT auth: \(failure.errorDescription ?? "")")
+                }
+                if case TurnRuntimeError.timeout(let detail) = error {
+                    guard conversation || child != nil, detail == ClaudeTurnRunner.messageStallDetail, streamRetries < dependencies.timeouts.streamRetries else { throw error }
+                    streamRetries += 1
+                    reason = .retry
+                    continue
+                }
+                guard requestRetries < dependencies.timeouts.requestRetries else {
+                    ChatGPTFailureLog.record(summary: "接続できませんでした", detail: "task: \(taskType)\n\(error)")
+                    throw TurnRuntimeError.turnFailed("ChatGPT に接続できませんでした")
+                }
+                requestRetries += 1
+                reason = .retry
+                try await Self.chatGPTBackoff(requestRetries, retryAfter: nil)
+                continue
+            }
+            switch exchange {
+            case .finished(let reader, let translator):
+                if let code = events.errorCode {
+                    settleChatGPT(attempt.finish(status: "stream_error", translator: translator, httpStatus: 200, error: (code, events.errorMessage ?? "")))
+                    if events.isLimit { throw limitReached(code: code, message: events.errorMessage) }
+                    guard streamRetries < dependencies.timeouts.streamRetries else {
+                        ChatGPTFailureLog.record(summary: "途中で止まりました", detail: "task: \(taskType)\ncode: \(code)\n\(events.errorMessage ?? "")")
+                        throw TurnRuntimeError.turnFailed("ChatGPT stream error: \(code)")
+                    }
+                    streamRetries += 1
+                    reason = .retry
+                    try await Self.chatGPTBackoff(streamRetries, retryAfter: nil)
+                    continue
+                }
+                let record: [String: Any] = attempt.finish(status: ClaudeRequestAttempt.status(stopReason: translator.stopReason), translator: translator, httpStatus: 200, error: nil)
+                settleChatGPT(record)
+                if let tokens = (record["tokens"] as? [String: Any])?["prompt_total"] as? Int { lastPromptTokens = tokens }
+                switch translator.stopReason {
+                case "refusal": throw TurnRuntimeError.turnFailed("ChatGPT declined to answer this request.")
+                case "max_tokens": throw TurnRuntimeError.turnFailed("Incomplete response returned, reason: max_output_tokens")
+                default: return reader
+                }
+            case .ended(let translator):
+                settleChatGPT(attempt.finish(status: "stream_ended", translator: translator, httpStatus: 200, error: (nil, "stream ended early")))
+                guard streamRetries < dependencies.timeouts.streamRetries else {
+                    ChatGPTFailureLog.record(summary: "返事が途中で切れました", detail: "task: \(taskType)\nstream ended before response.completed")
+                    throw TurnRuntimeError.turnFailed("ChatGPT stream ended before the response was complete")
+                }
+                streamRetries += 1
+                reason = .retry
+                try await Self.chatGPTBackoff(streamRetries, retryAfter: nil)
+                continue
+            case .rejected(let status, let type, let message, let retryAfter, _, let code):
+                settleChatGPT(attempt.finish(status: "http_error", translator: nil, httpStatus: status, error: (code ?? type, message)))
+                if let code = ResponsesEventTranslator.limitCodes.first(where: { $0 == code || $0 == type || message.contains($0) }) {
+                    throw limitReached(code: code, message: message)
+                }
+                if status == 401, !refreshedToken {
+                    // アクセストークンが失効・取り消された: 更新して 1 回だけ送り直す。
+                    refreshedToken = true
+                    reason = .authRetry
+                    do {
+                        _ = try await ChatGPTAccount.shared.accessToken(forceRefresh: true)
+                    } catch {
+                        ChatGPTFailureLog.record(summary: "認証に失敗しました", detail: "task: \(taskType)\nHTTP 401: \(message)\nrefresh: \(error)")
+                        throw TurnRuntimeError.turnFailed("ChatGPT auth: \(error)")
+                    }
+                    continue
+                }
+                if status == 400, includeReasoning, message.localizedCaseInsensitiveContains("reasoning") {
+                    // `reasoning` を受け付けない時は外して送り直す(このターンの残りも外す)。
+                    includeReasoning = false
+                    reason = .retry
+                    continue
+                }
+                if status == 429 || (500...599).contains(status), requestRetries < dependencies.timeouts.requestRetries {
+                    requestRetries += 1
+                    reason = .retry
+                    try await Self.chatGPTBackoff(requestRetries, retryAfter: retryAfter)
+                    continue
+                }
+                ChatGPTFailureLog.record(summary: "受け付けられませんでした(HTTP \(status))",
+                                         detail: "task: \(taskType)\nmodel: \(model)\nHTTP \(status) \(type ?? "")\n\(message)")
+                throw TurnRuntimeError.turnFailed(message)
+            }
+        }
+    }
+
+    /// 利用上限: 送り直さず、開発者向けの案内を出して止める(Claude に自動では切り替えない)。
+    private func limitReached(code: String, message: String?) -> Error {
+        ChatGPTFailureLog.record(summary: "上限に達しました", detail: "task: \(taskType)\ncode: \(code)\n\(message ?? "")")
+        let kind: String = plan.kind.rawValue
+        DispatchQueue.main.async { NotificationCenter.default.post(name: .chatGPTLimitReached, object: kind) }
+        return TurnRuntimeError.turnFailed("ChatGPT usage limit: \(code)")
+    }
+
+    /// 要求の記録を残す(Struis の利用枠には数えない。料金は ChatGPT のプランなので記録しない)。
+    private func settleChatGPT(_ record: [String: Any]) {
+        var record: [String: Any] = record
+        record["estimated_cost_usd"] = NSNull()
+        record["cost_status"] = "chatgpt_plan"
+        record["pricing_tier"] = nil
+        log.append(record, key: key)
+    }
+
+    private static func chatGPTBackoff(_ attempt: Int, retryAfter: TimeInterval?) async throws {
+        let base: Double = 0.5 * pow(2, Double(attempt - 1)) * Double.random(in: 0.9...1.1)
+        try await Task.sleep(for: .seconds(min(retryAfter ?? base, 30)))
+    }
+}
+#endif
