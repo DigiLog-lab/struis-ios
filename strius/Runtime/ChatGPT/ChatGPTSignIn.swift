@@ -279,13 +279,13 @@ nonisolated final class LoopbackListener: @unchecked Sendable {
                 // favicon などは 404 で返す。
                 return self.respond(connection, status: "404 Not Found", body: "")
             }
-            let succeeded = lock.withLock { callback.error == nil && callback.code != nil && callback.state == expectedState }
-            respond(connection, status: "200 OK", body: Self.page(succeeded: succeeded))
-            lock.withLock {
-                guard received == nil else { return }
-                received = callback
-                waiter?.resume(returning: callback)
-                waiter = nil
+            let succeeded = self.lock.withLock { callback.error == nil && callback.code != nil && callback.state == self.expectedState }
+            self.respond(connection, status: "200 OK", body: Self.page(succeeded: succeeded))
+            self.lock.withLock {
+                guard self.received == nil else { return }
+                self.received = callback
+                self.waiter?.resume(returning: callback)
+                self.waiter = nil
             }
         }
     }
