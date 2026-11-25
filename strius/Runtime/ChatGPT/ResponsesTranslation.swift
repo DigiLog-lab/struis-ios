@@ -343,6 +343,15 @@ nonisolated enum ChatGPTOneShot {
             if events.isLimit { DispatchQueue.main.async { NotificationCenter.default.post(name: .chatGPTLimitReached, object: "drill_template") } }
             throw ChatGPTAccount.Failure.malformed(code)
         }
+        // 終わりの印(response.completed など)の前に切れた返事は、途中の JSON を点検に回さず通信の失敗にする
+        // (点検に落ちると、その点の問題の型を作らない記録が残るため)。
+        guard status_.isFinished else {
+            ChatGPTFailureLog.record(summary: "返事が途中で切れました", detail: "task: drill_template\nstream ended before response.completed")
+            throw ChatGPTAccount.Failure.malformed("stream ended before response.completed")
+        }
+        if status_.stopReason == "max_tokens" || status_.stopReason == "refusal" {
+            throw ChatGPTAccount.Failure.malformed("incomplete: \(status_.stopReason ?? "")")
+        }
         return ["content": reader.content, "model": status_.model ?? model, "stop_reason": status_.stopReason ?? NSNull()]
     }
 }

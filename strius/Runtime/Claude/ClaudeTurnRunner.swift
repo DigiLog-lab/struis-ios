@@ -781,7 +781,8 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
     private enum Exchange: @unchecked Sendable {
         case finished(ClaudeMessageReader, ClaudeStreamStatus)
         case ended(ClaudeStreamStatus)
-        case rejected(status: Int, type: String?, message: String, retryAfter: TimeInterval?, bearer: String?)
+        /// `code`: 応答の `error.code`(OpenAI の利用上限などの機械向けの印。Anthropic は返さない)。
+        case rejected(status: Int, type: String?, message: String, retryAfter: TimeInterval?, bearer: String?, code: String? = nil)
     }
 
     private func ask(reason first: ClaudeRequestReason) async throws -> ClaudeMessageReader {
@@ -882,7 +883,7 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
                 reason = .retry
                 try await Self.backoff(streamRetries, retryAfter: nil)
                 continue
-            case .rejected(let status, let type, let message, let retryAfter, let bearer):
+            case .rejected(let status, let type, let message, let retryAfter, let bearer, _):
                 settle(bytes: data.count, attempt.finish(status: "http_error", translator: nil, httpStatus: status, error: (type, message)))
                 if status == 400, includeDiagnostics, body["diagnostics"] != nil, message.localizedCaseInsensitiveContains("diagnostics") {
                     // cache diagnostics を受け付けない経路では外して送り直す(診断は無くても要求は通す)。
@@ -967,7 +968,7 @@ nonisolated final class ClaudeTurn: @unchecked Sendable {
             let error: [String: Any]? = ((try? JSONSerialization.jsonObject(with: collected)) as? [String: Any])?["error"] as? [String: Any]
             let retryAfter: TimeInterval? = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "retry-after").flatMap(TimeInterval.init)
             return .rejected(status: status, type: error?["type"] as? String, message: error?["message"] as? String ?? String(decoding: collected.prefix(2_000), as: UTF8.self),
-                             retryAfter: retryAfter, bearer: bearer)
+                             retryAfter: retryAfter, bearer: bearer, code: error?["code"] as? String)
         }
         for try await line in bytes.lines {
             guard line.hasPrefix("data:") else { continue }
@@ -1298,9 +1299,9 @@ extension ClaudeTurn {
                 reason = .retry
                 try await Self.chatGPTBackoff(streamRetries, retryAfter: nil)
                 continue
-            case .rejected(let status, let type, let message, let retryAfter, _):
-                settleChatGPT(attempt.finish(status: "http_error", translator: nil, httpStatus: status, error: (type, message)))
-                if let code = ResponsesEventTranslator.limitCodes.first(where: { message.contains($0) || type == $0 }) {
+            case .rejected(let status, let type, let message, let retryAfter, _, let code):
+                settleChatGPT(attempt.finish(status: "http_error", translator: nil, httpStatus: status, error: (code ?? type, message)))
+                if let code = ResponsesEventTranslator.limitCodes.first(where: { $0 == code || $0 == type || message.contains($0) }) {
                     throw limitReached(code: code, message: message)
                 }
                 if status == 401, !refreshedToken {
