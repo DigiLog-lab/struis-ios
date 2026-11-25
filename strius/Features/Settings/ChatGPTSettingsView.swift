@@ -25,6 +25,20 @@ final class ChatGPTSettingsModel {
 
     private var signIn: ChatGPTSignIn?
 
+    init() {
+        #if DEBUG
+        // 画面の確認用(`STRUIS_CHATGPT_PREVIEW=signed-in`): サインインした後の画面を、本物の OpenAI に繋がずに出す。
+        if ProcessInfo.processInfo.environment["STRUIS_CHATGPT_PREVIEW"] == "signed-in" {
+            credentials = ChatGPTCredentials(clientID: "oaiapp_preview", accessToken: "", refreshToken: "", expiresAt: .distantFuture,
+                                             scopes: [ChatGPTConfig.planScope], email: "student@example.com")
+            models = [ChatGPTAccount.Model(slug: "model-a", displayName: "[モデル A]"), ChatGPTAccount.Model(slug: "model-b", displayName: "[モデル B]")]
+            model = "model-a"
+            prefersChatGPT = true
+            lastFailure = ChatGPTFailureLog.Entry(at: Date(), summary: "上限に達しました", detail: "preview")
+        }
+        #endif
+    }
+
     func startSignIn() {
         guard !signingIn else { return }
         signingIn = true
@@ -60,7 +74,7 @@ final class ChatGPTSettingsModel {
 
     /// このアカウントで使えるモデルを取ってくる。選んでいなければ最初のものにする。
     func loadModels() async {
-        guard isSignedIn else { return }
+        guard isSignedIn, credentials?.clientID != "oaiapp_preview" else { return }
         do {
             models = try await ChatGPTAccount.shared.models()
             if model.map({ selected in !models.contains { $0.slug == selected } }) ?? true { model = models.first?.slug }
@@ -196,6 +210,15 @@ private struct ChatGPTLimitGuide: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            #if DEBUG
+            .task {
+                // 画面の確認用(`STRUIS_CHATGPT_PREVIEW=limit`)。
+                if ProcessInfo.processInfo.environment["STRUIS_CHATGPT_PREVIEW"] == "limit" {
+                    try? await Task.sleep(for: .seconds(2))
+                    isPresented = true
+                }
+            }
+            #endif
             .onReceive(NotificationCenter.default.publisher(for: .chatGPTLimitReached)) { _ in
                 if !isPresented { isPresented = true }
             }
