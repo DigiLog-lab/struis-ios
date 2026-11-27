@@ -25,6 +25,32 @@ final class TimelineCardsTests: XCTestCase {
         return machine.cards[id]!
     }
 
+    func testOrderPromptDoesNotDoubleThePeriodOrTheInstruction() {
+        // 句点で終わっていない文には、句点を1つ置いてから指示を足す。
+        XCTAssertEqual(TimelineCards.orderPrompt(for: "最小値を求めなさい"), "最小値を求めなさい。正しい順に並べなさい。")
+        // すでに「。」で終わっていても、「。。」にしない(#171)。
+        XCTAssertEqual(TimelineCards.orderPrompt(for: "最小値を求めなさい。"), "最小値を求めなさい。正しい順に並べなさい。")
+        XCTAssertEqual(
+            TimelineCards.orderPrompt(for: "x 軸上の2つの点電荷が1点につくる電場の x 成分を求める手順を、解く順に並べなさい。"),
+            "x 軸上の2つの点電荷が1点につくる電場の x 成分を求める手順を、解く順に並べなさい。")
+        // モデルが同じ指示を書いていても、重ねない(#163)。
+        XCTAssertEqual(
+            TimelineCards.orderPrompt(for: "△ABC≡△DCB を証明する手順を、正しい順に並べなさい。"),
+            "△ABC≡△DCB を証明する手順を、正しい順に並べなさい。")
+        XCTAssertEqual(TimelineCards.orderPrompt(for: "合同を示します。"), "合同を示します。正しい順に並べなさい。")
+        XCTAssertEqual(TimelineCards.orderPrompt(for: "合同を示します。。"), "合同を示します。正しい順に並べなさい。")
+        XCTAssertEqual(TimelineCards.orderPrompt(for: "  合同を示します。  "), "合同を示します。正しい順に並べなさい。")
+        XCTAssertEqual(TimelineCards.orderPrompt(for: ""), "正しい順に並べなさい。")
+        // 文の後ろに式が付いていても、文がすでに並べる指示なら足さない。式が付くだけの文には、今までどおり指示を足す。
+        XCTAssertEqual(
+            TimelineCards.orderPrompt(for: "手順を正しい順に並べなさい。 $y = x^2$"),
+            "手順を正しい順に並べなさい。 $y = x^2$")
+        XCTAssertEqual(
+            TimelineCards.orderPrompt(for: "最小値を求めなさい。 $y = 2x^2 - 8x + 3$"),
+            "最小値を求めなさい。 $y = 2x^2 - 8x + 3$。正しい順に並べなさい。")
+        XCTAssertEqual(TimelineCards.orderPrompt(for: "「最小値を求めなさい。」"), "「最小値を求めなさい。」正しい順に並べなさい。")
+    }
+
     func testEveryTemplateKindCanBeBuiltFromOneProblem() throws {
         let card = try base()
         for kind in [TimelineCards.Kind.order, .findError, .nextStep, .fillLine, .graphMatch, .sort, .predict, .inverse, .reason] {

@@ -348,7 +348,7 @@ nonisolated enum TimelineCards {
             guard steps.count >= 3 else { return nil }
             var order = shuffle.shuffled(Array(steps.indices))
             if order == Array(steps.indices) { order.swapAt(0, order.count - 1) }
-            return ("\(problem)。正しい順に並べなさい。", ["steps": .array(steps.map(LedgerJSON.string)), "shuffled": .array(order.map { .number(Double($0)) })])
+            return (orderPrompt(for: problem), ["steps": .array(steps.map(LedgerJSON.string)), "shuffled": .array(order.map { .number(Double($0)) })])
         case .findError:
             guard steps.count >= 3, let mistake = mistakes.first else { return nil }
             var lines = steps
@@ -403,6 +403,66 @@ nonisolated enum TimelineCards {
             guard let reason = base.payload["reason"]?.objectValue, !(reason["options"]?.arrayValue?.isEmpty ?? true) else { return nil }
             return (reason["question"]?.stringValue ?? "理由を選びなさい。", reason)
         }
+    }
+
+    /// 並べ替えカードの問い(#171、#163)。元の問題文が「。」で終わっていても句点を重ねず、
+    /// すでに並べる指示で終わっていれば「正しい順に並べなさい。」を足さない。
+    static func orderPrompt(for problem: String) -> String {
+        let instruction = "正しい順に並べなさい。"
+        let trimmed = problem.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return instruction }
+        let (prose, math) = splitTrailingMath(trimmed)
+        if asksToOrder(prose) {
+            let spoken = singlePeriod(prose)
+            return math.isEmpty ? spoken : spoken + " " + math
+        }
+        if endsWithSentence(trimmed) {
+            // 「。。」や、文末の「。」の後ろにさらに「。」を足さない。
+            if let last = trimmed.last, "！？!?」』".contains(last) { return trimmed + instruction }
+            let core = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "。．."))
+            return core + "。" + instruction
+        }
+        return trimmed + "。" + instruction
+    }
+
+    private static let sentencePunctuation = "。．.！？!?"
+
+    /// `problemLine` が文の後ろに空白と `$式$` を足した形から、文と式を分ける。
+    private static func splitTrailingMath(_ text: String) -> (prose: String, math: String) {
+        guard text.hasSuffix("$") else { return (text, "") }
+        let withoutClose = text.dropLast()
+        guard let open = withoutClose.lastIndex(of: "$") else { return (text, "") }
+        let prose = withoutClose[..<open].trimmingCharacters(in: .whitespaces)
+        guard !prose.isEmpty else { return (text, "") }
+        return (prose, String(text[open...]))
+    }
+
+    /// 最後の文が、すでに手順を並べるよう求めているか。
+    private static func asksToOrder(_ prose: String) -> Bool {
+        let core = prose.trimmingCharacters(in: CharacterSet(charactersIn: sentencePunctuation + " 　"))
+        guard !core.isEmpty else { return false }
+        let last = core.split(whereSeparator: { "。．.".contains($0) }).last
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) } ?? core
+        if last.hasSuffix("並べなさい") || last.hasSuffix("並べてください") || last.hasSuffix("並べて下さい")
+            || last.hasSuffix("並べ替えなさい") || last.hasSuffix("並べ替え") {
+            return true
+        }
+        return last.contains("正しい順に並べ")
+    }
+
+    /// 末尾の句点を1つにする。疑問符・感嘆符はそのまま残す。
+    private static func singlePeriod(_ text: String) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let last = trimmed.last, "！？!?".contains(last) { return trimmed }
+        let core = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: sentencePunctuation))
+        return core.isEmpty ? trimmed : core + "。"
+    }
+
+    private static func endsWithSentence(_ text: String) -> Bool {
+        if let last = text.last, sentencePunctuation.contains(last) { return true }
+        guard text.count >= 2, let last = text.last, "」』".contains(last) else { return false }
+        let previous = text[text.index(text.endIndex, offsetBy: -2)]
+        return sentencePunctuation.contains(previous)
     }
 
     /// 問題文と式を 1 行の読める文字にする(組み替えたカードの問題・下の帯)。
