@@ -194,6 +194,8 @@ package = app.shell_script_build_phases.find { |p| p.name == 'Package Python' } 
 package.shell_path = '/bin/bash'
 package.shell_script = <<~SH
 set -eu
+# Xcode launched from the Dock does not include Homebrew on PATH (Issue #117).
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 cd "$SRCROOT/NativeRuntime"
 export EXPANDED_CODE_SIGN_IDENTITY="${EXPANDED_CODE_SIGN_IDENTITY:--}"
 export EXPANDED_CODE_SIGN_IDENTITY_NAME="${EXPANDED_CODE_SIGN_IDENTITY_NAME:-Ad Hoc}"

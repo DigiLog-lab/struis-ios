@@ -782,7 +782,8 @@ final class OnboardingModel {
     }
 
     /// 計画の画面の最後の 1 文(アプリが決める。撮ったページの使い道を言い過ぎない)。
-    var planFooter: String {
+    /// iPad は画面に直接書けるので、大学生の文は紙に撮ることだけを言わない(#106)。
+    func planFooter(isPad: Bool) -> String {
         var parts: [String] = []
         if !materials.isEmpty { parts.append("撮ったページ(\(materials.count)枚)をもとに小単元を分けました。") }
         if !checkOnly.isEmpty {
@@ -798,7 +799,10 @@ final class OnboardingModel {
         switch profile.route {
         case .weak: parts.append("1 ができていれば、すぐ 2 に進みます。")
         case .unsure: parts.append("解けない問題が続いた時は、前の学年の内容に戻って確かめます。")
-        case .university: parts.append("1 は要点と例題から始まります。証明や計算は紙に書いて撮ります。")
+        case .university:
+            parts.append(isPad
+                ? "1 は要点と例題から始まります。証明や計算は画面に書けます。紙に書いて撮っても構いません。"
+                : "1 は要点と例題から始まります。証明や計算は紙に書いて撮ります。")
         default: parts.append("1 は要点と例題から始まります。")
         }
         return parts.joined()

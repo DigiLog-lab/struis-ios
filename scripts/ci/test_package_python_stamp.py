@@ -105,6 +105,12 @@ class SameScriptTests(unittest.TestCase):
         script = re.sub(r'\\(.)', lambda m: {"n": "\n", "t": "\t"}.get(m[1], m[1]), quoted[1])
         self.assertEqual(script, heredoc)
 
+    def test_homebrew_is_on_path_before_brew_runs(self) -> None:
+        """Xcode launched from the Dock does not put Homebrew on PATH (Issue #117)."""
+        generator = (ROOT / "scripts/sync_native_runtime.rb").read_text()
+        self.assertLess(generator.index('export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"'),
+                        generator.index("brew --prefix"))
+
     def test_the_signing_defaults_are_set_before_the_check(self) -> None:
         """Unsigned builds (CODE_SIGNING_ALLOWED=NO) leave the identity empty: check and write must see the same."""
         generator = (ROOT / "scripts/sync_native_runtime.rb").read_text()
