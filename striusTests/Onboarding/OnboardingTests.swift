@@ -402,6 +402,18 @@ final class OnboardingTests: XCTestCase {
         XCTAssertNil(after?.resumeStep, "続きの画面を書き換えない")
     }
 
+    func testUniversityPlanFooterUsesTheScreenOnPadAndPaperOnPhone() {
+        var profile = profile(grade: OnboardingProfile.universityGrade)
+        profile.route = .university
+        let model = OnboardingModel(profile: profile, records: records(), hasPlan: { true }, isClaudeAvailable: { true })
+        XCTAssertEqual(model.planFooter(isPad: false), "1 は要点と例題から始まります。証明や計算は紙に書いて撮ります。")
+        XCTAssertEqual(model.planFooter(isPad: true), "1 は要点と例題から始まります。証明や計算は画面に書けます。紙に書いて撮っても構いません。")
+        profile.route = .weak
+        let weak = OnboardingModel(profile: profile, records: records(), hasPlan: { true }, isClaudeAvailable: { true })
+        XCTAssertEqual(weak.planFooter(isPad: true), weak.planFooter(isPad: false))
+        XCTAssertFalse(weak.planFooter(isPad: true).contains("紙に書いて"))
+    }
+
     func testUniversityUnitCreationStartsFromTheCameraAndWithoutMaterialAsksForAUniversityPlan() {
         var university = profile(grade: OnboardingProfile.universityGrade)
         university.route = .university

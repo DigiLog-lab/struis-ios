@@ -207,7 +207,7 @@ struct OnboardingPlanView: View {
             if let note = model.trialFallbackNote {
                 Text(note).font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText)
             }
-            Text(model.planFooter).font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText).lineSpacing(3)
+            Text(model.planFooter(isPad: isPad)).font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText).lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
             if let error = model.planError { TrialErrorText(text: error) }
         }
