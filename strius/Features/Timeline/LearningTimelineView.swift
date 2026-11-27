@@ -85,6 +85,16 @@ struct LearningTimelineView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 10)
                 }
+                // お知らせと、飛ばしたあとの帯は上に重ねない。重ねると問題の上のチップ(単元・秒・種類)に被る(#172)。
+                if store.skipBannerAttemptID != nil {
+                    skipBanner
+                        .timelineInkPassThrough()
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                if let error = store.actionError {
+                    actionErrorBanner(error)
+                        .timelineInkPassThrough()
+                }
                 ZStack(alignment: .bottomTrailing) {
                     contentArea
                         .environment(\.timelineHidesResultMark, !liquid.hasLanded)
@@ -147,16 +157,6 @@ struct LearningTimelineView: View {
             TimelinePullGlassLayer(pullOut: pullOut, cameraIsProminent: !layout.isPad && !hasInk)
             TimelinePullPanel(pullOut: pullOut, kind: .scope, closesOnOutsideTap: true) {
                 TimelineScopeSheet(store: store, asDropdown: true)
-            }
-            if store.skipBannerAttemptID != nil { skipBanner.transition(.move(edge: .top).combined(with: .opacity)) }
-            if let error = store.actionError {
-                // 採点の講評がそのまま入ることがあり、`$…$` の数式を含む。文字のまま出さずに数式として描く。
-                TimelineRichText(text: error, size: 14)
-                    .padding(12)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-                    .padding(.top, 60)
-                    .onTapGesture { store.dismissError() }
-                    .accessibilityIdentifier("timeline-error")
             }
         }
         // 指を通す区画は、画面全体(この ZStack)の座標で集め、書く面の位置を引いて書く面の座標に直す。
@@ -1204,6 +1204,18 @@ struct LearningTimelineView: View {
             .accessibilityIdentifier("timeline-skip-broken")
     }
 
+    private func actionErrorBanner(_ error: String) -> some View {
+        // 採点の講評がそのまま入ることがあり、`$…$` の数式を含む。文字のまま出さずに数式として描く。
+        TimelineRichText(text: error, size: 14)
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .onTapGesture { store.dismissError() }
+            .accessibilityIdentifier("timeline-error")
+    }
+
     private var skipBanner: some View {
         VStack(spacing: 10) {
             Text("飛ばしました").font(Typography.sans(size: 15, weight: .bold))
@@ -1218,7 +1230,7 @@ struct LearningTimelineView: View {
         .frame(maxWidth: .infinity)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
         .padding(.horizontal, 16)
-        .padding(.top, 4)
+        .padding(.top, 8)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("timeline-skip-banner")
     }
