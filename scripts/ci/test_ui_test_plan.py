@@ -309,6 +309,11 @@ class SelectTests(unittest.TestCase):
         self.assertFalse((ui_test_plan.ROOT / gone).is_file())
         self.assertEqual(self.select([gone, 'docs/testing.md']), [])
 
+    def test_a_deleted_file_a_folder_already_names_still_selects_its_tests(self):
+        gone = 'strius/Features/Chat/RemovedBubble.swift'
+        self.assertFalse((ui_test_plan.ROOT / gone).is_file())
+        self.assertEqual(self.select([gone]), ['A/test1', 'A/test2'])
+
     def test_project_file_adding_a_file_selects_nothing_settings_select_everything(self):
         self.assertEqual(self.select(['strius.xcodeproj/project.pbxproj'], diff=ADD_FILE_DIFF), [])
         self.assertEqual(self.select(['strius.xcodeproj/project.pbxproj', 'strius/Features/Chat/ChatCamera.swift'],
@@ -359,6 +364,13 @@ class RepositoryPlanTests(unittest.TestCase):
         self.assertEqual(self.select(gone), [])
         self.assertEqual(self.select(gone, 'strius/Features/Workbook/WorkbookSubunitHeader.swift'),
                          self.contract('subunit-header'))
+
+    def test_deleting_a_covered_file_still_selects_that_contracts_tests(self):
+        gone = 'strius/Features/Workbook/RemovedHeader.swift'
+        self.assertFalse((ui_test_plan.ROOT / gone).is_file())
+        selected = set(self.select(gone))
+        for name in ('subunit-header', 'workbook-grading', 'subunit-stage', 'home-deletion'):
+            self.assertTrue(set(self.contract(name)).issubset(selected), name)
 
     def test_typical_changes_select_their_contracts(self):
         self.assertEqual(self.select('strius/Features/Workbook/WorkbookSubunitHeader.swift'), self.contract('subunit-header'))
