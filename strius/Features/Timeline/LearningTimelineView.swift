@@ -65,6 +65,9 @@ struct LearningTimelineView: View {
     @State private var panelFrame: CGRect?
     /// iPad 横向きの下の帯の高さ。パネルの下端をこの上に留める。
     @State private var stripHeight: CGFloat = 0
+    /// お知らせと飛ばしたあとの帯の場所。iPad の書く面はこの上にも乗るので、ここだけ線を描かない(#172)。
+    @State private var skipBannerFrame: CGRect?
+    @State private var errorBannerFrame: CGRect?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -89,11 +92,13 @@ struct LearningTimelineView: View {
                 if store.skipBannerAttemptID != nil {
                     skipBanner
                         .timelineInkPassThrough()
+                        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(TimelineInkSpace.name)) } action: { skipBannerFrame = $0 }
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 if let error = store.actionError {
                     actionErrorBanner(error)
                         .timelineInkPassThrough()
+                        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(TimelineInkSpace.name)) } action: { errorBannerFrame = $0 }
                 }
                 ZStack(alignment: .bottomTrailing) {
                     contentArea
@@ -179,6 +184,12 @@ struct LearningTimelineView: View {
             guard !needsGuardianConsent else { return }
             let draft = hasInk
             Task { await store.scenePhaseChanged(phase, hasDraft: draft) }
+        }
+        .onChange(of: store.skipBannerAttemptID) { _, id in
+            if id == nil { skipBannerFrame = nil }
+        }
+        .onChange(of: store.actionError) { _, error in
+            if error == nil { errorBannerFrame = nil }
         }
         .onChange(of: reduceMotion, initial: true) { _, reduce in
             liquid.reduceMotion = reduce
@@ -324,24 +335,34 @@ struct LearningTimelineView: View {
         withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.38, dampingFraction: 0.86)) { panelHeight = nil }
     }
 
-    /// 書く面から、問題のパネルの形を抜く(パネルは書く面より下にあるので、抜かないと書いた線がパネルの文に重なる)。
+    /// 書く面から、問題のパネルと、お知らせ・飛ばしたあとの帯を抜く。パネルは書く面より下にあるので、抜かないと書いた線が
+    /// パネルの文に重なる。帯はレイアウトでは上の帯の下にあるが、iPad の書く面は画面全体に乗るので、抜かないと残った答案が
+    /// お知らせの文字の上に出る(#172)。
     @ViewBuilder
     private func inkMask(size: CGSize) -> some View {
-        if layout.isPad, let panel = panelFrame {
-            let local: CGRect = panel.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y)
+        if layout.isPad, panelFrame != nil || skipBannerFrame != nil || errorBannerFrame != nil {
             Rectangle()
                 .fill(Color.black)
                 .overlay(alignment: .topLeading) {
-                    RoundedRectangle(cornerRadius: TimelineLayout.panelCorner, style: .continuous)
-                        .frame(width: local.width, height: local.height)
-                        .offset(x: local.minX, y: local.minY)
-                        .blendMode(.destinationOut)
+                    ZStack(alignment: .topLeading) {
+                        if let panel = panelFrame { inkHole(panel, radius: TimelineLayout.panelCorner) }
+                        if let frame = skipBannerFrame { inkHole(frame, radius: 18) }
+                        if let frame = errorBannerFrame { inkHole(frame, radius: 14) }
+                    }
+                    .blendMode(.destinationOut)
                 }
                 .compositingGroup()
                 .frame(width: size.width, height: size.height)
         } else {
             Rectangle().frame(width: size.width, height: size.height)
         }
+    }
+
+    private func inkHole(_ frame: CGRect, radius: CGFloat) -> some View {
+        let local = frame.offsetBy(dx: -inkOrigin.x, dy: -inkOrigin.y)
+        return RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .frame(width: max(local.width, 0), height: max(local.height, 0))
+            .offset(x: local.minX, y: local.minY)
     }
 
     // MARK: 上端
