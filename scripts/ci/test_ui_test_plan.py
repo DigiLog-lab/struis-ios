@@ -282,13 +282,32 @@ class SelectTests(unittest.TestCase):
         self.assertEqual(self.select(['strius/Design/Theme.swift']), ['A/test1', 'A/test2', 'B/test1'])
 
     def test_folder_default_covers_a_file_no_contract_names_first_match_wins(self):
-        self.assertEqual(self.select(['strius/Features/Chat/NewBubble.swift']), ['A/test1', 'A/test2'])
-        self.assertEqual(self.select(['strius/Features/Chat/Prototype.swift']), [])
+        # The selection skips paths that are not in the tree (deleted files, Issue #120), so these stand-ins exist.
+        new_file = ui_test_plan.ROOT / 'strius/Features/Chat/NewBubble.swift'
+        prototype = ui_test_plan.ROOT / 'strius/Features/Chat/Prototype.swift'
+        new_file.write_text('// coverage probe\n')
+        prototype.write_text('// coverage probe\n')
+        try:
+            self.assertEqual(self.select(['strius/Features/Chat/NewBubble.swift']), ['A/test1', 'A/test2'])
+            self.assertEqual(self.select(['strius/Features/Chat/Prototype.swift']), [])
+        finally:
+            new_file.unlink(missing_ok=True)
+            prototype.unlink(missing_ok=True)
 
     def test_unmapped_app_source_stops_the_plan(self):
-        with self.assertRaises(ui_test_plan.PlanError) as raised:
-            self.select(['strius/Engine/NewRules.swift'])
-        self.assertIn('strius/Engine/NewRules.swift', str(raised.exception))
+        path = ui_test_plan.ROOT / 'strius/Engine/NewRules.swift'
+        path.write_text('// coverage probe\n')
+        try:
+            with self.assertRaises(ui_test_plan.PlanError) as raised:
+                self.select(['strius/Engine/NewRules.swift'])
+            self.assertIn('strius/Engine/NewRules.swift', str(raised.exception))
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_a_deleted_file_is_not_required_to_be_covered(self):
+        gone = 'strius/Engine/GoneRules.swift'
+        self.assertFalse((ui_test_plan.ROOT / gone).is_file())
+        self.assertEqual(self.select([gone, 'docs/testing.md']), [])
 
     def test_project_file_adding_a_file_selects_nothing_settings_select_everything(self):
         self.assertEqual(self.select(['strius.xcodeproj/project.pbxproj'], diff=ADD_FILE_DIFF), [])
@@ -330,6 +349,16 @@ class RepositoryPlanTests(unittest.TestCase):
                    for path in (ui_test_plan.ROOT / root).rglob('*') if path.is_file()]
         for path in sources:
             ui_test_plan.contracts_for(path, self.plan)  # raises PlanError for an uncovered file
+
+    def test_a_deleted_file_does_not_stop_the_plan(self):
+        # PR #118 removed this file. The empty ImmersionLab folder rule was only there so the
+        # selection would not demand coverage of a path the pull request deleted (Issue #120).
+        gone = 'strius/Features/ImmersionLab/Bundled/BundledSceneSamples.swift'
+        self.assertFalse((ui_test_plan.ROOT / gone).is_file())
+        self.assertNotIn('strius/Features/ImmersionLab/**', self.plan.get('folders', {}))
+        self.assertEqual(self.select(gone), [])
+        self.assertEqual(self.select(gone, 'strius/Features/Workbook/WorkbookSubunitHeader.swift'),
+                         self.contract('subunit-header'))
 
     def test_typical_changes_select_their_contracts(self):
         self.assertEqual(self.select('strius/Features/Workbook/WorkbookSubunitHeader.swift'), self.contract('subunit-header'))

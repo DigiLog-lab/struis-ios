@@ -10,7 +10,8 @@ ui-test-plan.json (schema 2):
   everything  globs whose change can affect any screen: every contract test runs
   folders     {glob: [contract names]} for a file no contract names, first match wins ([] = no UI test)
   guarded     globs of app and UI test sources; a guarded file that no rule covers stops the plan, so
-              a new file is classified instead of quietly running nothing
+              a new file is classified instead of quietly running nothing. A path that is not in this
+              tree (a file the pull request deleted) is skipped: main's plan covers it (Issue #120)
   manual      {"Class/method": reason} run by hand (real device, real Codex, looked at as an image)
   excluded    {"Class/method": reason} never run as a regression test
   shards      {"full": n} runners for a manual full run
@@ -302,6 +303,10 @@ def explain(tests, plan, changed, project_diff=None):
                 if own:
                     reasons.setdefault('changed UI test file', []).append(path)
                 continue
+        elif not (ROOT / path).is_file():
+            # Deleted files stay in `git diff --name-only`. They are not in this tree, and main's plan
+            # selects tests for them. Requiring this plan to name a removed file stops the run (Issue #120).
+            continue
         else:
             names = contracts_for(path, plan, project_diff)
         for name in names:
