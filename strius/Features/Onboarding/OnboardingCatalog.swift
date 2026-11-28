@@ -41,6 +41,16 @@ nonisolated enum OnboardingCatalog {
     /// テストの無い長期休みに合わせる選択肢(#132)。期限は `StudyDeadline.holidayEnd`。
     static let untilHoliday = "休みが終わるまで"
 
+    /// 大学生・それ以外のお試しで選べる分野(人が書いた見本がある分野)。見本の `grade` は `universityProblemGrade`。
+    static let universityTrialFields = ["微分積分", "線形代数", "確率・統計"]
+    /// 大学生・それ以外のお試しで、高校の見本(高2・高3)を出す選択肢。
+    static let highSchoolTrialField = "高校の数学から"
+    static let highSchoolTrialGrades = ["高2", "高3"]
+    /// 大学生・それ以外のお試しで、一覧に無い分野を書く選択肢。
+    static let otherTrialField = "ほかを書く"
+    /// 大学の見本の学年の欄。
+    static let universityProblemGrade = "大学"
+
     /// U:「何を勉強しますか」の例。
     static let universityTopics = ["線形代数", "微分積分", "力学", "統計学", "資格試験"]
 

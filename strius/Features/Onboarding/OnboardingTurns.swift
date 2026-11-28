@@ -31,9 +31,22 @@ nonisolated struct TrialProblem: Codable, Hashable, Sendable, Identifiable {
         all.filter { $0.grade == grade }
     }
 
+    /// 大学生・それ以外が選んだ分野の見本。一覧に無い分野(書いた分野)は空(その場で作る)。
+    static func problems(field: String, in all: [TrialProblem] = TrialProblem.all) -> [TrialProblem] {
+        if field == OnboardingCatalog.highSchoolTrialField {
+            return all.filter { (problem: TrialProblem) -> Bool in OnboardingCatalog.highSchoolTrialGrades.contains(problem.grade) }
+        }
+        guard OnboardingCatalog.universityTrialFields.contains(field) else { return [] }
+        return all.filter { (problem: TrialProblem) -> Bool in problem.grade == OnboardingCatalog.universityProblemGrade && problem.unit == field }
+    }
+
     /// 同じ学年の次の見本(「別の問題にする」)。解いた問題の次から順に回す。
     static func next(after current: TrialProblem?, grade: String, solved: Set<String>, in all: [TrialProblem] = TrialProblem.all) -> TrialProblem? {
-        let pool = problems(grade: grade, in: all)
+        next(after: current, pool: problems(grade: grade, in: all), solved: solved)
+    }
+
+    /// `pool` の次の問題。解いた問題の次から順に回す。
+    static func next(after current: TrialProblem?, pool: [TrialProblem], solved: Set<String>) -> TrialProblem? {
         guard !pool.isEmpty else { return nil }
         let start = current.flatMap { current in pool.firstIndex { $0.id == current.id } }.map { $0 + 1 } ?? 0
         let ordered = (0..<pool.count).map { pool[(start + $0) % pool.count] }
@@ -277,6 +290,44 @@ nonisolated enum OnboardingTurns {
                                     outputSchema: try await assets.json("schema:material_read"), sandboxPolicy: "dangerFullAccess"),
             workspace: TimelineTurns.workspace, delegation: nil, collect: [], limits: .structured
         )
+    }
+
+    /// 大学生・それ以外のお試しの3問をつくる(撮った授業の読み取りか、書いた分野の名前から)。画像は送らない。
+    /// 読み取りと同じ役のモデルで、新しい作業として数える(プランが無くてもお試しの残りがあれば通る)。
+    static func trialMakingPlan(assets: AssetCache, planID: String, request: LedgerJSON) async throws -> TurnPlan {
+        TurnPlan(
+            id: planID, kind: .onboardingPlan, round: 1,
+            thread: try await thread(assets: assets, planID: planID, instructions: "prompt:onboarding_trial_make_instructions", role: TimelineModels.role),
+            turn: TurnPlan.TurnSpec(text: turnText(materials: request), images: [],
+                                    outputSchema: try await assets.json("schema:onboarding_trial_make"), sandboxPolicy: "dangerFullAccess"),
+            workspace: TimelineTurns.workspace, delegation: nil, collect: [], limits: .structured
+        )
+    }
+
+    /// つくった3問を読む。作れなかった時・中身の欠けた問題しか無い時は空。`grade` は問題の学年の欄(「大学生・それ以外」)。
+    static func parseTrialProblems(_ text: String, grade: String, idPrefix: String = UUID().uuidString.prefix(8).lowercased()) -> [TrialProblem]? {
+        struct Made: Decodable {
+            struct Problem: Decodable {
+                var label: String
+                var unit: String
+                var prompt: String
+                var math: String
+                var answer: String
+                var rubric: [String]
+            }
+            var makeable: Bool
+            var problems: [Problem]
+        }
+        guard let data: Data = JSONExtraction.object(in: text), let made: Made = try? JSONDecoder().decode(Made.self, from: data) else { return nil }
+        guard made.makeable else { return [] }
+        let trimmed: (String) -> String = { (text: String) -> String in text.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let usable: [Made.Problem] = made.problems.filter { (problem: Made.Problem) -> Bool in !trimmed(problem.prompt).isEmpty && !trimmed(problem.answer).isEmpty }
+        return usable.prefix(3).enumerated().map { (index: Int, problem: Made.Problem) -> TrialProblem in
+            let label: String = trimmed(problem.label)
+            return TrialProblem(id: "made-\(idPrefix)-\(index + 1)", grade: grade, unit: trimmed(problem.unit), prompt: trimmed(problem.prompt),
+                                math: trimmed(problem.math), answer: trimmed(problem.answer), rubric: problem.rubric.map(trimmed).filter { !$0.isEmpty },
+                                customLabel: label.isEmpty ? nil : String(label.prefix(30)))
+        }
     }
 
     /// 撮り足した資料の割り当て(#132)。読み取りと同じ役のモデルで、新しい作業として数える。

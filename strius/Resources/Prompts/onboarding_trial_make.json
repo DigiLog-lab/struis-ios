@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "properties": {
+    "makeable": {"type": "boolean"},
+    "problems": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": {"type": "string"},
+          "unit": {"type": "string"},
+          "prompt": {"type": "string"},
+          "math": {"type": "string"},
+          "answer": {"type": "string"},
+          "rubric": {"type": "array", "items": {"type": "string"}}
+        },
+        "required": ["label", "unit", "prompt", "math", "answer", "rubric"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["makeable", "problems"],
+  "additionalProperties": false
+}

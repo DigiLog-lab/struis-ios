@@ -35,6 +35,14 @@ nonisolated struct OnboardingProfile: Codable, Hashable, Sendable {
     var materialCount: Int?
     /// 解いたお試しの問題(順に)。
     var trial: [TrialRecord] = []
+    /// 大学生・それ以外のお試しで選んだ分野(「線形代数」「高校の数学から」、または書いた分野)。撮った授業から出す時は nil。
+    var trialField: String?
+    /// 大学生・それ以外のお試しで、その場でつくった3問(撮った授業か書いた分野から)。見本から出す時は nil。
+    var trialProblems: [TrialProblem]?
+    /// 大学生・それ以外のお試しの前に撮った授業の読み取り。購入の後は撮り直さず「この授業で作りますか」に使う。
+    var trialReading: MaterialReading?
+    /// その時に撮った資料(`StruisPaths.captures` からの相対パス)。
+    var trialMaterials: [String]?
     /// 何を勉強するか・何ができるようになりたいか(U)。
     var universityTopic: String?
     var universityGoal: String?

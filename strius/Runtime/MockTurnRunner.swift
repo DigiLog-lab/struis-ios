@@ -72,6 +72,7 @@ actor MockTurnRunner: TurnRunning {
             switch request["task"] as? String {
             case "read_material": text = Self.json(Self.materialReading(request))
             case "attach_material": text = Self.json(Self.materialAttachment(request))
+            case "make_trial": text = Self.json(Self.trialMaking(request))
             default: text = Self.json(Self.onboardingPlan(request))
             }
         }
@@ -442,6 +443,27 @@ actor MockTurnRunner: TurnRunning {
         let added: [JSONObject] = course ? [["title": "ジョルダン標準形", "outcome": "対角化できない行列のジョルダン標準形を求められる", "n": 5,
                                              "scoring_unit": "1問ごとに正誤", "ref": "第9回"]] : []
         return ["readable": true, "assignments": assignments, "new_subunits": added]
+    }
+
+    /// 大学生・それ以外のお試しの3問(撮った授業か書いた分野の名前を見出しにする)。`STRUIS_MOCK_TRIAL_UNMAKEABLE=1` で作れない。
+    nonisolated static func trialMaking(_ request: JSONObject) -> JSONObject {
+        if ProcessInfo.processInfo.environment["STRUIS_MOCK_TRIAL_UNMAKEABLE"] == "1" { return ["makeable": false, "problems": []] }
+        let topic: String = request["topic"] as? String ?? "解析学I"
+        let fromMaterial: Bool = (request["source"] as? String) == "material"
+        func problem(_ label: String, _ unit: String, _ prompt: String, _ math: String, _ answer: String) -> JSONObject {
+            ["label": label, "unit": unit, "prompt": prompt, "math": math, "answer": answer,
+             "rubric": ["式を正しく立てている", "途中の計算が合っている", "答えが $\(answer)$"]]
+        }
+        let problems: [JSONObject] = fromMaterial ? [
+            problem("\(topic)・第5回 固有値と固有ベクトル", "固有値と固有ベクトル", "次の行列 $A$ の固有値をすべて求めなさい。", "A = \\begin{pmatrix} 2 & 1 \\\\ 1 & 2 \\end{pmatrix}", "1, 3"),
+            problem("\(topic)・第4回 核と像", "核と像", "次の行列 $A$ の階数を求めなさい。", "A = \\begin{pmatrix} 1 & 2 \\\\ 2 & 4 \\end{pmatrix}", "1"),
+            problem("\(topic)・第6回 対角化", "対角化", "次の行列 $A$ の固有値 3 に対する固有ベクトルを1つ求めなさい。", "A = \\begin{pmatrix} 2 & 1 \\\\ 1 & 2 \\end{pmatrix}", "\\begin{pmatrix} 1 \\\\ 1 \\end{pmatrix}"),
+        ] : [
+            problem("\(topic)・数列の極限", "数列の極限", "次の極限値を求めなさい。", "\\lim_{n \\to \\infty} \\left(1 + \\frac{1}{n}\\right)^{n}", "e"),
+            problem("\(topic)・関数の極限", "関数の極限", "次の極限値を求めなさい。", "\\lim_{x \\to 0} \\frac{\\sin x}{x}", "1"),
+            problem("\(topic)・級数", "級数", "次の級数の和を求めなさい。", "\\sum_{n = 1}^{\\infty} \\frac{1}{2^{n}}", "1"),
+        ]
+        return ["makeable": true, "problems": problems]
     }
 
     /// お試しの採点: 正解(`STRUIS_MOCK_TIMELINE_WRONG=1` で誤答、`STRUIS_MOCK_TRIAL_UNREADABLE=1` で読めない)。
