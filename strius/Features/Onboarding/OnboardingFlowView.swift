@@ -407,10 +407,9 @@ struct OnboardingFlowView: View {
             ("fields", "list.bullet", "分野を選ぶ", "線形代数・微分積分など。資料が手元になくても始められます", { model.chooseTrialFields() }),
         ]
         return OnboardingScaffold(onBack: back, isPad: isPad, columnWidth: isPad ? 800 : OnboardingMetrics.padColumn) {
-            VStack(alignment: isPad ? .center : .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 20) {
                 OnboardingTitle(title: "まず1問、解いてみましょう", detail: "どちらからでも始められます。")
-                    .multilineTextAlignment(isPad ? .center : .leading)
-                    .frame(maxWidth: .infinity, alignment: isPad ? .center : .leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 let layout: AnyLayout = isPad ? AnyLayout(HStackLayout(alignment: .top, spacing: 14)) : AnyLayout(VStackLayout(spacing: 14))
                 layout {
                     ForEach(cards, id: \.id) { card in
@@ -443,6 +442,7 @@ struct OnboardingFlowView: View {
                 Text("お試しは3問まで解けます。続きはプランを選んでからです。")
                     .font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.top, isPad ? 160 : 40)
         } footer: {
