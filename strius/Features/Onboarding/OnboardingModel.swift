@@ -1299,6 +1299,9 @@ final class OnboardingModel {
         if profile.route == .university {
             if universityTopic.isEmpty { universityTopic = "解析学I"; profile.universityTopic = "解析学I" }
         }
+        if start == .trialMaking, profile.trialField == nil {
+            profile.trialField = environment["STRUIS_ONBOARDING_TRIAL_FIELD"] ?? "解析学I"
+        }
         if problem == nil, profile.isUniversity, [.trial, .grading, .result, .trialDone].contains(start) {
             profile.trialField = environment["STRUIS_ONBOARDING_TRIAL_FIELD"] ?? "線形代数"
             problem = nextProblem(after: nil)
