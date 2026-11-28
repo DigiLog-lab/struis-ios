@@ -1,0 +1,8 @@
+== 解析学I (16s)
+{"customLabel": "解析学I・数列の極限", "prompt": "次の極限値を求めなさい。", "math": "\\lim_{n \\to \\infty} \\left(1 + \\frac{1}{n}\\right)^{n}", "answer": "e", "rubric": ["式を正しく立てている", "途中の計算が合っている", "答えが $e$"]}
+{"customLabel": "解析学I・関数の極限", "prompt": "次の極限値を求めなさい。", "math": "\\lim_{x \\to 0} \\frac{\\sin x}{x}", "answer": "1", "rubric": ["式を正しく立てている", "途中の計算が合っている", "答えが $1$"]}
+{"customLabel": "解析学I・級数", "prompt": "次の級数の和を求めなさい。", "math": "\\sum_{n = 1}^{\\infty} \\frac{1}{2^{n}}", "answer": "1", "rubric": ["式を正しく立てている", "途中の計算が合っている", "答えが $1$"]}
+== 熱力学 (5s)
+{"customLabel": "解析学I・数列の極限", "prompt": "次の極限値を求めなさい。", "math": "\\lim_{n \\to \\infty} \\left(1 + \\frac{1}{n}\\right)^{n}", "answer": "e", "rubric": ["式を正しく立てている", "途中の計算が合っている", "答えが $e$"]}
+{"customLabel": "解析学I・関数の極限", "prompt": "次の極限値を求めなさい。", "math": "\\lim_{x \\to 0} \\frac{\\sin x}{x}", "answer": "1", "rubric": ["式を正しく立てている", "途中の計算が合っている", "答えが $1$"]}
+{"customLabel": "解析学I・級数", "prompt": "次の級数の和を求めなさい。", "math": "\\sum_{n = 1}^{\\infty} \\frac{1}{2^{n}}", "answer": "1", "rubric": ["式を正しく立てている", "途中の計算が合っている", "答えが $1$"]}
