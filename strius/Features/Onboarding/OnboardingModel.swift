@@ -1302,8 +1302,9 @@ final class OnboardingModel {
         if start == .trialMaking, profile.trialField == nil {
             profile.trialField = environment["STRUIS_ONBOARDING_TRIAL_FIELD"] ?? "解析学I"
         }
-        if problem == nil, profile.isUniversity, [.trial, .grading, .result, .trialDone].contains(start) {
-            profile.trialField = environment["STRUIS_ONBOARDING_TRIAL_FIELD"] ?? "線形代数"
+        // 大学生・それ以外のお試し: 初めに出した中高の見本を、選んだ分野の見本に替える。
+        if profile.isUniversity, [.trial, .grading, .result, .trialDone].contains(start) {
+            if profile.trialField == nil { profile.trialField = environment["STRUIS_ONBOARDING_TRIAL_FIELD"] ?? "線形代数" }
             problem = nextProblem(after: nil)
         }
         if problem == nil { problem = TrialProblem.problems(grade: profile.grade ?? "中3").first(where: { $0.unit == "二次方程式" }) ?? TrialProblem.problems(grade: profile.grade ?? "中3").first }
