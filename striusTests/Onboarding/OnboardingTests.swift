@@ -150,19 +150,23 @@ final class OnboardingTests: XCTestCase {
 
     // MARK: - お試しの見本
 
-    func testEighteenSamplesThreePerGradeWithAnswersAndRubrics() {
-        let all = TrialProblem.all
-        XCTAssertEqual(all.count, 18)
-        for grade in OnboardingCatalog.grades {
-            let problems = TrialProblem.problems(grade: grade)
-            XCTAssertEqual(problems.count, 3, grade)
+    func testSamplesThreePerGradeAndPerUniversityFieldWithAnswersAndRubrics() {
+        let all: [TrialProblem] = TrialProblem.all
+        XCTAssertEqual(all.count, 27)
+        let pools: [(String, [TrialProblem])] = OnboardingCatalog.grades.map { ($0, TrialProblem.problems(grade: $0)) }
+            + OnboardingCatalog.universityTrialFields.map { ($0, TrialProblem.problems(field: $0)) }
+        for (name, problems) in pools {
+            XCTAssertEqual(problems.count, 3, name)
             for problem in problems {
                 XCTAssertFalse(problem.prompt.isEmpty, problem.id)
                 XCTAssertFalse(problem.answer.isEmpty, problem.id)
                 XCTAssertFalse(problem.rubric.isEmpty, problem.id)
             }
         }
-        XCTAssertEqual(Set(all.map(\.id)).count, 18, "ID が重ならない")
+        XCTAssertEqual(Set(all.map(\.id)).count, 27, "ID が重ならない")
+        XCTAssertEqual(TrialProblem.problems(field: "線形代数").first?.label, "大学 数学・線形代数")
+        XCTAssertEqual(Set(TrialProblem.problems(field: OnboardingCatalog.highSchoolTrialField).map(\.grade)), ["高2", "高3"], "高校の数学からは高2・高3の見本")
+        XCTAssertTrue(TrialProblem.problems(field: "解析学I").isEmpty, "一覧に無い分野は見本が無い(その場でつくる)")
     }
 
     func testAnotherProblemIsADifferentSampleOfTheSameGrade() {
@@ -202,9 +206,111 @@ final class OnboardingTests: XCTestCase {
         XCTAssertEqual(OnboardingResume.step(profile: profile(), age: age, termsAccepted: true, trialUsed: 3, hasPlan: false, hasDraft: false), .trialDone, "入れ直してもお試しの数は戻らない")
         XCTAssertEqual(OnboardingResume.step(profile: profile(trial: 1, resume: .plan), age: age, termsAccepted: true, trialUsed: 1, hasPlan: true, hasDraft: true), .plan)
         XCTAssertEqual(OnboardingResume.step(profile: profile(trial: 1, resume: .notify), age: age, termsAccepted: true, trialUsed: 1, hasPlan: true, hasDraft: false), .notify)
-        // 大学生・それ以外はお試しが無い。買っていなければ購入画面へ。
-        XCTAssertEqual(OnboardingResume.step(profile: profile(grade: OnboardingProfile.universityGrade), age: age, termsAccepted: true, trialUsed: 0, hasPlan: false, hasDraft: false), .paywall)
+        // 大学生・それ以外も、買っていなければお試しから(撮るか選ぶかを先に聞く)。
+        XCTAssertEqual(OnboardingResume.step(profile: profile(grade: OnboardingProfile.universityGrade), age: age, termsAccepted: true, trialUsed: 0, hasPlan: false, hasDraft: false), .trialSource)
+        var chose: OnboardingProfile = profile(grade: OnboardingProfile.universityGrade, trial: 1, resume: .result)
+        chose.trialField = "線形代数"
+        XCTAssertEqual(OnboardingResume.step(profile: chose, age: age, termsAccepted: true, trialUsed: 1, hasPlan: false, hasDraft: false), .trial)
+        XCTAssertEqual(OnboardingResume.step(profile: chose, age: age, termsAccepted: true, trialUsed: 3, hasPlan: false, hasDraft: false), .trialDone)
+        XCTAssertEqual(OnboardingResume.step(profile: profile(grade: OnboardingProfile.universityGrade, resume: .paywall), age: age, termsAccepted: true, trialUsed: 1, hasPlan: false, hasDraft: false), .paywall)
         XCTAssertEqual(OnboardingResume.step(profile: profile(grade: OnboardingProfile.universityGrade), age: age, termsAccepted: true, trialUsed: 0, hasPlan: true, hasDraft: false), .topic)
+        // お試しの前に授業を撮っていれば、購入の後は撮り直さずに「この授業で作りますか」から。
+        var captured: OnboardingProfile = profile(grade: OnboardingProfile.universityGrade)
+        captured.trialReading = OnboardingTurns.parseReading(String(decoding: try! JSONSerialization.data(
+            withJSONObject: MockTurnRunner.materialReading(["grade": OnboardingProfile.universityGrade])), as: UTF8.self))
+        XCTAssertEqual(OnboardingResume.step(profile: captured, age: age, termsAccepted: true, trialUsed: 3, hasPlan: true, hasDraft: false), .readResult)
+    }
+
+    func testUniversityTrialFromAListedFieldUsesTheSamplesAndCarriesTheFieldToTheTopic() {
+        let model: OnboardingModel = OnboardingModel(profile: profile(grade: OnboardingProfile.universityGrade), records: records(), hasPlan: { false },
+                                                     isClaudeAvailable: { true }, start: .trialSource)
+        model.chooseTrialFields()
+        XCTAssertEqual(model.step, .trialFields)
+        XCTAssertFalse(model.canCommitTrialField)
+        model.trialFieldChoice = "線形代数"
+        model.commitTrialField()
+        XCTAssertEqual(model.step, .trial, "見本がある分野はすぐ解き始める")
+        XCTAssertEqual(model.problem?.grade, OnboardingCatalog.universityProblemGrade)
+        XCTAssertEqual(model.problem?.unit, "線形代数")
+        XCTAssertEqual(model.profile.universityTopic, "線形代数", "購入の後の「何を勉強しますか」に入れておく")
+        XCTAssertEqual(OnboardingResume.afterPurchase(model.profile), .topic)
+        model.back()
+        XCTAssertEqual(model.step, .trialFields, "戻ると分野の画面")
+
+        // 高校の数学から: 高2・高3の見本。勉強することの名前には入れない。
+        let school: OnboardingModel = OnboardingModel(profile: profile(grade: OnboardingProfile.universityGrade), records: records(), hasPlan: { false },
+                                                      isClaudeAvailable: { true }, start: .trialFields)
+        school.trialFieldChoice = OnboardingCatalog.highSchoolTrialField
+        school.commitTrialField()
+        XCTAssertEqual(school.step, .trial)
+        XCTAssertTrue(["高2", "高3"].contains(school.problem?.grade ?? ""))
+        XCTAssertNil(school.profile.universityTopic)
+    }
+
+    func testUniversityTrialFromAWrittenFieldMakesThreeProblems() throws {
+        let model: OnboardingModel = OnboardingModel(profile: profile(grade: OnboardingProfile.universityGrade), records: records(), hasPlan: { false },
+                                                     isClaudeAvailable: { true }, start: .trialFields)
+        model.trialFieldChoice = OnboardingCatalog.otherTrialField
+        XCTAssertFalse(model.canCommitTrialField, "書くまで次へ進めない")
+        model.trialFieldText = "  解析学I "
+        model.commitTrialField()
+        XCTAssertEqual(model.step, .trialMaking, "一覧に無い分野は3問をつくる")
+        XCTAssertEqual(model.profile.trialField, "解析学I")
+        let request: LedgerJSON = model.trialMakingRequest()
+        XCTAssertEqual(request["task"]?.stringValue, "make_trial")
+        XCTAssertEqual(request["source"]?.stringValue, "topic")
+        XCTAssertEqual(request["topic"]?.stringValue, "解析学I")
+        XCTAssertNil(request["reading"])
+
+        let text: String = String(decoding: try JSONSerialization.data(withJSONObject: MockTurnRunner.trialMaking(["topic": "解析学I", "source": "topic"])), as: UTF8.self)
+        let problems: [TrialProblem] = try XCTUnwrap(OnboardingTurns.parseTrialProblems("```json\n\(text)\n```", grade: OnboardingProfile.universityGrade, idPrefix: "t"))
+        XCTAssertEqual(problems.map(\.id), ["made-t-1", "made-t-2", "made-t-3"])
+        XCTAssertEqual(problems.first?.label, "解析学I・数列の極限", "見出しはつくった問題の題")
+        XCTAssertEqual(problems.first?.rubric.count, 3)
+        XCTAssertEqual(OnboardingTurns.parseTrialProblems(#"{"makeable": false, "problems": []}"#, grade: "大学生・それ以外"), [], "作れない時は空")
+        XCTAssertNil(OnboardingTurns.parseTrialProblems("作れません", grade: "大学生・それ以外"))
+        // 3問に満たない時は受け取らない(解いた問題をもう一度出して、お試しの数を使わせない)。
+        var short: [String: Any] = MockTurnRunner.trialMaking(["topic": "解析学I", "source": "topic"])
+        short["problems"] = Array((short["problems"] as? [[String: Any]] ?? []).prefix(2))
+        let shortText: String = String(decoding: try JSONSerialization.data(withJSONObject: short), as: UTF8.self)
+        XCTAssertNil(OnboardingTurns.parseTrialProblems(shortText, grade: "大学生・それ以外"))
+
+        // つくった3問を残せば、続きから開いた時も同じ3問を解く。
+        var saved: OnboardingProfile = model.profile
+        saved.trialProblems = problems
+        XCTAssertEqual(OnboardingResume.step(profile: saved, age: age, termsAccepted: true, trialUsed: 1, hasPlan: false, hasDraft: false), .trial)
+        let resumed: OnboardingModel = OnboardingModel(profile: saved, records: records(), hasPlan: { false }, isClaudeAvailable: { true }, start: .trial)
+        XCTAssertEqual(resumed.trialPool.map(\.id), problems.map(\.id))
+    }
+
+    func testUniversityTrialFromACapturedSyllabusSendsTheReadingAndKeepsItForAfterThePurchase() throws {
+        var captured: OnboardingProfile = profile(grade: OnboardingProfile.universityGrade)
+        let reading: MaterialReading = try XCTUnwrap(OnboardingTurns.parseReading(String(decoding: try JSONSerialization.data(
+            withJSONObject: MockTurnRunner.materialReading(["grade": OnboardingProfile.universityGrade])), as: UTF8.self)))
+        captured.trialReading = reading
+        captured.trialMaterials = ["onboarding/materials/a.jpg"]
+        let model: OnboardingModel = OnboardingModel(profile: captured, records: records(), hasPlan: { true }, isClaudeAvailable: { true })
+        XCTAssertEqual(model.reading, reading, "撮った授業を戻す")
+        XCTAssertEqual(model.materials.map(\.path), ["onboarding/materials/a.jpg"])
+        let request: LedgerJSON = model.trialMakingRequest()
+        XCTAssertEqual(request["source"]?.stringValue, "material")
+        XCTAssertEqual(request["topic"]?.stringValue, "線形代数Ⅱ")
+        XCTAssertEqual(request["reading"]?["lectures"]?.arrayValue?.count, 15)
+        XCTAssertFalse(model.isUniversityTrial, "購入の後は、撮る画面をお試しにつながない")
+        // 撮った授業の計画を「やりたいことと違う」で捨てたら、残していた読み取りも捨てる(続きから開いて戻らない)。
+        model.rebuildPlan(tooHard: false)
+        XCTAssertNil(model.profile.trialReading)
+        XCTAssertNil(model.profile.trialMaterials)
+        XCTAssertEqual(OnboardingResume.afterPurchase(model.profile), .topic)
+
+        // 撮る画面から「分野を選ぶ」に移ったら、撮った授業は使わない。
+        let switching: OnboardingModel = OnboardingModel(profile: captured, records: records(), hasPlan: { false }, isClaudeAvailable: { true }, start: .trialFields)
+        XCTAssertTrue(switching.isUniversityTrial)
+        switching.trialFieldChoice = "微分積分"
+        switching.commitTrialField()
+        XCTAssertNil(switching.profile.trialReading)
+        XCTAssertNil(switching.reading)
+        XCTAssertEqual(OnboardingResume.afterPurchase(switching.profile), .topic)
     }
 
     func testPlanningAsksToPurchaseFirstThenReturnsToPlanning() {

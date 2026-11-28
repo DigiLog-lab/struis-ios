@@ -19,6 +19,12 @@ nonisolated enum OnboardingStep: String, CaseIterable, Codable, Sendable {
     case grading
     case result
     case trialDone
+    /// 大学生・それ以外のお試し: 「授業の資料を撮る」か「分野を選ぶ」か。
+    case trialSource
+    /// 大学生・それ以外のお試し: 分野を選ぶ(書く)。
+    case trialFields
+    /// 大学生・それ以外のお試し: 撮った授業か書いた分野から、3問をつくっている。
+    case trialMaking
     case paywall
     case intent
     /// A: 単元・次のテストまで・問題のページ。
@@ -49,7 +55,7 @@ nonisolated enum OnboardingStep: String, CaseIterable, Codable, Sendable {
     var showsBack: Bool {
         switch self {
         case .birthdate, .terms, .consent, .guardian, .trial, .unit, .untilTest, .pages, .weak, .topic, .material, .goal, .check,
-             .capture, .readResult, .universityChoices: true
+             .capture, .readResult, .universityChoices, .trialFields: true
         default: false
         }
     }
@@ -67,6 +73,8 @@ nonisolated enum OnboardingResume {
         if age.band == .under16, needsGuardianConsent || profile.photoConsentAt == nil { return .guardian }
         guard profile.photoConsentAt != nil else { return .consent }
         let saved = profile.resumeStep.flatMap(OnboardingStep.init(rawValue:))
+        // 大学生・それ以外で購入の前は、お試し(撮るか選ぶか → 3問まで)から。
+        if profile.isUniversity, !hasPlan, saved != .paywall { return universityTrial(profile: profile, trialUsed: trialUsed) }
         switch saved {
         case .notify:
             return .notify
@@ -80,15 +88,30 @@ nonisolated enum OnboardingResume {
         default:
             break
         }
-        if profile.isUniversity { return hasPlan ? .topic : .paywall }
+        if profile.isUniversity { return hasPlan ? afterPurchase(profile) : .paywall }
         // 採点の後・計画の前なら「ここから何をしますか」から(購入していなければ、計画を作る前に購入画面を挟む)。
         if !profile.trial.isEmpty { return trialUsed >= OnboardingRecords.trialLimit && !hasPlan ? .trialDone : .intent }
         if trialUsed >= OnboardingRecords.trialLimit { return hasPlan ? .intent : .trialDone }
         return .trial
     }
 
+    /// 購入の後。大学生・それ以外は、お試しの前に授業を撮っていれば「この授業で作りますか」(撮り直さない)、ほかは「何を勉強しますか」。
     static func afterPurchase(_ profile: OnboardingProfile) -> OnboardingStep {
-        profile.isUniversity ? .topic : .intent
+        guard profile.isUniversity else { return .intent }
+        return profile.trialReading == nil ? .topic : .readResult
+    }
+
+    /// 大学生・それ以外の、購入の前のお試しの続き。
+    static func universityTrial(profile: OnboardingProfile, trialUsed: Int) -> OnboardingStep {
+        if trialUsed >= OnboardingRecords.trialLimit { return .trialDone }
+        return hasTrialPool(profile) ? .trial : .trialSource
+    }
+
+    /// 大学生・それ以外のお試しで出す問題があるか(つくった3問か、選んだ分野の見本)。
+    static func hasTrialPool(_ profile: OnboardingProfile) -> Bool {
+        if let made: [TrialProblem] = profile.trialProblems, !made.isEmpty { return true }
+        guard let field: String = profile.trialField else { return false }
+        return !TrialProblem.problems(field: field).isEmpty
     }
 }
 
@@ -143,6 +166,15 @@ final class OnboardingModel {
     private(set) var verdict: TrialVerdict?
     var trialError: String?
     private(set) var gradingStartedAt: Date?
+
+    // 大学生・それ以外のお試し
+    /// 分野の画面で選んだもの(一覧の分野・「高校の数学から」・「ほかを書く」)。
+    var trialFieldChoice: String?
+    /// 「ほかを書く」で書いた分野。
+    var trialFieldText: String = ""
+    var makingError: String?
+    private(set) var makingStartedAt: Date?
+    private var makingTask: Task<Void, Never>?
 
     // ルート
     var selectedUnit: String?
@@ -249,6 +281,21 @@ final class OnboardingModel {
         universityTopic = profile.universityTopic ?? ""
         universityGoal = profile.universityGoal ?? ""
         deadline = profile.deadline.flatMap { StudyDeadline.day(from: $0) }
+        if purpose == .onboarding {
+            // 大学生・それ以外のお試し: 選んだ分野と、お試しの前に撮った授業(購入の後の「この授業で作りますか」に使う)を戻す。
+            if let field: String = profile.trialField {
+                let listed: Bool = OnboardingCatalog.universityTrialFields.contains(field) || field == OnboardingCatalog.highSchoolTrialField
+                trialFieldChoice = listed ? field : OnboardingCatalog.otherTrialField
+                trialFieldText = listed ? "" : field
+            }
+            if let trialReading: MaterialReading = profile.trialReading {
+                reading = trialReading
+                lectureUpTo = trialReading.latestLecture > 0 ? trialReading.latestLecture : nil
+                materials = (profile.trialMaterials ?? []).enumerated().map { (index: Int, path: String) -> OnboardingMaterial in
+                    OnboardingMaterial(id: UUID().uuidString, path: path, name: "撮った資料 \(index + 1)")
+                }
+            }
+        }
         let saved = purpose == .unitCreation ? nil : UserDefaults.standard.data(forKey: Self.draftKey).flatMap { try? JSONDecoder().decode(OnboardingPlanDraft.self, from: $0) }
         draft = saved
         let resumed = reconsent ? .terms : start ?? (purpose == .unitCreation ? (profile.isUniversity ? OnboardingStep.capture : OnboardingStep.intent) : nil) ?? OnboardingResume.step(
@@ -404,10 +451,18 @@ final class OnboardingModel {
         afterConsent()
     }
 
-    /// 同意の後: お試しへ(大学生・それ以外は見本が無いので、お試しを飛ばして購入画面へ)。
+    /// 同意の後: お試しへ(大学生・それ以外は、授業を撮るか分野を選ぶかを先に聞く)。
     func afterConsent() {
         if profile.isUniversity {
-            go(hasPlan() ? .topic : .paywall)
+            if hasPlan() {
+                go(OnboardingResume.afterPurchase(profile))
+            } else if records.trialRemaining == 0 {
+                go(.trialDone)
+            } else if OnboardingResume.hasTrialPool(profile) {
+                startTrial()
+            } else {
+                go(.trialSource)
+            }
         } else if records.trialRemaining == 0 {
             go(hasPlan() ? .intent : .trialDone)
         } else {
@@ -420,9 +475,17 @@ final class OnboardingModel {
     var trialNumber: Int { min(OnboardingRecords.trialLimit, records.trialUsed + 1) }
     var trialRemaining: Int { records.trialRemaining }
 
+    /// お試しで出す問題。大学生・それ以外は、つくった3問か選んだ分野の見本。中高生は学年の見本。
+    var trialPool: [TrialProblem] {
+        if profile.isUniversity {
+            if let made: [TrialProblem] = profile.trialProblems, !made.isEmpty { return made }
+            return profile.trialField.map { (field: String) -> [TrialProblem] in TrialProblem.problems(field: field) } ?? []
+        }
+        return TrialProblem.problems(grade: profile.grade ?? "中3")
+    }
+
     private func nextProblem(after current: TrialProblem?) -> TrialProblem? {
-        let grade = profile.grade ?? "中3"
-        return TrialProblem.next(after: current, grade: grade, solved: Set(profile.trial.map(\.problemID)))
+        TrialProblem.next(after: current, pool: trialPool, solved: Set(profile.trial.map(\.problemID)))
     }
 
     func startTrial() {
@@ -589,6 +652,122 @@ final class OnboardingModel {
         startPlanning()
     }
 
+    // MARK: - 大学生・それ以外のお試し
+
+    /// 購入の前の大学生・それ以外か(撮る画面と読み取りを、お試しの問題づくりにつなぐ)。
+    var isUniversityTrial: Bool { purpose == .onboarding && !isReconsent && profile.isUniversity && !hasPlan() }
+
+    /// 「授業の資料を撮る」。
+    func chooseTrialCapture() {
+        clearMaterials()
+        reading = nil
+        readingError = nil
+        go(.capture)
+    }
+
+    /// 「分野を選ぶ」(撮る画面の「分野を選ぶ」からも)。
+    func chooseTrialFields() {
+        go(.trialFields)
+    }
+
+    var canCommitTrialField: Bool {
+        guard let choice: String = trialFieldChoice else { return false }
+        return choice != OnboardingCatalog.otherTrialField || !trialFieldText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// 分野を決める。見本がある分野はすぐ解き始め、書いた分野は3問をつくる。
+    func commitTrialField() {
+        guard canCommitTrialField, let choice: String = trialFieldChoice else { return }
+        let field: String = choice == OnboardingCatalog.otherTrialField ? trialFieldText.trimmingCharacters(in: .whitespacesAndNewlines) : choice
+        // 同じ分野で前につくった3問は使い回す(戻って選び直しただけで作り直さない)。
+        if profile.trialField != field || profile.trialReading != nil { profile.trialProblems = nil }
+        profile.trialField = field
+        // 撮った授業は使わない(撮る画面から分野へ移った時)。
+        profile.trialReading = nil
+        profile.trialMaterials = nil
+        reading = nil
+        clearMaterials()
+        // 購入の後の「何を勉強しますか」に入れておく(「高校の数学から」は大学の勉強の名前ではないので入れない)。
+        if field != OnboardingCatalog.highSchoolTrialField {
+            universityTopic = field
+            profile.universityTopic = field
+        }
+        saveProfile()
+        if OnboardingResume.hasTrialPool(profile) {
+            startTrial()
+        } else {
+            go(.trialMaking)
+        }
+    }
+
+    /// つくっている3問の題(撮った授業の名前か、書いた分野)。
+    var trialMakingSubject: String {
+        if let reading: MaterialReading = profile.trialReading {
+            return reading.course.isEmpty ? reading.subject : reading.course
+        }
+        return profile.trialField ?? ""
+    }
+
+    /// 3問をつくる依頼。撮った授業は読み取った範囲を、書いた分野は名前だけを渡す(画像は送らない)。
+    func trialMakingRequest(now: Date = Date()) -> LedgerJSON {
+        var fields: [String: LedgerJSON] = ["task": .string("make_trial"), "today": .string(StudyDeadline.isoDay(now)), "topic": .string(trialMakingSubject)]
+        if let reading: MaterialReading = profile.trialReading {
+            fields["source"] = .string("material")
+            fields["reading"] = .object([
+                "course": .string(reading.course), "subject": .string(reading.subject), "unit": .string(reading.unit),
+                "lectures": .array(reading.lectures.map { (lecture: MaterialReading.Lecture) -> LedgerJSON in
+                    .object(["number": .number(Double(lecture.number)), "title": .string(lecture.title)])
+                }),
+                "latest_lecture": .number(Double(reading.latestLecture)), "words": .array(reading.words.map(LedgerJSON.string)),
+            ])
+        } else {
+            fields["source"] = .string("topic")
+        }
+        return .object(fields)
+    }
+
+    /// 3問をつくる(つくっている画面から呼ぶ)。つくれたら1問目へ。
+    func makeTrialProblems(assets: AssetCache, turns: TurnCoordinator, runner: any TurnRunning) {
+        guard makingTask == nil else { return }
+        if let made: [TrialProblem] = profile.trialProblems, !made.isEmpty {
+            showMadeTrial()
+            return
+        }
+        makingError = nil
+        makingStartedAt = Date()
+        let request: LedgerJSON = trialMakingRequest()
+        let grade: String = profile.grade ?? OnboardingProfile.universityGrade
+        let fromMaterial: Bool = profile.trialReading != nil
+        makingTask = Task {
+            defer { makingTask = nil }
+            do {
+                let plan: TurnPlan = try await OnboardingTurns.trialMakingPlan(assets: assets, planID: LedgerID.make(), request: request)
+                let text: String = try await OnboardingTurns.run(plan, turns: turns, runner: runner, limit: OnboardingTurns.planTimeLimit)
+                guard let problems: [TrialProblem] = OnboardingTurns.parseTrialProblems(text, grade: grade) else { throw OnboardingTurns.Failure.malformed }
+                guard !problems.isEmpty else {
+                    makingError = fromMaterial ? "撮った資料から、お試しの問題を作れませんでした。撮り直すか、分野を選んでください。"
+                        : "この分野では、お試しの問題を作れませんでした。別の分野を選んでください。"
+                    return
+                }
+                profile.trialProblems = problems
+                saveProfile()
+                if step == .trialMaking { showMadeTrial() }
+            } catch {
+                onboardingLog.error("trial making failed: \(String(describing: error), privacy: .public)")
+                makingError = (error as? LocalizedError)?.errorDescription ?? "問題を作れませんでした。もう一度試してください。"
+            }
+        }
+    }
+
+    /// つくった3問の1問目へ。つくっている画面には戻らない(戻るは撮る画面か分野の画面へ)。
+    private func showMadeTrial() {
+        problem = nextProblem(after: nil)
+        verdict = nil
+        trialError = nil
+        answerImagePath = nil
+        go(.trial, remember: false)
+    }
+
     // MARK: - 範囲の読み取り(#132)
 
     /// 範囲表・教科書を撮る画面へ(中高生の「撮って選ぶ」)。
@@ -603,6 +782,11 @@ final class OnboardingModel {
         clearMaterials()
         reading = nil
         readingError = nil
+        if purpose == .onboarding, profile.trialReading != nil {
+            profile.trialReading = nil
+            profile.trialMaterials = nil
+            saveProfile()
+        }
         // 捨てた読み取りの画面(結果・待ち)には戻れないようにする。
         if let index = history.lastIndex(of: .capture) { history = Array(history.prefix(index)) }
         go(.capture, remember: false)
@@ -650,7 +834,17 @@ final class OnboardingModel {
                 }
                 self.reading = reading
                 lectureUpTo = reading.latestLecture > 0 ? reading.latestLecture : nil
-                if step == .reading { go(.readResult, remember: false) }
+                if isUniversityTrial {
+                    // お試しの前に撮った授業: 読み取りを残して(購入の後に撮り直さない)、その授業から3問をつくる。
+                    profile.trialReading = reading
+                    profile.trialMaterials = materials.map(\.path)
+                    profile.trialField = nil
+                    profile.trialProblems = nil
+                    saveProfile()
+                    if step == .reading { go(.trialMaking, remember: false) }
+                } else if step == .reading {
+                    go(.readResult, remember: false)
+                }
             } catch {
                 onboardingLog.error("reading failed: \(String(describing: error), privacy: .public)")
                 readingError = (error as? LocalizedError)?.errorDescription ?? "読み取れませんでした。もう一度試してください。"
@@ -986,6 +1180,11 @@ final class OnboardingModel {
                 universityTopic = ""
                 profile.universityTopic = nil
             }
+            // お試しの前に撮った授業も捨てる(続きから開いた時に、捨てた授業の「この授業で作りますか」に戻さない)。
+            if purpose == .onboarding {
+                profile.trialReading = nil
+                profile.trialMaterials = nil
+            }
             reading = nil
             lectureUpTo = nil
             deadline = nil
@@ -1104,6 +1303,14 @@ final class OnboardingModel {
         }
         if profile.route == .university {
             if universityTopic.isEmpty { universityTopic = "解析学I"; profile.universityTopic = "解析学I" }
+        }
+        if start == .trialMaking, profile.trialField == nil {
+            profile.trialField = environment["STRUIS_ONBOARDING_TRIAL_FIELD"] ?? "解析学I"
+        }
+        // 大学生・それ以外のお試し: 初めに出した中高の見本を、選んだ分野の見本に替える。
+        if profile.isUniversity, [.trial, .grading, .result, .trialDone].contains(start) {
+            if profile.trialField == nil { profile.trialField = environment["STRUIS_ONBOARDING_TRIAL_FIELD"] ?? "線形代数" }
+            problem = nextProblem(after: nil)
         }
         if problem == nil { problem = TrialProblem.problems(grade: profile.grade ?? "中3").first(where: { $0.unit == "二次方程式" }) ?? TrialProblem.problems(grade: profile.grade ?? "中3").first }
         if [.result, .trialDone, .intent, .unit, .untilTest, .pages, .weak, .planWait, .plan, .notify].contains(start), profile.trial.isEmpty, let problem {

@@ -63,6 +63,9 @@ struct OnboardingFlowView: View {
             case .trial, .grading, .result, .check, .checkGrading, .checkResult:
                 OnboardingTrialView(model: model, learnerData: learnerData, isPad: isPad)
             case .trialDone: OnboardingTrialDoneView(model: model, isPad: isPad)
+            case .trialSource: trialSource
+            case .trialFields: trialFields
+            case .trialMaking: trialMaking
             case .paywall:
                 OnboardingPaywallView(store: subscriptions, isPad: isPad, onPurchased: { model.afterPurchase() })
             case .intent: intent
@@ -180,7 +183,7 @@ struct OnboardingFlowView: View {
                 }
                 OnboardingListCard {
                     OnboardingPointRow(title: "採点と説明は AI が行います", detail: "間違えることがあります。おかしいと思ったら「質問」で確かめてください。")
-                    OnboardingPointRow(title: model.profile.isUniversity ? "使うには有料のプランが必要です" : "お試しは3問まで、続きは有料です",
+                    OnboardingPointRow(title: "お試しは3問まで、続きは有料です",
                                        detail: "プランごとに1週間に使える量が決まっています。")
                     OnboardingPointRow(title: "解約と返金は App Store で行います", detail: "解約は設定の「利用枠」から、いつでもできます。", showsDivider: false)
                 }
@@ -396,6 +399,134 @@ struct OnboardingFlowView: View {
         }
     }
 
+    // MARK: - 大学生・それ以外のお試し: 撮るか選ぶか → 分野 → 3問をつくる
+
+    private var trialSource: some View {
+        let cards: [(id: String, symbol: String, title: String, detail: String, action: () -> Void)] = [
+            ("capture", "camera", "授業の資料を撮る", "シラバス・講義のスライド・小テストから、その授業の問題を出します", { model.chooseTrialCapture() }),
+            ("fields", "list.bullet", "分野を選ぶ", "線形代数・微分積分など。資料が手元になくても始められます", { model.chooseTrialFields() }),
+        ]
+        return OnboardingScaffold(onBack: back, isPad: isPad, columnWidth: isPad ? 800 : OnboardingMetrics.padColumn) {
+            VStack(alignment: .leading, spacing: 20) {
+                OnboardingTitle(title: "まず1問、解いてみましょう", detail: "どちらからでも始められます。")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                let layout: AnyLayout = isPad ? AnyLayout(HStackLayout(alignment: .top, spacing: 14)) : AnyLayout(VStackLayout(spacing: 14))
+                layout {
+                    ForEach(cards, id: \.id) { card in
+                        Button(action: card.action) {
+                            HStack(spacing: 14) {
+                                Image(systemName: card.symbol)
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(Theme.accentColor)
+                                    .frame(width: 44, height: 44)
+                                    .background(Theme.accentColor.opacity(0.16), in: Circle())
+                                    .accessibilityHidden(true)
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(card.title).font(Typography.sans(size: 17, weight: .bold)).foregroundStyle(Theme.primaryText)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Text(card.detail).font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer(minLength: 0)
+                                if !isPad { Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(Theme.tertiaryText) }
+                            }
+                            .padding(18)
+                            .frame(maxWidth: .infinity, minHeight: isPad ? 120 : 0, alignment: .topLeading)
+                            .struisSurface(radius: Theme.Radius.cardLarge)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("onboarding-trial-source-\(card.id)")
+                    }
+                }
+                Text("お試しは3問まで解けます。続きはプランを選んでからです。")
+                    .font(Typography.sans(size: 13, weight: .medium)).foregroundStyle(Theme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.top, isPad ? 160 : 40)
+        } footer: {
+            EmptyView()
+        }
+    }
+
+    @FocusState private var isTrialFieldFocused: Bool
+
+    private var trialFields: some View {
+        let fields: [String] = OnboardingCatalog.universityTrialFields + [OnboardingCatalog.highSchoolTrialField, OnboardingCatalog.otherTrialField]
+        let isOther: Bool = model.trialFieldChoice == OnboardingCatalog.otherTrialField
+        return OnboardingScaffold(onBack: back, isPad: isPad) {
+            VStack(alignment: .leading, spacing: 16) {
+                OnboardingTitle(title: "どの分野にしますか", detail: "書いた分野は、プランを選んだ後の計画づくりにも使います。")
+                OnboardingFlow {
+                    ForEach(fields, id: \.self) { field in
+                        OnboardingChip(title: field, isSelected: model.trialFieldChoice == field) {
+                            model.trialFieldChoice = field
+                            isTrialFieldFocused = field == OnboardingCatalog.otherTrialField
+                        }
+                        .accessibilityIdentifier("onboarding-trial-field-\(field)")
+                    }
+                }
+                if isOther {
+                    TextField("例: 解析学I", text: $model.trialFieldText)
+                        .font(Typography.sans(size: 16, weight: .medium))
+                        .padding(.horizontal, 18)
+                        .frame(minHeight: 52)
+                        .background(Theme.card, in: Capsule())
+                        .overlay { Capsule().strokeBorder(Theme.hairline, lineWidth: 1) }
+                        .focused($isTrialFieldFocused)
+                        .submitLabel(.done)
+                        .accessibilityIdentifier("onboarding-trial-field-text")
+                }
+            }
+        } footer: {
+            OnboardingPrimaryButton(title: "次へ", isEnabled: model.canCommitTrialField, identifier: "onboarding-trial-field-next") {
+                isTrialFieldFocused = false
+                model.commitTrialField()
+            }
+        }
+    }
+
+    private var trialMaking: some View {
+        let fromMaterial: Bool = model.profile.trialReading != nil
+        return OnboardingScaffold(isPad: isPad) {
+            VStack(alignment: .leading, spacing: 18) {
+                OnboardingTitle(title: "お試しの問題を作っています")
+                if let error = model.makingError {
+                    TrialErrorText(text: error)
+                } else {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        HStack(spacing: 10) {
+                            StruisLoadingIndicator().controlSize(.regular)
+                            Text("\(model.trialMakingSubject)から3問作っています").font(Typography.sans(size: 15, weight: .medium)).foregroundStyle(Theme.primaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text("\(max(0, Int(context.date.timeIntervalSince(model.makingStartedAt ?? context.date))))秒")
+                                .font(Typography.sans(size: 12, weight: .medium)).foregroundStyle(Theme.tertiaryText).monospacedDigit()
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("onboarding-trial-making")
+                }
+            }
+            .padding(.top, 20)
+        } footer: {
+            if model.makingError != nil {
+                OnboardingPrimaryButton(title: "もう一度作る", identifier: "onboarding-trial-making-retry") {
+                    model.makeTrialProblems(assets: learnerData.assets, turns: learnerData.turns, runner: learnerData.runner)
+                }
+                OnboardingSecondaryButton(title: fromMaterial ? "撮り直す" : "分野を選び直す", identifier: "onboarding-trial-making-back") {
+                    model.makingError = nil
+                    if fromMaterial { model.retake() } else { model.back() }
+                }
+            }
+        }
+        .task(id: model.step) {
+            if model.step == .trialMaking {
+                model.makeTrialProblems(assets: learnerData.assets, turns: learnerData.turns, runner: learnerData.runner)
+            }
+        }
+    }
+
     // MARK: - 単元を作る: 撮る → 読み取る → 確認(#132)
 
     private var capture: some View {
@@ -409,7 +540,9 @@ struct OnboardingFlowView: View {
             if model.materials.isEmpty {
                 OnboardingPrimaryButton(title: "撮る", identifier: "onboarding-material-camera") { isCameraPresented = true }
                 OnboardingSecondaryButton(title: "写真・PDF から選ぶ", identifier: "onboarding-material-pick") { isSourceDialogPresented = true }
-                if university {
+                if model.isUniversityTrial {
+                    OnboardingTextButton(title: "分野を選ぶ", identifier: "onboarding-trial-capture-fields") { model.chooseTrialFields() }
+                } else if university {
                     OnboardingTextButton(title: "資料なしで作る", identifier: "unit-creation-no-material") { model.skipMaterials() }
                 }
             } else {

@@ -108,6 +108,60 @@
       "prompt": "次の定積分を求めなさい。", "math": "\\int_{0}^{\\pi} \\sin x \\, dx",
       "answer": "2",
       "rubric": ["sin x の原始関数を -cos x としている", "[-cos x] に上端 π と下端 0 を入れて -cos π + cos 0 としている", "1 + 1 = 2 と答えている"]
+    },
+    {
+      "id": "u-calc-limit", "grade": "大学", "unit": "微分積分",
+      "prompt": "次の極限値を求めなさい。", "math": "\\lim_{x \\to 0} \\frac{e^{x} - 1 - x}{x^{2}}",
+      "answer": "\\frac{1}{2}",
+      "rubric": ["$\\frac{0}{0}$ の不定形だと見て、ロピタルの定理かテイラー展開を使っている", "$e^{x} = 1 + x + \\frac{x^{2}}{2} + \\cdots$ を代入するか、ロピタルの定理を2回使っている", "答えが $\\frac{1}{2}$"]
+    },
+    {
+      "id": "u-calc-partial", "grade": "大学", "unit": "微分積分",
+      "prompt": "次の関数の偏導関数 $f_x$, $f_y$ を求めなさい。", "math": "f(x, y) = x^{2}y + \\sin(xy)",
+      "answer": "f_x = 2xy + y\\cos(xy),\\ f_y = x^{2} + x\\cos(xy)",
+      "rubric": ["$f_x$ では $y$ を定数として微分している", "$\\sin(xy)$ を合成関数として微分し、$y\\cos(xy)$・$x\\cos(xy)$ が出ている", "$f_x = 2xy + y\\cos(xy)$、$f_y = x^{2} + x\\cos(xy)$"]
+    },
+    {
+      "id": "u-calc-integral", "grade": "大学", "unit": "微分積分",
+      "prompt": "次の不定積分を求めなさい。", "math": "\\int x e^{2x}\\,dx",
+      "answer": "\\frac{1}{2}xe^{2x} - \\frac{1}{4}e^{2x} + C",
+      "rubric": ["部分積分で $u = x$、$v' = e^{2x}$ としている", "$\\int \\frac{1}{2}e^{2x}\\,dx = \\frac{1}{4}e^{2x}$ の計算が正しい", "答えが $\\frac{1}{2}xe^{2x} - \\frac{1}{4}e^{2x} + C$(積分定数の書き落としは注意だけにする)"]
+    },
+    {
+      "id": "u-la-determinant", "grade": "大学", "unit": "線形代数",
+      "prompt": "次の行列式の値を求めなさい。", "math": "\\begin{vmatrix} 2 & 1 & 0 \\\\ 1 & 3 & 1 \\\\ 0 & 1 & 2 \\end{vmatrix}",
+      "answer": "8",
+      "rubric": ["余因子展開かサラスの方法で展開している", "$2 \\times (3 \\cdot 2 - 1 \\cdot 1) - 1 \\times (1 \\cdot 2 - 1 \\cdot 0)$ のように符号と小行列式が正しい", "答えが 8"]
+    },
+    {
+      "id": "u-la-eigenvalues", "grade": "大学", "unit": "線形代数",
+      "prompt": "次の行列 $A$ の固有値をすべて求めなさい。", "math": "A = \\begin{pmatrix} 2 & 1 \\\\ 1 & 2 \\end{pmatrix}",
+      "answer": "1, 3",
+      "rubric": ["固有方程式 $\\det(A - \\lambda E) = 0$ を立てている", "$(2 - \\lambda)^{2} - 1 = 0$ を正しく解いている", "答えが $\\lambda = 1, 3$"]
+    },
+    {
+      "id": "u-la-inverse", "grade": "大学", "unit": "線形代数",
+      "prompt": "次の行列 $A$ の逆行列を求めなさい。", "math": "A = \\begin{pmatrix} 2 & 1 \\\\ 5 & 3 \\end{pmatrix}",
+      "answer": "\\begin{pmatrix} 3 & -1 \\\\ -5 & 2 \\end{pmatrix}",
+      "rubric": ["$\\det A = 2 \\cdot 3 - 1 \\cdot 5 = 1$ を求めている", "対角成分を入れ替え、それ以外の符号を変えている(掃き出し法でもよい)", "答えが $\\begin{pmatrix} 3 & -1 \\\\ -5 & 2 \\end{pmatrix}$"]
+    },
+    {
+      "id": "u-stat-dice", "grade": "大学", "unit": "確率・統計",
+      "prompt": "1個のさいころを2回投げ、出た目の和を $X$ とする。$X$ の期待値と分散を求めなさい。", "math": "X = X_{1} + X_{2}",
+      "answer": "E(X) = 7,\\ V(X) = \\frac{35}{6}",
+      "rubric": ["1回の目の期待値 $\\frac{7}{2}$ と分散 $\\frac{35}{12}$ を求めている(和の分布を書き出してもよい)", "2回は独立なので、期待値も分散も足し合わせている", "答えが $E(X) = 7$、$V(X) = \\frac{35}{6}$"]
+    },
+    {
+      "id": "u-stat-binomial", "grade": "大学", "unit": "確率・統計",
+      "prompt": "成功する確率が 0.3 の試行を、独立に 10 回行う。成功する回数 $X$ の期待値と分散を求めなさい。", "math": "X \\sim B(10,\\ 0.3)",
+      "answer": "E(X) = 3,\\ V(X) = 2.1",
+      "rubric": ["$X$ が二項分布 $B(10, 0.3)$ に従うと見ている", "$E(X) = np$、$V(X) = np(1 - p)$ を使っている", "答えが $E(X) = 3$、$V(X) = 2.1$"]
+    },
+    {
+      "id": "u-stat-bayes", "grade": "大学", "unit": "確率・統計",
+      "prompt": "袋 A には赤玉 3 個と白玉 2 個、袋 B には赤玉 1 個と白玉 4 個が入っている。どちらかの袋を等しい確率で選び、玉を 1 個取り出したら赤玉だった。選んだ袋が A である確率を求めなさい(赤玉を取り出す事象を $R$ とする)。", "math": "P(A \\mid R)",
+      "answer": "\\frac{3}{4}",
+      "rubric": ["$P(R) = \\frac{1}{2} \\cdot \\frac{3}{5} + \\frac{1}{2} \\cdot \\frac{1}{5}$ を求めている", "ベイズの定理(条件付き確率の定義)で $P(A \\mid R) = \\frac{P(A)P(R \\mid A)}{P(R)}$ としている", "答えが $\\frac{3}{4}$"]
     }
-  ]
+]
 }
