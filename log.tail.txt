@@ -1,0 +1,9 @@
+after-capture.png
+after-fields.png
+after-made.png
+after-making.png
+after-source.png
+after-terms.png
+after-trial-calc.png
+after-trial-la.png
+after-trial-stat.png
