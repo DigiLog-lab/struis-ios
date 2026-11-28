@@ -304,7 +304,8 @@ nonisolated enum OnboardingTurns {
         )
     }
 
-    /// つくった3問を読む。作れなかった時・中身の欠けた問題しか無い時は空。`grade` は問題の学年の欄(「大学生・それ以外」)。
+    /// つくった3問を読む。作れなかった時は空、使える問題が3問に満たない時は nil(読めなかった扱いで、つくり直してもらう)。
+    /// 3問に満たないと、解いた問題をもう一度出してお試しの数を使わせてしまう。`grade` は問題の学年の欄(「大学生・それ以外」)。
     static func parseTrialProblems(_ text: String, grade: String, idPrefix: String = UUID().uuidString.prefix(8).lowercased()) -> [TrialProblem]? {
         struct Made: Decodable {
             struct Problem: Decodable {
@@ -322,6 +323,7 @@ nonisolated enum OnboardingTurns {
         guard made.makeable else { return [] }
         let trimmed: (String) -> String = { (text: String) -> String in text.trimmingCharacters(in: .whitespacesAndNewlines) }
         let usable: [Made.Problem] = made.problems.filter { (problem: Made.Problem) -> Bool in !trimmed(problem.prompt).isEmpty && !trimmed(problem.answer).isEmpty }
+        guard usable.count >= OnboardingRecords.trialLimit else { return nil }
         return usable.prefix(3).enumerated().map { (index: Int, problem: Made.Problem) -> TrialProblem in
             let label: String = trimmed(problem.label)
             return TrialProblem(id: "made-\(idPrefix)-\(index + 1)", grade: grade, unit: trimmed(problem.unit), prompt: trimmed(problem.prompt),

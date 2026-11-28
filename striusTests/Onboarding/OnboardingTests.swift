@@ -269,6 +269,11 @@ final class OnboardingTests: XCTestCase {
         XCTAssertEqual(problems.first?.rubric.count, 3)
         XCTAssertEqual(OnboardingTurns.parseTrialProblems(#"{"makeable": false, "problems": []}"#, grade: "大学生・それ以外"), [], "作れない時は空")
         XCTAssertNil(OnboardingTurns.parseTrialProblems("作れません", grade: "大学生・それ以外"))
+        // 3問に満たない時は受け取らない(解いた問題をもう一度出して、お試しの数を使わせない)。
+        var short: [String: Any] = MockTurnRunner.trialMaking(["topic": "解析学I", "source": "topic"])
+        short["problems"] = Array((short["problems"] as? [[String: Any]] ?? []).prefix(2))
+        let shortText: String = String(decoding: try JSONSerialization.data(withJSONObject: short), as: UTF8.self)
+        XCTAssertNil(OnboardingTurns.parseTrialProblems(shortText, grade: "大学生・それ以外"))
 
         // つくった3問を残せば、続きから開いた時も同じ3問を解く。
         var saved: OnboardingProfile = model.profile
@@ -292,6 +297,11 @@ final class OnboardingTests: XCTestCase {
         XCTAssertEqual(request["topic"]?.stringValue, "線形代数Ⅱ")
         XCTAssertEqual(request["reading"]?["lectures"]?.arrayValue?.count, 15)
         XCTAssertFalse(model.isUniversityTrial, "購入の後は、撮る画面をお試しにつながない")
+        // 撮った授業の計画を「やりたいことと違う」で捨てたら、残していた読み取りも捨てる(続きから開いて戻らない)。
+        model.rebuildPlan(tooHard: false)
+        XCTAssertNil(model.profile.trialReading)
+        XCTAssertNil(model.profile.trialMaterials)
+        XCTAssertEqual(OnboardingResume.afterPurchase(model.profile), .topic)
 
         // 撮る画面から「分野を選ぶ」に移ったら、撮った授業は使わない。
         let switching: OnboardingModel = OnboardingModel(profile: captured, records: records(), hasPlan: { false }, isClaudeAvailable: { true }, start: .trialFields)

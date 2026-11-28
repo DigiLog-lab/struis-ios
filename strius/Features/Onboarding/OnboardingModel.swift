@@ -1180,6 +1180,11 @@ final class OnboardingModel {
                 universityTopic = ""
                 profile.universityTopic = nil
             }
+            // お試しの前に撮った授業も捨てる(続きから開いた時に、捨てた授業の「この授業で作りますか」に戻さない)。
+            if purpose == .onboarding {
+                profile.trialReading = nil
+                profile.trialMaterials = nil
+            }
             reading = nil
             lectureUpTo = nil
             deadline = nil
